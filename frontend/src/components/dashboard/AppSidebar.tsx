@@ -30,57 +30,57 @@ export function AppSidebar() {
     href === "/home" ? pathname === href : pathname.startsWith(href);
 
   return (
-    <div className="d-flex flex-column flex-shrink-0 bg-dark text-white" style={{ width: '260px', minHeight: '100vh' }}>
-      <div className="border-bottom border-secondary p-3">
-        <div className="d-flex align-items-center">
-          <div className="bg-warning rounded d-flex align-items-center justify-content-center me-3" style={{ width: '40px', height: '40px' }}>
-            <Sprout size={20} className="text-dark" />
+    <div className="dashboard-sidebar d-flex flex-column text-white">
+      <div className="p-4 mb-3">
+        <div className="d-flex align-items-center gap-3">
+          <div className="bg-white/10 rounded-xl d-flex align-items-center justify-content-center p-2 shadow-sm">
+            <Sprout size={24} className="text-white" />
           </div>
           <div>
-            <div className="fw-bold mb-0">AgroManage</div>
-            <small className="text-muted">Gestão Agropecuária</small>
+            <div className="fw-black fs-5 mb-0" style={{ letterSpacing: '-0.02em' }}>
+              Gestão <span style={{ color: 'var(--gold)' }}>Agro</span>
+            </div>
+            <div className="text-white/40" style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Fazenda São João
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex-grow-1 py-2 overflow-auto">
-        <div className="px-3 mb-2 text-uppercase text-muted small fw-semibold">
+      <div className="flex-grow-1 overflow-auto">
+        <div className="px-4 mb-3 text-uppercase text-white/30 small fw-bold" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>
           Operação
         </div>
-        <nav className="nav flex-column">
+        <nav className="nav flex-column gap-1">
           {menuItems.map((item) => (
             <Link
               key={item.title}
               href={item.href}
-              className={`nav-link px-3 py-2 rounded mx-2 mb-1 ${
-                isActive(item.href)
-                  ? "bg-success text-white"
-                  : "text-white-50"
-              }`}
+              className={`sidebar-link ${isActive(item.href) ? "active" : ""}`}
             >
-              <item.icon size={18} className="me-2" />
+              <item.icon size={20} strokeWidth={isActive(item.href) ? 2.5 : 2} />
               <span>{item.title}</span>
             </Link>
           ))}
         </nav>
       </div>
 
-      <div className="border-top border-secondary p-2">
-        <nav className="nav flex-column">
+      <div className="p-3 mt-auto border-top border-white/5">
+        <nav className="nav flex-column gap-1">
           <Link
             href="/home/settings"
-            className="nav-link px-3 py-2 rounded mx-2 mb-1 text-white-50"
+            className={`sidebar-link ${isActive("/home/settings") ? "active" : ""}`}
           >
-            <Settings size={18} className="me-2" />
+            <Settings size={20} strokeWidth={isActive("/home/settings") ? 2.5 : 2} />
             <span>Configurações</span>
           </Link>
-          <Link
-            href="/logout"
-            className="nav-link px-3 py-2 rounded mx-2 mb-1 text-white-50"
+          <button
+            onClick={() => {/* add logout logic if needed */}}
+            className="sidebar-link w-100 text-start border-0 bg-transparent"
           >
-            <LogOut size={18} className="me-2" />
+            <LogOut size={20} />
             <span>Sair</span>
-          </Link>
+          </button>
         </nav>
       </div>
     </div>

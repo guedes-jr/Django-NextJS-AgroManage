@@ -5,6 +5,10 @@
   --background: oklch(0.99 0.01 110);
   --foreground: oklch(0.22 0.04 150);
 
+  /* Card */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.04 150);
+
   /* Primary: deep farm green */
   --primary: oklch(0.48 0.14 145);
   --primary-foreground: oklch(0.99 0.01 110);
@@ -28,11 +32,28 @@
   --warning: oklch(0.78 0.15 75);
   --warning-foreground: oklch(0.25 0.05 75);
   --gold: oklch(0.78 0.15 85);
+  --sidebar-bg: oklch(0.25 0.08 145);
+  --sidebar-foreground: oklch(0.98 0.01 145);
+  --sidebar-active: oklch(0.55 0.16 145);
+  --card-premium-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 10px -5px rgba(0, 0, 0, 0.02);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.2);
   --gold-foreground: oklch(0.25 0.07 85);
 
   --border: oklch(0.9 0.02 140);
   --input: oklch(0.92 0.02 140);
   --ring: oklch(0.55 0.14 145);
+
+  /* Charts colors */
+  --chart-1: oklch(0.55 0.16 145);
+  --chart-2: oklch(0.78 0.15 85);
+  --chart-3: oklch(0.62 0.14 50);
+  --chart-4: oklch(0.55 0.12 200);
+  --chart-5: oklch(0.45 0.13 320);
+
+  /* Popover */
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.04 150);
 
   /* Gradients & shadows from reference */
   --gradient-primary: linear-gradient(135deg, oklch(0.55 0.16 145), oklch(0.42 0.14 155));
@@ -44,6 +65,7 @@
     oklch(0.48 0.14 175 / 0.85) 65%,
     oklch(0.55 0.16 145 / 0.85) 100%
   );
+  --gradient-card: linear-gradient(180deg, oklch(1 0 0), oklch(0.98 0.015 130));
 
   --shadow-soft: 0 4px 16px -4px oklch(0.4 0.1 150 / 0.12);
   --shadow-elegant: 0 20px 50px -20px oklch(0.4 0.1 150 / 0.35);
@@ -296,6 +318,96 @@ body {
 
 .btn-link-agro:hover {
   text-decoration: underline;
+}
+
+/* Dashboard Premium Styles */
+.dashboard-sidebar {
+  background: var(--sidebar-bg);
+  width: 280px;
+  min-height: 100vh;
+  transition: all 0.3s ease;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  margin: 0.25rem 0.75rem;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.sidebar-link.active {
+  background: var(--sidebar-active);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-card {
+  background: white;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  box-shadow: var(--card-premium-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.06);
+}
+
+.topbar-premium {
+  height: 72px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.search-input-wrapper {
+  background: var(--muted);
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 400px;
+  border: 1.5px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.search-input-wrapper:focus-within {
+  background: white;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary), transparent 92%);
+}
+
+.stat-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-soft);
 }
 
 @media (max-width: 991.98px) {

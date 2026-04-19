@@ -1,23 +1,26 @@
 import { HTMLAttributes, forwardRef, ReactNode } from "react";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  title?: string;
   header?: ReactNode;
   footer?: ReactNode;
 }
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className = "", title, header, footer, children, ...props }, ref) => {
+  ({ className = "", header, footer, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={`card card-agro ${className}`} {...props}>
-        {title && (
-          <div className="card-header">
-            <h5 className="card-title mb-0">{title}</h5>
-          </div>
-        )}
-        {header && <div className="card-header">{header}</div>}
-        <div className="card-body">{children}</div>
-        {footer && <div className="card-footer">{footer}</div>}
+      <div
+        ref={ref}
+        className={`rounded-4 p-0 ${className}`}
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-soft)",
+        }}
+        {...props}
+      >
+        {header && <div className="p-4 pb-0">{header}</div>}
+        <div className="p-4">{children}</div>
+        {footer && <div className="p-4 pt-0">{footer}</div>}
       </div>
     );
   }
@@ -25,27 +28,37 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
 
 Card.displayName = "Card";
 
-interface CardTextProps extends HTMLAttributes<HTMLParagraphElement> {
-  muted?: boolean;
-}
-
-export const CardText = forwardRef<HTMLParagraphElement, CardTextProps>(
-  ({ className = "", muted = false, ...props }, ref) => {
+export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className = "", children, ...props }, ref) => {
     return (
-      <p
-        ref={ref}
-        className={`card-text ${muted ? "text-muted" : ""} ${className}`}
-        {...props}
-      />
+      <div ref={ref} className={className} {...props}>
+        {children}
+      </div>
     );
   }
 );
 
-CardText.displayName = "CardText";
+CardContent.displayName = "CardContent";
+
+export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className = "", children, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={`d-flex flex-row justify-content-between align-items-start ${className}`}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
+);
+
+CardHeader.displayName = "CardHeader";
 
 export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className = "", ...props }, ref) => {
-    return <h5 ref={ref} className={`card-title ${className}`} {...props} />;
+    return <h5 ref={ref} className={`mb-0 ${className}`} {...props} />;
   }
 );
 
