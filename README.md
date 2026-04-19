@@ -339,54 +339,29 @@ make docker-clean
 
 Todos os comandos de commit fazem **`git add .` automaticamente** antes de commitar. Use `msg="..."` (ou `MSG="..."`) para definir a mensagem.
 
-#### Commits de funcionalidade
+#### Todos os tipos de commit
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
 | `make commit-feat msg="..."` | ✨ | `feat` | Nova funcionalidade |
-| `make commit-ui msg="..."` | 🎨 | `ui` | Alteração de interface/UX |
-| `make commit-perf msg="..."` | ⚡ | `perf` | Melhoria de performance |
-
-#### Correções
-
-| Comando | Emoji | Tipo | Quando usar |
-|---|---|---|---|
 | `make commit-fix msg="..."` | 🐛 | `fix` | Correção de bug |
 | `make commit-hotfix msg="..."` | 🚑 | `hotfix` | Correção crítica em produção |
-| `make commit-sec msg="..."` | 🔒 | `sec` | Correção de segurança |
-| `make commit-revert msg="..."` | ⏪ | `revert` | Reverter um commit anterior |
-
-#### Manutenção
-
-| Comando | Emoji | Tipo | Quando usar |
-|---|---|---|---|
+| `make commit-docs msg="..."` | 📚 | `docs` | Documentação |
+| `make commit-ui msg="..."` | 🎨 | `ui` | Alteração de interface/UX |
+| `make commit-style msg="..."` | 💄 | `style` | Formatação, sem mudança de lógica |
 | `make commit-refactor msg="..."` | ♻️ | `refactor` | Refatoração sem mudança de comportamento |
-| `make commit-chore msg="..."` | 🔧 | `chore` | Manutenção, configs, scripts |
+| `make commit-perf msg="..."` | ⚡ | `perf` | Melhoria de performance |
+| `make commit-test msg="..."` | ✅ | `test` | Adição ou atualização de testes |
 | `make commit-build msg="..."` | 📦 | `build` | Mudanças no sistema de build ou dependências |
 | `make commit-ci msg="..."` | 👷 | `ci` | Configurações de CI/CD |
+| `make commit-chore msg="..."` | 🔧 | `chore` | Manutenção, configs, scripts |
+| `make commit-revert msg="..."` | ⏪ | `revert` | Reverter um commit anterior |
 | `make commit-wip msg="..."` | 🚧 | `wip` | Trabalho em progresso (não fazer merge!) |
-
-#### Banco de dados e testes
-
-| Comando | Emoji | Tipo | Quando usar |
-|---|---|---|---|
-| `make commit-db msg="..."` | 🗃️ | `db` | Migrations ou alterações de schema |
-| `make commit-test msg="..."` | ✅ | `test` | Adição ou atualização de testes |
-
-#### Documentação
-
-| Comando | Emoji | Tipo | Quando usar |
-|---|---|---|---|
-| `make commit-docs msg="..."` | 📚 | `docs` | Documentação |
-| `make commit-style msg="..."` | 💄 | `style` | Formatação, sem mudança de lógica |
-
-#### Breaking changes
-
-| Comando | Emoji | Tipo | Quando usar |
-|---|---|---|---|
 | `make commit-breaking msg="..."` | 💥 | `breaking` | Mudança que quebra compatibilidade |
+| `make commit-db msg="..."` | 🗃️ | `db` | Migrations ou alterações de schema |
+| `make commit-sec msg="..."` | 🔒 | `sec` | Correção de segurança |
 
-#### Atalhos Git extras
+#### Atalhos Git
 
 | Comando | Descrição |
 |---|---|
@@ -395,10 +370,10 @@ Todos os comandos de commit fazem **`git add .` automaticamente** antes de commi
 | `make git-log` | Log bonito: `git log --oneline --graph --decorate --all -20` |
 | `make git-diff` | `git diff` (mudanças não staged) |
 | `make push` | `git push origin HEAD` |
-| `make push-force` | Force push com confirmação (usa `--force-with-lease`) |
+| `make push-force` | Force push com `--force-with-lease` |
 | `make add-commit msg="..."` | Add + commit sem prefixo de tipo |
 
-#### Atalhos ship (commit + push em um passo)
+#### Ship (commit + push)
 
 | Comando | Descrição |
 |---|---|

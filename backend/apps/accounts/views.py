@@ -1,13 +1,15 @@
 """
 Accounts app views — auth, user management.
 """
+from django.contrib.auth import get_user_model
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
+User = get_user_model()
+
 from .serializers import (
     LoginSerializer,
     UserSerializer,
@@ -32,6 +34,63 @@ def login_view(request):
             "refresh": str(refresh),
             "user": UserSerializer(user).data,
         }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register_view(request):
+    """Register a new user."""
+    email = request.data.get("email")
+    password = request.data.get("password")
+    name = request.data.get("name")
+
+    if not all([email, password, name]):
+        return Response(
+            {"detail": "Email, senha e nome são obrigatórios."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if User.objects.filter(email=email).exists():
+        return Response(
+            {"detail": "Email já cadastrado."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = User.objects.create_user(
+        username=email,
+        email=email,
+        password=password,
+        first_name=name.split()[0] if name else "",
+        last_name=" ".join(name.split()[1:]) if len(name.split()) > 1 else "",
+    )
+
+    refresh = RefreshToken.for_user(user)
+
+    return Response(
+        {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "user": UserSerializer(user).data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def password_recovery_view(request):
+    """Send password recovery email."""
+    email = request.data.get("email")
+
+    if not email:
+        return Response(
+            {"detail": "Email é obrigatório."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(
+        {"detail": "Se o email existir, você receberá instruções para redefinir sua senha."}
     )
 
 

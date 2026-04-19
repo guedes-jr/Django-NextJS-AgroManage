@@ -11,6 +11,8 @@ router.register(r"users", views.UserViewSet, basename="user")
 
 urlpatterns = [
     path("login/", views.login_view, name="auth_login"),
+    path("register/", views.register_view, name="auth_register"),
+    path("password-recovery/", views.password_recovery_view, name="auth_password_recovery"),
     path("logout/", views.logout_view, name="auth_logout"),
     path("token/refresh/", views.refresh_token_view, name="auth_token_refresh"),
     path("me/", views.me_view, name="auth_me"),

@@ -83,3 +83,8 @@ Thumbs.db
 logs/
 tmp/
 temp/
+
+# Others 
+*lovalbe*/
+lovalbe_source/
+agro-flow-dashboard-main.zip
