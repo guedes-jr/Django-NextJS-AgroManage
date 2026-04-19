@@ -1,0 +1,29 @@
+DEFAULT_PROMPTS
+
+[feature_start]
+Return:
+1. objective
+2. affected domains
+3. backend changes
+4. frontend changes
+5. endpoints
+6. risks
+7. implementation order
+
+[code_generation]
+Return only the files or diffs required for the requested step.
+
+[code_review]
+Return only:
+- problems found
+- impact
+- recommended fix
+
+[bug_fix]
+Return:
+- probable cause
+- how to confirm
+- corrected code
+
+[optimization]
+Return highest-impact improvements first.

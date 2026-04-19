@@ -1,0 +1,15 @@
+TREESITTER_HINTS
+backend:
+- inspect models, serializers, views, urls, services, selectors, permissions, tests, migrations
+
+frontend:
+- inspect app, components, features, services, hooks, validators, types
+
+priority_patterns:
+- duplicated business rules
+- fat serializers
+- fat views
+- N+1 queries
+- prop drilling
+- duplicated API calls
+- inconsistent typing

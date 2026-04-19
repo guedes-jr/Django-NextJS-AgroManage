@@ -1,0 +1,13 @@
+PROJECT_CONTEXT
+- product type: complete agro management platform
+- target domains: swine, cattle, poultry, crops, inventory, finance, reports
+- backend: Django + DRF + PostgreSQL
+- frontend: Next.js + TypeScript + Tailwind
+- desired qualities: clean code, modular architecture, performance, security
+- likely future needs: multi-farm support, multi-user roles, dashboards, audit trail, integrations
+
+TOKEN_CONTEXT
+- summarize only deltas when continuing a task
+- prefer compact technical sections
+- avoid repeating unchanged code
+- reuse stable conventions

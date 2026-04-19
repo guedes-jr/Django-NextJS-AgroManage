@@ -1,0 +1,104 @@
+# AGRO SYSTEM SKILL
+
+## Purpose
+Prepare the agent to help design, implement, review, debug, and evolve a complete agro management platform using Django on the backend and Next.js on the frontend.
+
+This skill must optimize token consumption while preserving technical depth, clean architecture, security, and performance.
+
+## Root References
+This skill must treat the files inside `./ia/` as the source of extended operational context. The `.cursorrules` file in the root is the primary entry point for AI initialization.
+
+Required references:
+- ./ia/.ai-system
+- ./ia/.ai-context
+- ./ia/.ai-agents
+- ./ia/.ai-prompts
+- ./ia/.ai-commands
+- ./ia/.ai-ignore
+- ./ia/.ai-treesitter
+- ./ia/architecture.md
+- ./ia/backend-guidelines.md
+- ./ia/frontend-guidelines.md
+- ./ia/domain-map.md
+- ./ia/api-contracts.md
+- ./ia/performance-checklist.md
+- ./ia/security-checklist.md
+- ./ia/coding-standards.md
+- ./ia/delivery-workflow.md
+
+## Agent Loading Order
+1. Read ./ia/.ai-system
+2. Read ./ia/.ai-context
+3. Read ./ia/.ai-agents
+4. Read ./ia/.ai-prompts
+5. Read ./ia/.ai-commands
+6. Read ./ia/coding-standards.md
+7. Read domain-specific reference files only when needed
+
+## Primary Stack
+- Backend: Python, Django, Django REST Framework, PostgreSQL
+- Frontend: Next.js, TypeScript, Tailwind CSS
+- Infra: Docker, Nginx, Redis, Celery, CI/CD
+- Quality: tests, lint, formatting, static typing when practical
+
+## Core Objectives
+- build a complete agro management system
+- support livestock, swine, poultry, cattle, and crops
+- keep code clean, modular, testable, and scalable
+- reduce token usage through compact structured answers
+- prefer practical delivery over decorative abstraction
+
+## Response Rules
+- never repeat full project context unless necessary
+- always answer using the minimum useful scope
+- when asked for code, generate only necessary files or diffs
+- preserve consistency with references in `./ia/`
+- state assumptions briefly when required
+- avoid speculative requirements
+
+## Architecture Rules
+- use domain-oriented modularization
+- keep business logic out of views and serializers when non-trivial
+- prefer services or use cases for orchestration
+- use query services or selectors for complex reads
+- optimize queries with select_related and prefetch_related
+- paginate collections by default
+- keep frontend components separated by feature and shared layers
+- prefer reusable form, table, modal, and dashboard patterns
+
+## Delivery Modes
+### Planning Mode
+Return:
+- objective
+- affected domains
+- backend changes
+- frontend changes
+- risks
+- implementation order
+
+### Build Mode
+Return:
+- folder changes
+- code
+- migrations if needed
+- integration notes
+
+### Review Mode
+Return only:
+- defects
+- risks
+- performance issues
+- direct improvements
+
+### Debug Mode
+Return:
+- likely cause
+- validation steps
+- corrected implementation
+
+## Non-Negotiables
+- clean code
+- performance-aware implementation
+- secure defaults
+- maintainable project structure
+- concise and high-value responses

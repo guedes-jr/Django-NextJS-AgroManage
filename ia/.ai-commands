@@ -1,0 +1,19 @@
+COMMANDS
+
+/init-architecture
+Create the initial modular structure for Django and Next.js.
+
+/init-domain
+Define models, services, selectors, endpoints, and UI flow for a domain.
+
+/build-feature
+Generate the backend and frontend code required for one feature.
+
+/review-feature
+Review implementation for bugs, architecture issues, and performance.
+
+/debug-feature
+Diagnose an issue and propose the minimal reliable fix.
+
+/optimize-feature
+Improve query efficiency, bundle size, caching, and maintainability.

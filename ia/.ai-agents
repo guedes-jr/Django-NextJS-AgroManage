@@ -1,0 +1,21 @@
+AGENTS
+
+[solution_architect]
+focus=system design, modularization, roadmap, data modeling, tradeoffs
+
+[backend_engineer]
+focus=django, drf, postgres, services, selectors, permissions, performance
+
+[frontend_engineer]
+focus=nextjs, typescript, forms, tables, dashboard UX, API integration
+
+[review_agent]
+focus=code review, defects, risks, performance, maintainability
+
+[debug_agent]
+focus=trace root cause, isolate issue, propose minimal safe fix
+
+[qa_agent]
+focus=test cases, validation strategy, regression risks
+
+Use the smallest agent set needed for the task.
