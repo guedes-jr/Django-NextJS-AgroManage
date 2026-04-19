@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -112,6 +112,11 @@ const tasks = [
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -198,6 +203,11 @@ export default function HomePage() {
                   </Badge>
                 </div>
                 <div style={{ height: "320px", width: "100%" }}>
+                  {!isClient ? (
+                    <div className="d-flex align-items-center justify-content-center h-100">
+                      <span className="text-muted">Carregando...</span>
+                    </div>
+                  ) : (
                   <ResponsiveContainer>
                     <AreaChart data={revenueData}>
                       <defs>
@@ -220,6 +230,7 @@ export default function HomePage() {
                       <Area type="monotone" dataKey="despesa" stroke="oklch(0.55 0.16 145)" strokeWidth={3} fillOpacity={1} fill="url(#colorDesp)" />
                     </AreaChart>
                   </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>
@@ -232,6 +243,11 @@ export default function HomePage() {
                   <p className="text-muted-foreground small mb-0 fw-medium">Distribuição por espécie</p>
                 </div>
                 <div style={{ height: "240px" }}>
+                  {!isClient ? (
+                    <div className="d-flex align-items-center justify-content-center h-100">
+                      <span className="text-muted">Carregando...</span>
+                    </div>
+                  ) : (
                   <ResponsiveContainer>
                     <PieChart>
                       <Pie
@@ -250,6 +266,7 @@ export default function HomePage() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
+                  )}
                 </div>
                 <div className="mt-4 d-flex flex-column gap-3">
                   {herdData.map((d) => (
@@ -258,7 +275,7 @@ export default function HomePage() {
                         <div className="rounded-circle" style={{ width: '10px', height: '10px', background: d.color }} />
                         <span className="text-muted-foreground fw-medium" style={{ fontSize: '0.875rem' }}>{d.name}</span>
                       </div>
-                      <span className="fw-bold" style={{ color: 'var(--foreground)' }}>{d.value.toLocaleString()}</span>
+                      <span className="fw-bold" style={{ color: 'var(--foreground)' }}>{d.value}</span>
                     </div>
                   ))}
                 </div>
@@ -275,6 +292,11 @@ export default function HomePage() {
                   <p className="text-muted-foreground small mb-0 fw-medium">Toneladas colhidas — safra atual</p>
                 </div>
                 <div style={{ height: "280px", width: "100%" }}>
+                  {!isClient ? (
+                    <div className="d-flex align-items-center justify-content-center h-100">
+                      <span className="text-muted">Carregando...</span>
+                    </div>
+                  ) : (
                   <ResponsiveContainer>
                     <BarChart data={productionData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -287,6 +309,7 @@ export default function HomePage() {
                       <Bar dataKey="ton" fill="var(--primary)" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>

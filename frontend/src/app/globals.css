@@ -1,7 +1,13 @@
 @import "bootstrap/dist/css/bootstrap.min.css";
 
+:root, [data-bs-theme="dark"], [data-bs-theme="auto"] {
+  /* Force light mode */
+  color-scheme: light !important;
+}
+
 :root {
   /* Base — light, clean, agro-fresh from reference */
+  color-scheme: light;
   --background: oklch(0.99 0.01 110);
   --foreground: oklch(0.22 0.04 150);
 
@@ -77,6 +83,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   min-height: 100vh;
+  color-scheme: light;
 }
 
 /* Custom Utilities for Login */

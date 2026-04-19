@@ -209,4 +209,15 @@
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+@keyframes fade-in {
+  0% { opacity: 0; transform: translateX(-10px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px oklch(0.78 0.15 85 / 0.3); }
+  50% { box-shadow: 0 0 40px oklch(0.78 0.15 85 / 0.6); }
+}
 .animate-float { animation: float 4s ease-in-out infinite; }
+.animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+.shadow-glow-lg { box-shadow: 0 0 30px oklch(0.78 0.15 85 / 0.5); }
