@@ -1,26 +1,144 @@
 @import "tailwindcss";
+@import "bootstrap/dist/css/bootstrap.min.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --agro-primary: #2d5a27;
+  --agro-primary-dark: #1e3d1a;
+  --agro-primary-light: #4a7c44;
+  --agro-secondary: #f5a623;
+  --agro-secondary-dark: #d4911e;
+  --agro-success: #28a745;
+  --agro-danger: #dc3545;
+  --agro-warning: #ffc107;
+  --agro-info: #17a2b8;
+  --agro-light: #f8f9fa;
+  --agro-dark: #343a40;
+  --agro-background: #ffffff;
+  --agro-foreground: #212529;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--agro-background);
+  --color-foreground: var(--agro-foreground);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--agro-background);
+  color: var(--agro-foreground);
+  min-height: 100vh;
+}
+
+.btn-agro {
+  background-color: var(--agro-primary);
+  border-color: var(--agro-primary);
+  color: white;
+}
+
+.btn-agro:hover {
+  background-color: var(--agro-primary-dark);
+  border-color: var(--agro-primary-dark);
+  color: white;
+}
+
+.btn-agro:focus {
+  box-shadow: 0 0 0 0.2rem rgba(45, 90, 39, 0.25);
+}
+
+.btn-outline-agro {
+  color: var(--agro-primary);
+  border-color: var(--agro-primary);
+  background-color: transparent;
+}
+
+.btn-outline-agro:hover {
+  background-color: var(--agro-primary);
+  color: white;
+}
+
+.card-agro {
+  border: 1px solid rgba(0, 0, 0, 0.125);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-agro .card-header {
+  background-color: var(--agro-primary);
+  color: white;
+  border-bottom: none;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.form-control:focus {
+  border-color: var(--agro-primary);
+  box-shadow: 0 0 0 0.2rem rgba(45, 90, 39, 0.25);
+}
+
+.table-agro thead th {
+  background-color: var(--agro-primary);
+  color: white;
+  border-color: var(--agro-primary-dark);
+}
+
+.table-agro tbody tr:hover {
+  background-color: rgba(45, 90, 39, 0.05);
+}
+
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--agro-primary) 0%, var(--agro-primary-dark) 100%);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+  padding: 2rem;
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.auth-logo h1 {
+  color: var(--agro-primary);
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.auth-logo p {
+  color: #6c757d;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.sidebar {
+  min-height: 100vh;
+  background-color: var(--agro-light);
+  border-right: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.sidebar .nav-link {
+  color: var(--agro-dark);
+  padding: 0.75rem 1rem;
+  border-radius: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.sidebar .nav-link:hover {
+  background-color: rgba(45, 90, 39, 0.1);
+  color: var(--agro-primary);
+}
+
+.sidebar .nav-link.active {
+  background-color: var(--agro-primary);
+  color: white;
 }
