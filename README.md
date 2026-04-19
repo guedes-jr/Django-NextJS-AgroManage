@@ -337,54 +337,54 @@ make docker-clean
 
 ### Git — Conventional Commits
 
-Todos os comandos de commit fazem **`git add .` automaticamente** antes de commitar. Use `MSG="..."` para definir a mensagem.
+Todos os comandos de commit fazem **`git add .` automaticamente** antes de commitar. Use `msg="..."` (ou `MSG="..."`) para definir a mensagem.
 
 #### Commits de funcionalidade
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
-| `make commit-feat MSG="..."` | ✨ | `feat` | Nova funcionalidade |
-| `make commit-ui MSG="..."` | 🎨 | `ui` | Alteração de interface/UX |
-| `make commit-perf MSG="..."` | ⚡ | `perf` | Melhoria de performance |
+| `make commit-feat msg="..."` | ✨ | `feat` | Nova funcionalidade |
+| `make commit-ui msg="..."` | 🎨 | `ui` | Alteração de interface/UX |
+| `make commit-perf msg="..."` | ⚡ | `perf` | Melhoria de performance |
 
 #### Correções
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
-| `make commit-fix MSG="..."` | 🐛 | `fix` | Correção de bug |
-| `make commit-hotfix MSG="..."` | 🚑 | `hotfix` | Correção crítica em produção |
-| `make commit-sec MSG="..."` | 🔒 | `sec` | Correção de segurança |
-| `make commit-revert MSG="..."` | ⏪ | `revert` | Reverter um commit anterior |
+| `make commit-fix msg="..."` | 🐛 | `fix` | Correção de bug |
+| `make commit-hotfix msg="..."` | 🚑 | `hotfix` | Correção crítica em produção |
+| `make commit-sec msg="..."` | 🔒 | `sec` | Correção de segurança |
+| `make commit-revert msg="..."` | ⏪ | `revert` | Reverter um commit anterior |
 
 #### Manutenção
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
-| `make commit-refactor MSG="..."` | ♻️ | `refactor` | Refatoração sem mudança de comportamento |
-| `make commit-chore MSG="..."` | 🔧 | `chore` | Manutenção, configs, scripts |
-| `make commit-build MSG="..."` | 📦 | `build` | Mudanças no sistema de build ou dependências |
-| `make commit-ci MSG="..."` | 👷 | `ci` | Configurações de CI/CD |
-| `make commit-wip MSG="..."` | 🚧 | `wip` | Trabalho em progresso (não fazer merge!) |
+| `make commit-refactor msg="..."` | ♻️ | `refactor` | Refatoração sem mudança de comportamento |
+| `make commit-chore msg="..."` | 🔧 | `chore` | Manutenção, configs, scripts |
+| `make commit-build msg="..."` | 📦 | `build` | Mudanças no sistema de build ou dependências |
+| `make commit-ci msg="..."` | 👷 | `ci` | Configurações de CI/CD |
+| `make commit-wip msg="..."` | 🚧 | `wip` | Trabalho em progresso (não fazer merge!) |
 
 #### Banco de dados e testes
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
-| `make commit-db MSG="..."` | 🗃️ | `db` | Migrations ou alterações de schema |
-| `make commit-test MSG="..."` | ✅ | `test` | Adição ou atualização de testes |
+| `make commit-db msg="..."` | 🗃️ | `db` | Migrations ou alterações de schema |
+| `make commit-test msg="..."` | ✅ | `test` | Adição ou atualização de testes |
 
 #### Documentação
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
-| `make commit-docs MSG="..."` | 📚 | `docs` | Documentação |
-| `make commit-style MSG="..."` | 💄 | `style` | Formatação, sem mudança de lógica |
+| `make commit-docs msg="..."` | 📚 | `docs` | Documentação |
+| `make commit-style msg="..."` | 💄 | `style` | Formatação, sem mudança de lógica |
 
 #### Breaking changes
 
 | Comando | Emoji | Tipo | Quando usar |
 |---|---|---|---|
-| `make commit-breaking MSG="..."` | 💥 | `breaking` | Mudança que quebra compatibilidade |
+| `make commit-breaking msg="..."` | 💥 | `breaking` | Mudança que quebra compatibilidade |
 
 #### Atalhos Git extras
 
@@ -396,33 +396,33 @@ Todos os comandos de commit fazem **`git add .` automaticamente** antes de commi
 | `make git-diff` | `git diff` (mudanças não staged) |
 | `make push` | `git push origin HEAD` |
 | `make push-force` | Force push com confirmação (usa `--force-with-lease`) |
-| `make add-commit MSG="..."` | Add + commit sem prefixo de tipo |
+| `make add-commit msg="..."` | Add + commit sem prefixo de tipo |
 
 #### Atalhos ship (commit + push em um passo)
 
 | Comando | Descrição |
 |---|---|
-| `make ship-feat MSG="..."` | ✨ feat: add + commit + push |
-| `make ship-fix MSG="..."` | 🐛 fix: add + commit + push |
-| `make ship-hotfix MSG="..."` | 🚑 hotfix: add + commit + push |
+| `make ship-feat msg="..."` | ✨ feat: add + commit + push |
+| `make ship-fix msg="..."` | 🐛 fix: add + commit + push |
+| `make ship-hotfix msg="..."` | 🚑 hotfix: add + commit + push |
 
 ```bash
 # Exemplos práticos
 
 # Adicionar uma nova funcionalidade
-make commit-feat MSG="add livestock batch creation endpoint"
+make commit-feat msg="add livestock batch creation endpoint"
 # → git commit -m "✨ feat: add livestock batch creation endpoint"
 
 # Corrigir um bug
-make commit-fix MSG="fix stock movement balance calculation"
+make commit-fix msg="fix stock movement balance calculation"
 # → git commit -m "🐛 fix: fix stock movement balance calculation"
 
 # Criar migration após novo model
-make commit-db MSG="add AnimalBatch model and migrations"
+make commit-db msg="add AnimalBatch model and migrations"
 # → git commit -m "🗃️  db: add AnimalBatch model and migrations"
 
 # Correção crítica + push imediato
-make ship-hotfix MSG="fix JWT token expiry on production"
+make ship-hotfix msg="fix JWT token expiry on production"
 # → git add . && git commit -m "🚑 hotfix: fix JWT token expiry on production" && git push
 
 # Ver histórico de commits
