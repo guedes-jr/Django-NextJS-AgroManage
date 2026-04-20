@@ -2,7 +2,6 @@
 Accounts app serializers — auth, user, profile.
 """
 from rest_framework import serializers
-from django.contrib.auth import authenticate
 from .models import User
 
 
@@ -15,11 +14,17 @@ class LoginSerializer(serializers.Serializer):
         password = data.get("password")
 
         if email and password:
-            user = authenticate(username=email, password=password)
-            if not user:
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
                 raise serializers.ValidationError("Credenciais inválidas.")
+
+            if not user.check_password(password):
+                raise serializers.ValidationError("Credenciais inválidas.")
+
             if not user.is_active:
                 raise serializers.ValidationError("Usuário inativo.")
+
             data["user"] = user
         else:
             raise serializers.ValidationError("Email e senha são obrigatórios.")

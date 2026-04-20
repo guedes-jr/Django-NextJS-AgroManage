@@ -11,7 +11,6 @@ import {
   Package,
   Users,
   Settings,
-  LogOut,
 } from "lucide-react";
 
 const menuItems = [
@@ -74,13 +73,6 @@ export function AppSidebar() {
             <Settings size={20} strokeWidth={isActive("/home/settings") ? 2.5 : 2} />
             <span>Configurações</span>
           </Link>
-          <button
-            onClick={() => {/* add logout logic if needed */}}
-            className="sidebar-link w-100 text-start border-0 bg-transparent"
-          >
-            <LogOut size={20} />
-            <span>Sair</span>
-          </button>
         </nav>
       </div>
     </div>

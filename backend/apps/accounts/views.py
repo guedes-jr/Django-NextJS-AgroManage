@@ -23,7 +23,10 @@ from .serializers import (
 def login_view(request):
     """Authenticate user and return JWT tokens."""
     serializer = LoginSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+    if not serializer.is_valid():
+        print(f"[AUTH] Login failed for {request.data.get('email')}: {serializer.errors}")
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
     user = serializer.validated_data["user"]
 
     refresh = RefreshToken.for_user(user)
@@ -41,29 +44,14 @@ def login_view(request):
 @permission_classes([AllowAny])
 def register_view(request):
     """Register a new user."""
-    email = request.data.get("email")
-    password = request.data.get("password")
-    name = request.data.get("name")
+    # Map frontend 'name' to 'full_name' for the serializer
+    data = request.data.copy()
+    if "name" in data and "full_name" not in data:
+        data["full_name"] = data.pop("name")
 
-    if not all([email, password, name]):
-        return Response(
-            {"detail": "Email, senha e nome são obrigatórios."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if User.objects.filter(email=email).exists():
-        return Response(
-            {"detail": "Email já cadastrado."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    user = User.objects.create_user(
-        username=email,
-        email=email,
-        password=password,
-        first_name=name.split()[0] if name else "",
-        last_name=" ".join(name.split()[1:]) if len(name.split()) > 1 else "",
-    )
+    serializer = UserCreateSerializer(data=data)
+    serializer.is_valid(raise_exception=True)
+    user = serializer.save()
 
     refresh = RefreshToken.for_user(user)
 
@@ -131,13 +119,25 @@ def me_view(request):
         return Response(UserSerializer(request.user).data)
 
     if request.method in ["PUT", "PATCH"]:
+        user = request.user
+        old_avatar = user.avatar if user.avatar else None
+        
         serializer = UserSerializer(
-            request.user,
+            user,
             data=request.data,
             partial=True,
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        
+        if old_avatar and 'avatar' in request.data:
+            from django.core.files.storage import default_storage
+            try:
+                if default_storage.exists(old_avatar.path):
+                    default_storage.delete(old_avatar.path)
+            except Exception:
+                pass
+        
         return Response(UserSerializer(request.user).data)
 
 

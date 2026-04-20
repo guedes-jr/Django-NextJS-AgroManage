@@ -34,12 +34,14 @@ export default function LoginPage() {
   const router = useRouter();
   const [view, setView] = useState<View>("login");
   const [showPwd, setShowPwd] = useState(false);
+  const [showPwdConfirm, setShowPwdConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
+    password_confirm: "",
   });
 
   const goTo = (next: View) => {
@@ -66,7 +68,8 @@ export default function LoginPage() {
         await apiClient.post("/auth/register/", {
           email: formData.email,
           password: formData.password,
-          name: formData.name,
+          password_confirm: formData.password_confirm,
+          full_name: formData.name,
         });
         alert("Conta criada! Você será redirecionado para o login.");
         goTo("login");
@@ -78,8 +81,22 @@ export default function LoginPage() {
         goTo("login");
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || "Erro ao processar requisição.");
+      const error = err as { response?: { data?: { error?: { detail?: unknown; message?: string } } } };
+      const respData = error.response?.data?.error;
+      let msg = respData?.message || "Erro ao processar requisição.";
+      
+      if (respData?.detail) {
+        const d = respData.detail as Record<string, unknown[]>;
+        const keys = Object.keys(d);
+        if (keys.length > 0) {
+          const firstArr = d[keys[0]];
+          if (Array.isArray(firstArr) && firstArr.length > 0) {
+            msg = String(firstArr[0]);
+          }
+        }
+      }
+      
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -207,15 +224,6 @@ export default function LoginPage() {
                 <div className="login-input-group">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <label className="mb-0">Senha</label>
-                    {view === "login" && (
-                      <button
-                        type="button"
-                        className="btn-link-agro small"
-                        onClick={() => goTo("forgot")}
-                      >
-                        Esqueci a senha
-                      </button>
-                    )}
                   </div>
                   <div className="login-input-wrapper">
                     <input
@@ -239,11 +247,48 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {view === "register" && (
+                <div className="login-input-group">
+                  <label>Confirmar senha</label>
+                  <div className="login-input-wrapper">
+                    <input
+                      type={showPwdConfirm ? "text" : "password"}
+                      className="login-input"
+                      placeholder="••••••••"
+                      value={formData.password_confirm}
+                      onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })}
+                      required
+                    />
+                    <Lock className="login-input-icon" size={20} />
+                    <button
+                      type="button"
+                      className="login-input-toggle"
+                      onClick={() => setShowPwdConfirm(!showPwdConfirm)}
+                      style={{ right: '1rem', position: 'absolute', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: 'var(--muted-foreground)' }}
+                    >
+                      {showPwdConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {view === "register" && formData.password.length > 0 && formData.password_confirm.length > 0 && formData.password !== formData.password_confirm && (
+                    <div className="text-danger small mt-1">As senhas não conferem.</div>
+                  )}
+                </div>
+              )}
+
               {view === "login" && (
-                <label className="d-flex align-items-center gap-2 text-muted small cursor-pointer">
-                  <input type="checkbox" className="form-check-input rounded-1" id="remember" style={{ width: '18px', height: '18px' }} />
-                  Lembrar meus dados
-                </label>
+                <div className="d-flex justify-content-between align-items-center">
+                  <label className="d-flex align-items-center gap-2 text-muted small cursor-pointer mb-0">
+                    <input type="checkbox" className="form-check-input rounded-1" id="remember" style={{ width: '18px', height: '18px' }} />
+                    Lembrar meus dados
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-link-agro small"
+                    onClick={() => goTo("forgot")}
+                  >
+                    Esqueci a senha
+                  </button>
+                </div>
               )}
 
               <button

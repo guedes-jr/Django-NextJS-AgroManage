@@ -5,7 +5,35 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { AuthTokens, ApiError } from "@/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const getBaseUrl = (): string => {
+  // Use env variable if available, otherwise fallback to local dev default
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) return envUrl;
+
+  // In the browser, handle cases where we might want to use relative paths
+  // or default to localhost:8000
+  if (typeof window !== "undefined") {
+    // If the app is served via a proxy (e.g., Nginx), relative path is safer
+    if (window.location.port === "" || window.location.port === "80") {
+      return "/api/v1";
+    }
+  }
+  
+  return "http://localhost:8000/api/v1";
+};
+
+const BASE_URL = getBaseUrl();
+
+export const getMediaUrl = (path: string) => {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  return `${BASE_URL.replace("/api/v1", "")}${path}`;
+};
+
+// Debugging helper
+if (process.env.NODE_ENV === "development") {
+  console.log(`[API] Initialized with BASE_URL: ${BASE_URL}`);
+}
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

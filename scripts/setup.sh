@@ -80,12 +80,20 @@ log "Setting up frontend..."
 cd "$FRONTEND_DIR"
 
 if [ ! -f ".env.local" ]; then
-  cp .env.example .env.local
-  warn "frontend/.env.local created from .env.example — review your settings!"
+  log "Creating frontend/.env.local from .env.example..."
+  if [ -f ".env.example" ]; then
+    cp .env.example .env.local
+    log "frontend/.env.local created successfully."
+  else
+    warn "frontend/.env.example NOT found. Skipping .env.local creation."
+    warn "You may need to create it manually to avoid API connection errors."
+  fi
+else
+  log "frontend/.env.local already exists. Skipping copy."
 fi
 
-log "Installing frontend dependencies..."
-$NPM_CMD install --silent
+log "Installing frontend dependencies (this may take a while)..."
+$NPM_CMD install --silent || err "npm install failed. check your internet connection and node version."
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
