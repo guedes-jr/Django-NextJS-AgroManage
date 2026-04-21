@@ -1,5 +1,6 @@
 "use client";
 
+import "@/components/dashboard/dashboard.css";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";

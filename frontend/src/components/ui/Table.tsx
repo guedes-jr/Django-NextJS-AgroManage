@@ -1,5 +1,5 @@
 import { HTMLAttributes, ReactNode, forwardRef } from "react";
-
+import "./table.css";
 interface TableProps extends HTMLAttributes<HTMLTableElement> {
   striped?: boolean;
   hover?: boolean;
@@ -66,9 +66,9 @@ export const TableHeader = forwardRef<HTMLTableCellElement, HTMLAttributes<HTMLT
 
 TableHeader.displayName = "TableHeader";
 
-export const TableCell = forwardRef<HTMLTableCellElement, HTMLAttributes<HTMLTableCellElement>>(
-  ({ className = "", ...props }, ref) => {
-    return <td ref={ref} className={className} {...props} />;
+export const TableCell = forwardRef<HTMLTableCellElement, HTMLAttributes<HTMLTableCellElement> & { colSpan?: number }>(
+  ({ className = "", colSpan, ...props }, ref) => {
+    return <td ref={ref} className={className} colSpan={colSpan} {...props} />;
   }
 );
 

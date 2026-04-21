@@ -1,6 +1,8 @@
 @import "bootstrap/dist/css/bootstrap.min.css";
 
-:root, [data-bs-theme="dark"], [data-bs-theme="auto"] {
+:root,
+[data-bs-theme="dark"],
+[data-bs-theme="auto"] {
   /* Force light mode */
   color-scheme: light !important;
 }
@@ -41,7 +43,7 @@
   --sidebar-bg: oklch(0.25 0.08 145);
   --sidebar-foreground: oklch(0.98 0.01 145);
   --sidebar-active: oklch(0.55 0.16 145);
-  
+
   --card-premium-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 10px -5px rgba(0, 0, 0, 0.02);
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.2);
@@ -65,13 +67,11 @@
   /* Gradients & shadows from reference */
   --gradient-primary: linear-gradient(135deg, oklch(0.55 0.16 145), oklch(0.42 0.14 155));
   --gradient-gold: linear-gradient(135deg, oklch(0.82 0.16 90), oklch(0.7 0.16 70));
-  --gradient-hero: linear-gradient(
-    180deg,
-    oklch(0.32 0.13 250 / 0.95) 0%,
-    oklch(0.4 0.14 220 / 0.9) 30%,
-    oklch(0.48 0.14 175 / 0.85) 65%,
-    oklch(0.55 0.16 145 / 0.85) 100%
-  );
+  --gradient-hero: linear-gradient(180deg,
+      oklch(0.32 0.13 250 / 0.95) 0%,
+      oklch(0.4 0.14 220 / 0.9) 30%,
+      oklch(0.48 0.14 175 / 0.85) 65%,
+      oklch(0.55 0.16 145 / 0.85) 100%);
   --gradient-card: linear-gradient(180deg, oklch(1 0 0), oklch(0.98 0.015 130));
 
   --shadow-soft: 0 4px 16px -4px oklch(0.4 0.1 150 / 0.12);
@@ -87,33 +87,7 @@ body {
   color-scheme: light;
 }
 
-/* Custom Utilities for Login */
-.bg-gradient-hero {
-  background: var(--gradient-hero);
-}
-
-.logo-text-gestao {
-  background: linear-gradient(135deg, oklch(0.72 0.16 140) 0%, oklch(0.55 0.16 145) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
-}
-
-.logo-text-agro {
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
-}
-
-.text-gradient-gold {
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+/* Custom Utilities */
 
 .view-transition {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -121,96 +95,21 @@ body {
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .shadow-soft {
   box-shadow: var(--shadow-soft);
 }
 
-.login-container {
-  display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  min-height: 100vh;
-  background: var(--background);
-}
-
-.login-hero {
-  position: relative;
-  overflow: hidden;
-}
-
-.login-hero-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.login-hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--gradient-hero);
-}
-
-.login-hero-content {
-  position: relative;
-  z-index: 10;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 4rem;
-  color: white;
-}
-
-.login-logo-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.hero-text {
-  margin-top: -200px;
-}
-
-.hero-text h1 {
-  font-size: 3.5rem;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.hero-stat-card {
-  padding-top: 1rem;
-}
-
-.login-form-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-  background: var(--background);
-}
-
-.login-form-wrapper {
-  width: 100%;
-  max-width: 400px;
-  animation: fadeIn 0.8s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 
 /* Tab Switcher Styles */
 .auth-tabs {
@@ -272,7 +171,7 @@ body {
 }
 
 .login-input-icon-left {
-  padding-left: 3rem;
+  padding-left: 3rem !important;
 }
 
 .login-input:focus {
@@ -288,9 +187,34 @@ body {
   color: var(--muted-foreground);
   pointer-events: none;
   transition: color 0.2s ease;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.login-input:focus + .login-input-icon,
+.login-input-toggle {
+  right: 1rem;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.login-input-toggle:hover {
+  color: var(--primary);
+}
+
+.login-input:focus+.login-input-icon,
 .login-input-wrapper:focus-within .login-input-icon {
   color: var(--primary);
 }
@@ -330,103 +254,4 @@ body {
 
 .btn-link-agro:hover {
   text-decoration: underline;
-}
-
-/* Dashboard Premium Styles */
-.dashboard-sidebar {
-  background: linear-gradient(to bottom, rgba(34, 85, 34, 0.85) 0%, rgba(0, 0, 0, 0.92) 100%), url('/farm-hero.jpg') center/cover no-repeat;
-  width: 280px;
-  height: 100vh;
-  position: sticky;
-  top: 0;
-  transition: all 0.3s ease;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
-  margin: 0.25rem 0.75rem;
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-}
-
-.sidebar-link.active {
-  background: var(--sidebar-active);
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.dashboard-card {
-  background: white;
-  border-radius: 20px;
-  border: 1.5px solid var(--border);
-  box-shadow: var(--card-premium-shadow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.dashboard-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.06);
-}
-
-.topbar-premium {
-  height: 72px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1.5px solid var(--border);
-  padding: 0 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  z-index: 50;
-}
-
-.search-input-wrapper {
-  background: var(--muted);
-  border-radius: 12px;
-  padding: 0.5rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  max-width: 400px;
-  border: 1.5px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.search-input-wrapper:focus-within {
-  background: white;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary), transparent 92%);
-}
-
-.stat-card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-soft);
-}
-
-@media (max-width: 991.98px) {
-  .login-container {
-    grid-template-columns: 1fr;
-  }
-  .login-hero {
-    display: none;
-  }
 }

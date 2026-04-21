@@ -1,5 +1,6 @@
 "use client";
 
+import "./login.css";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -104,65 +105,66 @@ export default function LoginPage() {
 
   return (
     <div className="login-container">
-      {/* Hero Section */}
-      <div className="login-hero d-none d-lg-block">
-        <img
-          src="/farm-hero.jpg"
-          alt="Fazenda"
-          className="login-hero-img"
-        />
-        <div className="login-hero-overlay" />
-        <div className="login-hero-content">
-<div className="d-flex align-items-center gap-2 mb-4">
+      <div className="login-card">
+        {/* Hero Section */}
+        <div className="login-hero d-none d-lg-block">
+          <img
+            src="/farm-hero.jpg"
+            alt="Fazenda"
+            className="login-hero-img"
+          />
+          <div className="login-hero-overlay" />
+          <div className="login-hero-content">
+            <div className="d-flex align-items-center gap-2 mb-4">
               <img
                 src="/logo_primary.png"
                 alt="Gestão Agro Logo"
-                style={{ width: '180px', objectFit: 'contain', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))' }}
+                style={{ width: '150px', objectFit: 'contain', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))' }}
               />
-              <h1 className="mb-0" style={{ fontSize: '4.5rem', fontWeight: '900', letterSpacing: '-0.04em' }}>
+              <h1 className="mb-0" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.04em' }}>
                 <span className="logo-text-gestao">Gestão</span>{' '}
                 <span className="logo-text-agro">Agro</span>
               </h1>
             </div>
 
-          <div className="hero-text">
-            <h1 className="text-white mb-3 fs-2 fw-bold">
-              Sua fazenda <span className="text-gradient-gold">inteligente</span>
-            </h1>
-            <p className="text-white mb-5 fs-5" style={{ maxWidth: '520px', lineHeight: '1.6' }}>
-              Controle rebanho, lavoura, estoque e finanças em uma plataforma moderna,
-              feita para o produtor brasileiro.
-            </p>
+            <div className="hero-text">
+              <h1 className="text-white mb-3 fs-2 fw-bold">
+                Sua fazenda <span className="text-gradient-gold">inteligente</span>
+              </h1>
+              <p className="text-white mb-5 fs-6" style={{ maxWidth: '420px', lineHeight: '1.6' }}>
+                Controle rebanho, estoque e finanças em uma plataforma moderna,
+                feita para o produtor brasileiro.
+              </p>
 
-            <div className="d-flex gap-5 pt-2">
-              {[
-                { n: "+12k", l: "Produtores" },
-                { n: "98%", l: "Satisfação" },
-                { n: "24/7", l: "Suporte" },
-              ].map((s) => (
-                <div key={s.l}>
-                  <div className="text-white fw-bold fs-1">{s.n}</div>
-                  <div className="text-white small fw-medium">{s.l}</div>
-                </div>
-              ))}
+              <div className="d-flex gap-4 pt-2">
+                {[
+                  { n: "+12k", l: "Produtores" },
+                  { n: "98%", l: "Satisfação" },
+                  { n: "24/7", l: "Suporte" },
+                ].map((s) => (
+                  <div key={s.l}>
+                    <div className="text-white fw-bold fs-3">{s.n}</div>
+                    <div className="text-white small fw-medium">{s.l}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <p className="text-white small mb-0 fw-medium">
-            © {new Date().getFullYear()} Gestão Agro · Sistema de Gerenciamento Agropecuário
-          </p>
+            <p className="text-white small mb-0 fw-medium opacity-75">
+              © {new Date().getFullYear()} Gestão Agro
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* Form Section */}
-      <div className="login-form-container">
-        <div className={`login-form-wrapper view-transition`} key={view}>
-          <div className="text-center mb-5">
-            <h2 className="fw-bold text-dark mb-2" style={{ fontSize: '2rem', letterSpacing: '-0.02em' }}>
-              {titles[view].title}
-            </h2>
-            <p className="text-muted fs-6">{titles[view].subtitle}</p>
-          </div>
+        {/* Form Section */}
+        <div className="login-form-container">
+          <div className={`login-form-wrapper view-transition`} key={view}>
+            <div className="text-center mb-5">
+              <h2 className="fw-bold text-dark mb-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
+                {titles[view].title}
+              </h2>
+              <p className="text-muted fs-6">{titles[view].subtitle}</p>
+            </div>
 
           {/* Auth Tabs */}
           <div className="auth-tabs">
@@ -194,7 +196,7 @@ export default function LoginPage() {
                   <div className="login-input-wrapper">
                     <input
                       type="text"
-                      className="login-input"
+                      className="login-input login-input-icon-left"
                       placeholder="João da Silva"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -210,7 +212,7 @@ export default function LoginPage() {
                 <div className="login-input-wrapper">
                   <input
                     type="email"
-                    className="login-input"
+                    className="login-input login-input-icon-left"
                     placeholder="voce@fazenda.com.br"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -221,56 +223,58 @@ export default function LoginPage() {
               </div>
 
               {view !== "forgot" && (
-                <div className="login-input-group">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <label className="mb-0">Senha</label>
+                <div className={view === "register" ? "d-flex gap-3" : ""}>
+                  <div className={`login-input-group ${view === "register" ? "flex-grow-1" : ""}`}>
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <label className="mb-0">Senha</label>
+                    </div>
+                    <div className="login-input-wrapper">
+                      <input
+                        type={showPwd ? "text" : "password"}
+                        className="login-input login-input-icon-left"
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        required
+                      />
+                      <Lock className="login-input-icon" size={20} />
+                      <button
+                        type="button"
+                        className="login-input-toggle"
+                        onClick={() => setShowPwd(!showPwd)}
+                      >
+                        {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
-                  <div className="login-input-wrapper">
-                    <input
-                      type={showPwd ? "text" : "password"}
-                      className="login-input"
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      required
-                    />
-                    <Lock className="login-input-icon" size={20} />
-                    <button
-                      type="button"
-                      className="login-input-toggle"
-                      onClick={() => setShowPwd(!showPwd)}
-                      style={{ right: '1rem', position: 'absolute', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: 'var(--muted-foreground)' }}
-                    >
-                      {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-              )}
 
-              {view === "register" && (
-                <div className="login-input-group">
-                  <label>Confirmar senha</label>
-                  <div className="login-input-wrapper">
-                    <input
-                      type={showPwdConfirm ? "text" : "password"}
-                      className="login-input"
-                      placeholder="••••••••"
-                      value={formData.password_confirm}
-                      onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })}
-                      required
-                    />
-                    <Lock className="login-input-icon" size={20} />
-                    <button
-                      type="button"
-                      className="login-input-toggle"
-                      onClick={() => setShowPwdConfirm(!showPwdConfirm)}
-                      style={{ right: '1rem', position: 'absolute', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: 'var(--muted-foreground)' }}
-                    >
-                      {showPwdConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                  {view === "register" && formData.password.length > 0 && formData.password_confirm.length > 0 && formData.password !== formData.password_confirm && (
-                    <div className="text-danger small mt-1">As senhas não conferem.</div>
+                  {view === "register" && (
+                    <div className="login-input-group flex-grow-1">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <label className="mb-0">Confirmar senha</label>
+                      </div>
+                      <div className="login-input-wrapper">
+                        <input
+                          type={showPwdConfirm ? "text" : "password"}
+                          className="login-input login-input-icon-left"
+                          placeholder="••••••••"
+                          value={formData.password_confirm}
+                          onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })}
+                          required
+                        />
+                        <Lock className="login-input-icon" size={20} />
+                        <button
+                          type="button"
+                          className="login-input-toggle"
+                          onClick={() => setShowPwdConfirm(!showPwdConfirm)}
+                        >
+                          {showPwdConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {formData.password.length > 0 && formData.password_confirm.length > 0 && formData.password !== formData.password_confirm && (
+                        <div className="text-danger small mt-1">As senhas não conferem.</div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -326,5 +330,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }

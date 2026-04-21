@@ -43,6 +43,11 @@ class AnimalBatch(BaseModel):
     Used for poultry, swine lots, and cattle groups.
     """
 
+    class Origin(models.TextChoices):
+        PURCHASED = "purchased", "Comprado"
+        BORN = "born", "Nascido"
+        DONATED = "donated", "Doado"
+
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         SOLD = "sold", "Sold"
@@ -60,6 +65,11 @@ class AnimalBatch(BaseModel):
     entry_date = models.DateField()
     exit_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    origin = models.CharField(max_length=20, choices=Origin.choices, default=Origin.PURCHASED)
+    purchase_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    gender = models.CharField(max_length=20, null=True, blank=True)
+    category = models.CharField(max_length=50, null=True, blank=True)
+    name = models.CharField(max_length=100, null=True, blank=True)
     avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
 
