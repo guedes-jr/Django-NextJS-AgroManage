@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { AppSidebar } from "@/components/dashboard/AppSidebar";
-import { TopBar } from "@/components/dashboard/TopBar";
 import { apiClient, getMediaUrl } from "@/services/api";
 import { MoreVertical, Plus, Search, X, Mail, Lock, User, Phone } from "lucide-react";
 
@@ -27,7 +24,6 @@ const roleConfig: Record<string, { label: string; color: string; bg: string }> =
 };
 
 export default function UsuariosPage() {
-  const router = useRouter();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -78,117 +74,111 @@ export default function UsuariosPage() {
   );
 
   return (
-    <div className="d-flex" style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <AppSidebar />
-      <div className="flex-grow-1 d-flex flex-column">
-        <TopBar />
-        <main className="p-4 p-lg-5">
-          <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 mb-5">
-            <div>
-              <h1 className="fw-bold mb-1" style={{ fontSize: '2rem', color: "var(--foreground)" }}>Gestão de Usuários</h1>
-              <p className="text-muted-foreground mb-0">Controle de acessos e permissões da plataforma</p>
-            </div>
-            <button 
-              onClick={() => setShowModal(true)}
-              className="btn btn-primary d-flex align-items-center gap-2 px-4 py-2.5 rounded-pill fw-bold shadow-sm"
-              style={{ background: 'var(--primary)', border: 'none' }}
-            >
-              <Plus size={20} />
-              Convidar Usuário
-            </button>
+    <>
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 mb-5">
+        <div>
+          <h1 className="fw-bold mb-1" style={{ fontSize: '2rem', color: "var(--foreground)" }}>Gestão de Usuários</h1>
+          <p className="text-muted-foreground mb-0">Controle de acessos e permissões da plataforma</p>
+        </div>
+        <button 
+          onClick={() => setShowModal(true)}
+          className="btn btn-primary d-flex align-items-center gap-2 px-4 py-2.5 rounded-pill fw-bold shadow-sm"
+          style={{ background: 'var(--primary)', border: 'none' }}
+        >
+          <Plus size={20} />
+          Convidar Usuário
+        </button>
+      </div>
+
+      <div className="dashboard-card overflow-hidden">
+        <div className="p-4 border-bottom border-border">
+          <div className="position-relative" style={{ maxWidth: '400px' }}>
+            <Search size={18} className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
+            <input 
+              type="text" 
+              className="w-100" 
+              style={{ height: '44px', padding: '0 1rem 0 2.5rem', border: '1.5px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--foreground)' }} 
+              placeholder="Buscar por nome ou e-mail..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
+        </div>
 
-          <div className="dashboard-card overflow-hidden">
-            <div className="p-4 border-bottom border-border">
-              <div className="position-relative" style={{ maxWidth: '400px' }}>
-                <Search size={18} className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
-                <input 
-                  type="text" 
-                  className="w-100" 
-                  style={{ height: '44px', padding: '0 1rem 0 2.5rem', border: '1.5px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--foreground)' }} 
-                  placeholder="Buscar por nome ou e-mail..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="table-responsive">
-              <table className="table mb-0">
-                <thead style={{ background: 'oklch(0.98 0.01 200 / 0.5)' }}>
-                  <tr>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">USUÁRIO</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">FUNÇÃO</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">CADASTRADO EM</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground w-px-50"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user) => {
-                    const role = roleConfig[user.role?.toLowerCase()] || { label: user.role, color: "#374151", bg: "#f3f4f6" };
-                    return (
-                      <tr key={user.id} className="border-bottom border-border">
-                        <td className="px-4 py-3">
-                          <div className="d-flex align-items-center gap-3">
-                            {user.avatar ? (
-                              <img src={getMediaUrl(user.avatar)} alt={user.full_name} className="rounded-circle object-fit-cover" style={{ width: '40px', height: '40px' }} />
-                            ) : (
-                              <div className="rounded-circle bg-primary/10 d-flex align-items-center justify-content-center text-primary fw-bold" style={{ width: '40px', height: '40px', fontSize: '0.875rem' }}>
-                                {user.full_name?.charAt(0) || 'U'}
-                              </div>
-                            )}
-                            <div>
-                              <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{user.full_name}</div>
-                              <div className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{user.email}</div>
-                            </div>
+        <div className="table-responsive">
+          <table className="table mb-0">
+            <thead style={{ background: 'oklch(0.98 0.01 200 / 0.5)' }}>
+              <tr>
+                <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">USUÁRIO</th>
+                <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">FUNÇÃO</th>
+                <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
+                <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">CADASTRADO EM</th>
+                <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground w-px-50"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((user) => {
+                const role = roleConfig[user.role?.toLowerCase()] || { label: user.role, color: "#374151", bg: "#f3f4f6" };
+                return (
+                  <tr key={user.id} className="border-bottom border-border">
+                    <td className="px-4 py-3">
+                      <div className="d-flex align-items-center gap-3">
+                        {user.avatar ? (
+                          <img src={getMediaUrl(user.avatar)} alt={user.full_name} className="rounded-circle object-fit-cover" style={{ width: '40px', height: '40px' }} />
+                        ) : (
+                          <div className="rounded-circle bg-primary/10 d-flex align-items-center justify-content-center text-primary fw-bold" style={{ width: '40px', height: '40px', fontSize: '0.875rem' }}>
+                            {user.full_name?.charAt(0) || 'U'}
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span 
-                            className="rounded-pill fw-bold" 
-                            style={{ 
-                              fontSize: '0.7rem', 
-                              backgroundColor: role.bg, 
-                              color: role.color,
-                              padding: '4px 14px', // Increased padding as requested
-                              display: 'inline-block',
-                              lineHeight: '1'
-                            }}
-                          >
-                            {role.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="d-flex align-items-center gap-2">
-                            <div className="rounded-circle" style={{ width: '8px', height: '8px', background: user.is_active ? '#10b981' : '#f43f5e' }} />
-                            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: user.is_active ? '#10b981' : '#f43f5e' }}>
-                              {user.is_active ? 'Ativo' : 'Inativo'}
-                            </span>
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground" style={{ fontSize: '0.875rem' }}>
-                          {formatDate(user.created_at)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button className="btn p-2 hover-bg-muted rounded-circle">
-                            <MoreVertical size={16} className="text-muted-foreground" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        )}
+                        <div>
+                          <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{user.full_name}</div>
+                          <div className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span 
+                        className="rounded-pill fw-bold" 
+                        style={{ 
+                          fontSize: '0.7rem', 
+                          backgroundColor: role.bg, 
+                          color: role.color,
+                          padding: '4px 14px', 
+                          display: 'inline-block',
+                          lineHeight: '1'
+                        }}
+                      >
+                        {role.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="d-flex align-items-center gap-2">
+                        <div className="rounded-circle" style={{ width: '8px', height: '8px', background: user.is_active ? '#10b981' : '#f43f5e' }} />
+                        <span style={{ fontSize: '0.875rem', fontWeight: 500, color: user.is_active ? '#10b981' : '#f43f5e' }}>
+                          {user.is_active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground" style={{ fontSize: '0.875rem' }}>
+                      {formatDate(user.created_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button className="btn p-2 hover-bg-muted rounded-circle">
+                        <MoreVertical size={16} className="text-muted-foreground" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-            {filteredUsers.length === 0 && !loading && (
-              <div className="p-5 text-center text-muted-foreground fw-medium">
-                Nenhum usuário encontrado para sua busca
-              </div>
-            )}
+        {filteredUsers.length === 0 && !loading && (
+          <div className="p-5 text-center text-muted-foreground fw-medium">
+            Nenhum usuário encontrado para sua busca
           </div>
-        </main>
+        )}
       </div>
 
       {showModal && (
@@ -259,6 +249,6 @@ export default function UsuariosPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

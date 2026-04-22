@@ -1,0 +1,124 @@
+.inventory-container {
+    --inv-card-bg: var(--card-bg);
+    --inv-border: var(--border);
+    --inv-text-muted: var(--muted-foreground);
+    --inv-accent-soft: oklch(0.98 0.01 200 / 0.5);
+}
+
+.inv-category-card {
+    background: var(--inv-card-bg);
+    border: 1px solid var(--inv-border);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 140px;
+    text-align: center;
+}
+
+.inv-category-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-elegant);
+    border-color: var(--primary);
+}
+
+.inv-category-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.inv-category-title {
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--foreground);
+}
+
+.inv-category-desc {
+    font-size: 0.7rem;
+    color: var(--inv-text-muted);
+}
+
+.alert-banner {
+    background: oklch(0.98 0.05 85);
+    border: 1px solid oklch(0.85 0.1 85);
+    border-radius: 1rem;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.stock-item-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--inv-border);
+}
+
+.stock-item-row:last-child {
+    border-bottom: none;
+}
+
+.badge-status {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.badge-status.atencao {
+    background: oklch(0.95 0.05 85);
+    color: oklch(0.6 0.15 85);
+}
+
+.badge-status.critico {
+    background: oklch(0.95 0.05 25);
+    color: oklch(0.5 0.15 25);
+}
+
+.inv-quick-action {
+    background: var(--inv-card-bg);
+    border: 1px solid var(--inv-border);
+    border-radius: 1rem;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.inv-quick-action:hover {
+    background: var(--inv-accent-soft);
+    border-color: var(--primary);
+}
+
+.qa-icon-sm {
+    width: 32px;
+    height: 32px;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.inv-chart-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+}

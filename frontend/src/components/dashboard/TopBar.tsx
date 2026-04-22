@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, LogOut, ChevronDown, Bell } from "lucide-react";
+import { User, LogOut, ChevronDown, Bell, Menu } from "lucide-react";
 import Image from "next/image";
 
 interface UserData {
@@ -34,7 +34,11 @@ const roleConfig: Record<string, { label: string; color: string; bg: string }> =
   viewer: { label: "Consultor", color: "#155e75", bg: "#ecfeff" }, // Cyan
 };
 
-export function TopBar() {
+interface TopBarProps {
+  onMenuClick?: () => void;
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -59,53 +63,63 @@ export function TopBar() {
       className="d-flex justify-content-between align-items-center p-3 px-4 shadow-sm"
       style={{ background: 'var(--background)', zIndex: 10, borderBottom: '1px solid var(--border)' }}
     >
-      <div className="d-flex align-items-center gap-3">
-        <h2 className="mb-0 fw-bold" style={{ fontSize: '1.25rem', color: 'var(--foreground)' }}>AgroManage</h2>
-        <span className="badge bg-primary rounded-pill px-2 py-1" style={{ fontSize: '0.65rem' }}>BETA</span>
+      <div className="d-flex align-items-center gap-2">
+        <button 
+          className="btn btn-link p-0 d-lg-none text-foreground" 
+          onClick={onMenuClick}
+        >
+          <Menu size={24} />
+        </button>
+        <div className="d-none d-lg-block">
+          {/* Breadcrumb placeholders or empty for page context */}
+        </div>
       </div>
 
-      <div className="d-flex align-items-center gap-4">
+      {/* Central Search Bar */}
+      <div className="flex-grow-1 d-flex justify-content-center px-4">
+        <div className="search-input-wrapper">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input 
+            type="text" 
+            placeholder="Buscar por código, brinco ou lote..." 
+            className="border-0 bg-transparent w-100 outline-none" 
+            style={{ outline: 'none', fontSize: '0.9rem' }}
+          />
+        </div>
+      </div>
+
+      <div className="d-flex align-items-center gap-3">
         {/* Notifications */}
-        <button className="btn btn-link text-muted-foreground p-0 position-relative hover-text-primary transition-colors">
-          <Bell size={20} />
-          <span className="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
-            <span className="visually-hidden">Novas notificações</span>
+        <button className="btn btn-link text-muted-foreground p-1 position-relative hover-text-primary transition-colors">
+          <Bell size={22} />
+          <span 
+            className="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-danger border border-2 border-white"
+            style={{ width: '18px', height: '18px', padding: '0', fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '6px', marginLeft: '-6px' }}
+          >
+            3
           </span>
         </button>
 
-        {/* User Profile Dropdown */}
-        <div className="position-relative">
+        {/* User Profile */}
+        <div className="position-relative ms-2">
           <button 
             className="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2"
             onClick={() => setShowDropdown(!showDropdown)}
           >
-            <div className="d-flex flex-column text-end d-none d-sm-flex align-items-end">
-              <span className="fw-semibold text-foreground" style={{ fontSize: '0.875rem' }}>
-                {user?.full_name || "Usuário"}
-              </span>
-              <span 
-                className="rounded-pill fw-bold" 
-                style={{ 
-                  fontSize: '0.65rem', 
-                  backgroundColor: roleAttr.bg, 
-                  color: roleAttr.color,
-                  padding: '4px 12px', // Increased padding as requested
-                  lineHeight: '1',
-                  marginTop: '4px',
-                  display: 'inline-block'
-                }}
-              >
-                {roleAttr.label}
-              </span>
-            </div>
             <div 
-              className="rounded-circle d-flex align-items-center justify-content-center text-white"
-              style={{ width: '36px', height: '36px', background: 'var(--primary)', border: '2px solid var(--border)' }}
+              className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold shadow-sm"
+              style={{ width: '38px', height: '38px', background: 'oklch(0.25 0.08 145)', fontSize: '0.8rem' }}
             >
-              <User size={18} />
+              AG
             </div>
-            <ChevronDown size={14} className="text-muted-foreground" />
+            <div className="d-flex align-items-center gap-1 d-none d-sm-flex">
+              <span className="fw-semibold text-foreground" style={{ fontSize: '0.9rem' }}>
+                Admin
+              </span>
+              <ChevronDown size={14} className="text-muted-foreground" />
+            </div>
           </button>
+
 
           {/* Dropdown Menu */}
           {showDropdown && (

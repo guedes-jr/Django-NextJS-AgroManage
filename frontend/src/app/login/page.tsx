@@ -158,54 +158,57 @@ export default function LoginPage() {
 
         {/* Form Section */}
         <div className="login-form-container">
-          <div className={`login-form-wrapper view-transition`} key={view}>
-            <div className="text-center mb-5">
-              <h2 className="fw-bold text-dark mb-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
-                {titles[view].title}
-              </h2>
-              <p className="text-muted fs-6">{titles[view].subtitle}</p>
+          <div className="login-form-wrapper">
+            {/* Auth Tabs */}
+            <div className="auth-tabs">
+              <button
+                type="button"
+                className={`auth-tab ${view === 'login' ? 'active' : ''}`}
+                onClick={() => goTo('login')}
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                className={`auth-tab ${view === 'register' ? 'active' : ''}`}
+                onClick={() => goTo('register')}
+              >
+                Cadastro
+              </button>
             </div>
 
-          {/* Auth Tabs */}
-          <div className="auth-tabs">
-            <button
-              className={`auth-tab ${view === 'login' ? 'active' : ''}`}
-              onClick={() => goTo('login')}
-            >
-              Entrar
-            </button>
-            <button
-              className={`auth-tab ${view === 'register' ? 'active' : ''}`}
-              onClick={() => goTo('register')}
-            >
-              Cadastro
-            </button>
-          </div>
+            <div className="view-transition" key={view}>
+              <div className="text-center mb-5">
+                <h2 className="fw-bold text-dark mb-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
+                  {titles[view].title}
+                </h2>
+                <p className="text-muted fs-6">{titles[view].subtitle}</p>
+              </div>
 
-          {error && (
-            <div className="alert alert-danger border-0 shadow-sm py-2 px-3 mb-4 small rounded-4" role="alert">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className="d-flex flex-column gap-4">
-              {view === "register" && (
-                <div className="login-input-group">
-                  <label>Nome completo</label>
-                  <div className="login-input-wrapper">
-                    <input
-                      type="text"
-                      className="login-input login-input-icon-left"
-                      placeholder="João da Silva"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
-                    />
-                    <User className="login-input-icon" size={20} />
-                  </div>
+              {error && (
+                <div className="alert alert-danger border-0 shadow-sm py-2 px-3 mb-4 small rounded-4" role="alert">
+                  {error}
                 </div>
               )}
+
+              <form onSubmit={handleSubmit}>
+                <div className="d-flex flex-column gap-4">
+                  {view === "register" && (
+                    <div className="login-input-group">
+                      <label>Nome completo</label>
+                      <div className="login-input-wrapper">
+                        <input
+                          type="text"
+                          className="login-input login-input-icon-left"
+                          placeholder="João da Silva"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          required
+                        />
+                        <User className="login-input-icon" size={20} />
+                      </div>
+                    </div>
+                  )}
 
               <div className="login-input-group">
                 <label>E-mail</label>
@@ -327,6 +330,7 @@ export default function LoginPage() {
               )}
             </div>
           </form>
+          </div>
         </div>
       </div>
     </div>

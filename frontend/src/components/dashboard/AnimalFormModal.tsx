@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2, Tag, Calendar, Banknote, User, Activity, FileText, Warehouse } from "lucide-react";
@@ -11,15 +11,65 @@ interface AnimalFormModalProps {
   onClose: () => void;
   type: "bovinos" | "suinos" | "aves";
   onSave: (data: any[]) => void;
+  initialData?: {
+    categoria?: string;
+    sexo?: string;
+  };
 }
 
-export function AnimalFormModal({ isOpen, onClose, type, onSave }: AnimalFormModalProps) {
+export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: AnimalFormModalProps) {
   const [rows, setRows] = useState([
-    { id: Date.now(), numero: "", nome: "", categoria: "", sexo: "", origem: "Comprado", raca: "", nascimento: "", dataCompra: "", peso: "", valor: "", granjaOrigem: "" }
+    { 
+      id: Date.now(), 
+      numero: "", 
+      nome: "", 
+      categoria: initialData?.categoria || "", 
+      sexo: initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"), 
+      origem: "Comprado", 
+      raca: "", 
+      nascimento: "", 
+      dataCompra: "", 
+      peso: "", 
+      valor: "", 
+      granjaOrigem: "" 
+    }
   ]);
 
+  // Update rows when modal opens with new initialData
+  useEffect(() => {
+    if (isOpen) {
+      setRows([{ 
+        id: Date.now(), 
+        numero: "", 
+        nome: "", 
+        categoria: initialData?.categoria || "", 
+        sexo: initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"), 
+        origem: "Comprado", 
+        raca: "", 
+        nascimento: "", 
+        dataCompra: "", 
+        peso: "", 
+        valor: "", 
+        granjaOrigem: "" 
+      }]);
+    }
+  }, [isOpen, initialData, type]);
+
   const addRow = () => {
-    setRows([...rows, { id: Date.now(), numero: "", nome: "", categoria: "", sexo: "", origem: "Comprado", raca: "", nascimento: "", dataCompra: "", peso: "", valor: "", granjaOrigem: "" }]);
+    setRows([...rows, { 
+      id: Date.now(), 
+      numero: "", 
+      nome: "", 
+      categoria: initialData?.categoria || "", 
+      sexo: initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"), 
+      origem: "Comprado", 
+      raca: "", 
+      nascimento: "", 
+      dataCompra: "", 
+      peso: "", 
+      valor: "", 
+      granjaOrigem: "" 
+    }]);
   };
 
   const removeRow = (id: number) => {
@@ -58,14 +108,20 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave }: AnimalFormMod
 
   const currentConfig = typeConfig[type] || typeConfig.bovinos;
 
-  const getNumberPlaceholder = () => {
+  const getNumberPlaceholder = (cat?: string) => {
     if (type === "bovinos") return "Ex: 001";
-    if (type === "suinos") return "Ex: 14-A";
+    if (type === "suinos") {
+      if (cat === "Matriz" || cat === "Cachaço") return "Ex: BR-123";
+      return "Ex: 14-A";
+    }
     return "Ex: G1";
   }
-  const getNumberLabel = () => {
+  const getNumberLabel = (cat?: string) => {
     if (type === "bovinos") return "Brinco (Nº)";
-    if (type === "suinos") return "Lote (Nº)";
+    if (type === "suinos") {
+      if (cat === "Matriz" || cat === "Cachaço") return "Brinco (Nº)";
+      return "Lote (Nº)";
+    }
     return "Galpão (Nº)";
   }
 
@@ -78,22 +134,22 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave }: AnimalFormMod
       maxWidth="max-w-6xl"
       footer={
         <>
-          <div className="d-flex align-items-center gap-2 text-muted-foreground fw-semibold">
+          <div className="d-flex align-items-center gap-2 text-muted-foreground fw-semibold small">
             <span className="badge bg-primary/10 text-primary px-3 py-1 rounded-pill">{rows.length}</span>
-            <span>registros para salvar.</span>
+            <span>registros.</span>
           </div>
-          <div className="d-flex gap-2">
-            <Button variant="outline-secondary" onClick={onClose} className="px-4 border-border bg-background hover-bg-muted fw-semibold">
+          <div className="d-flex flex-column flex-md-row gap-2 w-100 w-md-auto">
+            <Button variant="outline-secondary" onClick={onClose} className="px-4 border-border bg-background hover-bg-muted fw-semibold w-100 w-md-auto order-2 order-md-1">
               Cancelar
             </Button>
-            <Button onClick={handleSubmit} className="px-5 fw-bold shadow-sm" style={{ background: "var(--primary)", color: "white" }}>
+            <Button onClick={handleSubmit} className="px-5 fw-bold shadow-sm w-100 w-md-auto order-1 order-md-2" style={{ background: "var(--primary)", color: "white" }}>
               Salvar Registros
             </Button>
           </div>
         </>
       }
     >
-      <div className="p-4 p-md-5" style={{ background: "var(--background)", minHeight: "50vh" }}>
+      <div className="p-3 p-md-5" style={{ background: "var(--background)", minHeight: "50vh" }}>
         
         <div className="d-flex flex-column gap-5 mb-4">
           <AnimatePresence initial={false}>
@@ -104,7 +160,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave }: AnimalFormMod
                 animate={{ opacity: 1, height: "auto", scale: 1 }}
                 exit={{ opacity: 0, height: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="dashboard-card overflow-hidden shadow-sm position-relative p-4" 
+                className="dashboard-card overflow-hidden shadow-sm position-relative p-3 p-md-4" 
                 style={{ border: "1px solid var(--border)", borderRadius: "1rem", background: "var(--background)" }}
               >
                 <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-border">
@@ -125,9 +181,9 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave }: AnimalFormMod
                   {/* Linha 1 */}
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
-                        <label className="login-label fw-bold">{getNumberLabel()} <span className="text-danger">*</span></label>
+                        <label className="login-label fw-bold">{getNumberLabel(row.categoria)} <span className="text-danger">*</span></label>
                         <div className="login-input-wrapper">
-                          <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground" placeholder={getNumberPlaceholder()} value={row.numero} onChange={(e) => updateRow(row.id, "numero", e.target.value)} />
+                          <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground" placeholder={getNumberPlaceholder(row.categoria)} value={row.numero} onChange={(e) => updateRow(row.id, "numero", e.target.value)} />
                           <Tag className="login-input-icon text-muted-foreground" size={16} />
                         </div>
                      </div>
@@ -141,25 +197,29 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave }: AnimalFormMod
                         </div>
                      </div>
                   </div>
-                  <div className="col-12 col-md-3">
-                     <div className="login-input-group mb-0">
-                        <label className="login-label fw-bold">Categoria <span className="text-danger">*</span></label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.categoria} onChange={(e) => updateRow(row.id, "categoria", e.target.value)}>
-                          <option value="">Selecione...</option>
-                          {currentConfig.categorias.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                     </div>
-                  </div>
-                  <div className="col-12 col-md-3">
-                     <div className="login-input-group mb-0">
-                        <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
-                          <option value="Macho">Macho</option>
-                          <option value="Femea">Fêmea</option>
-                          <option value="Misto">Misto</option>
-                        </select>
-                     </div>
-                  </div>
+                  {!initialData?.categoria && (
+                    <div className="col-12 col-md-3">
+                       <div className="login-input-group mb-0">
+                          <label className="login-label fw-bold">Categoria <span className="text-danger">*</span></label>
+                          <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.categoria} onChange={(e) => updateRow(row.id, "categoria", e.target.value)}>
+                            <option value="">Selecione...</option>
+                            {currentConfig.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                       </div>
+                    </div>
+                  )}
+                  {!initialData?.sexo && (
+                    <div className="col-12 col-md-3">
+                       <div className="login-input-group mb-0">
+                          <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
+                          <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
+                            <option value="Macho">Macho</option>
+                            <option value="Femea">Fêmea</option>
+                            <option value="Misto">Misto</option>
+                          </select>
+                       </div>
+                    </div>
+                  )}
 
                   {/* Linha 2 */}
                   <div className="col-12 col-md-3">

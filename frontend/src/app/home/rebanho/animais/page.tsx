@@ -75,11 +75,14 @@ function getKPIs(type: "bovinos" | "suinos" | "aves", data: any[]): KPICard[] {
         { label: "Quarentena", value: quarentena, icon: "clock", color: "oklch(0.78 0.15 75)" },
       ];
     case "suinos":
+      const matrizes = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes').length;
+      const reprodutores = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores').length;
+      const lotes = data.filter(a => a.category?.toLowerCase().includes('lote')).length;
       return [
-        { label: "Total Lotes", value: total, icon: "pig", color: "oklch(0.78 0.15 85)" },
-        { label: "Ativos", value: ativos, change: `${total ? Math.round((ativos / total) * 100) : 0}%`, icon: "check", color: "oklch(0.60 0.16 150)" },
-        { label: "Doentes", value: doentes, icon: "alert", color: "oklch(0.6 0.22 27)" },
-        { label: "Quarentena", value: quarentena, icon: "clock", color: "oklch(0.78 0.15 75)" },
+        { label: "Matrizes", value: matrizes, icon: "pig", color: "oklch(0.6 0.22 27)" },
+        { label: "Reprodutores", value: reprodutores, icon: "pig", color: "oklch(0.55 0.16 230)" },
+        { label: "Lotes de Leitões", value: lotes, icon: "pig", color: "oklch(0.78 0.15 85)" },
+        { label: "Total de Suínos", value: total, icon: "chart", color: "oklch(0.60 0.16 150)" },
       ];
     case "aves":
       return [
@@ -99,7 +102,9 @@ export default function AnimalsPage() {
   const [avesData, setAvesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{ open: boolean; initialData?: { categoria: string; sexo: string } }>({
+    open: false,
+  });
 
   const fetchAnimals = async () => {
     setLoading(true);
@@ -155,14 +160,15 @@ export default function AnimalsPage() {
         avg_weight_kg: raw.peso ? parseFloat(raw.peso) : null,
         entry_date: raw.dataCompra || raw.nascimento || new Date().toISOString().split('T')[0],
         status: "active",
-        species_code_input: activeTab, // Corrected input field name
-        breed_name_input: raw.raca // Corrected input field name
+        species_code_input: activeTab,
+        breed_name_input: raw.raca
       }));
 
+      console.log("Sending payload to /livestock/batches/bulk_create_batches/:", payload);
       await apiClient.post("/livestock/batches/bulk_create_batches/", payload);
       
       fetchAnimals();
-      setIsModalOpen(false);
+      setModalConfig({ open: false });
     } catch (err) {
       console.error("Error saving animals:", err);
       alert("Erro ao salvar animais. Verifique o console.");
@@ -182,44 +188,34 @@ export default function AnimalsPage() {
           >
             <motion.div variants={itemVariants} className="mb-4">
               <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-                <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Home</Link>
+                <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Rebanho</Link>
                 <ChevronRight size={14} />
-                <Link href="/home/rebanho" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Rebanho</Link>
+                <Link href="/home/rebanho" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Suínos</Link>
                 <ChevronRight size={14} />
-                <span className="fw-semibold text-foreground">Animais</span>
+                <span className="fw-semibold text-foreground">Cadastro</span>
               </nav>
             </motion.div>
 
-            <motion.div variants={itemVariants} className="d-flex justify-content-between align-items-start mb-5">
-              <div>
-                <h1 className="fw-bold mb-1" style={{ fontSize: '2rem', letterSpacing: '-0.03em', color: "var(--foreground)" }}>Gerenciamento de Animais</h1>
-                <p className="mb-0 text-muted-foreground fw-medium">Controle total do seu rebanho e produção com visão integrada</p>
-              </div>
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="btn d-flex align-items-center gap-2 px-4 py-2.5 rounded-pill shadow-sm hover-bg-primary/90 transition-colors" 
-                style={{ background: 'var(--primary)', color: 'white', fontWeight: 600 }}
-              >
-                <Plus size={20} />
-                Adicionar Animal
-              </button>
+            <motion.div variants={itemVariants} className="mb-5">
+              <h1 className="fw-bold mb-1" style={{ fontSize: '2rem', letterSpacing: '-0.03em', color: "var(--foreground)" }}>
+                Cadastro de {activeTab === 'suinos' ? 'Suínos' : activeTab === 'bovinos' ? 'Bovinos' : 'Aves'}
+              </h1>
+              <p className="mb-0 text-muted-foreground fw-medium">
+                {activeTab === 'suinos' 
+                  ? 'Cadastre matrizes, reprodutores ou lotes de leitões adquiridos'
+                  : 'Gerencie as informações de registro e produção do seu plantel'}
+              </p>
             </motion.div>
 
+            {/* Species Tab Bar */}
             <motion.div variants={itemVariants} className="d-flex justify-content-center mb-5">
-              <div className="tab-pill-container">
+              <div className="species-tab-container w-100 max-w-2xl">
                 {animalTypes.map((type) => (
                   <button
                     key={type.id}
                     onClick={() => setActiveTab(type.id)}
-                    className={`tab-pill-button ${activeTab === type.id ? 'active' : ''}`}
+                    className={`species-tab ${activeTab === type.id ? 'active' : ''}`}
                   >
-                    {activeTab === type.id && (
-                      <motion.div
-                        layoutId="active-tab-bubble"
-                        className="tab-pill-bg"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                      />
-                    )}
                     <AnimalTypeIcon icon={type.icon} color={type.color} isActive={activeTab === type.id} />
                     {type.label}
                   </button>
@@ -230,10 +226,10 @@ export default function AnimalsPage() {
             <AnimatePresence mode="wait">
               <motion.div 
                 key={activeTab}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.25 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
               >
                 {loading ? (
                   <div className="d-flex justify-content-center p-5">
@@ -243,60 +239,131 @@ export default function AnimalsPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="row g-4 mb-5">
-                      {kpis.map((kpi, idx) => (
-                        <div key={idx} className="col-12 col-sm-6 col-lg-3">
-                          <div className="dashboard-card p-4 h-100 transition-all shadow-sm hover:shadow-lg" style={{ transform: "translateY(0)", transition: "transform 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-4px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
-                            <div className="d-flex justify-content-between align-items-start mb-3">
-                              <div
-                                className="rounded-circle d-flex align-items-center justify-content-center shadow-sm"
-                                style={{ width: 48, height: 48, background: kpi.color, color: "#fff" }}
+                    {/* Section: O que você deseja cadastrar? */}
+                    <div className="mb-5">
+                      <div className="row g-4">
+                        {[
+                          { 
+                            title: activeTab === 'suinos' ? 'Matrizes' : 'Fêmeas', 
+                            desc: 'Cadastre fêmeas para reprodução.',
+                            icon: <div className="reg-card-icon" style={{ background: '#fef2f2' }}><Icon iconNode={pigHead} size={28} color="#ef4444" /></div>,
+                            features: ['Controle de ciclo reprodutivo', 'Histórico de partos', 'Desempenho reprodutivo'],
+                            targetCat: 'Matriz',
+                            targetSex: 'Femea'
+                          },
+                          { 
+                            title: activeTab === 'suinos' ? 'Reprodutores' : 'Machos', 
+                            desc: 'Cadastre machos para reprodução.',
+                            icon: <div className="reg-card-icon" style={{ background: '#eff6ff' }}><Icon iconNode={pigHead} size={28} color="#3b82f6" /></div>,
+                            features: ['Controle de cobertura', 'Avaliação de desempenho', 'Histórico reprodutivo'],
+                            targetCat: (activeTab === 'suinos' ? 'Cachaço' : activeTab === 'bovinos' ? 'Touro' : 'Matriz'),
+                            targetSex: 'Macho'
+                          },
+                          { 
+                            title: activeTab === 'suinos' ? 'Lote de Leitões' : 'Novos Lotes', 
+                            desc: 'Cadastre lotes de leitões adquiridos.',
+                            icon: <div className="reg-card-icon" style={{ background: '#fff7ed' }}><Icon iconNode={pigHead} size={28} color="#f97316" /></div>,
+                            features: ['Controle de crescimento', 'Conversão alimentar', 'Desempenho do lote'],
+                            targetCat: (activeTab === 'aves' ? 'Frango de Corte' : 'Lote'),
+                            targetSex: 'Misto'
+                          }
+                        ].map((card, i) => (
+                          <div key={i} className="col-12 col-md-4">
+                            <div className="reg-card">
+                              {card.icon}
+                              <div className="reg-card-title">{card.title}</div>
+                              <p className="text-muted-foreground small mb-0">{card.desc}</p>
+                              
+                              <ul className="reg-feature-list">
+                                {card.features.map((f, j) => (
+                                  <li key={j} className="reg-feature-item">
+                                    <CheckCircle2 size={14} className="reg-feature-check" />
+                                    {f}
+                                  </li>
+                                ))}
+                              </ul>
+                              
+                              <button 
+                                onClick={() => setModalConfig({ open: true, initialData: { categoria: card.targetCat, sexo: card.targetSex } })} 
+                                className="btn-reg-outline"
                               >
-                                <KPIcon icon={kpi.icon} />
-                              </div>
-                              {kpi.change && (
-                                <span className="px-2.5 py-1 rounded-pill small fw-bold" style={{ background: "var(--muted)", color: "var(--foreground)", border: "1px solid var(--border)" }}>
-                                  {kpi.change}
-                                </span>
-                              )}
+                                Cadastrar {card.title}
+                              </button>
                             </div>
-                            <div className="fw-bold mb-1" style={{ fontSize: "2.5rem", lineHeight: 1.1, color: "var(--foreground)" }}>
-                              {kpi.value}
-                            </div>
-                            <div className="fw-medium text-muted-foreground" style={{ fontSize: "0.9rem" }}>{kpi.label}</div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
 
+                    {/* Section: Resumo do Plantel */}
+                    <div className="mb-5">
+                      <h3 className="fw-bold mb-1" style={{ fontSize: '1.25rem' }}>Resumo do Plantel</h3>
+                      <p className="text-muted-foreground small mb-4">Visão geral do seu plantel de {activeTab}</p>
+                      
+                      <div className="row g-4">
+                        {kpis.map((kpi, idx) => (
+                          <div key={idx} className="col-12 col-sm-6 col-lg-3">
+                            <div className="summary-card">
+                              <div className="summary-card-body">
+                                <div className="d-flex justify-content-between align-items-start">
+                                  <div className="summary-icon-wrapper" style={{ background: `color-mix(in srgb, ${kpi.color}, transparent 90%)`, color: kpi.color }}>
+                                    <KPIcon icon={kpi.icon} />
+                                  </div>
+                                </div>
+                                <div className="text-muted-foreground small fw-medium mb-1">{kpi.label}</div>
+                                <div className="fw-bold text-foreground" style={{ fontSize: '1.75rem' }}>{kpi.value}</div>
+                                <div className="text-muted-foreground" style={{ fontSize: '0.7rem' }}>Ativos</div>
+                              </div>
+                              <div className="summary-footer">
+                                <Link href="#" className="summary-link">Ver {kpi.label.toLowerCase()}</Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section: Ações Rápidas */}
                     <div className="mb-4">
-                      <AnimalsTable 
-                        data={currentData.map(d => ({
-                          id: d.batch_code,
-                          name: d.name || d.batch_code,
-                          breed: d.breed_name || "N/D",
-                          weight: d.avg_weight_kg || 0,
-                          age: "N/D",
-                          status: d.status === 'active' ? 'Ativo' : d.status,
-                          category: activeTab === 'bovinos' ? 'bovino' : activeTab === 'suinos' ? 'suino' : 'ave'
-                        }))} 
-                        type={activeTab === "bovinos" ? "bovino" : activeTab === "suinos" ? "suino" : "ave"} 
-                      />
+                      <h3 className="fw-bold mb-1" style={{ fontSize: '1.25rem' }}>Ações Rápidas</h3>
+                      <div className="mt-4 row g-3">
+                        {[
+                          { title: 'Transferir Animal', desc: 'Transferir animal entre setores', icon: <Warehouse size={20} />, color: '#ecfdf5', iconColor: '#059669' },
+                          { title: 'Baixa de Animal', desc: 'Registrar saída ou óbito', icon: <AlertOctagon size={20} />, color: '#fffbeb', iconColor: '#d97706' },
+                          { title: 'Histórico de Movimentações', desc: 'Ver todas movimentações', icon: <Clock size={20} />, color: '#eff6ff', iconColor: '#2563eb' },
+                          { title: 'Relatórios', desc: 'Relatórios e análises', icon: <BarChart3 size={20} />, color: '#f5f3ff', iconColor: '#7c3aed' }
+                        ].map((action, i) => (
+                          <div key={i} className="col-12 col-md-6 col-xl-3">
+                            <button className="quick-action-btn">
+                              <div className="qa-icon-wrapper" style={{ background: action.color, color: action.iconColor }}>
+                                {action.icon}
+                              </div>
+                              <div className="flex-grow-1">
+                                <div className="fw-bold small">{action.title}</div>
+                                <div className="text-muted-foreground" style={{ fontSize: '0.7rem' }}>{action.desc}</div>
+                              </div>
+                              <ChevronRight size={16} className="text-muted-foreground" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </>
                 )}
               </motion.div>
             </AnimatePresence>
+
             
           </motion.div>
         </main>
       </div>
 
       <AnimalFormModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={modalConfig.open}
+        onClose={() => setModalConfig({ open: false })}
         type={activeTab}
         onSave={handleSaveAnimals}
+        initialData={modalConfig.initialData}
       />
     </div>
   );

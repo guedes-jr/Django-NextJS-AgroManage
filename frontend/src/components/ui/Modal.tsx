@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
             }}
             onClick={onClose}
           />
-          <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-4 pe-none" style={{ zIndex: 1050 }}>
+          <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-2 p-md-4 pe-none" style={{ zIndex: 1050 }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -51,10 +51,10 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               className={`w-100 ${maxWidth} pe-auto`}
             >
-              <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100vh - 2rem)", display: "flex", flexDirection: "column" }}>
+              <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100vh - 2rem)", maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
                 
                 {(title || description) && (
-                  <div className="p-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
+                  <div className="p-3 p-md-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
                     <div>
                       {title && <h2 className="fw-bold mb-1" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>{title}</h2>}
                       {description && <p className="text-muted-foreground small mb-0">{description}</p>}
@@ -70,7 +70,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
                 </div>
                 
                 {footer && (
-                  <div className="p-4 border-top border-border d-flex justify-content-between align-items-center" style={{ background: "var(--background)" }}>
+                  <div className="p-3 p-md-4 border-top border-border d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" style={{ background: "var(--background)" }}>
                     {footer}
                   </div>
                 )}

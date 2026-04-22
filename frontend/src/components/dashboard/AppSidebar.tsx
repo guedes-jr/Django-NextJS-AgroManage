@@ -14,6 +14,8 @@ import {
   Settings,
   ChevronDown,
   ChevronUp,
+  BarChart3,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -21,7 +23,7 @@ interface MenuItem {
   title: string;
   href: string;
   icon: any; /* eslint-disable-line */ 
-  children?: { title: string; href: string }[];
+  children?: { title: string; href: string; badge?: string }[];
 }
 
 const menuItems: MenuItem[] = [
@@ -31,27 +33,52 @@ const menuItems: MenuItem[] = [
     href: "/home/rebanho", 
     icon: Beef,
     children: [
-      { title: "Animais", href: "/home/rebanho/animais" },
+      { title: "Suínos", href: "/home/rebanho/suinos" },
+      { title: "Aves", href: "/home/rebanho/aves" },
+      { title: "Bovinos", href: "/home/rebanho/bovinos" },
     ]
   },
   { title: "Financeiro", href: "/home/financeiro", icon: Wallet },
-  { title: "Estoque", href: "/home/estoque", icon: Package },
-  { title: "Usuários", href: "/home/usuarios", icon: Users },
+  { 
+    title: "Estoque", 
+    href: "/home/estoque", 
+    icon: Package,
+    children: [
+      { title: "Resumo", href: "/home/estoque/resumo" },
+      { title: "Cadastrar Insumo", href: "/home/estoque/cadastrar", badge: "NOVO" },
+      { title: "Insumos", href: "/home/estoque/insumos" },
+      { title: "Movimentações", href: "/home/estoque/movimentacoes" },
+      { title: "Fornecedores", href: "/home/estoque/fornecedores" },
+      { title: "Alertas", href: "/home/estoque/alertas" },
+    ]
+  },
+  { title: "Relatórios", href: "/home/relatorios", icon: BarChart3 },
 ];
 
-export function AppSidebar() {
+
+interface AppSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   useEffect(() => {
+    // Close sidebar on mobile when route changes
+    if (window.innerWidth < 992 && onClose) {
+      onClose();
+    }
+
     // Automatically expand parent if a child is active
-    menuItems.forEach(item => {
-      if (item.children?.some(child => pathname.startsWith(child.href))) {
-        if (!expandedMenus.includes(item.title)) {
-          setExpandedMenus(prev => [...prev, item.title]);
-        }
-      }
-    });
+    const activeParent = menuItems.find(item => 
+      item.children?.some(child => pathname.startsWith(child.href))
+    );
+    
+    if (activeParent && !expandedMenus.includes(activeParent.title)) {
+      setExpandedMenus([activeParent.title]);
+    }
   }, [pathname]);
 
   const isActive = (href: string) =>
@@ -60,32 +87,42 @@ export function AppSidebar() {
   const toggleExpand = (title: string) => {
     setExpandedMenus(prev => 
       prev.includes(title) 
-        ? prev.filter(t => t !== title)
-        : [...prev, title]
+        ? [] // If clicking the same open one, close it
+        : [title] // Opening a new one closes all others
     );
   };
 
   return (
-    <div className="dashboard-sidebar d-flex flex-column text-white">
-      <div className="p-4 mb-3">
+    <div className={`dashboard-sidebar d-flex flex-column text-white ${isOpen ? "show" : ""}`}>
+      <div className="p-4 mb-4 d-flex align-items-center justify-content-between">
         <div className="d-flex align-items-center gap-3">
-          <div className="bg-white/10 rounded-xl d-flex align-items-center justify-content-center p-2 shadow-sm">
+          <div 
+            className="rounded-xl d-flex align-items-center justify-content-center shadow-sm"
+            style={{ width: 42, height: 42, background: 'rgba(255, 255, 255, 0.1)' }}
+          >
             <Sprout size={24} className="text-white" />
           </div>
           <div>
-            <div className="fw-black fs-5 mb-0" style={{ letterSpacing: '-0.02em' }}>
-              Gestão <span style={{ color: 'var(--gold)' }}>Agro</span>
+            <div className="fw-black fs-5 lh-1 mb-1 text-white" style={{ letterSpacing: '-0.02em' }}>
+              Gestão Agro
             </div>
-            <div className="text-white/40" style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div className="text-white/40" style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Fazenda São João
             </div>
           </div>
         </div>
+
+        <button 
+          className="btn btn-link p-0 d-lg-none text-white/60 hover-text-white transition-colors" 
+          onClick={onClose}
+        >
+          <X size={24} />
+        </button>
       </div>
 
       <div className="flex-grow-1 sidebar-nav-container">
-        <div className="px-4 mb-3 text-uppercase text-white/30 small fw-bold" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>
-          Operação
+        <div className="px-4 mb-3 text-uppercase text-white/30 small fw-bold" style={{ fontSize: '0.65rem', letterSpacing: '0.08em' }}>
+          OPERAÇÃO
         </div>
         <nav className="nav flex-column gap-1">
           {menuItems.map((item) => (
@@ -116,7 +153,15 @@ export function AppSidebar() {
                             href={child.href}
                             className={`submenu-link ${pathname === child.href ? "active" : ""}`}
                           >
-                            {child.title}
+                            <span className="flex-grow-1">{child.title}</span>
+                            {child.badge && (
+                              <span 
+                                className="badge bg-primary text-white border-0 fw-black" 
+                                style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--primary)' }}
+                              >
+                                {child.badge}
+                              </span>
+                            )}
                           </Link>
                         ))}
                       </motion.div>
@@ -137,7 +182,19 @@ export function AppSidebar() {
         </nav>
       </div>
 
-      <div className="p-3 mt-auto border-top border-white/5">
+      <div className="p-3 mt-auto">
+        <div className="premium-badge-card p-3 mb-3 mx-2">
+            <div className="d-flex align-items-center gap-2 mb-2">
+                <div className="badge-icon-yellow">
+                    <span className="small fw-bold text-dark">★</span>
+                </div>
+                <div className="fw-bold small text-white">Plano Premium</div>
+            </div>
+            <div className="text-white/50 fw-medium" style={{ fontSize: '0.7rem' }}>
+                Válido até 20/08/2025
+            </div>
+        </div>
+
         <nav className="nav flex-column gap-1">
           <Link
             href="/home/settings"
@@ -148,6 +205,7 @@ export function AppSidebar() {
           </Link>
         </nav>
       </div>
+
     </div>
   );
 }

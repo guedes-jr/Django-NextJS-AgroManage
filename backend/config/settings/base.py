@@ -75,6 +75,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+APPEND_SLASH = False
 
 ROOT_URLCONF = "config.urls"
 
@@ -172,7 +173,11 @@ SIMPLE_JWT = {
 # ---------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
-    default=["http://localhost:3000", "http://127.0.0.1:3000"],
+    default=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000", 
+        "https://retrace-epileptic-varsity.ngrok-free.dev"
+    ],
 )
 CORS_ALLOW_CREDENTIALS = True
 
