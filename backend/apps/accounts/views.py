@@ -2,12 +2,14 @@
 Accounts app views — auth, user management.
 """
 from django.contrib.auth import get_user_model
+from django.utils.text import slugify
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from apps.organizations.models import Organization
 
 User = get_user_model()
 
@@ -17,6 +19,25 @@ from .serializers import (
     UserCreateSerializer,
     ChangePasswordSerializer,
 )
+
+def _ensure_user_organization(user):
+    """Auto-provision an organization for users without tenant binding."""
+    if getattr(user, "organization", None):
+        return user.organization
+
+    base_name = f"Organização de {user.full_name or user.email}"
+    base_slug = slugify(user.full_name or user.email.split("@")[0] or "organizacao")
+    slug = base_slug or "organizacao"
+    suffix = 1
+
+    while Organization.objects.filter(slug=slug).exists():
+        suffix += 1
+        slug = f"{base_slug}-{suffix}" if base_slug else f"organizacao-{suffix}"
+
+    organization = Organization.objects.create(name=base_name[:255], slug=slug[:100])
+    user.organization = organization
+    user.save(update_fields=["organization", "updated_at"])
+    return organization
 
 
 @api_view(["POST"])
@@ -29,6 +50,7 @@ def login_view(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     user = serializer.validated_data["user"]
+    _ensure_user_organization(user)
 
     refresh = RefreshToken.for_user(user)
 
@@ -53,6 +75,7 @@ def register_view(request):
     serializer = UserCreateSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
+    _ensure_user_organization(user)
 
     refresh = RefreshToken.for_user(user)
 

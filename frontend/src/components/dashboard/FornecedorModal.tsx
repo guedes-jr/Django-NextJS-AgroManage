@@ -248,28 +248,29 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="w-100"
+            className="w-100 h-100 d-flex align-items-center justify-content-center"
             style={{ maxWidth: '48rem' }}
           >
-            <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
-              <div className="p-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
-                <div>
-                  <h2 className="fw-bold mb-1" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>
-                    {fornecedorInitial ? "Editar Fornecedor" : "Novo Fornecedor"}
-                  </h2>
-                  <p className="text-muted-foreground small mb-0">
-                    {fornecedorInitial ? "Atualize os dados do parceiro" : "Cadastre um novo parceiro comercial"}
-                  </p>
+            <div className="dashboard-card shadow-lg border border-border w-100 transparent-scrollbar" style={{ maxHeight: "calc(100dvh - 2rem)", overflowY: "auto" }}>
+              <form onSubmit={handleSubmit} className="p-0" style={{ backgroundColor: "var(--background)" }}>
+                <div className="p-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
+                  <div>
+                    <h2 className="fw-bold mb-1" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>
+                      {fornecedorInitial ? "Editar Fornecedor" : "Novo Fornecedor"}
+                    </h2>
+                    <p className="text-muted-foreground small mb-0">
+                      {fornecedorInitial ? "Atualize os dados do parceiro" : "Cadastre um novo parceiro comercial"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="btn btn-light p-2 border-0 rounded-circle"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
-                <button
-                  onClick={onClose}
-                  className="btn btn-light p-2 border-0 rounded-circle"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              
-              <form onSubmit={handleSubmit} className="p-0 overflow-auto flex-grow-1" style={{ backgroundColor: "var(--background)" }}>
+
                 <div className="p-4">
                   {/* Photo Upload */}
                   <div className="d-flex flex-column align-items-center mb-4">
@@ -487,32 +488,32 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                     </label>
                   </div>
                 </div>
+
+                <div className="p-3 p-md-4 border-top border-border d-flex justify-content-end gap-2" style={{ background: "var(--background)" }}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="btn btn-light px-4 py-2"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn px-4 py-2"
+                    style={{ background: 'oklch(0.55 0.16 145)', color: 'white' }}
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Save size={16} className="me-2" />
+                        {fornecedorInitial ? "Atualizar" : "Salvar Fornecedor"}
+                      </>
+                    )}
+                  </button>
+                </div>
               </form>
-              
-              <div className="p-3 p-md-4 border-top border-border d-flex justify-content-end gap-2" style={{ background: "var(--background)" }}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn btn-light px-4 py-2"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="btn px-4 py-2"
-                  style={{ background: 'oklch(0.55 0.16 145)', color: 'white' }}
-                >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Save size={16} className="me-2" />
-                      {fornecedorInitial ? "Atualizar" : "Salvar Fornecedor"}
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           </motion.div>
         </div>

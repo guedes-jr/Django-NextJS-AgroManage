@@ -11,7 +11,9 @@ import {
   Phone,
   MapPin,
   X,
-  Check
+  Check,
+  Mail,
+  FileText
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { apiClient, getMediaUrl } from "@/services/api";
@@ -38,7 +40,12 @@ export function FornecedoresDashboard() {
     try {
       const { data } = await apiClient.get("/inventory/fornecedores/");
       console.log("[DEBUG] Fornecedores response:", data);
-      setFornecedores(Array.isArray(data) ? data : []);
+      const fornecedoresData = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+          ? data.results
+          : [];
+      setFornecedores(fornecedoresData);
     } catch (err: any) {
       if (err.response?.status === 401) {
         setFornecedores([]);
@@ -224,83 +231,112 @@ export function FornecedoresDashboard() {
           </button>
         </div>
       ) : (
-        <div className="row g-4">
-          {filteredFornecedores.map((fornecedor) => (
-            <div className="col-12 col-md-6 col-xl-4" key={fornecedor.id}>
-              <motion.div 
-                layout
-                className="dashboard-card h-100 p-4 d-flex flex-column"
-                whileHover={{ y: -2 }}
-              >
-                {/* Header Card */}
-                <div className="d-flex align-items-start justify-content-between mb-3">
-                  <div className="d-flex align-items-center gap-3">
-                    {fornecedor.imagem ? (
-                      <img
-                        src={getMediaUrl(fornecedor.imagem)}
-                        alt={fornecedor.nome}
-                        className="rounded-xl object-fit-cover"
-                        style={{ width: '52px', height: '52px' }}
-                      />
-                    ) : (
-                      <div 
-                        className="rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
-                        style={{ width: '52px', height: '52px', fontSize: '18px' }}
-                      >
-                        {fornecedor.nome.substring(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <div>
-                      <h4 className="fw-bold mb-0" style={{ color: "var(--foreground)" }}>{fornecedor.nome}</h4>
-                      <p className="text-xs text-muted-foreground mb-0">{fornecedor.tipo_contrato_display}</p>
-                    </div>
-                  </div>
-                  <Badge variant={fornecedor.ativo ? "success" : "warning"} className="text-xs">
-                    {fornecedor.ativo ? <Check size={12} className="me-1" /> : <X size={12} className="me-1" />}
-                    {fornecedor.ativo ? "Ativo" : "Inativo"}
-                  </Badge>
-                </div>
-
-                {/* Info */}
-                <div className="flex-grow-1">
-                  {fornecedor.contato_principal && (
-                    <div className="d-flex align-items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-lg bg-muted d-flex align-items-center justify-content-center">
-                        <Phone size={12} className="text-muted-foreground" />
-                      </div>
-                      <span className="text-sm">{fornecedor.contato_principal}</span>
-                    </div>
-                  )}
-                  {(fornecedor.cidade || fornecedor.estado) && (
-                    <div className="d-flex align-items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-lg bg-muted d-flex align-items-center justify-content-center">
-                        <MapPin size={12} className="text-muted-foreground" />
-                      </div>
-                      <span className="text-sm">{fornecedor.cidade}{fornecedor.estado && ` / ${fornecedor.estado}`}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="d-flex align-items-center justify-content-end gap-2 pt-3 border-top mt-auto">
-                  <button 
-                    onClick={() => handleEdit(fornecedor)}
-                    className="btn btn-light d-flex align-items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold"
+        <div className="dashboard-card p-0 overflow-hidden">
+          <div className="table-responsive">
+            <table className="table mb-0 align-middle">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">FORNECEDOR</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CONTATO</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">LOCALIDADE</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CONTRATO</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredFornecedores.map((fornecedor) => (
+                  <motion.tr
+                    key={fornecedor.id}
+                    layout
+                    className="border-bottom border-border last-border-0"
                   >
-                    <Edit2 size={14} />
-                    Editar
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(fornecedor.id)}
-                    className="btn d-flex align-items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold bg-danger/10 text-danger hover:bg-danger/20"
-                  >
-                    <Trash2 size={14} />
-                    Excluir
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          ))}
+                    <td className="px-4 py-3">
+                      <div className="d-flex align-items-center gap-3">
+                        {fornecedor.imagem ? (
+                          <img
+                            src={getMediaUrl(fornecedor.imagem)}
+                            alt={fornecedor.nome}
+                            className="rounded-xl object-fit-cover"
+                            style={{ width: "44px", height: "44px" }}
+                          />
+                        ) : (
+                          <div
+                            className="rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
+                            style={{ width: "44px", height: "44px", fontSize: "14px" }}
+                          >
+                            {fornecedor.nome.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className="fw-bold text-foreground">{fornecedor.nome}</div>
+                          {fornecedor.cnpj ? (
+                            <div className="small text-muted-foreground d-flex align-items-center gap-1">
+                              <FileText size={12} />
+                              {fornecedor.cnpj}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="d-flex flex-column gap-1">
+                        {fornecedor.telefone ? (
+                          <span className="small d-flex align-items-center gap-1">
+                            <Phone size={12} className="text-muted-foreground" />
+                            {fornecedor.telefone}
+                          </span>
+                        ) : null}
+                        {fornecedor.email ? (
+                          <span className="small d-flex align-items-center gap-1 text-muted-foreground">
+                            <Mail size={12} />
+                            {fornecedor.email}
+                          </span>
+                        ) : null}
+                        {!fornecedor.telefone && !fornecedor.email ? (
+                          <span className="small text-muted-foreground">-</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 small">
+                      {fornecedor.cidade || fornecedor.estado
+                        ? `${fornecedor.cidade || ""}${fornecedor.estado ? ` / ${fornecedor.estado}` : ""}`
+                        : "-"}
+                    </td>
+                    <td className="px-3 py-3 small">
+                      {fornecedor.tipo_contrato_display || "-"}
+                    </td>
+                    <td className="px-3 py-3">
+                      <Badge variant={fornecedor.ativo ? "success" : "warning"} className="text-xs">
+                        {fornecedor.ativo ? <Check size={12} className="me-1" /> : <X size={12} className="me-1" />}
+                        {fornecedor.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="d-flex align-items-center justify-content-end gap-2">
+                        <button
+                          onClick={() => handleEdit(fornecedor)}
+                          className="btn btn-light d-flex align-items-center justify-content-center p-2 rounded-lg"
+                          aria-label="Editar fornecedor"
+                          title="Editar fornecedor"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(fornecedor.id)}
+                          className="btn d-flex align-items-center justify-content-center p-2 rounded-lg bg-danger/10 text-danger hover:bg-danger/20"
+                          aria-label="Excluir fornecedor"
+                          title="Excluir fornecedor"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

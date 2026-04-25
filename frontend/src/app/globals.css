@@ -255,3 +255,23 @@ body {
 .btn-link-agro:hover {
   text-decoration: underline;
 }
+
+/* Transparent scrollbar utility */
+.transparent-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: transparent transparent; /* Firefox */
+}
+
+.transparent-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.transparent-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transparent-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  border: 2px solid transparent;
+}

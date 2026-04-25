@@ -1,6 +1,7 @@
 """
 Serializers for the inventory app.
 """
+import re
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -40,22 +41,45 @@ class FornecedorSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, data):
-        """Check for duplicate nome within the same organization."""
+        """Check duplicate nome and CPF/CNPJ within the same organization."""
         nome = data.get("nome")
+        documento = data.get("cnpj")
         organization = self.context["request"].user.organization if "request" in self.context else None
         
-        if nome and organization:
-            # Exclude current instance in update
-            queryset = Fornecedor.objects.filter(organization=organization, nome__iexact=nome.strip())
+        if organization and (nome or documento):
+            queryset = Fornecedor.objects.filter(organization=organization)
             if self.instance:
                 queryset = queryset.exclude(pk=self.instance.pk)
-            
-            if queryset.exists():
-                raise serializers.ValidationError({
-                    "nome": f"Já existe um fornecedor com o nome '{nome}' nesta organização."
-                })
+
+            if nome:
+                duplicated_nome = queryset.filter(nome__iexact=nome.strip()).exists()
+                if duplicated_nome:
+                    raise serializers.ValidationError({
+                        "nome": f"Já existe um fornecedor com o nome '{nome}' nesta organização."
+                    })
+
+            if documento:
+                normalized_documento = re.sub(r"\D", "", str(documento))
+                if normalized_documento:
+                    for fornecedor in queryset.exclude(cnpj__isnull=True).exclude(cnpj=""):
+                        fornecedor_documento = re.sub(r"\D", "", fornecedor.cnpj or "")
+                        if fornecedor_documento and fornecedor_documento == normalized_documento:
+                            raise serializers.ValidationError({
+                                "cnpj": "Já existe um fornecedor com este CPF/CNPJ nesta organização."
+                            })
         
         return data
+
+    def create(self, validated_data):
+        """
+        Ensure organization is always injected from request context when available.
+        This prevents null organization inserts when the field is read-only.
+        """
+        request = self.context.get("request")
+        organization = getattr(getattr(request, "user", None), "organization", None)
+        if organization and "organization" not in validated_data:
+            validated_data["organization"] = organization
+        return super().create(validated_data)
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
     estoque_atual = serializers.DecimalField(

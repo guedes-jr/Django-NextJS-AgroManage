@@ -45,8 +45,8 @@ const menuItems: MenuItem[] = [
     icon: Package,
     children: [
       { title: "Resumo", href: "/home/estoque/resumo" },
-      { title: "Cadastrar Insumo", href: "/home/estoque/cadastrar", badge: "NOVO" },
       { title: "Insumos", href: "/home/estoque/insumos" },
+      { title: "Produção de Ração", href: "/home/estoque/producao-racao", badge: "NOVO" },
       { title: "Movimentações", href: "/home/estoque/movimentacoes" },
       { title: "Fornecedores", href: "/home/estoque/fornecedores" },
       { title: "Alertas", href: "/home/estoque/alertas" },

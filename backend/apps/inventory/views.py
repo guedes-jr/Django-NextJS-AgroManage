@@ -1,10 +1,12 @@
 """
 ViewSets for the inventory app.
 """
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.utils.text import slugify
+from apps.organizations.models import Organization
 
 from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor
 from .serializers import (
@@ -125,15 +127,32 @@ class FornecedorViewSet(viewsets.ModelViewSet):
             return Fornecedor.objects.filter(organization=self.request.user.organization).order_by("nome")
         return Fornecedor.objects.none()
 
+    def _get_user_organization(self):
+        organization = getattr(self.request.user, "organization", None)
+        if organization:
+            return organization
+
+        user = self.request.user
+        base_name = f"Organização de {user.full_name or user.email}"
+        base_slug = slugify(user.full_name or user.email.split("@")[0] or "organizacao")
+        slug = base_slug or "organizacao"
+        suffix = 1
+        while Organization.objects.filter(slug=slug).exists():
+            suffix += 1
+            slug = f"{base_slug}-{suffix}" if base_slug else f"organizacao-{suffix}"
+
+        organization = Organization.objects.create(name=base_name[:255], slug=slug[:100])
+        user.organization = organization
+        user.save(update_fields=["organization", "updated_at"])
+        return organization
+
     def perform_create(self, serializer):
-        organization = self.request.user.organization
-        print(f"[DEBUG] Creating supplier for organization: {organization}")
+        organization = self._get_user_organization()
         serializer.save(organization=organization)
     
     def perform_update(self, serializer):
         # Ensure organization is not changed
-        organization = self.request.user.organization
-        print(f"[DEBUG] Updating supplier for organization: {organization}")
+        organization = self._get_user_organization()
         serializer.save(organization=organization)
 
     @action(detail=True, methods=["post"], url_path="upload_imagem")
