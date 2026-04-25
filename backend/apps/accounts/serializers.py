@@ -33,6 +33,8 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar = serializers.ImageField(required=False, allow_null=True)
+    
     class Meta:
         model = User
         fields = [
@@ -47,6 +49,9 @@ class UserSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+        extra_kwargs = {
+            "avatar": {"required": False, "allow_null": True},
+        }
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

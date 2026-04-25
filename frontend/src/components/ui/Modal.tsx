@@ -51,7 +51,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               className={`w-100 ${maxWidth} pe-auto`}
             >
-              <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100vh - 2rem)", maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
+              <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
                 
                 {(title || description) && (
                   <div className="p-3 p-md-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>

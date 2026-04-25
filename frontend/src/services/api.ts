@@ -6,20 +6,10 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { AuthTokens, ApiError } from "@/types";
 
 const getBaseUrl = (): string => {
-  // Use env variable if available, otherwise fallback to local dev default
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (envUrl) return envUrl;
-
-  // In the browser, handle cases where we might want to use relative paths
-  // or default to localhost:8000
-  if (typeof window !== "undefined") {
-    // If the app is served via a proxy (e.g., Nginx), relative path is safer
-    if (window.location.port === "" || window.location.port === "80") {
-      return "/api/v1";
-    }
-  }
   
-  return "http://localhost:8000/api/v1";
+  return "/api/v1";
 };
 
 const BASE_URL = getBaseUrl();
@@ -27,10 +17,11 @@ const BASE_URL = getBaseUrl();
 export const getMediaUrl = (path: string) => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  return `${BASE_URL.replace("/api/v1", "")}${path}`;
+  if (path.startsWith("/media/")) return path;
+  if (path.startsWith("avatars/")) return `/media/${path}`;
+  return `/media/${path}`;
 };
 
-// Debugging helper
 if (process.env.NODE_ENV === "development") {
   console.log(`[API] Initialized with BASE_URL: ${BASE_URL}`);
 }
@@ -39,11 +30,10 @@ export const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
+    "Accept": "application/json",
   },
   timeout: 15000,
 });
-
-// ─── Request interceptor — attach access token ────────────────────────────────
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -53,12 +43,16 @@ apiClient.interceptors.request.use(
         config.headers["Authorization"] = `Bearer ${access}`;
       }
     }
+    
+    // FormData: remove Content-Type header to let browser set multipart/form-data
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)
 );
-
-// ─── Response interceptor — refresh token on 401 ─────────────────────────────
 
 let isRefreshing = false;
 let pendingQueue: Array<{
@@ -81,7 +75,7 @@ apiClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           pendingQueue.push({ resolve, reject });
         }).then((token) => {
-          originalRequest.headers["Authorization"] = `Bearer ${token}`;
+          originalRequest.headers!["Authorization"] = `Bearer ${token}`;
           return apiClient(originalRequest);
         });
       }
@@ -102,7 +96,7 @@ apiClient.interceptors.response.use(
         });
         localStorage.setItem("access_token", data.access);
         processQueue(null, data.access);
-        originalRequest.headers["Authorization"] = `Bearer ${data.access}`;
+        originalRequest.headers!["Authorization"] = `Bearer ${data.access}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
@@ -118,5 +112,16 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const uploadFile = async (url: string, file: File, fieldName: string = "imagem") => {
+  const formData = new FormData();
+  formData.append(fieldName, file);
+  
+  const fullUrl = `${BASE_URL}${url}`;
+  // axios.post automatically handles FormData and sets Content-Type correctly
+  // Do not override headers for FormData requests
+  const response = await apiClient.post(fullUrl, formData);
+  return response;
+};
 
 export default apiClient;

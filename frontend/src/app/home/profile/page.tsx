@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, getMediaUrl } from "@/services/api";
-import { User, Mail, Phone, Shield, Calendar, Edit2, Camera, Check, X } from "lucide-react";
+import { User, Mail, Phone, Shield, Calendar, Edit2, Camera, Check, X, Trash2 } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -30,30 +30,32 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
     phone: "",
   });
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      const parsed = JSON.parse(userData);
-      setUser(parsed);
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const userData = JSON.parse(userStr);
+      setUser(userData as UserProfile);
       setFormData({
-        full_name: parsed.full_name || "",
-        email: parsed.email || "",
-        phone: parsed.phone || "",
+        full_name: userData.full_name || "",
+        email: userData.email || "",
+        phone: userData.phone || "",
       });
     }
 
     apiClient
       .get("/auth/me/")
       .then((res) => {
-        setUser(res.data);
+        setUser(res.data as UserProfile);
         localStorage.setItem("user", JSON.stringify(res.data));
         setFormData({
           full_name: res.data.full_name || "",
@@ -68,18 +70,85 @@ export default function ProfilePage() {
   }, [router]);
 
   const handleSave = async () => {
+    setSaving(true);
     try {
-      // TODO: Implementar upload de avatar no backend
-      const { data } = await apiClient.patch("/auth/me/", {
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone,
+      const accessToken = localStorage.getItem("access_token");
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+      
+      const formDataNew = new FormData();
+      formDataNew.append("full_name", formData.full_name);
+      formDataNew.append("email", formData.email);
+      formDataNew.append("phone", formData.phone);
+      
+      if (avatarFile) {
+        formDataNew.append("avatar", avatarFile);
+      } else if (user?.avatar && !avatarPreview) {
+        formDataNew.append("avatar", "");
+      }
+      
+      const response = await fetch(`${baseUrl}/auth/me/`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: formDataNew,
       });
-      setUser(data);
-      localStorage.setItem("user", JSON.stringify(data));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log("Error:", errorText);
+        alert("Erro ao salvar perfil");
+        return;
+      }
+      
+      const userData = await response.json();
+      setUser(userData as UserProfile);
+      localStorage.setItem("user", JSON.stringify(userData));
       setEditing(false);
+      setAvatarPreview(null);
+      setAvatarFile(null);
+      alert("Perfil salvo com sucesso!");
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!confirm("Tem certeza que deseja remover a foto?")) return;
+    
+    setSaving(true);
+    try {
+      const accessToken = localStorage.getItem("access_token");
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+      
+      const formDataNew = new FormData();
+      formDataNew.append("full_name", formData.full_name);
+      formDataNew.append("email", formData.email);
+      formDataNew.append("phone", formData.phone);
+      formDataNew.append("avatar", "");
+      
+      const response = await fetch(`${baseUrl}/auth/me/`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: formDataNew,
+      });
+      
+      if (!response.ok) {
+        alert("Erro ao removeravatar");
+        return;
+      }
+      
+      const userData = await response.json();
+      setUser(userData as UserProfile);
+      localStorage.setItem("user", JSON.stringify(userData));
+    } catch (error) {
+      console.error("Erro ao remover avatar:", error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -90,6 +159,7 @@ export default function ProfilePage() {
       year: "numeric",
     });
   };
+
   if (loading) {
     return (
       <div className="d-flex align-items-center justify-content-center" style={{ minHeight: "60vh" }}>
@@ -124,48 +194,94 @@ export default function ProfilePage() {
                 }
               }}
             />
-            <label htmlFor="avatar-upload" className="position-relative d-inline-block mb-3" style={{ cursor: 'pointer' }} onMouseEnter={(e) => { if (!avatarPreview) (e.currentTarget.querySelector('.camera-icon') as HTMLElement).style.opacity = '1'; }} onMouseLeave={(e) => { if (!avatarPreview) (e.currentTarget.querySelector('.camera-icon') as HTMLElement).style.opacity = '0'; }}>
-              {avatarPreview || user?.avatar ? (
-                <img
-                  src={avatarPreview ? avatarPreview : getMediaUrl(user?.avatar || "")}
-                  alt={user?.full_name}
-                  className="rounded-circle object-fit-cover"
-                  style={{ width: '150px', height: '150px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
-                />
-              ) : (
-                <div
-                  className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold"
-                  style={{ width: '150px', height: '150px', fontSize: '3rem', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
-                >
-                  {user?.full_name?.charAt(0) || "U"}
+<label 
+              htmlFor="avatar-upload" 
+              className="position-relative d-inline-block mb-3" 
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+            >
+              {(avatarPreview || (user?.avatar && getMediaUrl(user.avatar))) ? (
+                <div className="d-flex flex-column align-items-center gap-3">
+                  <div className="position-relative">
+                    <img
+                      src={avatarPreview || (user?.avatar ? getMediaUrl(user.avatar) : "")}
+                      alt={user?.full_name || "Avatar"}
+                      className="rounded-circle object-fit-cover"
+                      style={{ width: '150px', height: '150px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
+                    />
+                    {isHovered && (
+                      <div className="position-absolute top-0 start-0 w-100 h-100 rounded-circle d-flex align-items-center justify-content-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+                        {avatarPreview ? (
+                          <div className="d-flex gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSave(); }}
+                              disabled={saving}
+                              className="rounded-circle d-flex align-items-center justify-content-center"
+                              style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
+                              title="Salvar"
+                            >
+                              {saving ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              ) : (
+                                <Check size={20} className="text-white" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAvatarPreview(null); setAvatarFile(null); }}
+                              className="rounded-circle d-flex align-items-center justify-content-center"
+                              style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
+                              title="Cancelar"
+                            >
+                              <X size={20} className="text-white" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="d-flex gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); document.getElementById('avatar-upload')?.click(); }}
+                              className="rounded-circle d-flex align-items-center justify-content-center"
+                              style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
+                              title="Alterar foto"
+                            >
+                              <Edit2 size={20} className="text-white" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); handleRemoveAvatar(); }}
+                              className="rounded-circle d-flex align-items-center justify-content-center"
+                              style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
+                              title="Remover foto"
+                            >
+                              <Trash2 size={20} className="text-white" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div
-                className="camera-icon position-absolute bottom-0 end-0 bg-white rounded-circle d-flex align-items-center justify-content-center"
-                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.15)', width: '40px', height: '40px', opacity: 0, transition: 'opacity 0.2s' }}
-              >
-                <Camera size={18} className="text-muted" />
-              </div>
-              {avatarPreview && (
-                <div className="position-absolute top-0 start-0 w-100 h-100 rounded-circle" style={{ background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', zIndex: 10 }}>
-                  <button
-                    className="bg-white rounded-circle p-2 border-0 d-flex align-items-center justify-content-center"
-                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.15)', width: '44px', height: '44px' }}
+              ) : (
+                <div className="d-flex flex-column align-items-center gap-3">
+                  <div
+                    className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold"
+                    style={{ width: '150px', height: '150px', fontSize: '3rem', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
                   >
-                    <Check size={20} style={{ color: '#22c55e' }} />
-                  </button>
-                  <button
-                    className="bg-white rounded-circle p-2 border-0 d-flex align-items-center justify-content-center"
-                    style={{ boxShadow: 'var(--card-premium-shadow)', width: '36px', height: '36px' }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setAvatarPreview(null);
-                      setAvatarFile(null);
-                    }}
-                  >
-                    <X size={20} style={{ color: '#ef4444' }} />
-                  </button>
+                    {user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
+                  </div>
+                  {isHovered && (
+                    <label
+                      htmlFor="avatar-upload"
+                      className="rounded-circle d-flex align-items-center justify-content-center"
+                      style={{ border: '2px solid #22c55e', width: '40px', height: '40px', cursor: 'pointer' }}
+                      title="Adicionar foto"
+                    >
+                      <Camera size={18} className="text-white" />
+                    </label>
+                  )}
                 </div>
               )}
             </label>

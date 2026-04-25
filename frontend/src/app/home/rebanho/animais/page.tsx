@@ -9,7 +9,7 @@ import { AnimalFormModal } from "@/components/dashboard/AnimalFormModal";
 import { ChevronRight, Plus, Warehouse, CheckCircle2, AlertOctagon, Clock, BarChart3, Bird } from "lucide-react";
 import { Icon } from "lucide-react";
 import { cowHead, pigHead } from "@lucide/lab";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { apiClient } from "@/services/api";
 import "./animais.css";
 
@@ -135,7 +135,7 @@ export default function AnimalsPage() {
 
   const kpis = useMemo(() => getKPIs(activeTab, currentData), [activeTab, currentData]);
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -143,7 +143,7 @@ export default function AnimalsPage() {
     }
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
   };

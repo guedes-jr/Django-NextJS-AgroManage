@@ -3,8 +3,9 @@ Accounts app views — auth, user management.
 """
 from django.contrib.auth import get_user_model
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -111,10 +112,18 @@ def refresh_token_view(request):
         )
 
 
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
+
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def me_view(request):
     """Get or update current user profile."""
+    import logging
+    logger = logging.getLogger(__name__)
+    from django.core.files.storage import default_storage
+    
     if request.method == "GET":
         return Response(UserSerializer(request.user).data)
 
@@ -122,21 +131,40 @@ def me_view(request):
         user = request.user
         old_avatar = user.avatar if user.avatar else None
         
+        data = {}
+        
+        for key in ['full_name', 'email', 'phone', 'avatar']:
+            if key in request.data:
+                value = request.data[key]
+                if hasattr(value, 'name'):
+                    data[key] = value
+                elif key == 'avatar' and (value is None or str(value) == ''):
+                    data[key] = ''
+                elif value is not None and str(value) != '':
+                    data[key] = str(value)
+        
+        logger.warning(f"[DEBUG] Parsed data: {data}")
+        
+        if 'avatar' in data and data['avatar'] is not None:
+            if hasattr(data['avatar'], 'name') and data['avatar'].name == '':
+                if old_avatar:
+                    try:
+                        default_storage.delete(old_avatar.path)
+                    except Exception:
+                        pass
+                user.avatar = None
+                user.save()
+                data['avatar'] = None
+        
+        logger.warning(f"[DEBUG] Final data for serializer: {data}")
+        
         serializer = UserSerializer(
             user,
-            data=request.data,
+            data=data,
             partial=True,
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        
-        if old_avatar and 'avatar' in request.data:
-            from django.core.files.storage import default_storage
-            try:
-                if default_storage.exists(old_avatar.path):
-                    default_storage.delete(old_avatar.path)
-            except Exception:
-                pass
         
         return Response(UserSerializer(request.user).data)
 

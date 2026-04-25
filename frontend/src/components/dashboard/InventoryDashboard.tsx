@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
+import { apiClient } from "@/services/api";
 import Link from "next/link";
 import { 
   ChevronRight, 
@@ -77,6 +79,52 @@ const recentMovements = [
 ];
 
 export function InventoryDashboard() {
+  const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory }>({ open: false });
+
+  const handleSaveItems = async (items: any[]) => {
+    try {
+      const payload = items.map(row => ({
+        nome: row.nome,
+        codigo: row.codigo || undefined,
+        categoria: row.categoria,
+        unidade_medida: row.unidade_medida,
+        descricao: row.descricao,
+        marca: row.marca,
+        fabricante: row.fabricante,
+        especie_animal: row.especie_animal || undefined,
+        estoque_minimo: row.estoque_minimo ? parseFloat(row.estoque_minimo) : 0,
+        principio_ativo: row.principio_ativo,
+        concentracao: row.concentracao,
+        via_aplicacao: row.via_aplicacao || undefined,
+        carencia_dias: row.carencia_dias ? parseInt(row.carencia_dias) : undefined,
+        registro_mapa: row.registro_mapa,
+        exige_receituario: row.exige_receituario,
+        medicamento_controlado: row.medicamento_controlado,
+        temperatura_minima: row.temperatura_minima ? parseFloat(row.temperatura_minima) : undefined,
+        temperatura_maxima: row.temperatura_maxima ? parseFloat(row.temperatura_maxima) : undefined,
+        doses_por_embalagem: row.doses_por_embalagem ? parseInt(row.doses_por_embalagem) : undefined,
+        volume_por_dose: row.volume_por_dose,
+        composicao: row.composicao,
+        indicacao_uso: row.indicacao_uso,
+        modo_uso: row.modo_uso,
+        peso_embalagem: row.peso_embalagem ? parseFloat(row.peso_embalagem) : undefined,
+        quantidade_inicial: row.quantidade_inicial ? parseFloat(row.quantidade_inicial) : undefined,
+        custo_unitario: row.custo_unitario ? parseFloat(row.custo_unitario) : undefined,
+        numero_lote: row.numero_lote,
+        data_validade: row.data_validade || undefined,
+        data_fabricacao: row.data_fabricacao || undefined,
+        local_armazenamento: row.local_armazenamento || undefined,
+        fornecedor: row.fornecedor,
+        nota_fiscal: row.nota_fiscal,
+        observacao_lote: row.observacao_lote,
+      }));
+      await apiClient.post("inventory/items/bulk_create/", payload);
+    } catch (err) {
+      console.error("Erro ao salvar itens:", err);
+      throw err;
+    }
+  };
+
   return (
     <div className="inventory-container pb-5">
       {/* Header */}
@@ -107,20 +155,24 @@ export function InventoryDashboard() {
         </div>
         <div className="row g-3">
           <div className="col-auto">
-            <button className="btn h-100 px-4 d-flex flex-column align-items-center justify-content-center gap-2 rounded-xl border-0 shadow-sm transition-all" style={{ minWidth: '140px', background: 'var(--primary)', color: 'white' }}>
+            <button
+              className="btn h-100 px-4 d-flex flex-column align-items-center justify-content-center gap-2 rounded-xl border-0 shadow-sm transition-all"
+              style={{ minWidth: '140px', background: 'var(--primary)', color: 'white' }}
+              onClick={() => setModalConfig({ open: true })}
+            >
                 <Plus size={24} strokeWidth={3} />
                 <span className="fw-bold">Novo Insumo</span>
             </button>
           </div>
           {[
-            { title: "Rações / Grãos", desc: "Milho, Soja, Farelo...", icon: <Wheat size={24} />, color: "oklch(0.7 0.15 85)" },
-            { title: "Núcleo / Premix", desc: "Núcleo, Suplementos...", icon: <Box size={24} />, color: "oklch(0.65 0.16 230)" },
-            { title: "Medicamentos", desc: "Antibióticos, Vitaminas...", icon: <Activity size={24} />, color: "oklch(0.7 0.18 25)" },
-            { title: "Vacinas", desc: "Vacinas, Injetáveis...", icon: <Syringe size={24} />, color: "oklch(0.7 0.22 290)" },
-            { title: "Outros Materiais", desc: "Materiais, Equipamentos...", icon: <Package size={24} />, color: "oklch(0.6 0.05 240)" },
+            { title: "Rações / Grãos", desc: "Milho, Soja, Farelo...", icon: <Wheat size={24} />, color: "oklch(0.7 0.15 85)", category: "racao" as InventoryCategory },
+            { title: "Núcleo / Premix", desc: "Núcleo, Suplementos...", icon: <Box size={24} />, color: "oklch(0.65 0.16 230)", category: "nucleo" as InventoryCategory },
+            { title: "Medicamentos", desc: "Antibióticos, Vitaminas...", icon: <Activity size={24} />, color: "oklch(0.7 0.18 25)", category: "medicamento" as InventoryCategory },
+            { title: "Vacinas", desc: "Vacinas, Injetáveis...", icon: <Syringe size={24} />, color: "oklch(0.7 0.22 290)", category: "vacina" as InventoryCategory },
+            { title: "Outros Materiais", desc: "Materiais, Equipamentos...", icon: <Package size={24} />, color: "oklch(0.6 0.05 240)", category: "material" as InventoryCategory },
           ].map((cat, i) => (
             <div key={i} className="col">
-              <div className="inv-category-card">
+              <div className="inv-category-card" onClick={() => setModalConfig({ open: true, category: cat.category })}>
                 <div className="inv-category-icon" style={{ background: `color-mix(in srgb, ${cat.color}, transparent 85%)`, color: cat.color }}>
                   {cat.icon}
                 </div>
@@ -377,6 +429,13 @@ export function InventoryDashboard() {
           </div>
         ))}
       </div>
+
+      <InventoryFormModal
+        isOpen={modalConfig.open}
+        onClose={() => setModalConfig({ open: false })}
+        category={modalConfig.category}
+        onSave={handleSaveItems}
+      />
     </div>
   );
 }
