@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, getMediaUrl } from "@/services/api";
+import { useToast } from "@/components/ui/Toast";
 import { User, Mail, Phone, Shield, Calendar, Edit2, Camera, Check, X, Trash2 } from "lucide-react";
 
 interface UserProfile {
@@ -27,6 +28,7 @@ const roleLabels: Record<string, string> = {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -97,7 +99,7 @@ export default function ProfilePage() {
       if (!response.ok) {
         const errorText = await response.text();
         console.log("Error:", errorText);
-        alert("Erro ao salvar perfil");
+        showToast("Erro ao salvar perfil. Tente novamente.", "error", 15000);
         return;
       }
       
@@ -107,7 +109,7 @@ export default function ProfilePage() {
       setEditing(false);
       setAvatarPreview(null);
       setAvatarFile(null);
-      alert("Perfil salvo com sucesso!");
+      showToast("Perfil salvo com sucesso! 🎉", "success", 15000);
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
     } finally {
@@ -138,7 +140,7 @@ export default function ProfilePage() {
       });
       
       if (!response.ok) {
-        alert("Erro ao removeravatar");
+        showToast("Erro ao remover avatar. Tente novamente.", "error", 15000);
         return;
       }
       

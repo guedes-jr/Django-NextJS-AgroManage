@@ -13,6 +13,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
+import { useToast } from "@/components/ui/Toast";
 
 type View = "login" | "register" | "forgot";
 
@@ -33,6 +34,7 @@ const titles: Record<View, { title: string; subtitle: string }> = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [view, setView] = useState<View>("login");
   const [showPwd, setShowPwd] = useState(false);
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
@@ -72,14 +74,14 @@ export default function LoginPage() {
           password_confirm: formData.password_confirm,
           full_name: formData.name,
         });
-        alert("Conta criada! Você será redirecionado para o login.");
-        goTo("login");
+        showToast(\"Conta criada! Você será redirecionado para o login. 🎉\", \"success\", 15000);
+        setTimeout(() => goTo(\"login\"), 2000);
       } else if (view === "forgot") {
         await apiClient.post("/auth/password-recovery/", {
           email: formData.email,
         });
-        alert("Link enviado para seu email!");
-        goTo("login");
+        showToast(\"Link enviado para seu email! 📧\", \"success\", 15000);
+        setTimeout(() => goTo(\"login\"), 2000);
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: { detail?: unknown; message?: string } } } };

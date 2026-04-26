@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
 import { Plus, Trash2, Tag, Calendar, Banknote, User, Activity, FileText, Warehouse } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -18,6 +19,7 @@ interface AnimalFormModalProps {
 }
 
 export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: AnimalFormModalProps) {
+  const { showToast } = useToast();
   const [rows, setRows] = useState([
     { 
       id: Date.now(), 
@@ -83,6 +85,32 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
   };
 
   const handleSubmit = () => {
+    // Validate required fields
+    const errors: string[] = [];
+    
+    rows.forEach((row, index) => {
+      if (!row.numero || !row.numero.trim()) {
+        errors.push(`Registro #${index + 1}: ${getNumberLabel(row.categoria)} é obrigatório`);
+      }
+      if (!row.categoria || !row.categoria.trim()) {
+        errors.push(`Registro #${index + 1}: Categoria é obrigatória`);
+      }
+      if (!row.sexo || !row.sexo.trim()) {
+        errors.push(`Registro #${index + 1}: Sexo é obrigatório`);
+      }
+      if (!row.origem || !row.origem.trim()) {
+        errors.push(`Registro #${index + 1}: Origem é obrigatória`);
+      }
+      if (!row.dataCompra && !row.nascimento) {
+        errors.push(`Registro #${index + 1}: Data de compra ou nascimento é obrigatória`);
+      }
+    });
+
+    if (errors.length > 0) {
+      showToast(`Preencha os campos obrigatórios:\n${errors.join('\n')}`, "warning", 15000);
+      return;
+    }
+
     const payload = rows.map(r => ({ ...r, seguimento: type }));
     onSave(payload);
     onClose();

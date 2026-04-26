@@ -117,10 +117,7 @@ export const uploadFile = async (url: string, file: File, fieldName: string = "i
   const formData = new FormData();
   formData.append(fieldName, file);
   
-  const fullUrl = `${BASE_URL}${url}`;
-  // axios.post automatically handles FormData and sets Content-Type correctly
-  // Do not override headers for FormData requests
-  const response = await apiClient.post(fullUrl, formData);
+  const response = await apiClient.post(url, formData);
   return response;
 };
 

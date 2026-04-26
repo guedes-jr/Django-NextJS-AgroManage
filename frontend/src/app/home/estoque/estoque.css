@@ -26,6 +26,47 @@
     border-color: var(--primary);
 }
 
+.quick-access-card {
+    background: var(--inv-card-bg);
+    border: 1px solid var(--inv-border);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 180px;
+    text-decoration: none;
+}
+
+.quick-access-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-elegant);
+    border-color: var(--primary);
+}
+
+.quick-access-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.quick-access-title {
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--foreground);
+}
+
+.quick-access-desc {
+    font-size: 0.7rem;
+    color: var(--inv-text-muted);
+}
+
 .inv-category-icon {
     width: 48px;
     height: 48px;

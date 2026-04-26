@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiClient, getMediaUrl } from "@/services/api";
+import { useToast } from "@/components/ui/Toast";
 import { MoreVertical, Plus, Search, X, Mail, Lock, User, Phone } from "lucide-react";
 
 interface UserData {
@@ -24,6 +25,7 @@ const roleConfig: Record<string, { label: string; color: string; bg: string }> =
 };
 
 export default function UsuariosPage() {
+  const { showToast } = useToast();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,13 +56,36 @@ export default function UsuariosPage() {
   const handleCreateUser = async () => {
     try {
       await apiClient.post("/auth/register/", formData);
+      showToast("Usuário cadastrado com sucesso! 🎉", "success", 15000);
       setShowModal(false);
+      setFormData({
+        full_name: "",
+        email: "",
+        phone: "",
+        role: "operator",
+        password: "",
+        password_confirm: "",
+      });
       // Refresh list
       const { data } = await apiClient.get("/auth/users/");
       setUsers(data.results || data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao criar usuário:", error);
-      alert("Erro ao cadastrar usuário.");
+      
+      // Extract error message from response
+      let errorMessage = "Erro ao cadastrar usuário. Tente novamente.";
+      
+      if (error.response?.data?.non_field_errors) {
+        errorMessage = error.response.data.non_field_errors[0];
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.email?.[0]) {
+        errorMessage = error.response.data.email[0];
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, "error", 15000);
     }
   };
 

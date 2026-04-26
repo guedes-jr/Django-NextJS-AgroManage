@@ -7,6 +7,7 @@ import {
   Camera, Upload, XCircle
 } from "lucide-react";
 import { apiClient, getMediaUrl, uploadFile } from "@/services/api";
+import { useToast } from "@/components/ui/Toast";
 
 const formatCNPJ = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 14);
@@ -41,6 +42,7 @@ const tipoContratoOptions = [
 ];
 
 export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: FornecedorModalProps) {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -99,7 +101,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     e.preventDefault();
     
     if (!formData.nome.trim()) {
-      alert("Nome é obrigatório");
+      showToast("Nome é obrigatório", "warning", 15000);
       return;
     }
     
@@ -118,36 +120,25 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
       submitData.append("tipo_contrato", formData.tipo_contrato);
       submitData.append("ativo", String(formData.ativo));
       
-      // Debug log
-      console.log("[DEBUG] Enviando dados...");
-      for (let pair of (submitData as any).entries()) {
-        console.log(`[DEBUG] ${pair[0]}: ${pair[1]}`);
-      }
-      
       let savedData: any;
+      
+      const FORNECEDOR_API = "/inventory/fornecedores/";
       
       try {
         if (fornecedorInitial?.id) {
-          console.log(`[DEBUG] Atualizando fornecedor ${fornecedorInitial.id}`);
-          const { data } = await apiClient.put(`/inventory/fornecedores/${fornecedorInitial.id}/`, submitData);
+          const { data } = await apiClient.put(`${FORNECEDOR_API}${fornecedorInitial.id}`, submitData);
           savedData = data;
         } else {
-          console.log("[DEBUG] Criando novo fornecedor");
-          const { data } = await apiClient.post("/inventory/fornecedores/", submitData);
+          const { data } = await apiClient.post(FORNECEDOR_API, submitData);
           savedData = data;
         }
-        console.log("[DEBUG] Resposta do servidor:", savedData);
       } catch (apiErr: any) {
-        // Better error reporting
-        console.error("[DEBUG] Full error object:", apiErr);
-        console.error("[DEBUG] Error response status:", apiErr.response?.status);
-        console.error("[DEBUG] Error response data:", apiErr.response?.data);
-        
-        const errors = apiErr.response?.data;
+        const status = apiErr.response?.status;
+        const data = apiErr.response?.data;
         let errorMessage = "Erro ao salvar fornecedor.";
         
-        if (errors && typeof errors === "object" && Object.keys(errors).length > 0) {
-          const messages = Object.entries(errors)
+        if (data && typeof data === "object" && Object.keys(data).length > 0) {
+          const messages = Object.entries(data)
             .map(([key, value]) => {
               const val = Array.isArray(value) ? value.join(", ") : String(value);
               return `${key}: ${val}`;
@@ -157,34 +148,31 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
           if (messages.length > 0) {
             errorMessage = "Erro ao salvar:\n" + messages.join("\n");
           }
-        } else if (errors?.detail) {
-          errorMessage = `Erro ao salvar: ${errors.detail}`;
-        } else if (apiErr.response?.status) {
-          errorMessage = `Erro ${apiErr.response.status}: ${apiErr.message || "Falha ao salvar"}`;
+        } else if (data?.detail) {
+          errorMessage = `Erro: ${data.detail}`;
+        } else if (status) {
+          errorMessage = `Erro ${status}: ${apiErr.message || "Falha ao salvar"}`;
         }
         
-        alert(errorMessage);
+        showToast(errorMessage, "error", 15000);
         throw apiErr;
       }
 
       if (imageFile && savedData?.id) {
         try {
-          console.log(`[DEBUG] Fazendo upload de imagem para fornecedor ${savedData.id}`);
           await uploadFile(
-            `/inventory/fornecedores/${savedData.id}/upload_imagem/`,
+            `${FORNECEDOR_API}${savedData.id}/upload_imagem/`,
             imageFile,
             "imagem"
           );
         } catch (uploadErr) {
-          console.warn("Aviso: Fornecedor salvo, mas erro ao fazer upload da imagem.", uploadErr);
-          // Continue anyway - supplier was created, image is optional
+          // Continue - supplier was created, image is optional
         }
       }
 
       onSave();
       onClose();
     } catch (err: any) {
-      console.error("Erro ao salvar fornecedor:", err);
       // Error already shown via alert above
     } finally {
       setLoading(false);
@@ -195,7 +183,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Imagem deve ter menos de 5MB");
+        showToast("Imagem deve ter menos de 5MB", "warning", 15000);
         return;
       }
       const previewUrl = URL.createObjectURL(file);

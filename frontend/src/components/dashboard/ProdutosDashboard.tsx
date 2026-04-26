@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -44,7 +44,7 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   material: "material",
 };
 
-const CATEGORY_ICONS: Record<string, JSX.Element> = {
+const CATEGORY_ICONS: Record<string, ReactNode> = {
   racao: <Wheat size={16} />,
   nucleo: <Box size={16} />,
   medicamento: <Activity size={16} />,
@@ -57,7 +57,7 @@ function toNumber(value: string | number | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function InsumosDashboard() {
+export function ProdutosDashboard() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -79,7 +79,7 @@ export function InsumosDashboard() {
       setTotalCount(data?.count || 0);
       setPage(targetPage);
     } catch (error) {
-      console.error("Erro ao buscar insumos:", error);
+      console.error("Erro ao buscar produtos:", error);
       setItems([]);
       setTotalPages(1);
       setTotalCount(0);
@@ -138,14 +138,14 @@ export function InsumosDashboard() {
             Estoque
           </Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Insumos</span>
+          <span className="fw-semibold text-foreground">Produtos</span>
         </nav>
 
         <h1 className="fw-black mb-1" style={{ fontSize: "2.25rem", letterSpacing: "-0.04em", color: "var(--foreground)" }}>
-          Insumos
+          Produtos
         </h1>
         <p className="mb-0 text-muted-foreground fw-medium">
-          Controle completo dos insumos, rações, medicamentos e materiais da sua granja.
+          Controle completo dos produtos, rações, medicamentos e materiais da sua granja.
         </p>
       </div>
 
@@ -181,7 +181,7 @@ export function InsumosDashboard() {
 
       <div className="mb-4">
         <div className="d-flex align-items-center justify-content-between mb-3">
-          <h3 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>Cadastre novos insumos</h3>
+          <h3 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>Cadastre novos produtos</h3>
         </div>
         <div className="row g-3">
           <div className="col-auto">
@@ -191,7 +191,7 @@ export function InsumosDashboard() {
               onClick={() => setModalConfig({ open: true })}
             >
               <Plus size={24} strokeWidth={3} />
-              <span className="fw-bold">Novo insumo</span>
+              <span className="fw-bold">Novo produto</span>
             </button>
           </div>
           {[
@@ -230,7 +230,7 @@ export function InsumosDashboard() {
               <input
                 type="text"
                 className="form-control ps-5"
-                placeholder="Buscar insumo..."
+                placeholder="Buscar produto..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -264,7 +264,7 @@ export function InsumosDashboard() {
 
       <div className="dashboard-card p-0 overflow-hidden">
         {loading ? (
-          <div className="p-5 text-center text-muted-foreground">Carregando insumos...</div>
+          <div className="p-5 text-center text-muted-foreground">Carregando produtos...</div>
         ) : (
           <div className="table-responsive">
             <table className="table mb-0 align-middle">
@@ -282,7 +282,7 @@ export function InsumosDashboard() {
                 {filteredItems.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center py-5 text-muted-foreground">
-                      Nenhum insumo encontrado.
+                      Nenhum produto encontrado.
                     </td>
                   </tr>
                 ) : (

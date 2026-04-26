@@ -49,12 +49,10 @@ class ViaAplicacao(models.TextChoices):
 
 
 class TipoMovimentacao(models.TextChoices):
-    ENTRADA = "entrada", "Entrada"
-    SAIDA = "saida", "Saída"
-    AJUSTE = "ajuste", "Ajuste"
-    PERDA = "perda", "Perda / Quebra"
-    VENCIMENTO = "vencimento", "Descarte por Vencimento"
-    TRANSFERENCIA = "transferencia", "Transferência"
+    COMPRA = "compra", "Compra"
+    VENDA = "venda", "Venda"
+    CONSUMO = "consumo", "Consumo"
+    PERDA = "perda", "Perda"
 
 
 class LocalArmazenamento(models.TextChoices):

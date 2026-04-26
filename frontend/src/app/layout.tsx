@@ -1,11 +1,9 @@
+"use client";
+
 import type { Metadata } from "next";
 import "./globals.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-
-export const metadata: Metadata = {
-  title: "AgroManage",
-  description: "Plataforma de gestão agropecuária",
-};
+import { ToastProvider } from "@/components/ui/Toast";
 
 export default function RootLayout({
   children,
@@ -14,7 +12,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" data-bs-theme="light">
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
+      </body>
     </html>
   );
 }
