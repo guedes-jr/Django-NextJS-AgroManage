@@ -5,19 +5,20 @@ from decimal import Decimal
 from django.db import models
 from django.db.models import Sum, Count, Q
 from django.utils.dateparse import parse_date
-from rest_framework import viewsets, status, exceptions
+from rest_framework import viewsets, status, exceptions, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.utils.text import slugify
 from apps.organizations.models import Organization
 
-from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor
+from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor, AlertaEstoque
 from .serializers import (
     ItemEstoqueSerializer,
     LoteEstoqueSerializer,
     MovimentacaoEstoqueSerializer,
     FornecedorSerializer,
+    AlertaEstoqueSerializer,
 )
 from .choices import (
     CategoriaItem, UnidadeMedida, EspecieAnimal, TipoMovimentacao, TipoContratoFornecedor
@@ -50,6 +51,26 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context["request"] = self.request
         return context
+
+    def perform_create(self, serializer):
+        organization = getattr(self.request.user, 'organization', None)
+        if not organization:
+            # Cria organização se não existir (mesmo código do FornecedorViewSet)
+            from django.utils.text import slugify
+            from apps.organizations.models import Organization
+            user = self.request.user
+            base_name = f"Organização de {user.full_name or user.email}"
+            base_slug = slugify(user.full_name or user.email.split("@")[0] or "organizacao")
+            slug = base_slug or "organizacao"
+            suffix = 1
+            while Organization.objects.filter(slug=slug).exists():
+                suffix += 1
+                slug = f"{base_slug}-{suffix}" if base_slug else f"organizacao-{suffix}"
+            organization = Organization.objects.create(name=base_name[:255], slug=slug[:100])
+            user.organization = organization
+            user.save(update_fields=["organization", "updated_at"])
+        
+        serializer.save(organization=organization)
 
     @action(detail=False, methods=["post"], url_path="bulk_create")
     def bulk_create(self, request):
@@ -114,6 +135,17 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
             "itens_vencidos": vencidos,
         })
 
+    @action(detail=False, methods=["get"], url_path="all_items")
+    def all_items(self, request):
+        """Return all items for the organization."""
+        organization = request.user.organization if request.user.is_authenticated else None
+        if not organization:
+            return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+
+        items = ItemEstoque.objects.filter(organization=organization, ativo=True)
+        serializer = self.get_serializer(items, many=True)
+        return Response(serializer.data)
+
     @action(detail=False, methods=["get"], url_path="low_stock")
     def low_stock(self, request):
         """Return items with low stock."""
@@ -137,6 +169,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
                     "estoque_atual": str(saldo),
                     "estoque_minimo": str(item.estoque_minimo),
                     "unidade_medida": item.unidade_medida,
+                    "prioridade": item.prioridade,
                 })
 
         return Response(result)
@@ -191,10 +224,18 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         .order_by("-data_movimentacao")
     )
     serializer_class = MovimentacaoEstoqueSerializer
-    http_method_names = ["get", "post", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         qs = super().get_queryset()
+        
+        # Filter by organization
+        if self.request.user.is_authenticated and self.request.user.organization:
+            qs = qs.filter(item__organization=self.request.user.organization)
+        elif self.request.user.is_authenticated:
+            # If authenticated but no org, return nothing to avoid data leakage or empty context
+            return qs.none()
+
         item_id = self.request.query_params.get("item")
         if item_id:
             qs = qs.filter(item_id=item_id)
@@ -207,8 +248,153 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        responsavel = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(responsavel=responsavel)
+        from datetime import date
+        from apps.farms.models import Farm
+        
+        user = self.request.user
+        responsavel = user if user.is_authenticated else None
+        
+        tipo = serializer.validated_data.get("tipo")
+        item = serializer.validated_data.get("item")
+        quantidade = serializer.validated_data.get("quantidade")
+        lote = serializer.validated_data.get("lote")
+        
+        # Ensure farm is set (default to first farm of the organization if missing)
+        farm = serializer.validated_data.get("farm")
+        if not farm and responsavel and responsavel.organization:
+            farm = Farm.objects.filter(organization=responsavel.organization).first()
+        
+        # Save additional context
+        save_kwargs = {"responsavel": responsavel}
+        if farm:
+            save_kwargs["farm"] = farm
+        
+        # Pop batch fields so they don't get passed to MovimentacaoEstoque.objects.create()
+        batch_data = {
+            "numero_lote": serializer.validated_data.pop("numero_lote", ""),
+            "data_fabricacao": serializer.validated_data.pop("data_fabricacao", None),
+            "data_validade": serializer.validated_data.pop("data_validade", None),
+            "custo_unitario": serializer.validated_data.pop("custo_unitario", None),
+            "local_armazenamento": serializer.validated_data.pop("local_armazenamento", ""),
+            "fornecedor": serializer.validated_data.pop("fornecedor", None),
+            "nota_fiscal": serializer.validated_data.pop("nota_fiscal", ""),
+        }
+        
+        # If it's a PURCHASE and no batch was provided, handle it
+        if tipo == TipoMovimentacao.COMPRA and not lote:
+            numero_lote = batch_data["numero_lote"]
+            # Check if a batch with this number already exists for this item
+            lote = LoteEstoque.objects.filter(item=item, numero_lote=numero_lote).first()
+            
+            if not lote:
+                lote = LoteEstoque.objects.create(
+                    item=item,
+                    numero_lote=numero_lote,
+                    data_fabricacao=batch_data["data_fabricacao"],
+                    data_validade=batch_data["data_validade"],
+                    quantidade_inicial=quantidade,
+                    quantidade_atual=Decimal("0"), # Start at zero, movement will add
+                    custo_unitario=batch_data["custo_unitario"],
+                    local_armazenamento=batch_data["local_armazenamento"],
+                    fornecedor=batch_data["fornecedor"],
+                    nota_fiscal=batch_data["nota_fiscal"],
+                    data_entrada=date.today(),
+                )
+            else:
+                # Update existing batch metadata if provided
+                if batch_data["data_validade"]:
+                    lote.data_validade = batch_data["data_validade"]
+                if batch_data["custo_unitario"]:
+                    lote.custo_unitario = batch_data["custo_unitario"]
+                if batch_data["fornecedor"]:
+                    lote.fornecedor = batch_data["fornecedor"]
+                lote.save()
+                
+            instance = serializer.save(lote=lote, **save_kwargs)
+        else:
+            instance = serializer.save(**save_kwargs)
+            lote = instance.lote
+            
+        # Logic to find a batch for output if none was provided
+        if not lote and tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA]:
+            lote = item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by("data_validade", "created_at").first()
+            if lote:
+                instance.lote = lote
+                instance.save(update_fields=["lote"])
+        
+        if lote:
+            if tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA, TipoMovimentacao.SAIDA, TipoMovimentacao.VENCIMENTO]:
+                lote.quantidade_atual = max(Decimal("0"), lote.quantidade_atual - quantidade)
+                lote.save(update_fields=["quantidade_atual", "updated_at"])
+            elif tipo in [TipoMovimentacao.COMPRA, TipoMovimentacao.ENTRADA, TipoMovimentacao.AJUSTE]:
+                lote.quantidade_atual += quantidade
+                lote.save(update_fields=["quantidade_atual", "updated_at"])
+
+    def perform_update(self, serializer):
+        # We need to handle the stock adjustment if the quantity or type changes
+        instance = self.get_object()
+        old_qty = instance.quantidade
+        old_tipo = instance.tipo
+        old_lote = instance.lote
+        
+        # Save the new version
+        updated_instance = serializer.save()
+        new_qty = updated_instance.quantidade
+        new_tipo = updated_instance.tipo
+        new_lote = updated_instance.lote
+        
+        # If the batch didn't change, we just adjust the difference
+        if old_lote == new_lote and old_lote:
+            # Revert old movement
+            if old_tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA, TipoMovimentacao.SAIDA, TipoMovimentacao.VENCIMENTO]:
+                old_lote.quantidade_atual += old_qty
+            else:
+                old_lote.quantidade_atual -= old_qty
+            
+            # Apply new movement
+            if new_tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA, TipoMovimentacao.SAIDA, TipoMovimentacao.VENCIMENTO]:
+                old_lote.quantidade_atual -= new_qty
+            else:
+                old_lote.quantidade_atual += new_qty
+            
+            old_lote.quantidade_atual = max(Decimal("0"), old_lote.quantidade_atual)
+            old_lote.save(update_fields=["quantidade_atual", "updated_at"])
+            
+        elif old_lote != new_lote:
+            # Revert old movement in old batch
+            if old_lote:
+                if old_tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA, TipoMovimentacao.SAIDA, TipoMovimentacao.VENCIMENTO]:
+                    old_lote.quantidade_atual += old_qty
+                else:
+                    old_lote.quantidade_atual -= old_qty
+                old_lote.quantidade_atual = max(Decimal("0"), old_lote.quantidade_atual)
+                old_lote.save(update_fields=["quantidade_atual", "updated_at"])
+            
+            # Apply new movement in new batch
+            if new_lote:
+                if new_tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA, TipoMovimentacao.SAIDA, TipoMovimentacao.VENCIMENTO]:
+                    new_lote.quantidade_atual -= new_qty
+                else:
+                    new_lote.quantidade_atual += new_qty
+                new_lote.quantidade_atual = max(Decimal("0"), new_lote.quantidade_atual)
+                new_lote.save(update_fields=["quantidade_atual", "updated_at"])
+
+    def perform_destroy(self, instance):
+        lote = instance.lote
+        tipo = instance.tipo
+        quantidade = instance.quantidade
+        
+        if lote:
+            # Revert the movement impact on stock
+            if tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA, TipoMovimentacao.SAIDA, TipoMovimentacao.VENCIMENTO]:
+                lote.quantidade_atual += quantidade
+            else:
+                lote.quantidade_atual -= quantidade
+            
+            lote.quantidade_atual = max(Decimal("0"), lote.quantidade_atual)
+            lote.save(update_fields=["quantidade_atual", "updated_at"])
+        
+        instance.delete()
 
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request):
@@ -268,11 +454,13 @@ class FornecedorViewSet(viewsets.ModelViewSet):
     """CRUD for suppliers."""
 
     serializer_class = FornecedorSerializer
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
-            return Fornecedor.objects.filter(organization=self.request.user.organization).order_by("nome")
+            return Fornecedor.objects.filter(
+                organization=self.request.user.organization
+            ).prefetch_related("contatos", "enderecos").order_by("nome")
         return Fornecedor.objects.none()
 
     def _get_user_organization(self):
@@ -323,3 +511,231 @@ class FornecedorViewSet(viewsets.ModelViewSet):
         fornecedor.save()
         serializer = self.get_serializer(fornecedor)
         return Response(serializer.data)
+
+
+class AlertaEstoqueViewSet(viewsets.ModelViewSet):
+    serializer_class = AlertaEstoqueSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_user_organization(self):
+        organization = getattr(self.request.user, "organization", None)
+        if organization:
+            return organization
+
+        user = self.request.user
+        base_name = f"Organização de {user.full_name or user.email}"
+        base_slug = slugify(user.full_name or user.email.split("@")[0] or "organizacao")
+        slug = base_slug or "organizacao"
+        suffix = 1
+        while Organization.objects.filter(slug=slug).exists():
+            suffix += 1
+            slug = f"{base_slug}-{suffix}" if base_slug else f"organizacao-{suffix}"
+
+        organization = Organization.objects.create(name=base_name[:255], slug=slug[:100])
+        user.organization = organization
+        user.save(update_fields=["organization", "updated_at"])
+        return organization
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            organization = self._get_user_organization()
+            return AlertaEstoque.objects.filter(
+                organization=organization,
+                resolvido=False
+            ).select_related("item").order_by("-prioridade", "-created_at")
+        return AlertaEstoque.objects.none()
+
+    def perform_create(self, serializer):
+        organization = self._get_user_organization()
+        serializer.save(organization=organization)
+
+    @action(detail=True, methods=["post"])
+    def resolver(self, request, pk=None):
+        alerta = self.get_object()
+        alerta.resolvido = True
+        alerta.save()
+        return Response({"status": "alerta resolvido"})
+
+    @action(detail=False, methods=["post"])
+    def resolver_tudo(self, request):
+        self.get_queryset().update(resolvido=True)
+        return Response({"status": "todos os alertas resolvidos"})
+
+    @action(detail=False, methods=["post"])
+    def gerar_alertas(self, request):
+        """Varre os itens e gera alertas se necessário."""
+        from .models import ItemEstoque, AlertaEstoque
+        organization = self._get_user_organization()
+        if not organization:
+            return Response({"error": "Usuário sem organização"}, status=400)
+            
+        items = ItemEstoque.objects.filter(organization=organization, ativo=True)
+        print(f"[DEBUG] Gerando alertas para organização {organization.id}. Itens encontrados: {items.count()}")
+        
+        count = 0
+        for item in items:
+            atual = item.estoque_atual
+            minimo = item.estoque_minimo
+            print(f"[DEBUG] Item: {item.nome} | Atual: {atual} | Mínimo: {minimo} | Baixo: {item.estoque_baixo}")
+            
+            if item.estoque_baixo:
+                # Check if there is already an active alert for this item
+                if not AlertaEstoque.objects.filter(
+                    organization=organization, 
+                    item=item, 
+                    tipo=AlertaEstoque.TipoAlerta.ESTOQUE_BAIXO,
+                    resolvido=False
+                ).exists():
+                    AlertaEstoque.objects.create(
+                        organization=organization,
+                        item=item,
+                        tipo=AlertaEstoque.TipoAlerta.ESTOQUE_BAIXO,
+                        prioridade=item.prioridade,
+                        titulo=f"Estoque Baixo: {item.nome}",
+                        descricao=f"O item {item.nome} está com saldo de {atual} {item.unidade_medida}, abaixo do mínimo de {minimo}."
+                    )
+                    count += 1
+        
+        print(f"[DEBUG] Finalizado. Alertas criados: {count}")
+        return Response({"status": "processamento concluído", "alertas_criados": count})
+
+
+# ---------------------------------------------------------------------------
+# Fórmulas e Produção
+# ---------------------------------------------------------------------------
+
+from .models import FormulaRacao, ProducaoRacao, FormulaIngrediente
+from .serializers import FormulaRacaoSerializer, ProducaoRacaoSerializer
+
+class FormulaRacaoViewSet(viewsets.ModelViewSet):
+    serializer_class = FormulaRacaoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
+            return FormulaRacao.objects.filter(organization=self.request.user.organization).prefetch_related("ingredientes__item__lotes")
+        return FormulaRacao.objects.none()
+
+    def perform_create(self, serializer):
+        organization = getattr(self.request.user, 'organization', None)
+        serializer.save(organization=organization)
+
+
+class ProducaoRacaoViewSet(viewsets.ModelViewSet):
+    serializer_class = ProducaoRacaoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
+            return ProducaoRacao.objects.filter(organization=self.request.user.organization).select_related("formula", "responsavel").order_by("-data_producao")
+        return ProducaoRacao.objects.none()
+
+    @action(detail=False, methods=["post"], url_path="produzir")
+    def produzir(self, request):
+        organization = getattr(request.user, 'organization', None)
+        if not organization:
+            return Response({"error": "Usuário sem organização."}, status=400)
+            
+        formula_id = request.data.get("formula_id")
+        try:
+            quantidade_teorica = Decimal(str(request.data.get("quantidade_teorica", 0)))
+            quantidade_real = Decimal(str(request.data.get("quantidade_real", 0)))
+        except (ValueError, TypeError):
+            return Response({"error": "Quantidade inválida."}, status=400)
+        
+        if not formula_id or quantidade_teorica <= 0:
+            return Response({"error": "Fórmula e quantidade teórica são obrigatórias."}, status=400)
+            
+        try:
+            formula = FormulaRacao.objects.get(id=formula_id, organization=organization)
+        except FormulaRacao.DoesNotExist:
+            return Response({"error": "Fórmula não encontrada."}, status=404)
+            
+        custo_total_producao = Decimal("0")
+        movimentacoes_para_criar = []
+        lotes_para_atualizar = []
+        
+        # Validar estoque de todos os ingredientes antes de abater
+        from django.db import transaction
+        with transaction.atomic():
+            for ingrediente in formula.ingredientes.all():
+                qtde_necessaria = (quantidade_teorica * ingrediente.percentual) / Decimal("100")
+                item = ingrediente.item
+                saldo_item = item.estoque_atual
+                
+                if saldo_item < qtde_necessaria:
+                    transaction.set_rollback(True)
+                    return Response({
+                        "error": f"Estoque insuficiente para {item.nome}. Necessário: {qtde_necessaria}, Disponível: {saldo_item}"
+                    }, status=400)
+                    
+                # Abater dos lotes (PEPS: Primeiro a Entrar, Primeiro a Sair)
+                lotes = list(item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by("data_entrada", "id"))
+                qtde_restante_abater = qtde_necessaria
+                
+                for lote in lotes:
+                    if qtde_restante_abater <= 0:
+                        break
+                        
+                    qtde_deste_lote = min(lote.quantidade_atual, qtde_restante_abater)
+                    custo_lote = lote.custo_unitario or Decimal("0")
+                    custo_total_producao += qtde_deste_lote * custo_lote
+                    
+                    lote.quantidade_atual -= qtde_deste_lote
+                    qtde_restante_abater -= qtde_deste_lote
+                    lotes_para_atualizar.append(lote)
+                    
+                    movimentacoes_para_criar.append(
+                        MovimentacaoEstoque(
+                            item=item,
+                            lote=lote,
+                            tipo=TipoMovimentacao.CONSUMO,
+                            quantidade=qtde_deste_lote,
+                            responsavel=request.user,
+                            observacao=f"Consumo para produção de {formula.nome}"
+                        )
+                    )
+                    
+            # Salvar as baixas de estoque
+            for lote in lotes_para_atualizar:
+                lote.save(update_fields=["quantidade_atual", "updated_at"])
+            MovimentacaoEstoque.objects.bulk_create(movimentacoes_para_criar)
+            
+            # Registrar a Produção
+            producao = ProducaoRacao.objects.create(
+                organization=organization,
+                formula=formula,
+                quantidade_teorica=quantidade_teorica,
+                quantidade_real=quantidade_real,
+                custo_total=custo_total_producao,
+                responsavel=request.user,
+                status="concluida"
+            )
+            
+            # Se a fórmula gera um novo item, dar entrada no estoque
+            if formula.item_final and quantidade_real > 0:
+                from django.utils import timezone
+                custo_unitario_final = custo_total_producao / quantidade_real
+                novo_lote = LoteEstoque.objects.create(
+                    item=formula.item_final,
+                    numero_lote=f"PROD-{producao.id}",
+                    quantidade_inicial=quantidade_real,
+                    quantidade_atual=quantidade_real,
+                    custo_unitario=custo_unitario_final,
+                    data_entrada=timezone.now().date(),
+                    ativo=True
+                )
+                MovimentacaoEstoque.objects.create(
+                    item=formula.item_final,
+                    lote=novo_lote,
+                    tipo=TipoMovimentacao.ENTRADA,
+                    quantidade=quantidade_real,
+                    responsavel=request.user,
+                    observacao=f"Entrada por produção (Lote PROD-{producao.id})"
+                )
+                
+        return Response({
+            "status": "Produção finalizada com sucesso!",
+            "producao_id": producao.id,
+            "custo_total": str(custo_total_producao)
+        })

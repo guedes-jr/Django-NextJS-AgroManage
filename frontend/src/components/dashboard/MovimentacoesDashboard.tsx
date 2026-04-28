@@ -17,6 +17,8 @@ import {
   TrendingDown,
   Utensils,
   AlertTriangle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 const TIPO_COLORS: Record<string, { color: string; label: string }> = {
@@ -32,7 +34,7 @@ import { MovimentacaoFormModalWithHeader } from "@/components/dashboard/Moviment
 import "@/app/home/estoque/estoque.css";
 
 type InventoryItem = {
-  id: number;
+  id: string;
   nome: string;
   categoria: string;
   categoria_display: string;
@@ -41,8 +43,8 @@ type InventoryItem = {
 };
 
 type Movimentacao = {
-  id: number;
-  item: { id: number; nome: string };
+  id: string;
+  item: { id: string; nome: string };
   item_nome: string;
   tipo: string;
   tipo_display: string;
@@ -50,7 +52,7 @@ type Movimentacao = {
   data_movimentacao: string;
   responsavel_nome: string;
   observacao: string;
-  lote?: { id: number; numero_lote: string };
+  lote?: { id: string; numero_lote: string };
 };
 
 type PaginatedResponse<T> = {
@@ -63,7 +65,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   racao: "oklch(0.7 0.15 85)",
   nucleo: "oklch(0.65 0.16 230)",
   medicamento: "oklch(0.7 0.18 25)",
-  vaccina: "oklch(0.7 0.22 290)",
+  vacina: "oklch(0.7 0.22 290)",
   material: "oklch(0.6 0.05 240)",
 };
 
@@ -72,13 +74,46 @@ export function MovimentacoesDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [tipoFilter, setTipoFilter] = useState("todos");
-  const [produtoFilter, setProdutoFilter] = useState<number | null>(null);
+  const [produtoFilter, setProdutoFilter] = useState<string | null>(null);
   const [produtos, setProdutos] = useState<InventoryItem[]>([]);
+  
+  // Função segura para atualizar produtos, garantindo que seja sempre um array
+  const updateProdutos = (data: any) => {
+    // Verifica se é um objeto de erro (contém code, message, detail)
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      if ('code' in data || 'message' in data || 'detail' in data) {
+        console.error("Recebido objeto de erro em produtos:", data);
+        setProdutos([]);
+        return;
+      }
+    }
+    if (Array.isArray(data)) {
+      setProdutos(data);
+    } else if (data && Array.isArray(data.results)) {
+      setProdutos(data.results);
+    } else {
+      console.error("Dados de produtos inválidos:", data);
+      setProdutos([]);
+    }
+  };
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCategoria, setModalCategoria] = useState<string | null>(null);
+  const [editingMovement, setEditingMovement] = useState<Movimentacao | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Tem certeza que deseja excluir esta movimentação? O saldo do estoque será revertido.")) return;
+    
+    try {
+      await apiClient.delete(`/inventory/movimentacoes/${id}/`);
+      fetchItems(page);
+    } catch (error) {
+      console.error("Erro ao deletar movimentação:", error);
+      alert("Erro ao excluir movimentação.");
+    }
+  };
 
   const categorias = [
     { key: "racao", title: "Ração / Grãos", desc: "Milho, soja, farelo...", icon: <Wheat size={20} />, color: "oklch(0.7 0.15 85)" },
@@ -90,12 +125,15 @@ export function MovimentacoesDashboard() {
 
   const fetchProdutos = async () => {
     try {
-      const { data } = await apiClient.get<PaginatedResponse<InventoryItem>>("/inventory/items/", {
+      const response = await apiClient.get<PaginatedResponse<InventoryItem>>("/inventory/items/", {
         params: { page_size: 500 },
       });
-      setProdutos(data.results || []);
-    } catch (error) {
-      console.error("Erro ao buscar produtos:", error);
+      const data = response.data;
+      console.log("API produtos resposta:", data);
+      updateProdutos(data);
+    } catch (error: any) {
+      console.error("Erro ao buscar produtos:", error.response?.data || error);
+      setProdutos([]);
     }
   };
 
@@ -224,7 +262,7 @@ export function MovimentacoesDashboard() {
             <select 
               className="form-select" 
               value={produtoFilter || ""} 
-              onChange={(e) => setProdutoFilter(e.target.value ? parseInt(e.target.value) : null)}
+              onChange={(e) => setProdutoFilter(e.target.value || null)}
             >
               <option value="">Todos os produtos</option>
               {produtos
@@ -260,6 +298,7 @@ export function MovimentacoesDashboard() {
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DATA</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">RESPONSÁVEL</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,6 +328,26 @@ export function MovimentacoesDashboard() {
                         {item.data_movimentacao ? new Date(item.data_movimentacao).toLocaleString("pt-BR") : "-"}
                       </td>
                       <td className="px-3 py-3 text-muted-foreground">{item.responsavel_nome || "-"}</td>
+                      <td className="px-3 py-3 text-end">
+                        <div className="d-flex justify-content-end gap-1">
+                          <button 
+                            onClick={() => { setEditingMovement(item); setModalOpen(true); }}
+                            className="btn btn-sm p-1 hover-bg-border"
+                            style={{ color: "oklch(0.75 0.15 85)" }}
+                            title="Editar"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(item.id)}
+                            className="btn btn-sm p-1 hover-bg-border"
+                            style={{ color: "oklch(0.65 0.14 15)" }}
+                            title="Excluir"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -310,12 +369,15 @@ export function MovimentacoesDashboard() {
         </div>
       </div>
 
-      <MovimentacaoFormModalWithHeader
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        categoria={modalCategoria || undefined}
-        produtos={produtos}
-      />
+      {modalOpen && (
+        <MovimentacaoFormModalWithHeader
+          isOpen={modalOpen}
+          onClose={() => { setModalOpen(false); setEditingMovement(null); }}
+          categoria={modalCategoria || undefined}
+          produtos={Array.isArray(produtos) ? produtos : []}
+          initialData={editingMovement || undefined}
+        />
+      )}
     </div>
   );
 }

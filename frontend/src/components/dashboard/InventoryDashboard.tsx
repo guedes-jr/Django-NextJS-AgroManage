@@ -64,6 +64,7 @@ export function InventoryDashboard() {
   const [lowStockItems, setLowStockItems] = useState<{ id: string; nome: string; estoque_atual: string; estoque_minimo: string; unidade_medida: string }[]>([]);
   const [recentMovements, setRecentMovements] = useState<{ id: number; tipo: string; item: { nome: string }; quantidade: string; data_movimentacao: string }[]>([]);
   const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
 
   const periodOptions = [
     { value: "5", label: "Últimos 5 dias" },
@@ -151,57 +152,54 @@ export function InventoryDashboard() {
   useEffect(() => {
     const fetchCategoryData = async () => {
       try {
-        const { data } = await apiClient.get("/inventory/items/by_category/");
+        const { data } = await apiClient.get("/inventory/items/category_stats/");
         setCategoryData(data || []);
       } catch (error) {
-        console.error("Erro ao buscar dados por categoria:", error);
+        console.error("Erro ao buscar dados de categoria:", error);
       }
     };
     fetchCategoryData();
   }, []);
 
-  const handleSaveItems = async (items: any[]) => {
-    try {
-      const payload = items.map(row => ({
-        nome: row.nome,
-        codigo: row.codigo || undefined,
-        categoria: row.categoria,
-        unidade_medida: row.unidade_medida,
-        descricao: row.descricao,
-        marca: row.marca,
-        fabricante: row.fabricante,
-        especie_animal: row.especie_animal || undefined,
-        estoque_minimo: row.estoque_minimo ? parseFloat(row.estoque_minimo) : 0,
-        principio_ativo: row.principio_ativo,
-        concentracao: row.concentracao,
-        via_aplicacao: row.via_aplicacao || undefined,
-        carencia_dias: row.carencia_dias ? parseInt(row.carencia_dias) : undefined,
-        registro_mapa: row.registro_mapa,
-        exige_receituario: row.exige_receituario,
-        medicamento_controlado: row.medicamento_controlado,
-        temperatura_minima: row.temperatura_minima ? parseFloat(row.temperatura_minima) : undefined,
-        temperatura_maxima: row.temperatura_maxima ? parseFloat(row.temperatura_maxima) : undefined,
-        doses_por_embalagem: row.doses_por_embalagem ? parseInt(row.doses_por_embalagem) : undefined,
-        volume_por_dose: row.volume_por_dose,
-        composicao: row.composicao,
-        indicacao_uso: row.indicacao_uso,
-        modo_uso: row.modo_uso,
-        peso_embalagem: row.peso_embalagem ? parseFloat(row.peso_embalagem) : undefined,
-        quantidade_inicial: row.quantidade_inicial ? parseFloat(row.quantidade_inicial) : undefined,
-        custo_unitario: row.custo_unitario ? parseFloat(row.custo_unitario) : undefined,
-        numero_lote: row.numero_lote,
-        data_validade: row.data_validade || undefined,
-        data_fabricacao: row.data_fabricacao || undefined,
-        local_armazenamento: row.local_armazenamento || undefined,
-        fornecedor: row.fornecedor,
-        nota_fiscal: row.nota_fiscal,
-        observacao_lote: row.observacao_lote,
-      }));
-      await apiClient.post("inventory/items/bulk_create/", payload);
-    } catch (err) {
-      console.error("Erro ao salvar itens:", err);
-      throw err;
-    }
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        await apiClient.post("/inventory/alertas/gerar_alertas/");
+        const { data } = await apiClient.get("/inventory/alertas/");
+        setActiveAlerts(Array.isArray(data) ? data.slice(0, 5) : []);
+      } catch (error) {
+        console.error("Erro ao buscar alertas:", error);
+      }
+    };
+    fetchAlerts();
+  }, []);
+
+  const handleSaveItems = async (newItems: any[]) => {
+    const payload = newItems.map((row) => ({
+      nome: row.nome,
+      categoria: row.categoria,
+      unidade_medida: row.unidade_medida,
+      codigo: row.codigo || "",
+      marca: row.marca || "",
+      fabricante: row.fabricante || "",
+      especie_animal: row.especie_animal || "",
+      composicao: row.composicao || "",
+      lote_numero: row.lote_numero || "",
+      data_validade: row.data_validade || null,
+      local_armazenamento: row.local_armazenamento || "",
+      fornecedor: row.fornecedor || null,
+      estoque_minimo: parseFloat(row.estoque_minimo) || 0,
+      quantidade_inicial: parseFloat(row.quantidade_inicial) || 0,
+      custo_unitario: parseFloat(row.custo_unitario) || 0,
+      carencia_dias: parseInt(row.carencia_dias, 10) || 0,
+      temperatura_minima: row.temperatura_minima ? parseFloat(row.temperatura_minima) : undefined,
+      temperatura_maxima: row.temperatura_maxima ? parseFloat(row.temperatura_maxima) : undefined,
+      doses_por_embalagem: row.doses_por_embalagem ? parseInt(row.doses_por_embalagem, 10) : undefined,
+      peso_embalagem: row.peso_embalagem ? parseFloat(row.peso_embalagem) : undefined,
+      volume_por_dose: row.volume_por_dose ? parseFloat(row.volume_por_dose) : undefined,
+    }));
+    await apiClient.post("/inventory/items/bulk_create/", payload);
+    await fetchStats(); // Refresh stats after save
   };
 
   return (
@@ -236,7 +234,7 @@ export function InventoryDashboard() {
               </div>
               <div className="flex-grow-1">
                 <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>VALOR TOTAL EM ESTOQUE</div>
-                <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : `R$ ${parseFloat(stats.total_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}</div>
+                <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : `R$ ${(parseFloat(stats.total_value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}</div>
                 <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Valor de custo total</div>
               </div>
             </div>
@@ -287,13 +285,18 @@ export function InventoryDashboard() {
       </div>
 
       {/* Warning Banner */}
-      <div className="alert-banner mb-5">
-        <div className="d-flex align-items-center gap-3">
-            <AlertTriangle className="text-warning" size={24} />
-            <div className="fw-bold text-orange-950">Atenção! Você possui {stats.estoque_baixo} itens com estoque abaixo do mínimo e {stats.itens_vencidos} itens vencidos.</div>
+      {activeAlerts.length > 0 && (
+        <div className="alert-banner mb-5">
+          <div className="d-flex align-items-center gap-3">
+              <AlertTriangle className="text-warning" size={24} />
+              <div className="fw-bold text-orange-950">
+                Atenção! Existem {activeAlerts.length} alertas pendentes. 
+                O mais crítico: "{activeAlerts[0].titulo}"
+              </div>
+          </div>
+          <Link href="/home/estoque/alertas" className="btn btn-sm btn-white border border-warning/30 bg-white shadow-sm px-4 fw-bold text-decoration-none">Ver todos os alertas</Link>
         </div>
-        <button className="btn btn-sm btn-white border border-warning/30 bg-white shadow-sm px-4 fw-bold">Ver todos os alertas</button>
-      </div>
+      )}
 
       {/* Main Grid */}
       <div className="row g-4 mb-5">
@@ -353,8 +356,8 @@ export function InventoryDashboard() {
                                 <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'var(--muted-foreground)', fontSize: 11}} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={{fill: 'var(--muted-foreground)', fontSize: 11}} />
                                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: 'var(--shadow-elegant)' }} />
-                                {(chartFilter === "all" || chartFilter === "entrada") && <Area type="monotone" dataKey="entrada" stroke="oklch(0.65 0.15 145)" strokeWidth={3} fillOpacity={1} fill="url(#colorEntrada)" name="Entradas (kg)" />}
-                                {(chartFilter === "all" || chartFilter === "saida") && <Area type="monotone" dataKey="saida" stroke="oklch(0.6 0.18 25)" strokeWidth={3} fillOpacity={1} fill="url(#colorSaida)" name="Saídas (kg)" />}
+                                {(chartFilter === "all" || chartFilter === "entrada") && <Area type="monotone" dataKey="entrada" stroke="oklch(0.65 0.15 145)" strokeWidth={3} fillOpacity={1} fill="url(#colorEntrada)" name="Entradas" />}
+                                {(chartFilter === "all" || chartFilter === "saida") && <Area type="monotone" dataKey="saida" stroke="oklch(0.6 0.18 25)" strokeWidth={3} fillOpacity={1} fill="url(#colorSaida)" name="Saídas" />}
                             </AreaChart>
                         ) : chartType === "bar" ? (
                             <BarChart data={chartData}>
@@ -362,8 +365,8 @@ export function InventoryDashboard() {
                                 <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'var(--muted-foreground)', fontSize: 11}} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={{fill: 'var(--muted-foreground)', fontSize: 11}} />
                                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: 'var(--shadow-elegant)' }} />
-                                {(chartFilter === "all" || chartFilter === "entrada") && <Bar dataKey="entrada" fill="oklch(0.65 0.15 145)" name="Entradas (kg)" radius={[4, 4, 0, 0]} />}
-                                {(chartFilter === "all" || chartFilter === "saida") && <Bar dataKey="saida" fill="oklch(0.6 0.18 25)" name="Saídas (kg)" radius={[4, 4, 0, 0]} />}
+                                {(chartFilter === "all" || chartFilter === "entrada") && <Bar dataKey="entrada" fill="oklch(0.65 0.15 145)" name="Entradas" radius={[4, 4, 0, 0]} />}
+                                {(chartFilter === "all" || chartFilter === "saida") && <Bar dataKey="saida" fill="oklch(0.6 0.18 25)" name="Saídas" radius={[4, 4, 0, 0]} />}
                             </BarChart>
                         ) : (
                             <LineChart data={chartData}>
@@ -371,8 +374,8 @@ export function InventoryDashboard() {
                                 <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'var(--muted-foreground)', fontSize: 11}} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={{fill: 'var(--muted-foreground)', fontSize: 11}} />
                                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: 'var(--shadow-elegant)' }} />
-                                {(chartFilter === "all" || chartFilter === "entrada") && <Line type="monotone" dataKey="entrada" stroke="oklch(0.65 0.15 145)" strokeWidth={3} name="Entradas (kg)" />}
-                                {(chartFilter === "all" || chartFilter === "saida") && <Line type="monotone" dataKey="saida" stroke="oklch(0.6 0.18 25)" strokeWidth={3} name="Saídas (kg)" />}
+                                {(chartFilter === "all" || chartFilter === "entrada") && <Line type="monotone" dataKey="entrada" stroke="oklch(0.65 0.15 145)" strokeWidth={3} name="Entradas" />}
+                                {(chartFilter === "all" || chartFilter === "saida") && <Line type="monotone" dataKey="saida" stroke="oklch(0.6 0.18 25)" strokeWidth={3} name="Saídas" />}
                             </LineChart>
                         )}
                     </ResponsiveContainer>
@@ -384,7 +387,7 @@ export function InventoryDashboard() {
                             <div className="p-3 rounded-xl border border-border bg-emerald-50/10">
                                 <div className="text-muted-foreground small fw-bold mb-1">Entradas</div>
                                 <div className="d-flex align-items-baseline gap-2">
-                                    <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + b.entrada, 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg`}</span>
+                                    <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + (b.entrada || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unid.`}</span>
                                 </div>
                             </div>
                         </div>
@@ -394,7 +397,7 @@ export function InventoryDashboard() {
                             <div className="p-3 rounded-xl border border-border bg-rose-50/10">
                                 <div className="text-muted-foreground small fw-bold mb-1">Saídas</div>
                                 <div className="d-flex align-items-baseline gap-2">
-                                    <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + b.saida, 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg`}</span>
+                                    <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + (b.saida || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unid.`}</span>
                                 </div>
                             </div>
                         </div>
@@ -480,7 +483,9 @@ export function InventoryDashboard() {
                                         </td>
                                         <td className="px-4 py-3 small fw-bold text-foreground">{move.item?.nome}</td>
                                         <td className="px-4 py-3 small fw-bold">{move.quantidade}</td>
-                                        <td className="px-4 py-3 small text-muted-foreground">-</td>
+                                         <td className="px-4 py-3 small text-muted-foreground">
+                                            {move.custo_total ? `R$ ${parseFloat(move.custo_total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
+                                        </td>
                                         <td className="px-4 py-3 small text-muted-foreground fw-medium">{move.data_movimentacao}</td>
                                     </tr>
                                 ))

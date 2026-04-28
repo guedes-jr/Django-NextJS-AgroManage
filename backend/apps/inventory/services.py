@@ -20,6 +20,7 @@ def criar_lote_e_movimentacao(item, batch_fields: dict, request=None) -> None:
     from .models import LoteEstoque, MovimentacaoEstoque
 
     qty = batch_fields.get("quantidade_inicial") or 0
+    responsavel = request.user if request and request.user.is_authenticated else None
 
     # Set organization on item if not already set
     if not item.organization and responsavel and responsavel.organization:
@@ -35,7 +36,7 @@ def criar_lote_e_movimentacao(item, batch_fields: dict, request=None) -> None:
         quantidade_atual=qty,
         custo_unitario=batch_fields.get("custo_unitario"),
         local_armazenamento=batch_fields.get("local_armazenamento", ""),
-        fornecedor=batch_fields.get("fornecedor", ""),
+        fornecedor=batch_fields.get("fornecedor"),
         nota_fiscal=batch_fields.get("nota_fiscal", ""),
         data_entrada=date.today(),
         observacao=batch_fields.get("observacao_lote", ""),
@@ -52,21 +53,27 @@ def criar_lote_e_movimentacao(item, batch_fields: dict, request=None) -> None:
         farm=farm,
         item=item,
         lote=lote,
-        tipo=TipoMovimentacao.ENTRADA,
+        tipo=TipoMovimentacao.COMPRA, # Changed from ENTRADA to COMPRA as per choices
         quantidade=qty,
         responsavel=responsavel,
         observacao="Entrada inicial — cadastro de item",
     )
 
 
-def registrar_movimentacao(item, lote=None, tipo: str = TipoMovimentacao.ENTRADA,
+def registrar_movimentacao(item, lote=None, tipo: str = TipoMovimentacao.COMPRA,
                             quantidade=0, responsavel=None, observacao: str = "") -> None:
     """
     Records a generic stock movement and updates the batch balance.
     """
     from .models import MovimentacaoEstoque
 
+    # Try to find a farm for the movement
+    farm = None
+    if responsavel and hasattr(responsavel, 'organization') and responsavel.organization:
+        farm = responsavel.organization.farms.first()
+
     MovimentacaoEstoque.objects.create(
+        farm=farm,
         item=item,
         lote=lote,
         tipo=tipo,
@@ -76,13 +83,18 @@ def registrar_movimentacao(item, lote=None, tipo: str = TipoMovimentacao.ENTRADA
     )
 
     # Update batch balance for out / loss / expiry movements
-    if lote and tipo in (
-        TipoMovimentacao.SAIDA,
-        TipoMovimentacao.PERDA,
-        TipoMovimentacao.VENCIMENTO,
-    ):
-        lote.quantidade_atual = max(0, lote.quantidade_atual - quantidade)
-        lote.save(update_fields=["quantidade_atual", "updated_at"])
-    elif lote and tipo == TipoMovimentacao.ENTRADA:
-        lote.quantidade_atual += quantidade
-        lote.save(update_fields=["quantidade_atual", "updated_at"])
+    # Compras and Entradas increase balance
+    # Vendas, Consumos and Perdas decrease balance
+    if lote:
+        if tipo in (
+            TipoMovimentacao.VENDA,
+            TipoMovimentacao.CONSUMO,
+            TipoMovimentacao.PERDA,
+            TipoMovimentacao.SAIDA,
+            TipoMovimentacao.VENCIMENTO,
+        ):
+            lote.quantidade_atual = max(0, lote.quantidade_atual - quantidade)
+            lote.save(update_fields=["quantidade_atual", "updated_at"])
+        elif tipo in (TipoMovimentacao.COMPRA, TipoMovimentacao.ENTRADA):
+            lote.quantidade_atual += quantidade
+            lote.save(update_fields=["quantidade_atual", "updated_at"])

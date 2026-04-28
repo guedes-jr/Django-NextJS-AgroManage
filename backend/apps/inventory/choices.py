@@ -53,6 +53,10 @@ class TipoMovimentacao(models.TextChoices):
     VENDA = "venda", "Venda"
     CONSUMO = "consumo", "Consumo"
     PERDA = "perda", "Perda"
+    ENTRADA = "entrada", "Entrada"
+    SAIDA = "saida", "Saída"
+    VENCIMENTO = "vencimento", "Vencimento"
+    AJUSTE = "ajuste", "Ajuste"
 
 
 class LocalArmazenamento(models.TextChoices):

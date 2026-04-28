@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, FlaskConical, Thermometer, Leaf, FileText } from "lucide-react";
+import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, FlaskConical, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
 import { apiClient } from "@/services/api";
 
 export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "material" | "suplemento" | "outro";
@@ -14,7 +14,14 @@ interface InventoryFormModalProps {
   onClose: () => void;
   category?: InventoryCategory;
   onSave: (items: any[]) => Promise<void>;
+  initialData?: any;
 }
+
+const STEPS = [
+  { id: "basic", label: "Identificação", icon: Package },
+  { id: "tech", label: "Dados Técnicos", icon: FlaskConical },
+  { id: "stock", label: "Estoque & Lote", icon: Warehouse },
+];
 
 const CATEGORY_CONFIG: Record<string, { label: string; unidade: string; color: string }> = {
   racao:       { label: "Ração / Grão",    unidade: "kg",      color: "#f97316" },
@@ -85,17 +92,32 @@ function InputField({ label, required, icon: Icon, children }: any) {
   );
 }
 
-export function InventoryFormModal({ isOpen, onClose, category, onSave }: InventoryFormModalProps) {
+export function InventoryFormModal({ isOpen, onClose, category, onSave, initialData }: InventoryFormModalProps) {
   const [rows, setRows] = useState([emptyRow(category)]);
   const [loading, setLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
-      setRows([emptyRow(category)]);
+      if (initialData) {
+        setRows([{ 
+          ...emptyRow(category || initialData.categoria), 
+          ...initialData,
+          id: Date.now() // Unique ID for the row
+        }]);
+      } else {
+        setRows([emptyRow(category)]);
+      }
+      setCurrentStep(0);
       fetchSuppliers();
     }
-  }, [isOpen, category]);
+  }, [isOpen, category, initialData]);
+
+  const addRow = () => setRows(r => [...r, emptyRow(category)]);
+  const removeRow = (id: number) => rows.length > 1 && setRows(r => r.filter(x => x.id !== id));
+  const update = (id: number, field: string, value: any) =>
+    setRows(r => r.map(x => x.id === id ? { ...x, [field]: value } : x));
 
   const fetchSuppliers = async () => {
     try {
@@ -108,10 +130,8 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave }: Invent
     }
   };
 
-  const addRow = () => setRows(r => [...r, emptyRow(category)]);
-  const removeRow = (id: number) => rows.length > 1 && setRows(r => r.filter(x => x.id !== id));
-  const update = (id: number, field: string, value: any) =>
-    setRows(r => r.map(x => x.id === id ? { ...x, [field]: value } : x));
+  const nextStep = () => setCurrentStep(s => Math.min(s + 1, STEPS.length - 1));
+  const prevStep = () => setCurrentStep(s => Math.max(s - 1, 0));
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -132,363 +152,427 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave }: Invent
   const isVac = (cat: string) => cat === "vacina";
   const isMedOrVac = (cat: string) => cat === "medicamento" || cat === "vacina";
   const isFeed = (cat: string) => ["racao", "nucleo", "suplemento"].includes(cat);
+  const isLastStep = currentStep === STEPS.length - 1;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={cfg ? `Cadastrar — ${cfg.label}` : "Cadastrar Item de Estoque"}
-      description="Preencha os dados do item e do lote inicial."
+      description="Preencha os dados seguindo as etapas de cadastro."
       maxWidth="max-w-6xl"
       footer={
-        <>
+        <div className="d-flex align-items-center justify-content-between w-100 p-3 bg-muted/5">
           <div className="d-flex align-items-center gap-2 text-muted-foreground fw-semibold small">
             <span className="badge bg-primary/10 text-primary px-3 py-1 rounded-pill">{rows.length}</span>
-            <span>{rows.length === 1 ? "item" : "itens"}</span>
+            <span>{rows.length === 1 ? "item" : "itens"} sendo configurados</span>
           </div>
           <div className="d-flex gap-2">
-            <Button variant="outline-secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={loading} style={{ background: "var(--primary)", color: "white" }}>
-              {loading ? "Salvando..." : "Salvar Itens"}
-            </Button>
+            <Button variant="outline-secondary" onClick={onClose} disabled={loading} className="rounded-xl">Cancelar</Button>
+            
+            {currentStep > 0 && (
+              <Button variant="outline-primary" onClick={prevStep} disabled={loading} className="rounded-xl">Voltar</Button>
+            )}
+
+            {!isLastStep ? (
+              <Button onClick={nextStep} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl">
+                Próximo
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} disabled={loading} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl shadow-lg">
+                {loading ? "Salvando..." : "Finalizar Cadastro"}
+              </Button>
+            )}
           </div>
-        </>
+        </div>
       }
     >
-      <div className="p-3 p-md-5" style={{ background: "var(--background)", minHeight: "50vh" }}>
-        <div className="d-flex flex-column gap-5 mb-4">
-          <AnimatePresence initial={false}>
-            {rows.map((row, index) => (
-              <motion.div
-                key={row.id}
-                initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.97 }}
-                transition={{ duration: 0.2 }}
-                className="dashboard-card p-3 p-md-4"
-                style={{ border: "1px solid var(--border)", borderRadius: "1rem" }}
-              >
-                {/* Header row */}
-                <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-border">
-                  <h5 className="fw-bold mb-0" style={{ fontSize: "1rem" }}>
-                    <span className="text-primary me-2">#{index + 1}</span>
-                    {cfg ? cfg.label : "Item"}
-                  </h5>
-                  <button
-                    className={`btn btn-sm border-0 rounded p-2 ${rows.length === 1 ? "text-muted-foreground bg-muted" : "text-danger bg-danger/10"}`}
-                    onClick={() => removeRow(row.id as any)}
-                    disabled={rows.length === 1}
+      <div className="p-0" style={{ background: "var(--background)", minHeight: "50vh" }}>
+        {/* Visual Stepper */}
+        <div className="px-5 pt-4 pb-0 bg-muted/5 border-bottom">
+          <div className="d-flex justify-content-between mb-4">
+            {STEPS.map((step, idx) => {
+              const Icon = step.icon;
+              const isActive = idx === currentStep;
+              const isPast = idx < currentStep;
+              return (
+                <div key={step.id} className="d-flex flex-column align-items-center gap-2" style={{ flex: 1, position: 'relative' }}>
+                  <div 
+                    className={`rounded-circle d-flex align-items-center justify-content-center shadow-sm transition-all`}
+                    style={{ 
+                      width: 42, 
+                      height: 42, 
+                      background: isActive || isPast ? 'var(--primary)' : 'white',
+                      color: isActive || isPast ? 'white' : 'var(--muted-foreground)',
+                      border: isActive ? '4px solid color-mix(in srgb, var(--primary), white 80%)' : '1px solid var(--border)',
+                      zIndex: 2
+                    }}
                   >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-
-                {/* ── SEÇÃO 1: Dados básicos ── */}
-                <p className="small fw-bold text-muted-foreground text-uppercase mb-3" style={{ letterSpacing: "0.08em", fontSize: "0.65rem" }}>
-                  <Package size={12} className="me-1" /> Dados Básicos
-                </p>
-                <div className="row g-3 mb-4">
-                  <div className="col-12 col-md-4">
-                    <InputField label="Nome do item" required icon={Tag}>
-                      <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                        placeholder="Ex: Milho Grão, Vacina Aftosa..." value={row.nome}
-                        onChange={e => update(row.id as any, "nome", e.target.value)} />
-                    </InputField>
+                    {isPast ? <CheckCircle2 size={20} /> : <Icon size={20} />}
                   </div>
-                  <div className="col-12 col-md-2">
-                    <InputField label="Código / SKU" icon={FileText}>
-                      <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                        placeholder="Ex: MIL-001" value={row.codigo}
-                        onChange={e => update(row.id as any, "codigo", e.target.value)} />
-                    </InputField>
-                  </div>
-
-                  {!category && (
-                    <div className="col-12 col-md-2">
-                      <div className="login-input-group mb-0">
-                        <label className="login-label fw-semibold">Categoria <span className="text-danger">*</span></label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                          value={row.categoria} onChange={e => update(row.id as any, "categoria", e.target.value)}>
-                          {Object.entries(CATEGORY_CONFIG).map(([v, c]) => (
-                            <option key={v} value={v}>{c.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+                  <span className={`small text-uppercase fw-black ${isActive ? 'text-primary' : 'text-muted-foreground'}`} style={{ letterSpacing: '0.05em', fontSize: '0.6rem' }}>
+                    {step.label}
+                  </span>
+                  
+                  {idx < STEPS.length - 1 && (
+                    <div 
+                      className="position-absolute" 
+                      style={{ 
+                        height: 2, 
+                        width: 'calc(100% - 42px)', 
+                        background: isPast ? 'var(--primary)' : 'var(--border)', 
+                        top: 21, 
+                        left: 'calc(50% + 21px)',
+                        zIndex: 1
+                      }} 
+                    />
                   )}
-
-                  <div className="col-6 col-md-2">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Unidade <span className="text-danger">*</span></label>
-                      <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        value={row.unidade_medida} onChange={e => update(row.id as any, "unidade_medida", e.target.value)}>
-                        {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-6 col-md-2">
-                    <InputField label="Estoque mínimo">
-                      <input type="number" step="0.01" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        placeholder="0" value={row.estoque_minimo}
-                        onChange={e => update(row.id as any, "estoque_minimo", e.target.value)} />
-                    </InputField>
-                  </div>
-
-                  <div className="col-12 col-md-3">
-                    <InputField label="Marca">
-                      <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                        placeholder="Marca..." value={row.marca}
-                        onChange={e => update(row.id as any, "marca", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-12 col-md-3">
-                    <InputField label="Fabricante">
-                      <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                        placeholder="Fabricante..." value={row.fabricante}
-                        onChange={e => update(row.id as any, "fabricante", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-12 col-md-3">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Espécie animal</label>
-                      <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        value={row.especie_animal} onChange={e => update(row.id as any, "especie_animal", e.target.value)}>
-                        <option value="">Todas / N/A</option>
-                        {ESPECIES.map(e => <option key={e} value={e}>{ESPECIES_LABELS[e]}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="col-12 col-md-3">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Descrição</label>
-                      <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        placeholder="Descrição opcional..." value={row.descricao}
-                        onChange={e => update(row.id as any, "descricao", e.target.value)} />
-                    </div>
-                  </div>
                 </div>
-
-                {/* ── SEÇÃO 2: Campos técnicos por categoria ── */}
-                <AnimatePresence>
-                  {isMedOrVac(row.categoria) && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                      <p className="small fw-bold text-muted-foreground text-uppercase mb-3" style={{ letterSpacing: "0.08em", fontSize: "0.65rem" }}>
-                        <FlaskConical size={12} className="me-1" /> Informações Técnicas
-                      </p>
-                      <div className="row g-3 mb-4">
-                        <div className="col-12 col-md-4">
-                          <InputField label="Princípio ativo">
-                            <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                              placeholder="Ex: Oxitetraciclina..." value={row.principio_ativo}
-                              onChange={e => update(row.id as any, "principio_ativo", e.target.value)} />
-                          </InputField>
-                        </div>
-                        <div className="col-12 col-md-3">
-                          <InputField label="Concentração">
-                            <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                              placeholder="Ex: 200mg/mL" value={row.concentracao}
-                              onChange={e => update(row.id as any, "concentracao", e.target.value)} />
-                          </InputField>
-                        </div>
-                        <div className="col-12 col-md-3">
-                          <div className="login-input-group mb-0">
-                            <label className="login-label fw-semibold">Via de aplicação</label>
-                            <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                              value={row.via_aplicacao} onChange={e => update(row.id as any, "via_aplicacao", e.target.value)}>
-                              <option value="">Selecione...</option>
-                              {VIAS.map(v => <option key={v} value={v}>{VIAS_LABELS[v]}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <div className="col-6 col-md-2">
-                          <InputField label="Reg. MAPA">
-                            <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                              placeholder="Nº registro" value={row.registro_mapa}
-                              onChange={e => update(row.id as any, "registro_mapa", e.target.value)} />
-                          </InputField>
-                        </div>
-
-                        {isMed(row.categoria) && (
-                          <>
-                            <div className="col-6 col-md-2">
-                              <InputField label="Carência (dias)">
-                                <input type="number" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                  placeholder="0" value={row.carencia_dias}
-                                  onChange={e => update(row.id as any, "carencia_dias", e.target.value)} />
-                              </InputField>
-                            </div>
-                            <div className="col-6 col-md-2 d-flex align-items-end pb-1">
-                              <label className="d-flex align-items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="form-check-input mt-0" checked={row.exige_receituario}
-                                  onChange={e => update(row.id as any, "exige_receituario", e.target.checked)} />
-                                <span className="small fw-semibold">Exige receituário</span>
-                              </label>
-                            </div>
-                            <div className="col-6 col-md-2 d-flex align-items-end pb-1">
-                              <label className="d-flex align-items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="form-check-input mt-0" checked={row.medicamento_controlado}
-                                  onChange={e => update(row.id as any, "medicamento_controlado", e.target.checked)} />
-                                <span className="small fw-semibold">Controlado</span>
-                              </label>
-                            </div>
-                          </>
-                        )}
-
-                        {isVac(row.categoria) && (
-                          <>
-                            <div className="col-6 col-md-2">
-                              <InputField label="Doses/embalagem">
-                                <input type="number" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                  placeholder="Ex: 50" value={row.doses_por_embalagem}
-                                  onChange={e => update(row.id as any, "doses_por_embalagem", e.target.value)} />
-                              </InputField>
-                            </div>
-                            <div className="col-6 col-md-2">
-                              <InputField label="Volume/dose">
-                                <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                  placeholder="Ex: 2 mL" value={row.volume_por_dose}
-                                  onChange={e => update(row.id as any, "volume_por_dose", e.target.value)} />
-                              </InputField>
-                            </div>
-                            <div className="col-6 col-md-2">
-                              <InputField label="Temp. mín. (°C)" icon={Thermometer}>
-                                <input type="number" step="0.1" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                  placeholder="Ex: 2" value={row.temperatura_minima}
-                                  onChange={e => update(row.id as any, "temperatura_minima", e.target.value)} />
-                              </InputField>
-                            </div>
-                            <div className="col-6 col-md-2">
-                              <InputField label="Temp. máx. (°C)" icon={Thermometer}>
-                                <input type="number" step="0.1" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                  placeholder="Ex: 8" value={row.temperatura_maxima}
-                                  onChange={e => update(row.id as any, "temperatura_maxima", e.target.value)} />
-                              </InputField>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {isFeed(row.categoria) && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                      <p className="small fw-bold text-muted-foreground text-uppercase mb-3" style={{ letterSpacing: "0.08em", fontSize: "0.65rem" }}>
-                        <Leaf size={12} className="me-1" /> Informações Nutricionais
-                      </p>
-                      <div className="row g-3 mb-4">
-                        <div className="col-12 col-md-6">
-                          <div className="login-input-group mb-0">
-                            <label className="login-label fw-semibold">Composição / Garantias</label>
-                            <textarea className="login-input bg-transparent text-foreground" rows={2} style={{ paddingLeft: "1rem", height: "auto" }}
-                              placeholder="Proteína bruta, energia, fibra..." value={row.composicao}
-                              onChange={e => update(row.id as any, "composicao", e.target.value)} />
-                          </div>
-                        </div>
-                        <div className="col-12 col-md-3">
-                          <div className="login-input-group mb-0">
-                            <label className="login-label fw-semibold">Indicação de uso</label>
-                            <textarea className="login-input bg-transparent text-foreground" rows={2} style={{ paddingLeft: "1rem", height: "auto" }}
-                              placeholder="Para qual fase/espécie..." value={row.indicacao_uso}
-                              onChange={e => update(row.id as any, "indicacao_uso", e.target.value)} />
-                          </div>
-                        </div>
-                        <div className="col-6 col-md-2">
-                          <InputField label="Peso embalagem">
-                            <input type="number" step="0.01" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                              placeholder="kg" value={row.peso_embalagem}
-                              onChange={e => update(row.id as any, "peso_embalagem", e.target.value)} />
-                          </InputField>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* ── SEÇÃO 3: Lote inicial ── */}
-                <p className="small fw-bold text-muted-foreground text-uppercase mb-3" style={{ letterSpacing: "0.08em", fontSize: "0.65rem" }}>
-                  <Warehouse size={12} className="me-1" /> Lote Inicial
-                </p>
-                <div className="row g-3">
-                  <div className="col-6 col-md-2">
-                    <InputField label="Qtd. inicial" required>
-                      <input type="number" step="0.01" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        placeholder="0" value={row.quantidade_inicial}
-                        onChange={e => update(row.id as any, "quantidade_inicial", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-6 col-md-2">
-                    <InputField label="Custo unitário (R$)" icon={Banknote}>
-                      <input type="number" step="0.01" className="login-input login-input-icon-left bg-transparent text-foreground"
-                        placeholder="0,00" value={row.custo_unitario}
-                        onChange={e => update(row.id as any, "custo_unitario", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-12 col-md-3">
-                    <InputField label="Nº Lote">
-                      <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                        placeholder="Ex: LOT-2025-001" value={row.numero_lote}
-                        onChange={e => update(row.id as any, "numero_lote", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-6 col-md-2">
-                    <InputField label="Data fabricação" icon={Calendar}>
-                      <input type="date" className="login-input login-input-icon-left bg-transparent text-muted-foreground"
-                        value={row.data_fabricacao} onChange={e => update(row.id as any, "data_fabricacao", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-6 col-md-2">
-                    <InputField label="Data validade" icon={Calendar}>
-                      <input type="date" className="login-input login-input-icon-left bg-transparent text-muted-foreground"
-                        value={row.data_validade} onChange={e => update(row.id as any, "data_validade", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-12 col-md-3">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Fornecedor</label>
-                      <select 
-                        className="login-input bg-transparent text-foreground" 
-                        style={{ paddingLeft: "1rem" }}
-                        value={row.fornecedor} 
-                        onChange={e => update(row.id as any, "fornecedor", e.target.value)}
-                      >
-                        <option value="">Selecione um fornecedor...</option>
-                        {suppliers.map(s => (
-                          <option key={s.id} value={s.id}>{s.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="col-6 col-md-2">
-                    <InputField label="Nota fiscal">
-                      <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        placeholder="Nº NF" value={row.nota_fiscal}
-                        onChange={e => update(row.id as any, "nota_fiscal", e.target.value)} />
-                    </InputField>
-                  </div>
-                  <div className="col-6 col-md-2">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Local armazenamento</label>
-                      <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                        value={row.local_armazenamento} onChange={e => update(row.id as any, "local_armazenamento", e.target.value)}>
-                        <option value="">Selecione...</option>
-                        {LOCAIS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+              );
+            })}
+          </div>
         </div>
 
-        <button
-          className="w-100 py-3 mt-2 rounded dashboard-card border-border d-flex align-items-center justify-content-center gap-2 hover-bg-muted transition-all text-primary fw-bold shadow-sm"
-          onClick={addRow}
-          style={{ borderStyle: "dashed" }}
-        >
-          <Plus size={18} /> Adicionar outro item ao lote
-        </button>
+        <div className="p-3 p-md-5">
+          <div className="d-flex flex-column gap-4">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${currentStep}-${rows.length}`}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {rows.map((row, index) => (
+                  <div
+                    key={row.id}
+                    className="dashboard-card p-3 p-md-4 mb-4"
+                    style={{ border: "1px solid var(--border)", borderRadius: "1.25rem" }}
+                  >
+                    {/* Header item */}
+                    <div className="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-border">
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="badge bg-primary text-white rounded-circle p-0 d-flex align-items-center justify-content-center" style={{ width: 22, height: 22, fontSize: '0.7rem' }}>
+                          {index + 1}
+                        </span>
+                        <h5 className="fw-black mb-0 text-uppercase small" style={{ letterSpacing: '0.05em' }}>
+                          {cfg ? cfg.label : "Item de Estoque"}
+                        </h5>
+                      </div>
+                      <button
+                        className={`btn btn-sm border-0 rounded-circle p-2 transition-colors ${rows.length === 1 ? "text-muted opacity-20" : "text-danger bg-danger/5 hover-bg-danger/10"}`}
+                        onClick={() => removeRow(row.id as any)}
+                        disabled={rows.length === 1}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {/* Step Content Rendering */}
+                    {currentStep === 0 && (
+                      <div className="animate-in fade-in slide-in-from-right-2">
+                        <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
+                          <Package size={14} className="me-1" /> Informações Básicas de Identidade
+                        </p>
+                        <div className="row g-4">
+                          <div className="col-12 col-md-6">
+                            <InputField label="Nome do item" required icon={Tag}>
+                              <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
+                                placeholder="Ex: Milho Grão, Vacina Aftosa..." value={row.nome}
+                                onChange={e => update(row.id as any, "nome", e.target.value)} />
+                            </InputField>
+                          </div>
+                          <div className="col-12 col-md-3">
+                            <InputField label="Código / SKU" icon={FileText}>
+                              <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
+                                placeholder="Ex: MIL-001" value={row.codigo}
+                                onChange={e => update(row.id as any, "codigo", e.target.value)} />
+                            </InputField>
+                          </div>
+
+                          {!category && (
+                            <div className="col-12 col-md-3">
+                              <div className="login-input-group mb-0">
+                                <label className="login-label fw-semibold text-xs">Categoria <span className="text-danger">*</span></label>
+                                <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                  value={row.categoria} onChange={e => update(row.id as any, "categoria", e.target.value)}>
+                                  {Object.entries(CATEGORY_CONFIG).map(([v, c]) => (
+                                    <option key={v} value={v}>{c.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="col-12 col-md-3">
+                            <div className="login-input-group mb-0">
+                              <label className="login-label fw-semibold text-xs">Unidade <span className="text-danger">*</span></label>
+                              <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                value={row.unidade_medida} onChange={e => update(row.id as any, "unidade_medida", e.target.value)}>
+                                {UNIDADES.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <InputField label="Marca">
+                              <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                placeholder="Marca do produto..." value={row.marca}
+                                onChange={e => update(row.id as any, "marca", e.target.value)} />
+                            </InputField>
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <InputField label="Fabricante">
+                              <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                placeholder="Fabricante..." value={row.fabricante}
+                                onChange={e => update(row.id as any, "fabricante", e.target.value)} />
+                            </InputField>
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <div className="login-input-group mb-0">
+                              <label className="login-label fw-semibold text-xs">Espécie Animal</label>
+                              <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                value={row.especie_animal} onChange={e => update(row.id as any, "especie_animal", e.target.value)}>
+                                <option value="">Todas / N/A</option>
+                                {ESPECIES.map(e => <option key={e} value={e}>{ESPECIES_LABELS[e]}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {currentStep === 1 && (
+                      <div className="animate-in fade-in slide-in-from-right-2">
+                        <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
+                          <FlaskConical size={14} className="me-1" /> Detalhes Técnicos e Especificações
+                        </p>
+                        
+                        {!isMedOrVac(row.categoria) && !isFeed(row.categoria) && (
+                          <div className="p-5 text-center bg-muted/5 rounded-2xl border border-dashed">
+                            <Package size={32} className="text-muted mb-3 opacity-20" />
+                            <div className="text-muted-foreground small fw-bold">Nenhum campo técnico adicional para esta categoria.</div>
+                            <div className="text-muted-foreground text-xs">Você pode prosseguir para a próxima etapa.</div>
+                          </div>
+                        )}
+
+                        {isMedOrVac(row.categoria) && (
+                          <div className="row g-4">
+                            <div className="col-12 col-md-6">
+                              <InputField label="Princípio Ativo">
+                                <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                  placeholder="Ex: Oxitetraciclina..." value={row.principio_ativo}
+                                  onChange={e => update(row.id as any, "principio_ativo", e.target.value)} />
+                              </InputField>
+                            </div>
+                            <div className="col-12 col-md-3">
+                              <InputField label="Concentração">
+                                <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                  placeholder="Ex: 200mg/mL" value={row.concentracao}
+                                  onChange={e => update(row.id as any, "concentracao", e.target.value)} />
+                              </InputField>
+                            </div>
+                            <div className="col-12 col-md-3">
+                              <div className="login-input-group mb-0">
+                                <label className="login-label fw-semibold text-xs">Via de Aplicação</label>
+                                <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                  value={row.via_aplicacao} onChange={e => update(row.id as any, "via_aplicacao", e.target.value)}>
+                                  <option value="">Selecione...</option>
+                                  {VIAS.map(v => <option key={v} value={v}>{VIAS_LABELS[v]}</option>)}
+                                </select>
+                              </div>
+                            </div>
+
+                            {isMed(row.categoria) && (
+                              <>
+                                <div className="col-12 col-md-3">
+                                  <InputField label="Carência (dias)">
+                                    <input type="number" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                      placeholder="0" value={row.carencia_dias}
+                                      onChange={e => update(row.id as any, "carencia_dias", e.target.value)} />
+                                  </InputField>
+                                </div>
+                                <div className="col-12 col-md-3 d-flex align-items-center mt-md-4">
+                                  <label className="d-flex align-items-center gap-2 cursor-pointer p-2 rounded-xl border w-100 hover-bg-muted transition-all">
+                                    <input type="checkbox" className="form-check-input mt-0" checked={row.exige_receituario}
+                                      onChange={e => update(row.id as any, "exige_receituario", e.target.checked)} />
+                                    <span className="small fw-bold">Exige Receituário</span>
+                                  </label>
+                                </div>
+                              </>
+                            )}
+                            {isMedOrVac(row.categoria) && (
+                              <>
+                                <div className="col-12 col-md-3">
+                                  <InputField label={isVac(row.categoria) ? "Doses/Embalagem" : "Volume Embalagem (ml)"}>
+                                    <input type="number" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                      placeholder="Ex: 50" value={isVac(row.categoria) ? row.doses_por_embalagem : row.volume_por_dose}
+                                      onChange={e => update(row.id as any, isVac(row.categoria) ? "doses_por_embalagem" : "volume_por_dose", e.target.value)} />
+                                  </InputField>
+                                </div>
+                                <div className="col-12 col-md-6">
+                                  {((row.volume_por_dose && row.quantidade_inicial) || row.doses_por_embalagem) && (
+                                    <div className="p-3 rounded-2xl bg-primary/5 border border-primary/10 h-100 d-flex align-items-center gap-3">
+                                      <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                                        <Activity size={18} />
+                                      </div>
+                                      <div>
+                                        <div className="text-xs fw-black text-primary text-uppercase">Rendimento Estimado</div>
+                                        <div className="fw-black text-foreground" style={{ fontSize: '1.1rem' }}>
+                                          {isVac(row.categoria) 
+                                            ? `${(parseFloat(row.doses_por_embalagem || 0) * parseFloat(row.quantidade_inicial || 0)).toFixed(0)} doses totais`
+                                            : `${(parseFloat(row.quantidade_inicial || 0) * 1).toFixed(0)} unidades de tratamento`
+                                          }
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {isFeed(row.categoria) && (
+                          <div className="row g-4">
+                            <div className="col-12 col-md-8">
+                              <div className="login-input-group mb-0">
+                                <label className="login-label fw-semibold text-xs">Composição / Garantias</label>
+                                <textarea className="login-input bg-transparent text-foreground rounded-xl" rows={3} style={{ paddingLeft: "1rem", height: "auto" }}
+                                  placeholder="Proteína bruta, energia, fibra..." value={row.composicao}
+                                  onChange={e => update(row.id as any, "composicao", e.target.value)} />
+                              </div>
+                            </div>
+                            <div className="col-12 col-md-4">
+                              <InputField label="Peso da Embalagem (kg)">
+                                <input type="number" step="0.01" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                  placeholder="0.00" value={row.peso_embalagem}
+                                  onChange={e => update(row.id as any, "peso_embalagem", e.target.value)} />
+                              </InputField>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {currentStep === 2 && (
+                      <div className="animate-in fade-in slide-in-from-right-2">
+                        <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
+                          <Warehouse size={14} className="me-1" /> Entrada Inicial de Estoque
+                        </p>
+                        <div className="row g-4">
+                          <div className="col-12 col-md-3">
+                            <InputField label="Quantidade Inicial" required icon={Hash}>
+                              <input type="number" step="0.01" className="login-input login-input-icon-left bg-transparent text-foreground"
+                                placeholder="0.00" value={row.quantidade_inicial}
+                                onChange={e => update(row.id as any, "quantidade_inicial", e.target.value)} />
+                            </InputField>
+                          </div>
+                          <div className="col-12 col-md-3">
+                            <InputField label="Custo Unitário (R$)" icon={Banknote}>
+                              <div className="position-relative">
+                                <input type="number" step="0.01" className="login-input login-input-icon-left bg-transparent text-foreground"
+                                  placeholder="0,00" value={row.custo_unitario}
+                                  onChange={e => update(row.id as any, "custo_unitario", e.target.value)} />
+                                
+                                {row.ultimo_custo > 0 && row.custo_unitario && (
+                                  <div className="position-absolute top-50 translate-middle-y" style={{ right: '10px' }}>
+                                    {parseFloat(row.custo_unitario) > row.ultimo_custo ? (
+                                      <span className="badge bg-danger/10 text-danger border border-danger/20 d-flex align-items-center gap-1" style={{ fontSize: '0.65rem' }}>
+                                        <ArrowUp size={10} /> {(((parseFloat(row.custo_unitario) / row.ultimo_custo) - 1) * 100).toFixed(1)}%
+                                      </span>
+                                    ) : (
+                                      <span className="badge bg-success/10 text-success border border-success/20 d-flex align-items-center gap-1" style={{ fontSize: '0.65rem' }}>
+                                        <ArrowDown size={10} /> {((1 - (parseFloat(row.custo_unitario) / row.ultimo_custo)) * 100).toFixed(1)}%
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </InputField>
+                            {row.ultimo_custo > 0 && (
+                              <div className="text-xs text-muted-foreground mt-1 px-1">
+                                Última compra: <strong>R$ {row.ultimo_custo.toFixed(2)}</strong>
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-12 col-md-3">
+                            <InputField label="Estoque Mínimo" icon={AlertTriangle}>
+                              <input type="number" step="0.01" className="login-input login-input-icon-left bg-transparent text-foreground"
+                                placeholder="Alerta em..." value={row.estoque_minimo}
+                                onChange={e => update(row.id as any, "estoque_minimo", e.target.value)} />
+                            </InputField>
+                          </div>
+                          <div className="col-12 col-md-3">
+                            <InputField label="Nº do Lote">
+                              <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
+                                placeholder="Lote..." value={row.numero_lote}
+                                onChange={e => update(row.id as any, "numero_lote", e.target.value)} />
+                            </InputField>
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <div className="login-input-group mb-0">
+                              <label className="login-label fw-semibold text-xs">Fornecedor</label>
+                              <select 
+                                className="login-input bg-transparent text-foreground rounded-xl" 
+                                style={{ paddingLeft: "1rem" }}
+                                value={row.fornecedor} 
+                                onChange={e => update(row.id as any, "fornecedor", e.target.value)}
+                              >
+                                <option value="">Selecione um fornecedor...</option>
+                                {suppliers.map(s => (
+                                  <option key={s.id} value={s.id}>{s.nome}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <InputField label="Data de Validade" icon={Calendar}>
+                              <input type="date" className="login-input login-input-icon-left bg-transparent text-muted-foreground"
+                                value={row.data_validade} onChange={e => update(row.id as any, "data_validade", e.target.value)} />
+                            </InputField>
+                            {row.data_validade && (
+                              <div className="mt-2 p-2 rounded-lg bg-muted/5 border d-flex align-items-center gap-2">
+                                <Clock size={12} className="text-muted-foreground" />
+                                <span className="text-xs fw-bold">
+                                  {(() => {
+                                    const diff = Math.ceil((new Date(row.data_validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                                    if (diff < 0) return <span className="text-danger">EXPIRADO HÁ {Math.abs(diff)} DIAS</span>;
+                                    if (diff < 30) return <span className="text-orange-600">VENCE EM {diff} DIAS (URGENTE)</span>;
+                                    return <span className="text-success">VENCE EM {diff} DIAS</span>;
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <div className="login-input-group mb-0">
+                              <label className="login-label fw-semibold text-xs">Local de Armazenamento</label>
+                              <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                value={row.local_armazenamento} onChange={e => update(row.id as any, "local_armazenamento", e.target.value)}>
+                                <option value="">Selecione...</option>
+                                {LOCAIS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {currentStep === 0 && (
+            <button
+              className="w-100 py-4 mt-2 rounded-2xl dashboard-card border-border d-flex align-items-center justify-content-center gap-2 hover-bg-muted transition-all text-primary fw-black shadow-sm"
+              onClick={addRow}
+              style={{ borderStyle: "dashed", backgroundColor: 'var(--muted-foreground-5)' }}
+            >
+              <Plus size={20} /> ADICIONAR OUTRO ITEM AO LOTE
+            </button>
+          )}
+        </div>
       </div>
     </Modal>
   );

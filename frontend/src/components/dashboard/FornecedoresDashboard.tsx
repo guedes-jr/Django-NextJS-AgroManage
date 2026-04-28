@@ -66,7 +66,9 @@ export function FornecedoresDashboard() {
 
   const filteredFornecedores = useMemo(() => {
     return fornecedores.filter((f) => {
-      const matchesSearch = f.nome.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = 
+        f.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.contatos?.some((c: any) => c.valor.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesStatus = statusFilter === "todos" || 
                            (statusFilter === "ativo" && f.ativo) || 
                            (statusFilter === "inativo" && !f.ativo);
@@ -255,21 +257,36 @@ export function FornecedoresDashboard() {
                   >
                     <td className="px-4 py-3">
                       <div className="d-flex align-items-center gap-3">
-                        {fornecedor.imagem ? (
+                        {fornecedor.imagem || fornecedor.logo_url ? (
                           <img
-                            src={getMediaUrl(fornecedor.imagem)}
+                            src={fornecedor.imagem ? getMediaUrl(fornecedor.imagem) : (fornecedor.logo_url || "")}
                             alt={fornecedor.nome}
-                            className="rounded-xl object-fit-cover"
+                            className="rounded-xl object-fit-cover shadow-sm border border-border"
                             style={{ width: "44px", height: "44px" }}
+                            onError={(e) => {
+                              // If logo_url fails, show initials
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement?.querySelector('.initials-placeholder')?.classList.remove('d-none');
+                            }}
                           />
-                        ) : (
+                        ) : null}
+                        {(!fornecedor.imagem && !fornecedor.logo_url) && (
                           <div
-                            className="rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
+                            className="initials-placeholder rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
                             style={{ width: "44px", height: "44px", fontSize: "14px" }}
                           >
                             {fornecedor.nome.substring(0, 2).toUpperCase()}
                           </div>
                         )}
+                        {/* Fallback initials if image fails */}
+                        {fornecedor.imagem || fornecedor.logo_url ? (
+                           <div
+                            className="initials-placeholder d-none rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
+                            style={{ width: "44px", height: "44px", fontSize: "14px" }}
+                          >
+                            {fornecedor.nome.substring(0, 2).toUpperCase()}
+                          </div>
+                        ) : null}
                         <div>
                           <div className="fw-bold text-foreground">{fornecedor.nome}</div>
                           {fornecedor.cnpj ? (
@@ -283,26 +300,24 @@ export function FornecedoresDashboard() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="d-flex flex-column gap-1">
-                        {fornecedor.telefone ? (
-                          <span className="small d-flex align-items-center gap-1">
-                            <Phone size={12} className="text-muted-foreground" />
-                            {fornecedor.telefone}
-                          </span>
-                        ) : null}
-                        {fornecedor.email ? (
-                          <span className="small d-flex align-items-center gap-1 text-muted-foreground">
-                            <Mail size={12} />
-                            {fornecedor.email}
-                          </span>
-                        ) : null}
-                        {!fornecedor.telefone && !fornecedor.email ? (
+                        {fornecedor.contatos && fornecedor.contatos.length > 0 ? (
+                          <>
+                            <span className="small d-flex align-items-center gap-1">
+                              {fornecedor.contatos[0].tipo === 'email' ? <Mail size={12} className="text-muted-foreground" /> : <Phone size={12} className="text-muted-foreground" />}
+                              {fornecedor.contatos[0].valor}
+                            </span>
+                            {fornecedor.contatos.length > 1 && (
+                              <span className="text-xs text-muted-foreground">+{fornecedor.contatos.length - 1} outros</span>
+                            )}
+                          </>
+                        ) : (
                           <span className="small text-muted-foreground">-</span>
-                        ) : null}
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-3 small">
-                      {fornecedor.cidade || fornecedor.estado
-                        ? `${fornecedor.cidade || ""}${fornecedor.estado ? ` / ${fornecedor.estado}` : ""}`
+                      {fornecedor.enderecos && fornecedor.enderecos.length > 0
+                        ? `${fornecedor.enderecos[0].cidade}${fornecedor.enderecos[0].estado ? ` / ${fornecedor.enderecos[0].estado}` : ""}`
                         : "-"}
                     </td>
                     <td className="px-3 py-3 small">

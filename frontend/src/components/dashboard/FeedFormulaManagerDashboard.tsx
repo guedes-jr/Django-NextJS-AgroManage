@@ -1,66 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Search, Trash2, Save } from "lucide-react";
+import { apiClient } from "@/services/api";
 import "@/app/home/estoque/estoque.css";
 
 type FormulaIngredient = {
-  ingrediente: string;
+  item: string | number; // ID
+  item_nome?: string;
   percentual: number;
-  quantidadeKg: number;
 };
 
 type Formula = {
+  id?: number;
   nome: string;
   descricao: string;
-  status: string;
-  atualizado: string;
-  criadoPor: string;
+  item_final?: number | null;
+  item_final_nome?: string | null;
+  ativa: boolean;
   ingredientes: FormulaIngredient[];
 };
 
-const INITIAL_FORMULAS: Formula[] = [
-  {
-    nome: "Ração Crescimento",
-    descricao: "Ração para fase de crescimento dos animais.",
-    status: "Ativa",
-    atualizado: "20/05/2025 10:30",
-    criadoPor: "João Paulo",
-    ingredientes: [
-      { ingrediente: "Milho", percentual: 60, quantidadeKg: 600 },
-      { ingrediente: "Farelo de Soja", percentual: 25, quantidadeKg: 250 },
-      { ingrediente: "Núcleo Premium", percentual: 5, quantidadeKg: 50 },
-      { ingrediente: "Calcário Calcítico", percentual: 3, quantidadeKg: 30 },
-      { ingrediente: "Fosfato Bicálcico", percentual: 2, quantidadeKg: 20 },
-      { ingrediente: "Sal Comum", percentual: 2, quantidadeKg: 20 },
-      { ingrediente: "Óleo Vegetal", percentual: 3, quantidadeKg: 30 },
-    ],
-  },
-  { nome: "Ração Engorda", descricao: "Ração para fase final.", status: "Ativa", atualizado: "19/05/2025 09:00", criadoPor: "João Paulo", ingredientes: [
-    { ingrediente: "Milho", percentual: 58, quantidadeKg: 580 },
-    { ingrediente: "Farelo de Soja", percentual: 28, quantidadeKg: 280 },
-    { ingrediente: "Núcleo Premium", percentual: 6, quantidadeKg: 60 },
-    { ingrediente: "Calcário Calcítico", percentual: 3, quantidadeKg: 30 },
-    { ingrediente: "Fosfato Bicálcico", percentual: 2, quantidadeKg: 20 },
-    { ingrediente: "Sal Comum", percentual: 1, quantidadeKg: 10 },
-    { ingrediente: "Óleo Vegetal", percentual: 2, quantidadeKg: 20 },
-  ] },
-  { nome: "Ração Gestação", descricao: "Formulação para matrizes.", status: "Ativa", atualizado: "18/05/2025 14:20", criadoPor: "João Paulo", ingredientes: [
-    { ingrediente: "Milho", percentual: 54, quantidadeKg: 540 },
-    { ingrediente: "Farelo de Soja", percentual: 30, quantidadeKg: 300 },
-    { ingrediente: "Núcleo Premium", percentual: 6, quantidadeKg: 60 },
-    { ingrediente: "Calcário Calcítico", percentual: 4, quantidadeKg: 40 },
-    { ingrediente: "Fosfato Bicálcico", percentual: 2, quantidadeKg: 20 },
-    { ingrediente: "Sal Comum", percentual: 2, quantidadeKg: 20 },
-    { ingrediente: "Óleo Vegetal", percentual: 2, quantidadeKg: 20 },
-  ] },
-];
+type InventoryItem = {
+  id: number;
+  nome: string;
+};
 
 export function FeedFormulaManagerDashboard() {
-  const [formulas, setFormulas] = useState<Formula[]>(INITIAL_FORMULAS);
+  const [formulas, setFormulas] = useState<Formula[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [resFormulas, resItems] = await Promise.all([
+        apiClient.get("inventory/formulas/"),
+        apiClient.get("inventory/items/all_items/")
+      ]);
+      setFormulas(resFormulas.data.results || resFormulas.data || []);
+      setInventoryItems(resItems.data || []);
+    } catch (err) {
+      console.error("Erro ao buscar dados", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const selected = formulas[selectedIndex];
 
@@ -71,27 +64,116 @@ export function FeedFormulaManagerDashboard() {
       .map(({ index }) => index);
   }, [formulas, search]);
 
-  const updateIngredient = (idx: number, field: "percentual" | "quantidadeKg", value: number) => {
+  const updateIngredient = (idx: number, field: "percentual" | "item", value: any) => {
     setFormulas((prev) => {
       const next = [...prev];
       const formula = { ...next[selectedIndex] };
       const ingredientes = [...formula.ingredientes];
       ingredientes[idx] = { ...ingredientes[idx], [field]: value };
+      
+      if (field === "item") {
+        const selectedItem = inventoryItems.find(i => i.id.toString() === value.toString());
+        if (selectedItem) {
+          ingredientes[idx].item_nome = selectedItem.nome;
+        }
+      }
+      
       formula.ingredientes = ingredientes;
       next[selectedIndex] = formula;
       return next;
     });
   };
 
+  const addIngredient = () => {
+    setFormulas((prev) => {
+      const next = [...prev];
+      const formula = { ...next[selectedIndex] };
+      formula.ingredientes = [...formula.ingredientes, { item: "", percentual: 0 }];
+      next[selectedIndex] = formula;
+      return next;
+    });
+  };
+
+  const removeIngredient = (idx: number) => {
+    setFormulas((prev) => {
+      const next = [...prev];
+      const formula = { ...next[selectedIndex] };
+      formula.ingredientes = formula.ingredientes.filter((_, i) => i !== idx);
+      next[selectedIndex] = formula;
+      return next;
+    });
+  };
+
+  const handleCreateNew = () => {
+    const nova: Formula = {
+      nome: "Nova Fórmula",
+      descricao: "",
+      ativa: true,
+      ingredientes: []
+    };
+    setFormulas(prev => [nova, ...prev]);
+    setSelectedIndex(0);
+  };
+
+  const handleSave = async () => {
+    if (!selected) return;
+    if (totals.percentual !== 100) {
+      alert("A soma dos percentuais deve ser exatamente 100%.");
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      if (selected.id) {
+        await apiClient.put(`inventory/formulas/${selected.id}/`, selected);
+        alert("Fórmula atualizada com sucesso!");
+      } else {
+        const res = await apiClient.post("inventory/formulas/", selected);
+        setFormulas(prev => prev.map((f, i) => i === selectedIndex ? res.data : f));
+        alert("Fórmula criada com sucesso!");
+      }
+      fetchData();
+    } catch (err) {
+      alert("Erro ao salvar fórmula.");
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selected || !selected.id) {
+      setFormulas(prev => prev.filter((_, i) => i !== selectedIndex));
+      setSelectedIndex(0);
+      return;
+    }
+    
+    if (confirm("Tem certeza que deseja excluir esta fórmula?")) {
+      try {
+        setSaving(true);
+        await apiClient.delete(`inventory/formulas/${selected.id}/`);
+        alert("Fórmula excluída.");
+        fetchData();
+        setSelectedIndex(0);
+      } catch (err) {
+        alert("Erro ao excluir.");
+        console.error(err);
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
   const totals = useMemo(() => {
-    if (!selected) return { percentual: 0, quantidade: 0 };
+    if (!selected) return { percentual: 0 };
     return {
-      percentual: selected.ingredientes.reduce((acc, i) => acc + i.percentual, 0),
-      quantidade: selected.ingredientes.reduce((acc, i) => acc + i.quantidadeKg, 0),
+      percentual: selected.ingredientes.reduce((acc, i) => acc + Number(i.percentual || 0), 0),
     };
   }, [selected]);
 
-  if (!selected) return null;
+  if (loading && formulas.length === 0) {
+    return <div className="p-5 text-center text-muted-foreground">Carregando fórmulas...</div>;
+  }
 
   return (
     <div className="inventory-container pb-5">
@@ -112,7 +194,7 @@ export function FeedFormulaManagerDashboard() {
           <div className="dashboard-card p-3">
             <div className="d-flex align-items-center justify-content-between mb-2">
               <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>Fórmulas cadastradas</h4>
-              <button className="btn btn-link text-success p-0 small fw-semibold"><Plus size={14} className="me-1" />Nova fórmula</button>
+              <button onClick={handleCreateNew} className="btn btn-link text-success p-0 small fw-semibold"><Plus size={14} className="me-1" />Nova fórmula</button>
             </div>
             <div className="position-relative mb-2">
               <Search size={14} className="position-absolute text-muted-foreground" style={{ left: 10, top: "50%", transform: "translateY(-50%)" }} />
@@ -138,6 +220,7 @@ export function FeedFormulaManagerDashboard() {
         </div>
 
         <div className="col-12 col-xl-6">
+          {selected ? (
           <div className="dashboard-card p-4">
             <div className="row g-3 mb-3">
               <div className="col-12">
@@ -157,74 +240,99 @@ export function FeedFormulaManagerDashboard() {
                 <thead className="bg-muted/30">
                   <tr>
                     <th className="px-3 py-3 border-0 small text-muted-foreground">Ingrediente</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">% na fórmula</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Quantidade (kg)</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Ações</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground" style={{ width: 140 }}>% na fórmula</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground" style={{ width: 60 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {selected.ingredientes.map((ing, idx) => (
-                    <tr key={`${ing.ingrediente}-${idx}`} className="border-bottom border-border">
+                    <tr key={idx} className="border-bottom border-border">
                       <td className="px-3 py-3 fw-semibold">
-                        <span className="d-inline-flex align-items-center gap-2">
-                          <span className="rounded-circle" style={{ width: 8, height: 8, background: "oklch(0.55 0.16 145)" }} />
-                          {ing.ingrediente}
-                        </span>
+                        <select 
+                          className="form-select bg-transparent border-0 fw-semibold" 
+                          value={ing.item} 
+                          onChange={(e) => updateIngredient(idx, "item", e.target.value)}
+                        >
+                          <option value="">Selecione um ingrediente...</option>
+                          {inventoryItems.map(item => (
+                            <option key={item.id} value={item.id}>{item.nome}</option>
+                          ))}
+                        </select>
                       </td>
-                      <td className="px-3 py-3" style={{ maxWidth: 140 }}>
+                      <td className="px-3 py-3">
                         <div className="input-group">
-                          <input type="number" className="form-control" value={ing.percentual} onChange={(e) => updateIngredient(idx, "percentual", Number(e.target.value || 0))} />
+                          <input type="number" step="0.1" className="form-control" value={ing.percentual} onChange={(e) => updateIngredient(idx, "percentual", Number(e.target.value || 0))} />
                           <span className="input-group-text">%</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3" style={{ maxWidth: 160 }}>
-                        <div className="input-group">
-                          <input type="number" className="form-control" value={ing.quantidadeKg} onChange={(e) => updateIngredient(idx, "quantidadeKg", Number(e.target.value || 0))} />
-                          <span className="input-group-text">kg</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <button className="btn btn-light p-2"><Trash2 size={14} /></button>
+                      <td className="px-3 py-3 text-end">
+                        <button onClick={() => removeIngredient(idx)} className="btn btn-light p-2 text-danger hover-bg-danger hover-text-white transition-all"><Trash2 size={14} /></button>
                       </td>
                     </tr>
                   ))}
+                  {selected.ingredientes.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="text-center py-4 text-muted-foreground small">
+                        Nenhum ingrediente adicionado.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-            <button className="btn btn-light w-100 mt-3 fw-semibold"><Plus size={14} className="me-1" />Adicionar ingrediente</button>
+            <button onClick={addIngredient} className="btn btn-light w-100 mt-3 fw-semibold"><Plus size={14} className="me-1" />Adicionar ingrediente</button>
 
-            <div className="mt-3 p-3 rounded-3 d-flex justify-content-between align-items-center bg-muted/40">
-              <span className="fw-semibold">Total da fórmula</span>
-              <div className="d-flex gap-4 fw-bold">
-                <span className={totals.percentual === 100 ? "text-success" : "text-warning"}>{totals.percentual.toFixed(2).replace(".", ",")} %</span>
-                <span>{totals.quantidade.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} kg</span>
+            <div className={`mt-3 p-3 rounded-3 d-flex justify-content-between align-items-center ${totals.percentual === 100 ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+              <span className="fw-bold">Total da fórmula</span>
+              <div className="d-flex gap-4 fw-black fs-5">
+                <span>{totals.percentual.toFixed(2).replace(".", ",")} %</span>
               </div>
             </div>
+            {totals.percentual !== 100 && (
+              <div className="small text-danger fw-semibold mt-2 text-end">
+                A soma dos percentuais deve ser exatamente 100%. (Falta { (100 - totals.percentual).toFixed(2) }%)
+              </div>
+            )}
           </div>
+          ) : (
+            <div className="dashboard-card p-5 text-center text-muted-foreground d-flex align-items-center justify-content-center h-100">
+              Selecione ou crie uma fórmula para gerenciar.
+            </div>
+          )}
         </div>
 
         <div className="col-12 col-xl-3">
+          {selected && (
+            <>
           <div className="dashboard-card p-4 mb-4">
             <h4 className="fw-bold mb-3" style={{ fontSize: "1rem" }}>Informações da fórmula</h4>
             <div className="small text-muted-foreground mb-1">Status</div>
-            <div className="fw-semibold text-success mb-3">{selected.status}</div>
-            <div className="small text-muted-foreground mb-1">Última atualização</div>
-            <div className="fw-semibold mb-3">{selected.atualizado}</div>
-            <div className="small text-muted-foreground mb-1">Criado por</div>
-            <div className="fw-semibold">{selected.criadoPor}</div>
-
+            <div className="fw-semibold text-success mb-3">{selected.ativa ? "Ativa" : "Inativa"}</div>
+            
             <div className="mt-4 p-3 rounded-3" style={{ background: "oklch(0.98 0.03 90)" }}>
               <div className="small fw-bold mb-1" style={{ color: "oklch(0.55 0.14 85)" }}>Dica</div>
               <div className="small text-muted-foreground">
-                As fórmulas criadas ficarão disponíveis na produção de ração.
+                Somente as fórmulas ativas e com 100% dos ingredientes validados ficarão disponíveis na produção de ração.
               </div>
             </div>
           </div>
 
           <div className="dashboard-card p-4">
-            <button className="btn btn-light w-100 mb-2 text-danger fw-semibold">Excluir fórmula</button>
-            <button className="btn w-100 fw-semibold" style={{ background: "var(--primary)", color: "white" }}>Salvar alterações</button>
+            <button onClick={handleDelete} disabled={saving} className="btn btn-light w-100 mb-2 text-danger fw-semibold">
+              Excluir fórmula
+            </button>
+            <button 
+              onClick={handleSave} 
+              disabled={saving || totals.percentual !== 100} 
+              className={`btn w-100 fw-semibold d-flex align-items-center justify-content-center gap-2 ${totals.percentual !== 100 ? 'opacity-50' : ''}`} 
+              style={{ background: "var(--primary)", color: "white" }}
+            >
+              <Save size={16} />
+              {saving ? "Salvando..." : "Salvar alterações"}
+            </button>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ import {
   Wheat,
   Box,
   Activity,
+  RefreshCw,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
@@ -66,7 +67,10 @@ export function ProdutosDashboard() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory }>({ open: false });
+  const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory; initialData?: any }>({ open: false });
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const fetchItems = async (targetPage = 1) => {
     setLoading(true);
@@ -88,21 +92,74 @@ export function ProdutosDashboard() {
     }
   };
 
+  const handleSearchChange = async (query: string) => {
+    setSearchTerm(query);
+    if (query.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsLoadingSuggestions(true);
+    setShowSuggestions(true);
+    try {
+      const { data } = await apiClient.get("/inventory/items/all_items/", {
+        params: { search: query, limit: 5 }
+      });
+      setSuggestions(data || []);
+    } catch (err) {
+      console.error("Erro ao buscar sugestões:", err);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (produto: any) => {
+    setSearchTerm("");
+    setShowSuggestions(false);
+    setModalConfig({ 
+      open: true, 
+      category: CATEGORY_MODAL_MAP[produto.categoria] || "outro",
+      initialData: {
+        nome: produto.name,
+        categoria: produto.categoria,
+        unidade_medida: produto.unidade_medida,
+        marca: produto.marca,
+        fabricante: produto.fabricante,
+        especie_animal: produto.especie_animal,
+        item_id: produto.id,
+        ultimo_custo: produto.ultimo_custo
+      }
+    });
+  };
+
   useEffect(() => {
     fetchItems(1);
   }, []);
 
   const handleSaveItems = async (newItems: any[]) => {
     const payload = newItems.map((row) => ({
-      ...row,
-      estoque_minimo: row.estoque_minimo ? parseFloat(row.estoque_minimo) : 0,
-      quantidade_inicial: row.quantidade_inicial ? parseFloat(row.quantidade_inicial) : undefined,
-      custo_unitario: row.custo_unitario ? parseFloat(row.custo_unitario) : undefined,
-      carencia_dias: row.carencia_dias ? parseInt(row.carencia_dias, 10) : undefined,
+      nome: row.nome,
+      categoria: row.categoria,
+      unidade_medida: row.unidade_medida,
+      codigo: row.codigo || "",
+      marca: row.marca || "",
+      fabricante: row.fabricante || "",
+      especie_animal: row.especie_animal || "",
+      composicao: row.composicao || "",
+      lote_numero: row.lote_numero || "",
+      data_validade: row.data_validade || null,
+      local_armazenamento: row.local_armazenamento || "",
+      fornecedor: row.fornecedor || null,
+      estoque_minimo: parseFloat(row.estoque_minimo) || 0,
+      quantidade_inicial: parseFloat(row.quantidade_inicial) || 0,
+      custo_unitario: parseFloat(row.custo_unitario) || 0,
+      carencia_dias: parseInt(row.carencia_dias, 10) || 0,
       temperatura_minima: row.temperatura_minima ? parseFloat(row.temperatura_minima) : undefined,
       temperatura_maxima: row.temperatura_maxima ? parseFloat(row.temperatura_maxima) : undefined,
       doses_por_embalagem: row.doses_por_embalagem ? parseInt(row.doses_por_embalagem, 10) : undefined,
       peso_embalagem: row.peso_embalagem ? parseFloat(row.peso_embalagem) : undefined,
+      volume_por_dose: row.volume_por_dose ? parseFloat(row.volume_por_dose) : undefined,
     }));
     await apiClient.post("/inventory/items/bulk_create/", payload);
     await fetchItems(1);
@@ -224,17 +281,49 @@ export function ProdutosDashboard() {
 
       <div className="dashboard-card p-3 mb-3">
         <div className="row g-3 align-items-center">
-          <div className="col-12 col-lg-4">
+          <div className="col-12 col-lg-4 position-relative">
             <div className="position-relative">
-              <Search size={16} className="position-absolute text-muted-foreground" style={{ left: "10px", top: "50%", transform: "translateY(-50%)" }} />
+              <Search size={16} className="position-absolute text-muted-foreground" style={{ left: "12px", top: "50%", transform: "translateY(-50%)", zIndex: 10 }} />
               <input
                 type="text"
-                className="form-control ps-5"
-                placeholder="Buscar produto..."
+                className="form-control ps-5 rounded-xl border-2 transition-all focus-ring"
+                placeholder="Buscar ou cadastrar lote rápido..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               />
+              {isLoadingSuggestions && (
+                <RefreshCw size={14} className="position-absolute animate-spin text-primary" style={{ right: "12px", top: "50%", transform: "translateY(-50%)" }} />
+              )}
             </div>
+
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="position-absolute w-100 mt-2 bg-white border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2" style={{ zIndex: 1100 }}>
+                <div className="p-2 bg-muted/10 text-xs fw-black text-muted-foreground text-uppercase border-bottom" style={{ letterSpacing: '0.05em' }}>
+                  Resultados Encontrados
+                </div>
+                {suggestions.map((p) => (
+                  <div 
+                    key={p.id} 
+                    className="p-3 cursor-pointer hover-bg-primary/5 transition-colors d-flex align-items-center justify-content-between border-bottom last-border-0"
+                    onClick={() => handleSelectSuggestion(p)}
+                  >
+                    <div className="d-flex align-items-center gap-3">
+                      <div className="p-2 rounded-lg bg-muted/20 text-muted-foreground">
+                        <Package size={16} />
+                      </div>
+                      <div>
+                        <div className="fw-bold text-foreground small">{p.name}</div>
+                        <div className="text-xs text-muted-foreground">{p.categoria_display} • {p.unidade_medida}</div>
+                      </div>
+                    </div>
+                    <div className="badge bg-primary/10 text-primary text-xs rounded-pill px-2 py-1">
+                      Selecionar
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="col-6 col-lg-3">
             <select className="form-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
@@ -329,6 +418,7 @@ export function ProdutosDashboard() {
         onClose={() => setModalConfig({ open: false })}
         category={modalConfig.category}
         onSave={handleSaveItems}
+        initialData={modalConfig.initialData}
       />
     </div>
   );
