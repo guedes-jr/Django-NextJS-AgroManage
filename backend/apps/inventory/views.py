@@ -296,11 +296,19 @@ class FornecedorViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         organization = self._get_user_organization()
-        serializer.save(organization=organization)
-    
+        try:
+            serializer.save(organization=organization)
+        except Exception as e:
+            print(f"[FornecedorViewSet] Error creating fornecedor: {str(e)}")
+            raise
+
     def perform_update(self, serializer):
         organization = self._get_user_organization()
-        serializer.save(organization=organization)
+        try:
+            serializer.save(organization=organization)
+        except Exception as e:
+            print(f"[FornecedorViewSet] Error updating fornecedor: {str(e)}")
+            raise
 
     @action(detail=True, methods=["post"], url_path="upload_imagem")
     def upload_imagem(self, request, pk=None):

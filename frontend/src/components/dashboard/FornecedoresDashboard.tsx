@@ -38,8 +38,10 @@ export function FornecedoresDashboard() {
     
     setLoading(true);
     try {
-      const { data } = await apiClient.get("/inventory/fornecedores/");
-      console.log("[DEBUG] Fornecedores response:", data);
+      const { data } = await apiClient.get("inventory/fornecedores/");
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[DEBUG] Fornecedores response:", data);
+      }
       const fornecedoresData = Array.isArray(data)
         ? data
         : Array.isArray(data?.results)

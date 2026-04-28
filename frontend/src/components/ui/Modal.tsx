@@ -49,7 +49,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className={`w-100 ${maxWidth} pe-auto`}
+              className={`${maxWidth} mx-auto w-auto pe-auto`}
             >
               <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
                 

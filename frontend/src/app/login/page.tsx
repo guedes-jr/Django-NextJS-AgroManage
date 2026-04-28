@@ -66,6 +66,11 @@ export default function LoginPage() {
         localStorage.setItem("access_token", data.access);
         localStorage.setItem("refresh_token", data.refresh);
         localStorage.setItem("user", JSON.stringify(data.user));
+        
+        // Aguarda 100ms para garantir sincronização do localStorage
+        // e que o interceptador tenha tempo de pegar o token
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         router.push("/home");
       } else if (view === "register") {
         await apiClient.post("/auth/register/", {
@@ -74,14 +79,14 @@ export default function LoginPage() {
           password_confirm: formData.password_confirm,
           full_name: formData.name,
         });
-        showToast(\"Conta criada! Você será redirecionado para o login. 🎉\", \"success\", 15000);
-        setTimeout(() => goTo(\"login\"), 2000);
+        showToast("Conta criada! Você será redirecionado para o login. 🎉", "success", 15000);
+        setTimeout(() => goTo("login"), 2000);
       } else if (view === "forgot") {
         await apiClient.post("/auth/password-recovery/", {
           email: formData.email,
         });
-        showToast(\"Link enviado para seu email! 📧\", \"success\", 15000);
-        setTimeout(() => goTo(\"login\"), 2000);
+        showToast("Link enviado para seu email! 📧", "success", 15000);
+        setTimeout(() => goTo("login"), 2000);
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: { detail?: unknown; message?: string } } } };

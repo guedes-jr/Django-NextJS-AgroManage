@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { apiClient, getMediaUrl, uploadFile } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
+import { FormInput, FormSelect, FormError } from "@/components/ui/FormError";
 
 const formatCNPJ = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 14);
@@ -46,6 +47,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState({
     nome: "",
@@ -97,11 +99,128 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     setImageFile(null);
   }, [fornecedorInitial, isOpen]);
 
+  // Validation functions
+  const validateNome = (value: string): string => {
+    if (!value || !value.trim()) {
+      return "Nome é obrigatório";
+    }
+    if (value.trim().length < 3) {
+      return "Nome deve ter pelo menos 3 caracteres";
+    }
+    return "";
+  };
+
+  const validateEmail = (value: string): string => {
+    if (!value) return ""; // Email é opcional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value)) {
+      return "E-mail inválido. Use formato: nome@empresa.com";
+    }
+    return "";
+  };
+
+  const validateTipoContrato = (value: string): string => {
+    if (!value) {
+      return "Tipo de contrato é obrigatório";
+    }
+    const validChoices = ["spot", "mensal", "anual"];
+    if (!validChoices.includes(value)) {
+      return "Selecione um tipo de contrato válido";
+    }
+    return "";
+  };
+
+  const validateCNPJ = (value: string): string => {
+    if (!value) return ""; // CNPJ é opcional
+    const digits = value.replace(/\D/g, "");
+    if (digits.length !== 14) {
+      return "CNPJ deve ter 14 dígitos";
+    }
+    // Simple CNPJ validation (first digit check)
+    if (digits === "00000000000000") {
+      return "CNPJ inválido";
+    }
+    return "";
+  };
+
+  const validateEstado = (value: string): string => {
+    if (!value) return ""; // Estado é opcional
+    if (value.length > 2) {
+      return "Estado deve ter no máximo 2 caracteres (ex: SP)";
+    }
+    return "";
+  };
+
+  // Handle field change with validation
+  const handleFieldChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    
+    // Validate on change
+    let error = "";
+    switch (field) {
+      case "nome":
+        error = validateNome(value);
+        break;
+      case "email":
+        error = validateEmail(value);
+        break;
+      case "tipo_contrato":
+        error = validateTipoContrato(value);
+        break;
+      case "cnpj":
+        error = validateCNPJ(value);
+        break;
+      case "estado":
+        error = validateEstado(value);
+        break;
+    }
+    
+    if (error) {
+      setFieldErrors({ ...fieldErrors, [field]: error });
+    } else {
+      const newErrors = { ...fieldErrors };
+      delete newErrors[field];
+      setFieldErrors(newErrors);
+    }
+  };
+
+  // Validate all required fields before submit
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    errors["nome"] = validateNome(formData.nome);
+    errors["tipo_contrato"] = validateTipoContrato(formData.tipo_contrato);
+    
+    if (formData.email) {
+      errors["email"] = validateEmail(formData.email);
+    }
+    if (formData.cnpj) {
+      errors["cnpj"] = validateCNPJ(formData.cnpj);
+    }
+    if (formData.estado) {
+      errors["estado"] = validateEstado(formData.estado);
+    }
+    
+    // Remove empty errors
+    const cleanErrors = Object.fromEntries(
+      Object.entries(errors).filter(([_, v]) => v !== "")
+    );
+    
+    setFieldErrors(cleanErrors);
+    
+    if (Object.keys(cleanErrors).length > 0) {
+      showToast("Corrija os erros no formulário", "warning", 15000);
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nome.trim()) {
-      showToast("Nome é obrigatório", "warning", 15000);
+    // Validate form
+    if (!validateForm()) {
       return;
     }
     
@@ -122,40 +241,78 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
       
       let savedData: any;
       
-      const FORNECEDOR_API = "/inventory/fornecedores/";
+      const FORNECEDOR_API = "inventory/fornecedores/";
       
       try {
+        const ensureTrailing = (u: string) => u.replace(/\/$/, "") + "/";
         if (fornecedorInitial?.id) {
-          const { data } = await apiClient.put(`${FORNECEDOR_API}${fornecedorInitial.id}`, submitData);
+          const url = ensureTrailing(FORNECEDOR_API) + `${fornecedorInitial.id}/`;
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[FORNECEDOR] PUT -> baseURL=${apiClient.defaults.baseURL} url=${url}`);
+          }
+          const { data } = await apiClient.put(url, submitData);
           savedData = data;
         } else {
-          const { data } = await apiClient.post(FORNECEDOR_API, submitData);
+          const url = ensureTrailing(FORNECEDOR_API);
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[FORNECEDOR] POST -> baseURL=${apiClient.defaults.baseURL} url=${url}`);
+          }
+          const { data } = await apiClient.post(url, submitData);
           savedData = data;
         }
       } catch (apiErr: any) {
         const status = apiErr.response?.status;
         const data = apiErr.response?.data;
+        
+        // In development show detailed error in console, otherwise keep logs minimal
+        if (process.env.NODE_ENV === "development") {
+          try {
+            console.groupCollapsed("[DEV] Fornecedor API error");
+            console.debug("Status:", status);
+            // Only log JSON response bodies; avoid dumping HTML debug pages or full settings
+            if (data && typeof data === "object") {
+              console.debug("Data:", data);
+            } else if (typeof data === "string") {
+              const excerpt = data.length > 200 ? data.slice(0, 200) + "..." : data;
+              console.debug("Data (excerpt):", excerpt);
+            }
+            console.debug("Message:", apiErr.message);
+            console.groupEnd();
+          } catch (logErr) {
+            // avoid throwing while logging
+            console.debug("Fornecedor logging error", logErr);
+          }
+        }
+
         let errorMessage = "Erro ao salvar fornecedor.";
         
         if (data && typeof data === "object" && Object.keys(data).length > 0) {
           const messages = Object.entries(data)
-            .map(([key, value]) => {
-              const val = Array.isArray(value) ? value.join(", ") : String(value);
+            .map(([key, value]: [string, any]) => {
+              let val = "";
+              if (Array.isArray(value)) {
+                val = value.join(", ");
+              } else if (typeof value === "object") {
+                val = JSON.stringify(value);
+              } else {
+                val = String(value);
+              }
               return `${key}: ${val}`;
             })
             .filter(msg => msg.trim());
           
           if (messages.length > 0) {
-            errorMessage = "Erro ao salvar:\n" + messages.join("\n");
+            errorMessage = messages.join("\n");
           }
         } else if (data?.detail) {
-          errorMessage = `Erro: ${data.detail}`;
+          errorMessage = `${data.detail}`;
         } else if (status) {
           errorMessage = `Erro ${status}: ${apiErr.message || "Falha ao salvar"}`;
         }
         
         showToast(errorMessage, "error", 15000);
-        throw apiErr;
+        // Do not rethrow: we handled the error and showed feedback to the user.
+        return;
       }
 
       if (imageFile && savedData?.id) {
@@ -306,36 +463,29 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                     <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Dados Principais</h3>
                     <div className="row g-3">
                       <div className="col-12">
-                        <label className="small fw-bold text-muted-foreground mb-1 d-block">
-                          Razão Social / Nome
-                          <span className="text-danger ms-1">*</span>
-                        </label>
-                        <div className="position-relative">
-                          <Building2 size={18} className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
-                          <input
-                            type="text"
-                            required
-                            className="w-100"
-                            style={{ ...inputStyle }}
-                            placeholder="Ex: AgroNutri Alimentos Ltda"
-                            value={formData.nome}
-                            onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                          />
-                        </div>
+                        <FormInput
+                          label="Razão Social / Nome"
+                          required
+                          type="text"
+                          placeholder="Ex: AgroNutri Alimentos Ltda"
+                          value={formData.nome}
+                          onChange={(e) => handleFieldChange("nome", e.target.value)}
+                          error={fieldErrors.nome}
+                          icon={<Building2 size={18} />}
+                          helperText="Nome completo do fornecedor para identificação"
+                        />
                       </div>
                       <div className="col-12">
-                        <label className="small fw-bold text-muted-foreground mb-1 d-block">CNPJ</label>
-                        <div className="position-relative">
-                          <FileText size={18} className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
-                          <input
-                            type="text"
-                            className="w-100"
-                            style={{ ...inputStyle }}
-                            placeholder="00.000.000/0001-00"
-                            value={formData.cnpj}
-                            onChange={(e) => setFormData({ ...formData, cnpj: formatCNPJ(e.target.value) })}
-                          />
-                        </div>
+                        <FormInput
+                          label="CNPJ"
+                          type="text"
+                          placeholder="00.000.000/0001-00"
+                          value={formData.cnpj}
+                          onChange={(e) => handleFieldChange("cnpj", formatCNPJ(e.target.value))}
+                          error={fieldErrors.cnpj}
+                          icon={<FileText size={18} />}
+                          helperText="Número cadastral nacional (opcional)"
+                        />
                       </div>
                     </div>
                   </div>
@@ -394,29 +544,27 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                     <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>E-mail e Localização</h3>
                     <div className="row g-3">
                       <div className="col-12 col-md-8">
-                        <label className="small fw-bold text-muted-foreground mb-1 d-block">E-mail</label>
-                        <div className="position-relative">
-                          <Mail size={18} className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
-                          <input
-                            type="email"
-                            className="w-100"
-                            style={{ ...inputStyle }}
-                            placeholder="contato@empresa.com.br"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          />
-                        </div>
+                        <FormInput
+                          label="E-mail"
+                          type="email"
+                          placeholder="contato@empresa.com.br"
+                          value={formData.email}
+                          onChange={(e) => handleFieldChange("email", e.target.value)}
+                          error={fieldErrors.email}
+                          icon={<Mail size={18} />}
+                          helperText="Formato: nome@empresa.com (opcional)"
+                        />
                       </div>
                       <div className="col-12 col-md-4">
-                        <label className="small fw-bold text-muted-foreground mb-1 d-block">Estado</label>
-                        <input
+                        <FormInput
+                          label="Estado"
                           type="text"
                           maxLength={2}
-                          className="w-100"
-                          style={{ ...inputLabelStyle, textAlign: 'center' }}
-                          placeholder="UF"
-                          value={formData.estado}
-                          onChange={(e) => setFormData({ ...formData, estado: e.target.value.toUpperCase() })}
+                          placeholder="SP"
+                          value={formData.estado.toUpperCase()}
+                          onChange={(e) => handleFieldChange("estado", e.target.value.toUpperCase())}
+                          error={fieldErrors.estado}
+                          helperText="UF de 2 caracteres (opcional)"
                         />
                       </div>
                       <div className="col-12">
@@ -436,18 +584,21 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                     </div>
                   </div>
 
-                  {/* Modalidade */}
+                  {/* Tipo de Contrato */}
                   <div className="mb-4">
-                    <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Modalidade de Contrato</h3>
+                    <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Modalidade de Contrato <span className="text-danger">*</span></h3>
+                    {fieldErrors.tipo_contrato && <FormError message={fieldErrors.tipo_contrato} className="mb-3" />}
                     <div className="row g-2">
                       {tipoContratoOptions.map((tipo) => (
                         <div className="col-4" key={tipo.id}>
                           <button
                             type="button"
-                            onClick={() => setFormData({ ...formData, tipo_contrato: tipo.id as TipoContrato })}
+                            onClick={() => handleFieldChange("tipo_contrato", tipo.id)}
                             className={`w-100 p-3 rounded-xl border text-center transition-all ${
                               formData.tipo_contrato === tipo.id
-                                ? 'border-primary bg-primary/10'
+                                ? 'border-success bg-success-subtle'
+                                : fieldErrors.tipo_contrato && !formData.tipo_contrato
+                                ? 'border-danger'
                                 : 'border-border hover:border-muted-foreground'
                             }`}
                           >

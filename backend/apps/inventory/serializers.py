@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor
+from .choices import TipoContratoFornecedor
 
 
 # ---------------------------------------------------------------------------
@@ -37,22 +38,39 @@ class FornecedorSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         """Validate email format if provided."""
         if value and "@" not in value:
-            raise serializers.ValidationError("E-mail inválido.")
+            raise serializers.ValidationError("E-mail inválido. Deve conter @.")
+        return value.strip() if value else ""
+    
+    def validate_tipo_contrato(self, value):
+        """Validate tipo_contrato choice."""
+        valid_choices = [choice[0] for choice in TipoContratoFornecedor.choices]
+        if value not in valid_choices:
+            raise serializers.ValidationError(f"Tipo de contrato inválido. Escolha entre: {', '.join(valid_choices)}")
         return value
     
     def validate(self, data):
         """Check duplicate nome and CPF/CNPJ within the same organization."""
-        nome = data.get("nome")
-        documento = data.get("cnpj")
-        organization = self.context["request"].user.organization if "request" in self.context else None
+        nome = data.get("nome", "").strip()
+        documento = data.get("cnpj", "").strip()
         
-        if organization and (nome or documento):
+        # Get organization from context
+        request = self.context.get("request")
+        organization = None
+        if request and hasattr(request, "user") and hasattr(request.user, "organization"):
+            organization = request.user.organization
+        
+        if not organization:
+            raise serializers.ValidationError({
+                "organization": "Usuário não possui organização vinculada."
+            })
+        
+        if nome or documento:
             queryset = Fornecedor.objects.filter(organization=organization)
             if self.instance:
                 queryset = queryset.exclude(pk=self.instance.pk)
 
             if nome:
-                duplicated_nome = queryset.filter(nome__iexact=nome.strip()).exists()
+                duplicated_nome = queryset.filter(nome__iexact=nome).exists()
                 if duplicated_nome:
                     raise serializers.ValidationError({
                         "nome": f"Já existe um fornecedor com o nome '{nome}' nesta organização."
@@ -73,13 +91,21 @@ class FornecedorSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """
         Ensure organization is always injected from request context when available.
-        This prevents null organization inserts when the field is read-only.
         """
         request = self.context.get("request")
         organization = getattr(getattr(request, "user", None), "organization", None)
+        
         if organization and "organization" not in validated_data:
             validated_data["organization"] = organization
-        return super().create(validated_data)
+        elif not organization:
+            raise serializers.ValidationError({
+                "organization": "Não foi possível determinar a organização do usuário."
+            })
+        
+        try:
+            return super().create(validated_data)
+        except Exception as e:
+            raise serializers.ValidationError(f"Erro ao criar fornecedor: {str(e)}")
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
     estoque_atual = serializers.DecimalField(

@@ -99,10 +99,12 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave }: Invent
 
   const fetchSuppliers = async () => {
     try {
-      const { data } = await apiClient.get("/inventory/fornecedores/");
+      const { data } = await apiClient.get("inventory/fornecedores/");
       setSuppliers(Array.isArray(data) ? data : (Array.isArray(data?.results) ? data.results : []));
     } catch (err) {
-      console.error("Erro ao buscar fornecedores para o modal:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Erro ao buscar fornecedores para o modal:", err);
+      }
     }
   };
 
