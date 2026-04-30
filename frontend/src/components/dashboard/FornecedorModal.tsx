@@ -442,7 +442,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
       };
       
       let savedData: any;
-      const FORNECEDOR_API = "inventory/fornecedores/";
+      const FORNECEDOR_API = "/inventory/fornecedores/";
       
       try {
         const ensureTrailing = (u: string) => u.replace(/\/$/, "") + "/";

@@ -6,22 +6,8 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { AuthTokens, ApiError } from "@/types";
 
 const computeBaseUrl = (): string => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl) return envUrl.endsWith("/") ? envUrl : envUrl + "/";
-
-  // Prefer direct backend in browser during development to avoid dev-server proxy rewrite issues
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (process.env.NODE_ENV === "development" && (host === "localhost" || host === "127.0.0.1")) {
-      return "http://127.0.0.1:8000/api/v1/";
-    }
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    return "http://127.0.0.1:8000/api/v1/";
-  }
-
-  return "/api/v1/";
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+  return envUrl.endsWith("/") ? envUrl : envUrl + "/";
 };
 
 const BASE_URL = computeBaseUrl();
@@ -49,41 +35,45 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    let access: string | null = null;
+
     if (typeof window !== "undefined") {
-      const access = localStorage.getItem("access_token");
+      access = localStorage.getItem("access_token");
+
       if (access && config.headers) {
         config.headers["Authorization"] = `Bearer ${access}`;
       }
     }
-    
-    // FormData: remove Content-Type header to let browser set multipart/form-data
+
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[API Request]", {
+        method: config.method,
+        baseURL: config.baseURL,
+        url: config.url,
+        hasAccessToken: Boolean(access),
+        hasAuthorizationHeader: Boolean(config.headers?.Authorization),
+      });
+    }
+
     if (config.data instanceof FormData) {
       delete config.headers["Content-Type"];
     }
 
-    // Ensure trailing slash for POST/PUT/PATCH requests to Django when missing
     try {
       const method = (config.method || "").toString().toLowerCase();
+
       if (["post", "put", "patch"].includes(method) && typeof config.url === "string") {
         const url = config.url;
         const looksLikeFile = /\.[a-zA-Z0-9]+(\?|$)/.test(url);
-        // Append trailing slash unless it already ends with slash or looks like a file
+
         if (!url.endsWith("/") && !looksLikeFile) {
           config.url = `${url}/`;
-        }
-        if (process.env.NODE_ENV === "development") {
-          const base = (config.baseURL || BASE_URL) as string;
-          try {
-            console.debug(`[API Request] method=${method.toUpperCase()} base=${base} url=${config.url} resolved=${base}${config.url}`);
-          } catch (e) {
-            console.debug(`[API Request] method=${method.toUpperCase()} url=${config.url}`);
-          }
         }
       }
     } catch (e) {
       // ignore
     }
-    
+
     return config;
   },
   (error) => Promise.reject(error)

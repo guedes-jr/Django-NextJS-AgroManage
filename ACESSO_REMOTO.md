@@ -1,165 +1,145 @@
-# 🌍 Guia de Acesso Remoto — AgroManage
+# Guia de acesso local e remoto com ngrok
 
-## Problema Original
-- Login funciona apenas dentro da rede local
-- Acesso remoto via ngrok não conseguia se comunicar com o backend
+## Ideia correta
 
-## Solução Implementada
+O projeto deve usar apenas uma URL pública do ngrok: a URL do frontend.
 
-O frontend agora usa um **proxy reverso** para rotear requisições ao backend:
+Fluxo:
 
+```text
+Cliente externo
+  ↓
+https://SEU-FRONTEND.ngrok-free.dev
+  ↓
+Next.js /api/v1/* e /media/*
+  ↓
+Django local em http://127.0.0.1:8000
 ```
-[Cliente Remoto] 
-    ↓ HTTPS ngrok
-[Frontend (via ngrok)] 
-    ↓ /api/v1/* (proxy interno)
-[Backend Django] ✓
+
+Com isso, o navegador nunca tenta acessar `localhost:8000` diretamente. Esse era o principal motivo de a interface abrir, mas os dados do backend não carregarem fora da sua máquina.
+
+---
+
+## Configuração fixa do frontend
+
+Arquivo: `frontend/.env.local`
+
+```env
+NEXT_PUBLIC_API_URL=/api/v1
+NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_APP_NAME=AgroManage
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+Para ngrok, você pode copiar:
+
+```bash
+cp frontend/.env.ngrok.example frontend/.env.local
+```
+
+Depois ajuste apenas o `NEXT_PUBLIC_APP_URL`, se desejar:
+
+```env
+NEXT_PUBLIC_APP_URL=https://retrace-epileptic-varsity.ngrok-free.dev
+```
+
+O mais importante é manter:
+
+```env
+NEXT_PUBLIC_API_URL=/api/v1
+NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
 ```
 
 ---
 
-## 📱 Modo 1: Desenvolvimento Local
+## Configuração do backend
 
-Para acessar apenas dentro da sua rede local:
+Arquivo: `backend/.env`
 
-### 1. Parar tudo se estiver rodando
-
-```bash
-make stop
+```env
+DJANGO_SETTINGS_MODULE=config.settings.dev
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0,.ngrok-free.dev
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://retrace-epileptic-varsity.ngrok-free.dev
 ```
 
-### 2. Iniciar serviços localmente
-
-```bash
-make dev
-```
-
-Isso inicia:
-- Django na porta `8000`
-- Next.js na porta `3000`
-
-### 3. Acessar
-
-```
-http://localhost:3000
-```
-
-✅ O frontend comunica com backend via proxy interno (`/api/v1` → `http://127.0.0.1:8000`)
+Em ambiente de desenvolvimento, o arquivo `config/settings/dev.py` já aceita `https://*.ngrok-free.dev` em `CSRF_TRUSTED_ORIGINS`.
 
 ---
 
-## 🌐 Modo 2: Acesso Remoto (NGROK)
+## Como rodar local
 
-Para permitir login de redes externas:
+Terminal 1:
 
-### 1. Parar tudo
-
-```bash
-make stop
-```
-
-### 2. Copiar .env.ngrok como .env.local
-
-```bash
-cp frontend/.env.ngrok frontend/.env.local
-```
-
-### 3. Iniciar os serviços **EM 3 TERMINAIS SEPARADOS**
-
-**Terminal 1 - Backend:**
 ```bash
 cd backend
 source .venv/bin/activate
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver 127.0.0.1:8000
 ```
 
-**Terminal 2 - Frontend:**
+Terminal 2:
+
 ```bash
 cd frontend
 npm run dev
 ```
 
-**Terminal 3 - ngrok (Backend):**
-```bash
-ngrok http 8000
-```
-Copiar a URL como: `https://BACKEND_NGROK_URL` (ex: `https://xxxx.ngrok-free.dev`)
+Acesse:
 
-**Terminal 4 - ngrok (Frontend):**
+```text
+http://localhost:3000
+```
+
+---
+
+## Como compartilhar pelo ngrok
+
+Mantenha backend e frontend rodando como acima.
+
+Terminal 3:
+
 ```bash
 ngrok http 3000
 ```
-Copiar a URL como: `https://FRONTEND_NGROK_URL` (ex: `https://yyyy.ngrok-free.dev`)
 
-### 4. Atualizar .env.local
+Acesse a URL gerada, por exemplo:
+
+```text
+https://retrace-epileptic-varsity.ngrok-free.dev
+```
+
+Não precisa abrir um ngrok separado para o backend.
+
+---
+
+## Como validar se está certo
+
+No navegador, abra F12 > Network e veja as chamadas da API.
+
+Certo:
+
+```text
+https://retrace-epileptic-varsity.ngrok-free.dev/api/v1/auth/...
+```
+
+Errado:
+
+```text
+http://localhost:8000/api/v1/auth/...
+```
+
+Se aparecer `localhost:8000` no navegador remoto, o frontend ainda está usando URL absoluta e precisa ser reiniciado depois de alterar `frontend/.env.local`.
+
+---
+
+## Quando alterar algo
+
+Uso local: não altera nada.
+
+Uso ngrok: normalmente só roda `ngrok http 3000`. Se a URL do ngrok mudar e você quiser manter o app URL atualizado, ajuste apenas:
 
 ```env
-# frontend/.env.local
-NEXT_PUBLIC_BACKEND_URL=https://BACKEND_NGROK_URL
-NEXT_PUBLIC_API_URL=/api/v1
-NEXT_PUBLIC_APP_URL=https://FRONTEND_NGROK_URL
+NEXT_PUBLIC_APP_URL=https://NOVA-URL.ngrok-free.dev
 ```
 
-### 5. Atualizar backend/.env
-
-```env
-# backend/.env
-ALLOWED_HOSTS=localhost,127.0.0.1,BACKEND_NGROK_URL
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://FRONTEND_NGROK_URL,https://BACKEND_NGROK_URL
-```
-
-### 6. Recarregar Next.js (se necessário)
-
-```bash
-# Terminal 2 - aperte Ctrl+C e rode novamente
-npm run dev
-```
-
-### 7. Acessar remotamente
-
-```
-https://FRONTEND_NGROK_URL
-```
-
-✅ O frontend comunica via proxy reverso internamente
-
----
-
-## 🔍 Verificação
-
-### ✅ Local (Modo 1)
-
-Abra o navegador em F12 → Network → copie uma URL de requisição:
-```
-http://localhost:3000/api/v1/auth/...
-```
-(Deve começar com `/api/v1`, não `http://localhost:8000`)
-
-### ✅ Remoto (Modo 2)
-
-Abra o navegador em F12 → Network → copie uma URL de requisição:
-```
-https://FRONTEND_NGROK_URL/api/v1/auth/...
-```
-(Deve começar com `/api/v1`, não apontar direto para backend)
-
----
-
-## ⚠️ Problemas Comuns
-
-| Erro | Causa | Solução |
-|------|-------|---------|
-| 502 Bad Gateway | Backend ngrok não rodando | Iniciar `ngrok http 8000` em novo terminal |
-| CORS blocked | CORS_ALLOWED_ORIGINS desatualizado | Atualizar backend/.env com URL ngrok |
-| 404 Not Found | URL do backend errada | Verificar se NEXT_PUBLIC_BACKEND_URL está correto |
-| Redirect loop | NEXT_PUBLIC_API_URL aponta para ngrok | Usar `/api/v1`, não URL completa |
-
----
-
-## 📝 Resumo das Alterações
-
-1. **next.config.js**: Proxy reverso que roteia `/api/v1/*` para backend
-2. **.env.local**: Usa `/api/v1` (proxy), não URL externa
-3. **.env.ngrok**: Novo arquivo de exemplo para modo ngrok
-4. **backend/.env**: Inclui URL ngrok no ALLOWED_HOSTS e CORS
-
+Depois reinicie o Next.js.

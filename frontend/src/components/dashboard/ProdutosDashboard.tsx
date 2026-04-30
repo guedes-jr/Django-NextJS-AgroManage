@@ -73,17 +73,37 @@ export function ProdutosDashboard() {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const fetchItems = async (targetPage = 1) => {
+    const accessToken = localStorage.getItem("access_token");
+
+    if (!accessToken) {
+      console.warn("Sem access_token ao buscar produtos.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+
     try {
       const { data } = await apiClient.get<PaginatedResponse<InventoryItem>>("/inventory/items/", {
         params: { page: targetPage, page_size: 20 },
       });
+
       setItems(Array.isArray(data?.results) ? data.results : []);
       setTotalPages(data?.total_pages || 1);
       setTotalCount(data?.count || 0);
       setPage(targetPage);
-    } catch (error) {
-      console.error("Erro ao buscar produtos:", error);
+    } catch (error: any) {
+      console.error("Erro ao buscar produtos:", {
+        message: error?.message,
+        code: error?.code,
+        status: error?.response?.status,
+        response: error?.response?.data,
+        requestUrl: error?.config?.url,
+        baseURL: error?.config?.baseURL,
+        params: error?.config?.params,
+        headers: error?.config?.headers,
+      });
+
       setItems([]);
       setTotalPages(1);
       setTotalCount(0);
@@ -117,8 +137,8 @@ export function ProdutosDashboard() {
   const handleSelectSuggestion = (produto: any) => {
     setSearchTerm("");
     setShowSuggestions(false);
-    setModalConfig({ 
-      open: true, 
+    setModalConfig({
+      open: true,
       category: CATEGORY_MODAL_MAP[produto.categoria] || "outro",
       initialData: {
         nome: produto.name,
@@ -303,8 +323,8 @@ export function ProdutosDashboard() {
                   Resultados Encontrados
                 </div>
                 {suggestions.map((p) => (
-                  <div 
-                    key={p.id} 
+                  <div
+                    key={p.id}
                     className="p-3 cursor-pointer hover-bg-primary/5 transition-colors d-flex align-items-center justify-content-between border-bottom last-border-0"
                     onClick={() => handleSelectSuggestion(p)}
                   >

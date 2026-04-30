@@ -6,7 +6,7 @@ export const APP_NAME = "AgroManage";
 export const APP_VERSION = "0.1.0";
 
 // ─── API ─────────────────────────────────────────────────────────────────────
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
 export const DEFAULT_PAGE_SIZE = 20;

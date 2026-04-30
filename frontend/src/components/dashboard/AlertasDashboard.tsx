@@ -45,7 +45,7 @@ const priorityOptions = [
   { value: 'critica', label: 'Crítica', color: '#EF4444' },
 ];
 
-const getPriorityDetails = (prioridade: string) => 
+const getPriorityDetails = (prioridade: string) =>
   priorityOptions.find(opt => opt.value === prioridade) || priorityOptions[1];
 
 type DashboardStats = {
@@ -70,7 +70,7 @@ export function AlertasDashboard() {
     prioridade: "media",
   });
   const formRef = useRef<HTMLFormElement>(null);
-  const [suggestions, setSuggestions] = useState<{id: string, nome: string, unidade_medida: string, prioridade: string, estoque_minimo: string}[]>([]);
+  const [suggestions, setSuggestions] = useState<{ id: string, nome: string, unidade_medida: string, prioridade: string, estoque_minimo: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -110,15 +110,15 @@ export function AlertasDashboard() {
   const filteredAlertas = useMemo(() => {
     return alertas.filter((item) => {
       const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const atual = parseFloat(String(item.estoque_atual));
       const minimo = parseFloat(String(item.estoque_minimo));
       const isBaixo = atual < minimo;
-      
-      const matchesStatus = statusFilter === "todas" || 
+
+      const matchesStatus = statusFilter === "todas" ||
         (statusFilter === "baixo" && isBaixo) ||
         (statusFilter === "vencimento" && item.categoria === "medicamento");
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [alertas, searchTerm, statusFilter]);
@@ -151,11 +151,22 @@ export function AlertasDashboard() {
     }
     setIsLoadingSuggestions(true);
     try {
-      const { data } = await apiClient.get<{results: Array<{id: string, name: string, unit: string}>}>("/inventory/items/", {
-        params: { search: query, page_size: 10 }
+      const { data } = await apiClient.get("/inventory/items/", {
+        params: { search: query, page_size: 10 },
       });
-      const items = data.results || data;
-      setSuggestions(items.map((item: any) => ({ id: item.id, name: item.name || item.nome, unit: item.unit || item.unidade_medida })));
+
+      const items = Array.isArray(data?.results) ? data.results : [];
+
+      setSuggestions(
+        items.map((item: any) => ({
+          id: item.id,
+          nome: item.nome,
+          unidade_medida: item.unidade_medida,
+          categoria: item.categoria,
+          prioridade: item.prioridade,
+          estoque_minimo: item.estoque_minimo,
+        }))
+      );
       setShowSuggestions(true);
     } catch (error) {
       console.error("Erro ao buscar produtos:", error);
@@ -176,7 +187,7 @@ export function AlertasDashboard() {
     }
   };
 
-  const handleSelectProduto = (produto: {id: string, name: string, unit: string}) => {
+  const handleSelectProduto = (produto: { id: string, name: string, unit: string }) => {
     setFormData({ ...formData, nome: produto.name, unidade_medida: produto.unit });
     setShowSuggestions(false);
   };
@@ -207,14 +218,14 @@ export function AlertasDashboard() {
           ativo: true,
         });
       }
-      
+
       setModalOpen(false);
       setFormData({ item_id: "", nome: "", estoque_minimo: "", unidade_medida: "kg", prioridade: "media" });
-      
+
       // Trigger alert generation after saving
       await apiClient.post("/inventory/alertas/gerar_alertas/");
       fetchAlertas();
-      
+
       showToast("Configuração de alerta salva!", "success");
     } catch (error: any) {
       console.error("Erro ao salvar alerta:", error.response?.data || error);
@@ -332,7 +343,7 @@ export function AlertasDashboard() {
         <div className="d-flex align-items-center gap-3">
           <AlertTriangle className="text-warning" size={22} />
           <div className="fw-bold text-orange-950">
-            {(stats.critica > 0) 
+            {(stats.critica > 0)
               ? `${stats.critica} item${stats.critica === 1 ? '' : 's'} em nível crítico de estoque!`
               : `Você possui ${stats.total_alertas} ${stats.total_alertas === 1 ? 'alerta' : 'alertas'} de estoque baixo.`
             }
@@ -362,7 +373,7 @@ export function AlertasDashboard() {
             </select>
           </div>
           <div className="col-6 col-lg-3">
-                <button className="btn w-100" style={{ background: "var(--primary)", color: "white" }} onClick={fetchAlertas}>
+            <button className="btn w-100" style={{ background: "var(--primary)", color: "white" }} onClick={fetchAlertas}>
               <RefreshCw size={16} className="me-1" />
               Atualizar
             </button>
@@ -399,10 +410,10 @@ export function AlertasDashboard() {
                     const minimo = parseFloat(String(item.estoque_minimo));
                     const isBaixo = atual < minimo;
                     const isCritico = atual <= minimo * 0.5;
-                    
+
                     // Calcular porcentagem para a barra de progresso (limitar a 100%)
                     const porcentagem = minimo > 0 ? Math.min((atual / minimo) * 100, 100) : 100;
-                    
+
                     return (
                       <tr key={item.id} className="border-bottom border-border hover-bg-muted/10 transition-colors">
                         <td className="px-4 py-3">
@@ -420,14 +431,14 @@ export function AlertasDashboard() {
                               <span className="text-xs text-muted-foreground fw-bold">{item.unidade_medida}</span>
                             </div>
                             <div className="progress" style={{ height: '6px', background: 'var(--border)', borderRadius: '3px' }}>
-                              <div 
-                                className="progress-bar shadow-sm" 
-                                style={{ 
-                                  width: `${porcentagem}%`, 
+                              <div
+                                className="progress-bar shadow-sm"
+                                style={{
+                                  width: `${porcentagem}%`,
                                   background: isCritico ? 'oklch(0.5 0.2 15)' : isBaixo ? 'oklch(0.6 0.18 25)' : 'oklch(0.65 0.15 145)',
                                   borderRadius: '3px',
                                   transition: 'width 0.5s ease-in-out'
-                                }} 
+                                }}
                               />
                             </div>
                           </div>
@@ -437,10 +448,10 @@ export function AlertasDashboard() {
                           <div className="fw-black small text-foreground">{minimo} {item.unidade_medida}</div>
                         </td>
                         <td className="px-3 py-3">
-                           <span 
-                            className="badge rounded-pill border shadow-sm" 
-                            style={{ 
-                              backgroundColor: `color-mix(in srgb, ${priority.color}, transparent 92%)`, 
+                          <span
+                            className="badge rounded-pill border shadow-sm"
+                            style={{
+                              backgroundColor: `color-mix(in srgb, ${priority.color}, transparent 92%)`,
                               color: priority.color,
                               borderColor: `color-mix(in srgb, ${priority.color}, transparent 60%)`,
                               fontSize: '0.65rem',
@@ -454,9 +465,9 @@ export function AlertasDashboard() {
                         </td>
                         <td className="px-3 py-3 text-end">
                           {isCritico ? (
-                            <div 
+                            <div
                               className="d-inline-flex align-items-center gap-2 px-3 py-2 text-white fw-black small shadow-sm"
-                              style={{ 
+                              style={{
                                 borderRadius: '9999px',
                                 background: 'linear-gradient(135deg, oklch(0.5 0.2 15), oklch(0.6 0.2 20))',
                                 boxShadow: '0 4px 12px color-mix(in srgb, oklch(0.5 0.2 15), transparent 60%)'
@@ -466,9 +477,9 @@ export function AlertasDashboard() {
                               CRÍTICO
                             </div>
                           ) : isBaixo ? (
-                            <div 
+                            <div
                               className="d-inline-flex align-items-center gap-2 px-3 py-2 text-white fw-black small shadow-sm"
-                              style={{ 
+                              style={{
                                 borderRadius: '9999px',
                                 background: 'linear-gradient(135deg, oklch(0.6 0.18 25), oklch(0.7 0.2 30))',
                                 boxShadow: '0 4px 12px color-mix(in srgb, oklch(0.6 0.18 25), transparent 60%)'
@@ -478,9 +489,9 @@ export function AlertasDashboard() {
                               BAIXO
                             </div>
                           ) : (
-                            <div 
+                            <div
                               className="d-inline-flex align-items-center gap-2 px-3 py-2 text-emerald-700 fw-black small border-2"
-                              style={{ 
+                              style={{
                                 borderRadius: '9999px',
                                 background: 'oklch(0.98 0.05 145)',
                                 borderColor: 'oklch(0.65 0.15 145 / 0.3)'
@@ -539,7 +550,7 @@ export function AlertasDashboard() {
               </div>
               <h6 className="mb-0 fw-black text-uppercase small" style={{ letterSpacing: '0.05em' }}>Identificação do Produto</h6>
             </div>
-            
+
             <div className="mb-3 position-relative">
               <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">NOME DO PRODUTO</label>
               <div className="input-group-custom position-relative">
@@ -558,9 +569,9 @@ export function AlertasDashboard() {
                   autoComplete="off"
                   style={{ fontSize: '0.9rem' }}
                 />
-                
+
                 {showSuggestions && (
-                  <div className="position-absolute w-100 mt-2 bg-white border border-border rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2" style={{zIndex: 1050, maxHeight: "220px", overflowY: "auto"}}>
+                  <div className="position-absolute w-100 mt-2 bg-white border border-border rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2" style={{ zIndex: 1050, maxHeight: "220px", overflowY: "auto" }}>
                     {isLoadingSuggestions ? (
                       <div className="p-4 text-center">
                         <RefreshCw size={20} className="animate-spin text-primary mx-auto mb-2" />
@@ -571,14 +582,14 @@ export function AlertasDashboard() {
                         <div
                           key={produto.id}
                           className="p-3 cursor-pointer hover-bg-primary/5 transition-colors border-bottom border-border last-border-0 d-flex align-items-center gap-3"
-                          style={{cursor: "pointer"}}
+                          style={{ cursor: "pointer" }}
                           onMouseDown={() => handleSelectProduto(produto)}
                         >
                           <div className="p-2 rounded-lg bg-muted/10 text-muted-foreground">
                             <Package size={14} />
                           </div>
                           <div>
-                            <div className="fw-bold text-foreground small">{produto.name}</div>
+                            <div className="fw-bold text-foreground small">{produto.nome}</div>
                             <div className="text-xs text-muted-foreground">{produto.categoria || 'Sem categoria'}</div>
                           </div>
                         </div>
@@ -673,7 +684,7 @@ export function AlertasDashboard() {
                 ))}
               </div>
             </div>
-            
+
             <div className="mt-4 p-3 rounded-2xl bg-orange-50 border border-orange-100 d-flex gap-3">
               <div className="text-orange-500 mt-1">
                 <AlertCircle size={18} />

@@ -43,8 +43,8 @@ export function FeedFormulaManagerDashboard() {
     try {
       setLoading(true);
       const [resFormulas, resItems] = await Promise.all([
-        apiClient.get("inventory/formulas/"),
-        apiClient.get("inventory/items/all_items/")
+        apiClient.get("/inventory/formulas/"),
+        apiClient.get("/inventory/items/all_items/")
       ]);
       setFormulas(resFormulas.data.results || resFormulas.data || []);
       setInventoryItems(resItems.data || []);
@@ -128,7 +128,7 @@ export function FeedFormulaManagerDashboard() {
         await apiClient.put(`inventory/formulas/${selected.id}/`, selected);
         alert("Fórmula atualizada com sucesso!");
       } else {
-        const res = await apiClient.post("inventory/formulas/", selected);
+        const res = await apiClient.post("/inventory/formulas/", selected);
         setFormulas(prev => prev.map((f, i) => i === selectedIndex ? res.data : f));
         alert("Fórmula criada com sucesso!");
       }

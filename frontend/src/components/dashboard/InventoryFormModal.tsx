@@ -121,7 +121,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
 
   const fetchSuppliers = async () => {
     try {
-      const { data } = await apiClient.get("inventory/fornecedores/");
+      const { data } = await apiClient.get("/inventory/fornecedores/");
       setSuppliers(Array.isArray(data) ? data : (Array.isArray(data?.results) ? data.results : []));
     } catch (err) {
       if (process.env.NODE_ENV === "development") {

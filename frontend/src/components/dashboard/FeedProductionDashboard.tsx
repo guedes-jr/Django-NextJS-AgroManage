@@ -63,7 +63,7 @@ export function FeedProductionDashboard() {
     const fetchFormulas = async () => {
       try {
         setLoading(true);
-        const { data } = await apiClient.get("inventory/formulas/");
+        const { data } = await apiClient.get("/inventory/formulas/");
         const formulasList = data.results || data || [];
         setFormulas(formulasList);
         if (formulasList.length > 0) {
@@ -118,7 +118,7 @@ export function FeedProductionDashboard() {
         quantidade_real: quantidadeReal
       };
       
-      const { data } = await apiClient.post("inventory/producoes/produzir/", payload);
+      const { data } = await apiClient.post("/inventory/producoes/produzir/", payload);
       alert(data.status || "Produção registrada com sucesso!");
       
       // Resetar form
@@ -127,7 +127,7 @@ export function FeedProductionDashboard() {
       setQuantidadeReal(1000);
       
       // Recarregar fórmulas para atualizar saldos
-      const result = await apiClient.get("inventory/formulas/");
+      const result = await apiClient.get("/inventory/formulas/");
       setFormulas(result.data.results || result.data || []);
       
     } catch (err: any) {
