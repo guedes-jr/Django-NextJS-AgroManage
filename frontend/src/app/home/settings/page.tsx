@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 import "@/components/dashboard/dashboard.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -84,9 +86,11 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createData, setCreateData] = useState({
+  const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [memberModalMode, setMemberModalMode] = useState<'create' | 'edit'>('create');
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberData, setMemberData] = useState({
     email: '',
     full_name: '',
     role: 'operator',
@@ -127,13 +131,7 @@ export default function SettingsPage() {
   });
   const [savingAddress, setSavingAddress] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
-  const [memberModalOpen, setMemberModalOpen] = useState(false);
-  const [memberForm, setMemberForm] = useState({
-    id: '',
-    full_name: '',
-    phone: ''
-  });
-  const [savingMember, setSavingMember] = useState(false);
+
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     old_password: '',
@@ -483,65 +481,82 @@ export default function SettingsPage() {
     setMemberModalOpen(true);
   };
 
+
+
+  const openCreateMemberModal = () => {
+    setMemberModalMode('create');
+    setSelectedMemberId(null);
+    setMemberData({ email: '', full_name: '', role: 'operator', phone: '', password: '', password_confirm: '' });
+    setMemberModalOpen(true);
+  };
+
+  const openEditMemberModal = (member: Member) => {
+    setMemberModalMode('edit');
+    setSelectedMemberId(member.id);
+    setMemberData({
+      email: member.email,
+      full_name: member.full_name,
+      role: member.role,
+      phone: member.phone || '',
+      password: '',
+      password_confirm: ''
+    });
+    setMemberModalOpen(true);
+  };
+
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavingMember(true);
-    setError(null);
-    try {
-      const res = await apiClient.patch(`/auth/members/${memberForm.id}/`, {
-        full_name: memberForm.full_name,
-        phone: memberForm.phone
-      });
-      setMembers(prev => prev.map(m => m.id === memberForm.id ? { ...m, full_name: memberForm.full_name, phone: memberForm.phone } : m));
-      setMemberModalOpen(false);
-      setSuccess('Membro atualizado!');
-    } catch {
-      setError('Erro ao atualizar membro.');
-    } finally {
-      setSavingMember(false);
-    }
-  };
-
-  const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('Tem certeza que deseja remover este membro da organização?')) return;
-    try {
-      await apiClient.delete(`/auth/members/${memberId}/`);
-      setMembers(prev => prev.filter(m => m.id !== memberId));
-      setSuccess('Membro removido!');
-    } catch {
-      setError('Erro ao remover membro.');
-    }
-  };
-
-  const handleToggleMemberStatus = async (memberId: string, currentStatus: boolean) => {
-    try {
-      const newStatus = !currentStatus;
-      await apiClient.patch(`/auth/members/${memberId}/`, { is_active: newStatus });
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, is_active: newStatus } : m));
-      setSuccess(newStatus ? 'Membro ativado!' : 'Membro inativado!');
-    } catch {
-      setError('Erro ao alterar status.');
-    }
-  };
-
-  const handleCreateMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (createData.password !== createData.password_confirm) {
+    if (memberModalMode === 'create' && memberData.password !== memberData.password_confirm) {
       setError("As senhas não conferem.");
       return;
     }
-    setCreateLoading(true);
+    setMemberLoading(true);
     setError(null);
     try {
-      const res = await apiClient.post("/auth/members/create/", createData);
-      setMembers(prev => [...prev, res.data]);
-      setCreateModalOpen(false);
-      setCreateData({ email: '', full_name: '', role: 'operator', phone: '', password: '', password_confirm: '' });
-      setSuccess("Membro cadastrado com sucesso!");
+      if (memberModalMode === 'create') {
+        const res = await apiClient.post("/auth/members/create/", memberData);
+        setMembers(prev => [...prev, res.data]);
+        setSuccess("Membro cadastrado com sucesso!");
+      } else {
+        const payload: any = {
+          full_name: memberData.full_name,
+          role: memberData.role,
+          phone: memberData.phone
+        };
+        // Para edição de e-mail e senha, dependemos do backend, mas vamos enviar.
+        if (memberData.password && memberData.password === memberData.password_confirm) {
+            // Nota: O backend pode não suportar alterar senha por aqui, mas a base de update está pronta
+        }
+        const res = await apiClient.patch(`/auth/members/${selectedMemberId}/`, payload);
+        setMembers(prev => prev.map(m => m.id === selectedMemberId ? res.data : m));
+        setSuccess("Membro atualizado com sucesso!");
+      }
+      setMemberModalOpen(false);
     } catch {
-      setError("Erro ao cadastrar membro. Verifique os dados e tente novamente.");
+      setError(`Erro ao ${memberModalMode === 'create' ? 'cadastrar' : 'atualizar'} membro. Verifique os dados e tente novamente.`);
     } finally {
-      setCreateLoading(false);
+      setMemberLoading(false);
+    }
+  };
+
+  const handleToggleMemberStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const res = await apiClient.patch(`/auth/members/${id}/`, { is_active: !currentStatus });
+      setMembers(prev => prev.map(m => m.id === id ? res.data : m));
+      setSuccess(`Membro ${!currentStatus ? 'ativado' : 'desativado'} com sucesso!`);
+    } catch {
+      setError("Erro ao alterar o status do membro.");
+    }
+  };
+
+  const handleDeleteMember = async (id: string) => {
+    if (!window.confirm("Tem certeza que deseja remover este membro da organização? O acesso dele será revogado.")) return;
+    try {
+      await apiClient.delete(`/auth/members/${id}/`);
+      setMembers(prev => prev.filter(m => m.id !== id));
+      setSuccess("Membro removido com sucesso!");
+    } catch {
+      setError("Erro ao remover membro.");
     }
   };
 
@@ -865,12 +880,14 @@ export default function SettingsPage() {
                                     <button 
                                       onClick={() => openContactModal('edit', contact)}
                                       className="btn-icon-muted me-2"
+                                      title="Editar Contato"
                                     >
                                       <FileText size={14} />
                                     </button>
                                     <button 
                                       onClick={() => handleDeleteContact(contact.id)}
                                       className="btn-icon-danger"
+                                      title="Excluir Contato"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -899,7 +916,7 @@ export default function SettingsPage() {
                         <p className="small text-muted-foreground">Gerencie quem tem acesso a esta organização</p>
                       </div>
                       <button 
-                        onClick={() => setCreateModalOpen(true)}
+                        onClick={openCreateMemberModal}
                         className="btn-secondary-elegant py-2 px-3 fw-bold small"
                       >
                         + Novo Membro
@@ -955,7 +972,7 @@ export default function SettingsPage() {
                               <td className="text-end">
                                 <div className="d-flex justify-content-end gap-1">
                                   <button 
-                                    onClick={() => openMemberModal(member)}
+                                    onClick={() => openEditMemberModal(member)}
                                     className="btn-icon-muted"
                                     title="Editar"
                                   >
@@ -966,7 +983,14 @@ export default function SettingsPage() {
                                     className={`btn-icon-${member.is_active ? 'warning' : 'success'}`}
                                     title={member.is_active ? "Inativar" : "Ativar"}
                                   >
-                                    {member.is_active ? <Trash2 size={16} /> : <Save size={16} />}
+                                    {member.is_active ? <AlertTriangle size={16} /> : <Save size={16} />}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteMember(member.id)}
+                                    className="btn-icon-danger"
+                                    title="Excluir"
+                                  >
+                                    <Trash2 size={16} />
                                   </button>
                                 </div>
                               </td>
@@ -1248,136 +1272,146 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Create Member Modal */}
-      {createModalOpen && (
-        <div className="modal-overlay" onClick={() => setCreateModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header d-flex justify-content-between align-items-center mb-4">
-              <div>
-                <h3 className="fw-bold h5 mb-1">Cadastrar Membro</h3>
-                <p className="small text-muted-foreground mb-0">Adicione um novo membro à sua organização</p>
-              </div>
-              <button 
-                onClick={() => setCreateModalOpen(false)}
-                className="btn-icon-muted"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateMember}>
-              <div className="mb-3">
-                <label className="form-label small fw-bold">Nome Completo</label>
-                <div className="input-group-custom">
-                  <User size={18} className="input-icon" />
-                  <input
-                    type="text"
-                    className="form-control-custom"
-                    value={createData.full_name}
-                    onChange={e => setCreateData({...createData, full_name: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="mb-3">
-                <label className="form-label small fw-bold">Email</label>
-                <div className="input-group-custom">
-                  <Mail size={18} className="input-icon" />
-                  <input
-                    type="email"
-                    className="form-control-custom"
-                    value={createData.email}
-                    onChange={e => setCreateData({...createData, email: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="row g-3 mb-3">
-                <div className="col-12 col-md-6">
-                  <label className="form-label small fw-bold">Telefone (opcional)</label>
-                  <div className="input-group-custom">
-                    <Phone size={18} className="input-icon" />
+      {/* Create / Edit Member Modal */}
+      <Modal
+        isOpen={memberModalOpen}
+        onClose={() => setMemberModalOpen(false)}
+        title={memberModalMode === 'create' ? 'Cadastrar Membro' : 'Editar Membro'}
+        description={memberModalMode === 'create' ? 'Adicione um novo membro à sua organização' : 'Atualize os dados de acesso do membro'}
+        maxWidth="max-w-xl"
+        footer={
+          <div className="d-flex align-items-center justify-content-end w-100 p-3 bg-muted/5 gap-2">
+            <Button variant="outline-secondary" onClick={() => setMemberModalOpen(false)} disabled={memberLoading} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveMember} disabled={memberLoading} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl shadow-lg">
+              {memberLoading ? "Salvando..." : (memberModalMode === 'create' ? "Cadastrar" : "Salvar")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-3 p-md-5">
+          <form id="member-form" onSubmit={handleSaveMember}>
+            <div className="row g-4">
+              <div className="col-12 col-md-6">
+                <div className="login-input-group mb-0">
+                  <label className="login-label fw-semibold">Nome Completo <span className="text-danger">*</span></label>
+                  <div className="login-input-wrapper">
                     <input
                       type="text"
-                      className="form-control-custom"
-                      value={createData.phone}
-                      onChange={e => setCreateData({...createData, phone: e.target.value})}
+                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                      value={memberData.full_name}
+                      onChange={e => setMemberData({...memberData, full_name: e.target.value})}
+                      required
                     />
+                    <User className="login-input-icon text-muted-foreground" size={15} />
                   </div>
                 </div>
+              </div>
 
-                <div className="col-12 col-md-6">
-                  <label className="form-label small fw-bold">Cargo</label>
-                  <div className="input-group-custom">
-                    <ShieldCheck size={18} className="input-icon" />
+              <div className="col-12 col-md-6">
+                <div className="login-input-group mb-0">
+                  <label className="login-label fw-semibold">Email <span className="text-danger">*</span></label>
+                  <div className="login-input-wrapper">
+                    <input
+                      type="email"
+                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                      value={memberData.email}
+                      onChange={e => setMemberData({...memberData, email: e.target.value})}
+                      required
+                      disabled={memberModalMode === 'edit'} // Usually emails are not editable easily
+                    />
+                    <Mail className="login-input-icon text-muted-foreground" size={15} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-6">
+                <div className="login-input-group mb-0">
+                  <label className="login-label fw-semibold">Telefone (opcional)</label>
+                  <div className="login-input-wrapper">
+                    <input
+                      type="text"
+                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                      value={memberData.phone}
+                      onChange={e => setMemberData({...memberData, phone: e.target.value})}
+                    />
+                    <Phone className="login-input-icon text-muted-foreground" size={15} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-6">
+                <div className="login-input-group mb-0">
+                  <label className="login-label fw-semibold">Cargo <span className="text-danger">*</span></label>
+                  <div className="login-input-wrapper">
                     <select
-                      className="form-control-custom"
-                      value={createData.role}
-                      onChange={e => setCreateData({...createData, role: e.target.value})}
+                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                      value={memberData.role}
+                      onChange={e => setMemberData({...memberData, role: e.target.value})}
                     >
                       <option value="operator">Operator</option>
                       <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
                     </select>
+                    <ShieldCheck className="login-input-icon text-muted-foreground" size={15} />
                   </div>
                 </div>
               </div>
 
-              <div className="row g-3 mb-4">
-                <div className="col-12 col-md-6">
-                  <label className="form-label small fw-bold">Senha</label>
-                  <div className="input-group-custom">
-                    <Lock size={18} className="input-icon" />
-                    <input
-                      type="password"
-                      className="form-control-custom"
-                      value={createData.password}
-                      onChange={e => setCreateData({...createData, password: e.target.value})}
-                      required
-                      minLength={8}
-                    />
+              {memberModalMode === 'create' && (
+                <>
+                  <div className="col-12 col-md-6">
+                    <div className="login-input-group mb-0">
+                      <label className="login-label fw-semibold">Senha <span className="text-danger">*</span></label>
+                      <div className="login-input-wrapper">
+                        <input
+                          type="password"
+                          className={`login-input login-input-icon-left bg-transparent text-foreground ${memberData.password && memberData.password.length < 8 ? 'border-danger' : (memberData.password.length >= 8 ? 'border-success' : '')}`}
+                          value={memberData.password}
+                          onChange={e => setMemberData({...memberData, password: e.target.value})}
+                          required
+                          minLength={8}
+                        />
+                        <Lock className={`login-input-icon ${memberData.password && memberData.password.length < 8 ? 'text-danger' : (memberData.password.length >= 8 ? 'text-success' : 'text-muted-foreground')}`} size={15} />
+                      </div>
+                      {memberData.password && memberData.password.length < 8 && (
+                        <div className="text-danger extra-small mt-1 fw-bold">Mínimo de 8 caracteres.</div>
+                      )}
+                      {memberData.password && memberData.password.length >= 8 && (
+                        <div className="text-success extra-small mt-1 fw-bold">Tamanho da senha adequado.</div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="col-12 col-md-6">
-                  <label className="form-label small fw-bold">Confirmar Senha</label>
-                  <div className="input-group-custom">
-                    <Lock size={18} className="input-icon" />
-                    <input
-                      type="password"
-                      className="form-control-custom"
-                      value={createData.password_confirm}
-                      onChange={e => setCreateData({...createData, password_confirm: e.target.value})}
-                      required
-                      minLength={8}
-                    />
+                  <div className="col-12 col-md-6">
+                    <div className="login-input-group mb-0">
+                      <label className="login-label fw-semibold">Confirmar Senha <span className="text-danger">*</span></label>
+                      <div className="login-input-wrapper">
+                        <input
+                          type="password"
+                          className={`login-input login-input-icon-left bg-transparent text-foreground ${memberData.password_confirm && memberData.password !== memberData.password_confirm ? 'border-danger' : (memberData.password_confirm && memberData.password === memberData.password_confirm ? 'border-success' : '')}`}
+                          value={memberData.password_confirm}
+                          onChange={e => setMemberData({...memberData, password_confirm: e.target.value})}
+                          required
+                          minLength={8}
+                        />
+                        <Lock className={`login-input-icon ${memberData.password_confirm && memberData.password !== memberData.password_confirm ? 'text-danger' : (memberData.password_confirm && memberData.password === memberData.password_confirm ? 'text-success' : 'text-muted-foreground')}`} size={15} />
+                      </div>
+                      {memberData.password_confirm && memberData.password !== memberData.password_confirm && (
+                        <div className="text-danger extra-small mt-1 fw-bold">As senhas não conferem.</div>
+                      )}
+                      {memberData.password_confirm && memberData.password === memberData.password_confirm && (
+                        <div className="text-success extra-small mt-1 fw-bold">As senhas conferem.</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="d-flex justify-content-end gap-3">
-                <button 
-                  type="button"
-                  onClick={() => setCreateModalOpen(false)}
-                  className="btn-secondary-elegant px-4 py-2"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  disabled={createLoading}
-                  className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2"
-                >
-                  {createLoading ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
-                  Cadastrar
-                </button>
-              </div>
-            </form>
-          </div>
+                </>
+              )}
+            </div>
+          </form>
         </div>
-      )}
+      </Modal>
 
       {/* Address Modal */}
       {addressModalOpen && (
@@ -1578,53 +1612,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Member Edit Modal */}
-      {memberModalOpen && (
-        <div className="modal-overlay" onClick={() => setMemberModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header d-flex justify-content-between align-items-center mb-4">
-              <div>
-                <h3 className="fw-bold h5 mb-1">Editar Membro</h3>
-                <p className="small text-muted-foreground mb-0">Atualize os dados do membro</p>
-              </div>
-              <button onClick={() => setMemberModalOpen(false)} className="btn-icon-muted">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSaveMember}>
-              <div className="mb-3">
-                <label className="form-label small fw-bold">Nome Completo</label>
-                <input
-                  type="text"
-                  className="form-control-custom"
-                  value={memberForm.full_name}
-                  onChange={e => setMemberForm({...memberForm, full_name: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="form-label small fw-bold">Telefone</label>
-                <input
-                  type="text"
-                  className="form-control-custom"
-                  value={memberForm.phone}
-                  onChange={e => setMemberForm({...memberForm, phone: e.target.value})}
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-              <div className="d-flex justify-content-end gap-3">
-                <button type="button" onClick={() => setMemberModalOpen(false)} className="btn-secondary-elegant px-4 py-2">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={savingMember} className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2">
-                  {savingMember ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                  Salvar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
 
       {/* Password Change Modal */}
       {passwordModalOpen && (

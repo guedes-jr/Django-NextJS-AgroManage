@@ -47,61 +47,65 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
     >
       <div className="dashboard-card p-4 p-md-5" style={{ maxWidth: "450px", width: "90%" }}>
         <div className="text-center mb-4">
-          <div className="icon-box bg-warning/10 text-warning rounded-circle mx-auto mb-3" style={{ width: "64px", height: "64px" }}>
+          <div className="icon-box bg-warning/10 text-warning rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: "64px", height: "64px" }}>
             <ShieldAlert size={32} />
           </div>
           <h2 className="fw-black h4 mb-2">Ação Obrigatória</h2>
-          <p className="text-muted-foreground small">
-            Por motivos de segurança, você precisa alterar sua senha no primeiro acesso antes de continuar.
-          </p>
+          
+          <div className="alert alert-warning border-warning/20 small py-3 px-3 rounded-xl mt-4 text-start d-flex align-items-start gap-3 shadow-sm">
+            <ShieldAlert size={20} className="text-warning flex-shrink-0 mt-1" />
+            <p className="mb-0 text-dark-emphasis" style={{ fontSize: "0.85rem", lineHeight: 1.5 }}>
+              <strong>Por motivos de segurança</strong>, você precisa alterar a senha gerada pelo administrador no seu primeiro acesso antes de continuar. Isso garante que apenas você tenha acesso a essa conta.
+            </p>
+          </div>
         </div>
 
         {error && (
-          <div className="alert alert-danger border-0 small py-2 px-3 rounded-3 mb-4">
+          <div className="alert alert-danger border-0 small py-2 px-3 rounded-xl mb-4 shadow-sm">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label small fw-bold">Nova Senha</label>
-            <div className="input-group-custom">
-              <Lock size={18} className="input-icon" />
+          <div className="login-input-group mb-4">
+            <label className="login-label fw-bold small">Nova Senha <span className="text-danger">*</span></label>
+            <div className="login-input-wrapper">
               <input
                 type="password"
-                className="form-control-custom"
+                className="login-input login-input-icon-left bg-transparent text-foreground"
                 placeholder="Mínimo de 8 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
               />
+              <Lock className="login-input-icon text-muted-foreground" size={15} />
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="form-label small fw-bold">Confirmar Nova Senha</label>
-            <div className="input-group-custom">
-              <Lock size={18} className="input-icon" />
+          <div className="login-input-group mb-5">
+            <label className="login-label fw-bold small">Confirmar Nova Senha <span className="text-danger">*</span></label>
+            <div className="login-input-wrapper">
               <input
                 type="password"
-                className="form-control-custom"
+                className="login-input login-input-icon-left bg-transparent text-foreground"
                 placeholder="Repita a senha"
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 required
                 minLength={8}
               />
+              <Lock className="login-input-icon text-muted-foreground" size={15} />
             </div>
           </div>
 
           <button 
             type="submit"
-            className="btn-primary-elegant w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+            className="btn-primary-elegant w-100 py-3 d-flex align-items-center justify-content-center gap-2 rounded-xl fw-bold shadow-lg"
             disabled={loading}
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={18} />}
-            Atualizar Senha
+            Atualizar Senha e Continuar
           </button>
         </form>
       </div>
