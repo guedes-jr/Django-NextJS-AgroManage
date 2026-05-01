@@ -8,7 +8,6 @@ import Image from "next/image";
 
 interface UserData {
   id: number;
-  id: number;
   email: string;
   full_name: string;
   role: string;
