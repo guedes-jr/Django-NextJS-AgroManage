@@ -110,9 +110,10 @@ def create_member_view(request):
         full_name=data["full_name"],
         role=data.get("role", "operator"),
         phone=data.get("phone", ""),
-        organization=org,
         force_password_change=True
     )
+    user.organization = org
+    user.save(update_fields=["organization"])
 
     return Response(
         OrganizationMemberSerializer(user).data,
