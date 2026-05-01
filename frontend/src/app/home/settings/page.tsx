@@ -472,14 +472,7 @@ export default function SettingsPage() {
     }
   };
 
-  const openMemberModal = (member: Member) => {
-    setMemberForm({
-      id: member.id,
-      full_name: member.full_name,
-      phone: member.phone || ''
-    });
-    setMemberModalOpen(true);
-  };
+
 
 
 
