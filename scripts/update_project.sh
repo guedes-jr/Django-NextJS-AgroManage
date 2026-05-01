@@ -82,7 +82,7 @@ echo "[DEPLOY] Atualizando pip..."
 python -m pip install --upgrade pip
 
 echo "[DEPLOY] Instalando dependências do backend..."
-pip install -r requirements.txt
+pip install -r requirements/prod.txt
 
 echo "[DEPLOY] Garantindo Gunicorn instalado..."
 pip install gunicorn
