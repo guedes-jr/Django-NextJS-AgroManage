@@ -45,11 +45,7 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   material: "material",
 };
 
-<<<<<<< HEAD:frontend/src/components/dashboard/InsumosDashboard.tsx
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-=======
 const CATEGORY_ICONS: Record<string, ReactNode> = {
->>>>>>> e4562cbbdbe73139f8623476b533fb875b608bf5:frontend/src/components/dashboard/ProdutosDashboard.tsx
   racao: <Wheat size={16} />,
   nucleo: <Box size={16} />,
   medicamento: <Activity size={16} />,
