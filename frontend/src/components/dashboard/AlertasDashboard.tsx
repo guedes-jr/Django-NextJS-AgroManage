@@ -70,7 +70,14 @@ export function AlertasDashboard() {
     prioridade: "media",
   });
   const formRef = useRef<HTMLFormElement>(null);
-  const [suggestions, setSuggestions] = useState<{ id: string, nome: string, unidade_medida: string, prioridade: string, estoque_minimo: string }[]>([]);
+  const [suggestions, setSuggestions] = useState<{
+    id: string;
+    nome: string;
+    unidade_medida: string;
+    prioridade: string;
+    estoque_minimo: string;
+    categoria?: string;
+  }[]>([]);  
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -193,8 +200,17 @@ export function AlertasDashboard() {
     unidade_medida: string;
     prioridade?: string;
     estoque_minimo?: string;
+    categoria?: string;
   }) => {
-    setFormData({ ...formData, nome: produto.nome, unidade_medida: produto.unidade_medida });
+    setFormData({
+      ...formData,
+      item_id: produto.id,
+      nome: produto.nome,
+      unidade_medida: produto.unidade_medida,
+      estoque_minimo: produto.estoque_minimo || formData.estoque_minimo,
+      prioridade: produto.prioridade || formData.prioridade,
+    });
+
     setShowSuggestions(false);
   };
 

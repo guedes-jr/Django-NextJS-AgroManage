@@ -64,7 +64,7 @@ function emptyRow(category?: InventoryCategory) {
     estoque_minimo: "",
     // Lote
     numero_lote: "", data_fabricacao: "", data_validade: "",
-    quantidade_inicial: "", custo_unitario: "",
+    quantidade_inicial: "", custo_unitario: "", ultimo_custo: 0,
     local_armazenamento: "", fornecedor: "", nota_fiscal: "",
     observacao_lote: "",
     // Medicamento / Vacina
@@ -419,8 +419,8 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                         <div className="text-xs fw-black text-primary text-uppercase">Rendimento Estimado</div>
                                         <div className="fw-black text-foreground" style={{ fontSize: '1.1rem' }}>
                                           {isVac(row.categoria) 
-                                            ? `${(parseFloat(row.doses_por_embalagem || 0) * parseFloat(row.quantidade_inicial || 0)).toFixed(0)} doses totais`
-                                            : `${(parseFloat(row.quantidade_inicial || 0) * 1).toFixed(0)} unidades de tratamento`
+                                            ? `${(parseFloat(row.doses_por_embalagem || "0") * parseFloat(row.quantidade_inicial || "0")).toFixed(0)} doses totais`
+                                            : `${(parseFloat(row.quantidade_inicial || "0") * 1).toFixed(0)} unidades de tratamento`
                                           }
                                         </div>
                                       </div>
@@ -474,24 +474,24 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                   placeholder="0,00" value={row.custo_unitario}
                                   onChange={e => update(row.id as any, "custo_unitario", e.target.value)} />
                                 
-                                {row.ultimo_custo > 0 && row.custo_unitario && (
+                                {(row.ultimo_custo ?? 0) > 0 && row.custo_unitario && (
                                   <div className="position-absolute top-50 translate-middle-y" style={{ right: '10px' }}>
-                                    {parseFloat(row.custo_unitario) > row.ultimo_custo ? (
+                                    {parseFloat(row.custo_unitario) > (row.ultimo_custo ?? 0) ? (
                                       <span className="badge bg-danger/10 text-danger border border-danger/20 d-flex align-items-center gap-1" style={{ fontSize: '0.65rem' }}>
-                                        <ArrowUp size={10} /> {(((parseFloat(row.custo_unitario) / row.ultimo_custo) - 1) * 100).toFixed(1)}%
+                                        <ArrowUp size={10} /> {(((parseFloat(row.custo_unitario) / (row.ultimo_custo ?? 1)) - 1) * 100).toFixed(1)}%
                                       </span>
                                     ) : (
                                       <span className="badge bg-success/10 text-success border border-success/20 d-flex align-items-center gap-1" style={{ fontSize: '0.65rem' }}>
-                                        <ArrowDown size={10} /> {((1 - (parseFloat(row.custo_unitario) / row.ultimo_custo)) * 100).toFixed(1)}%
+                                        <ArrowDown size={10} /> {((1 - (parseFloat(row.custo_unitario) / (row.ultimo_custo ?? 1))) * 100).toFixed(1)}%
                                       </span>
                                     )}
                                   </div>
                                 )}
                               </div>
                             </InputField>
-                            {row.ultimo_custo > 0 && (
+                            {(row.ultimo_custo ?? 0) > 0 && (
                               <div className="text-xs text-muted-foreground mt-1 px-1">
-                                Última compra: <strong>R$ {row.ultimo_custo.toFixed(2)}</strong>
+                                Última compra: <strong>R$ {(row.ultimo_custo ?? 0).toFixed(2)}</strong>
                               </div>
                             )}
                           </div>

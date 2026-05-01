@@ -62,7 +62,7 @@ export function InventoryDashboard() {
   const [chartData, setChartData] = useState<{ day: string; entrada: number; saida: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [lowStockItems, setLowStockItems] = useState<{ id: string; nome: string; estoque_atual: string; estoque_minimo: string; unidade_medida: string }[]>([]);
-  const [recentMovements, setRecentMovements] = useState<{ id: number; tipo: string; item: { nome: string }; quantidade: string; data_movimentacao: string }[]>([]);
+  const [recentMovements, setRecentMovements] = useState<{ id: number; tipo: string; item: { nome: string }; quantidade: string; custo_total?: string | null; data_movimentacao: string }[]>([]);
   const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
 
@@ -87,18 +87,20 @@ export function InventoryDashboard() {
     { value: "saida", label: "Apenas Saídas" },
   ];
 
+  const loadStats = async () => {
+    try {
+      setStatsLoading(true);
+      const { data } = await apiClient.get("/inventory/items/stats/");
+      setStats(data);
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas:", error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const { data } = await apiClient.get("/inventory/items/stats/");
-        setStats(data);
-      } catch (error) {
-        console.error("Erro ao buscar estatísticas:", error);
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-    fetchStats();
+    loadStats();
   }, []);
 
   useEffect(() => {
@@ -198,7 +200,7 @@ export function InventoryDashboard() {
       volume_por_dose: row.volume_por_dose ? parseFloat(row.volume_por_dose) : undefined,
     }));
     await apiClient.post("/inventory/items/bulk_create/", payload);
-    await fetchStats(); // Refresh stats after save
+    await loadStats();
   };
 
   return (
