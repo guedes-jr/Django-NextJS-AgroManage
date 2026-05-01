@@ -103,8 +103,15 @@ class OrganizationMemberSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'email', 'created_at']
 
 
-class InviteMemberSerializer(serializers.Serializer):
+class CreateMemberSerializer(serializers.Serializer):
     email = serializers.EmailField()
     full_name = serializers.CharField(max_length=150)
     role = serializers.ChoiceField(choices=User.Role.choices, default='operator')
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data.get("password") != data.get("password_confirm"):
+            raise serializers.ValidationError({"password_confirm": "As senhas não conferem."})
+        return data

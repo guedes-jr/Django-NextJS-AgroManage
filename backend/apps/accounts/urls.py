@@ -18,7 +18,7 @@ urlpatterns = [
     re_path(r"^me/?$", views.me_view, name="auth_me"),
     re_path(r"^change-password/?$", views.change_password_view, name="auth_change_password"),
     re_path(r"^members/?$", views.members_view, name="auth_members"),
-    re_path(r"^members/invite/?$", views.invite_member_view, name="auth_members_invite"),
+    re_path(r"^members/create/?$", views.create_member_view, name="auth_members_create"),
     path("members/<uuid:pk>/", views.member_detail_view, name="auth_member_detail"),
     path("", include(router.urls)),
 ]

@@ -19,7 +19,7 @@ from .serializers import (
     UserCreateSerializer,
     ChangePasswordSerializer,
     OrganizationMemberSerializer,
-    InviteMemberSerializer,
+    CreateMemberSerializer,
 )
 
 @api_view(["GET"])
@@ -79,8 +79,8 @@ def member_detail_view(request, pk):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def invite_member_view(request):
-    """Invite a new member to the organization."""
+def create_member_view(request):
+    """Create a new member in the organization."""
     org = getattr(request.user, "organization", None)
     if not org:
         return Response(
@@ -94,7 +94,7 @@ def invite_member_view(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    serializer = InviteMemberSerializer(data=request.data)
+    serializer = CreateMemberSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
@@ -104,12 +104,9 @@ def invite_member_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    import secrets
-    temp_password = secrets.token_urlsafe(8)
-    
     user = User.objects.create_user(
         email=data["email"],
-        password=temp_password,
+        password=data["password"],
         full_name=data["full_name"],
         role=data.get("role", "operator"),
         phone=data.get("phone", ""),

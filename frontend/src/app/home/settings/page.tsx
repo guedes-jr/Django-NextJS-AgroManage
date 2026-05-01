@@ -18,7 +18,11 @@ import {
   Scale,
   AlertTriangle,
   Receipt,
-  Download
+  Download,
+  Mail,
+  Phone,
+  Lock,
+  User
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { Badge } from "@/components/ui/Badge";
@@ -80,13 +84,15 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteData, setInviteData] = useState({
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createData, setCreateData] = useState({
     email: '',
     full_name: '',
     role: 'operator',
-    phone: ''
+    phone: '',
+    password: '',
+    password_confirm: ''
   });
   const [subscriptionStats, setSubscriptionStats] = useState({
     farmsCount: 0,
@@ -518,20 +524,24 @@ export default function SettingsPage() {
     }
   };
 
-  const handleInviteMember = async (e: React.FormEvent) => {
+  const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    setInviteLoading(true);
+    if (createData.password !== createData.password_confirm) {
+      setError("As senhas não conferem.");
+      return;
+    }
+    setCreateLoading(true);
     setError(null);
     try {
-      const res = await apiClient.post("/auth/members/invite/", inviteData);
+      const res = await apiClient.post("/auth/members/create/", createData);
       setMembers(prev => [...prev, res.data]);
-      setInviteModalOpen(false);
-      setInviteData({ email: '', full_name: '', role: 'operator', phone: '' });
-      setSuccess("Membro convite enviado com sucesso!");
+      setCreateModalOpen(false);
+      setCreateData({ email: '', full_name: '', role: 'operator', phone: '', password: '', password_confirm: '' });
+      setSuccess("Membro cadastrado com sucesso!");
     } catch {
-      setError("Erro ao enviar convite. Verifique se o email já está em uso.");
+      setError("Erro ao cadastrar membro. Verifique os dados e tente novamente.");
     } finally {
-      setInviteLoading(false);
+      setCreateLoading(false);
     }
   };
 
@@ -889,10 +899,10 @@ export default function SettingsPage() {
                         <p className="small text-muted-foreground">Gerencie quem tem acesso a esta organização</p>
                       </div>
                       <button 
-                        onClick={() => setInviteModalOpen(true)}
+                        onClick={() => setCreateModalOpen(true)}
                         className="btn-secondary-elegant py-2 px-3 fw-bold small"
                       >
-                        + Convidar Membro
+                        + Novo Membro
                       </button>
                     </div>
 
@@ -1238,84 +1248,130 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Invite Member Modal */}
-      {inviteModalOpen && (
-        <div className="modal-overlay" onClick={() => setInviteModalOpen(false)}>
+      {/* Create Member Modal */}
+      {createModalOpen && (
+        <div className="modal-overlay" onClick={() => setCreateModalOpen(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header d-flex justify-content-between align-items-center mb-4">
               <div>
-                <h3 className="fw-bold h5 mb-1">Convidar Membro</h3>
+                <h3 className="fw-bold h5 mb-1">Cadastrar Membro</h3>
                 <p className="small text-muted-foreground mb-0">Adicione um novo membro à sua organização</p>
               </div>
               <button 
-                onClick={() => setInviteModalOpen(false)}
+                onClick={() => setCreateModalOpen(false)}
                 className="btn-icon-muted"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleInviteMember}>
+            <form onSubmit={handleCreateMember}>
               <div className="mb-3">
                 <label className="form-label small fw-bold">Nome Completo</label>
-                <input
-                  type="text"
-                  className="form-control-custom"
-                  value={inviteData.full_name}
-                  onChange={e => setInviteData({...inviteData, full_name: e.target.value})}
-                  required
-                />
+                <div className="input-group-custom">
+                  <User size={18} className="input-icon" />
+                  <input
+                    type="text"
+                    className="form-control-custom"
+                    value={createData.full_name}
+                    onChange={e => setCreateData({...createData, full_name: e.target.value})}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="mb-3">
                 <label className="form-label small fw-bold">Email</label>
-                <input
-                  type="email"
-                  className="form-control-custom"
-                  value={inviteData.email}
-                  onChange={e => setInviteData({...inviteData, email: e.target.value})}
-                  required
-                />
+                <div className="input-group-custom">
+                  <Mail size={18} className="input-icon" />
+                  <input
+                    type="email"
+                    className="form-control-custom"
+                    value={createData.email}
+                    onChange={e => setCreateData({...createData, email: e.target.value})}
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="mb-3">
-                <label className="form-label small fw-bold">Telefone (opcional)</label>
-                <input
-                  type="text"
-                  className="form-control-custom"
-                  value={inviteData.phone}
-                  onChange={e => setInviteData({...inviteData, phone: e.target.value})}
-                />
+              <div className="row g-3 mb-3">
+                <div className="col-12 col-md-6">
+                  <label className="form-label small fw-bold">Telefone (opcional)</label>
+                  <div className="input-group-custom">
+                    <Phone size={18} className="input-icon" />
+                    <input
+                      type="text"
+                      className="form-control-custom"
+                      value={createData.phone}
+                      onChange={e => setCreateData({...createData, phone: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <label className="form-label small fw-bold">Cargo</label>
+                  <div className="input-group-custom">
+                    <ShieldCheck size={18} className="input-icon" />
+                    <select
+                      className="form-control-custom"
+                      value={createData.role}
+                      onChange={e => setCreateData({...createData, role: e.target.value})}
+                    >
+                      <option value="operator">Operator</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <div className="mb-4">
-                <label className="form-label small fw-bold">Cargo</label>
-                <select
-                  className="form-control-custom"
-                  value={inviteData.role}
-                  onChange={e => setInviteData({...inviteData, role: e.target.value})}
-                >
-                  <option value="operator">Operator</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
-                </select>
+              <div className="row g-3 mb-4">
+                <div className="col-12 col-md-6">
+                  <label className="form-label small fw-bold">Senha</label>
+                  <div className="input-group-custom">
+                    <Lock size={18} className="input-icon" />
+                    <input
+                      type="password"
+                      className="form-control-custom"
+                      value={createData.password}
+                      onChange={e => setCreateData({...createData, password: e.target.value})}
+                      required
+                      minLength={8}
+                    />
+                  </div>
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <label className="form-label small fw-bold">Confirmar Senha</label>
+                  <div className="input-group-custom">
+                    <Lock size={18} className="input-icon" />
+                    <input
+                      type="password"
+                      className="form-control-custom"
+                      value={createData.password_confirm}
+                      onChange={e => setCreateData({...createData, password_confirm: e.target.value})}
+                      required
+                      minLength={8}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="d-flex justify-content-end gap-3">
                 <button 
                   type="button"
-                  onClick={() => setInviteModalOpen(false)}
+                  onClick={() => setCreateModalOpen(false)}
                   className="btn-secondary-elegant px-4 py-2"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
-                  disabled={inviteLoading}
+                  disabled={createLoading}
                   className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2"
                 >
-                  {inviteLoading ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
-                  Enviar Convite
+                  {createLoading ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
+                  Cadastrar
                 </button>
               </div>
             </form>
