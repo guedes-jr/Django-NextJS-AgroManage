@@ -5,9 +5,6 @@ console.log("[NEXT CONFIG] Backend proxy:", backendUrl);
 
 const nextConfig = {
   reactStrictMode: true,
-<<<<<<< HEAD
-  allowedDevOrigins: ['192.168.1.64'],
-=======
 
   allowedDevOrigins: [
     "localhost",
@@ -16,7 +13,6 @@ const nextConfig = {
     "retrace-epileptic-varsity.ngrok-free.dev",
   ],
 
->>>>>>> e4562cbbdbe73139f8623476b533fb875b608bf5
   async rewrites() {
     return [
       {
