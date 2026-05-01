@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Beaker,
@@ -11,35 +11,29 @@ import {
   PackageOpen,
   Sprout,
   TrendingUp,
+  Check,
+  Zap,
 } from "lucide-react";
+import { motion } from "framer-motion";
+import { apiClient } from "@/services/api";
 import "@/app/home/estoque/estoque.css";
 
-type FormulaItem = {
-  ingrediente: string;
-  percentual: number;
-  estoque: number;
-  custoKg: number;
+type FormulaIngrediente = {
+  id: number;
+  item: number;
+  item_nome: string;
+  percentual: string;
+  estoque_atual: string;
 };
 
-const FORMULAS: Record<string, FormulaItem[]> = {
-  "Ração Crescimento": [
-    { ingrediente: "Milho", percentual: 60, estoque: 8800, custoKg: 1.2 },
-    { ingrediente: "Farelo de Soja", percentual: 25, estoque: 3450, custoKg: 1.8 },
-    { ingrediente: "Núcleo Premium", percentual: 5, estoque: 250, custoKg: 6.0 },
-    { ingrediente: "Calcário Calcítico", percentual: 3, estoque: 200, custoKg: 0.6 },
-    { ingrediente: "Fosfato Bicálcico", percentual: 2, estoque: 80, custoKg: 2.2 },
-    { ingrediente: "Sal Comum", percentual: 2, estoque: 150, custoKg: 0.8 },
-    { ingrediente: "Óleo Vegetal", percentual: 3, estoque: 60, custoKg: 3.2 },
-  ],
-  "Ração Engorda": [
-    { ingrediente: "Milho", percentual: 58, estoque: 8800, custoKg: 1.2 },
-    { ingrediente: "Farelo de Soja", percentual: 28, estoque: 3450, custoKg: 1.8 },
-    { ingrediente: "Núcleo Premium", percentual: 6, estoque: 250, custoKg: 6.0 },
-    { ingrediente: "Calcário Calcítico", percentual: 3, estoque: 200, custoKg: 0.6 },
-    { ingrediente: "Fosfato Bicálcico", percentual: 2, estoque: 80, custoKg: 2.2 },
-    { ingrediente: "Sal Comum", percentual: 1, estoque: 150, custoKg: 0.8 },
-    { ingrediente: "Óleo Vegetal", percentual: 2, estoque: 60, custoKg: 3.2 },
-  ],
+type FormulaRacao = {
+  id: number;
+  nome: string;
+  descricao: string;
+  item_final: number | null;
+  item_final_nome: string | null;
+  ativa: boolean;
+  ingredientes: FormulaIngrediente[];
 };
 
 const ULTIMAS_PRODUCOES = [
@@ -54,24 +48,94 @@ function money(v: number) {
 }
 
 export function FeedProductionDashboard() {
-  const [formula, setFormula] = useState<keyof typeof FORMULAS>("Ração Crescimento");
+  const [formulas, setFormulas] = useState<FormulaRacao[]>([]);
+  const [formulaId, setFormulaId] = useState<string>("");
   const [quantidade, setQuantidade] = useState(1000);
-  const [dataProducao, setDataProducao] = useState("2025-05-20");
+  const [quantidadeReal, setQuantidadeReal] = useState(1000);
+  const [dataProducao, setDataProducao] = useState(new Date().toISOString().split('T')[0]);
+  const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(false);
+  const [produzindo, setProduzindo] = useState(false);
+  const [loteNumber, setLoteNumber] = useState("");
 
-  const composicao = FORMULAS[formula];
+  useEffect(() => {
+    setLoteNumber(new Date().getTime().toString().slice(-6));
+    const fetchFormulas = async () => {
+      try {
+        setLoading(true);
+        const { data } = await apiClient.get("/inventory/formulas/");
+        const formulasList = data.results || data || [];
+        setFormulas(formulasList);
+        if (formulasList.length > 0) {
+          setFormulaId(formulasList[0].id.toString());
+        }
+      } catch (err) {
+        console.error("Erro ao carregar fórmulas:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFormulas();
+  }, []);
+
+  const formulaSelecionada = useMemo(() => formulas.find(f => f.id.toString() === formulaId), [formulas, formulaId]);
 
   const calculado = useMemo(() => {
+    if (!formulaSelecionada) {
+      return { itens: [], custoTotal: 0, custoKg: 0, estoqueSuficiente: false, progress: 0, checkedCount: 0, eficiencia: 0 };
+    }
+    const composicao = formulaSelecionada.ingredientes;
     const itens = composicao.map((item) => {
-      const quantidadeNecessaria = (quantidade * item.percentual) / 100;
-      const custoTotal = quantidadeNecessaria * item.custoKg;
-      const suficiente = item.estoque >= quantidadeNecessaria;
-      return { ...item, quantidadeNecessaria, custoTotal, suficiente };
+      const percentual = parseFloat(item.percentual);
+      const estoque = parseFloat(item.estoque_atual);
+      const quantidadeNecessaria = (quantidade * percentual) / 100;
+      const custoEstimado = 1.5; 
+      const custoTotal = quantidadeNecessaria * custoEstimado;
+      const suficiente = estoque >= quantidadeNecessaria;
+      return { ...item, quantidadeNecessaria, custoTotal, suficiente, percentual, estoque };
     });
     const custoTotal = itens.reduce((acc, i) => acc + i.custoTotal, 0);
     const custoKg = quantidade > 0 ? custoTotal / quantidade : 0;
     const estoqueSuficiente = itens.every((i) => i.suficiente);
-    return { itens, custoTotal, custoKg, estoqueSuficiente };
-  }, [composicao, quantidade]);
+    const checkedCount = Object.values(checkedIngredients).filter(Boolean).length;
+    const progress = composicao.length > 0 ? (checkedCount / composicao.length) * 100 : 0;
+    const eficiencia = quantidade > 0 ? (quantidadeReal / quantidade) * 100 : 0;
+    return { itens, custoTotal, custoKg, estoqueSuficiente, progress, checkedCount, eficiencia, composicao };
+  }, [formulaSelecionada, quantidade, checkedIngredients, quantidadeReal]);
+
+  const toggleIngredient = (name: string) => {
+    setCheckedIngredients(prev => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  const handleProduce = async () => {
+    if (!formulaSelecionada || !calculado.estoqueSuficiente) return;
+    
+    try {
+      setProduzindo(true);
+      const payload = {
+        formula_id: formulaSelecionada.id,
+        quantidade_teorica: quantidade,
+        quantidade_real: quantidadeReal
+      };
+      
+      const { data } = await apiClient.post("/inventory/producoes/produzir/", payload);
+      alert(data.status || "Produção registrada com sucesso!");
+      
+      // Resetar form
+      setCheckedIngredients({});
+      setQuantidade(1000);
+      setQuantidadeReal(1000);
+      
+      // Recarregar fórmulas para atualizar saldos
+      const result = await apiClient.get("/inventory/formulas/");
+      setFormulas(result.data.results || result.data || []);
+      
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Erro ao registrar produção.");
+    } finally {
+      setProduzindo(false);
+    }
+  };
 
   return (
     <div className="inventory-container pb-5">
@@ -87,74 +151,147 @@ export function FeedProductionDashboard() {
 
       <div className="row g-4">
         <div className="col-12 col-xl-9">
-          <div className="dashboard-card p-4 mb-4" style={{ borderColor: "oklch(0.78 0.09 150)" }}>
-            <h3 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Produzir agora</h3>
-            <p className="small text-muted-foreground mb-3">Selecione a fórmula, informe a quantidade e produza sua ração.</p>
+          <div className="dashboard-card p-4 mb-4 border-2 shadow-sm" style={{ borderColor: "var(--primary)" }}>
+            <div className="d-flex justify-content-between align-items-start mb-4">
+              <div>
+                <h3 className="fw-black mb-1" style={{ fontSize: "1.25rem", color: "var(--primary)" }}>Estação de Mistura</h3>
+                <p className="small text-muted-foreground mb-0">Configure a produção e siga o checklist de ingredientes.</p>
+              </div>
+              <div className="badge bg-primary/10 text-primary px-3 py-2 rounded-pill fw-black">
+                Lote #{loteNumber || "000000"}
+              </div>
+            </div>
+            
             <div className="row g-3 align-items-end">
-              <div className="col-12 col-md-4">
-                <label className="small fw-semibold mb-1 d-block">Fórmula de ração</label>
-                <select className="form-select" value={formula} onChange={(e) => setFormula(e.target.value as keyof typeof FORMULAS)}>
-                  {Object.keys(FORMULAS).map((f) => <option key={f} value={f}>{f}</option>)}
+              <div className="col-12 col-md-5">
+                <label className="small fw-black text-uppercase mb-2 d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Fórmula de Ração</label>
+                <select className="login-input bg-transparent text-foreground rounded-xl" value={formulaId} onChange={(e) => {
+                  setFormulaId(e.target.value);
+                  setCheckedIngredients({});
+                }} disabled={loading}>
+                  {loading ? (
+                    <option>Carregando...</option>
+                  ) : formulas.length > 0 ? (
+                    formulas.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)
+                  ) : (
+                    <option value="">Nenhuma fórmula cadastrada</option>
+                  )}
                 </select>
               </div>
               <div className="col-12 col-md-3">
-                <label className="small fw-semibold mb-1 d-block">Quantidade a produzir (kg)</label>
-                <input className="form-control" type="number" min={1} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value || 0))} />
+                <label className="small fw-black text-uppercase mb-2 d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Total Teórico (kg)</label>
+                <input className="login-input bg-transparent text-foreground rounded-xl" type="number" min={1} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value || 0))} />
               </div>
-              <div className="col-12 col-md-3">
-                <label className="small fw-semibold mb-1 d-block">Data da produção</label>
-                <input className="form-control" type="date" value={dataProducao} onChange={(e) => setDataProducao(e.target.value)} />
-              </div>
-              <div className="col-12 col-md-2">
-                <button className="btn w-100 fw-bold py-2" style={{ background: "var(--primary)", color: "white" }}>
-                  Produzir Ração
-                </button>
+              <div className="col-12 col-md-4">
+                <label className="small fw-black text-uppercase mb-2 d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Data e Hora</label>
+                <input className="login-input bg-transparent text-foreground rounded-xl" type="date" value={dataProducao} onChange={(e) => setDataProducao(e.target.value)} />
               </div>
             </div>
           </div>
 
-          <div className="dashboard-card p-0 mb-4 overflow-hidden">
-            <div className="p-4 border-bottom border-border">
-              <h3 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Composição da fórmula selecionada</h3>
-              <p className="small text-muted-foreground mb-0">Veja os ingredientes e quantidades que serão utilizados nesta produção.</p>
+          {/* Mixing Progress & Efficiency */}
+          <div className="row g-4 mb-4">
+            <div className="col-12 col-md-8">
+              <div className="dashboard-card p-4 h-100">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h4 className="fw-bold m-0" style={{ fontSize: '0.95rem' }}>Progresso da Mistura</h4>
+                  <span className="small fw-bold text-primary">{calculado.checkedCount} de {calculado.itens.length || 0} itens</span>
+                </div>
+                <div className="progress rounded-pill mb-2" style={{ height: 12, background: 'var(--muted)/20' }}>
+                  <motion.div 
+                    className="progress-bar bg-primary rounded-pill shadow-sm"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${calculado.progress}%` }}
+                    transition={{ type: "spring", stiffness: 50 }}
+                  />
+                </div>
+                <div className="text-muted-foreground" style={{ fontSize: '0.7rem' }}>
+                  {calculado.progress === 100 ? "Pronto para misturar!" : "Adicione os ingredientes e marque no checklist."}
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="dashboard-card p-4 h-100">
+                <h4 className="fw-bold mb-3" style={{ fontSize: '0.95rem' }}>Eficiência Real</h4>
+                <label className="small text-muted-foreground d-block mb-1">Total Produzido (kg)</label>
+                <input 
+                  className="login-input bg-transparent text-foreground rounded-xl py-1" 
+                  type="number" 
+                  value={quantidadeReal} 
+                  onChange={(e) => setQuantidadeReal(Number(e.target.value || 0))} 
+                />
+                <div className="mt-2 d-flex align-items-center gap-2">
+                  <span className={`small fw-bold ${calculado.eficiencia < 95 ? 'text-danger' : 'text-success'}`}>
+                    {calculado.eficiencia.toFixed(1)}% de rendimento
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-card p-0 mb-4 overflow-hidden shadow-sm">
+            <div className="p-4 border-bottom border-border bg-muted/5">
+              <h3 className="fw-black mb-1" style={{ fontSize: "1rem", textTransform: 'uppercase', letterSpacing: '0.02em' }}>Checklist de Ingredientes</h3>
+              <p className="small text-muted-foreground mb-0">Marque cada item à medida que for adicionado ao misturador.</p>
             </div>
             <div className="table-responsive">
-              <table className="table mb-0">
+              <table className="table mb-0 table-hover">
                 <thead className="bg-muted/30">
                   <tr>
-                    <th className="px-4 py-3 border-0 small text-muted-foreground">Ingrediente</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">% na fórmula</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Quantidade necessária</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Estoque disponível</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Custo (R$/kg)</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Custo total</th>
+                    <th className="px-4 py-3 border-0 small text-muted-foreground" style={{ width: '40px' }}></th>
+                    <th className="px-2 py-3 border-0 small text-muted-foreground">Ingrediente</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground text-center">Quantidade</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground">Estoque</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground">Custo Previsto</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {calculado.itens.map((i) => (
-                    <tr key={i.ingrediente} className="border-bottom border-border">
-                      <td className="px-4 py-3 fw-semibold">
-                        <span className="d-inline-flex align-items-center gap-2">
-                          <span className="rounded-circle" style={{ width: 8, height: 8, background: "oklch(0.55 0.16 145)" }} />
-                          {i.ingrediente}
+                  {calculado.itens.length > 0 ? (
+                    calculado.itens.map((i) => (
+                    <tr 
+                      key={i.item_nome} 
+                      className={`border-bottom border-border transition-all ${checkedIngredients[i.item_nome] ? 'bg-emerald-50/20' : ''}`}
+                      onClick={() => toggleIngredient(i.item_nome)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td className="px-4 py-3">
+                        <div className={`rounded-circle d-flex align-items-center justify-content-center transition-all ${checkedIngredients[i.item_nome] ? 'bg-success text-white' : 'border border-2'}`} style={{ width: 22, height: 22 }}>
+                          {checkedIngredients[i.item_nome] && <Check size={14} />}
+                        </div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className={`fw-bold ${checkedIngredients[i.item_nome] ? 'text-muted-foreground text-decoration-line-through' : 'text-foreground'}`}>
+                          {i.item_nome}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{i.percentual}% da fórmula</div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className="badge bg-muted text-foreground rounded-pill px-3 py-2 fw-black" style={{ fontSize: '0.85rem' }}>
+                          {i.quantidadeNecessaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} kg
                         </span>
                       </td>
-                      <td className="px-3 py-3">{i.percentual.toFixed(2).replace(".", ",")} %</td>
-                      <td className="px-3 py-3">{i.quantidadeNecessaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} kg</td>
-                      <td className={`px-3 py-3 ${i.suficiente ? "text-success" : "text-danger"} fw-semibold`}>
-                        {i.estoque.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} kg
+                      <td className="px-3 py-3">
+                        <div className={`small fw-bold ${i.suficiente ? 'text-success' : 'text-danger'}`}>
+                          {i.estoque.toLocaleString("pt-BR", { minimumFractionDigits: 0 })} kg disponíveis
+                        </div>
+                        <div className="progress mt-1" style={{ height: 4 }}>
+                          <div className={`progress-bar ${i.suficiente ? 'bg-success' : 'bg-danger'}`} style={{ width: `${Math.min((i.estoque / i.quantidadeNecessaria) * 100, 100)}%` }} />
+                        </div>
                       </td>
-                      <td className="px-3 py-3">{money(i.custoKg)}</td>
-                      <td className="px-3 py-3">{money(i.custoTotal)}</td>
+                      <td className="px-3 py-3 fw-bold text-foreground">
+                         <span className="text-muted-foreground fw-normal fst-italic small">Variável (Real)</span>
+                      </td>
                     </tr>
-                  ))}
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-4 text-center text-muted-foreground">
+                        Nenhum ingrediente na fórmula selecionada.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
-            </div>
-            <div className={`px-4 py-3 small fw-semibold ${calculado.estoqueSuficiente ? "text-success" : "text-danger"} bg-muted/30`}>
-              {calculado.estoqueSuficiente
-                ? "Todos os ingredientes possuem estoque suficiente para esta produção."
-                : "Atenção: alguns ingredientes não possuem estoque suficiente."}
             </div>
           </div>
 
@@ -194,15 +331,51 @@ export function FeedProductionDashboard() {
         </div>
 
         <div className="col-12 col-xl-3">
-          <div className="dashboard-card p-4 mb-4">
-            <h4 className="fw-bold mb-3" style={{ fontSize: "1rem" }}>Resumo da produção</h4>
-            <div className="d-flex flex-column gap-3">
-              <div className="d-flex align-items-start gap-2"><PackageOpen size={16} className="text-success mt-1" /><div><div className="small text-muted-foreground">Quantidade a produzir</div><div className="fw-bold">{quantidade.toLocaleString("pt-BR")} kg</div></div></div>
-              <div className="d-flex align-items-start gap-2"><CircleDollarSign size={16} className="text-warning mt-1" /><div><div className="small text-muted-foreground">Custo total da produção</div><div className="fw-bold">{money(calculado.custoTotal)}</div></div></div>
-              <div className="d-flex align-items-start gap-2"><Beaker size={16} className="text-primary mt-1" /><div><div className="small text-muted-foreground">Custo por kg</div><div className="fw-bold">{money(calculado.custoKg)} / kg</div></div></div>
-              <div className="d-flex align-items-start gap-2"><TrendingUp size={16} className="text-info mt-1" /><div><div className="small text-muted-foreground">Rendimento esperado</div><div className="fw-bold">{quantidade.toLocaleString("pt-BR")} kg</div></div></div>
-              <div className="d-flex align-items-start gap-2"><Factory size={16} className="text-success mt-1" /><div><div className="small text-muted-foreground">Fórmula utilizada</div><div className="fw-bold">{formula}</div></div></div>
+          <div className="dashboard-card p-4 mb-4 bg-primary text-white border-0 shadow-lg">
+            <h4 className="fw-black mb-4 text-uppercase" style={{ fontSize: "0.85rem", letterSpacing: '0.1em' }}>Resumo Final</h4>
+            <div className="d-flex flex-column gap-4">
+              <div className="d-flex align-items-center gap-3">
+                <div className="p-3 rounded-2xl bg-white/20">
+                  <PackageOpen size={24} />
+                </div>
+                <div>
+                  <div className="small opacity-80">Total Teórico</div>
+                  <div className="fw-black fs-4">{quantidade.toLocaleString("pt-BR")} kg</div>
+                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-3">
+                <div className="p-3 rounded-2xl bg-white/20">
+                  <CircleDollarSign size={24} />
+                </div>
+                <div>
+                  <div className="small opacity-80">Custo da Batida</div>
+                  <div className="fw-black fs-4">Calculado na Baixa</div>
+                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-3">
+                <div className="p-3 rounded-2xl bg-white/20">
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <div className="small opacity-80">Rendimento</div>
+                  <div className="fw-black fs-4">{calculado.eficiencia.toFixed(1)}%</div>
+                </div>
+              </div>
             </div>
+
+            <button 
+              className={`btn btn-white w-100 mt-5 fw-black py-3 rounded-xl shadow-sm d-flex align-items-center justify-content-center gap-2 ${(!calculado.estoqueSuficiente || calculado.progress < 100 || produzindo || formulas.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!calculado.estoqueSuficiente || calculado.progress < 100 || produzindo || formulas.length === 0}
+              onClick={handleProduce}
+            >
+              <Zap size={18} />
+              {produzindo ? "REGISTRANDO..." : "FINALIZAR PRODUÇÃO"}
+            </button>
+            {calculado.progress < 100 && (
+              <div className="text-center small mt-2 opacity-80 italic">Complete o checklist para finalizar</div>
+            )}
           </div>
 
           <div className="dashboard-card p-4">

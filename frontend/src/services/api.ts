@@ -5,14 +5,12 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { AuthTokens, ApiError } from "@/types";
 
-const getBaseUrl = (): string => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl) return envUrl;
-  
-  return "/api/v1";
+const computeBaseUrl = (): string => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+  return envUrl.endsWith("/") ? envUrl : envUrl + "/";
 };
 
-const BASE_URL = getBaseUrl();
+const BASE_URL = computeBaseUrl();
 
 export const getMediaUrl = (path: string) => {
   if (!path) return "";
@@ -37,18 +35,45 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    let access: string | null = null;
+
     if (typeof window !== "undefined") {
-      const access = localStorage.getItem("access_token");
+      access = localStorage.getItem("access_token");
+
       if (access && config.headers) {
         config.headers["Authorization"] = `Bearer ${access}`;
       }
     }
-    
-    // FormData: remove Content-Type header to let browser set multipart/form-data
+
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[API Request]", {
+        method: config.method,
+        baseURL: config.baseURL,
+        url: config.url,
+        hasAccessToken: Boolean(access),
+        hasAuthorizationHeader: Boolean(config.headers?.Authorization),
+      });
+    }
+
     if (config.data instanceof FormData) {
       delete config.headers["Content-Type"];
     }
-    
+
+    try {
+      const method = (config.method || "").toString().toLowerCase();
+
+      if (["post", "put", "patch"].includes(method) && typeof config.url === "string") {
+        const url = config.url;
+        const looksLikeFile = /\.[a-zA-Z0-9]+(\?|$)/.test(url);
+
+        if (!url.endsWith("/") && !looksLikeFile) {
+          config.url = `${url}/`;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -91,7 +116,7 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post<AuthTokens>(`${BASE_URL}/auth/token/refresh/`, {
+        const { data } = await axios.post<AuthTokens>(`${BASE_URL}auth/token/refresh/`, {
           refresh,
         });
         localStorage.setItem("access_token", data.access);
@@ -117,10 +142,7 @@ export const uploadFile = async (url: string, file: File, fieldName: string = "i
   const formData = new FormData();
   formData.append(fieldName, file);
   
-  const fullUrl = `${BASE_URL}${url}`;
-  // axios.post automatically handles FormData and sets Content-Type correctly
-  // Do not override headers for FormData requests
-  const response = await apiClient.post(fullUrl, formData);
+  const response = await apiClient.post(url, formData);
   return response;
 };
 

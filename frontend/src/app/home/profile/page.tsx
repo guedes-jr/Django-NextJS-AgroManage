@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, getMediaUrl } from "@/services/api";
+import { useToast } from "@/components/ui/Toast";
 import { User, Mail, Phone, Shield, Calendar, Edit2, Camera, Check, X, Trash2 } from "lucide-react";
 
 interface UserProfile {
@@ -27,6 +28,7 @@ const roleLabels: Record<string, string> = {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -72,9 +74,6 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const accessToken = localStorage.getItem("access_token");
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-      
       const formDataNew = new FormData();
       formDataNew.append("full_name", formData.full_name);
       formDataNew.append("email", formData.email);
@@ -86,28 +85,13 @@ export default function ProfilePage() {
         formDataNew.append("avatar", "");
       }
       
-      const response = await fetch(`${baseUrl}/auth/me/`, {
-        method: "PATCH",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        body: formDataNew,
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log("Error:", errorText);
-        alert("Erro ao salvar perfil");
-        return;
-      }
-      
-      const userData = await response.json();
+      const { data: userData } = await apiClient.patch("/auth/me/", formDataNew);
       setUser(userData as UserProfile);
       localStorage.setItem("user", JSON.stringify(userData));
       setEditing(false);
       setAvatarPreview(null);
       setAvatarFile(null);
-      alert("Perfil salvo com sucesso!");
+      showToast("Perfil salvo com sucesso! 🎉", "success", 15000);
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
     } finally {
@@ -120,29 +104,13 @@ export default function ProfilePage() {
     
     setSaving(true);
     try {
-      const accessToken = localStorage.getItem("access_token");
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-      
       const formDataNew = new FormData();
       formDataNew.append("full_name", formData.full_name);
       formDataNew.append("email", formData.email);
       formDataNew.append("phone", formData.phone);
       formDataNew.append("avatar", "");
       
-      const response = await fetch(`${baseUrl}/auth/me/`, {
-        method: "PATCH",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        body: formDataNew,
-      });
-      
-      if (!response.ok) {
-        alert("Erro ao removeravatar");
-        return;
-      }
-      
-      const userData = await response.json();
+      const { data: userData } = await apiClient.patch("/auth/me/", formDataNew);
       setUser(userData as UserProfile);
       localStorage.setItem("user", JSON.stringify(userData));
     } catch (error) {

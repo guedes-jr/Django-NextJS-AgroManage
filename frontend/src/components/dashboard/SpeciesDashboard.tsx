@@ -7,6 +7,7 @@ import { Icon } from "lucide-react";
 import { cowHead, pigHead } from "@lucide/lab";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/services/api";
+import { useToast } from "@/components/ui/Toast";
 import "@/app/home/rebanho/animais/animais.css";
 import { AnimalFormModal } from "@/components/dashboard/AnimalFormModal";
 
@@ -33,6 +34,7 @@ function KPIcon({ icon }: { icon: any }) {
 }
 
 export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
+  const { showToast } = useToast();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,11 +75,43 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
 
       console.log("Sending payload from SpeciesDashboard:", formattedPayload);
       await apiClient.post("/livestock/batches/bulk_create_batches/", formattedPayload);
+      showToast("Registros salvos com sucesso! 🎉", "success", 15000);
       await fetchAnimals();
       setIsModalOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving animals:", err);
-      alert("Erro ao salvar os registros. Verifique os dados e o console.");
+      console.error("Full error object:", {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+      });
+      
+      // Extract error message from response
+      let errorMessage = "Erro ao salvar os registros. Verifique os dados e tente novamente.";
+      
+      // Try to extract error from different response formats
+      if (err.response?.data?.non_field_errors) {
+        errorMessage = err.response.data.non_field_errors[0];
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (typeof err.response?.data === 'object') {
+        // Try to extract from field-specific errors
+        const errors = err.response.data;
+        const errorEntries = Object.entries(errors)
+          .filter(([key, val]: any) => val && (Array.isArray(val) || typeof val === 'string'))
+          .map(([key, val]: any) => {
+            const message = Array.isArray(val) ? val[0] : val;
+            return `${key}: ${message}`;
+          });
+        
+        if (errorEntries.length > 0) {
+          errorMessage = errorEntries.join('\n');
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      showToast(errorMessage, "error", 15000);
     }
   };
 

@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { AnimalsTable } from "@/components/dashboard/AnimalsTable";
 import { AnimalFormModal } from "@/components/dashboard/AnimalFormModal";
+import { useToast } from "@/components/ui/Toast";
 import { ChevronRight, Plus, Warehouse, CheckCircle2, AlertOctagon, Clock, BarChart3, Bird } from "lucide-react";
 import { Icon } from "lucide-react";
 import { cowHead, pigHead } from "@lucide/lab";
@@ -94,8 +95,7 @@ function getKPIs(type: "bovinos" | "suinos" | "aves", data: any[]): KPICard[] {
   }
 }
 
-export default function AnimalsPage() {
-  const [activeTab, setActiveTab] = useState<"bovinos" | "suinos" | "aves">("bovinos");
+export default function AnimalsPage() {  const { showToast } = useToast();  const [activeTab, setActiveTab] = useState<"bovinos" | "suinos" | "aves">("bovinos");
   
   const [bovinosData, setBovinosData] = useState<any[]>([]);
   const [suinosData, setSuinosData] = useState<any[]>([]);
@@ -167,11 +167,23 @@ export default function AnimalsPage() {
       console.log("Sending payload to /livestock/batches/bulk_create_batches/:", payload);
       await apiClient.post("/livestock/batches/bulk_create_batches/", payload);
       
+      showToast(\"Animais salvos com sucesso! 🎉\", \"success\", 15000);
       fetchAnimals();
       setModalConfig({ open: false });
-    } catch (err) {
-      console.error("Error saving animals:", err);
-      alert("Erro ao salvar animais. Verifique o console.");
+    } catch (err: any) {
+      console.error(\"Error saving animals:\", err);
+      
+      let errorMessage = \"Erro ao salvar animais. Tente novamente.\";
+      
+      if (err.response?.data?.non_field_errors) {
+        errorMessage = err.response.data.non_field_errors[0];
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      showToast(errorMessage, \"error\", 15000);
     }
   };
 

@@ -256,6 +256,70 @@ body {
   text-decoration: underline;
 }
 
+/* Padrão global para botões do sistema */
+.btn {
+  border-radius: 12px !important;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-width: 1px;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+/* Botão primário (verde agro) */
+.btn-success, .btn-primary, .btn-agro {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: white !important;
+}
+
+.btn-success:hover, .btn-primary:hover, .btn-agro:hover {
+  filter: brightness(1.1);
+}
+
+/* Botão secundário/outline */
+.btn-outline-secondary, .btn-secondary {
+  background-color: var(--muted) !important;
+  border-color: var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+.btn-outline-secondary:hover, .btn-secondary:hover {
+  background-color: var(--secondary) !important;
+}
+
+/* Botão perigo */
+.btn-danger {
+  background-color: var(--destructive) !important;
+  border-color: var(--destructive) !important;
+  color: white !important;
+}
+
+/* Botão warning */
+.btn-warning {
+  background-color: var(--warning) !important;
+  border-color: var(--warning) !important;
+  color: var(--warning-foreground) !important;
+}
+
+/* Tamanhos consistentes */
+.btn-sm {
+  padding: 0.375rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 2rem;
+  font-size: 1.1rem;
+}
+
 /* Transparent scrollbar utility */
 .transparent-scrollbar {
   scrollbar-width: thin; /* Firefox */

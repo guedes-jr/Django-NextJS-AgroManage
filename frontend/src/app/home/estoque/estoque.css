@@ -5,6 +5,19 @@
     --inv-accent-soft: oklch(0.98 0.01 200 / 0.5);
 }
 
+.dashboard-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s ease;
+}
+
+.dashboard-card:hover {
+  box-shadow: var(--shadow-premium);
+  transform: translateY(-2px);
+}
+
 .inv-category-card {
     background: var(--inv-card-bg);
     border: 1px solid var(--inv-border);
@@ -24,6 +37,47 @@
     transform: translateY(-4px);
     box-shadow: var(--shadow-elegant);
     border-color: var(--primary);
+}
+
+.quick-access-card {
+    background: var(--inv-card-bg);
+    border: 1px solid var(--inv-border);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 180px;
+    text-decoration: none;
+}
+
+.quick-access-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-elegant);
+    border-color: var(--primary);
+}
+
+.quick-access-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.quick-access-title {
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--foreground);
+}
+
+.quick-access-desc {
+    font-size: 0.7rem;
+    color: var(--inv-text-muted);
 }
 
 .inv-category-icon {
@@ -55,6 +109,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    box-shadow: 0 4px 15px oklch(0.9 0.1 85 / 0.1);
 }
 
 .stock-item-row {
@@ -121,4 +176,25 @@
     justify-content: space-between;
     align-items: center;
     font-size: 0.75rem;
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    border-radius: 1rem;
+    min-width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }

@@ -2,57 +2,75 @@
 Serializers for the inventory app.
 """
 import re
+import uuid
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor
+from .models import (
+    ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor, 
+    FornecedorContato, FornecedorEndereco, AlertaEstoque,
+    FormulaRacao, FormulaIngrediente, ProducaoRacao
+)
+from .choices import TipoContratoFornecedor
 
 
 # ---------------------------------------------------------------------------
 # Fornecedor
 # ---------------------------------------------------------------------------
 
+class FornecedorContatoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FornecedorContato
+        fields = ["id", "tipo", "label", "valor"]
+
+class FornecedorEnderecoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FornecedorEndereco
+        fields = ["id", "cep", "logradouro", "numero", "bairro", "complemento", "cidade", "estado", "latitude", "longitude"]
+
 class FornecedorSerializer(serializers.ModelSerializer):
     tipo_contrato_display = serializers.CharField(
         source="get_tipo_contrato_display", read_only=True
     )
+    contatos = FornecedorContatoSerializer(many=True, required=False)
+    enderecos = FornecedorEnderecoSerializer(many=True, required=False)
 
     class Meta:
         model = Fornecedor
         fields = [
             "id", "organization", "nome",
-            "telefone", "telefone_2", "telefone_3",
-            "email", "cnpj", "cidade", "estado",
-            "tipo_contrato", "tipo_contrato_display", "imagem",
+            "cnpj", "contatos", "enderecos",
+            "tipo_contrato", "tipo_contrato_display", "imagem", "logo_url",
             "ativo", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "organization", "created_at", "updated_at", "tipo_contrato_display"]
     
     def validate_nome(self, value):
-        """Ensure nome is not empty."""
         if not value or not value.strip():
             raise serializers.ValidationError("Nome não pode estar vazio.")
         return value.strip()
     
-    def validate_email(self, value):
-        """Validate email format if provided."""
-        if value and "@" not in value:
-            raise serializers.ValidationError("E-mail inválido.")
-        return value
-    
     def validate(self, data):
-        """Check duplicate nome and CPF/CNPJ within the same organization."""
-        nome = data.get("nome")
-        documento = data.get("cnpj")
-        organization = self.context["request"].user.organization if "request" in self.context else None
+        nome = data.get("nome", "").strip()
+        documento = data.get("cnpj", "").strip()
         
-        if organization and (nome or documento):
+        request = self.context.get("request")
+        organization = None
+        if request and hasattr(request, "user") and hasattr(request.user, "organization"):
+            organization = request.user.organization
+        
+        if not organization:
+            raise serializers.ValidationError({
+                "organization": "Usuário não possui organização vinculada."
+            })
+        
+        if nome or documento:
             queryset = Fornecedor.objects.filter(organization=organization)
             if self.instance:
                 queryset = queryset.exclude(pk=self.instance.pk)
 
             if nome:
-                duplicated_nome = queryset.filter(nome__iexact=nome.strip()).exists()
+                duplicated_nome = queryset.filter(nome__iexact=nome).exists()
                 if duplicated_nome:
                     raise serializers.ValidationError({
                         "nome": f"Já existe um fornecedor com o nome '{nome}' nesta organização."
@@ -71,15 +89,47 @@ class FornecedorSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        """
-        Ensure organization is always injected from request context when available.
-        This prevents null organization inserts when the field is read-only.
-        """
+        contatos_data = validated_data.pop('contatos', [])
+        enderecos_data = validated_data.pop('enderecos', [])
+        
+        # Inject organization
         request = self.context.get("request")
         organization = getattr(getattr(request, "user", None), "organization", None)
-        if organization and "organization" not in validated_data:
+        if organization:
             validated_data["organization"] = organization
-        return super().create(validated_data)
+        else:
+            raise serializers.ValidationError({"organization": "Não foi possível determinar a organização."})
+
+        fornecedor = Fornecedor.objects.create(**validated_data)
+        
+        for contato_data in contatos_data:
+            FornecedorContato.objects.create(fornecedor=fornecedor, **contato_data)
+            
+        for endereco_data in enderecos_data:
+            FornecedorEndereco.objects.create(fornecedor=fornecedor, **endereco_data)
+            
+        return fornecedor
+
+    def update(self, instance, validated_data):
+        contatos_data = validated_data.pop('contatos', None)
+        enderecos_data = validated_data.pop('enderecos', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if contatos_data is not None:
+            instance.contatos.all().delete()
+            for contato_data in contatos_data:
+                FornecedorContato.objects.create(fornecedor=instance, **contato_data)
+        
+        if enderecos_data is not None:
+            instance.enderecos.all().delete()
+            for endereco_data in enderecos_data:
+                FornecedorEndereco.objects.create(fornecedor=instance, **endereco_data)
+        
+        return instance
+
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
     estoque_atual = serializers.DecimalField(
@@ -118,7 +168,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "unidade_medida", "unidade_display",
             # General
             "descricao", "marca", "fabricante", "especie_animal",
-            "estoque_minimo", "ativo",
+            "estoque_minimo", "prioridade", "ativo",
             # Technical — medicine/vaccine
             "principio_ativo", "concentracao", "via_aplicacao",
             "carencia_dias", "registro_mapa", "exige_receituario",
@@ -153,6 +203,14 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "observacao_lote": validated_data.pop("observacao_lote", ""),
         }
 
+        # Gera código único se não enviado ou vazio
+        if not validated_data.get('codigo'):
+            while True:
+                codigo = f"PROD-{uuid.uuid4().hex[:6].upper()}"
+                if not ItemEstoque.objects.filter(codigo=codigo).exists():
+                    break
+            validated_data['codigo'] = codigo
+        
         item = super().create(validated_data)
 
         # Create initial batch + movement if quantity was provided
@@ -197,9 +255,30 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
 class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     item_nome = serializers.CharField(source="item.nome", read_only=True)
     tipo_display = serializers.CharField(source="get_tipo_display", read_only=True)
-    responsavel_nome = serializers.CharField(
-        source="responsavel.get_full_name", read_only=True
+    responsavel_nome = serializers.SerializerMethodField()
+
+    def get_responsavel_nome(self, obj):
+        try:
+            if not obj.responsavel:
+                return None
+            if obj.responsavel.full_name and obj.responsavel.full_name.strip():
+                return obj.responsavel.full_name
+            return obj.responsavel.email or "Usuário"
+        except Exception:
+            return "Usuário"
+
+    # Write-only fields for creating a new batch during purchase
+    custo_unitario = serializers.DecimalField(
+        max_digits=10, decimal_places=2, write_only=True, required=False, allow_null=True
     )
+    fornecedor = serializers.PrimaryKeyRelatedField(
+        queryset=Fornecedor.objects.all(), write_only=True, required=False, allow_null=True
+    )
+    numero_lote = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    data_validade = serializers.DateField(write_only=True, required=False, allow_null=True)
+    data_fabricacao = serializers.DateField(write_only=True, required=False, allow_null=True)
+    local_armazenamento = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    nota_fiscal = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = MovimentacaoEstoque
@@ -209,5 +288,98 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
             "data_movimentacao",
             "responsavel", "responsavel_nome",
             "observacao", "created_at",
+            # Write-only batch fields
+            "custo_unitario", "fornecedor", "numero_lote",
+            "data_validade", "data_fabricacao", "local_armazenamento", "nota_fiscal",
         ]
         read_only_fields = ["id", "data_movimentacao", "created_at"]
+
+
+class AlertaEstoqueSerializer(serializers.ModelSerializer):
+    item_nome = serializers.ReadOnlyField(source="item.nome")
+    tipo_display = serializers.CharField(source="get_tipo_display", read_only=True)
+    prioridade_display = serializers.CharField(source="get_prioridade_display", read_only=True)
+
+    class Meta:
+        model = AlertaEstoque
+        fields = [
+            "id", "item", "item_nome", "tipo", "tipo_display", 
+            "prioridade", "prioridade_display", "titulo", 
+            "descricao", "lido", "resolvido", "created_at"
+        ]
+        read_only_fields = ["id", "created_at"]
+
+
+# ---------------------------------------------------------------------------
+# Fórmula e Produção
+# ---------------------------------------------------------------------------
+
+class FormulaIngredienteSerializer(serializers.ModelSerializer):
+    item_nome = serializers.CharField(source="item.nome", read_only=True)
+    estoque_atual = serializers.DecimalField(source="item.estoque_atual", max_digits=10, decimal_places=2, read_only=True)
+    
+    class Meta:
+        model = FormulaIngrediente
+        fields = ["id", "item", "item_nome", "percentual", "estoque_atual"]
+
+
+class FormulaRacaoSerializer(serializers.ModelSerializer):
+    ingredientes = FormulaIngredienteSerializer(many=True, required=False)
+    item_final_nome = serializers.CharField(source="item_final.nome", read_only=True)
+
+    class Meta:
+        model = FormulaRacao
+        fields = ["id", "nome", "descricao", "item_final", "item_final_nome", "ativa", "ingredientes"]
+
+    def create(self, validated_data):
+        ingredientes_data = validated_data.pop('ingredientes', [])
+        formula = FormulaRacao.objects.create(**validated_data)
+        
+        for ing_data in ingredientes_data:
+            FormulaIngrediente.objects.create(formula=formula, **ing_data)
+            
+        return formula
+
+    def update(self, instance, validated_data):
+        ingredientes_data = validated_data.pop('ingredientes', None)
+        
+        # Update formula fields
+        instance.nome = validated_data.get('nome', instance.nome)
+        instance.descricao = validated_data.get('descricao', instance.descricao)
+        instance.item_final = validated_data.get('item_final', instance.item_final)
+        instance.ativa = validated_data.get('ativa', instance.ativa)
+        instance.save()
+        
+        # Update ingredients
+        if ingredientes_data is not None:
+            # Delete existing
+            instance.ingredientes.all().delete()
+            # Create new ones
+            for ing_data in ingredientes_data:
+                FormulaIngrediente.objects.create(formula=instance, **ing_data)
+                
+        return instance
+
+
+class ProducaoRacaoSerializer(serializers.ModelSerializer):
+    formula_nome = serializers.CharField(source="formula.nome", read_only=True)
+    responsavel_nome = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProducaoRacao
+        fields = [
+            "id", "formula", "formula_nome", "data_producao",
+            "quantidade_teorica", "quantidade_real", "custo_total",
+            "responsavel", "responsavel_nome", "status"
+        ]
+        read_only_fields = ["id", "data_producao", "custo_total", "responsavel"]
+
+    def get_responsavel_nome(self, obj):
+        try:
+            if not obj.responsavel:
+                return None
+            if obj.responsavel.full_name and obj.responsavel.full_name.strip():
+                return obj.responsavel.full_name
+            return obj.responsavel.email or "Usuário"
+        except Exception:
+            return "Usuário"

@@ -1,6 +1,7 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from django.db import IntegrityError
 from .models import AnimalBatch
 from .serializers import AnimalBatchSerializer
 
@@ -16,4 +17,14 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_bulk_create(self, serializer):
-        serializer.save()
+        try:
+            serializer.save()
+        except IntegrityError as e:
+            # Handle any integrity errors that slip through validation
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg:
+                raise serializers.ValidationError(
+                    "One or more batch codes already exist for the specified farm(s). "
+                    "Please check your data and try again."
+                )
+            raise

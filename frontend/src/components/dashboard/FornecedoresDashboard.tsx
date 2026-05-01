@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { 
-  Plus, 
-  Search, 
-  Edit2, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
   ChevronRight,
   Building2,
   Phone,
@@ -35,11 +35,13 @@ export function FornecedoresDashboard() {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     try {
       const { data } = await apiClient.get("/inventory/fornecedores/");
-      console.log("[DEBUG] Fornecedores response:", data);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[DEBUG] Fornecedores response:", data);
+      }
       const fornecedoresData = Array.isArray(data)
         ? data
         : Array.isArray(data?.results)
@@ -47,9 +49,15 @@ export function FornecedoresDashboard() {
           : [];
       setFornecedores(fornecedoresData);
     } catch (err: any) {
-      if (err.response?.status === 401) {
-        setFornecedores([]);
-      }
+      console.error("Erro ao buscar fornecedores:", {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+        url: err.config?.url,
+        baseURL: err.config?.baseURL,
+      });
+
+      setFornecedores([]);
     } finally {
       setLoading(false);
     }
@@ -64,10 +72,12 @@ export function FornecedoresDashboard() {
 
   const filteredFornecedores = useMemo(() => {
     return fornecedores.filter((f) => {
-      const matchesSearch = f.nome.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === "todos" || 
-                           (statusFilter === "ativo" && f.ativo) || 
-                           (statusFilter === "inativo" && !f.ativo);
+      const matchesSearch =
+        f.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.contatos?.some((c: any) => c.valor.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesStatus = statusFilter === "todos" ||
+        (statusFilter === "ativo" && f.ativo) ||
+        (statusFilter === "inativo" && !f.ativo);
       return matchesSearch && matchesStatus;
     });
   }, [fornecedores, searchTerm, statusFilter]);
@@ -80,7 +90,7 @@ export function FornecedoresDashboard() {
   const handleDelete = async (id: string) => {
     if (confirm("Tem certeza que deseja excluir este fornecedor?")) {
       try {
-        await apiClient.delete(`inventory/fornecedores/${id}/`);
+        await apiClient.delete(`/inventory/fornecedores/${id}/`);
         fetchFornecedores();
       } catch (err) {
         console.error("Erro ao excluir fornecedor:", err);
@@ -100,27 +110,27 @@ export function FornecedoresDashboard() {
           <ChevronRight size={14} />
           <span className="fw-semibold text-foreground">Fornecedores</span>
         </nav>
-        
+
         <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4">
-            <div>
-                <h1 className="fw-black mb-1" style={{ fontSize: '2.25rem', letterSpacing: '-0.04em', color: "var(--foreground)" }}>
-                    Fornecedores
-                </h1>
-                <p className="mb-0 text-muted-foreground fw-medium" style={{ paddingBottom: '16px' }}>
-                    Cadastre e gerencie os parceiros e fornecedores da sua granja.
-                </p>
-            </div>
-            <button 
-              className="btn px-4 py-2.5 rounded-xl font-bold shadow-lg transition-all d-flex align-items-center gap-2"
-              style={{ background: 'oklch(0.55 0.16 145)', color: 'white' }}
-              onClick={() => {
-                setSelectedFornecedor(null);
-                setIsModalOpen(true);
-              }}
-            >
-                <Plus size={20} strokeWidth={3} />
-                Novo fornecedor
-            </button>
+          <div>
+            <h1 className="fw-black mb-1" style={{ fontSize: '2.25rem', letterSpacing: '-0.04em', color: "var(--foreground)" }}>
+              Fornecedores
+            </h1>
+            <p className="mb-0 text-muted-foreground fw-medium" style={{ paddingBottom: '16px' }}>
+              Cadastre e gerencie os parceiros e fornecedores da sua granja.
+            </p>
+          </div>
+          <button
+            className="btn px-4 py-2.5 rounded-xl font-bold shadow-lg transition-all d-flex align-items-center gap-2"
+            style={{ background: 'oklch(0.55 0.16 145)', color: 'white' }}
+            onClick={() => {
+              setSelectedFornecedor(null);
+              setIsModalOpen(true);
+            }}
+          >
+            <Plus size={20} strokeWidth={3} />
+            Novo fornecedor
+          </button>
         </div>
       </div>
 
@@ -164,44 +174,44 @@ export function FornecedoresDashboard() {
       {/* Search & Filters */}
       <div className="dashboard-card p-3 mb-4">
         <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-3">
-            <div className="flex-grow-1" style={{ maxWidth: '420px' }}>
-                <div className="position-relative">
-                    <div className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}>
-                        <Search size={18} />
-                    </div>
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por nome ou contato..."
-                        className="w-100"
-                        style={{ height: '48px', padding: '0 1rem 0 2.75rem', border: '1.5px solid var(--border)', borderRadius: '12px', outline: 'none' }}
-                        onFocus={(e) => e.target.style.borderColor = 'oklch(0.48 0.14 145)'}
-                        onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
+          <div className="flex-grow-1" style={{ maxWidth: '420px' }}>
+            <div className="position-relative">
+              <div className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}>
+                <Search size={18} />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar por nome ou contato..."
+                className="w-100"
+                style={{ height: '48px', padding: '0 1rem 0 2.75rem', border: '1.5px solid var(--border)', borderRadius: '12px', outline: 'none' }}
+                onFocus={(e) => e.target.style.borderColor = 'oklch(0.48 0.14 145)'}
+                onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <div className="h-8 w-px bg-border d-none d-lg-block" />
-            <div className="d-flex align-items-center gap-2">
-                <button 
-                    onClick={() => setStatusFilter("todos")}
-                    className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'todos' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                    Todos
-                </button>
-                <button 
-                    onClick={() => setStatusFilter("ativo")}
-                    className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'ativo' ? 'bg-success text-white' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                    Ativos
-                </button>
-                <button 
-                    onClick={() => setStatusFilter("inativo")}
-                    className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'inativo' ? 'bg-warning text-white' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                    Inativos
-                </button>
-            </div>
+          </div>
+          <div className="h-8 w-px bg-border d-none d-lg-block" />
+          <div className="d-flex align-items-center gap-2">
+            <button
+              onClick={() => setStatusFilter("todos")}
+              className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'todos' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => setStatusFilter("ativo")}
+              className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'ativo' ? 'bg-success text-white' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Ativos
+            </button>
+            <button
+              onClick={() => setStatusFilter("inativo")}
+              className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'inativo' ? 'bg-warning text-white' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Inativos
+            </button>
+          </div>
         </div>
       </div>
 
@@ -218,7 +228,7 @@ export function FornecedoresDashboard() {
           </div>
           <h3 className="text-lg fw-bold mb-2">Nenhum fornecedor encontrado</h3>
           <p className="text-sm text-muted-foreground mb-4">Tente ajustar seus filtros ou cadastre um novo parceiro.</p>
-          <button 
+          <button
             className="btn px-4 py-2 rounded-lg font-semibold"
             style={{ background: 'oklch(0.55 0.16 145)', color: 'white' }}
             onClick={() => {
@@ -253,21 +263,36 @@ export function FornecedoresDashboard() {
                   >
                     <td className="px-4 py-3">
                       <div className="d-flex align-items-center gap-3">
-                        {fornecedor.imagem ? (
+                        {fornecedor.imagem || fornecedor.logo_url ? (
                           <img
-                            src={getMediaUrl(fornecedor.imagem)}
+                            src={fornecedor.imagem ? getMediaUrl(fornecedor.imagem) : (fornecedor.logo_url || "")}
                             alt={fornecedor.nome}
-                            className="rounded-xl object-fit-cover"
+                            className="rounded-xl object-fit-cover shadow-sm border border-border"
                             style={{ width: "44px", height: "44px" }}
+                            onError={(e) => {
+                              // If logo_url fails, show initials
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement?.querySelector('.initials-placeholder')?.classList.remove('d-none');
+                            }}
                           />
-                        ) : (
+                        ) : null}
+                        {(!fornecedor.imagem && !fornecedor.logo_url) && (
                           <div
-                            className="rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
+                            className="initials-placeholder rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
                             style={{ width: "44px", height: "44px", fontSize: "14px" }}
                           >
                             {fornecedor.nome.substring(0, 2).toUpperCase()}
                           </div>
                         )}
+                        {/* Fallback initials if image fails */}
+                        {fornecedor.imagem || fornecedor.logo_url ? (
+                          <div
+                            className="initials-placeholder d-none rounded-xl bg-primary/10 d-flex align-items-center justify-content-center fw-bold text-primary"
+                            style={{ width: "44px", height: "44px", fontSize: "14px" }}
+                          >
+                            {fornecedor.nome.substring(0, 2).toUpperCase()}
+                          </div>
+                        ) : null}
                         <div>
                           <div className="fw-bold text-foreground">{fornecedor.nome}</div>
                           {fornecedor.cnpj ? (
@@ -281,26 +306,24 @@ export function FornecedoresDashboard() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="d-flex flex-column gap-1">
-                        {fornecedor.telefone ? (
-                          <span className="small d-flex align-items-center gap-1">
-                            <Phone size={12} className="text-muted-foreground" />
-                            {fornecedor.telefone}
-                          </span>
-                        ) : null}
-                        {fornecedor.email ? (
-                          <span className="small d-flex align-items-center gap-1 text-muted-foreground">
-                            <Mail size={12} />
-                            {fornecedor.email}
-                          </span>
-                        ) : null}
-                        {!fornecedor.telefone && !fornecedor.email ? (
+                        {fornecedor.contatos && fornecedor.contatos.length > 0 ? (
+                          <>
+                            <span className="small d-flex align-items-center gap-1">
+                              {fornecedor.contatos[0].tipo === 'email' ? <Mail size={12} className="text-muted-foreground" /> : <Phone size={12} className="text-muted-foreground" />}
+                              {fornecedor.contatos[0].valor}
+                            </span>
+                            {fornecedor.contatos.length > 1 && (
+                              <span className="text-xs text-muted-foreground">+{fornecedor.contatos.length - 1} outros</span>
+                            )}
+                          </>
+                        ) : (
                           <span className="small text-muted-foreground">-</span>
-                        ) : null}
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-3 small">
-                      {fornecedor.cidade || fornecedor.estado
-                        ? `${fornecedor.cidade || ""}${fornecedor.estado ? ` / ${fornecedor.estado}` : ""}`
+                      {fornecedor.enderecos && fornecedor.enderecos.length > 0
+                        ? `${fornecedor.enderecos[0].cidade}${fornecedor.enderecos[0].estado ? ` / ${fornecedor.enderecos[0].estado}` : ""}`
                         : "-"}
                     </td>
                     <td className="px-3 py-3 small">
@@ -349,7 +372,7 @@ export function FornecedoresDashboard() {
         </div>
       )}
 
-      <FornecedorModal 
+      <FornecedorModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={fetchFornecedores}
