@@ -525,8 +525,19 @@ export default function SettingsPage() {
         setSuccess("Membro atualizado com sucesso!");
       }
       setMemberModalOpen(false);
-    } catch {
-      setError(`Erro ao ${memberModalMode === 'create' ? 'cadastrar' : 'atualizar'} membro. Verifique os dados e tente novamente.`);
+    } catch (err: any) {
+      console.error(err.response?.data);
+      let errorMsg = `Erro ao ${memberModalMode === 'create' ? 'cadastrar' : 'atualizar'} membro.`;
+      if (err.response?.data) {
+        if (err.response.data.detail) {
+          errorMsg = err.response.data.detail;
+        } else if (typeof err.response.data === 'object') {
+          const firstKey = Object.keys(err.response.data)[0];
+          const firstError = err.response.data[firstKey];
+          errorMsg = Array.isArray(firstError) ? firstError[0] : firstError;
+        }
+      }
+      setError(errorMsg);
     } finally {
       setMemberLoading(false);
     }
