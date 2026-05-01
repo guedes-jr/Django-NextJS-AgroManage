@@ -45,6 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "avatar",
             "is_active",
+            "force_password_change",
             "created_at",
             "updated_at",
         ]

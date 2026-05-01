@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { User, LogOut, ChevronDown, Bell, Menu } from "lucide-react";
+import { ForcePasswordModal } from "@/components/auth/ForcePasswordModal";
 import Image from "next/image";
 
 interface UserData {
   id: number;
+  id: number;
   email: string;
   full_name: string;
   role: string;
+  force_password_change?: boolean;
 }
 
 const getStoredUser = (): UserData | null => {
@@ -58,7 +61,19 @@ export function TopBar({ onMenuClick }: TopBarProps) {
 
   const roleAttr = roleConfig[user?.role?.toLowerCase() || "operator"] || roleConfig.operator;
 
+  const handlePasswordChanged = () => {
+    if (user) {
+      const updatedUser = { ...user, force_password_change: false };
+      setUser(updatedUser);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+    }
+  };
+
   return (
+    <>
+    {user?.force_password_change && <ForcePasswordModal onSuccess={handlePasswordChanged} />}
     <header 
       className="d-flex justify-content-between align-items-center p-3 px-4 shadow-sm"
       style={{ background: 'var(--background)', zIndex: 10, borderBottom: '1px solid var(--border)' }}
@@ -160,5 +175,6 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         </div>
       </div>
     </header>
+    </>
   );
 }

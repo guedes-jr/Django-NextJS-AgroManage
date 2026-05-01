@@ -110,7 +110,8 @@ def create_member_view(request):
         full_name=data["full_name"],
         role=data.get("role", "operator"),
         phone=data.get("phone", ""),
-        organization=org
+        organization=org,
+        force_password_change=True
     )
 
     return Response(
@@ -305,8 +306,39 @@ def change_password_view(request):
         )
 
     request.user.set_password(serializer.validated_data["new_password"])
+    request.user.force_password_change = False
     request.user.save()
     return Response({"detail": "Senha alterada com sucesso."})
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def force_change_password_view(request):
+    """Force change user password (only when flag is true)."""
+    if not request.user.force_password_change:
+        return Response(
+            {"detail": "Você não precisa forçar a troca de senha."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    new_password = request.data.get("new_password")
+    new_password_confirm = request.data.get("new_password_confirm")
+
+    if not new_password or new_password != new_password_confirm:
+        return Response(
+            {"detail": "As senhas não conferem ou estão vazias."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(new_password) < 8:
+        return Response(
+            {"detail": "A senha deve ter pelo menos 8 caracteres."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    request.user.set_password(new_password)
+    request.user.force_password_change = False
+    request.user.save()
+    return Response({"detail": "Senha atualizada com sucesso."})
 
 
 class UserViewSet(viewsets.ModelViewSet):

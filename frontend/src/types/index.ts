@@ -40,6 +40,7 @@ export interface User {
   avatar: string | null;
   phone: string;
   is_active: boolean;
+  force_password_change?: boolean;
   created_at: string;
 }
 
