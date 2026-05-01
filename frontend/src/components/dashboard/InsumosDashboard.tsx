@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -44,7 +44,7 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   material: "material",
 };
 
-const CATEGORY_ICONS: Record<string, JSX.Element> = {
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   racao: <Wheat size={16} />,
   nucleo: <Box size={16} />,
   medicamento: <Activity size={16} />,

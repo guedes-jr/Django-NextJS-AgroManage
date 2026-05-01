@@ -199,3 +199,47 @@
 .sidebar-nav-container::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Button & Settings Styles */
+.btn-primary-elegant {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px oklch(0.5 0.15 145 / 0.2);
+}
+
+.btn-primary-elegant:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px oklch(0.5 0.15 145 / 0.3);
+}
+
+.btn-primary-elegant:disabled {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-secondary-elegant {
+  background: white;
+  color: var(--foreground);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary-elegant:hover {
+  background: oklch(0.99 0 0);
+  border-color: var(--muted-foreground);
+}
+
+.plan-card {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: none;
+}
+

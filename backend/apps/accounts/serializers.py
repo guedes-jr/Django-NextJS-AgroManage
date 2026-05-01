@@ -90,3 +90,21 @@ class ChangePasswordSerializer(serializers.Serializer):
         if data.get("new_password") != data.get("new_password_confirm"):
             raise serializers.ValidationError({"new_password_confirm": "As senhas não conferem."})
         return data
+
+class OrganizationMemberSerializer(serializers.ModelSerializer):
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'full_name', 'role', 'role_display', 
+            'phone', 'avatar', 'is_active', 'created_at'
+        ]
+        read_only_fields = ['id', 'email', 'created_at']
+
+
+class InviteMemberSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    full_name = serializers.CharField(max_length=150)
+    role = serializers.ChoiceField(choices=User.Role.choices, default='operator')
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)

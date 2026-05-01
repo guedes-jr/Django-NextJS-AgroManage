@@ -82,21 +82,33 @@ export default function LoginPage() {
         goTo("login");
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: { detail?: unknown; message?: string } } } };
-      const respData = error.response?.data?.error;
-      let msg = respData?.message || "Erro ao processar requisição.";
-      
-      if (respData?.detail) {
-        const d = respData.detail as Record<string, unknown[]>;
-        const keys = Object.keys(d);
-        if (keys.length > 0) {
-          const firstArr = d[keys[0]];
-          if (Array.isArray(firstArr) && firstArr.length > 0) {
-            msg = String(firstArr[0]);
+      // DRF retorna erros como: { non_field_errors: [...] } ou { campo: [...] }
+      // Nunca dentro de data.error — precisamos ler data diretamente.
+      const axiosErr = err as {
+        response?: { data?: Record<string, unknown> };
+      };
+      const data = axiosErr.response?.data ?? {};
+      let msg = "Erro ao processar requisição.";
+
+      // Prioridade: non_field_errors > detail > primeiro campo com array
+      if (Array.isArray(data.non_field_errors) && data.non_field_errors.length > 0) {
+        msg = String(data.non_field_errors[0]);
+      } else if (typeof data.detail === "string") {
+        msg = data.detail;
+      } else {
+        // Percorre todos os campos e pega a primeira mensagem encontrada
+        for (const key of Object.keys(data)) {
+          const val = data[key];
+          if (Array.isArray(val) && val.length > 0) {
+            msg = String(val[0]);
+            break;
+          } else if (typeof val === "string") {
+            msg = val;
+            break;
           }
         }
       }
-      
+
       setError(msg);
     } finally {
       setLoading(false);

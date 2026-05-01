@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  allowedDevOrigins: ['192.168.1.64', 'retrace-epileptic-varsity.ngrok-free.dev'],
+  allowedDevOrigins: ['192.168.1.64'],
   async rewrites() {
     return [
       {

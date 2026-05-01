@@ -2,6 +2,7 @@
 Django settings base for AgroManage.
 Split by environment: base → dev/prod/test.
 """
+
 from pathlib import Path
 import environ
 
@@ -58,6 +59,7 @@ LOCAL_APPS = [
     "apps.reports",
     "apps.tasks",
     "apps.audit",
+    "apps.notifications",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -112,7 +114,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -174,9 +178,8 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=[
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000", 
-        "https://retrace-epileptic-varsity.ngrok-free.dev"
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
 )
 CORS_ALLOW_CREDENTIALS = True

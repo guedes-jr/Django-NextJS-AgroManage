@@ -52,7 +52,17 @@ const menuItems: MenuItem[] = [
       { title: "Alertas", href: "/home/estoque/alertas" },
     ]
   },
-  { title: "Relatórios", href: "/home/relatorios", icon: BarChart3 },
+  { 
+    title: "Relatórios", 
+    href: "/home/relatorios", 
+    icon: BarChart3,
+    children: [
+      { title: "Geral", href: "/home/relatorios/geral" },
+      { title: "Estoque", href: "/home/relatorios/estoque" },
+      { title: "Financeiro", href: "/home/relatorios/financeiro" },
+      { title: "Rebanho", href: "/home/relatorios/rebanho" },
+    ]
+  },
 ];
 
 

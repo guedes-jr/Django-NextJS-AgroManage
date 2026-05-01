@@ -18,7 +18,109 @@ from .serializers import (
     UserSerializer,
     UserCreateSerializer,
     ChangePasswordSerializer,
+    OrganizationMemberSerializer,
+    InviteMemberSerializer,
 )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def members_view(request):
+    """List all members of the user's organization."""
+    org = getattr(request.user, "organization", None)
+    if not org:
+        return Response([])
+    
+    members = User.objects.filter(organization=org).order_by("full_name")
+    return Response(OrganizationMemberSerializer(members, many=True).data)
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def member_detail_view(request, pk):
+    """Update or remove a member from the organization."""
+    org = getattr(request.user, "organization", None)
+    try:
+        member = User.objects.get(pk=pk, organization=org)
+    except User.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    # Permission: Only Owners/Admins
+    if request.user.role not in ["owner", "admin"]:
+        return Response(
+            {"detail": "Permissão negada."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    if request.method == "DELETE":
+        if member == request.user:
+            return Response(
+                {"detail": "Você não pode se remover."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # We don't delete the user, just unbind from org or deactivate?
+        # Let's just unbind for now.
+        member.organization = None
+        member.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    if request.method == "PATCH":
+        # Only owners can promote/demote admins
+        if "role" in request.data and member.role == "admin" and request.user.role != "owner":
+            return Response(
+                {"detail": "Apenas owners podem alterar admins."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        serializer = OrganizationMemberSerializer(member, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def invite_member_view(request):
+    """Invite a new member to the organization."""
+    org = getattr(request.user, "organization", None)
+    if not org:
+        return Response(
+            {"detail": "Você não pertence a uma organização."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if request.user.role not in ["owner", "admin"]:
+        return Response(
+            {"detail": "Permissão negada."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    serializer = InviteMemberSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    if User.objects.filter(email=data["email"]).exists():
+        return Response(
+            {"detail": "Já existe um usuário com este email."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    import secrets
+    temp_password = secrets.token_urlsafe(8)
+    
+    user = User.objects.create_user(
+        email=data["email"],
+        password=temp_password,
+        full_name=data["full_name"],
+        role=data.get("role", "operator"),
+        phone=data.get("phone", ""),
+        organization=org
+    )
+
+    return Response(
+        OrganizationMemberSerializer(user).data,
+        status=status.HTTP_201_CREATED
+    )
+
 
 def _ensure_user_organization(user):
     """Auto-provision an organization for users without tenant binding."""
