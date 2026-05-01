@@ -106,11 +106,11 @@ ASGI_APPLICATION = "config.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("DB_NAME", "agromanage_db"),
-        "USER": env("DB_USER", "agromanage_user"),
-        "PASSWORD": env("DB_PASSWORD", "agromanage_pass"),
-        "HOST": env("DB_HOST", "db"),
-        "PORT": env("DB_PORT", "5432"),
+        "NAME": env("DB_NAME", default="agromanage_db"),
+        "USER": env("DB_USER", default="agromanage_user"),
+        "PASSWORD": env("DB_PASSWORD", default="agromanage_pass"),
+        "HOST": env("DB_HOST", default="127.0.0.1"),
+        "PORT": env("DB_PORT", default="5432"),
     }
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
