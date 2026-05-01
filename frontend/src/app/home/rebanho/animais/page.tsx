@@ -167,13 +167,13 @@ export default function AnimalsPage() {  const { showToast } = useToast();  cons
       console.log("Sending payload to /livestock/batches/bulk_create_batches/:", payload);
       await apiClient.post("/livestock/batches/bulk_create_batches/", payload);
       
-      showToast(\"Animais salvos com sucesso! 🎉\", \"success\", 15000);
+      showToast("Animais salvos com sucesso! 🎉", "success", 15000);
       fetchAnimals();
       setModalConfig({ open: false });
     } catch (err: any) {
-      console.error(\"Error saving animals:\", err);
+      console.error("Error saving animals:", err);
       
-      let errorMessage = \"Erro ao salvar animais. Tente novamente.\";
+      let errorMessage = "Erro ao salvar animais. Tente novamente.";
       
       if (err.response?.data?.non_field_errors) {
         errorMessage = err.response.data.non_field_errors[0];
@@ -183,7 +183,7 @@ export default function AnimalsPage() {  const { showToast } = useToast();  cons
         errorMessage = err.message;
       }
       
-      showToast(errorMessage, \"error\", 15000);
+      showToast(errorMessage, "error", 15000);
     }
   };
 

@@ -1,10 +1,6 @@
 "use client";
 
-<<<<<<< HEAD:frontend/src/components/dashboard/InsumosDashboard.tsx
-import React, { useEffect, useMemo, useState } from "react";
-=======
 import React, { useEffect, useMemo, useState, ReactNode } from "react";
->>>>>>> e4562cbbdbe73139f8623476b533fb875b608bf5:frontend/src/components/dashboard/ProdutosDashboard.tsx
 import Link from "next/link";
 import {
   AlertTriangle,
