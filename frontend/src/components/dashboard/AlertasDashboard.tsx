@@ -187,8 +187,14 @@ export function AlertasDashboard() {
     }
   };
 
-  const handleSelectProduto = (produto: { id: string, name: string, unit: string }) => {
-    setFormData({ ...formData, nome: produto.name, unidade_medida: produto.unit });
+  const handleSelectProduto = (produto: {
+    id: string;
+    nome: string;
+    unidade_medida: string;
+    prioridade?: string;
+    estoque_minimo?: string;
+  }) => {
+    setFormData({ ...formData, nome: produto.nome, unidade_medida: produto.unidade_medida });
     setShowSuggestions(false);
   };
 
