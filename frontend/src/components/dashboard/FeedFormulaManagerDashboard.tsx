@@ -16,6 +16,7 @@ type Formula = {
   id?: number;
   nome: string;
   descricao: string;
+  especie_animal?: string;
   item_final?: number | null;
   item_final_nome?: string | null;
   ativa: boolean;
@@ -27,7 +28,17 @@ type InventoryItem = {
   nome: string;
 };
 
-export function FeedFormulaManagerDashboard() {
+const SPECIES_LABEL: Record<string, string> = {
+  suino: "Suínos",
+  ave: "Aves",
+  bovino: "Bovinos",
+};
+
+interface FeedFormulaManagerDashboardProps {
+  species?: string;
+}
+
+export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashboardProps = {}) {
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -42,8 +53,9 @@ export function FeedFormulaManagerDashboard() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const params = species ? `?especie=${species}` : "";
       const [resFormulas, resItems] = await Promise.all([
-        apiClient.get("/inventory/formulas/"),
+        apiClient.get(`/inventory/formulas/${params}`),
         apiClient.get("/inventory/items/all_items/")
       ]);
       setFormulas(resFormulas.data.results || resFormulas.data || []);
@@ -108,6 +120,7 @@ export function FeedFormulaManagerDashboard() {
     const nova: Formula = {
       nome: "Nova Fórmula",
       descricao: "",
+      especie_animal: species ?? "",
       ativa: true,
       ingredientes: []
     };
@@ -179,13 +192,24 @@ export function FeedFormulaManagerDashboard() {
     <div className="inventory-container pb-5">
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-3">
-          <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">Estoque</Link>
-          <ChevronRight size={14} />
-          <Link href="/home/estoque/producao-racao" className="text-decoration-none text-muted-foreground hover-text-primary">Produção de Ração</Link>
+          <Link href="/home" className="text-decoration-none text-muted-foreground hover-text-primary">Rebanho</Link>
+          {species && (
+            <>
+              <ChevronRight size={14} />
+              <span>{SPECIES_LABEL[species] ?? species}</span>
+              <ChevronRight size={14} />
+              <Link
+                href={`/home/rebanho/${species === 'suino' ? 'suinos' : species === 'ave' ? 'aves' : 'bovinos'}/racao`}
+                className="text-decoration-none text-muted-foreground hover-text-primary"
+              >Ração</Link>
+            </>
+          )}
           <ChevronRight size={14} />
           <span className="fw-semibold text-foreground">Gerenciar Fórmulas</span>
         </nav>
-        <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>Gerenciar Fórmula</h1>
+        <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
+          Gerenciar Fórmula{species ? ` — ${SPECIES_LABEL[species] ?? species}` : ""}
+        </h1>
         <p className="text-muted-foreground mb-0">Cadastre e edite as fórmulas das rações da sua granja.</p>
       </div>
 

@@ -121,9 +121,59 @@
 .submenu-link.active {
   color: var(--gold);
   font-weight: 600;
-  border-left: 2px solid var(--gold);
+  border-left: 2px solid var(--gold) !important;
   margin-left: -3px;
   padding-left: calc(0.75rem + 3px);
+}
+
+/* Third-level: animal sub-items (Cadastro, Ração, Reprodução) */
+.sidebar-subsubmenu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.15rem 0 0.25rem 0.75rem;
+  padding-left: 0.65rem;
+  border-left: 1px dashed rgba(255, 255, 255, 0.15);
+  position: relative;
+}
+
+.subsubmenu-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.35);
+  text-decoration: none;
+  font-size: 0.775rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.subsubmenu-link:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.subsubmenu-link.active {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.subsubmenu-link.active .subsubmenu-dot {
+  background: var(--gold);
+  box-shadow: 0 0 6px oklch(0.85 0.18 85 / 0.6);
+}
+
+.subsubmenu-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .dashboard-card {

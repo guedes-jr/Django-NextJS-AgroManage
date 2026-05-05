@@ -1,7 +1,5 @@
-"use client";
-
-import { SpeciesDashboard } from "@/components/dashboard/SpeciesDashboard";
+import { redirect } from "next/navigation";
 
 export default function AvesPage() {
-  return <SpeciesDashboard species="aves" />;
+  redirect("/home/rebanho/aves/cadastro");
 }

@@ -67,6 +67,7 @@ class AnimalBatch(BaseModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     origin = models.CharField(max_length=20, choices=Origin.choices, default=Origin.PURCHASED)
     purchase_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    sale_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     gender = models.CharField(max_length=20, null=True, blank=True)
     category = models.CharField(max_length=50, null=True, blank=True)
     name = models.CharField(max_length=100, null=True, blank=True)

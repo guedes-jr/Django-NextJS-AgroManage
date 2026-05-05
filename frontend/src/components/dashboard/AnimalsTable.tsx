@@ -22,6 +22,7 @@ interface Animal {
   breed?: string;
   weight: number;
   age: string | number;
+  quantity?: number;
   status: "Ativo" | "Doente" | "Vendido" | "Quarentena";
   lastCheck?: string;
 }
@@ -45,6 +46,7 @@ const columnLabels = {
     breed: "Raça",
     weight: "Peso (kg)",
     age: "Idade",
+    quantity: "Qtd"
   },
   suino: {
     id: "ID",
@@ -52,6 +54,7 @@ const columnLabels = {
     breed: "Fase",
     weight: "Peso (kg)",
     age: "Idade",
+    quantity: "Qtd Animais"
   },
   ave: {
     id: "ID",
@@ -59,6 +62,7 @@ const columnLabels = {
     breed: "Linhagem",
     weight: "Mortalidade %",
     age: "Idade",
+    quantity: "Qtd Aves"
   },
 };
 
@@ -240,6 +244,12 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
                   {sortConfig?.key === 'age' && <ArrowUpDown size={14} />}
                 </div>
               </TableHeader>
+              <TableHeader className="cursor-pointer text-muted-foreground border-0" onClick={() => handleSort('quantity' as keyof Animal)}>
+                <div className="d-flex align-items-center gap-2">
+                  {cols.quantity}
+                  {sortConfig?.key === 'quantity' && <ArrowUpDown size={14} />}
+                </div>
+              </TableHeader>
               <TableHeader className="text-muted-foreground border-0">Status</TableHeader>
               <TableHeader className="text-end text-muted-foreground border-0" style={{ width: 100 }}>Ações</TableHeader>
             </TableRow>
@@ -283,6 +293,9 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
                       </TableCell>
                       <TableCell className="border-0">
                         <span className="text-muted-foreground">{animal.age}</span>
+                      </TableCell>
+                      <TableCell className="border-0">
+                        <span className="fw-bold text-foreground">{animal.quantity || 1}</span>
                       </TableCell>
                       <TableCell className="border-0">
                         <Badge 

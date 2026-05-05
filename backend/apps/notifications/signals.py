@@ -37,7 +37,7 @@ def check_stock_levels(sender, instance, created, **kwargs):
     # Calculate total quantity for this item
     from apps.inventory.models import LoteEstoque
     total_qty = sum(
-        LoteEstoque.objects.filter(item=item).values_list("quantidade", flat=True)
+        LoteEstoque.objects.filter(item=item, ativo=True).values_list("quantidade_atual", flat=True)
     )
 
     # Check minimum stock level

@@ -47,7 +47,19 @@ function money(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export function FeedProductionDashboard() {
+const SPECIES_LABEL: Record<string, string> = {
+  suino: "Suínos",
+  ave: "Aves",
+  bovino: "Bovinos",
+};
+
+interface FeedProductionDashboardProps {
+  species?: string; // "suino" | "ave" | "bovino" | undefined (show all)
+  showHeader?: boolean;
+}
+
+export function FeedProductionDashboard({ species, showHeader = true }: FeedProductionDashboardProps = {}) {
+
   const [formulas, setFormulas] = useState<FormulaRacao[]>([]);
   const [formulaId, setFormulaId] = useState<string>("");
   const [quantidade, setQuantidade] = useState(1000);
@@ -63,7 +75,8 @@ export function FeedProductionDashboard() {
     const fetchFormulas = async () => {
       try {
         setLoading(true);
-        const { data } = await apiClient.get("/inventory/formulas/");
+        const params = species ? `?especie=${species}` : "";
+        const { data } = await apiClient.get(`/inventory/formulas/${params}`);
         const formulasList = data.results || data || [];
         setFormulas(formulasList);
         if (formulasList.length > 0) {
@@ -76,7 +89,7 @@ export function FeedProductionDashboard() {
       }
     };
     fetchFormulas();
-  }, []);
+  }, [species]);
 
   const formulaSelecionada = useMemo(() => formulas.find(f => f.id.toString() === formulaId), [formulas, formulaId]);
 
@@ -139,15 +152,26 @@ export function FeedProductionDashboard() {
 
   return (
     <div className="inventory-container pb-5">
-      <div className="mb-4">
-        <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-3">
-          <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">Estoque</Link>
-          <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Produção de Ração</span>
-        </nav>
-        <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>Produzir Ração</h1>
-        <p className="text-muted-foreground mb-0">Produza rações de forma rápida e controle os custos com eficiência.</p>
-      </div>
+      {showHeader && (
+        <div className="mb-4">
+          <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-3">
+            <Link href="/home" className="text-decoration-none text-muted-foreground hover-text-primary">Rebanho</Link>
+            {species && (
+              <>
+                <ChevronRight size={14} />
+                <span>{SPECIES_LABEL[species] ?? species}</span>
+              </>
+            )}
+            <ChevronRight size={14} />
+            <span className="fw-semibold text-foreground">Ração</span>
+          </nav>
+          <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
+            Produzir Ração{species ? ` — ${SPECIES_LABEL[species] ?? species}` : ""}
+          </h1>
+          <p className="text-muted-foreground mb-0">Produza rações de forma rápida e controle os custos com eficiência.</p>
+        </div>
+      )}
+
 
       <div className="row g-4">
         <div className="col-12 col-xl-9">
@@ -386,7 +410,10 @@ export function FeedProductionDashboard() {
                 <div className="small text-muted-foreground">Cadastre e mantenha suas fórmulas atualizadas para garantir precisão nos custos.</div>
               </div>
             </div>
-            <Link href="/home/estoque/producao-racao/gerenciar-formulas" className="btn btn-light w-100 fw-semibold d-flex align-items-center justify-content-between">
+            <Link 
+              href={species ? `/home/rebanho/${species === 'suino' ? 'suinos' : species === 'ave' ? 'aves' : 'bovinos'}/racao/gerenciar-formulas` : "/home/estoque/producao-racao/gerenciar-formulas"} 
+              className="btn btn-light w-100 fw-semibold d-flex align-items-center justify-content-between"
+            >
               <span>Gerenciar fórmulas</span>
               <FlaskConical size={16} />
             </Link>

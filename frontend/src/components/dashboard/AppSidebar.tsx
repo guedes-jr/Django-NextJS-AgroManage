@@ -19,11 +19,23 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
+interface SubItem {
+  title: string;
+  href: string;
+}
+
+interface ChildGroup {
+  title: string;
+  href: string;
+  badge?: string;
+  subItems?: SubItem[];
+}
+
 interface MenuItem {
   title: string;
   href: string;
   icon: any; /* eslint-disable-line */ 
-  children?: { title: string; href: string; badge?: string }[];
+  children?: ChildGroup[];
 }
 
 const menuItems: MenuItem[] = [
@@ -33,9 +45,33 @@ const menuItems: MenuItem[] = [
     href: "/home/rebanho", 
     icon: Beef,
     children: [
-      { title: "Suínos", href: "/home/rebanho/suinos" },
-      { title: "Aves", href: "/home/rebanho/aves" },
-      { title: "Bovinos", href: "/home/rebanho/bovinos" },
+      { 
+        title: "Suínos", 
+        href: "/home/rebanho/suinos",
+        subItems: [
+          { title: "Cadastro", href: "/home/rebanho/suinos/cadastro" },
+          { title: "Ração", href: "/home/rebanho/suinos/racao" },
+          { title: "Reprodução", href: "/home/rebanho/suinos/reproducao" },
+        ]
+      },
+      { 
+        title: "Aves", 
+        href: "/home/rebanho/aves",
+        subItems: [
+          { title: "Cadastro", href: "/home/rebanho/aves/cadastro" },
+          { title: "Ração", href: "/home/rebanho/aves/racao" },
+          { title: "Reprodução", href: "/home/rebanho/aves/reproducao" },
+        ]
+      },
+      { 
+        title: "Bovinos", 
+        href: "/home/rebanho/bovinos",
+        subItems: [
+          { title: "Cadastro", href: "/home/rebanho/bovinos/cadastro" },
+          { title: "Ração", href: "/home/rebanho/bovinos/racao" },
+          { title: "Reprodução", href: "/home/rebanho/bovinos/reproducao" },
+        ]
+      },
     ]
   },
   { title: "Financeiro", href: "/home/financeiro", icon: Wallet },
@@ -46,7 +82,6 @@ const menuItems: MenuItem[] = [
     children: [
       { title: "Resumo", href: "/home/estoque/resumo" },
       { title: "Produtos", href: "/home/estoque/produtos" },
-      { title: "Produção de Ração", href: "/home/estoque/producao-racao", badge: "NOVO" },
       { title: "Movimentações", href: "/home/estoque/movimentacoes" },
       { title: "Fornecedores", href: "/home/estoque/fornecedores" },
       { title: "Alertas", href: "/home/estoque/alertas" },
@@ -74,6 +109,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
 
   useEffect(() => {
     // Close sidebar on mobile when route changes
@@ -81,24 +117,44 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       onClose();
     }
 
-    // Automatically expand parent if a child is active
-    const activeParent = menuItems.find(item => 
-      item.children?.some(child => pathname.startsWith(child.href))
+    // Automatically expand parent menu if a child is active
+    const activeParent = menuItems.find(item =>
+      item.children?.some(child =>
+        pathname.startsWith(child.href)
+      )
     );
-    
     if (activeParent && !expandedMenus.includes(activeParent.title)) {
       setExpandedMenus([activeParent.title]);
     }
+
+    // Automatically expand species group if a sub-item is active
+    menuItems.forEach(item => {
+      item.children?.forEach(child => {
+        if (child.subItems?.some(sub => pathname.startsWith(sub.href))) {
+          if (!expandedGroups.includes(child.href)) {
+            setExpandedGroups(prev => [...prev, child.href]);
+          }
+        }
+      });
+    });
   }, [pathname]);
 
   const isActive = (href: string) =>
     href === "/home" ? pathname === href : pathname.startsWith(href);
 
   const toggleExpand = (title: string) => {
-    setExpandedMenus(prev => 
-      prev.includes(title) 
+    setExpandedMenus(prev =>
+      prev.includes(title)
         ? [] // If clicking the same open one, close it
         : [title] // Opening a new one closes all others
+    );
+  };
+
+  const toggleGroup = (href: string) => {
+    setExpandedGroups(prev =>
+      prev.includes(href)
+        ? prev.filter(g => g !== href)
+        : [...prev, href]
     );
   };
 
@@ -158,21 +214,59 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                         style={{ overflow: "hidden" }}
                       >
                         {item.children.map((child) => (
-                          <Link
-                            key={child.title}
-                            href={child.href}
-                            className={`submenu-link ${pathname === child.href ? "active" : ""}`}
-                          >
-                            <span className="flex-grow-1">{child.title}</span>
-                            {child.badge && (
-                              <span 
-                                className="badge bg-primary text-white border-0 fw-black" 
-                                style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--primary)' }}
+                          child.subItems ? (
+                            <div key={child.href}>
+                              <button
+                                onClick={() => toggleGroup(child.href)}
+                                className={`submenu-link w-100 border-0 bg-transparent text-start ${isActive(child.href) ? "active" : ""}`}
                               >
-                                {child.badge}
-                              </span>
-                            )}
-                          </Link>
+                                <span className="flex-grow-1">{child.title}</span>
+                                {expandedGroups.includes(child.href)
+                                  ? <ChevronUp size={13} />
+                                  : <ChevronDown size={13} />
+                                }
+                              </button>
+                              <AnimatePresence>
+                                {expandedGroups.includes(child.href) && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                                    className="sidebar-subsubmenu"
+                                    style={{ overflow: "hidden" }}
+                                  >
+                                    {child.subItems.map((sub) => (
+                                      <Link
+                                        key={sub.href}
+                                        href={sub.href}
+                                        className={`subsubmenu-link ${pathname === sub.href ? "active" : ""}`}
+                                      >
+                                        <span className="subsubmenu-dot" />
+                                        {sub.title}
+                                      </Link>
+                                    ))}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          ) : (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              className={`submenu-link ${pathname === child.href ? "active" : ""}`}
+                            >
+                              <span className="flex-grow-1">{child.title}</span>
+                              {child.badge && (
+                                <span 
+                                  className="badge bg-primary text-white border-0 fw-black" 
+                                  style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--primary)' }}
+                                >
+                                  {child.badge}
+                                </span>
+                              )}
+                            </Link>
+                          )
                         ))}
                       </motion.div>
                     )}

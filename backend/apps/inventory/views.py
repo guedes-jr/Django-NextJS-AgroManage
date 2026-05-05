@@ -201,6 +201,14 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
         return Response(result)
 
+    @action(detail=True, methods=["get"], url_path="lots")
+    def lots(self, request, pk=None):
+        """Return active lots for an item sorted by expiration date (FEFO)."""
+        item = self.get_object()
+        lotes = item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by("data_validade", "created_at")
+        serializer = LoteEstoqueSerializer(lotes, many=True)
+        return Response(serializer.data)
+
 
 class LoteEstoqueViewSet(viewsets.ModelViewSet):
     """CRUD for stock batches."""
@@ -604,8 +612,9 @@ class AlertaEstoqueViewSet(viewsets.ModelViewSet):
 # Fórmulas e Produção
 # ---------------------------------------------------------------------------
 
-from .models import FormulaRacao, ProducaoRacao, FormulaIngrediente
-from .serializers import FormulaRacaoSerializer, ProducaoRacaoSerializer
+from .models import FormulaRacao, ProducaoRacao, FormulaIngrediente, ConsumoRacao
+from .serializers import FormulaRacaoSerializer, ProducaoRacaoSerializer, ConsumoRacaoSerializer
+
 
 class FormulaRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = FormulaRacaoSerializer
@@ -613,12 +622,22 @@ class FormulaRacaoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
-            return FormulaRacao.objects.filter(organization=self.request.user.organization).prefetch_related("ingredientes__item__lotes")
+            qs = FormulaRacao.objects.filter(
+                organization=self.request.user.organization
+            ).prefetch_related("ingredientes__item__lotes")
+            
+            # Filter by species if provided: ?especie=suino | ave | bovino
+            especie = self.request.query_params.get("especie")
+            if especie:
+                qs = qs.filter(especie_animal=especie)
+            
+            return qs
         return FormulaRacao.objects.none()
 
     def perform_create(self, serializer):
         organization = getattr(self.request.user, 'organization', None)
         serializer.save(organization=organization)
+
 
 
 class ProducaoRacaoViewSet(viewsets.ModelViewSet):
@@ -738,4 +757,134 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
             "status": "Produção finalizada com sucesso!",
             "producao_id": producao.id,
             "custo_total": str(custo_total_producao)
+        })
+
+
+class ConsumoRacaoViewSet(viewsets.ModelViewSet):
+    serializer_class = ConsumoRacaoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
+            qs = ConsumoRacao.objects.filter(
+                organization=self.request.user.organization
+            ).select_related("lote_animal", "item_estoque", "usuario")
+            
+            # Filter by species (e.g. ?especie=suino)
+            especie = self.request.query_params.get("especie")
+            if especie:
+                # We filter by the species code in the related AnimalBatch
+                qs = qs.filter(lote_animal__species__code=especie)
+                
+            return qs
+        return ConsumoRacao.objects.none()
+
+    def perform_create(self, serializer):
+        from django.db import transaction
+        
+        user = self.request.user
+        organization = getattr(user, 'organization', None)
+        if not organization:
+            raise exceptions.ValidationError("Usuário sem organização.")
+
+        # Default farm to user's first farm if not provided in the request
+        from apps.farms.models import Farm
+        farm = Farm.objects.filter(organization=organization).first()
+        
+        item = serializer.validated_data.get("item_estoque")
+        quantidade_pedida = serializer.validated_data.get("quantidade")
+        
+        # Logic to deduct from stock and calculate cost (PEPS/FIFO)
+        with transaction.atomic():
+            # Get available lots for this item
+            lotes = list(item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by("data_entrada", "id"))
+            qtde_restante = quantidade_pedida
+            custo_total = Decimal("0")
+            
+            # Re-check stock to avoid race conditions
+            saldo_atual = item.estoque_atual
+            if saldo_atual < quantidade_pedida:
+                raise exceptions.ValidationError(f"Estoque insuficiente para {item.nome}. Disponível: {saldo_atual}")
+
+            movimentacoes = []
+            lotes_para_atualizar = []
+            
+            for lote in lotes:
+                if qtde_restante <= 0:
+                    break
+                
+                qtde_abater = min(lote.quantidade_atual, qtde_restante)
+                
+                custo_lote = lote.custo_unitario or Decimal("0")
+                custo_total += qtde_abater * custo_lote
+                
+                lote.quantidade_atual -= qtde_abater
+                lotes_para_atualizar.append(lote)
+                
+                movimentacoes.append(
+                    MovimentacaoEstoque(
+                        item=item,
+                        lote=lote,
+                        tipo=TipoMovimentacao.CONSUMO,
+                        quantidade=qtde_abater,
+                        responsavel=user,
+                        observacao=f"Consumo de Ração: Lote Animal {serializer.validated_data.get('lote_animal').batch_code}"
+                    )
+                )
+                qtde_restante -= qtde_abater
+            
+            # Save updates
+            for l in lotes_para_atualizar:
+                l.save(update_fields=["quantidade_atual", "updated_at"])
+                
+            MovimentacaoEstoque.objects.bulk_create(movimentacoes)
+            
+            custo_unitario = custo_total / quantidade_pedida if quantidade_pedida > 0 else Decimal("0")
+            
+            serializer.save(
+                organization=organization,
+                farm=farm,
+                usuario=user,
+                custo_unitario=custo_unitario,
+                custo_total=custo_total
+            )
+
+    @action(detail=False, methods=["get"], url_path="stats")
+    def stats(self, request):
+        """Return statistics for the consumption dashboard."""
+        organization = getattr(request.user, 'organization', None)
+        if not organization:
+            return Response({"error": "Usuário sem organização."}, status=400)
+            
+        especie = request.query_params.get("especie")
+        qs = ConsumoRacao.objects.filter(organization=organization)
+        if especie:
+            qs = qs.filter(lote_animal__species__code=especie)
+            
+        # 1. Total consumed in the last 30 days
+        from django.utils import timezone
+        from datetime import timedelta
+        last_30_days = timezone.now().date() - timedelta(days=30)
+        recent_qs = qs.filter(data_inicio__gte=last_30_days)
+        
+        total_qty = recent_qs.aggregate(total=Sum("quantidade"))["total"] or 0
+        total_cost = recent_qs.aggregate(total=Sum("custo_total"))["total"] or 0
+        
+        # 2. Consumption by feed type (Donut chart)
+        by_feed = recent_qs.values("item_estoque__nome").annotate(
+            value=Sum("quantidade")
+        ).order_by("-value")
+        
+        # 3. Latest entries
+        latest = ConsumoRacaoSerializer(qs[:5], many=True).data
+        
+        return Response({
+            "total_qty": total_qty,
+            "total_cost": total_cost,
+            "avg_cost_kg": total_cost / total_qty if total_qty > 0 else 0,
+            "by_feed": [
+                {"name": item["item_estoque__nome"], "value": float(item["value"])}
+                for item in by_feed
+            ],
+            "latest_entries": latest
         })

@@ -1,7 +1,5 @@
-"use client";
-
-import { SpeciesDashboard } from "@/components/dashboard/SpeciesDashboard";
+import { redirect } from "next/navigation";
 
 export default function BovinosPage() {
-  return <SpeciesDashboard species="bovinos" />;
+  redirect("/home/rebanho/bovinos/cadastro");
 }

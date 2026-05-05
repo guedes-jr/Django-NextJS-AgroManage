@@ -9,8 +9,9 @@ from rest_framework import serializers
 from .models import (
     ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor, 
     FornecedorContato, FornecedorEndereco, AlertaEstoque,
-    FormulaRacao, FormulaIngrediente, ProducaoRacao
+    FormulaRacao, FormulaIngrediente, ProducaoRacao, ConsumoRacao
 )
+
 from .choices import TipoContratoFornecedor
 
 
@@ -143,15 +144,9 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
         source="get_unidade_medida_display", read_only=True
     )
 
-    # Write-only: quantidade e dados do lote inicial (enviados juntos na criação)
-    quantidade_inicial = serializers.DecimalField(
-        max_digits=10, decimal_places=2, write_only=True, required=False
-    )
     custo_unitario = serializers.DecimalField(
         max_digits=10, decimal_places=2, write_only=True, required=False, allow_null=True
     )
-    numero_lote = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    data_validade = serializers.DateField(write_only=True, required=False, allow_null=True)
     data_fabricacao = serializers.DateField(write_only=True, required=False, allow_null=True)
     local_armazenamento = serializers.CharField(write_only=True, required=False, allow_blank=True)
     fornecedor = serializers.PrimaryKeyRelatedField(
@@ -164,10 +159,10 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
         model = ItemEstoque
         fields = [
             # Identification
-            "id", "organization", "nome", "codigo", "categoria", "categoria_display",
+            "id", "organization", "nome", "categoria", "categoria_display",
             "unidade_medida", "unidade_display",
             # General
-            "descricao", "marca", "fabricante", "especie_animal",
+            "descricao", "fabricante", "especie_animal",
             "estoque_minimo", "prioridade", "ativo",
             # Technical — medicine/vaccine
             "principio_ativo", "concentracao", "via_aplicacao",
@@ -183,8 +178,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             # Timestamps
             "created_at", "updated_at",
             # Write-only batch fields
-            "quantidade_inicial", "custo_unitario", "numero_lote",
-            "data_validade", "data_fabricacao", "local_armazenamento",
+            "custo_unitario", "data_fabricacao", "local_armazenamento",
             "fornecedor", "nota_fiscal", "observacao_lote",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
@@ -192,24 +186,13 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Extract batch fields before saving the item
         batch_fields = {
-            "quantidade_inicial": validated_data.pop("quantidade_inicial", None),
             "custo_unitario": validated_data.pop("custo_unitario", None),
-            "numero_lote": validated_data.pop("numero_lote", ""),
-            "data_validade": validated_data.pop("data_validade", None),
             "data_fabricacao": validated_data.pop("data_fabricacao", None),
             "local_armazenamento": validated_data.pop("local_armazenamento", ""),
             "fornecedor": validated_data.pop("fornecedor", ""),
             "nota_fiscal": validated_data.pop("nota_fiscal", ""),
             "observacao_lote": validated_data.pop("observacao_lote", ""),
         }
-
-        # Gera código único se não enviado ou vazio
-        if not validated_data.get('codigo'):
-            while True:
-                codigo = f"PROD-{uuid.uuid4().hex[:6].upper()}"
-                if not ItemEstoque.objects.filter(codigo=codigo).exists():
-                    break
-            validated_data['codigo'] = codigo
         
         item = super().create(validated_data)
 
@@ -228,7 +211,6 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
 
 class LoteEstoqueSerializer(serializers.ModelSerializer):
     item_nome = serializers.CharField(source="item.nome", read_only=True)
-    item_codigo = serializers.CharField(source="item.codigo", read_only=True)
     local_display = serializers.CharField(
         source="get_local_armazenamento_display", read_only=True
     )
@@ -237,7 +219,7 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoteEstoque
         fields = [
-            "id", "item", "item_nome", "item_codigo",
+            "id", "item", "item_nome",
             "numero_lote", "data_fabricacao", "data_validade",
             "quantidade_inicial", "quantidade_atual", "custo_unitario",
             "local_armazenamento", "local_display",
@@ -326,10 +308,16 @@ class FormulaIngredienteSerializer(serializers.ModelSerializer):
 class FormulaRacaoSerializer(serializers.ModelSerializer):
     ingredientes = FormulaIngredienteSerializer(many=True, required=False)
     item_final_nome = serializers.CharField(source="item_final.nome", read_only=True)
+    especie_animal_display = serializers.CharField(
+        source="get_especie_animal_display", read_only=True
+    )
 
     class Meta:
         model = FormulaRacao
-        fields = ["id", "nome", "descricao", "item_final", "item_final_nome", "ativa", "ingredientes"]
+        fields = [
+            "id", "nome", "descricao", "especie_animal", "especie_animal_display",
+            "item_final", "item_final_nome", "ativa", "ingredientes",
+        ]
 
     def create(self, validated_data):
         ingredientes_data = validated_data.pop('ingredientes', [])
@@ -346,6 +334,7 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
         # Update formula fields
         instance.nome = validated_data.get('nome', instance.nome)
         instance.descricao = validated_data.get('descricao', instance.descricao)
+        instance.especie_animal = validated_data.get('especie_animal', instance.especie_animal)
         instance.item_final = validated_data.get('item_final', instance.item_final)
         instance.ativa = validated_data.get('ativa', instance.ativa)
         instance.save()
@@ -359,6 +348,7 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
                 FormulaIngrediente.objects.create(formula=instance, **ing_data)
                 
         return instance
+
 
 
 class ProducaoRacaoSerializer(serializers.ModelSerializer):
@@ -383,3 +373,25 @@ class ProducaoRacaoSerializer(serializers.ModelSerializer):
             return obj.responsavel.email or "Usuário"
         except Exception:
             return "Usuário"
+
+
+class ConsumoRacaoSerializer(serializers.ModelSerializer):
+    lote_codigo = serializers.CharField(source="lote_animal.batch_code", read_only=True)
+    item_nome = serializers.CharField(source="item_estoque.nome", read_only=True)
+    usuario_nome = serializers.SerializerMethodField()
+    tipo_registro_display = serializers.CharField(source="get_tipo_registro_display", read_only=True)
+
+    class Meta:
+        model = ConsumoRacao
+        fields = [
+            "id", "lote_animal", "lote_codigo", "item_estoque", "item_nome",
+            "data_inicio", "data_fim", "quantidade", "custo_unitario", "custo_total",
+            "tipo_registro", "tipo_registro_display", "usuario", "usuario_nome", "observacao",
+            "created_at"
+        ]
+        read_only_fields = ["id", "custo_unitario", "custo_total", "usuario", "created_at"]
+
+    def get_usuario_nome(self, obj):
+        if not obj.usuario: return None
+        return obj.usuario.full_name or obj.usuario.email
+

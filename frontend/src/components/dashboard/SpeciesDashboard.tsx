@@ -61,6 +61,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     try {
       const formattedPayload = payload.map(row => ({
         batch_code: row.numero,
+        quantity: parseInt(row.quantidade, 10) || 1,
         name: row.nome || "",
         category: row.categoria,
         gender: row.sexo,
@@ -138,7 +139,8 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   };
 
   const kpis: KPICard[] = useMemo(() => {
-    const total = data.length;
+    const totalBatches = data.length;
+    const totalAnimals = data.reduce((acc, a) => acc + (a.quantity || 1), 0);
     
     if (species === "suinos") {
         const matrizes = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes').length;
@@ -149,22 +151,22 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
             { label: "Matrizes", value: matrizes, icon: "🐷", color: "oklch(0.6 0.22 27)" },
             { label: "Reprodutores", value: reprodutores, icon: "♂️", color: "oklch(0.55 0.16 230)" },
             { label: "Lotes de Leitões", value: lotes, icon: "🐖", color: "oklch(0.78 0.15 85)" },
-            { label: "Total de Suínos", value: total, icon: "📈", color: "oklch(0.55 0.14 145)" },
+            { label: "Total de Suínos", value: totalAnimals, icon: "📈", color: "oklch(0.55 0.14 145)" },
         ];
     }
     
     if (species === "bovinos") {
         return [
-            { label: "Total Bovinos", value: total, icon: "🐄", color: "oklch(0.55 0.16 145)" },
-            { label: "Ativos", value: data.filter(a => a.status === 'active').length, icon: "✅", color: "oklch(0.60 0.16 150)" },
+            { label: "Total Bovinos", value: totalAnimals, icon: "🐄", color: "oklch(0.55 0.16 145)" },
+            { label: "Lotes / Animais", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)" },
             { label: "Doentes", value: data.filter(a => a.status === 'sick').length, icon: "⚠️", color: "oklch(0.6 0.22 27)" },
             { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)" },
         ];
     }
     
     return [
-        { label: "Total Aves", value: total, icon: "🐔", color: "oklch(0.62 0.14 50)" },
-        { label: "Ativos", value: data.filter(a => a.status === 'active').length, icon: "✅", color: "oklch(0.60 0.16 150)" },
+        { label: "Total Aves", value: totalAnimals, icon: "🐔", color: "oklch(0.62 0.14 50)" },
+        { label: "Lotes", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)" },
         { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)" },
         { label: "Capacidade", value: data.reduce((acc, a) => acc + (a.capacity || 0), 0).toLocaleString(), icon: "📊", color: "var(--primary)" },
     ];

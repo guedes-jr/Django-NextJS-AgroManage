@@ -57,14 +57,11 @@ function emptyRow(category?: InventoryCategory) {
   const cfg = category ? CATEGORY_CONFIG[category] : CATEGORY_CONFIG.outro;
   return {
     id: Date.now() + Math.random(),
-    nome: "", codigo: "",
-    categoria: category || "outro",
+    nome: "", categoria: category || "outro",
     unidade_medida: cfg?.unidade || "unidade",
-    descricao: "", marca: "", fabricante: "", especie_animal: "",
+    descricao: "", fabricante: "", especie_animal: "",
     estoque_minimo: "",
-    // Lote
-    numero_lote: "", data_fabricacao: "", data_validade: "",
-    quantidade_inicial: "", custo_unitario: "", ultimo_custo: 0,
+    custo_unitario: "", ultimo_custo: 0,
     local_armazenamento: "", fornecedor: "", nota_fiscal: "",
     observacao_lote: "",
     // Medicamento / Vacina
@@ -282,13 +279,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 onChange={e => update(row.id as any, "nome", e.target.value)} />
                             </InputField>
                           </div>
-                          <div className="col-12 col-md-3">
-                            <InputField label="Código / SKU" icon={FileText}>
-                              <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                placeholder="Ex: MIL-001" value={row.codigo}
-                                onChange={e => update(row.id as any, "codigo", e.target.value)} />
-                            </InputField>
-                          </div>
 
                           {!category && (
                             <div className="col-12 col-md-3">
@@ -312,13 +302,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 {UNIDADES.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
                               </select>
                             </div>
-                          </div>
-                          <div className="col-12 col-md-4">
-                            <InputField label="Marca">
-                              <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                placeholder="Marca do produto..." value={row.marca}
-                                onChange={e => update(row.id as any, "marca", e.target.value)} />
-                            </InputField>
                           </div>
                           <div className="col-12 col-md-4">
                             <InputField label="Fabricante">
@@ -409,24 +392,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                       onChange={e => update(row.id as any, isVac(row.categoria) ? "doses_por_embalagem" : "volume_por_dose", e.target.value)} />
                                   </InputField>
                                 </div>
-                                <div className="col-12 col-md-6">
-                                  {((row.volume_por_dose && row.quantidade_inicial) || row.doses_por_embalagem) && (
-                                    <div className="p-3 rounded-2xl bg-primary/5 border border-primary/10 h-100 d-flex align-items-center gap-3">
-                                      <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                                        <Activity size={18} />
-                                      </div>
-                                      <div>
-                                        <div className="text-xs fw-black text-primary text-uppercase">Rendimento Estimado</div>
-                                        <div className="fw-black text-foreground" style={{ fontSize: '1.1rem' }}>
-                                          {isVac(row.categoria) 
-                                            ? `${(parseFloat(row.doses_por_embalagem || "0") * parseFloat(row.quantidade_inicial || "0")).toFixed(0)} doses totais`
-                                            : `${(parseFloat(row.quantidade_inicial || "0") * 1).toFixed(0)} unidades de tratamento`
-                                          }
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
                               </>
                             )}
                           </div>
@@ -460,13 +425,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                           <Warehouse size={14} className="me-1" /> Entrada Inicial de Estoque
                         </p>
                         <div className="row g-4">
-                          <div className="col-12 col-md-3">
-                            <InputField label="Quantidade Inicial" required icon={Hash}>
-                              <input type="number" step="0.01" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                placeholder="0.00" value={row.quantidade_inicial}
-                                onChange={e => update(row.id as any, "quantidade_inicial", e.target.value)} />
-                            </InputField>
-                          </div>
                           <div className="col-12 col-md-3">
                             <InputField label="Custo Unitário (R$)" icon={Banknote}>
                               <div className="position-relative">
@@ -502,13 +460,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 onChange={e => update(row.id as any, "estoque_minimo", e.target.value)} />
                             </InputField>
                           </div>
-                          <div className="col-12 col-md-3">
-                            <InputField label="Nº do Lote">
-                              <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                placeholder="Lote..." value={row.numero_lote}
-                                onChange={e => update(row.id as any, "numero_lote", e.target.value)} />
-                            </InputField>
-                          </div>
                           <div className="col-12 col-md-4">
                             <div className="login-input-group mb-0">
                               <label className="login-label fw-semibold text-xs">Fornecedor</label>
@@ -524,25 +475,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 ))}
                               </select>
                             </div>
-                          </div>
-                          <div className="col-12 col-md-4">
-                            <InputField label="Data de Validade" icon={Calendar}>
-                              <input type="date" className="login-input login-input-icon-left bg-transparent text-muted-foreground"
-                                value={row.data_validade} onChange={e => update(row.id as any, "data_validade", e.target.value)} />
-                            </InputField>
-                            {row.data_validade && (
-                              <div className="mt-2 p-2 rounded-lg bg-muted/5 border d-flex align-items-center gap-2">
-                                <Clock size={12} className="text-muted-foreground" />
-                                <span className="text-xs fw-bold">
-                                  {(() => {
-                                    const diff = Math.ceil((new Date(row.data_validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                                    if (diff < 0) return <span className="text-danger">EXPIRADO HÁ {Math.abs(diff)} DIAS</span>;
-                                    if (diff < 30) return <span className="text-orange-600">VENCE EM {diff} DIAS (URGENTE)</span>;
-                                    return <span className="text-success">VENCE EM {diff} DIAS</span>;
-                                  })()}
-                                </span>
-                              </div>
-                            )}
                           </div>
                           <div className="col-12 col-md-4">
                             <div className="login-input-group mb-0">

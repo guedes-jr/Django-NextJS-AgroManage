@@ -72,3 +72,10 @@ class TipoContratoFornecedor(models.TextChoices):
     SPOT = "spot", "Eventual / Spot"
     MENSAL = "mensal", "Contrato Mensal"
     ANUAL = "anual", "Contrato Anual"
+
+
+class TipoRegistroConsumo(models.TextChoices):
+    TOTAL_PERIODO = "total_periodo", "Total no Período"
+    DIARIO = "diario", "Consumo Diário"
+    POR_CABECA = "por_cabeca", "Por Cabeça"
+

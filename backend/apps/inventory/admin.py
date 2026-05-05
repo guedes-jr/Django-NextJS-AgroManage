@@ -7,24 +7,23 @@ class LoteInline(admin.TabularInline):
     extra = 0
     readonly_fields = ("created_at",)
     fields = (
-        "numero_lote", "data_validade", "quantidade_inicial",
         "quantidade_atual", "custo_unitario", "fornecedor", "ativo",
     )
 
 
 @admin.register(ItemEstoque)
 class ItemEstoqueAdmin(admin.ModelAdmin):
-    list_display = ("nome", "codigo", "categoria", "unidade_medida", "estoque_minimo", "ativo")
+    list_display = ("nome", "categoria", "unidade_medida", "estoque_minimo", "ativo")
     list_filter = ("categoria", "ativo", "especie_animal")
-    search_fields = ("nome", "codigo", "marca")
+    search_fields = ("nome",)
     readonly_fields = ("created_at", "updated_at")
     inlines = [LoteInline]
     fieldsets = (
         ("Identificação", {
-            "fields": ("nome", "codigo", "categoria", "unidade_medida", "ativo"),
+            "fields": ("nome", "categoria", "unidade_medida", "ativo"),
         }),
         ("Informações Gerais", {
-            "fields": ("descricao", "marca", "fabricante", "especie_animal", "estoque_minimo"),
+            "fields": ("descricao", "fabricante", "especie_animal", "estoque_minimo"),
         }),
         ("Campos Técnicos — Medicamentos / Vacinas", {
             "classes": ("collapse",),
@@ -48,9 +47,9 @@ class ItemEstoqueAdmin(admin.ModelAdmin):
 
 @admin.register(LoteEstoque)
 class LoteEstoqueAdmin(admin.ModelAdmin):
-    list_display = ("item", "numero_lote", "data_validade", "quantidade_atual", "fornecedor", "ativo")
+    list_display = ("item", "quantidade_atual", "fornecedor", "ativo")
     list_filter = ("ativo", "local_armazenamento")
-    search_fields = ("item__nome", "numero_lote", "fornecedor")
+    search_fields = ("item__nome", "fornecedor")
     readonly_fields = ("created_at", "updated_at")
 
 

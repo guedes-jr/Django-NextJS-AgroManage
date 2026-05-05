@@ -18,7 +18,9 @@ from .choices import (
     TipoMovimentacao,
     LocalArmazenamento,
     TipoContratoFornecedor,
+    TipoRegistroConsumo,
 )
+
 
 
 class ItemEstoque(BaseModel):
@@ -37,15 +39,11 @@ class ItemEstoque(BaseModel):
         related_name="inventory_items",
     )
     nome = models.CharField(max_length=150)
-    codigo = models.CharField(
-        max_length=50, unique=True, blank=True, null=True, help_text="SKU / código interno"
-    )
     categoria = models.CharField(max_length=30, choices=CategoriaItem.choices)
     unidade_medida = models.CharField(max_length=20, choices=UnidadeMedida.choices)
 
     # -- Informações gerais ---------------------------------------------------
     descricao = models.TextField(blank=True)
-    marca = models.CharField(max_length=100, blank=True)
     fabricante = models.CharField(max_length=100, blank=True)
     especie_animal = models.CharField(
         max_length=30, choices=EspecieAnimal.choices, blank=True
@@ -352,6 +350,12 @@ class FormulaRacao(BaseModel):
     )
     nome = models.CharField(max_length=150)
     descricao = models.TextField(blank=True)
+    especie_animal = models.CharField(
+        max_length=30,
+        choices=EspecieAnimal.choices,
+        blank=True,
+        help_text="Espécie animal para a qual esta fórmula é destinada",
+    )
     item_final = models.ForeignKey(
         ItemEstoque, 
         on_delete=models.SET_NULL, 
@@ -368,6 +372,7 @@ class FormulaRacao(BaseModel):
 
     def __str__(self) -> str:
         return self.nome
+
 
 
 class FormulaIngrediente(BaseModel):
@@ -419,3 +424,61 @@ class ProducaoRacao(BaseModel):
 
     def __str__(self) -> str:
         return f"Produção {self.formula.nome} em {self.data_producao.strftime('%d/%m/%Y')}"
+
+
+class ConsumoRacao(BaseModel):
+    """
+    Registro de consumo de ração por um lote de animais.
+    """
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="consumos_racao",
+    )
+    farm = models.ForeignKey(
+        "farms.Farm",
+        on_delete=models.CASCADE,
+        related_name="consumos_racao",
+    )
+    lote_animal = models.ForeignKey(
+        "livestock.AnimalBatch",
+        on_delete=models.PROTECT,
+        related_name="consumos",
+    )
+    item_estoque = models.ForeignKey(
+        ItemEstoque,
+        on_delete=models.PROTECT,
+        related_name="consumos_registrados",
+    )
+    data_inicio = models.DateField()
+    data_fim = models.DateField()
+    quantidade = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # Snapshots para histórico financeiro
+    custo_unitario = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    custo_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    tipo_registro = models.CharField(
+        max_length=30,
+        choices=TipoRegistroConsumo.choices,
+        default=TipoRegistroConsumo.TOTAL_PERIODO
+    )
+    
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="consumos_lancados"
+    )
+    
+    observacao = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Consumo de Ração"
+        verbose_name_plural = "Consumos de Ração"
+        ordering = ["-data_inicio"]
+
+    def __str__(self) -> str:
+        return f"Consumo {self.lote_animal.batch_code} - {self.item_estoque.nome}"
+

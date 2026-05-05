@@ -11,6 +11,8 @@ router.register(r"fornecedores", views.FornecedorViewSet, basename="inventory-fo
 router.register(r"alertas", views.AlertaEstoqueViewSet, basename="inventory-alertas")
 router.register(r"formulas", views.FormulaRacaoViewSet, basename="inventory-formulas")
 router.register(r"producoes", views.ProducaoRacaoViewSet, basename="inventory-producoes")
+router.register(r"consumos", views.ConsumoRacaoViewSet, basename="inventory-consumos")
+
 
 urlpatterns = [
     path("", include(router.urls)),
