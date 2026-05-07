@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
+import { QuickMovementModal } from "@/components/dashboard/QuickMovementModal";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
 import {
@@ -54,6 +55,7 @@ const COLORS = ["oklch(0.65 0.15 145)", "oklch(0.55 0.16 230)", "oklch(0.78 0.15
 
 export function InventoryDashboard() {
   const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory }>({ open: false });
+  const [quickModal, setQuickModal] = useState<{ open: boolean; type: "in" | "out" }>({ open: false, type: "in" });
   const [stats, setStats] = useState({ total_items: 0, total_value: "0", total_qty: 0, estoque_baixo: 0, itens_vencidos: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
   const [period, setPeriod] = useState("30");
@@ -62,7 +64,17 @@ export function InventoryDashboard() {
   const [chartData, setChartData] = useState<{ day: string; entrada: number; saida: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [lowStockItems, setLowStockItems] = useState<{ id: string; nome: string; estoque_atual: string; estoque_minimo: string; unidade_medida: string }[]>([]);
-  const [recentMovements, setRecentMovements] = useState<{ id: number; tipo: string; item: { nome: string }; quantidade: string; custo_total?: string | null; data_movimentacao: string }[]>([]);
+  const [recentMovements, setRecentMovements] = useState<{
+    id: number;
+    tipo: string;
+    item: {
+      nome: string;
+    };
+    quantidade: string;
+    custo_total?: string | null;
+    data_movimentacao: string;
+    observacao?: string | null;
+  }[]>([]);
   const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
 
@@ -96,6 +108,28 @@ export function InventoryDashboard() {
       console.error("Erro ao buscar estatísticas:", error);
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  const fetchData = async () => {
+    await loadStats();
+
+    try {
+      const { data } = await apiClient.get("/inventory/movimentacoes/", {
+        params: { page_size: 5 },
+      });
+
+      const formatted = (data.results || []).map((m: any) => ({
+        ...m,
+        quantidade: parseFloat(m.quantidade).toLocaleString("pt-BR", {
+          maximumFractionDigits: 2,
+        }),
+        data_movimentacao: new Date(m.data_movimentacao).toLocaleString("pt-BR"),
+      }));
+
+      setRecentMovements(formatted);
+    } catch (error) {
+      console.error("Erro ao buscar movimentações:", error);
     }
   };
 
@@ -482,7 +516,25 @@ export function InventoryDashboard() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 small fw-bold text-foreground">{move.item?.nome}</td>
+                        <td className="px-4 py-3 small fw-bold text-foreground">
+                          <div className="d-flex align-items-center gap-2">
+                            {move.item?.nome}
+                            {(move.observacao && (move.observacao.includes("produção de") || move.observacao.includes("Entrada por produção"))) && (
+                              <span 
+                                className="badge rounded-pill" 
+                                style={{ 
+                                  background: "oklch(0.95 0.05 145)", 
+                                  color: "oklch(0.5 0.15 145)", 
+                                  fontSize: "0.6rem",
+                                  padding: "2px 8px",
+                                  border: "1px solid oklch(0.9 0.05 145)"
+                                }}
+                              >
+                                Ração - {new Date(move.data_movimentacao).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 small fw-bold">{move.quantidade}</td>
                         <td className="px-4 py-3 small text-muted-foreground">
                           {move.custo_total ? `R$ ${parseFloat(move.custo_total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
@@ -557,7 +609,13 @@ export function InventoryDashboard() {
           { title: "Relatórios", desc: "Ver relatórios de estoque", icon: <FileText />, color: "oklch(0.6 0.05 240)" },
         ].map((action, i) => (
           <div key={i} className="col">
-            <button className="inv-quick-action">
+            <button 
+              className="inv-quick-action"
+              onClick={() => {
+                if (action.title === "Nova Entrada") setQuickModal({ open: true, type: "in" });
+                else if (action.title === "Nova Saída") setQuickModal({ open: true, type: "out" });
+              }}
+            >
               <div className="qa-icon-sm" style={{ background: `color-mix(in srgb, ${action.color}, transparent 85%)`, color: action.color }}>
                 {action.icon}
               </div>
@@ -569,6 +627,15 @@ export function InventoryDashboard() {
           </div>
         ))}
       </div>
+
+      <QuickMovementModal
+        isOpen={quickModal.open}
+        onClose={() => {
+          setQuickModal({ ...quickModal, open: false });
+          fetchData();
+        }}
+        type={quickModal.type}
+      />
 
       <InventoryFormModal
         isOpen={modalConfig.open}

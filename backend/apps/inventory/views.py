@@ -2,7 +2,7 @@
 ViewSets for the inventory app.
 """
 from decimal import Decimal
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum, Count, Q
 from django.utils.dateparse import parse_date
 from rest_framework import viewsets, status, exceptions, permissions
@@ -289,7 +289,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         }
         
         # If it's a PURCHASE and no batch was provided, handle it
-        if tipo == TipoMovimentacao.COMPRA and not lote:
+        if tipo in [TipoMovimentacao.COMPRA, TipoMovimentacao.ENTRADA, TipoMovimentacao.AJUSTE] and not lote:
             numero_lote = batch_data["numero_lote"]
             # Check if a batch with this number already exists for this item
             lote = LoteEstoque.objects.filter(item=item, numero_lote=numero_lote).first()
@@ -403,6 +403,43 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             lote.save(update_fields=["quantidade_atual", "updated_at"])
         
         instance.delete()
+    
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete(self, request):
+        ids = request.data.get("ids", [])
+
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "Informe uma lista de movimentações para remover."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        movements = list(
+            self.get_queryset()
+            .filter(id__in=ids)
+            .select_related("lote")
+        )
+
+        if not movements:
+            return Response(
+                {"detail": "Nenhuma movimentação encontrada para remoção."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        with transaction.atomic():
+            deleted_count = 0
+
+            for movement in movements:
+                self.perform_destroy(movement)
+                deleted_count += 1
+
+        return Response(
+            {
+                "deleted": deleted_count,
+                "requested": len(ids),
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request):
@@ -857,9 +894,13 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
             return Response({"error": "Usuário sem organização."}, status=400)
             
         especie = request.query_params.get("especie")
+        categoria = request.query_params.get("categoria")
         qs = ConsumoRacao.objects.filter(organization=organization)
         if especie:
             qs = qs.filter(lote_animal__species__code=especie)
+        if categoria and categoria != "lotes":
+            # Filter by category if specified and not the generic "lotes" tab
+            qs = qs.filter(lote_animal__category__icontains=categoria)
             
         # 1. Total consumed in the last 30 days
         from django.utils import timezone

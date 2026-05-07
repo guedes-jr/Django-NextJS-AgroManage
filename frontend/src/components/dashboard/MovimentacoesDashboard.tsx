@@ -72,6 +72,7 @@ export function MovimentacoesDashboard() {
   const [view, setView] = useState<"stock" | "history">("stock");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<Movimentacao[]>([]);
+  const [selectedMovementIds, setSelectedMovementIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   
@@ -106,6 +107,7 @@ export function MovimentacoesDashboard() {
         params: { page: targetPage, page_size: 15 }
       });
       setMovements(data.results || []);
+      setSelectedMovementIds([]);
       setTotalPages(data.total_pages || 1);
       setTotalCount(data.count || 0);
       setPage(targetPage);
@@ -138,6 +140,57 @@ export function MovimentacoesDashboard() {
     }
   };
 
+  const currentPageMovementIds = useMemo(() => {
+    return movements.map((movement) => movement.id);
+  }, [movements]);
+
+  const allCurrentPageSelected = useMemo(() => {
+    return (
+      currentPageMovementIds.length > 0 &&
+      currentPageMovementIds.every((id) => selectedMovementIds.includes(id))
+    );
+  }, [currentPageMovementIds, selectedMovementIds]);
+
+  const toggleMovementSelection = (id: string) => {
+    setSelectedMovementIds((previous) => {
+      if (previous.includes(id)) {
+        return previous.filter((selectedId) => selectedId !== id);
+      }
+
+      return [...previous, id];
+    });
+  };
+
+  const toggleAllCurrentPageMovements = () => {
+    if (allCurrentPageSelected) {
+      setSelectedMovementIds([]);
+      return;
+    }
+
+    setSelectedMovementIds(currentPageMovementIds);
+  };
+
+  const handleBulkDeleteMovements = async () => {
+    if (selectedMovementIds.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Deseja realmente excluir ${selectedMovementIds.length} movimentação(ões)? O estoque será revertido.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await apiClient.post("/inventory/movimentacoes/bulk-delete/", {
+        ids: selectedMovementIds,
+      });
+
+      setSelectedMovementIds([]);
+      fetchHistory(page);
+    } catch (error) {
+      console.error("Erro ao excluir movimentações:", error);
+    }
+  };
+
   return (
     <div className="inventory-container pb-5">
       {/* Header & Navigation */}
@@ -159,12 +212,20 @@ export function MovimentacoesDashboard() {
               Gerencie entradas, saídas e acompanhe o histórico completo de movimentações.
             </p>
           </div>
-          <div className="d-flex gap-2">
+          <div className="d-flex gap-3">
             <button 
               onClick={() => setQuickModal({ open: true, type: "in" })}
               className="btn btn-primary d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm transition-all hover-scale"
+              style={{ background: "oklch(0.65 0.14 145)", border: "none" }}
             >
-              <Plus size={20} strokeWidth={3} /> Nova Movimentação
+              <Plus size={20} strokeWidth={3} /> Nova Entrada
+            </button>
+            <button 
+              onClick={() => setQuickModal({ open: true, type: "out" })}
+              className="btn btn-danger d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm transition-all hover-scale"
+              style={{ background: "oklch(0.65 0.14 15)", border: "none" }}
+            >
+              <Plus size={20} strokeWidth={3} /> Nova Saída
             </button>
           </div>
         </div>
@@ -225,6 +286,17 @@ export function MovimentacoesDashboard() {
                   {items.filter(i => i.estoque_baixo).length} Itens com estoque baixo
                 </Badge>
               </div>
+            </div>
+          )}
+          {view === "history" && selectedMovementIds.length > 0 && (
+            <div className="col-12 col-lg-6 d-flex justify-content-lg-end">
+              <button
+                onClick={handleBulkDeleteMovements}
+                className="btn btn-danger d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm"
+              >
+                <Trash2 size={18} />
+                Excluir selecionadas ({selectedMovementIds.length})
+              </button>
             </div>
           )}
         </div>
@@ -311,7 +383,15 @@ export function MovimentacoesDashboard() {
                 <table className="table mb-0 align-middle table-hover">
                   <thead className="bg-muted/30">
                     <tr>
-                      <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
+                      <th className="px-4 py-3 border-0" style={{ width: "48px" }}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={allCurrentPageSelected}
+                          onChange={toggleAllCurrentPageMovements}
+                        />
+                      </th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DATA</th>
@@ -320,11 +400,19 @@ export function MovimentacoesDashboard() {
                   </thead>
                   <tbody>
                     {movements.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
+                      <tr><td colSpan={6} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
                     ) : (
                       movements.map(m => (
                         <tr key={m.id} className="border-bottom border-border/50">
                           <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedMovementIds.includes(m.id)}
+                              onChange={() => toggleMovementSelection(m.id)}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
                             <div className="d-flex align-items-center gap-2">
                               <div className={`p-1 rounded-md ${TIPO_COLORS[m.tipo]?.color.replace('text-', 'bg-').replace('600', '100')} ${TIPO_COLORS[m.tipo]?.color}`}>
                                 {m.tipo === 'compra' || m.tipo === 'entrada' ? <Plus size={14} /> : <TrendingDown size={14} />}
@@ -334,7 +422,25 @@ export function MovimentacoesDashboard() {
                               </span>
                             </div>
                           </td>
-                          <td className="px-3 py-3 fw-bold">{m.item_nome}</td>
+                          <td className="px-3 py-3 fw-bold">
+                            <div className="d-flex align-items-center gap-2">
+                              {m.item_nome}
+                              {(m.observacao && (m.observacao.includes("produção de") || m.observacao.includes("Entrada por produção"))) && (
+                                <span 
+                                  className="badge rounded-pill" 
+                                  style={{ 
+                                    background: "oklch(0.95 0.05 145)", 
+                                    color: "oklch(0.5 0.15 145)", 
+                                    fontSize: "0.6rem",
+                                    padding: "2px 8px",
+                                    border: "1px solid oklch(0.9 0.05 145)"
+                                  }}
+                                >
+                                  Ração - {new Date(m.data_movimentacao).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-3 py-3 fw-black">{parseFloat(m.quantidade).toLocaleString("pt-BR")}</td>
                           <td className="px-3 py-3 text-muted-foreground small">
                             <div className="d-flex align-items-center gap-1">

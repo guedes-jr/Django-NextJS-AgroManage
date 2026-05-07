@@ -36,12 +36,16 @@ type FormulaRacao = {
   ingredientes: FormulaIngrediente[];
 };
 
-const ULTIMAS_PRODUCOES = [
-  { data: "19/05/2025 14:30", formula: "Ração Crescimento", quantidade: 800, custoKg: 1.61, custoTotal: 1288, usuario: "João Paulo", status: "Concluída" },
-  { data: "18/05/2025 09:15", formula: "Ração Engorda", quantidade: 1200, custoKg: 1.58, custoTotal: 1896, usuario: "João Paulo", status: "Concluída" },
-  { data: "17/05/2025 16:45", formula: "Ração Gestação", quantidade: 600, custoKg: 1.72, custoTotal: 1032, usuario: "João Paulo", status: "Concluída" },
-  { data: "16/05/2025 08:20", formula: "Ração Lactação", quantidade: 400, custoKg: 1.89, custoTotal: 756, usuario: "João Paulo", status: "Concluída" },
-];
+type ProducaoRacao = {
+  id: number;
+  data_producao: string;
+  formula_nome: string;
+  quantidade_teorica: string;
+  quantidade_real: string;
+  custo_total: string;
+  responsavel_nome: string;
+  status: string;
+};
 
 function money(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -61,6 +65,7 @@ interface FeedProductionDashboardProps {
 export function FeedProductionDashboard({ species, showHeader = true }: FeedProductionDashboardProps = {}) {
 
   const [formulas, setFormulas] = useState<FormulaRacao[]>([]);
+  const [productions, setProductions] = useState<ProducaoRacao[]>([]);
   const [formulaId, setFormulaId] = useState<string>("");
   const [quantidade, setQuantidade] = useState(1000);
   const [quantidadeReal, setQuantidadeReal] = useState(1000);
@@ -69,6 +74,16 @@ export function FeedProductionDashboard({ species, showHeader = true }: FeedProd
   const [loading, setLoading] = useState(false);
   const [produzindo, setProduzindo] = useState(false);
   const [loteNumber, setLoteNumber] = useState("");
+
+  const fetchProductions = async () => {
+    try {
+      const params = species ? `?especie=${species}` : "";
+      const { data } = await apiClient.get(`/inventory/producoes/${params}`);
+      setProductions(data.results || data || []);
+    } catch (err) {
+      console.error("Erro ao carregar produções:", err);
+    }
+  };
 
   useEffect(() => {
     setLoteNumber(new Date().getTime().toString().slice(-6));
@@ -89,6 +104,7 @@ export function FeedProductionDashboard({ species, showHeader = true }: FeedProd
       }
     };
     fetchFormulas();
+    fetchProductions();
   }, [species]);
 
   const formulaSelecionada = useMemo(() => formulas.find(f => f.id.toString() === formulaId), [formulas, formulaId]);
@@ -139,7 +155,8 @@ export function FeedProductionDashboard({ species, showHeader = true }: FeedProd
       setQuantidade(1000);
       setQuantidadeReal(1000);
       
-      // Recarregar fórmulas para atualizar saldos
+      // Recarregar dados para atualizar saldos e histórico
+      fetchProductions();
       const result = await apiClient.get("/inventory/formulas/");
       setFormulas(result.data.results || result.data || []);
       
@@ -337,17 +354,34 @@ export function FeedProductionDashboard({ species, showHeader = true }: FeedProd
                   </tr>
                 </thead>
                 <tbody>
-                  {ULTIMAS_PRODUCOES.map((p) => (
-                    <tr key={`${p.data}-${p.formula}`} className="border-bottom border-border">
-                      <td className="px-4 py-3">{p.data}</td>
-                      <td className="px-3 py-3 fw-semibold">{p.formula}</td>
-                      <td className="px-3 py-3">{p.quantidade.toLocaleString("pt-BR")} kg</td>
-                      <td className="px-3 py-3">{money(p.custoKg)}</td>
-                      <td className="px-3 py-3">{money(p.custoTotal)}</td>
-                      <td className="px-3 py-3">{p.usuario}</td>
-                      <td className="px-3 py-3"><span className="text-success fw-semibold">{p.status}</span></td>
+                  {productions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-5 text-center text-muted-foreground">
+                        Nenhuma produção registrada.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    productions.map((p) => {
+                      const qtyReal = parseFloat(p.quantidade_real) || 0;
+                      const costTotal = parseFloat(p.custo_total) || 0;
+                      const costKg = qtyReal > 0 ? costTotal / qtyReal : 0;
+                      return (
+                        <tr key={p.id} className="border-bottom border-border">
+                          <td className="px-4 py-3">{new Date(p.data_producao).toLocaleDateString("pt-BR")}</td>
+                          <td className="px-3 py-3 fw-semibold">{p.formula_nome}</td>
+                          <td className="px-3 py-3">{qtyReal.toLocaleString("pt-BR")} kg</td>
+                          <td className="px-3 py-3">{money(costKg)}</td>
+                          <td className="px-3 py-3">{money(costTotal)}</td>
+                          <td className="px-3 py-3">{p.responsavel_nome}</td>
+                          <td className="px-3 py-3">
+                            <span className={`fw-semibold ${p.status === 'concluida' ? 'text-success' : 'text-warning'}`}>
+                              {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

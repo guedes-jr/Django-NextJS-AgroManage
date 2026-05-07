@@ -15,6 +15,7 @@ import {
   Clock,
   Filter,
   Info,
+  Users,
   Lock
 } from "lucide-react";
 import Link from "next/link";
@@ -59,7 +60,6 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: "matrizes", label: "Matrizes", icon: "🐖" },
   { id: "marras", label: "Marrás", icon: "🐖" },
   { id: "reprodutores", label: "Reprodutores", icon: "🐖" },
-  { id: "leitoes", label: "Leitões", icon: "🐖" },
 ];
 
 export function FeedConsumptionDashboard({ 
@@ -73,6 +73,12 @@ export function FeedConsumptionDashboard({
   onSubmitSuccess
 }: FeedConsumptionDashboardProps = {}) {
   const [activeCategory, setActiveCategory] = useState(initialCategory);
+
+  // Sincronizar categoria ativa com o prop inicial (vindo do pai/tabs)
+  useEffect(() => {
+    setActiveCategory(initialCategory);
+  }, [initialCategory]);
+
   const [internalShowForm, setInternalShowForm] = useState(false);
   
   const showForm = externalShowForm !== undefined ? externalShowForm : internalShowForm;
@@ -96,15 +102,29 @@ export function FeedConsumptionDashboard({
 
   useEffect(() => {
     fetchData();
-  }, [species]);
+  }, [species, activeCategory]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const params = species ? `?especie=${species}` : "";
+      
+      const mapping: Record<string, string> = {
+        matrizes: "Matriz",
+        vacas: "Matriz",
+        reprodutores: "Cachaço",
+        touros: "Touro",
+        bezerros: "Bezerro",
+        marras: "Marrá",
+      };
+      
+      const categoryParam = mapping[activeCategory] || activeCategory;
+      const params = new URLSearchParams();
+      if (species) params.append("especie", species);
+      if (categoryParam && categoryParam !== "lotes") params.append("categoria", categoryParam);
+
       const [resStats, resBatches, resItems] = await Promise.all([
-        apiClient.get(`/inventory/consumos/stats/${params}`),
-        apiClient.get(`/livestock/batches/${params}`),
+        apiClient.get(`/inventory/consumos/stats/?${params.toString()}`),
+        apiClient.get(`/livestock/batches/?${species ? 'especie=' + species : ''}`),
         apiClient.get("/inventory/items/all_items/?categoria=racao")
       ]);
       setStats(resStats.data);
@@ -116,6 +136,33 @@ export function FeedConsumptionDashboard({
       setLoading(false);
     }
   };
+
+  // Filtrar lotes de acordo com a aba/categoria ativa
+  const filteredBatches = useMemo(() => {
+    if (!activeCategory || activeCategory === "lotes") {
+      // Para "lotes", mostramos tudo que não é matriz/reprodutor ou o que tem "Lote" no nome
+      return batches.filter(b => 
+        !["matriz", "vaca", "touro", "cachaço"].includes(b.category?.toLowerCase()) || 
+        b.category?.toLowerCase().includes("lote") ||
+        b.category?.toLowerCase().includes("terminação")
+      );
+    }
+    
+    const mapping: Record<string, string[]> = {
+      matrizes: ["matriz", "vaca"],
+      vacas: ["matriz", "vaca"],
+      reprodutores: ["cachaço", "reprodutor", "touro"],
+      touros: ["touro", "cachaço"],
+      bezerros: ["bezerro", "pinto", "leitão"],
+      marras: ["marrá", "novilha"],
+    };
+
+    const targetCategories = mapping[activeCategory] || [activeCategory];
+    
+    return batches.filter(b => 
+      targetCategories.some(cat => b.category?.toLowerCase().includes(cat))
+    );
+  }, [batches, activeCategory]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,36 +246,41 @@ export function FeedConsumptionDashboard({
                   {/* Linha 1 */}
                   <div className="col-12 col-md-3">
                     <label className="small fw-bold mb-1 text-dark">Selecionar Lote</label>
-                    <select 
-                      className="form-select bg-light" 
-                      required 
-                      value={formData.lote_animal}
-                      onChange={e => setFormData({...formData, lote_animal: e.target.value})}
-                    >
-                      <option value="">Selecione...</option>
-                      {batches.map(b => (
-                        <option key={b.id} value={b.id}>{b.batch_code} - {b.name || b.category}</option>
-                      ))}
-                    </select>
+                    <div className="input-group">
+                      <span className="input-group-text bg-white border-end-0 text-muted"><Users size={16} /></span>
+                      <select 
+                        className="form-select border-start-0 ps-0" 
+                        required 
+                        value={formData.lote_animal}
+                        onChange={e => setFormData({...formData, lote_animal: e.target.value})}
+                      >
+                        <option value="">Selecione o lote...</option>
+                        {filteredBatches.map(b => (
+                          <option key={b.id} value={b.id}>{b.batch_code} - {b.name || b.category}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   
-                  <div className="col-12 col-md-4">
+                  <div className="col-12 col-md-3">
                     <label className="small fw-bold mb-1 text-dark">Período do Consumo</label>
                     <div className="d-flex align-items-center gap-2">
-                      <div className="flex-grow-1">
-                        <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>De</label>
+                      <div className="input-group input-group-sm">
+                        <span className="input-group-text bg-white border-end-0 text-muted" style={{fontSize: '0.7rem'}}>DE</span>
                         <input 
                           type="date" 
-                          className="form-control text-muted" 
+                          className="form-control border-start-0 ps-1 text-muted" 
+                          style={{fontSize: '0.85rem'}}
                           value={formData.data_inicio}
                           onChange={e => setFormData({...formData, data_inicio: e.target.value})}
                         />
                       </div>
-                      <div className="flex-grow-1">
-                        <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Até</label>
+                      <div className="input-group input-group-sm">
+                        <span className="input-group-text bg-white border-end-0 text-muted" style={{fontSize: '0.7rem'}}>ATÉ</span>
                         <input 
                           type="date" 
-                          className="form-control text-muted" 
+                          className="form-control border-start-0 ps-1 text-muted" 
+                          style={{fontSize: '0.85rem'}}
                           value={formData.data_fim}
                           onChange={e => setFormData({...formData, data_fim: e.target.value})}
                         />
@@ -236,19 +288,24 @@ export function FeedConsumptionDashboard({
                     </div>
                   </div>
 
-                  <div className="col-12 col-md-2">
+                  <div className="col-12 col-md-3">
                     <label className="small fw-bold mb-1 text-dark">Tipo de Ração</label>
-                    <select 
-                      className="form-select" 
-                      required
-                      value={formData.item_estoque}
-                      onChange={e => setFormData({...formData, item_estoque: e.target.value})}
-                    >
-                      <option value="">Selecione...</option>
-                      {inventoryItems.map(item => (
-                        <option key={item.id} value={item.id}>{item.nome}</option>
-                      ))}
-                    </select>
+                    <div className="input-group">
+                      <span className="input-group-text bg-white border-end-0 text-muted"><Scale size={16} /></span>
+                      <select 
+                        className="form-select border-start-0 ps-0" 
+                        required
+                        value={formData.item_estoque}
+                        onChange={e => setFormData({...formData, item_estoque: e.target.value})}
+                      >
+                        <option value="">Selecione a ração...</option>
+                        {inventoryItems.map(item => (
+                          <option key={item.id} value={item.id}>
+                            {item.nome} (Saldo: {parseFloat(item.estoque_atual).toLocaleString("pt-BR")} {item.unidade_display})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="col-12 col-md-3">

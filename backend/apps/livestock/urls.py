@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import AnimalBatchViewSet
 
 router = DefaultRouter()
-router.register(r'batches', AnimalBatchViewSet)
+router.register(r'batches', AnimalBatchViewSet, basename='animalbatch')
 
 urlpatterns = [
     # Manual re_path to allow optional trailing slashes for the main actions

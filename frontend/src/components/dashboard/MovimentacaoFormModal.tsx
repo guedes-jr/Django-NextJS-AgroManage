@@ -199,7 +199,6 @@ export function MovimentacaoFormModalWithHeader({
         await apiClient.post("/inventory/movimentacoes/", payload);
       }
       onClose();
-      window.location.reload();
     } catch (err: any) {
       const errorData = err.response?.data;
       let errorMessage = "Erro ao salvar movimentação";

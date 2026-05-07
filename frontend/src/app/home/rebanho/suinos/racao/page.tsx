@@ -22,7 +22,6 @@ const TABS = [
   { id: "matrizes", label: "Matrizes", icon: <Heart size={18} /> },
   { id: "marras", label: "Marrás", icon: <ChevronUp size={18} /> },
   { id: "reprodutores", label: "Reprodutores", icon: <ShieldCheck size={18} /> },
-  { id: "leitoes", label: "Leitões", icon: <Baby size={18} /> },
   { id: "producao", label: "Produção de Ração", icon: <FlaskConical size={18} /> },
 ];
 

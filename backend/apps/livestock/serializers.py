@@ -140,23 +140,37 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         validated_data['species'] = species
         validated_data['breed'] = breed
         
-        # Farm selection logic
+        # Farm selection logic based on request user
         from apps.farms.models import Farm
+        
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        organization = getattr(user, 'organization', None) if user else None
         
         if farm_id:
             try:
                 farm = Farm.objects.get(id=farm_id)
+                # Verify farm belongs to organization
+                if organization and farm.organization != organization:
+                    raise serializers.ValidationError({'farm_id': 'Esta fazenda não pertence à sua organização.'})
             except Farm.DoesNotExist:
-                raise serializers.ValidationError({'farm_id': f'Farm com id {farm_id} não encontrada.'})
+                raise serializers.ValidationError({'farm_id': f'Fazenda com id {farm_id} não encontrada.'})
         else:
-            farm = Farm.objects.first()
-            if not farm:
-                try:
-                    from apps.organizations.models import Organization
-                    org, _ = Organization.objects.get_or_create(name="Default Org")
-                    farm, _ = Farm.objects.get_or_create(name="Default Farm", organization=org)
-                except Exception as e:
-                    raise serializers.ValidationError({'farm_id': f'Erro ao obter farm: {str(e)}'})
+            # Get first farm of organization
+            if organization:
+                farm = Farm.objects.filter(organization=organization).first()
+                if not farm:
+                    # Create default farm for organization if none exists
+                    farm = Farm.objects.create(name="Fazenda Principal", organization=organization)
+            else:
+                farm = Farm.objects.first()
+                if not farm:
+                    try:
+                        from apps.organizations.models import Organization
+                        org, _ = Organization.objects.get_or_create(name="Default Org")
+                        farm, _ = Farm.objects.get_or_create(name="Default Farm", organization=org)
+                    except Exception as e:
+                        raise serializers.ValidationError({'farm_id': f'Erro ao obter farm: {str(e)}'})
             
         validated_data['farm'] = farm
         

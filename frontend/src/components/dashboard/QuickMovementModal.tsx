@@ -141,11 +141,19 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
     }
   };
 
+  const parseDecimalValue = (value: string): number => {
+    return Number(value.replace(",", "."));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) { setError("Selecione um produto."); return; }
-    if (!quantidade || parseFloat(quantidade) <= 0) { setError("Informe uma quantidade válida."); return; }
+    const quantidadeNumber = parseDecimalValue(quantidade);
 
+    if (!quantidade || Number.isNaN(quantidadeNumber) || quantidadeNumber <= 0) {
+      setError("Informe uma quantidade válida.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -153,7 +161,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       const payload: any = {
         item: selectedItem.id,
         tipo: subType,
-        quantidade: parseFloat(quantidade),
+        quantidade: quantidadeNumber,
         observacao,
       };
 
@@ -163,14 +171,43 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
         // Para entradas, sempre tentamos enviar numero_lote para o backend criar/vincular o lote
         payload.numero_lote = numeroLote || `LOTE-${new Date().getTime().toString().slice(-6)}`;
         if (dataValidade) payload.data_validade = dataValidade;
-        if (custoUnitario) payload.custo_unitario = parseFloat(custoUnitario);
+        if (custoUnitario) payload.custo_unitario = parseDecimalValue(custoUnitario);
         if (fornecedorId) payload.fornecedor = fornecedorId;
       }
 
       await apiClient.post("/inventory/movimentacoes/", payload);
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Erro ao processar.");
+      const errorData = err.response?.data;
+
+      let errorMessage = "Erro ao processar.";
+
+      if (typeof errorData === "string") {
+        errorMessage = errorData;
+      } else if (errorData?.error?.detail) {
+        const detail = errorData.error.detail;
+
+        if (typeof detail === "string") {
+          errorMessage = detail;
+        } else if (typeof detail === "object") {
+          const firstKey = Object.keys(detail)[0];
+          const fieldError = detail[firstKey];
+
+          if (Array.isArray(fieldError)) {
+            errorMessage = fieldError[0];
+          } else if (typeof fieldError === "string") {
+            errorMessage = fieldError;
+          } else {
+            errorMessage = JSON.stringify(detail);
+          }
+        }
+      } else if (errorData?.error?.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData?.detail) {
+        errorMessage = errorData.detail;
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

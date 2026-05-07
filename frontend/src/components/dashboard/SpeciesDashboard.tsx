@@ -123,7 +123,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     if (species === "suinos") {
       if (title === "Matrizes") { categoria = "Matriz"; sexo = "Femea"; }
       else if (title === "Reprodutores") { categoria = "Cachaço"; sexo = "Macho"; }
-      else if (title === "Lote de Leitões") { categoria = "Leitão"; sexo = "Misto"; }
+      else if (title === "Lotes em Terminação") { categoria = "Terminação"; sexo = "Misto"; }
     } else if (species === "bovinos") {
       if (title === "Fêmeas") { categoria = "Matriz"; sexo = "Femea"; }
       else if (title === "Machos") { categoria = "Touro"; sexo = "Macho"; }
@@ -145,12 +145,12 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     if (species === "suinos") {
         const matrizes = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes').length;
         const reprodutores = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço').length;
-        const lotes = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'leitão').length;
+        const lotes = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'terminação').length;
         
         return [
             { label: "Matrizes", value: matrizes, icon: "🐷", color: "oklch(0.6 0.22 27)" },
             { label: "Reprodutores", value: reprodutores, icon: "♂️", color: "oklch(0.55 0.16 230)" },
-            { label: "Lotes de Leitões", value: lotes, icon: "🐖", color: "oklch(0.78 0.15 85)" },
+            { label: "Lotes em Terminação", value: lotes, icon: "🐖", color: "oklch(0.78 0.15 85)" },
             { label: "Total de Suínos", value: totalAnimals, icon: "📈", color: "oklch(0.55 0.14 145)" },
         ];
     }
@@ -232,7 +232,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                   features: ['Controle de cobertura', 'Avaliação de desempenho', 'Histórico reprodutivo']
                 },
                 { 
-                  title: species === 'suinos' ? 'Lote de Leitões' : 'Novos Lotes', 
+                  title: species === 'suinos' ? 'Lotes em Terminação' : 'Novos Lotes', 
                   desc: 'Cadastre lotes de animais adquiridos.',
                   icon: <div className="reg-card-icon" style={{ background: '#fff7ed' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐖' : '📦'}</span></div>,
                   features: ['Controle de crescimento', 'Conversão alimentar', 'Desempenho do lote']
