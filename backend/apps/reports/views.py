@@ -489,5 +489,15 @@ def livestock_inventory_report(request):
             {"detail": "Organização não encontrada"}, status=status.HTTP_404_NOT_FOUND
         )
 
-    data = LivestockReportService.get_inventory(org)
+    filters = {}
+    if request.GET.get("species"):
+        filters["species"] = request.GET.get("species")
+    if request.GET.get("category"):
+        filters["category"] = request.GET.get("category")
+    if request.GET.get("status"):
+        filters["status"] = request.GET.get("status")
+    if request.GET.get("search"):
+        filters["search"] = request.GET.get("search")
+
+    data = LivestockReportService.get_inventory(org, filters)
     return Response(data)

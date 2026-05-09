@@ -60,7 +60,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             'id', 'batch_code', 'name', 'category', 'gender', 
             'origin', 'purchase_value', 'avg_weight_kg', 
             'entry_date', 'status', 'species_code', 'breed_name',
-            'species_code_input', 'breed_name_input', 'farm_id'
+            'species_code_input', 'breed_name_input', 'farm_id', 'quantity'
         ]
 
     def validate_batch_code(self, value):

@@ -6,6 +6,8 @@ from .models import AnimalBatch
 from .serializers import AnimalBatchSerializer
 
 class AnimalBatchViewSet(viewsets.ModelViewSet):
+    serializer_class = AnimalBatchSerializer
+
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):

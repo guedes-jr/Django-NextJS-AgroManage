@@ -582,15 +582,28 @@ class LivestockReportService:
     """Serviço para geração de relatórios de produção animal"""
 
     @staticmethod
-    def get_inventory(organization) -> Dict[str, Any]:
+    def get_inventory(organization, filters: Dict = None) -> Dict[str, Any]:
         """
         Relatório de inventário de rebanho.
         """
         from apps.livestock.models import AnimalBatch, Species
 
         batches = AnimalBatch.objects.filter(
-            farm__organization=organization, status=AnimalBatch.Status.ACTIVE
+            farm__organization=organization
         ).select_related("farm", "species", "breed")
+
+        if filters:
+            if filters.get("species"):
+                batches = batches.filter(species__code=filters["species"])
+            if filters.get("category"):
+                batches = batches.filter(category__iexact=filters["category"])
+            if filters.get("status"):
+                batches = batches.filter(status=filters["status"])
+            if filters.get("search"):
+                batches = batches.filter(
+                    Q(batch_code__icontains=filters["search"]) |
+                    Q(name__icontains=filters["search"])
+                )
 
         by_species = (
             batches.values("species__name")
@@ -615,8 +628,12 @@ class LivestockReportService:
                     "id": str(batch.id),
                     "farm": batch.farm.name,
                     "species": batch.species.name,
+                    "species_code": batch.species.code,
                     "breed": batch.breed.name if batch.breed else None,
                     "batch_code": batch.batch_code,
+                    "name": batch.name,
+                    "category": batch.category,
+                    "origin": batch.origin,
                     "quantity": batch.quantity,
                     "status": batch.get_status_display(),
                     "entry_date": batch.entry_date.isoformat()

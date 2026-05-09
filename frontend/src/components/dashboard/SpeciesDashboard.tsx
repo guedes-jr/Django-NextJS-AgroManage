@@ -10,6 +10,8 @@ import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import "@/app/home/rebanho/animais/animais.css";
 import { AnimalFormModal } from "@/components/dashboard/AnimalFormModal";
+import { EditAnimalModal } from "@/components/dashboard/EditAnimalModal";
+import { Search, Edit2, Trash2, Activity, Tag } from "lucide-react";
 
 // Helper for color-mix
 const colorMix = (color: string, opacity: number) => `color-mix(in srgb, ${color}, transparent ${100 - opacity * 100}%)`;
@@ -26,6 +28,7 @@ interface KPICard {
   change?: string;
   icon: any;
   color: string;
+  link?: string;
 }
 
 function KPIcon({ icon }: { icon: any }) {
@@ -39,6 +42,11 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialData, setModalInitialData] = useState<{ categoria: string; sexo: string } | undefined>();
+  
+  // States for List and Edit/Delete
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAnimal, setEditingAnimal] = useState<any>(null);
 
   const fetchAnimals = async () => {
     setLoading(true);
@@ -138,37 +146,83 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     setIsModalOpen(true);
   };
 
+  const handleDeleteAnimal = async (id: number) => {
+    if (!window.confirm("Tem certeza que deseja remover este registro? Esta ação não pode ser desfeita.")) return;
+    try {
+      await apiClient.delete(`/livestock/batches/${id}/`);
+      showToast("Registro removido com sucesso!", "success");
+      await fetchAnimals();
+    } catch (err) {
+      console.error("Error deleting animal:", err);
+      showToast("Erro ao remover o registro.", "error");
+    }
+  };
+
+  const handleEditAnimal = (animal: any) => {
+    setEditingAnimal(animal);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (id: number, payload: any) => {
+    try {
+      await apiClient.patch(`/livestock/batches/${id}/`, payload);
+      showToast("Registro atualizado com sucesso!", "success");
+      await fetchAnimals();
+      setIsEditModalOpen(false);
+    } catch (err: any) {
+      console.error("Error updating animal:", err);
+      let errorMessage = "Erro ao atualizar o registro.";
+      if (err.response?.data?.detail) errorMessage = err.response.data.detail;
+      else if (err.response?.data) errorMessage = JSON.stringify(err.response.data);
+      showToast(errorMessage, "error");
+    }
+  };
+
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return data;
+    const lower = searchTerm.toLowerCase();
+    return data.filter(a => 
+      a.batch_code?.toLowerCase().includes(lower) || 
+      a.name?.toLowerCase().includes(lower) || 
+      a.category?.toLowerCase().includes(lower)
+    );
+  }, [data, searchTerm]);
+
   const kpis: KPICard[] = useMemo(() => {
     const totalBatches = data.length;
     const totalAnimals = data.reduce((acc, a) => acc + (a.quantity || 1), 0);
     
     if (species === "suinos") {
-        const matrizes = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes').length;
-        const reprodutores = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço').length;
-        const lotes = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'terminação').length;
+        const matrizesData = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes');
+        const reprodutoresData = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço');
+        const lotesData = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'terminação');
+        
+        const matrizesCount = matrizesData.reduce((acc, a) => acc + (a.quantity || 1), 0);
+        const reprodutoresCount = reprodutoresData.reduce((acc, a) => acc + (a.quantity || 1), 0);
+        const lotesCount = lotesData.length; // Mantém a contagem de lotes em si, não os animais do lote
         
         return [
-            { label: "Matrizes", value: matrizes, icon: "🐷", color: "oklch(0.6 0.22 27)" },
-            { label: "Reprodutores", value: reprodutores, icon: "♂️", color: "oklch(0.55 0.16 230)" },
-            { label: "Lotes em Terminação", value: lotes, icon: "🐖", color: "oklch(0.78 0.15 85)" },
-            { label: "Total de Suínos", value: totalAnimals, icon: "📈", color: "oklch(0.55 0.14 145)" },
+            { label: "Matrizes", value: matrizesCount, icon: "🐷", color: "oklch(0.6 0.22 27)", link: "/home/relatorios/rebanho?species=suinos&category=Matriz" },
+            { label: "Reprodutores", value: reprodutoresCount, icon: "♂️", color: "oklch(0.55 0.16 230)", link: "/home/relatorios/rebanho?species=suinos&category=Reprodutor" },
+            { label: "Lotes em Terminação", value: lotesCount, icon: "🐖", color: "oklch(0.78 0.15 85)", link: "/home/relatorios/rebanho?species=suinos&category=Lote" },
+            { label: "Total de Suínos", value: totalAnimals, icon: "📈", color: "oklch(0.55 0.14 145)", link: "/home/relatorios/rebanho?species=suinos" },
         ];
     }
     
     if (species === "bovinos") {
         return [
-            { label: "Total Bovinos", value: totalAnimals, icon: "🐄", color: "oklch(0.55 0.16 145)" },
-            { label: "Lotes / Animais", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)" },
-            { label: "Doentes", value: data.filter(a => a.status === 'sick').length, icon: "⚠️", color: "oklch(0.6 0.22 27)" },
-            { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)" },
+            { label: "Total Bovinos", value: totalAnimals, icon: "🐄", color: "oklch(0.55 0.16 145)", link: "/home/relatorios/rebanho?species=bovinos" },
+            { label: "Lotes / Animais", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)", link: "/home/relatorios/rebanho?species=bovinos" },
+            { label: "Doentes", value: data.filter(a => a.status === 'sick').length, icon: "⚠️", color: "oklch(0.6 0.22 27)", link: "/home/relatorios/rebanho?species=bovinos&status=sick" },
+            { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)", link: "/home/relatorios/rebanho?species=bovinos&status=quarantine" },
         ];
     }
     
     return [
-        { label: "Total Aves", value: totalAnimals, icon: "🐔", color: "oklch(0.62 0.14 50)" },
-        { label: "Lotes", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)" },
-        { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)" },
-        { label: "Capacidade", value: data.reduce((acc, a) => acc + (a.capacity || 0), 0).toLocaleString(), icon: "📊", color: "var(--primary)" },
+        { label: "Total Aves", value: totalAnimals, icon: "🐔", color: "oklch(0.62 0.14 50)", link: "/home/relatorios/rebanho?species=aves" },
+        { label: "Lotes", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)", link: "/home/relatorios/rebanho?species=aves" },
+        { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)", link: "/home/relatorios/rebanho?species=aves&status=quarantine" },
+        { label: "Capacidade", value: data.reduce((acc, a) => acc + (a.capacity || 0), 0).toLocaleString(), icon: "📊", color: "var(--primary)", link: "/home/relatorios/rebanho?species=aves" },
     ];
   }, [species, data]);
 
@@ -282,7 +336,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                       <div className="text-muted-foreground" style={{ fontSize: '0.7rem' }}>Ativos</div>
                     </div>
                     <div className="summary-footer">
-                      <Link href="#" className="summary-link">Ver {kpi.label.toLowerCase()}</Link>
+                      <Link href={kpi.link || "#"} className="summary-link">Ver {kpi.label.toLowerCase()}</Link>
                     </div>
                   </div>
                 </div>
@@ -315,6 +369,138 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
               ))}
             </div>
           </div>
+
+          {/* Section: Últimas Movimentações */}
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="mb-5"
+          >
+            <div className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "1.25rem", background: "var(--background)" }}>
+              {/* Header section with search */}
+              <div className="p-4 p-md-5 border-bottom border-border d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 bg-muted/10">
+                <div>
+                  <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.35rem', color: 'var(--foreground)' }}>
+                    <Activity size={22} className="text-primary" /> 
+                    Últimas Movimentações
+                  </h3>
+                  <p className="text-muted-foreground small mb-0 fw-medium">Gerencie e visualize os cadastros recentes do seu rebanho.</p>
+                </div>
+                <div className="position-relative" style={{ maxWidth: '340px', width: '100%' }}>
+                  <Search className="position-absolute text-muted-foreground" size={18} style={{ left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input 
+                    type="text" 
+                    className="form-control shadow-none transition-all focus-ring" 
+                    placeholder="Buscar por lote, identificação..." 
+                    style={{ 
+                      paddingLeft: '44px', 
+                      height: '46px',
+                      borderRadius: '2rem',
+                      border: '1px solid var(--border)', 
+                      backgroundColor: '#ffffff',
+                      color: '#000000' 
+                    }}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Data Table */}
+              <div className="table-responsive">
+                <table className="table table-hover mb-0 align-middle text-nowrap" style={{ minWidth: '800px' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--muted)', borderBottom: '2px solid var(--border)' }}>
+                      <th className="fw-bold text-muted-foreground border-0 py-3 ps-4" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificação</th>
+                      <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Qtd</th>
+                      <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Categoria</th>
+                      <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Data Ref.</th>
+                      <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                      <th className="fw-bold text-muted-foreground border-0 py-3 text-end pe-4" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-5">
+                          <div className="d-flex flex-column align-items-center justify-content-center text-muted-foreground opacity-75">
+                            <Search size={48} className="mb-3 opacity-50" strokeWidth={1} />
+                            <h5 className="fw-semibold text-foreground mb-1">Nenhum registro encontrado</h5>
+                            <p className="small mb-0">Tente buscar por um termo diferente ou adicione um novo registro.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <AnimatePresence>
+                        {filteredData.slice(0, 10).map((row, idx) => (
+                          <motion.tr 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2, delay: idx * 0.05 }}
+                            key={row.id || idx} 
+                            style={{ borderBottom: '1px solid var(--border)' }}
+                            className="bg-background hover-bg-muted/50 transition-colors"
+                          >
+                            <td className="py-3 ps-4">
+                              <div className="d-flex align-items-center gap-3">
+                                <div className="d-flex align-items-center justify-content-center rounded-circle bg-primary/10 text-primary" style={{ width: '40px', height: '40px' }}>
+                                  <Tag size={18} />
+                                </div>
+                                <div>
+                                  <div className="fw-bold text-foreground" style={{ fontSize: '0.95rem' }}>{row.batch_code}</div>
+                                  <div className="text-muted-foreground" style={{ fontSize: '0.75rem' }}>{row.name || 'Sem nome alternativo'}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <div className="fw-bold text-foreground bg-secondary/10 text-secondary d-inline-block text-center rounded-pill px-2 py-1" style={{ fontSize: '0.85rem', minWidth: '32px' }}>
+                                {row.quantity || 1}
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <div className="d-flex flex-column">
+                                <span className="fw-semibold text-foreground mb-1" style={{ fontSize: '0.9rem' }}>{row.category || 'N/A'}</span>
+                                <span className="text-muted-foreground" style={{ fontSize: '0.75rem' }}>{row.breed_name || 'Raça não inf.'}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 text-muted-foreground fw-medium" style={{ fontSize: '0.9rem' }}>
+                              {row.entry_date ? new Date(row.entry_date).toLocaleDateString('pt-BR') : '-'}
+                            </td>
+                            <td className="py-3">
+                              <span className={`badge rounded-pill px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1 ${row.status === 'active' ? 'bg-success/15 text-success border border-success/20' : 'bg-muted text-muted-foreground border border-border'}`}>
+                                <div className={`rounded-circle ${row.status === 'active' ? 'bg-success' : 'bg-muted-foreground'}`} style={{ width: '6px', height: '6px' }}></div>
+                                {row.status === 'active' ? 'Ativo' : row.status}
+                              </span>
+                            </td>
+                            <td className="py-3 text-end pe-4">
+                              <button 
+                                className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
+                                onClick={() => handleEditAnimal(row)}
+                                title="Editar"
+                                style={{ width: '36px', height: '36px' }}
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-light rounded-circle p-2 text-muted-foreground hover-text-danger hover-bg-danger/10 transition-colors border-0"
+                                onClick={() => handleDeleteAnimal(row.id)}
+                                title="Remover"
+                                style={{ width: '36px', height: '36px' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </AnimatePresence>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
         </>
       )}
       <AnimalFormModal 
@@ -323,6 +509,13 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         type={species}
         onSave={handleSaveAnimals}
         initialData={modalInitialData}
+      />
+      <EditAnimalModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        type={species}
+        onSave={handleSaveEdit}
+        animal={editingAnimal}
       />
     </motion.div>
   );

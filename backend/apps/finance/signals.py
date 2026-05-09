@@ -11,15 +11,15 @@ def create_inventory_transaction(sender, instance, created, **kwargs):
     if created and instance.custo_unitario and instance.custo_unitario > 0:
         total_cost = instance.custo_unitario * instance.quantidade_inicial
         
-        # Encontrar ou criar categoria de compra
-        category, _ = FinancialCategory.objects.get_or_create(
-            name="Compra de Insumos",
-            category_type="expense",
-            defaults={"description": "Transações automáticas de compra de estoque"}
-        )
-        
         # Tentar obter a organização do item de estoque
         organization = getattr(instance.item, 'organization', None)
+
+        # Encontrar ou criar categoria de compra
+        category, _ = FinancialCategory.objects.get_or_create(
+            organization=organization,
+            name="Compra de Insumos",
+            category_type="expense"
+        )
         
         Transaction.objects.create(
             organization=organization,
@@ -40,9 +40,9 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
         ref_pur = f"PURCHASE-BATCH-{instance.id}"
         
         category_pur, _ = FinancialCategory.objects.get_or_create(
+            organization=instance.farm.organization,
             name="Compra de Animais",
-            category_type="expense",
-            defaults={"description": "Despesas automáticas de aquisição de novos animais"}
+            category_type="expense"
         )
         
         Transaction.objects.create(
@@ -61,9 +61,9 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
         ref_sale = f"SALE-BATCH-{instance.id}"
         if not Transaction.objects.filter(reference=ref_sale).exists():
             category_sale, _ = FinancialCategory.objects.get_or_create(
+                organization=instance.farm.organization,
                 name="Venda de Animais",
-                category_type="revenue",
-                defaults={"description": "Receitas automáticas de venda de lotes/animais"}
+                category_type="revenue"
             )
             
             Transaction.objects.create(
