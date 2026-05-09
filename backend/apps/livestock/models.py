@@ -54,6 +54,19 @@ class AnimalBatch(BaseModel):
         FINISHED = "finished", "Finished"
         DEAD = "dead", "Dead"
 
+    class Category(models.TextChoices):
+        BEZERRO = "Bezerro", "Bezerro"
+        GARROTE = "Garrote", "Garrote"
+        NOVILHA = "Novilha", "Novilha"
+        TOURO = "Touro", "Touro"
+        MATRIZ = "Matriz", "Matriz"
+        LEITAO = "Leitão", "Leitão"
+        TERMINACAO = "Terminação", "Terminação"
+        CACHACO = "Cachaço", "Cachaço"
+        PINTO = "Pinto", "Pinto"
+        FRANGO_CORTE = "Frango de Corte", "Frango de Corte"
+        POEDEIRA = "Poedeira", "Poedeira"
+
     farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="animal_batches")
     sector = models.ForeignKey(
         "farms.Sector", on_delete=models.SET_NULL, null=True, blank=True, related_name="animal_batches"
@@ -69,7 +82,7 @@ class AnimalBatch(BaseModel):
     purchase_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     sale_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     gender = models.CharField(max_length=20, null=True, blank=True)
-    category = models.CharField(max_length=50, null=True, blank=True)
+    category = models.CharField(max_length=50, choices=Category.choices, null=True, blank=True)
     name = models.CharField(max_length=100, null=True, blank=True)
     avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
