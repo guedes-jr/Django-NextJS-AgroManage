@@ -72,13 +72,13 @@ function DashboardTabContent({
       <ReproducaoKpiCards kpis={config.kpis} />
 
       {/* Production flow */}
-      <div className="dashboard-card p-4 mb-4" style={{ background: "white" }}>
-        <div className="d-flex align-items-center justify-content-between mb-3">
+      <div className="dashboard-card overflow-hidden p-4 mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "1.25rem", background: "var(--background)" }}>
+        <div className="d-flex align-items-center justify-content-between mb-4">
           <div>
-            <h6 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>
-              Fluxo produtivo
-            </h6>
-            <p className="text-muted small mb-0" style={{ fontSize: "0.75rem" }}>
+            <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.25rem', color: 'var(--foreground)' }}>
+              Fluxo Produtivo
+            </h3>
+            <p className="text-muted-foreground small mb-0 fw-medium">
               Distribuição atual de animais por fase
             </p>
           </div>
@@ -137,47 +137,43 @@ export function ReproducaoDashboard({ config }: { config: ReproducaoConfig }) {
   return (
     <div>
       {/* ─── Header ─── */}
-      <div className="repro-header">
-        <span
-          className="repro-header-badge"
-          style={{
-            background: config.badgeColor,
-            color: config.badgeTextColor,
-          }}
-        >
-          {config.emoji} {config.titulo}
-        </span>
+      <div className="mb-4">
+        <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
+          <span className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Rebanho</span>
+          <span className="text-muted-foreground">›</span>
+          <span className="fw-semibold text-foreground">{config.titulo}</span>
+          <span className="text-muted-foreground">›</span>
+          <span className="text-muted-foreground">Reprodução</span>
+        </nav>
+      </div>
 
-        <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-          <div>
-            <h1
-              className="fw-black mb-1"
-              style={{
-                fontSize: "1.6rem",
-                letterSpacing: "-0.03em",
-                color: "var(--foreground)",
-              }}
-            >
-              Reprodução — {config.titulo}
-            </h1>
-            <p
-              className="mb-0"
-              style={{ color: "var(--muted-foreground)", fontSize: "0.875rem" }}
-            >
-              {config.subtitulo}
-            </p>
-          </div>
-
-          {activeTab !== "dashboard" && currentTab?.primaryActionLabel && (
-            <button
-              className="repro-btn-primary"
-              onClick={() => setModalOpen(true)}
-            >
-              <Plus size={16} />
-              {currentTab.primaryActionLabel}
-            </button>
-          )}
+      <div className="mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+        <div>
+          <h1
+            className="fw-bold mb-1"
+            style={{
+              fontSize: "2rem",
+              letterSpacing: "-0.03em",
+              color: "var(--foreground)",
+            }}
+          >
+            Módulo de Reprodução
+          </h1>
+          <p className="mb-0 text-muted-foreground fw-medium">
+            {config.subtitulo}
+          </p>
         </div>
+
+        {activeTab !== "dashboard" && currentTab?.primaryActionLabel && (
+          <button
+            className="btn btn-primary d-inline-flex align-items-center gap-2 fw-semibold px-4 py-2 shadow-sm rounded-pill transition-all hover-scale"
+            style={{ fontSize: '0.9rem', backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' }}
+            onClick={() => setModalOpen(true)}
+          >
+            <Plus size={18} />
+            {currentTab.primaryActionLabel}
+          </button>
+        )}
       </div>
 
       {/* ─── Tabs ─── */}
