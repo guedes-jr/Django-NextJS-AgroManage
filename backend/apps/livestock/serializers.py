@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
-from .models import AnimalBatch, Species, Breed
+from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation
 from collections import Counter
 
 class AnimalBatchListSerializer(serializers.ListSerializer):
@@ -178,3 +178,75 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             return super().create(validated_data)
         except Exception as e:
             raise serializers.ValidationError(f'Erro ao criar lote: {str(e)}')
+
+
+class AnimalSerializer(serializers.ModelSerializer):
+    species_name = serializers.CharField(source='species.name', read_only=True)
+    breed_name = serializers.CharField(source='breed.name', read_only=True)
+    batch_code = serializers.CharField(source='batch.batch_code', read_only=True)
+
+    class Meta:
+        model = Animal
+        fields = [
+            'id', 'farm', 'species', 'species_name', 'breed', 'breed_name',
+            'batch', 'batch_code', 'identifier', 'birth_date', 'entry_date',
+            'gender', 'category', 'status', 'reproductive_status',
+            'initial_weight_kg', 'current_weight_kg', 'notes'
+        ]
+
+
+class MatingSerializer(serializers.ModelSerializer):
+    female_identifier = serializers.CharField(source='female.identifier', read_only=True)
+    sire_identifier = serializers.CharField(source='sire.identifier', read_only=True)
+
+    class Meta:
+        model = Mating
+        fields = [
+            'id', 'female', 'female_identifier', 'sire', 'sire_identifier',
+            'sire_info', 'mating_date', 'mating_type', 'status',
+            'expected_birth_date', 'notes'
+        ]
+
+
+class PregnancySerializer(serializers.ModelSerializer):
+    female_identifier = serializers.CharField(source='female.identifier', read_only=True)
+
+    class Meta:
+        model = Pregnancy
+        fields = [
+            'id', 'mating', 'female', 'female_identifier', 'start_date',
+            'expected_birth_date', 'status', 'notes'
+        ]
+
+
+class BirthSerializer(serializers.ModelSerializer):
+    female_identifier = serializers.CharField(source='female.identifier', read_only=True)
+    total_born = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Birth
+        fields = [
+            'id', 'pregnancy', 'female', 'female_identifier', 'birth_date',
+            'live_born', 'stillborn', 'mummified', 'total_born', 'notes'
+        ]
+
+
+class LitterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Litter
+        fields = [
+            'id', 'birth', 'weaning_date', 'weaned_quantity',
+            'avg_weaning_weight_kg', 'notes'
+        ]
+
+
+class IncubationSerializer(serializers.ModelSerializer):
+    batch_code = serializers.CharField(source='batch.batch_code', read_only=True)
+
+    class Meta:
+        model = Incubation
+        fields = [
+            'id', 'farm', 'batch', 'batch_code', 'start_date', 'expected_hatch_date',
+            'eggs_incubated', 'eggs_hatched', 'status', 'notes'
+        ]
+

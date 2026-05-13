@@ -1,11 +1,24 @@
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
-from .views import AnimalBatchViewSet
+from .views import (
+    AnimalBatchViewSet, AnimalViewSet, MatingViewSet,
+    PregnancyViewSet, BirthViewSet, LitterViewSet,
+    ReproductionDashboardView, IncubationViewSet
+)
 
 router = DefaultRouter()
 router.register(r'batches', AnimalBatchViewSet, basename='animalbatch')
+router.register(r'animals', AnimalViewSet, basename='animal')
+router.register(r'matings', MatingViewSet, basename='mating')
+router.register(r'pregnancies', PregnancyViewSet, basename='pregnancy')
+router.register(r'births', BirthViewSet, basename='birth')
+router.register(r'litters', LitterViewSet, basename='litter')
+router.register(r'incubations', IncubationViewSet, basename='incubation')
 
 urlpatterns = [
+    # Custom dashboard endpoint
+    path('dashboard/reproduction/', ReproductionDashboardView.as_view(), name='reproduction_dashboard'),
+    
     # Manual re_path to allow optional trailing slashes for the main actions
     re_path(r'^batches/?$', AnimalBatchViewSet.as_view({'get': 'list', 'post': 'create'})),
     re_path(r'^batches/bulk_create_batches/?$', AnimalBatchViewSet.as_view({'post': 'bulk_create_batches'})),
