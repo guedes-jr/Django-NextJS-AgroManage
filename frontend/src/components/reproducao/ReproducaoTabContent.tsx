@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Edit2, Zap, Search } from "lucide-react";
-import "./reproducao.css";
+import { KpiCard } from "./ReproducaoKpiCards";
+import {
+  DataTable,
+  BatchAction,
+  QuickActionsCard,
+  AlertListCard,
+  AiSuggestionsCard,
+} from "@/components/ui";
 
 export type BadgeVariant = "green" | "blue" | "amber" | "red" | "purple" | "gray" | "teal";
 
@@ -23,6 +29,17 @@ export interface QuickAction {
   variant?: "primary" | "default" | "danger";
 }
 
+interface AlertItem {
+  type: "warning" | "danger" | "info" | "success";
+  icon: string;
+  text: string;
+  time: string;
+}
+
+interface AiSuggestion {
+  text: string;
+}
+
 interface ReproducaoTabContentProps {
   columns: TableColumn[];
   rows: TableRow[];
@@ -34,46 +51,13 @@ interface ReproducaoTabContentProps {
   actions?: QuickAction[];
   emptyIcon?: string;
   emptyText?: string;
-}
-
-export function StatusBadge({
-  status,
-  statusMap,
-}: {
-  status: string;
-  statusMap: Record<string, { label: string; variant: BadgeVariant }>;
-}) {
-  const cfg = statusMap[status] ?? { label: status, variant: "gray" as BadgeVariant };
-  
-  const variantStyles: Record<string, string> = {
-    green: "bg-success/15 text-success border-success/20",
-    blue: "bg-primary/15 text-primary border-primary/20",
-    amber: "bg-warning/15 text-warning border-warning/20",
-    red: "bg-danger/15 text-danger border-danger/20",
-    purple: "bg-info/15 text-info border-info/20",
-    gray: "bg-muted text-muted-foreground border-border",
-    teal: "bg-info/15 text-info border-info/20",
-  };
-
-  const dotColors: Record<string, string> = {
-    green: "bg-success",
-    blue: "bg-primary",
-    amber: "bg-warning",
-    red: "bg-danger",
-    purple: "bg-info",
-    gray: "bg-muted-foreground",
-    teal: "bg-info",
-  };
-
-  const badgeClass = variantStyles[cfg.variant] || variantStyles.gray;
-  const dotClass = dotColors[cfg.variant] || dotColors.gray;
-
-  return (
-    <span className={`badge rounded-pill px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1 border ${badgeClass}`}>
-      <div className={`rounded-circle ${dotClass}`} style={{ width: '6px', height: '6px' }}></div>
-      {cfg.label}
-    </span>
-  );
+  kpis?: KpiCard[];
+  tabActions?: { label: string; icon: string; color: string; desc: string }[];
+  tabAlerts?: AlertItem[];
+  tabAiSuggestions?: AiSuggestion[];
+  selectable?: boolean;
+  rowKey?: string;
+  batchActions?: BatchAction<TableRow>[];
 }
 
 export function ReproducaoTabContent({
@@ -81,12 +65,19 @@ export function ReproducaoTabContent({
   rows,
   statusKey,
   statusMap = {},
-  searchPlaceholder = "Buscar...",
+  searchPlaceholder = "Buscar por lote, animal, data...",
   filterKey,
   filterOptions = [],
   actions = [],
   emptyIcon = "🐾",
   emptyText = "Nenhum registro encontrado",
+  kpis,
+  tabActions,
+  tabAlerts,
+  tabAiSuggestions,
+  selectable,
+  rowKey,
+  batchActions,
 }: ReproducaoTabContentProps) {
   const [search, setSearch] = useState("");
   const [filterVal, setFilterVal] = useState("all");
@@ -105,145 +96,99 @@ export function ReproducaoTabContent({
     return matchSearch && matchFilter;
   });
 
+  const statusMapForDataTable = statusMap as Record<string, { label: string; variant: string }>;
+
+  const dtFilters = filterOptions.length > 0 && filterKey
+    ? [{
+        key: filterKey,
+        label: "Todos os status",
+        value: filterVal,
+        options: filterOptions,
+        onChange: setFilterVal,
+      }]
+    : undefined;
+
   return (
     <div>
-      {/* Filter bar */}
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div className="d-flex align-items-center gap-3 flex-wrap">
-          <div className="position-relative" style={{ maxWidth: '340px', minWidth: '280px' }}>
-            <Search className="position-absolute text-muted-foreground" size={18} style={{ left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              type="text"
-              className="form-control shadow-none transition-all focus-ring"
-              placeholder={searchPlaceholder}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ 
-                paddingLeft: '44px', 
-                height: '46px',
-                borderRadius: '2rem',
-                border: '1px solid var(--border)', 
-                backgroundColor: '#ffffff',
-                color: '#000000' 
-              }}
-            />
-          </div>
-
-          {filterOptions.length > 0 && filterKey && (
-            <select
-              className="form-select shadow-none"
-              value={filterVal}
-              onChange={(e) => setFilterVal(e.target.value)}
-              style={{ 
-                height: '46px',
-                borderRadius: '2rem',
-                border: '1px solid var(--border)', 
-                backgroundColor: '#ffffff',
-                minWidth: '200px'
-              }}
-            >
-              <option value="all">Todos os status</option>
-              {filterOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          )}
+      {kpis && kpis.length > 0 && (
+        <div className="row g-3 mb-5">
+          {kpis.map((k, i) => {
+            const trendStyles: Record<string, { bg: string; text: string; symbol: string }> = {
+              up:      { bg: "oklch(0.95 0.05 145)", text: "oklch(0.45 0.15 145)", symbol: "↑" },
+              down:    { bg: "oklch(0.96 0.04 25)",  text: "oklch(0.5 0.15 25)",   symbol: "↓" },
+              neutral: { bg: "var(--muted)",         text: "var(--muted-foreground)", symbol: "→" },
+            };
+            const trend = trendStyles[k.trend ?? "neutral"];
+            return (
+              <div key={i} className="col-12 col-sm-6 col-lg">
+                <div className="dashboard-card p-3 border border-border bg-background shadow-sm h-100">
+                  <div className="d-flex align-items-center gap-3 mb-3">
+                    <div
+                      className="p-2 rounded-lg d-flex align-items-center justify-content-center"
+                      style={{ background: k.color, color: k.color.replace('0.95', '0.45').replace('0.96', '0.5'), width: 40, height: 40 }}
+                    >
+                      <span style={{ fontSize: '1.1rem' }}>{k.icon}</span>
+                    </div>
+                    <div className="flex-grow-1">
+                      <div className="h4 fw-black mb-0">{k.value}</div>
+                      <div className="text-muted-foreground small fw-semibold">{k.label}</div>
+                      {k.sub && <div className="text-muted-foreground" style={{ fontSize: '0.7rem' }}>{k.sub}</div>}
+                    </div>
+                    {k.trend && (
+                      <span
+                        className="d-inline-flex align-items-center"
+                        style={{
+                          padding: "0.1rem 0.4rem",
+                          borderRadius: "99px",
+                          fontSize: "0.65rem",
+                          fontWeight: 800,
+                          background: trend.bg,
+                          color: trend.text,
+                        }}
+                      >
+                        {trend.symbol}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
 
-        <span
-          className="badge bg-muted text-muted-foreground px-3 py-2 rounded-pill fw-medium"
-        >
-          {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
-        </span>
-      </div>
+      {tabActions && tabActions.length > 0 && (
+        <QuickActionsCard actions={tabActions} />
+      )}
 
-      {/* Table */}
-      <div className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "1.25rem", background: "var(--background)" }}>
-        {filtered.length === 0 ? (
-          <div className="text-center py-5">
-            <div className="d-flex flex-column align-items-center justify-content-center text-muted-foreground opacity-75">
-              <span className="mb-3 opacity-50" style={{ fontSize: '3rem' }}>{emptyIcon}</span>
-              <h5 className="fw-semibold text-foreground mb-1">{emptyText}</h5>
-              {search && (
-                <p className="small mb-0">Nenhum resultado para "{search}"</p>
-              )}
-            </div>
+      <DataTable<TableRow>
+        columns={columns}
+        rows={filtered}
+        statusKey={statusKey}
+        statusMap={statusMapForDataTable}
+        actions={actions.length > 0 ? actions : undefined}
+        emptyIcon={emptyIcon}
+        emptyText={emptyText}
+        selectable={selectable}
+        rowKey={rowKey}
+        batchActions={batchActions}
+        title="Histórico de Registros"
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={searchPlaceholder}
+        filters={dtFilters}
+      />
+
+      {(tabAlerts && tabAlerts.length > 0) || (tabAiSuggestions && tabAiSuggestions.length > 0) ? (
+        <div className="row g-4 mt-4">
+          <div className="col-12 col-lg-7">
+            <AlertListCard alerts={tabAlerts ?? []} />
           </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-hover mb-0 align-middle text-nowrap" style={{ minWidth: '800px' }}>
-              <thead>
-                <tr style={{ background: 'var(--muted)', borderBottom: '2px solid var(--border)' }}>
-                  {columns.map((col) => (
-                    <th key={col.key} className="fw-bold text-muted-foreground border-0 py-3 ps-4" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{col.label}</th>
-                  ))}
-                  {statusKey && <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>}
-                  {actions.length > 0 && (
-                    <th className="fw-bold text-muted-foreground border-0 py-3 text-end pe-4" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ações</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }} className="bg-background hover-bg-muted/50 transition-colors">
-                    {columns.map((col, i) => (
-                      <td key={col.key} className={`py-3 ${i === 0 ? 'ps-4 fw-bold text-foreground' : 'text-muted-foreground fw-medium'}`} style={{ fontSize: '0.9rem' }}>
-                        {col.render
-                          ? col.render(row[col.key], row)
-                          : String(row[col.key] ?? "—")}
-                      </td>
-                    ))}
-                    {statusKey && (
-                      <td className="py-3">
-                        <StatusBadge
-                          status={String(row[statusKey] ?? "")}
-                          statusMap={statusMap}
-                        />
-                      </td>
-                    )}
-                    {actions.length > 0 && (
-                      <td className="py-3 text-end pe-4">
-                        <div className="d-flex align-items-center justify-content-end gap-2">
-                          {actions.map((action, ai) => (
-                            <button
-                              key={ai}
-                              className={`btn btn-sm btn-light rounded-circle p-2 transition-colors border-0 ${action.variant === "primary" ? "text-primary hover-bg-primary/10" : action.variant === "danger" ? "text-danger hover-bg-danger/10" : "text-muted-foreground hover-text-primary hover-bg-primary/10"}`}
-                              title={action.label}
-                              onClick={() => action.onClick(row)}
-                              type="button"
-                              style={{ width: '36px', height: '36px' }}
-                            >
-                              {action.icon ?? <Zap size={16} />}
-                            </button>
-                          ))}
-                          <button
-                            className="btn btn-sm btn-light rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
-                            title="Ver detalhes"
-                            type="button"
-                            style={{ width: '36px', height: '36px' }}
-                          >
-                            <Eye size={16} />
-                          </button>
-                          <button
-                            className="btn btn-sm btn-light rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
-                            title="Editar"
-                            type="button"
-                            style={{ width: '36px', height: '36px' }}
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="col-12 col-lg-5">
+            <AiSuggestionsCard suggestions={tabAiSuggestions ?? []} />
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

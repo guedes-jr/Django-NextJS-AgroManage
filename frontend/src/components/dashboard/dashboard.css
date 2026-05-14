@@ -177,8 +177,8 @@
 }
 
 .dashboard-card {
-  background: white;
-  border-radius: 20px;
+  background: var(--card);
+  border-radius: 12px;
   border: 1.5px solid var(--border);
   box-shadow: var(--card-premium-shadow);
   transition: transform 0.2s ease, box-shadow 0.2s ease;

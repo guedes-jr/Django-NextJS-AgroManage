@@ -377,7 +377,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
             transition={{ duration: 0.4, delay: 0.1 }}
             className="mb-5"
           >
-            <div className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "1.25rem", background: "var(--background)" }}>
+            <div className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
               {/* Header section with search */}
               <div className="p-4 p-md-5 border-bottom border-border d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 bg-muted/10">
                 <div>

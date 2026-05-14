@@ -192,7 +192,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                 exit={{ opacity: 0, height: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
                 className="dashboard-card overflow-hidden shadow-sm position-relative p-3 p-md-4" 
-                style={{ border: "1px solid var(--border)", borderRadius: "1rem", background: "var(--background)" }}
+                style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--background)" }}
               >
                 <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-border">
                    <h5 className="fw-bold mb-0" style={{ color: "var(--foreground)", fontSize: "1.1rem" }}>

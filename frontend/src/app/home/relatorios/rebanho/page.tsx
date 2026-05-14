@@ -222,7 +222,7 @@ function RebanhoReportsContent() {
       {/* KPIs Resumo */}
       <div className="row g-4 mb-5">
         <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4" style={{ borderRadius: '1rem', border: '1px solid var(--border)' }}>
+          <div className="dashboard-card p-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
             <div className="d-flex align-items-center gap-3">
               <div className="d-flex align-items-center justify-content-center rounded-circle bg-primary/10 text-primary" style={{ width: '48px', height: '48px' }}>
                 <Beef size={24} />
@@ -235,7 +235,7 @@ function RebanhoReportsContent() {
           </div>
         </div>
         <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4" style={{ borderRadius: '1rem', border: '1px solid var(--border)' }}>
+          <div className="dashboard-card p-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
             <div className="d-flex align-items-center gap-3">
               <div className="d-flex align-items-center justify-content-center rounded-circle bg-success/10 text-success" style={{ width: '48px', height: '48px' }}>
                 <TrendingUp size={24} />
@@ -248,7 +248,7 @@ function RebanhoReportsContent() {
           </div>
         </div>
         <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4" style={{ borderRadius: '1rem', border: '1px solid var(--border)' }}>
+          <div className="dashboard-card p-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
             <div className="d-flex align-items-center gap-3">
               <div className="d-flex align-items-center justify-content-center rounded-circle bg-warning/10 text-warning" style={{ width: '48px', height: '48px' }}>
                 <Activity size={24} />
@@ -287,7 +287,7 @@ function RebanhoReportsContent() {
 
       {/* Área Principal de Filtros e Tabela */}
       {activeTab === 'movimentacao' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "1.25rem", background: "var(--background)" }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
           
           {/* Header & Filters */}
           <div className="p-4 border-bottom border-border bg-muted/10">
@@ -451,7 +451,7 @@ function RebanhoReportsContent() {
       {activeTab === 'inventario' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="row">
           <div className="col-md-6 mb-4">
-            <div className="dashboard-card h-100 p-4" style={{ borderRadius: '1.25rem', border: '1px solid var(--border)' }}>
+            <div className="dashboard-card h-100 p-4" style={{ borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--card)' }}>
               <h5 className="fw-bold mb-4">Animais por Espécie</h5>
               {loading ? (
                 <div className="text-center py-4"><div className="spinner-border text-primary" role="status" /></div>
@@ -473,7 +473,7 @@ function RebanhoReportsContent() {
             </div>
           </div>
           <div className="col-md-6 mb-4">
-            <div className="dashboard-card h-100 p-4" style={{ borderRadius: '1.25rem', border: '1px solid var(--border)' }}>
+            <div className="dashboard-card h-100 p-4" style={{ borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--card)' }}>
               <h5 className="fw-bold mb-4">Animais por Fazenda</h5>
               {loading ? (
                 <div className="text-center py-4"><div className="spinner-border text-primary" role="status" /></div>

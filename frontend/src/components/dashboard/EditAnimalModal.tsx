@@ -125,7 +125,7 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
       }
     >
       <div className="p-3 p-md-5" style={{ background: "var(--background)" }}>
-        <div className="dashboard-card overflow-hidden shadow-sm position-relative p-3 p-md-4" style={{ border: "1px solid var(--border)", borderRadius: "1rem", background: "var(--background)" }}>
+        <div className="dashboard-card overflow-hidden shadow-sm position-relative p-3 p-md-4" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--background)" }}>
           <div className="row g-4">
             {/* Linha 1 */}
             <div className="col-12 col-md-3">

@@ -2,6 +2,8 @@ from rest_framework import viewsets, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db import IntegrityError
+from django.utils import timezone
+import datetime
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
@@ -9,6 +11,468 @@ from .serializers import (
     IncubationSerializer
 )
 from rest_framework.views import APIView
+
+# ─── Phase Dashboard Views ────────────────────────────────────────────────────
+
+class BasePhaseView(APIView):
+    """Shared helper for phase endpoints — provides org filter + pagination."""
+
+    def get_org_filter(self, request):
+        user = request.user
+        if not (user.is_authenticated and hasattr(user, 'organization') and user.organization):
+            return None
+        return {'farm__organization': user.organization}
+
+    def get_species_filter(self, request):
+        species = request.query_params.get('species', 'suinos')
+        org_f = self.get_org_filter(request)
+        if org_f is None:
+            return None, None
+        return {**org_f, 'species__code': species}, species
+
+    def paginate_queryset(self, request, qs):
+        page = request.query_params.get('page', 1)
+        page_size = request.query_params.get('page_size', 50)
+        try:
+            page = int(page)
+            page_size = int(page_size)
+        except (ValueError, TypeError):
+            page = 1
+            page_size = 50
+        page_size = min(max(page_size, 1), 100)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return qs[start:end], qs.count()
+
+
+class MarrasView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        qs = Animal.objects.filter(**filters, gender='F').filter(
+            reproductive_status__in=['vazia', 'em_preparo', 'pronta']
+        )
+        total = qs.count()
+        prontas = qs.filter(reproductive_status='pronta').count()
+        em_preparo = qs.filter(reproductive_status='em_preparo').count()
+        disponiveis = qs.filter(reproductive_status='vazia').count()
+
+        alerts = []
+        if prontas > 0:
+            alerts.append({"type": "info", "icon": "🎯", "text": f"{prontas} marrã{'s' if prontas > 1 else ''} pronta{'s' if prontas > 1 else ''} para cobertura.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if prontas > 0:
+            ai_suggestions.append({"text": f"{prontas} marrã{'s' if prontas > 1 else ''} em condições ideais para primeira cobertura."})
+
+        animals, _ = self.paginate_queryset(request, qs)
+        rows = []
+        for a in animals:
+            idade = (timezone.now().date() - a.birth_date).days if a.birth_date else None
+            rows.append({
+                "pk": a.id,
+                "id": a.identifier,
+                "idade": idade,
+                "peso": float(a.current_weight_kg) if a.current_weight_kg else None,
+                "entrada": a.entry_date.isoformat() if a.entry_date else None,
+                "status": a.reproductive_status,
+            })
+
+        return Response({
+            "kpis": {
+                "total": total,
+                "disponiveis": disponiveis,
+                "em_preparo": em_preparo,
+                "prontas": prontas,
+            },
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
+
+class MatrizesView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        qs = Animal.objects.filter(**filters, gender='F').filter(
+            reproductive_status__in=['vazia', 'coberta', 'gestante', 'lactante', 'descanso']
+        )
+        total = qs.count()
+        vazias = qs.filter(reproductive_status='vazia').count()
+        cobertas = qs.filter(reproductive_status='coberta').count()
+        lactantes = qs.filter(reproductive_status='lactante').count()
+        gestantes = qs.filter(reproductive_status='gestante').count()
+
+        alerts = []
+        if vazias > 5:
+            alerts.append({"type": "danger", "icon": "⚠️", "text": f"{vazias} matrizes vazias — acima do ideal.", "time": "Hoje"})
+        if cobertas > 0:
+            alerts.append({"type": "info", "icon": "ℹ️", "text": f"{cobertas} matrizes cobertas aguardando diagnóstico.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if vazias > 5:
+            ai_suggestions.append({"text": f"Há {vazias} matrizes vazias. Revise o manejo reprodutivo."})
+
+        qs_paged, _ = self.paginate_queryset(request, qs)
+        rows = []
+        for a in qs_paged:
+            ultima_cob = a.matings_as_female.order_by('-mating_date').first()
+            dias_abertos = (timezone.now().date() - ultima_cob.mating_date).days if ultima_cob and ultima_cob.mating_date else None
+            rows.append({
+                "pk": a.id,
+                "id": a.identifier,
+                "op": (a.births.count() if hasattr(a, 'births') else 0) + 1,
+                "dias_abertos": dias_abertos,
+                "ultima_cobertura": ultima_cob.mating_date.isoformat() if ultima_cob and ultima_cob.mating_date else "—",
+                "status": a.reproductive_status,
+            })
+
+        return Response({
+            "kpis": {"total": total, "vazias": vazias, "cobertas": cobertas, "lactantes": lactantes, "gestantes": gestantes},
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
+
+class GestacoesView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        qs = Pregnancy.objects.filter(
+            female__farm__organization=request.user.organization,
+            female__species__code=species,
+            status='ongoing'
+        ).select_related('female', 'mating')
+
+        total = qs.count()
+        now = timezone.now().date()
+        parto_proximo = qs.filter(expected_birth_date__lte=now + datetime.timedelta(days=7)).count()
+        aguardando = qs.filter(mating__status='pending_dg').count()
+
+        alerts = []
+        if parto_proximo > 0:
+            alerts.append({"type": "warning", "icon": "⏰", "text": f"{parto_proximo} parto{'s' if parto_proximo > 1 else ''} previsto{'s' if parto_proximo > 1 else ''} para os próximos 7 dias.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if parto_proximo > 0:
+            ai_suggestions.append({"text": f"{parto_proximo} gestação{'ões' if parto_proximo > 1 else ''} com parto próximo. Preparar maternidade."})
+
+        paged, _ = self.paginate_queryset(request, qs)
+        rows = []
+        for p in paged:
+            dias = (now - p.start_date).days if p.start_date else None
+            rows.append({
+                "id": p.female.identifier,
+                "cobertura": p.mating.mating_date.isoformat() if p.mating and p.mating.mating_date else None,
+                "dias": dias,
+                "previsao": p.expected_birth_date.isoformat() if p.expected_birth_date else None,
+                "status": "Parto próximo" if (p.expected_birth_date and (p.expected_birth_date - now).days <= 7) else "Confirmada",
+            })
+
+        return Response({
+            "kpis": {"total": total, "aguardando": aguardando, "confirmadas": total - aguardando, "parto_proximo": parto_proximo},
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
+
+class MaternidadeView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        base_qs = Birth.objects.filter(
+            female__farm__organization=request.user.organization,
+            female__species__code=species
+        ).select_related('female', 'litter')
+
+        lactating_qs = base_qs.exclude(litter__weaning_date__isnull=False)
+
+        now = timezone.now().date()
+        start_of_month = now.replace(day=1)
+
+        em_lactacao = lactating_qs.count()
+
+        nascidos_mes_qs = base_qs.filter(birth_date__gte=start_of_month)
+        total_nascidos_mes = sum(b.total_born for b in nascidos_mes_qs)
+
+        desmamados_mes_qs = base_qs.filter(
+            litter__weaning_date__gte=start_of_month,
+            litter__weaning_date__isnull=False
+        )
+        total_desmamados = sum(b.litter.weaned_quantity or 0 for b in desmamados_mes_qs)
+
+        total_born_lactating = sum(b.total_born for b in lactating_qs)
+        total_dead_birth = sum(b.stillborn + b.mummified for b in lactating_qs)
+        mortalidade_pct = round((total_dead_birth / total_born_lactating * 100), 1) if total_born_lactating else 0
+
+        alerts = []
+        pendentes_desmame = lactating_qs.filter(birth_date__lte=now - datetime.timedelta(days=21)).count()
+        if pendentes_desmame > 0:
+            alerts.append({"type": "warning", "icon": "🔄", "text": f"{pendentes_desmame} leitegada{'s' if pendentes_desmame > 1 else ''} pronta{'s' if pendentes_desmame > 1 else ''} para desmame.", "time": "Hoje"})
+
+        alta_mortalidade = [b for b in lactating_qs if b.total_born > 0 and (b.stillborn + b.mummified) / b.total_born > 0.15]
+        if alta_mortalidade:
+            alerts.append({"type": "error", "icon": "⚠️", "text": f"{len(alta_mortalidade)} leitegada{'s' if len(alta_mortalidade) > 1 else ''} com mortalidade ao nascer > 15%.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if pendentes_desmame > 0:
+            ai_suggestions.append({"text": f"{pendentes_desmame} leitegada{'s' if pendentes_desmame > 1 else ''} com 21+ dias — considerar desmame para liberar matriz."})
+        if mortalidade_pct > 10:
+            ai_suggestions.append({"text": f"Mortalidade ao nascer de {mortalidade_pct}% — revisar manejo de matrizes no parto."})
+
+        paged, _ = self.paginate_queryset(request, lactating_qs)
+        rows = []
+        for b in paged:
+            idade = (now - b.birth_date).days if b.birth_date else None
+            previsao_desmame = (b.birth_date + datetime.timedelta(days=21)).isoformat() if b.birth_date else None
+            dias_para_desmame = max(0, 21 - idade) if idade is not None else None
+
+            if b.litter and b.litter.weaning_date:
+                status = "Desmamado"
+                vivos_atual = b.litter.weaned_quantity or 0
+            elif idade is not None and idade >= 21:
+                status = "Pronto p/ Desmame"
+                vivos_atual = b.live_born
+            else:
+                status = "Lactação"
+                vivos_atual = b.live_born
+
+            rows.append({
+                "id": b.id,
+                "matriz": b.female.identifier,
+                "parto": b.birth_date.isoformat() if b.birth_date else None,
+                "nascidos": b.live_born,
+                "natimortos": b.stillborn,
+                "mumificados": b.mummified,
+                "vivos_atual": vivos_atual,
+                "idade": idade,
+                "previsao_desmame": previsao_desmame,
+                "dias_para_desmame": dias_para_desmame,
+                "peso_desmame": str(b.litter.avg_weaning_weight_kg) if b.litter and b.litter.avg_weaning_weight_kg else None,
+                "status": status,
+            })
+
+        return Response({
+            "kpis": {
+                "em_lactacao": em_lactacao,
+                "nascidos_mes": total_nascidos_mes,
+                "desmamados_mes": total_desmamados,
+                "mortalidade": f"{mortalidade_pct}%",
+                "media_nascidos": round(total_born_lactating / em_lactacao, 1) if em_lactacao else 0,
+            },
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
+
+class CrecheView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        qs = AnimalBatch.objects.filter(**filters, phase='creche')
+        total = qs.count()
+        prontos = qs.filter(quantity__gte=40)
+        total_animais = sum(b.quantity for b in qs)
+        pesos = [float(b.avg_weight_kg) for b in qs if b.avg_weight_kg]
+        peso_medio = round(sum(pesos) / len(pesos), 1) if pesos else None
+
+        alerts = []
+        if prontos.exists():
+            alerts.append({"type": "info", "icon": "ℹ️", "text": f"{prontos.count()} lote{'s' if prontos.count() > 1 else ''} pronto{'s' if prontos.count() > 1 else ''} para transferência ao crescimento.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if peso_medio and peso_medio >= 15:
+            ai_suggestions.append({"text": "Lotes com peso médio acima de 15kg — aptos para crescimento."})
+
+        paged, _ = self.paginate_queryset(request, qs)
+        rows = []
+        for b in paged:
+            rows.append({
+                "id": b.id,
+                "lote": b.batch_code,
+                "entrada": b.entry_date.isoformat() if b.entry_date else None,
+                "qtd": b.quantity,
+                "peso": f"{float(b.avg_weight_kg):.0f} kg" if b.avg_weight_kg else "—",
+                "status": b.status,
+            })
+
+        return Response({
+            "kpis": {"total": total, "animais_alojados": total_animais, "peso_medio": f"{peso_medio} kg" if peso_medio else "—"},
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
+
+class CrescimentoView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        qs = AnimalBatch.objects.filter(**filters, phase='crescimento', status='active')
+        total = qs.count()
+        total_animais = sum(b.quantity for b in qs)
+        now = timezone.now().date()
+
+        pesos = []
+        ganhos = []
+        proximos_engorda = 0
+        for b in qs:
+            if b.avg_weight_kg:
+                w = float(b.avg_weight_kg)
+                pesos.append(w)
+                if b.entry_date:
+                    dias = (now - b.entry_date).days
+                    if dias > 0:
+                        ganhos.append(w / dias)
+                if w >= 60:
+                    proximos_engorda += 1
+
+        peso_medio = round(sum(pesos) / len(pesos), 1) if pesos else None
+        gpd_medio = round(sum(ganhos) / len(ganhos), 2) if ganhos else None
+
+        alerts = []
+        if proximos_engorda > 0:
+            alerts.append({"type": "info", "icon": "📈", "text": f"{proximos_engorda} lote{'s' if proximos_engorda > 1 else ''} com peso ≥60kg — apto{'s' if proximos_engorda > 1 else ''} para transferência à engorda.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if gpd_medio and gpd_medio < 0.7:
+            ai_suggestions.append({"text": f"GPD médio de {gpd_medio}kg/dia abaixo do ideal (0.7-0.9kg). Revira a dieta ou qualidade da ração."})
+        if peso_medio and peso_medio < 30:
+            ai_suggestions.append({"text": "Peso médio baixo no crescimento — verifique manejo e sanidade dos lotes."})
+
+        paged, _ = self.paginate_queryset(request, qs)
+        rows = []
+        for b in paged:
+            dias = (now - b.entry_date).days if b.entry_date else None
+            peso = float(b.avg_weight_kg) if b.avg_weight_kg else None
+            gpd = round(peso / dias, 2) if peso and dias and dias > 0 else None
+            dias_restantes = round((60 - peso) / (gpd or 0.7)) if peso and peso < 60 else 0
+
+            rows.append({
+                "id": b.id,
+                "lote": b.batch_code,
+                "entrada": b.entry_date.isoformat() if b.entry_date else None,
+                "dias": dias,
+                "qtd": b.quantity,
+                "peso": peso,
+                "gpd": gpd,
+                "previsao": f"{dias_restantes}d" if dias_restantes and dias_restantes > 0 else "Pronto",
+                "status": "Pronto p/ engorda" if peso and peso >= 60 else "Em crescimento",
+            })
+
+        return Response({
+            "kpis": {
+                "total": total,
+                "animais_alojados": total_animais,
+                "peso_medio": peso_medio,
+                "gpd_medio": gpd_medio,
+                "proximos_engorda": proximos_engorda,
+            },
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
+
+class EngordaView(BasePhaseView):
+    def get(self, request):
+        filters, species = self.get_species_filter(request)
+        if filters is None:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        TARGET_WEIGHT = 110
+        qs = AnimalBatch.objects.filter(**filters, phase='engorda', status='active')
+        total = qs.count()
+        total_animais = sum(b.quantity for b in qs)
+        now = timezone.now().date()
+
+        pesos = []
+        ganhos = []
+        prontos = 0
+        valor_estimado = 0
+        for b in qs:
+            if b.avg_weight_kg:
+                w = float(b.avg_weight_kg)
+                pesos.append(w)
+                if b.entry_date:
+                    dias = (now - b.entry_date).days
+                    if dias > 0:
+                        ganhos.append(w / dias)
+                if w >= TARGET_WEIGHT:
+                    prontos += 1
+                    if b.quantity and b.sale_value:
+                        valor_estimado += float(b.sale_value) * b.quantity
+                    elif b.quantity:
+                        valor_estimado += w * b.quantity * 8
+
+        peso_medio = round(sum(pesos) / len(pesos), 1) if pesos else None
+        gpd_medio = round(sum(ganhos) / len(ganhos), 2) if ganhos else None
+
+        alerts = []
+        if prontos > 0:
+            alerts.append({"type": "success", "icon": "💰", "text": f"{prontos} lote{'s' if prontos > 1 else ''} pronto{'s' if prontos > 1 else ''} para venda (≥{TARGET_WEIGHT}kg).", "time": "Hoje"})
+        dias_sem_peso = [b for b in qs if not b.avg_weight_kg]
+        if dias_sem_peso:
+            alerts.append({"type": "warning", "icon": "⚠️", "text": f"{len(dias_sem_peso)} lote{'s' if len(dias_sem_peso) > 1 else ''} sem peso registrado.", "time": "Hoje"})
+
+        ai_suggestions = []
+        if peso_medio and peso_medio < 70:
+            ai_suggestions.append({"text": f"Peso médio de {peso_medio}kg — lotes ainda em fase inicial de engorda."})
+        if prontos > 0:
+            ai_suggestions.append({"text": f"{prontos} lote{'s' if prontos > 1 else ''} no peso de abate. Programar venda."})
+        if valor_estimado > 0:
+            ai_suggestions.append({"text": f"Valor estimado de lotes prontos: R$ {valor_estimado:,.2f}."})
+
+        paged, _ = self.paginate_queryset(request, qs)
+        rows = []
+        for b in paged:
+            peso = float(b.avg_weight_kg) if b.avg_weight_kg else None
+            dias = (now - b.entry_date).days if b.entry_date else None
+            gpd = round(peso / dias, 2) if peso and dias and dias > 0 else None
+            dias_restantes = round((TARGET_WEIGHT - peso) / (gpd or 0.85)) if peso and peso < TARGET_WEIGHT else 0
+            pronto = peso and peso >= TARGET_WEIGHT
+
+            rows.append({
+                "id": b.id,
+                "lote": b.batch_code,
+                "qtd": b.quantity,
+                "dias": dias,
+                "peso": peso,
+                "gpd": gpd,
+                "previsao": b.exit_date.isoformat() if b.exit_date else (f"{dias_restantes}d" if dias_restantes > 0 else "—"),
+                "status": "Pronto para venda" if pronto else "Em engorda",
+            })
+
+        return Response({
+            "kpis": {
+                "total": total,
+                "animais_alojados": total_animais,
+                "peso_medio": peso_medio,
+                "gpd_medio": gpd_medio,
+                "prontos": prontos,
+                "valor_estimado": valor_estimado,
+            },
+            "rows": rows,
+            "alerts": alerts,
+            "aiSuggestions": ai_suggestions,
+        })
+
 
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalBatchSerializer
@@ -106,6 +570,26 @@ class BirthViewSet(viewsets.ModelViewSet):
             return Birth.objects.filter(female__farm__organization=user.organization)
         return Birth.objects.none()
 
+    @action(detail=False, methods=['post'])
+    def batch_wean(self, request):
+        birth_ids = request.data.get('birth_ids', [])
+        weaned_quantity = request.data.get('weaned_quantity')
+        if not birth_ids:
+            return Response({"error": "Nenhum parto selecionado."}, status=status.HTTP_400_BAD_REQUEST)
+
+        births = self.get_queryset().filter(id__in=birth_ids)
+        now = timezone.now().date()
+        weaned = 0
+        for b in births:
+            litter, created = Litter.objects.get_or_create(birth=b, defaults={'weaned_quantity': weaned_quantity or b.live_born, 'weaning_date': now})
+            if not created:
+                litter.weaning_date = now
+                if weaned_quantity is not None:
+                    litter.weaned_quantity = weaned_quantity
+                litter.save()
+            weaned += 1
+        return Response({"message": f"{weaned} leitegada(s) desmamada(s) com sucesso."})
+
 
 class LitterViewSet(viewsets.ModelViewSet):
     serializer_class = LitterSerializer
@@ -166,8 +650,6 @@ class ReproductionDashboardView(APIView):
         gestantes = animals.filter(reproductive_status=Animal.ReproductiveStatus.GESTANTE).count()
         
         # Leitoes / Bezerros (Partos do mes)
-        import datetime
-        from django.utils import timezone
         now = timezone.now()
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0)
         

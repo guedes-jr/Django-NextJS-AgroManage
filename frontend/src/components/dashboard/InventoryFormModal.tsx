@@ -244,7 +244,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                   <div
                     key={row.id}
                     className="dashboard-card p-3 p-md-4 mb-4"
-                    style={{ border: "1px solid var(--border)", borderRadius: "1.25rem" }}
+                    style={{ border: "1px solid var(--border)", borderRadius: "0.75rem" }}
                   >
                     {/* Header item */}
                     <div className="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-border">

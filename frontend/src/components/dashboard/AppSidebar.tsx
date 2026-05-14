@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   BarChart3,
+  HeartPulse,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -72,6 +73,17 @@ const menuItems: MenuItem[] = [
           { title: "Reprodução", href: "/home/rebanho/bovinos/reproducao" },
         ]
       },
+    ]
+  },
+  {
+    title: "Clínico/Veterinário",
+    href: "/home/clinico",
+    icon: HeartPulse,
+    children: [
+      { title: "Consultas", href: "/home/clinico/consultas" },
+      { title: "Vacinação", href: "/home/clinico/vacinacao" },
+      { title: "Medicamentos", href: "/home/clinico/medicamentos" },
+      { title: "Exames", href: "/home/clinico/exames" },
     ]
   },
   { title: "Financeiro", href: "/home/financeiro", icon: Wallet },

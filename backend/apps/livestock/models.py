@@ -67,6 +67,16 @@ class AnimalBatch(BaseModel):
         FRANGO_CORTE = "Frango de Corte", "Frango de Corte"
         POEDEIRA = "Poedeira", "Poedeira"
 
+    class Phase(models.TextChoices):
+        CRECHE = "creche", "Creche"
+        CRESCIMENTO = "crescimento", "Crescimento"
+        ENGORDA = "engorda", "Engorda"
+        GESTACAO_MATERNIDADE = "gestacao_maternidade", "Gestação/Maternidade"
+        REPRODUCAO = "reproducao", "Reprodução"
+        OUTRO = "outro", "Outro"
+
+    phase = models.CharField(max_length=30, choices=Phase.choices, null=True, blank=True, help_text="Fase produtiva do lote (creche, crescimento, engorda, etc.)")
+
     farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="animal_batches")
     sector = models.ForeignKey(
         "farms.Sector", on_delete=models.SET_NULL, null=True, blank=True, related_name="animal_batches"
@@ -277,3 +287,39 @@ class Incubation(BaseModel):
 
     def __str__(self) -> str:
         return f"Incubation from batch {self.batch.batch_code} on {self.start_date}"
+
+
+class VaccinationRecord(BaseModel):
+    """
+    Registro de aplicação de vacina em animal ou lote.
+    """
+
+    class DoseType(models.TextChoices):
+        UNICA = "unica", "Dose Única"
+        PRIMEIRA = "primeira", "1ª Dose"
+        SEGUNDA = "segunda", "2ª Dose"
+        TERCEIRA = "terceira", "3ª Dose"
+        REFORCO = "reforco", "Reforço"
+
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="vaccinations")
+    species = models.ForeignKey(Species, on_delete=models.PROTECT, related_name="vaccinations")
+    animal = models.ForeignKey("Animal", on_delete=models.SET_NULL, null=True, blank=True, related_name="vaccinations")
+    batch = models.ForeignKey("AnimalBatch", on_delete=models.SET_NULL, null=True, blank=True, related_name="vaccinations")
+
+    vaccine_name = models.CharField(max_length=100)
+    application_date = models.DateField()
+    next_dose_date = models.DateField(null=True, blank=True)
+    dose_type = models.CharField(max_length=20, choices=DoseType.choices, default=DoseType.UNICA)
+    dosage_ml = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    batch_number = models.CharField(max_length=50, blank=True, help_text="Número do lote da vacina")
+    applicator = models.CharField(max_length=100, blank=True, help_text="Responsável pela aplicação")
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Vaccination Record"
+        verbose_name_plural = "Vaccination Records"
+        ordering = ["-application_date"]
+
+    def __str__(self) -> str:
+        target = self.animal.identifier if self.animal else self.batch.batch_code if self.batch else "—"
+        return f"{self.vaccine_name} → {target} em {self.application_date}"

@@ -48,6 +48,14 @@ export default function AvesReproducaoPage() {
       { type: "warning", icon: "🌡️", text: "Lote de incubação I-45 atinge 21 dias amanhã.", time: "Hoje" },
       { type: "danger", icon: "📉", text: "Queda de postura no galpão 2 detectada (-5%).", time: "Há 4 horas" },
     ],
+    activities: [
+      { icon: "🥚", text: "Coleta diária Galpão 1 — 1.080 ovos (95% incubáveis)", time: "Há 1 h", type: "success" },
+      { icon: "🌡️", text: "Incubadora I-45 — transferência para nacedouro", time: "Há 3 h", type: "info" },
+      { icon: "🐣", text: "Eclosão I-44 concluída — 1.780 pintos alojados", time: "Há 6 h", type: "success" },
+      { icon: "📉", text: "Queda de postura no Galpão 2 detectada (-5%)", time: "Há 8 h", type: "warning" },
+      { icon: "🐔", text: "Novo lote de matrizes alojado no Galpão 3", time: "Ontem", type: "system" },
+      { icon: "💉", text: "Vacinação do lote Crescimento 1 concluída", time: "Ontem", type: "info" },
+    ],
     aiSuggestions: aiSuggestions.length > 0 ? aiSuggestions : [
       { text: "A taxa de eclosão do lote I-42 foi de 84%. Analisar temperatura das incubadoras na semana 2." },
     ],

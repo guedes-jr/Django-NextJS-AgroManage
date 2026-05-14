@@ -49,6 +49,14 @@ export default function BovinosReproducaoPage() {
       { type: "danger", icon: "⚠️", text: "Vaca V-210 com atraso de diagnóstico de prenhez.", time: "Há 1 dia" },
       { type: "warning", icon: "⏰", text: "Previsão de 3 partos na próxima semana.", time: "Hoje" },
     ],
+    activities: [
+      { icon: "🐄", text: "Nova novilha V-311 cadastrada no plantel", time: "Há 30 min", type: "success" },
+      { icon: "💉", text: "IATF realizada no Lote IATF 02 — 45 vacas", time: "Há 3 h", type: "info" },
+      { icon: "🍼", text: "Parto registrado — Vaca V-101, bezerro B-2603", time: "Há 5 h", type: "success" },
+      { icon: "⚠️", text: "Vaca V-210 com atraso no diagnóstico de prenhez", time: "Há 8 h", type: "warning" },
+      { icon: "⚖️", text: "Lote Confinamento pesado — média 495 kg", time: "Ontem", type: "system" },
+      { icon: "📋", text: "Protocolo sanitário aplicado no lote Recria-25", time: "Ontem", type: "info" },
+    ],
     aiSuggestions: aiSuggestions.length > 0 ? aiSuggestions : [
       { text: "A vaca V-055 está com mais de 90 dias abertos. Considere protocolo de IATF." },
       { text: "O lote de terminação T-01 atingiu peso médio de 18@. Boa janela para cotação." },

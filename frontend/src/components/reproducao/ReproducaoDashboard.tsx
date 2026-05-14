@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import "./reproducao.css";
+import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
 import { ReproducaoKpiCards, KpiCard } from "./ReproducaoKpiCards";
 import { ReproducaoAlerts, AlertItem, AiSuggestion } from "./ReproducaoAlerts";
+import { DesempenhoChart } from "./DesempenhoChart";
 import {
   ReproducaoTabContent,
   TableColumn,
@@ -41,6 +43,21 @@ export interface TabConfig {
   primaryActionModalFields?: ModalField[];
   primaryActionModalTitle?: string;
   primaryActionModalSubtitle?: string;
+  onSave?: (data: Record<string, string>) => Promise<void>;
+  kpis?: KpiCard[];
+  tabActions?: { label: string; icon: string; color: string; desc: string }[];
+  tabAlerts?: AlertItem[];
+  tabAiSuggestions?: AiSuggestion[];
+  selectable?: boolean;
+  rowKey?: string;
+  batchActions?: BatchAction<TableRow>[];
+}
+
+export interface ActivityItem {
+  icon: string;
+  text: string;
+  time: string;
+  type: "success" | "info" | "warning" | "system";
 }
 
 export interface ReproducaoConfig {
@@ -55,6 +72,7 @@ export interface ReproducaoConfig {
   tabs: TabConfig[];
   alerts: AlertItem[];
   aiSuggestions: AiSuggestion[];
+  activities: ActivityItem[];
 }
 
 // ─── Dashboard Tab (overview) ────────────────────────────────────────────────
@@ -68,11 +86,9 @@ function DashboardTabContent({
 }) {
   return (
     <div>
-      {/* KPIs */}
       <ReproducaoKpiCards kpis={config.kpis} />
 
-      {/* Production flow */}
-      <div className="dashboard-card overflow-hidden p-4 mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "1.25rem", background: "var(--background)" }}>
+      <div className="dashboard-card overflow-hidden p-4 mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
         <div className="d-flex align-items-center justify-content-between mb-4">
           <div>
             <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.25rem', color: 'var(--foreground)' }}>
@@ -112,7 +128,42 @@ function DashboardTabContent({
         </div>
       </div>
 
-      {/* Alerts & AI */}
+      <DesempenhoChart category="reprodutivo" />
+
+      <div className="dashboard-card overflow-hidden mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
+        <div className="d-flex align-items-center justify-content-between p-4 pb-0">
+          <div>
+            <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.25rem', color: 'var(--foreground)' }}>
+              <span>📋</span> Atividades Recentes
+            </h3>
+            <p className="text-muted-foreground small mb-0 fw-medium">
+              Últimas movimentações registradas no sistema
+            </p>
+          </div>
+          <span className="badge bg-light text-muted rounded-pill" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+            {config.activities.length} registros
+          </span>
+        </div>
+        <div className="p-4">
+          {config.activities.length === 0 ? (
+            <div className="text-center py-4 text-muted small">Nenhuma atividade recente</div>
+          ) : (
+            <div className="repro-activity-list">
+              {config.activities.map((act, i) => (
+                <div key={i} className="repro-activity-item">
+                  <div className={`repro-activity-dot repro-activity-dot-${act.type}`} />
+                  <div className="repro-activity-content">
+                    <span className="repro-activity-icon">{act.icon}</span>
+                    <span className="repro-activity-text">{act.text}</span>
+                  </div>
+                  <span className="repro-activity-time">{act.time}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <ReproducaoAlerts
         alerts={config.alerts}
         aiSuggestions={config.aiSuggestions}
@@ -121,9 +172,75 @@ function DashboardTabContent({
   );
 }
 
+// ─── Loading skeletons ────────────────────────────────────────────────────────
+
+function DashboardSkeleton() {
+  return (
+    <div>
+      <div className="row g-4 mb-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="col-12 col-sm-6 col-lg">
+            <CardSkeleton />
+          </div>
+        ))}
+      </div>
+      <div className="dashboard-card overflow-hidden p-4 mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
+        <Skeleton width="40%" height="24px" className="mb-3" />
+        <div className="d-flex gap-4 justify-content-center py-3">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="d-flex flex-column align-items-center gap-2">
+              <Skeleton width="48px" height="48px" borderRadius="50%" />
+              <Skeleton width="30px" height="16px" />
+              <Skeleton width="60px" height="12px" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <TableSkeleton rows={4} />
+    </div>
+  );
+}
+
+function TabSkeleton() {
+  return (
+    <div>
+      <div className="row g-4 mb-5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="col-12 col-sm-6 col-lg-3">
+            <CardSkeleton />
+          </div>
+        ))}
+      </div>
+      <TableSkeleton rows={6} />
+    </div>
+  );
+}
+
+// ─── Loading overlay for background refetch ────────────────────────────────────
+
+function RefetchOverlay() {
+  return (
+    <div
+      className="d-flex align-items-center justify-content-center py-5 text-muted-foreground gap-2"
+      style={{ fontSize: "0.85rem" }}
+    >
+      <Loader2 size={18} className="spin-animation" />
+      <span>Atualizando dados...</span>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ReproducaoDashboard({ config }: { config: ReproducaoConfig }) {
+export function ReproducaoDashboard({
+  config,
+  initialLoading,
+  tabLoading,
+}: {
+  config: ReproducaoConfig;
+  initialLoading?: boolean;
+  tabLoading?: Record<string, boolean>;
+}) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -133,30 +250,33 @@ export function ReproducaoDashboard({ config }: { config: ReproducaoConfig }) {
   ];
 
   const currentTab = config.tabs.find((t) => t.id === activeTab);
+  const isActiveTabLoading = activeTab === "dashboard"
+    ? initialLoading
+    : tabLoading?.[activeTab] ?? false;
+  const hasTabData = activeTab === "dashboard" || currentTab?.count !== undefined;
 
   return (
     <div>
-      {/* ─── Header ─── */}
+      {/* ─── Breadcrumb dinâmico ─── */}
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-          <span className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Rebanho</span>
+          <span style={{ color: "var(--muted-foreground)" }}>Rebanho</span>
           <span className="text-muted-foreground">›</span>
           <span className="fw-semibold text-foreground">{config.titulo}</span>
           <span className="text-muted-foreground">›</span>
-          <span className="text-muted-foreground">Reprodução</span>
+          <span>Reprodução</span>
+          {activeTab !== "dashboard" && currentTab && (
+            <>
+              <span className="text-muted-foreground">›</span>
+              <span className="fw-semibold" style={{ color: "var(--primary)" }}>{currentTab.label}</span>
+            </>
+          )}
         </nav>
       </div>
 
       <div className="mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
         <div>
-          <h1
-            className="fw-bold mb-1"
-            style={{
-              fontSize: "2rem",
-              letterSpacing: "-0.03em",
-              color: "var(--foreground)",
-            }}
-          >
+          <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
             Módulo de Reprodução
           </h1>
           <p className="mb-0 text-muted-foreground fw-medium">
@@ -177,47 +297,69 @@ export function ReproducaoDashboard({ config }: { config: ReproducaoConfig }) {
       </div>
 
       {/* ─── Tabs ─── */}
-      <div className="repro-tabs-wrapper">
-        <div className="repro-tabs-scroll">
-          <div className="repro-tabs">
-            {allTabs.map((tab) => (
+      <ul className="nav nav-tabs mb-4 border-bottom w-100">
+        {allTabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <li className="nav-item" key={tab.id}>
               <button
-                key={tab.id}
-                className={`repro-tab ${activeTab === tab.id ? "active" : ""}`}
+                className={`nav-link d-flex align-items-center gap-2 py-3 px-4 fw-semibold border-0 border-bottom border-3 rounded-0 ${
+                  isActive
+                    ? "active text-success border-success bg-transparent"
+                    : "text-muted border-transparent hover-bg-light"
+                }`}
+                style={{ fontSize: '0.9rem', marginBottom: '-1px' }}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <span className="repro-tab-icon">{tab.icon}</span>
+                <span className={isActive ? "text-success" : "text-muted"}>{tab.icon}</span>
                 {tab.label}
                 {tab.count !== undefined && (
-                  <span className="repro-tab-count">{tab.count}</span>
+                  <span className={`badge rounded-pill ms-1 ${isActive ? "bg-success" : "bg-light text-muted"}`}
+                    style={{ fontSize: '0.6rem', fontWeight: 700 }}>
+                    {tab.count}
+                  </span>
+                )}
+                {tabLoading?.[tab.id] && !isActive && (
+                  <Loader2 size={12} className="ms-1 text-muted spin-animation" />
                 )}
               </button>
-            ))}
-          </div>
-        </div>
+            </li>
+          );
+        })}
+      </ul>
 
-        {/* ─── Tab content ─── */}
-        <div className="repro-tab-panel">
-          {activeTab === "dashboard" ? (
-            <DashboardTabContent
-              config={config}
-              onTabChange={setActiveTab}
-            />
-          ) : currentTab ? (
-            <ReproducaoTabContent
-              columns={currentTab.columns}
-              rows={currentTab.rows}
-              statusKey={currentTab.statusKey}
-              statusMap={currentTab.statusMap}
-              searchPlaceholder={currentTab.searchPlaceholder}
-              filterKey={currentTab.filterKey}
-              filterOptions={currentTab.filterOptions}
-              emptyIcon={currentTab.emptyIcon}
-              emptyText={currentTab.emptyText}
-              actions={[]}
-            />
-          ) : null}
-        </div>
+      {/* ─── Tab content ─── */}
+      <div>
+        {activeTab === "dashboard" ? (
+          initialLoading ? <DashboardSkeleton /> : <DashboardTabContent config={config} onTabChange={setActiveTab} />
+        ) : currentTab ? (
+          isActiveTabLoading && !hasTabData ? (
+            <TabSkeleton />
+          ) : (
+            <>
+              {isActiveTabLoading && hasTabData && <RefetchOverlay />}
+              <ReproducaoTabContent
+                columns={currentTab.columns}
+                rows={currentTab.rows}
+                statusKey={currentTab.statusKey}
+                statusMap={currentTab.statusMap}
+                searchPlaceholder={currentTab.searchPlaceholder}
+                filterKey={currentTab.filterKey}
+                filterOptions={currentTab.filterOptions}
+                emptyIcon={currentTab.emptyIcon}
+                emptyText={currentTab.emptyText}
+                kpis={currentTab.kpis}
+                tabActions={currentTab.tabActions}
+                tabAlerts={currentTab.tabAlerts}
+                tabAiSuggestions={currentTab.tabAiSuggestions}
+                actions={[]}
+                selectable={currentTab.selectable}
+                rowKey={currentTab.rowKey}
+                batchActions={currentTab.batchActions}
+              />
+            </>
+          )
+        ) : null}
       </div>
 
       {/* ─── Modal ─── */}
@@ -229,10 +371,7 @@ export function ReproducaoDashboard({ config }: { config: ReproducaoConfig }) {
           subtitle={currentTab.primaryActionModalSubtitle}
           fields={currentTab.primaryActionModalFields}
           confirmLabel="Salvar"
-          onConfirm={(data) => {
-            console.log("[Reprodução] new record:", data);
-            setModalOpen(false);
-          }}
+          onConfirm={currentTab.onSave}
         />
       )}
     </div>

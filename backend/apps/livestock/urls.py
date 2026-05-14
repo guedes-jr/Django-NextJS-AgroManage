@@ -3,7 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AnimalBatchViewSet, AnimalViewSet, MatingViewSet,
     PregnancyViewSet, BirthViewSet, LitterViewSet,
-    ReproductionDashboardView, IncubationViewSet
+    ReproductionDashboardView, IncubationViewSet,
+    MarrasView, MatrizesView, GestacoesView, MaternidadeView,
+    CrecheView, CrescimentoView, EngordaView,
 )
 
 router = DefaultRouter()
@@ -18,6 +20,15 @@ router.register(r'incubations', IncubationViewSet, basename='incubation')
 urlpatterns = [
     # Custom dashboard endpoint
     path('dashboard/reproduction/', ReproductionDashboardView.as_view(), name='reproduction_dashboard'),
+    
+    # Phase-specific endpoints
+    path('marras/', MarrasView.as_view(), name='marras'),
+    path('matrizes/', MatrizesView.as_view(), name='matrizes'),
+    path('gestacoes/', GestacoesView.as_view(), name='gestacoes'),
+    path('maternidades/', MaternidadeView.as_view(), name='maternidades'),
+    path('creches/', CrecheView.as_view(), name='creches'),
+    path('crescimentos/', CrescimentoView.as_view(), name='crescimentos'),
+    path('engordas/', EngordaView.as_view(), name='engordas'),
     
     # Manual re_path to allow optional trailing slashes for the main actions
     re_path(r'^batches/?$', AnimalBatchViewSet.as_view({'get': 'list', 'post': 'create'})),

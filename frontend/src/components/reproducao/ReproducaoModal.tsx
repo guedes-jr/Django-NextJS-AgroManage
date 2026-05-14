@@ -1,6 +1,7 @@
 "use client";
 
-import { X } from "lucide-react";
+import { useState } from "react";
+import { X, Loader2 } from "lucide-react";
 import "./reproducao.css";
 
 export interface ModalField {
@@ -20,7 +21,7 @@ interface ReproducaoModalProps {
   subtitle?: string;
   fields: ModalField[];
   confirmLabel?: string;
-  onConfirm?: (data: Record<string, string>) => void;
+  onConfirm?: (data: Record<string, string>) => Promise<void>;
 }
 
 export function ReproducaoModal({
@@ -32,29 +33,39 @@ export function ReproducaoModal({
   confirmLabel = "Salvar",
   onConfirm,
 }: ReproducaoModalProps) {
+  const [loading, setLoading] = useState(false);
+
   if (!open) return null;
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!onConfirm || loading) return;
     const form = e.currentTarget;
     const data: Record<string, string> = {};
     fields.forEach((f) => {
       const el = form.elements.namedItem(f.name) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
       if (el) data[f.name] = el.value;
     });
-    onConfirm?.(data);
-    onClose();
+    setLoading(true);
+    try {
+      await onConfirm(data);
+    } catch {
+      // error handled upstream via toast
+    } finally {
+      setLoading(false);
+      onClose();
+    }
   }
 
   return (
-    <div className="repro-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="repro-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !loading) onClose(); }}>
       <div className="repro-modal">
         <div className="repro-modal-header">
           <div>
             <div className="repro-modal-title">{title}</div>
             {subtitle && <div className="repro-modal-subtitle">{subtitle}</div>}
           </div>
-          <button className="repro-modal-close" onClick={onClose} type="button">
+          <button className="repro-modal-close" onClick={onClose} type="button" disabled={loading}>
             <X size={16} />
           </button>
         </div>
@@ -74,7 +85,7 @@ export function ReproducaoModal({
                   </label>
 
                   {field.type === "select" ? (
-                    <select id={`modal-${field.name}`} name={field.name} required={field.required}>
+                    <select id={`modal-${field.name}`} name={field.name} required={field.required} disabled={loading}>
                       <option value="">Selecione...</option>
                       {field.options?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -88,6 +99,7 @@ export function ReproducaoModal({
                       name={field.name}
                       placeholder={field.placeholder}
                       required={field.required}
+                      disabled={loading}
                     />
                   ) : (
                     <input
@@ -96,6 +108,7 @@ export function ReproducaoModal({
                       type={field.type}
                       placeholder={field.placeholder}
                       required={field.required}
+                      disabled={loading}
                     />
                   )}
                 </div>
@@ -104,11 +117,12 @@ export function ReproducaoModal({
           </div>
 
           <div className="repro-modal-footer">
-            <button type="button" className="repro-btn-secondary" onClick={onClose}>
+            <button type="button" className="repro-btn-secondary" onClick={onClose} disabled={loading}>
               Cancelar
             </button>
-            <button type="submit" className="repro-btn-primary">
-              {confirmLabel}
+            <button type="submit" className="repro-btn-primary" disabled={loading}>
+              {loading ? <Loader2 size={16} className="spinner" /> : null}
+              {loading ? "Salvando..." : confirmLabel}
             </button>
           </div>
         </form>

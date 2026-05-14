@@ -1,168 +1,6 @@
 /* ─── Reprodução Module Styles ───────────────────────────────────────────── */
 
-/* Page Header */
-.repro-header {
-  margin-bottom: 1.75rem;
-}
-
-.repro-header-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 99px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 0.75rem;
-}
-
-/* ─── Tabs ───────────────────────────────────────────────────────────────── */
-
-.repro-tabs-wrapper {
-  background: white;
-  border-radius: 16px;
-  border: 1.5px solid var(--border);
-  box-shadow: var(--card-premium-shadow);
-  margin-bottom: 1.5rem;
-  overflow: hidden;
-}
-
-.repro-tabs-scroll {
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.repro-tabs-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.repro-tabs {
-  display: flex;
-  gap: 0;
-  min-width: max-content;
-  padding: 0.5rem;
-  border-bottom: 1.5px solid var(--border);
-}
-
-.repro-tab {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  position: relative;
-}
-
-.repro-tab:hover {
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.repro-tab.active {
-  background: var(--gradient-primary);
-  color: white;
-  box-shadow: 0 4px 12px oklch(0.5 0.15 145 / 0.25);
-}
-
-.repro-tab-icon {
-  font-size: 0.95rem;
-  line-height: 1;
-}
-
-.repro-tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 99px;
-  font-size: 0.65rem;
-  font-weight: 800;
-  padding: 0 4px;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.repro-tab:not(.active) .repro-tab-count {
-  background: var(--muted);
-  color: var(--muted-foreground);
-}
-
-/* Tab panel content area */
-.repro-tab-panel {
-  padding: 1.25rem 1rem 1rem;
-}
-
-/* ─── KPI Cards ──────────────────────────────────────────────────────────── */
-
-.repro-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.repro-kpi-card {
-  background: white;
-  border-radius: 16px;
-  border: 1.5px solid var(--border);
-  padding: 1.1rem 1.1rem 0.9rem;
-  box-shadow: var(--card-premium-shadow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.repro-kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.08);
-}
-
-.repro-kpi-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-
-.repro-kpi-value {
-  font-size: 1.6rem;
-  font-weight: 900;
-  color: var(--foreground);
-  letter-spacing: -0.04em;
-  line-height: 1;
-  margin-bottom: 0.2rem;
-}
-
-.repro-kpi-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted-foreground);
-}
-
-.repro-kpi-sub {
-  font-size: 0.72rem;
-  color: var(--muted-foreground);
-  margin-top: 0.25rem;
-}
-
-/* ─── Status Badges ──────────────────────────────────────────────────────── */
-
+/* Status Badge (used in AlertListCard) */
 .repro-badge {
   display: inline-flex;
   align-items: center;
@@ -184,221 +22,9 @@
   flex-shrink: 0;
 }
 
-.repro-badge-green {
-  background: oklch(0.95 0.05 145);
-  color: oklch(0.45 0.15 145);
-}
-
-.repro-badge-blue {
-  background: oklch(0.94 0.04 230);
-  color: oklch(0.45 0.15 230);
-}
-
-.repro-badge-amber {
-  background: oklch(0.97 0.04 80);
-  color: oklch(0.5 0.14 75);
-}
-
 .repro-badge-red {
   background: oklch(0.96 0.04 25);
   color: oklch(0.5 0.15 25);
-}
-
-.repro-badge-purple {
-  background: oklch(0.96 0.04 290);
-  color: oklch(0.5 0.14 290);
-}
-
-.repro-badge-gray {
-  background: var(--muted);
-  color: var(--muted-foreground);
-}
-
-.repro-badge-teal {
-  background: oklch(0.95 0.04 185);
-  color: oklch(0.45 0.12 185);
-}
-
-/* ─── Filter Bar ─────────────────────────────────────────────────────────── */
-
-.repro-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.repro-search {
-  flex: 1;
-  min-width: 180px;
-  max-width: 320px;
-  height: 40px;
-  padding: 0 0.875rem 0 2.5rem;
-  background: var(--muted);
-  border: 1.5px solid transparent;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  color: var(--foreground);
-  transition: all 0.2s ease;
-  outline: none;
-}
-
-.repro-search:focus {
-  background: white;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary), transparent 90%);
-}
-
-.repro-search-wrap {
-  position: relative;
-  flex: 1;
-  min-width: 180px;
-  max-width: 320px;
-}
-
-.repro-search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted-foreground);
-  pointer-events: none;
-}
-
-.repro-select {
-  height: 40px;
-  padding: 0 2rem 0 0.875rem;
-  background: white;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  font-size: 0.85rem;
-  color: var(--foreground);
-  font-weight: 500;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-  outline: none;
-}
-
-.repro-select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary), transparent 90%);
-}
-
-/* ─── Table ──────────────────────────────────────────────────────────────── */
-
-.repro-table-wrap {
-  background: white;
-  border-radius: 14px;
-  border: 1.5px solid var(--border);
-  overflow: hidden;
-  box-shadow: var(--card-premium-shadow);
-}
-
-.repro-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.repro-table th {
-  padding: 0.75rem 1rem;
-  text-align: left;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted-foreground);
-  background: var(--muted);
-  border-bottom: 1.5px solid var(--border);
-  white-space: nowrap;
-}
-
-.repro-table td {
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--border);
-  color: var(--foreground);
-  vertical-align: middle;
-}
-
-.repro-table tr:last-child td {
-  border-bottom: none;
-}
-
-.repro-table tr:hover td {
-  background: oklch(0.99 0.005 145);
-}
-
-.repro-table-id {
-  font-family: 'SF Mono', 'Roboto Mono', monospace;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.repro-table-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  justify-content: flex-end;
-}
-
-.repro-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1.5px solid var(--border);
-  background: white;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  padding: 0;
-}
-
-.repro-action-btn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: oklch(0.97 0.02 145);
-}
-
-.repro-action-btn.primary {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: white;
-}
-
-.repro-action-btn.primary:hover {
-  filter: brightness(1.1);
-}
-
-.repro-action-btn.danger:hover {
-  border-color: var(--destructive);
-  color: var(--destructive);
-  background: oklch(0.97 0.02 25);
-}
-
-/* ─── Empty State ────────────────────────────────────────────────────────── */
-
-.repro-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  gap: 0.75rem;
-  color: var(--muted-foreground);
-}
-
-.repro-empty-icon {
-  font-size: 3rem;
-  opacity: 0.35;
 }
 
 /* ─── Alerts Panel ───────────────────────────────────────────────────────── */
@@ -498,6 +124,88 @@
 
 .repro-ai-suggestion:last-child {
   margin-bottom: 0;
+}
+
+/* ─── Empty State ────────────────────────────────────────────────────────── */
+
+.repro-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  gap: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.repro-empty-icon {
+  font-size: 3rem;
+  opacity: 0.35;
+}
+
+/* ─── Recent Activities ──────────────────────────────────────────────────── */
+
+.repro-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.repro-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.repro-activity-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.repro-activity-item:first-child {
+  padding-top: 0;
+}
+
+.repro-activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.repro-activity-dot-success { background: oklch(0.55 0.18 145); }
+.repro-activity-dot-info { background: oklch(0.5 0.15 230); }
+.repro-activity-dot-warning { background: oklch(0.6 0.15 75); }
+.repro-activity-dot-system { background: var(--muted-foreground); }
+
+.repro-activity-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.repro-activity-icon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+.repro-activity-text {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.repro-activity-time {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  font-weight: 600;
 }
 
 /* ─── Flow Visualization ─────────────────────────────────────────────────── */
@@ -732,28 +440,7 @@
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 767px) {
-  .repro-kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .repro-fields-grid {
     grid-template-columns: 1fr;
-  }
-
-  .repro-filter-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .repro-search-wrap {
-    max-width: 100%;
-  }
-
-  .repro-table-wrap {
-    overflow-x: auto;
-  }
-
-  .repro-table {
-    min-width: 600px;
   }
 }
