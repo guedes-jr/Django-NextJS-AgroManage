@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight, Warehouse, CheckCircle2, AlertOctagon, Clock, BarChart3, Bird } from "lucide-react";
 import { Icon } from "lucide-react";
 import { cowHead, pigHead } from "@lucide/lab";
@@ -38,6 +39,8 @@ function KPIcon({ icon }: { icon: any }) {
 
 export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const { showToast } = useToast();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"inventory" | "reports" | "history">("inventory");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,7 +75,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         quantity: parseInt(row.quantidade, 10) || 1,
         name: row.nome || "",
         category: row.categoria,
-        gender: row.sexo,
+        gender: row.sexo === "Macho" ? "M" : (row.sexo === "Femea" || row.sexo === "Fêmea") ? "F" : row.sexo,
         origin: row.origem === "Comprado" ? "purchased" : row.origem === "Nascido" ? "born" : "donated",
         purchase_value: parseFloat(row.valor) || null,
         avg_weight_kg: parseFloat(row.peso) || null,
@@ -129,7 +132,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     let sexo = "Misto";
 
     if (species === "suinos") {
-      if (title === "Matrizes") { categoria = "Matriz"; sexo = "Femea"; }
+      if (title === "Matrizes") { categoria = "Marrã"; sexo = "Femea"; }
       else if (title === "Reprodutores") { categoria = "Cachaço"; sexo = "Macho"; }
       else if (title === "Lotes em Terminação") { categoria = "Terminação"; sexo = "Misto"; }
     } else if (species === "bovinos") {
@@ -475,6 +478,14 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                               </span>
                             </td>
                             <td className="py-3 text-end pe-4">
+                              <button 
+                                className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
+                                onClick={() => router.push(`/home/rebanho/suinos/animal/${row.id}`)}
+                                title="Ver detalhes do animal"
+                                style={{ width: '36px', height: '36px' }}
+                              >
+                                <Search size={16} />
+                              </button>
                               <button 
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
                                 onClick={() => handleEditAnimal(row)}

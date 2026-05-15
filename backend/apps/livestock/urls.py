@@ -6,6 +6,7 @@ from .views import (
     ReproductionDashboardView, IncubationViewSet,
     MarrasView, MatrizesView, GestacoesView, MaternidadeView,
     CrecheView, CrescimentoView, EngordaView,
+    VaccinationRecordViewSet, WeightRecordViewSet
 )
 
 router = DefaultRouter()
@@ -16,6 +17,8 @@ router.register(r'pregnancies', PregnancyViewSet, basename='pregnancy')
 router.register(r'births', BirthViewSet, basename='birth')
 router.register(r'litters', LitterViewSet, basename='litter')
 router.register(r'incubations', IncubationViewSet, basename='incubation')
+router.register(r'vaccinations', VaccinationRecordViewSet, basename='vaccination')
+router.register(r'weights', WeightRecordViewSet, basename='weight')
 
 urlpatterns = [
     # Custom dashboard endpoint

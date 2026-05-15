@@ -9,6 +9,7 @@ import {
   AlertListCard,
   AiSuggestionsCard,
 } from "@/components/ui";
+import { Search } from "lucide-react";
 
 export type BadgeVariant = "green" | "blue" | "amber" | "red" | "purple" | "gray" | "teal";
 
@@ -58,6 +59,7 @@ interface ReproducaoTabContentProps {
   selectable?: boolean;
   rowKey?: string;
   batchActions?: BatchAction<TableRow>[];
+  onRowClick?: (row: TableRow) => void;
 }
 
 export function ReproducaoTabContent({
@@ -78,6 +80,7 @@ export function ReproducaoTabContent({
   selectable,
   rowKey,
   batchActions,
+  onRowClick,
 }: ReproducaoTabContentProps) {
   const [search, setSearch] = useState("");
   const [filterVal, setFilterVal] = useState("all");
@@ -166,7 +169,14 @@ export function ReproducaoTabContent({
         rows={filtered}
         statusKey={statusKey}
         statusMap={statusMapForDataTable}
-        actions={actions.length > 0 ? actions : undefined}
+        actions={[
+          {
+            label: "Ver detalhes do animal",
+            icon: <Search size={16} />,
+            onClick: (row) => onRowClick?.(row),
+          },
+          ...actions
+        ]}
         emptyIcon={emptyIcon}
         emptyText={emptyText}
         selectable={selectable}

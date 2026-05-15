@@ -124,11 +124,11 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
 
   const typeConfig = {
     bovinos: {
-      categorias: ["Bezerro", "Garrote", "Novilha", "Touro", "Matriz"],
+      categorias: ["Bezerro", "Garrote", "Novilha", "Touro", "Matriz", "Vaca"],
       racas: ["Nelore", "Angus", "Brahman", "Hereford", "Senepol", "Brangus", "Girolando", "Holandês", "Mestiço"],
     },
     suinos: {
-      categorias: ["Leitão", "Terminação", "Matriz", "Cachaço"],
+      categorias: ["Leitão", "Terminação", "Marrã", "Matriz", "Cachaço"],
       racas: ["Large White", "Landrace", "Duroc", "Pietrain", "Moura", "Wessex"],
     },
     aves: {

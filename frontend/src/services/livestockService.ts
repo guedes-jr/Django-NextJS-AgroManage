@@ -102,3 +102,38 @@ export const batchWean = async (birthIds: number[], weanedQuantity?: number) => 
   const response = await apiClient.post("/livestock/births/batch_wean/", { birth_ids: birthIds, weaned_quantity: weanedQuantity });
   return response.data;
 };
+
+export const registerWeight = async (animalId: number | string, data: { weight_kg: number; weighing_date?: string; notes?: string }) => {
+  const response = await apiClient.post(`/livestock/animals/${animalId}/register-weight/`, data);
+  return response.data;
+};
+
+export const registerVaccination = async (animalId: number | string, data: { vaccine_name: string; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
+  const response = await apiClient.post(`/livestock/animals/${animalId}/register-vaccination/`, data);
+  return response.data;
+};
+
+export const diagnosePregnancy = async (animalId: number | string, result: 'positive' | 'negative', diagnosisDate?: string) => {
+  const response = await apiClient.post(`/livestock/animals/${animalId}/diagnose-pregnancy/`, { result, diagnosis_date: diagnosisDate });
+  return response.data;
+};
+
+export const promoteToMating = async (animalId: number | string) => {
+  const response = await apiClient.patch(`/livestock/animals/${animalId}/`, { reproductive_status: 'pronta' });
+  return response.data;
+};
+
+export const discardAnimal = async (animalId: number | string, data: { status: string; notes?: string }) => {
+  const response = await apiClient.patch(`/livestock/animals/${animalId}/`, data);
+  return response.data;
+};
+
+export const fetchAnimalDetails = async (id: string | number) => {
+  const response = await apiClient.get(`/livestock/animals/${id}/`);
+  return response.data;
+};
+
+export const fetchAnimalHistory = async (id: string | number) => {
+  const response = await apiClient.get(`/livestock/animals/${id}/full-history/`);
+  return response.data;
+};

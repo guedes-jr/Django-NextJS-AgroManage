@@ -45,12 +45,20 @@ export interface TabConfig {
   primaryActionModalSubtitle?: string;
   onSave?: (data: Record<string, string>) => Promise<void>;
   kpis?: KpiCard[];
-  tabActions?: { label: string; icon: string; color: string; desc: string }[];
+  tabActions?: { 
+    label: string; 
+    icon: string; 
+    color: string; 
+    desc: string; 
+    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote';
+    onClick?: () => void;
+  }[];
   tabAlerts?: AlertItem[];
   tabAiSuggestions?: AiSuggestion[];
   selectable?: boolean;
   rowKey?: string;
   batchActions?: BatchAction<TableRow>[];
+  onRowClick?: (row: TableRow) => void;
 }
 
 export interface ActivityItem {
@@ -230,19 +238,187 @@ function RefetchOverlay() {
   );
 }
 
+import { 
+  registerWeight, 
+  registerVaccination, 
+  diagnosePregnancy, 
+  promoteToMating, 
+  discardAnimal,
+  createBirth
+} from "@/services/livestockService";
+
+import { useRouter } from "next/navigation";
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ReproducaoDashboard({
   config,
   initialLoading,
   tabLoading,
+  onSuccess,
 }: {
   config: ReproducaoConfig;
   initialLoading?: boolean;
   tabLoading?: Record<string, boolean>;
+  onSuccess?: () => void;
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
+  const [actionModal, setActionModal] = useState<{ 
+    open: boolean; 
+    title: string; 
+    subtitle?: string; 
+    fields: ModalField[]; 
+    onConfirm: (data: any) => Promise<void> 
+  }>({
+    open: false,
+    title: "",
+    fields: [],
+    onConfirm: async () => {},
+  });
+
+  const handleQuickAction = (action: any, rows: any[] = []) => {
+    if (action.onClick) {
+      action.onClick();
+      return;
+    }
+
+    const animalOptions = rows.map(r => ({ 
+      value: String(r.id || r.pk || r.identifier || ""), 
+      label: String(r.id || r.pk || r.identifier || "Sem ID") 
+    })).filter(o => o.value);
+
+    switch (action.type) {
+      case 'weight':
+        setActionModal({
+          open: true,
+          title: "Registrar Pesagem",
+          subtitle: "Informe o peso atual do animal ou lote",
+          fields: [
+            { 
+              name: "id", 
+              label: "Animal / Lote", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              placeholder: "Brinco ou Lote", 
+              required: true 
+            },
+            { name: "weight_kg", label: "Peso (kg)", type: "number", placeholder: "0.00", required: true },
+            { name: "weighing_date", label: "Data da Pesagem", type: "date", required: true },
+            { name: "notes", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            await registerWeight(data.id, { weight_kg: parseFloat(data.weight_kg), weighing_date: data.weighing_date, notes: data.notes });
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'vaccine':
+        setActionModal({
+          open: true,
+          title: "Registrar Vacina / Medicamento",
+          fields: [
+            { 
+              name: "id", 
+              label: "Identificador", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+            { name: "vaccine_name", label: "Nome do Produto", type: "text", required: true },
+            { name: "application_date", label: "Data de Aplicação", type: "date", required: true },
+            { name: "dose_type", label: "Tipo de Dose", type: "select", options: [
+              { value: "unica", label: "Dose Única" },
+              { value: "reforco", label: "Reforço" },
+            ]},
+            { name: "dosage_ml", label: "Dosagem (ml)", type: "number" },
+          ],
+          onConfirm: async (data) => {
+            await registerVaccination(data.id, data);
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'diagnosis':
+        setActionModal({
+          open: true,
+          title: "Diagnóstico de Prenhez",
+          fields: [
+            { 
+              name: "id", 
+              label: "Matriz (Brinco)", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+            { name: "result", label: "Resultado", type: "select", required: true, options: [
+              { value: "positive", label: "Positivo (Gestante)" },
+              { value: "negative", label: "Negativo (Vazia)" },
+            ]},
+            { name: "diagnosis_date", label: "Data do Diagnóstico", type: "date", required: true },
+          ],
+          onConfirm: async (data) => {
+            await diagnosePregnancy(data.id, data.result as 'positive' | 'negative', data.diagnosis_date);
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'birth':
+        setActionModal({
+            open: true,
+            title: "Confirmar Parto",
+            fields: [
+              { 
+                name: "female_identifier", 
+                label: "Matriz (Brinco)", 
+                type: animalOptions.length > 0 ? "select" : "text", 
+                options: animalOptions,
+                required: true 
+              },
+              { name: "birth_date", label: "Data do Parto", type: "date", required: true },
+              { name: "live_born", label: "Nascidos Vivos", type: "number", required: true },
+              { name: "stillborn", label: "Natimortos", type: "number" },
+              { name: "mummified", label: "Mumificados", type: "number" },
+            ],
+            onConfirm: async (data) => {
+              await createBirth(data);
+              onSuccess?.();
+              setActionModal(prev => ({ ...prev, open: false }));
+            }
+          });
+          break;
+      case 'promote':
+        setActionModal({
+          open: true,
+          title: "Promover para Cobertura",
+          subtitle: "Confirme se o animal está pronto para o ciclo reprodutivo",
+          fields: [
+            { 
+              name: "id", 
+              label: "Identificador", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+          ],
+          onConfirm: async (data) => {
+            await promoteToMating(data.id);
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'primary':
+        setModalOpen(true);
+        break;
+      default:
+        console.warn(`Action type ${action.type} not implemented`);
+    }
+  };
 
   const allTabs = [
     { id: "dashboard", icon: "📊", label: "Dashboard", count: undefined },
@@ -349,12 +525,21 @@ export function ReproducaoDashboard({
                 emptyIcon={currentTab.emptyIcon}
                 emptyText={currentTab.emptyText}
                 kpis={currentTab.kpis}
-                tabActions={currentTab.tabActions}
+                tabActions={currentTab.tabActions?.map(action => ({
+                  ...action,
+                  onClick: () => handleQuickAction(action, currentTab.rows)
+                }))}
                 tabAlerts={currentTab.tabAlerts}
                 tabAiSuggestions={currentTab.tabAiSuggestions}
                 actions={[]}
                 selectable={currentTab.selectable}
                 rowKey={currentTab.rowKey}
+                onRowClick={(row) => {
+                  const id = row.animal_id || row.id || row.pk || row.identifier;
+                  if (id) {
+                    router.push(`/home/rebanho/suinos/animal/${id}`);
+                  }
+                }}
                 batchActions={currentTab.batchActions}
               />
             </>
@@ -374,6 +559,17 @@ export function ReproducaoDashboard({
           onConfirm={currentTab.onSave}
         />
       )}
+
+      {/* ─── Generic Action Modal ─── */}
+      <ReproducaoModal
+        open={actionModal.open}
+        onClose={() => setActionModal(prev => ({ ...prev, open: false }))}
+        title={actionModal.title}
+        subtitle={actionModal.subtitle}
+        fields={actionModal.fields}
+        confirmLabel="Confirmar"
+        onConfirm={actionModal.onConfirm}
+      />
     </div>
   );
 }

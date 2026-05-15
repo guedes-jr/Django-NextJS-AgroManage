@@ -60,6 +60,8 @@ class AnimalBatch(BaseModel):
         NOVILHA = "Novilha", "Novilha"
         TOURO = "Touro", "Touro"
         MATRIZ = "Matriz", "Matriz"
+        MARRA = "Marrã", "Marrã"
+        VACA = "Vaca", "Vaca"
         LEITAO = "Leitão", "Leitão"
         TERMINACAO = "Terminação", "Terminação"
         CACHACO = "Cachaço", "Cachaço"
@@ -239,6 +241,22 @@ class Birth(BaseModel):
     def __str__(self) -> str:
         return f"Birth by {self.female.identifier} on {self.birth_date}"
 
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new:
+            # Promote mother if she's a Marrã or Novilha upon first birth
+            changed = False
+            if self.female.category == "Marrã":
+                self.female.category = "Matriz"
+                changed = True
+            elif self.female.category == "Novilha":
+                self.female.category = "Vaca"
+                changed = True
+            
+            if changed:
+                self.female.save(update_fields=['category'])
+
 
 class Litter(BaseModel):
     """
@@ -323,3 +341,88 @@ class VaccinationRecord(BaseModel):
     def __str__(self) -> str:
         target = self.animal.identifier if self.animal else self.batch.batch_code if self.batch else "—"
         return f"{self.vaccine_name} → {target} em {self.application_date}"
+
+
+class WeightRecord(BaseModel):
+    """
+    Registro de pesagem de animal ou lote.
+    """
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="weights")
+    species = models.ForeignKey(Species, on_delete=models.PROTECT, related_name="weights")
+    animal = models.ForeignKey("Animal", on_delete=models.SET_NULL, null=True, blank=True, related_name="weights")
+    batch = models.ForeignKey("AnimalBatch", on_delete=models.SET_NULL, null=True, blank=True, related_name="weights")
+
+    weight_kg = models.DecimalField(max_digits=10, decimal_places=3)
+    weighing_date = models.DateField()
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Weight Record"
+        verbose_name_plural = "Weight Records"
+        ordering = ["-weighing_date"]
+
+    def __str__(self) -> str:
+        target = self.animal.identifier if self.animal else self.batch.batch_code if self.batch else "—"
+        return f"{self.weight_kg}kg ← {target} em {self.weighing_date}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update current weight on animal or batch
+        if self.animal:
+            self.animal.current_weight_kg = self.weight_kg
+            self.animal.save(update_fields=['current_weight_kg'])
+        if self.batch:
+            self.batch.avg_weight_kg = self.weight_kg
+            self.batch.save(update_fields=['avg_weight_kg'])
+
+
+class HealthRecord(BaseModel):
+    """
+    Registro clínico do animal (além de vacinas).
+    """
+    class TreatmentType(models.TextChoices):
+        MEDICACAO = "medication", "Medicação"
+        EXAME = "exam", "Exame"
+        CIRURGIA = "surgery", "Cirurgia"
+        OUTRO = "other", "Outro"
+
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="health_records")
+    animal = models.ForeignKey(Animal, on_delete=models.CASCADE, related_name="health_records")
+    
+    treatment_type = models.CharField(max_length=20, choices=TreatmentType.choices, default=TreatmentType.MEDICACAO)
+    description = models.TextField()
+    application_date = models.DateField()
+    veterinary = models.CharField(max_length=100, blank=True)
+    cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Health Record"
+        verbose_name_plural = "Health Records"
+        ordering = ["-application_date"]
+
+    def __str__(self) -> str:
+        return f"{self.treatment_type} - {self.animal.identifier} em {self.application_date}"
+
+
+class FeedingRecord(BaseModel):
+    """
+    Registro de consumo ou troca de dieta.
+    """
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="feeding_records")
+    animal = models.ForeignKey(Animal, on_delete=models.SET_NULL, null=True, blank=True, related_name="feeding_records")
+    batch = models.ForeignKey(AnimalBatch, on_delete=models.SET_NULL, null=True, blank=True, related_name="feeding_records")
+    
+    feed_type = models.CharField(max_length=100)
+    quantity_kg = models.DecimalField(max_digits=10, decimal_places=3)
+    date = models.DateField()
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Feeding Record"
+        verbose_name_plural = "Feeding Records"
+        ordering = ["-date"]
+
+    def __str__(self) -> str:
+        target = self.animal.identifier if self.animal else self.batch.batch_code if self.batch else "—"
+        return f"{self.feed_type} ({self.quantity_kg}kg) para {target} em {self.date}"

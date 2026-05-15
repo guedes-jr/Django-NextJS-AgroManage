@@ -90,8 +90,8 @@ export default function SuinosReproducaoPage() {
     return () => clearInterval(interval);
   }, [refetchTabs]);
 
-  const d = dashboardData?.kpis || {};
   const tab = tabData;
+  const d = tab.dashboard?.kpis || {};
 
   const tabLoadingStates: Record<string, boolean> = {
     dashboard: tabLoading.dashboard ?? true,
@@ -106,11 +106,11 @@ export default function SuinosReproducaoPage() {
 
   const m = tab.marras?.kpis || {};
   const mat = tab.matrizes?.kpis || {};
-  const g = tab.gestacoes?.kpis || {};
-  const matn = tab.maternidades?.kpis || {};
-  const cr = tab.creches?.kpis || {};
-  const cresc = tab.crescimentos?.kpis || {};
-  const eng = tab.engordas?.kpis || {};
+  const g = tab.gestacao?.kpis || {};
+  const matn = tab.maternidade?.kpis || {};
+  const cr = tab.creche?.kpis || {};
+  const cresc = tab.crescimento?.kpis || {};
+  const eng = tab.engorda?.kpis || {};
 
   const config: ReproducaoConfig = {
     especie: "suinos",
@@ -129,15 +129,15 @@ export default function SuinosReproducaoPage() {
     flowSteps: [
       { icon: "🐖", label: "Marrãs", count: tab.marras?.rows?.length ?? 0, color: "oklch(0.99 0.01 145)", borderColor: "oklch(0.95 0.05 145)" },
       { icon: "👩‍🍼", label: "Matrizes", count: tab.matrizes?.rows?.length ?? 0, color: "oklch(0.99 0.01 230)", borderColor: "oklch(0.94 0.04 230)" },
-      { icon: "🤰", label: "Gestação", count: tab.gestacoes?.rows?.length ?? 0, color: "oklch(0.99 0.01 80)", borderColor: "oklch(0.97 0.04 80)" },
-      { icon: "🍼", label: "Maternidade", count: tab.maternidades?.rows?.length ?? 0, color: "oklch(0.99 0.01 290)", borderColor: "oklch(0.96 0.04 290)" },
-      { icon: "🐷", label: "Creche", count: tab.creches?.rows?.length ?? 0, color: "oklch(0.99 0.01 185)", borderColor: "oklch(0.95 0.04 185)" },
-      { icon: "📈", label: "Crescimento", count: tab.crescimentos?.rows?.length ?? 0, color: "var(--muted)", borderColor: "var(--border)" },
-      { icon: "⚖️", label: "Engorda", count: tab.engordas?.rows?.length ?? 0, color: "var(--muted)", borderColor: "var(--border)" },
+      { icon: "🤰", label: "Gestação", count: tab.gestacao?.rows?.length ?? 0, color: "oklch(0.99 0.01 80)", borderColor: "oklch(0.97 0.04 80)" },
+      { icon: "🍼", label: "Maternidade", count: tab.maternidade?.rows?.length ?? 0, color: "oklch(0.99 0.01 290)", borderColor: "oklch(0.96 0.04 290)" },
+      { icon: "🐷", label: "Creche", count: tab.creche?.rows?.length ?? 0, color: "oklch(0.99 0.01 185)", borderColor: "oklch(0.95 0.04 185)" },
+      { icon: "📈", label: "Crescimento", count: tab.crescimento?.rows?.length ?? 0, color: "var(--muted)", borderColor: "var(--border)" },
+      { icon: "⚖️", label: "Engorda", count: tab.engorda?.rows?.length ?? 0, color: "var(--muted)", borderColor: "var(--border)" },
     ],
-    alerts: dashboardData?.alerts?.length > 0 ? dashboardData.alerts : [],
+    alerts: tab.dashboard?.alerts?.length > 0 ? tab.dashboard.alerts : [],
     activities: [],
-    aiSuggestions: dashboardData?.aiSuggestions?.length > 0 ? dashboardData.aiSuggestions : [],
+    aiSuggestions: tab.dashboard?.aiSuggestions?.length > 0 ? tab.dashboard.aiSuggestions : [],
     tabs: [
       {
         id: "marras",
@@ -154,7 +154,14 @@ export default function SuinosReproducaoPage() {
           { name: "brinco", label: "Brinco/ID", type: "text", required: true },
           { name: "data_entrada", label: "Data de Entrada", type: "date", required: true },
           { name: "peso", label: "Peso Inicial (kg)", type: "number" },
-          { name: "linhagem", label: "Linhagem", type: "text" },
+          { name: "raca", label: "Raça", type: "select", options: [
+            { value: "Large White", label: "Large White" },
+            { value: "Landrace", label: "Landrace" },
+            { value: "Duroc", label: "Duroc" },
+            { value: "Pietrain", label: "Pietrain" },
+            { value: "Moura", label: "Moura" },
+            { value: "Wessex", label: "Wessex" },
+          ]},
         ],
         onSave: async (data) => {
           await createAnimal({
@@ -162,8 +169,9 @@ export default function SuinosReproducaoPage() {
             entry_date: data.data_entrada,
             initial_weight_kg: data.peso ? parseFloat(data.peso) : null,
             gender: "F",
+            category: "Marrã",
             species_code_input: "suinos",
-            notes: data.linhagem ? `Linhagem: ${data.linhagem}` : "",
+            breed_name_input: data.raca,
           });
           showToast("Marrã cadastrada com sucesso!", "success");
           refetchTabs(["marras", "matrizes", "dashboard"]);
@@ -175,15 +183,15 @@ export default function SuinosReproducaoPage() {
           { label: "Prontas", value: m.prontas ?? 0, icon: "🎯", color: "oklch(0.96 0.04 290)", trend: "up" },
         ],
         tabActions: [
-          { label: "Nova Marrã", icon: "➕", color: "oklch(0.55 0.16 145)", desc: "Cadastrar nova marrã" },
-          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso" },
-          { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação" },
-          { label: "Promover para Cobertura", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar fase" },
+          { label: "Nova Marrã", icon: "➕", color: "oklch(0.55 0.16 145)", desc: "Cadastrar nova marrã", type: 'primary' },
+          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
+          { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
+          { label: "Promover para Cobertura", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar fase", type: 'promote' },
         ],
         tabAlerts: tab.marras?.alerts || [],
         tabAiSuggestions: tab.marras?.aiSuggestions || [],
         columns: [
-          { key: "id", label: "Brinco", render: (v) => <span className="repro-table-id">{String(v)}</span> },
+          { key: "identifier", label: "Brinco", render: (v) => <span className="repro-table-id">{String(v)}</span> },
           { key: "idade", label: "Idade (dias)" },
           { key: "peso", label: "Peso (kg)" },
           { key: "entrada", label: "Entrada" },
@@ -205,7 +213,7 @@ export default function SuinosReproducaoPage() {
         rowKey: "id",
         batchActions: [
           { label: "Registrar Cobertura", icon: "🤰", variant: "primary", onClick: async (rows) => { showToast(`Cobertura registrada para ${rows.length} matrizes!`, "success"); refetchTabs(["matrizes", "gestacao", "dashboard"]); } },
-          { label: "Descartar", icon: "🚫", variant: "danger", onClick: async (rows) => { await Promise.all(rows.map(r => updateAnimal(r.pk as number, { status: "finished" }))); showToast(`${rows.length} matrizes descartadas.`, "success"); refetchTabs(["matrizes", "dashboard"]); } },
+          { label: "Descartar", icon: "🚫", variant: "danger", onClick: async (rows) => { await Promise.all(rows.map(r => updateAnimal(r.id as number, { status: "finished" }))); showToast(`${rows.length} matrizes descartadas.`, "success"); refetchTabs(["matrizes", "dashboard"]); } },
         ],
         primaryActionLabel: "Registrar Cobertura",
         primaryActionModalFields: [
@@ -231,15 +239,15 @@ export default function SuinosReproducaoPage() {
           { label: "Lactantes", value: mat.lactantes ?? 0, icon: "🍼", color: "oklch(0.96 0.04 290)", trend: "up" },
         ],
         tabActions: [
-          { label: "Registrar Cobertura", icon: "🤰", color: "oklch(0.55 0.16 230)", desc: "Nova cobertura" },
-          { label: "Diagnóstico Prenhez", icon: "🔬", color: "oklch(0.55 0.16 145)", desc: "Confirmar gestação" },
-          { label: "Descartar Matriz", icon: "🚫", color: "oklch(0.6 0.22 27)", desc: "Remover do plantel" },
+          { label: "Registrar Cobertura", icon: "🤰", color: "oklch(0.55 0.16 230)", desc: "Nova cobertura", type: 'primary' },
+          { label: "Diagnóstico Prenhez", icon: "🔬", color: "oklch(0.55 0.16 145)", desc: "Confirmar gestação", type: 'diagnosis' },
+          { label: "Descartar Matriz", icon: "🚫", color: "oklch(0.6 0.22 27)", desc: "Remover do plantel", type: 'discard' },
           { label: "Histórico", icon: "📋", color: "oklch(0.78 0.15 85)", desc: "Ver histórico" },
         ],
         tabAlerts: tab.matrizes?.alerts || [],
         tabAiSuggestions: tab.matrizes?.aiSuggestions || [],
         columns: [
-          { key: "id", label: "Brinco", render: (v) => <span className="repro-table-id">{String(v)}</span> },
+          { key: "identifier", label: "Brinco", render: (v) => <span className="repro-table-id">{String(v)}</span> },
           { key: "op", label: "Ordem de Parto" },
           { key: "dias_abertos", label: "Dias Abertos" },
           { key: "ultima_cobertura", label: "Última Cobertura" },
@@ -272,15 +280,15 @@ export default function SuinosReproducaoPage() {
           { label: "Parto Próximo", value: g.parto_proximo ?? 0, icon: "⏰", color: "oklch(0.6 0.22 27)", trend: "neutral" },
         ],
         tabActions: [
-          { label: "Confirmar Prenhez", icon: "✅", color: "oklch(0.55 0.16 145)", desc: "Diagnóstico positivo" },
-          { label: "Registrar Perda", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Perda gestacional" },
-          { label: "Registrar Vacina", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinação" },
-          { label: "Confirmar Parto", icon: "🍼", color: "oklch(0.78 0.15 85)", desc: "Registrar nascimento" },
+          { label: "Confirmar Parto", icon: "🍼", color: "oklch(0.55 0.16 145)", desc: "Registrar nascimento", type: 'birth' },
+          { label: "Registrar Perda", icon: "❌", color: "oklch(0.6 0.22 27)", desc: "Aborto / Reabsorção" },
+          { label: "Registrar Vacina", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinação pré-parto", type: 'vaccine' },
+          { label: "Mover p/ Maternidade", icon: "🚚", color: "oklch(0.78 0.15 85)", desc: "Trocar setor" },
         ],
-        tabAlerts: tab.gestacoes?.alerts || [],
-        tabAiSuggestions: tab.gestacoes?.aiSuggestions || [],
+        tabAlerts: tab.gestacao?.alerts || [],
+        tabAiSuggestions: tab.gestacao?.aiSuggestions || [],
         columns: [
-          { key: "id", label: "Brinco", render: (v) => <span className="repro-table-id">{String(v)}</span> },
+          { key: "identifier", label: "Brinco", render: (v) => <span className="repro-table-id">{String(v)}</span> },
           { key: "cobertura", label: "Data Cobertura" },
           { key: "dias", label: "Dias Gestação" },
           { key: "previsao", label: "Previsão Parto" },
@@ -312,13 +320,13 @@ export default function SuinosReproducaoPage() {
         tabActions: [
           { label: "Registrar Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Registrar procedimento" },
           { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito" },
-          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Pesar leitões" },
+          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Pesar leitões", type: 'weight' },
           { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche" },
         ],
-        tabAlerts: tab.maternidades?.alerts || [],
-        tabAiSuggestions: tab.maternidades?.aiSuggestions || [],
+        tabAlerts: tab.maternidade?.alerts || [],
+        tabAiSuggestions: tab.maternidade?.aiSuggestions || [],
         columns: [
-          { key: "matriz", label: "Matriz" },
+          { key: "identifier", label: "Matriz" },
           { key: "parto", label: "Data Parto" },
           { key: "nascidos", label: "Vivos" },
           { key: "natimortos", label: "Natimortos" },
@@ -352,13 +360,13 @@ export default function SuinosReproducaoPage() {
           { label: "Peso Médio", value: cr.peso_medio ?? "—", icon: "⚖️", color: "oklch(0.97 0.04 80)", trend: "neutral" },
         ],
         tabActions: [
-          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso do lote" },
+          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso do lote", type: 'weight' },
           { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
-          { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação" },
+          { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para crescimento" },
         ],
-        tabAlerts: tab.creches?.alerts || [],
-        tabAiSuggestions: tab.creches?.aiSuggestions || [],
+        tabAlerts: tab.creche?.alerts || [],
+        tabAiSuggestions: tab.creche?.aiSuggestions || [],
         columns: [
           { key: "lote", label: "Lote" },
           { key: "entrada", label: "Entrada" },
@@ -389,13 +397,13 @@ export default function SuinosReproducaoPage() {
           { label: "Próximos Engorda", value: cresc.proximos_engorda ?? 0, icon: "📈", color: "oklch(0.6 0.22 27)", trend: "up" },
         ],
         tabActions: [
-          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso" },
+          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
           { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
-          { label: "Lançar Medicação", icon: "💊", color: "oklch(0.6 0.22 27)", desc: "Medicação" },
+          { label: "Lançar Medicação", icon: "💊", color: "oklch(0.6 0.22 27)", desc: "Medicação", type: 'vaccine' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para engorda" },
         ],
-        tabAlerts: tab.crescimentos?.alerts || [],
-        tabAiSuggestions: tab.crescimentos?.aiSuggestions || [],
+        tabAlerts: tab.crescimento?.alerts || [],
+        tabAiSuggestions: tab.crescimento?.aiSuggestions || [],
         columns: [
           { key: "lote", label: "Lote" },
           { key: "entrada", label: "Entrada" },
@@ -437,8 +445,8 @@ export default function SuinosReproducaoPage() {
           { label: "Encerrar Lote", icon: "🔒", color: "oklch(0.6 0.22 27)", desc: "Finalizar lote" },
           { label: "Resumo Financeiro", icon: "📊", color: "oklch(0.78 0.15 85)", desc: "Ver resultados" },
         ],
-        tabAlerts: tab.engordas?.alerts || [],
-        tabAiSuggestions: tab.engordas?.aiSuggestions || [],
+        tabAlerts: tab.engorda?.alerts || [],
+        tabAiSuggestions: tab.engorda?.aiSuggestions || [],
         columns: [
           { key: "lote", label: "Lote" },
           { key: "qtd", label: "Qtd." },
@@ -457,11 +465,16 @@ export default function SuinosReproducaoPage() {
     ],
   };
 
+  const handleSuccess = () => {
+    refetchTabs(["dashboard", "marras", "matrizes", "gestacao", "maternidade", "creche", "crescimento", "engorda"]);
+  };
+
   return (
     <ReproducaoDashboard
       config={config}
       initialLoading={initialLoading}
       tabLoading={tabLoadingStates}
+      onSuccess={handleSuccess}
     />
   );
 }

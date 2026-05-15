@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from django.db import IntegrityError
 from django.utils import timezone
 import datetime
-from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter
+from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
     PregnancySerializer, BirthSerializer, LitterSerializer,
@@ -51,7 +51,8 @@ class MarrasView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = Animal.objects.filter(**filters, gender='F').filter(
+        category = 'Marrã' if species == 'suinos' else 'Novilha'
+        qs = Animal.objects.filter(**filters, gender='F', category=category).filter(
             reproductive_status__in=['vazia', 'em_preparo', 'pronta']
         )
         total = qs.count()
@@ -72,8 +73,8 @@ class MarrasView(BasePhaseView):
         for a in animals:
             idade = (timezone.now().date() - a.birth_date).days if a.birth_date else None
             rows.append({
-                "pk": a.id,
-                "id": a.identifier,
+                "id": a.id,
+                "identifier": a.identifier,
                 "idade": idade,
                 "peso": float(a.current_weight_kg) if a.current_weight_kg else None,
                 "entrada": a.entry_date.isoformat() if a.entry_date else None,
@@ -99,8 +100,9 @@ class MatrizesView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = Animal.objects.filter(**filters, gender='F').filter(
-            reproductive_status__in=['vazia', 'coberta', 'gestante', 'lactante', 'descanso']
+        category = 'Matriz' if species == 'suinos' else 'Vaca'
+        qs = Animal.objects.filter(**filters, gender='F', category=category).filter(
+            reproductive_status__in=['vazia', 'em_preparo', 'pronta', 'coberta', 'gestante', 'lactante', 'descanso']
         )
         total = qs.count()
         vazias = qs.filter(reproductive_status='vazia').count()
@@ -124,8 +126,8 @@ class MatrizesView(BasePhaseView):
             ultima_cob = a.matings_as_female.order_by('-mating_date').first()
             dias_abertos = (timezone.now().date() - ultima_cob.mating_date).days if ultima_cob and ultima_cob.mating_date else None
             rows.append({
-                "pk": a.id,
-                "id": a.identifier,
+                "id": a.id,
+                "identifier": a.identifier,
                 "op": (a.births.count() if hasattr(a, 'births') else 0) + 1,
                 "dias_abertos": dias_abertos,
                 "ultima_cobertura": ultima_cob.mating_date.isoformat() if ultima_cob and ultima_cob.mating_date else "—",
@@ -170,7 +172,9 @@ class GestacoesView(BasePhaseView):
         for p in paged:
             dias = (now - p.start_date).days if p.start_date else None
             rows.append({
-                "id": p.female.identifier,
+                "id": p.id,
+                "animal_id": p.female.id,
+                "identifier": p.female.identifier,
                 "cobertura": p.mating.mating_date.isoformat() if p.mating and p.mating.mating_date else None,
                 "dias": dias,
                 "previsao": p.expected_birth_date.isoformat() if p.expected_birth_date else None,
@@ -238,7 +242,7 @@ class MaternidadeView(BasePhaseView):
             previsao_desmame = (b.birth_date + datetime.timedelta(days=21)).isoformat() if b.birth_date else None
             dias_para_desmame = max(0, 21 - idade) if idade is not None else None
 
-            if b.litter and b.litter.weaning_date:
+            if hasattr(b, 'litter') and b.litter.weaning_date:
                 status = "Desmamado"
                 vivos_atual = b.litter.weaned_quantity or 0
             elif idade is not None and idade >= 21:
@@ -250,7 +254,8 @@ class MaternidadeView(BasePhaseView):
 
             rows.append({
                 "id": b.id,
-                "matriz": b.female.identifier,
+                "animal_id": b.female.id,
+                "identifier": b.female.identifier,
                 "parto": b.birth_date.isoformat() if b.birth_date else None,
                 "nascidos": b.live_born,
                 "natimortos": b.stillborn,
@@ -259,7 +264,7 @@ class MaternidadeView(BasePhaseView):
                 "idade": idade,
                 "previsao_desmame": previsao_desmame,
                 "dias_para_desmame": dias_para_desmame,
-                "peso_desmame": str(b.litter.avg_weaning_weight_kg) if b.litter and b.litter.avg_weaning_weight_kg else None,
+                "peso_desmame": str(b.litter.avg_weaning_weight_kg) if hasattr(b, 'litter') and b.litter.avg_weaning_weight_kg else None,
                 "status": status,
             })
 
@@ -540,6 +545,156 @@ class AnimalViewSet(viewsets.ModelViewSet):
             return Response(MatingSerializer(mating).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], url_path='register-weight')
+    def register_weight(self, request, pk=None):
+        animal = self.get_object()
+        weight = request.data.get('weight_kg')
+        date = request.data.get('weighing_date', timezone.now().date())
+        
+        if not weight:
+            return Response({"error": "Peso é obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        record = WeightRecord.objects.create(
+            farm=animal.farm,
+            species=animal.species,
+            animal=animal,
+            weight_kg=weight,
+            weighing_date=date,
+            notes=request.data.get('notes', '')
+        )
+        return Response({"message": "Peso registrado com sucesso", "weight": weight}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='register-vaccination')
+    def register_vaccination(self, request, pk=None):
+        animal = self.get_object()
+        vaccine_name = request.data.get('vaccine_name')
+        date = request.data.get('application_date', timezone.now().date())
+        
+        if not vaccine_name:
+            return Response({"error": "Nome da vacina é obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        record = VaccinationRecord.objects.create(
+            farm=animal.farm,
+            species=animal.species,
+            animal=animal,
+            vaccine_name=vaccine_name,
+            application_date=date,
+            dose_type=request.data.get('dose_type', VaccinationRecord.DoseType.UNICA),
+            dosage_ml=request.data.get('dosage_ml'),
+            notes=request.data.get('notes', '')
+        )
+        return Response({"message": "Vacina registrada com sucesso"}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='diagnose-pregnancy')
+    def diagnose_pregnancy(self, request, pk=None):
+        animal = self.get_object()
+        result = request.data.get('result') # 'positive' or 'negative'
+        date = request.data.get('diagnosis_date', timezone.now().date())
+        
+        if result == 'positive':
+            animal.reproductive_status = Animal.ReproductiveStatus.GESTANTE
+            animal.save()
+            
+            # Create Pregnancy record if it doesn't exist for the latest mating
+            latest_mating = animal.matings_as_female.order_by('-mating_date').first()
+            if latest_mating:
+                Pregnancy.objects.get_or_create(
+                    female=animal,
+                    mating=latest_mating,
+                    defaults={
+                        'start_date': latest_mating.mating_date,
+                        'expected_birth_date': latest_mating.expected_birth_date,
+                        'status': 'ongoing'
+                    }
+                )
+        elif result == 'negative':
+            animal.reproductive_status = Animal.ReproductiveStatus.VAZIA
+            animal.save()
+            
+        return Response({"message": f"Diagnóstico {result} registrado.", "status": animal.reproductive_status})
+
+    @action(detail=True, methods=['get'], url_path='full-history')
+    def full_history(self, request, pk=None):
+        animal = self.get_object()
+        
+        # Collect all related events
+        events = []
+        
+        # 1. Matings
+        for m in animal.matings_as_female.all():
+            events.append({
+                "type": "mating",
+                "date": m.mating_date,
+                "title": f"Cobertura / Inseminação ({m.get_mating_type_display()})",
+                "subtitle": f"Reprodutor: {m.sire_info or (m.sire.identifier if m.sire else 'N/A')}",
+                "status": m.get_status_display()
+            })
+            
+        # 2. Pregnancies
+        for p in animal.pregnancies.all():
+            events.append({
+                "type": "pregnancy",
+                "date": p.start_date,
+                "title": "Gestação Confirmada",
+                "subtitle": f"Previsão de parto: {p.expected_birth_date}",
+                "status": p.get_status_display()
+            })
+            
+        # 3. Births
+        for b in animal.births.all():
+            events.append({
+                "type": "birth",
+                "date": b.birth_date,
+                "title": "Parto Realizado",
+                "subtitle": f"Nascidos: {b.total_born} (Vivos: {b.live_born})",
+                "status": "Concluído"
+            })
+            
+        # 4. Weights
+        for w in animal.weights.all():
+            events.append({
+                "type": "weight",
+                "date": w.weighing_date,
+                "title": "Registro de Peso",
+                "subtitle": f"Peso: {w.weight_kg} kg",
+                "status": "Medição"
+            })
+            
+        # 5. Vaccinations
+        for v in animal.vaccinations.all():
+            events.append({
+                "type": "vaccination",
+                "date": v.application_date,
+                "title": f"Vacinação: {v.vaccine_name}",
+                "subtitle": f"Dose: {v.get_dose_type_display()}",
+                "status": "Aplicada"
+            })
+            
+        # 6. Health
+        for h in animal.health_records.all():
+            events.append({
+                "type": "health",
+                "date": h.application_date,
+                "title": f"Clínico: {h.get_treatment_type_display()}",
+                "subtitle": h.description,
+                "status": "Registro"
+            })
+            
+        # 7. Feeding
+        for f in animal.feeding_records.all():
+            events.append({
+                "type": "feeding",
+                "date": f.date,
+                "title": f"Alimentação: {f.feed_type}",
+                "subtitle": f"Quantidade: {f.quantity_kg} kg",
+                "status": "Registro"
+            })
+            
+        # Sort events by date descending
+        events.sort(key=lambda x: x['date'], reverse=True)
+        
+        return Response(events)
+
 
 class MatingViewSet(viewsets.ModelViewSet):
     serializer_class = MatingSerializer
@@ -700,3 +855,27 @@ class ReproductionDashboardView(APIView):
             "aiSuggestions": ai_suggestions,
             "message": "Dashboard API is connected."
         }, status=status.HTTP_200_OK)
+
+
+class VaccinationRecordViewSet(viewsets.ModelViewSet):
+    def get_serializer_class(self):
+        from .serializers import VaccinationRecordSerializer
+        return VaccinationRecordSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'organization'):
+            return VaccinationRecord.objects.filter(farm__organization=user.organization)
+        return VaccinationRecord.objects.none()
+
+
+class WeightRecordViewSet(viewsets.ModelViewSet):
+    def get_serializer_class(self):
+        from .serializers import WeightRecordSerializer
+        return WeightRecordSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'organization'):
+            return WeightRecord.objects.filter(farm__organization=user.organization)
+        return WeightRecord.objects.none()
