@@ -65,6 +65,7 @@ class AnimalBatch(BaseModel):
         LEITAO = "Leitão", "Leitão"
         TERMINACAO = "Terminação", "Terminação"
         CACHACO = "Cachaço", "Cachaço"
+        AGUARDANDO_COBERTURA = "Aguardando Cobertura", "Aguardando Cobertura"
         PINTO = "Pinto", "Pinto"
         FRANGO_CORTE = "Frango de Corte", "Frango de Corte"
         POEDEIRA = "Poedeira", "Poedeira"
@@ -75,6 +76,7 @@ class AnimalBatch(BaseModel):
         ENGORDA = "engorda", "Engorda"
         GESTACAO_MATERNIDADE = "gestacao_maternidade", "Gestação/Maternidade"
         REPRODUCAO = "reproducao", "Reprodução"
+        AGUARDANDO_COBERTURA = "aguardando_cobertura", "Aguardando Cobertura"
         OUTRO = "outro", "Outro"
 
     phase = models.CharField(max_length=30, choices=Phase.choices, null=True, blank=True, help_text="Fase produtiva do lote (creche, crescimento, engorda, etc.)")
@@ -96,6 +98,7 @@ class AnimalBatch(BaseModel):
     gender = models.CharField(max_length=20, null=True, blank=True)
     category = models.CharField(max_length=50, choices=Category.choices, null=True, blank=True)
     name = models.CharField(max_length=100, null=True, blank=True)
+    mother = models.ForeignKey('Animal', on_delete=models.SET_NULL, null=True, blank=True, related_name="offspring_batches")
     avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
 
@@ -126,6 +129,7 @@ class Animal(BaseModel):
         LACTANTE = "lactante", "Lactante"
         DESCANSO = "descanso", "Em Descanso"
         ATIVA = "ativa", "Ativa (Macho)"
+        AGUARDANDO_COBERTURA = "aguardando_cobertura", "Aguardando Cobertura"
 
     farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="animals")
     species = models.ForeignKey(Species, on_delete=models.PROTECT, related_name="animals")
@@ -144,6 +148,33 @@ class Animal(BaseModel):
     initial_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     current_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    # Controle reprodutivo
+    birth_count = models.PositiveIntegerField(default=0, help_text="Nº total de partos da fêmea")
+    previous_phase = models.CharField(
+        max_length=30, blank=True,
+        help_text="Status reprodutivo anterior (para retorno após DG negativo)"
+    )
+
+    # Filiação (opcional)
+    sire_ref = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='offspring_as_sire', verbose_name='Pai (Reprodutor)',
+        help_text='Reprodutor pai, se cadastrado no sistema'
+    )
+    dam_ref = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='offspring_as_dam', verbose_name='Mãe',
+        help_text='Mãe, se cadastrada no sistema'
+    )
+    sire_name = models.CharField(
+        max_length=100, blank=True,
+        help_text='Nome/registro do pai se não cadastrado no sistema'
+    )
+    dam_name = models.CharField(
+        max_length=100, blank=True,
+        help_text='Nome/registro da mãe se não cadastrada no sistema'
+    )
 
     class Meta(BaseModel.Meta):
         verbose_name = "Animal"
@@ -224,11 +255,15 @@ class Birth(BaseModel):
     female = models.ForeignKey(Animal, on_delete=models.CASCADE, related_name="births")
     
     birth_date = models.DateField()
+    birth_time_start = models.TimeField(null=True, blank=True, help_text="Horário de início do parto")
+    birth_time_end = models.TimeField(null=True, blank=True, help_text="Horário de término do parto")
+    birth_order = models.PositiveIntegerField(default=1, help_text="Número/ordem do parto (1ª cria, 2ª cria...)")
     live_born = models.PositiveIntegerField(default=0)
     stillborn = models.PositiveIntegerField(default=0)
     mummified = models.PositiveIntegerField(default=0)
     
     notes = models.TextField(blank=True)
+    batch = models.ForeignKey("AnimalBatch", on_delete=models.SET_NULL, null=True, blank=True, related_name="birth_records")
 
     class Meta(BaseModel.Meta):
         verbose_name = "Birth"
@@ -243,19 +278,35 @@ class Birth(BaseModel):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        super().save(*args, **kwargs)
+        
+        # Calcular ordem do parto antes de salvar
         if is_new:
-            # Promote mother if she's a Marrã or Novilha upon first birth
-            changed = False
-            if self.female.category == "Marrã":
-                self.female.category = "Matriz"
-                changed = True
-            elif self.female.category == "Novilha":
-                self.female.category = "Vaca"
-                changed = True
-            
-            if changed:
-                self.female.save(update_fields=['category'])
+            self.birth_order = self.female.birth_count + 1
+        
+        super().save(*args, **kwargs)
+        
+        if is_new:
+            female = self.female
+            update_fields = []
+
+            # Promover categoria na primeira cria
+            if female.category == "Marrã":
+                female.category = "Matriz"
+                update_fields.append('category')
+            elif female.category == "Novilha":
+                female.category = "Vaca"
+                update_fields.append('category')
+
+            # Incrementar contador de partos
+            female.birth_count = female.birth_count + 1
+            update_fields.append('birth_count')
+
+            # Mover status reprodutivo para Lactante
+            female.reproductive_status = Animal.ReproductiveStatus.LACTANTE
+            update_fields.append('reproductive_status')
+
+            if update_fields:
+                female.save(update_fields=update_fields)
 
 
 class Litter(BaseModel):

@@ -60,7 +60,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             'id', 'batch_code', 'name', 'category', 'phase',
             'gender', 'origin', 'purchase_value', 'avg_weight_kg', 
             'entry_date', 'status', 'species_code', 'breed_name',
-            'species_code_input', 'breed_name_input', 'farm_id', 'quantity'
+            'species_code_input', 'breed_name_input', 'farm_id', 'quantity', 'mother'
         ]
 
     def validate_batch_code(self, value):
@@ -219,6 +219,10 @@ class AnimalSerializer(serializers.ModelSerializer):
     breed_name = serializers.CharField(source='breed.name', read_only=True)
     batch_code = serializers.CharField(source='batch.batch_code', read_only=True)
 
+    # Filiação — leitura
+    sire_identifier = serializers.CharField(source='sire_ref.identifier', read_only=True, default=None)
+    dam_identifier = serializers.CharField(source='dam_ref.identifier', read_only=True, default=None)
+
     class Meta:
         model = Animal
         fields = [
@@ -226,9 +230,14 @@ class AnimalSerializer(serializers.ModelSerializer):
             'batch', 'batch_code', 'identifier', 'birth_date', 'entry_date',
             'gender', 'category', 'status', 'reproductive_status',
             'initial_weight_kg', 'current_weight_kg', 'notes',
+            # Controle reprodutivo
+            'birth_count', 'previous_phase',
+            # Filiação
+            'sire_ref', 'dam_ref', 'sire_name', 'dam_name',
+            'sire_identifier', 'dam_identifier',
             'species_code_input', 'breed_name_input', 'farm_id'
         ]
-        read_only_fields = ['farm', 'species']
+        read_only_fields = ['farm', 'species', 'birth_count', 'previous_phase']
 
     def create(self, validated_data):
         species_code = validated_data.pop('species_code_input', None)
@@ -260,6 +269,10 @@ class AnimalSerializer(serializers.ModelSerializer):
             
         validated_data['species'] = species
         validated_data['breed'] = breed
+
+        # Status inicial padrão para Marrãs de suínos
+        if species.code == 'suinos' and validated_data.get('category') == 'Marrã' and not validated_data.get('reproductive_status'):
+            validated_data['reproductive_status'] = 'aguardando_cobertura'
         
         # Farm selection logic based on request user
         from apps.farms.models import Farm
@@ -306,6 +319,7 @@ class MatingSerializer(serializers.ModelSerializer):
             'sire_info', 'mating_date', 'mating_type', 'status',
             'expected_birth_date', 'notes'
         ]
+        read_only_fields = ['female']
 
 
 class PregnancySerializer(serializers.ModelSerializer):
@@ -327,7 +341,8 @@ class BirthSerializer(serializers.ModelSerializer):
         model = Birth
         fields = [
             'id', 'pregnancy', 'female', 'female_identifier', 'birth_date',
-            'live_born', 'stillborn', 'mummified', 'total_born', 'notes'
+            'birth_time_start', 'birth_time_end', 'birth_order',
+            'live_born', 'stillborn', 'mummified', 'total_born', 'notes', 'batch'
         ]
 
 

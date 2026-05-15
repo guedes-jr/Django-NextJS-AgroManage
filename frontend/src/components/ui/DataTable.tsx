@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Search, ChevronUp, ChevronDown, Eye, Edit2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckSquare, Square, X } from "lucide-react";
 
 export interface Column<T> {
@@ -22,6 +22,7 @@ export interface BatchAction<T> {
   icon?: React.ReactNode;
   onClick: (selectedRows: T[]) => void | Promise<void>;
   variant?: "primary" | "default" | "danger";
+  shouldShow?: (selectedRows: T[]) => boolean;
 }
 
 interface FilterOption {
@@ -57,27 +58,20 @@ interface DataTableProps<T extends Record<string, unknown>> {
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   filters?: FilterConfig[];
+  onSelectionChange?: (selectedRows: T[]) => void;
 }
 
-const variantStyles: Record<string, string> = {
-  green: "bg-success/15 text-success border-success/20",
-  blue: "bg-primary/15 text-primary border-primary/20",
-  amber: "bg-warning/15 text-warning border-warning/20",
-  red: "bg-danger/15 text-danger border-danger/20",
-  purple: "bg-info/15 text-info border-info/20",
-  gray: "bg-muted text-muted-foreground border-border",
-  teal: "bg-info/15 text-info border-info/20",
+const variantStyles: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  green: { bg: "oklch(0.95 0.05 145)", text: "oklch(0.35 0.12 145)", border: "oklch(0.85 0.1 145)", dot: "oklch(0.55 0.16 145)" },
+  blue:  { bg: "oklch(0.94 0.04 230)", text: "oklch(0.35 0.1 230)",  border: "oklch(0.85 0.08 230)", dot: "oklch(0.5 0.15 230)" },
+  amber: { bg: "oklch(0.97 0.04 80)",  text: "oklch(0.35 0.1 80)",   border: "oklch(0.88 0.1 80)",  dot: "oklch(0.65 0.18 80)" },
+  red:   { bg: "oklch(0.96 0.04 25)",  text: "oklch(0.4 0.15 25)",   border: "oklch(0.88 0.1 25)",  dot: "oklch(0.6 0.22 27)" },
+  purple:{ bg: "oklch(0.96 0.04 290)", text: "oklch(0.4 0.12 290)",  border: "oklch(0.88 0.08 290)",dot: "oklch(0.65 0.15 290)" },
+  gray:  { bg: "var(--muted)",         text: "var(--muted-foreground)", border: "var(--border)", dot: "var(--muted-foreground)" },
+  teal:  { bg: "oklch(0.95 0.05 185)", text: "oklch(0.35 0.12 185)", border: "oklch(0.85 0.1 185)", dot: "oklch(0.55 0.16 185)" },
 };
 
-const dotColors: Record<string, string> = {
-  green: "bg-success",
-  blue: "bg-primary",
-  amber: "bg-warning",
-  red: "bg-danger",
-  purple: "bg-info",
-  gray: "bg-muted-foreground",
-  teal: "bg-info",
-};
+
 
 export function DataTable<T extends Record<string, unknown>>({
   columns,
@@ -99,12 +93,33 @@ export function DataTable<T extends Record<string, unknown>>({
   onSearchChange,
   searchPlaceholder = "Buscar por lote, animal, data...",
   filters,
+  onSelectionChange,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const lastSelectedRowsRef = useRef<T[]>([]);
+
+  useEffect(() => {
+    if (onSelectionChange) {
+      const selectedRows = rows.filter(r => {
+        const key = String(rowKey ? r[rowKey] : (r.id || r.pk || r.identifier || ""));
+        return selected.has(key);
+      });
+      
+      // Only call if selection actually changed (shallow compare IDs)
+      const lastIds = lastSelectedRowsRef.current.map(r => String(rowKey ? r[rowKey] : (r.id || r.pk || r.identifier || ""))).join(",");
+      const currentIds = selectedRows.map(r => String(rowKey ? r[rowKey] : (r.id || r.pk || r.identifier || ""))).join(",");
+      
+      if (lastIds !== currentIds) {
+        lastSelectedRowsRef.current = selectedRows;
+        onSelectionChange(selectedRows);
+      }
+    }
+  }, [selected, rows, rowKey, onSelectionChange]);
 
   const filtered = useMemo(() => {
     let data = rows;
@@ -300,7 +315,7 @@ export function DataTable<T extends Record<string, unknown>>({
             </button>
           </div>
           <div className="d-flex align-items-center gap-2">
-            {batchActions.map((ba, i) => (
+            {batchActions.filter(ba => !ba.shouldShow || ba.shouldShow(selectedRows)).map((ba, i) => (
               <button
                 key={i}
                 className={`btn btn-sm d-flex align-items-center gap-1 fw-semibold ${
@@ -537,13 +552,28 @@ function StatusBadge({
   status: string;
   statusMap: Record<string, { label: string; variant: string }>;
 }) {
-  const cfg = statusMap[status] ?? { label: status, variant: "gray" };
-  const badgeClass = variantStyles[cfg.variant] || variantStyles.gray;
-  const dotClass = dotColors[cfg.variant] || dotColors.gray;
+  const cfg = statusMap[status] || { 
+    label: status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+    variant: "gray" 
+  };
+  const style = variantStyles[cfg.variant] || variantStyles.gray;
 
   return (
-    <span className={`badge rounded-pill px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1 border ${badgeClass}`}>
-      <div className={`rounded-circle ${dotClass}`} style={{ width: "6px", height: "6px" }}></div>
+    <span 
+      className="rounded-pill px-3 py-1 fw-bold d-inline-flex align-items-center gap-2 border"
+      style={{ 
+        background: style.bg, 
+        color: style.text, 
+        borderColor: style.border,
+        fontSize: "0.72rem",
+        letterSpacing: "0.01em",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
+      }}
+    >
+      <div 
+        className="rounded-circle" 
+        style={{ width: "6px", height: "6px", background: style.dot }}
+      ></div>
       {cfg.label}
     </span>
   );

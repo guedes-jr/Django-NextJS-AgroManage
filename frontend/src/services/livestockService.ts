@@ -25,6 +25,11 @@ export const getMaternidades = async (species: string, page = 1, pageSize = 50) 
   return response.data;
 };
 
+export const getAguardandoCobertura = async (species: string, page = 1, pageSize = 50) => {
+  const response = await apiClient.get(`/livestock/aguardando-cobertura/?species=${species}&page=${page}&page_size=${pageSize}`);
+  return response.data;
+};
+
 export const getCreches = async (species: string, page = 1, pageSize = 50) => {
   const response = await apiClient.get(`/livestock/creches/?species=${species}&page=${page}&page_size=${pageSize}`);
   return response.data;
@@ -59,7 +64,13 @@ export const createMating = async (data: any) => {
     mating_date: data.mating_date,
     mating_type: data.mating_type,
     sire_info: data.sire_info || "",
+    ...(data.sire_id ? { sire_id: data.sire_id } : {}),
   });
+  return response.data;
+};
+
+export const getReproducers = async (species: string): Promise<{ id: number; identifier: string; category: string }[]> => {
+  const response = await apiClient.get(`/livestock/animals/reproducers/?species=${species}`);
   return response.data;
 };
 
@@ -90,6 +101,11 @@ export const updateAnimalBatch = async (id: number, data: any) => {
 
 export const updateAnimal = async (id: number, data: any) => {
   const response = await apiClient.patch(`/livestock/animals/${id}/`, data);
+  return response.data;
+};
+
+export const updatePregnancy = async (id: number, data: any) => {
+  const response = await apiClient.patch(`/livestock/pregnancies/${id}/`, data);
   return response.data;
 };
 

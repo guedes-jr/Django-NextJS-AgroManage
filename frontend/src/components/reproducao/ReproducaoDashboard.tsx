@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Loader2 } from "lucide-react";
 import "./reproducao.css";
 import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
@@ -12,6 +12,7 @@ import {
   TableColumn,
   TableRow,
   BadgeVariant,
+  QuickAction,
 } from "./ReproducaoTabContent";
 import { ReproducaoModal, ModalField } from "./ReproducaoModal";
 
@@ -50,7 +51,7 @@ export interface TabConfig {
     icon: string; 
     color: string; 
     desc: string; 
-    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote';
+    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra';
     onClick?: () => void;
   }[];
   tabAlerts?: AlertItem[];
@@ -59,6 +60,7 @@ export interface TabConfig {
   rowKey?: string;
   batchActions?: BatchAction<TableRow>[];
   onRowClick?: (row: TableRow) => void;
+  actions?: QuickAction[];
 }
 
 export interface ActivityItem {
@@ -244,27 +246,45 @@ import {
   diagnosePregnancy, 
   promoteToMating, 
   discardAnimal,
-  createBirth
+  createBirth,
+  registerMating,
+  updateAnimal,
+  createAnimalBatch,
+  updatePregnancy,
+  fetchAnimalDetails
 } from "@/services/livestockService";
 
 import { useRouter } from "next/navigation";
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ReproducaoDashboard({
   config,
   initialLoading,
   tabLoading,
   onSuccess,
+  reproducerOptions,
+  activeTab: controlledActiveTab,
+  onTabChange: controlledOnTabChange,
 }: {
   config: ReproducaoConfig;
   initialLoading?: boolean;
   tabLoading?: Record<string, boolean>;
   onSuccess?: () => void;
+  reproducerOptions?: { id: number; identifier: string; category: string }[];
+  activeTab?: string;
+  onTabChange?: (id: string) => void;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [internalActiveTab, setInternalActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
+
+  const activeTab = controlledActiveTab ?? internalActiveTab;
+  const setActiveTab = controlledOnTabChange ?? setInternalActiveTab;
+  const [selectedRows, setSelectedRows] = useState<any[]>([]);
+
+  // Reset selection when tab changes
+  useEffect(() => {
+    setSelectedRows([]);
+  }, [activeTab]);
   const [actionModal, setActionModal] = useState<{ 
     open: boolean; 
     title: string; 
@@ -278,7 +298,7 @@ export function ReproducaoDashboard({
     onConfirm: async () => {},
   });
 
-  const handleQuickAction = (action: any, rows: any[] = []) => {
+  const handleAction = (action: any, rows: any[] = []) => {
     if (action.onClick) {
       action.onClick();
       return;
@@ -286,7 +306,7 @@ export function ReproducaoDashboard({
 
     const animalOptions = rows.map(r => ({ 
       value: String(r.id || r.pk || r.identifier || ""), 
-      label: String(r.id || r.pk || r.identifier || "Sem ID") 
+      label: String(r.identifier || r.batch_code || r.name || r.id || r.pk || "Sem ID") 
     })).filter(o => o.value);
 
     switch (action.type) {
@@ -345,23 +365,37 @@ export function ReproducaoDashboard({
       case 'diagnosis':
         setActionModal({
           open: true,
-          title: "Diagnóstico de Prenhez",
+          title: rows.length > 1 ? `Diagnóstico em Lote (${rows.length})` : "Diagnóstico de Prenhez",
           fields: [
             { 
               name: "id", 
-              label: "Matriz (Brinco)", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)", 
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
               options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              disabled: rows.length >= 1,
               required: true 
             },
             { name: "result", label: "Resultado", type: "select", required: true, options: [
               { value: "positive", label: "Positivo (Gestante)" },
               { value: "negative", label: "Negativo (Vazia)" },
             ]},
-            { name: "diagnosis_date", label: "Data do Diagnóstico", type: "date", required: true },
+            { 
+              name: "diagnosis_date", 
+              label: "Data do Diagnóstico", 
+              type: "date", 
+              required: true,
+              initialValue: new Date().toISOString().split('T')[0]
+            },
           ],
           onConfirm: async (data) => {
-            await diagnosePregnancy(data.id, data.result as 'positive' | 'negative', data.diagnosis_date);
+            if (rows.length > 1) {
+              await Promise.all(rows.map(r => {
+                return diagnosePregnancy(r.id as number, data.result as 'positive' | 'negative', data.diagnosis_date);
+              }));
+            } else {
+              await diagnosePregnancy(data.id as any, data.result as 'positive' | 'negative', data.diagnosis_date);
+            }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -370,27 +404,165 @@ export function ReproducaoDashboard({
       case 'birth':
         setActionModal({
             open: true,
-            title: "Confirmar Parto",
+            title: rows.length > 1 ? `Confirmar Parto em Lote (${rows.length})` : "Confirmar Parto",
             fields: [
               { 
                 name: "female_identifier", 
-                label: "Matriz (Brinco)", 
-                type: animalOptions.length > 0 ? "select" : "text", 
+                label: rows.length > 1 ? `Matrizes Selecionadas` : "Matriz (Brinco)", 
+                type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
                 options: animalOptions,
+                initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+                disabled: rows.length >= 1,
                 required: true 
               },
-              { name: "birth_date", label: "Data do Parto", type: "date", required: true },
-              { name: "live_born", label: "Nascidos Vivos", type: "number", required: true },
-              { name: "stillborn", label: "Natimortos", type: "number" },
-              { name: "mummified", label: "Mumificados", type: "number" },
+              { 
+                name: "birth_date", 
+                label: "Data do Parto", 
+                type: "date", 
+                required: true,
+                initialValue: new Date().toISOString().split('T')[0]
+              },
+              { 
+                name: "live_born", 
+                label: "Nascidos Vivos", 
+                type: "number", 
+                required: true,
+                initialValue: 12
+              },
+              { 
+                name: "stillborn", 
+                label: "Óbitos", 
+                type: "number",
+                initialValue: 0
+              },
+              { 
+                name: "mummified", 
+                label: "Mumificados", 
+                type: "number",
+                initialValue: 0
+              },
             ],
             onConfirm: async (data) => {
-              await createBirth(data);
-              onSuccess?.();
-              setActionModal(prev => ({ ...prev, open: false }));
+              const performBirth = async (animalRow: any) => {
+                const animalId = animalRow.animal_id || animalRow.id;
+                const pregnancyId = animalRow.id; // Nas gestações o ID principal é o da Prenhez
+                const identifier = animalRow.identifier;
+
+                try {
+                  // Buscar detalhes para ter farm e species
+                  const animalDetails = await fetchAnimalDetails(animalId);
+
+                  // 1. Criar o lote de leitões primeiro
+                  const batch = await createAnimalBatch({
+                    batch_code: `L-${identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+                    quantity: parseInt(data.live_born) || 0,
+                    phase: "gestacao_maternidade",
+                    category: "Leitão",
+                    status: "active",
+                    species_code_input: "suinos",
+                    farm_id: animalDetails.farm_id || animalDetails.farm,
+                    entry_date: data.birth_date,
+                    mother: animalId,
+                    notes: `Leitegada da matriz ${identifier}`
+                  });
+
+                  // 2. Criar registro de parto (Vinculado à prenhez e ao lote recém criado)
+                  await createBirth({ 
+                    ...data, 
+                    female: animalId,
+                    pregnancy: pregnancyId,
+                    batch: batch.id
+                  });
+
+                  // 3. Marcar prenhez como concluída
+                  await updatePregnancy(pregnancyId, { status: 'completed' });
+
+                  // 4. Mover mãe para Lactante
+                  await updateAnimal(animalId, { 
+                    reproductive_status: "lactante" 
+                  });
+                } catch (err) {
+                  console.error(`Erro no processamento da matriz ${identifier}:`, err);
+                  throw err;
+                }
+              };
+
+              try {
+                if (rows.length > 1) {
+                  // Em lote
+                  await Promise.all(rows.map(r => performBirth(r)));
+                } else if (rows.length === 1) {
+                  await performBirth(rows[0]);
+                } else {
+                  await createBirth(data);
+                }
+                onSuccess?.();
+                setActionModal(prev => ({ ...prev, open: false }));
+              } catch (err) {
+                console.error("Erro geral ao processar parto:", err);
+              }
             }
           });
           break;
+      case 'mating_marra': {
+        const sireOpts = (reproducerOptions || []).map(r => ({
+          value: String(r.id),
+          label: `${r.identifier}${r.category ? ` (${r.category})` : ''}`,
+        }));
+        setActionModal({
+          open: true,
+          title: "💖 Registrar Cobertura da Marrã",
+          subtitle: "Registre a primeira cobertura e inicie o ciclo reprodutivo",
+          fields: [
+            {
+              name: "id",
+              label: "Marrã (Brinco)",
+              type: animalOptions.length > 0 ? "select" : "text",
+              options: animalOptions,
+              placeholder: "Selecione a marrã",
+              required: true,
+            },
+            { name: "mating_date", label: "Data da Cobertura", type: "date", required: true },
+            {
+              name: "mating_type",
+              label: "Tipo de Cobertura",
+              type: "select",
+              options: [
+                { value: "ai", label: "Inseminação Artificial" },
+                { value: "natural", label: "Monta Natural" },
+                { value: "iatf", label: "IATF" },
+              ],
+            },
+            {
+              name: "sire_id",
+              label: sireOpts.length > 0 ? "Reprodutor (Cachaço)" : "Reprodutor (não há machos cadastrados)",
+              type: sireOpts.length > 0 ? "select" : "text",
+              options: sireOpts.length > 0 ? [{ value: "", label: "Não informar" }, ...sireOpts] : undefined,
+              placeholder: sireOpts.length > 0 ? "Selecione o reprodutor" : "Não há reprodutores cadastrados",
+            },
+            {
+              name: "sire_info",
+              label: "Reprodutor (texto livre)",
+              type: "text",
+              placeholder: "Registro externo, dose de semêm, etc.",
+            },
+            { name: "notes", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            const animalId = data.id;
+            if (!animalId) throw new Error("Selecione a marrã");
+            await registerMating(animalId, {
+              mating_date: data.mating_date,
+              mating_type: data.mating_type || "ai",
+              sire_info: data.sire_info || "",
+              ...(data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
+            });
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          },
+        });
+        break;
+      }
       case 'promote':
         setActionModal({
           open: true,
@@ -527,11 +699,10 @@ export function ReproducaoDashboard({
                 kpis={currentTab.kpis}
                 tabActions={currentTab.tabActions?.map(action => ({
                   ...action,
-                  onClick: () => handleQuickAction(action, currentTab.rows)
+                  onClick: () => handleAction(action, selectedRows)
                 }))}
                 tabAlerts={currentTab.tabAlerts}
                 tabAiSuggestions={currentTab.tabAiSuggestions}
-                actions={[]}
                 selectable={currentTab.selectable}
                 rowKey={currentTab.rowKey}
                 onRowClick={(row) => {
@@ -540,7 +711,27 @@ export function ReproducaoDashboard({
                     router.push(`/home/rebanho/suinos/animal/${id}`);
                   }
                 }}
-                batchActions={currentTab.batchActions}
+                actions={currentTab.actions?.map(action => ({
+                  ...action,
+                  onClick: (row) => {
+                    if ((action as any).type) {
+                      handleAction({ type: (action as any).type }, [row]);
+                    } else {
+                      action.onClick(row);
+                    }
+                  }
+                }))}
+                batchActions={currentTab.batchActions?.map(ba => ({
+                  ...ba,
+                  onClick: (rows) => {
+                    if ((ba as any).type) {
+                      handleAction({ type: (ba as any).type }, rows);
+                    } else if (ba.onClick) {
+                      ba.onClick(rows);
+                    }
+                  }
+                }))}
+                onSelectionChange={setSelectedRows}
               />
             </>
           )

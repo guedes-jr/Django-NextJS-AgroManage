@@ -7,11 +7,13 @@ import "./reproducao.css";
 export interface ModalField {
   name: string;
   label: string;
-  type: "text" | "date" | "number" | "select" | "textarea";
+  type: "text" | "date" | "number" | "select" | "textarea" | "hidden";
   placeholder?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
   colSpan?: "full" | "half";
+  initialValue?: string | number;
+  disabled?: boolean;
 }
 
 interface ReproducaoModalProps {
@@ -70,22 +72,36 @@ export function ReproducaoModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form 
+          key={`${title}-${fields.length}-${open}`} 
+          onSubmit={handleSubmit}
+        >
           <div className="repro-modal-body">
             <div className="repro-fields-grid">
               {fields.map((field) => (
                 <div
                   key={field.name}
                   className="repro-field"
-                  style={field.colSpan === "full" ? { gridColumn: "1 / -1" } : {}}
+                  style={{
+                    ...(field.colSpan === "full" ? { gridColumn: "1 / -1" } : {}),
+                    ...(field.type === "hidden" ? { display: "none" } : {})
+                  }}
                 >
-                  <label htmlFor={`modal-${field.name}`}>
-                    {field.label}
-                    {field.required && <span style={{ color: "var(--destructive)", marginLeft: "2px" }}>*</span>}
-                  </label>
+                  {field.type !== "hidden" && (
+                    <label htmlFor={`modal-${field.name}`}>
+                      {field.label}
+                      {field.required && <span style={{ color: "var(--destructive)", marginLeft: "2px" }}>*</span>}
+                    </label>
+                  )}
 
                   {field.type === "select" ? (
-                    <select id={`modal-${field.name}`} name={field.name} required={field.required} disabled={loading}>
+                    <select 
+                      id={`modal-${field.name}`} 
+                      name={field.name} 
+                      required={field.required} 
+                      disabled={loading || field.disabled}
+                      defaultValue={field.initialValue}
+                    >
                       <option value="">Selecione...</option>
                       {field.options?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -99,7 +115,8 @@ export function ReproducaoModal({
                       name={field.name}
                       placeholder={field.placeholder}
                       required={field.required}
-                      disabled={loading}
+                      disabled={loading || field.disabled}
+                      defaultValue={field.initialValue}
                     />
                   ) : (
                     <input
@@ -108,7 +125,8 @@ export function ReproducaoModal({
                       type={field.type}
                       placeholder={field.placeholder}
                       required={field.required}
-                      disabled={loading}
+                      disabled={loading || field.disabled}
+                      defaultValue={field.initialValue}
                     />
                   )}
                 </div>

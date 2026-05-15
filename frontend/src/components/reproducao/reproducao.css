@@ -383,6 +383,16 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary), transparent 90%);
 }
 
+.repro-field input:disabled,
+.repro-field select:disabled,
+.repro-field textarea:disabled {
+  background: color-mix(in srgb, var(--muted), black 5%);
+  opacity: 0.7;
+  cursor: not-allowed;
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+
 .repro-field textarea {
   min-height: 80px;
   resize: vertical;

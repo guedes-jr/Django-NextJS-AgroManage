@@ -53,10 +53,10 @@ class MarrasView(BasePhaseView):
 
         category = 'Marrã' if species == 'suinos' else 'Novilha'
         qs = Animal.objects.filter(**filters, gender='F', category=category).filter(
-            reproductive_status__in=['vazia', 'em_preparo', 'pronta']
+            reproductive_status__in=['vazia', 'em_preparo', 'pronta', 'aguardando_cobertura']
         )
         total = qs.count()
-        prontas = qs.filter(reproductive_status='pronta').count()
+        prontas = qs.filter(reproductive_status__in=['pronta', 'aguardando_cobertura']).count()
         em_preparo = qs.filter(reproductive_status='em_preparo').count()
         disponiveis = qs.filter(reproductive_status='vazia').count()
 
@@ -102,10 +102,10 @@ class MatrizesView(BasePhaseView):
 
         category = 'Matriz' if species == 'suinos' else 'Vaca'
         qs = Animal.objects.filter(**filters, gender='F', category=category).filter(
-            reproductive_status__in=['vazia', 'em_preparo', 'pronta', 'coberta', 'gestante', 'lactante', 'descanso']
+            reproductive_status__in=['vazia', 'em_preparo', 'pronta', 'coberta', 'gestante', 'lactante', 'descanso', 'aguardando_cobertura']
         )
         total = qs.count()
-        vazias = qs.filter(reproductive_status='vazia').count()
+        vazias = qs.filter(reproductive_status__in=['vazia', 'aguardando_cobertura']).count()
         cobertas = qs.filter(reproductive_status='coberta').count()
         lactantes = qs.filter(reproductive_status='lactante').count()
         gestantes = qs.filter(reproductive_status='gestante').count()
@@ -148,44 +148,77 @@ class GestacoesView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = Pregnancy.objects.filter(
+        # 1. Gestantes confirmadas (Pregnancy ongoing)
+        pregnancies = Pregnancy.objects.filter(
             female__farm__organization=request.user.organization,
             female__species__code=species,
             status='ongoing'
         ).select_related('female', 'mating')
 
-        total = qs.count()
+        # 2. Cobertas aguardando diagnóstico (Animal status 'coberta')
+        cobertas = Animal.objects.filter(
+            **filters,
+            reproductive_status='coberta'
+        ).prefetch_related('matings_as_female')
+
         now = timezone.now().date()
-        parto_proximo = qs.filter(expected_birth_date__lte=now + datetime.timedelta(days=7)).count()
-        aguardando = qs.filter(mating__status='pending_dg').count()
-
-        alerts = []
-        if parto_proximo > 0:
-            alerts.append({"type": "warning", "icon": "⏰", "text": f"{parto_proximo} parto{'s' if parto_proximo > 1 else ''} previsto{'s' if parto_proximo > 1 else ''} para os próximos 7 dias.", "time": "Hoje"})
-
-        ai_suggestions = []
-        if parto_proximo > 0:
-            ai_suggestions.append({"text": f"{parto_proximo} gestação{'ões' if parto_proximo > 1 else ''} com parto próximo. Preparar maternidade."})
-
-        paged, _ = self.paginate_queryset(request, qs)
         rows = []
-        for p in paged:
-            dias = (now - p.start_date).days if p.start_date else None
+
+        # Process Cobertas
+        for a in cobertas:
+            ultima_cob = a.matings_as_female.order_by('-mating_date').first()
+            if ultima_cob:
+                dias_desde_cob = (now - ultima_cob.mating_date).days
+                dias_faltantes = max(0, 21 - dias_desde_cob)
+                rows.append({
+                    "id": f"cob_{a.id}",
+                    "animal_id": a.id,
+                    "identifier": a.identifier,
+                    "cobertura": ultima_cob.mating_date.isoformat(),
+                    "dias": dias_desde_cob,
+                    "previsao": (ultima_cob.mating_date + datetime.timedelta(days=21)).isoformat(),
+                    "dias_faltantes": f"{dias_faltantes} dias" if dias_faltantes > 0 else "Pronto!",
+                    "status": "Confirmar Prenhez",
+                })
+
+        # Process Gestantes
+        for p in pregnancies:
+            dias_gestacao = (now - p.start_date).days if p.start_date else 0
+            dias_para_parto = (p.expected_birth_date - now).days if p.expected_birth_date else None
+            
             rows.append({
                 "id": p.id,
                 "animal_id": p.female.id,
                 "identifier": p.female.identifier,
                 "cobertura": p.mating.mating_date.isoformat() if p.mating and p.mating.mating_date else None,
-                "dias": dias,
+                "dias": dias_gestacao,
                 "previsao": p.expected_birth_date.isoformat() if p.expected_birth_date else None,
-                "status": "Parto próximo" if (p.expected_birth_date and (p.expected_birth_date - now).days <= 7) else "Confirmada",
+                "dias_faltantes": f"{dias_para_parto}d p/ Parto" if dias_para_parto is not None and dias_para_parto >= 0 else "Parto Hoje!",
+                "status": "Parto próximo" if (p.expected_birth_date and (p.expected_birth_date - now).days <= 7) else "Gestante",
             })
 
+        # Totals
+        total = len(rows)
+        aguardando_dg = len([r for r in rows if r['status'] == "Confirmar Prenhez"])
+        confirmar_hoje = len([r for r in rows if r['status'] == "Confirmar Prenhez" and r['dias_faltantes'] == "Pronto!"])
+        parto_proximo = len([r for r in rows if r['status'] == "Parto próximo"])
+
+        alerts = []
+        if confirmar_hoje > 0:
+            alerts.append({"type": "info", "icon": "🔬", "text": f"{confirmar_hoje} diagnóstico{'s' if confirmar_hoje > 1 else ''} de prenhez pronto{'s' if confirmar_hoje > 1 else ''} para realização.", "time": "Hoje"})
+        if parto_proximo > 0:
+            alerts.append({"type": "warning", "icon": "⏰", "text": f"{parto_proximo} parto{'s' if parto_proximo > 1 else ''} previsto{'s' if parto_proximo > 1 else ''} para os próximos 7 dias.", "time": "Hoje"})
+
         return Response({
-            "kpis": {"total": total, "aguardando": aguardando, "confirmadas": total - aguardando, "parto_proximo": parto_proximo},
+            "kpis": {
+                "total": total,
+                "aguardando_dg": aguardando_dg,
+                "confirmadas": total - aguardando_dg,
+                "parto_proximo": parto_proximo
+            },
             "rows": rows,
             "alerts": alerts,
-            "aiSuggestions": ai_suggestions,
+            "aiSuggestions": [{"text": f"Há {confirmar_hoje} animais prontos para diagnóstico de prenhez."}] if confirmar_hoje > 0 else [],
         })
 
 
@@ -198,8 +231,9 @@ class MaternidadeView(BasePhaseView):
         base_qs = Birth.objects.filter(
             female__farm__organization=request.user.organization,
             female__species__code=species
-        ).select_related('female', 'litter')
+        ).select_related('female', 'litter').order_by('-birth_date')
 
+        # Considerar em lactação: todos os partos que não possuem desmame concluído
         lactating_qs = base_qs.exclude(litter__weaning_date__isnull=False)
 
         now = timezone.now().date()
@@ -240,8 +274,7 @@ class MaternidadeView(BasePhaseView):
         for b in paged:
             idade = (now - b.birth_date).days if b.birth_date else None
             previsao_desmame = (b.birth_date + datetime.timedelta(days=21)).isoformat() if b.birth_date else None
-            dias_para_desmame = max(0, 21 - idade) if idade is not None else None
-
+            
             if hasattr(b, 'litter') and b.litter.weaning_date:
                 status = "Desmamado"
                 vivos_atual = b.litter.weaned_quantity or 0
@@ -256,16 +289,14 @@ class MaternidadeView(BasePhaseView):
                 "id": b.id,
                 "animal_id": b.female.id,
                 "identifier": b.female.identifier,
-                "parto": b.birth_date.isoformat() if b.birth_date else None,
-                "nascidos": b.live_born,
-                "natimortos": b.stillborn,
+                "data_parto": b.birth_date.isoformat() if b.birth_date else None,
+                "vivos": b.live_born,
+                "obitos": b.stillborn,
                 "mumificados": b.mummified,
-                "vivos_atual": vivos_atual,
                 "idade": idade,
-                "previsao_desmame": previsao_desmame,
-                "dias_para_desmame": dias_para_desmame,
-                "peso_desmame": str(b.litter.avg_weaning_weight_kg) if hasattr(b, 'litter') and b.litter.avg_weaning_weight_kg else None,
                 "status": status,
+                "previsao_desmame": previsao_desmame,
+                "vivos_atual": vivos_atual,
             })
 
         return Response({
@@ -274,7 +305,7 @@ class MaternidadeView(BasePhaseView):
                 "nascidos_mes": total_nascidos_mes,
                 "desmamados_mes": total_desmamados,
                 "mortalidade": f"{mortalidade_pct}%",
-                "media_nascidos": round(total_born_lactating / em_lactacao, 1) if em_lactacao else 0,
+                "media_nascidos": round(sum(b.live_born for b in nascidos_mes_qs) / nascidos_mes_qs.count(), 1) if nascidos_mes_qs.count() else 0,
             },
             "rows": rows,
             "alerts": alerts,
@@ -288,7 +319,9 @@ class CrecheView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = AnimalBatch.objects.filter(**filters, phase='creche')
+        qs = AnimalBatch.objects.filter(**filters).filter(
+            phase__in=['creche', 'gestacao_maternidade']
+        )
         total = qs.count()
         prontos = qs.filter(quantity__gte=40)
         total_animais = sum(b.quantity for b in qs)
@@ -520,13 +553,42 @@ class AnimalViewSet(viewsets.ModelViewSet):
             return Animal.objects.filter(farm__organization=user.organization)
         return Animal.objects.none()
 
+    @action(detail=False, methods=['get'], url_path='reproducers')
+    def reproducers(self, request):
+        """Lista reprodutores (machos ativos) da espécie para seleção em coberturas."""
+        user = request.user
+        if not (user.is_authenticated and hasattr(user, 'organization') and user.organization):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        species = request.query_params.get('species', 'suinos')
+        qs = Animal.objects.filter(
+            farm__organization=user.organization,
+            species__code=species,
+            gender='M',
+            status='active'
+        ).order_by('identifier')
+        data = [
+            {'id': a.id, 'identifier': a.identifier, 'category': a.category or ''}
+            for a in qs
+        ]
+        return Response(data)
+
     @action(detail=True, methods=['post'], url_path='register-mating')
     def register_mating(self, request, pk=None):
         animal = self.get_object()
         serializer = MatingSerializer(data=request.data)
         if serializer.is_valid():
             mating = serializer.save(female=animal)
-            
+
+            # Vincular reprodutor por FK se fornecido
+            sire_id = request.data.get('sire_id')
+            if sire_id:
+                try:
+                    sire_animal = Animal.objects.get(pk=sire_id)
+                    mating.sire = sire_animal
+                    mating.save(update_fields=['sire'])
+                except Animal.DoesNotExist:
+                    pass
+
             # Cálculo de previsão de parto
             if mating.mating_date:
                 import datetime
@@ -535,13 +597,15 @@ class AnimalViewSet(viewsets.ModelViewSet):
                     days_to_add = 114
                 elif animal.species.code == 'bovinos':
                     days_to_add = 283
-                
+
                 if days_to_add > 0:
                     mating.expected_birth_date = mating.mating_date + datetime.timedelta(days=days_to_add)
                     mating.save(update_fields=['expected_birth_date'])
-            
+
+            # Salvar fase anterior para retorno inteligente no DG negativo
+            animal.previous_phase = animal.reproductive_status
             animal.reproductive_status = Animal.ReproductiveStatus.COBERTA
-            animal.save()
+            animal.save(update_fields=['previous_phase', 'reproductive_status'])
             return Response(MatingSerializer(mating).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -588,14 +652,14 @@ class AnimalViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='diagnose-pregnancy')
     def diagnose_pregnancy(self, request, pk=None):
         animal = self.get_object()
-        result = request.data.get('result') # 'positive' or 'negative'
+        result = request.data.get('result')  # 'positive' or 'negative'
         date = request.data.get('diagnosis_date', timezone.now().date())
-        
+
         if result == 'positive':
             animal.reproductive_status = Animal.ReproductiveStatus.GESTANTE
-            animal.save()
-            
-            # Create Pregnancy record if it doesn't exist for the latest mating
+            animal.save(update_fields=['reproductive_status'])
+
+            # Criar Pregnancy se ainda não existe para o último Mating
             latest_mating = animal.matings_as_female.order_by('-mating_date').first()
             if latest_mating:
                 Pregnancy.objects.get_or_create(
@@ -608,9 +672,18 @@ class AnimalViewSet(viewsets.ModelViewSet):
                     }
                 )
         elif result == 'negative':
-            animal.reproductive_status = Animal.ReproductiveStatus.VAZIA
-            animal.save()
-            
+            # Retornar para a fase anterior salva (Marrã ou Aguardando Cobertura)
+            prev = animal.previous_phase or Animal.ReproductiveStatus.VAZIA
+            animal.reproductive_status = prev
+            animal.previous_phase = ''
+            animal.save(update_fields=['reproductive_status', 'previous_phase'])
+
+            # Marcar o Mating como falho
+            latest_mating = animal.matings_as_female.order_by('-mating_date').first()
+            if latest_mating and latest_mating.status == Mating.Status.PENDING_DG:
+                latest_mating.status = Mating.Status.FAILED
+                latest_mating.save(update_fields=['status'])
+
         return Response({"message": f"Diagnóstico {result} registrado.", "status": animal.reproductive_status})
 
     @action(detail=True, methods=['get'], url_path='full-history')
@@ -736,12 +809,27 @@ class BirthViewSet(viewsets.ModelViewSet):
         now = timezone.now().date()
         weaned = 0
         for b in births:
-            litter, created = Litter.objects.get_or_create(birth=b, defaults={'weaned_quantity': weaned_quantity or b.live_born, 'weaning_date': now})
+            litter, created = Litter.objects.get_or_create(
+                birth=b,
+                defaults={'weaned_quantity': weaned_quantity or b.live_born, 'weaning_date': now}
+            )
             if not created:
                 litter.weaning_date = now
                 if weaned_quantity is not None:
                     litter.weaned_quantity = weaned_quantity
                 litter.save()
+
+            # Mover a mãe para Aguardando Cobertura após desmame
+            female = b.female
+            female.reproductive_status = Animal.ReproductiveStatus.AGUARDANDO_COBERTURA
+            female.previous_phase = ''  # limpar fase anterior
+            female.save(update_fields=['reproductive_status', 'previous_phase'])
+
+            # Mover o lote (AnimalBatch) para a fase de Creche
+            if b.batch:
+                b.batch.phase = 'creche'
+                b.batch.save(update_fields=['phase'])
+
             weaned += 1
         return Response({"message": f"{weaned} leitegada(s) desmamada(s) com sucesso."})
 
@@ -803,6 +891,7 @@ class ReproductionDashboardView(APIView):
         marras_count = animals.filter(category='Marrã' if species_code == 'suinos' else 'Novilha').count()
         matrizes_ativas = animals.filter(category='Matriz' if species_code == 'suinos' else 'Vaca', status='active').count()
         gestantes = animals.filter(reproductive_status=Animal.ReproductiveStatus.GESTANTE).count()
+        aguardando_cobertura = animals.filter(reproductive_status=Animal.ReproductiveStatus.AGUARDANDO_COBERTURA).count()
         
         # Leitoes / Bezerros (Partos do mes)
         now = timezone.now()
@@ -813,8 +902,9 @@ class ReproductionDashboardView(APIView):
         
         # Tx Prenhez simplificada: Gestantes / (Matrizes Ativas) * 100
         tx_prenhez = 0
-        if matrizes_ativas > 0:
-            tx_prenhez = int((gestantes / matrizes_ativas) * 100)
+        total_produtivas = matrizes_ativas + marras_count
+        if total_produtivas > 0:
+            tx_prenhez = int((gestantes / total_produtivas) * 100)
             
         # IA Alerts (Simple rules)
         alerts = []
@@ -841,6 +931,14 @@ class ReproductionDashboardView(APIView):
         if empty_matrizes.count() > 5:
              ai_suggestions.append({"text": f"Há {empty_matrizes.count()} matrizes vazias. Revise o manejo reprodutivo."})
 
+        if aguardando_cobertura > 0:
+            alerts.append({
+                "type": "info",
+                "icon": "🔄",
+                "text": f"{aguardando_cobertura} matriz{'es' if aguardando_cobertura > 1 else ''} aguardando cobertura.",
+                "time": "Hoje"
+            })
+
         return Response({
             "species": species_code,
             "status": "connected",
@@ -848,6 +946,7 @@ class ReproductionDashboardView(APIView):
                 "marras": marras_count,
                 "matrizes_ativas": matrizes_ativas,
                 "gestantes": gestantes,
+                "aguardando_cobertura": aguardando_cobertura,
                 "nascidos_mes": nascidos_mes,
                 "tx_prenhez": f"{tx_prenhez}%"
             },

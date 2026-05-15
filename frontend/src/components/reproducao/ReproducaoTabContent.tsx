@@ -60,6 +60,7 @@ interface ReproducaoTabContentProps {
   rowKey?: string;
   batchActions?: BatchAction<TableRow>[];
   onRowClick?: (row: TableRow) => void;
+  onSelectionChange?: (selectedRows: TableRow[]) => void;
 }
 
 export function ReproducaoTabContent({
@@ -81,6 +82,7 @@ export function ReproducaoTabContent({
   rowKey,
   batchActions,
   onRowClick,
+  onSelectionChange,
 }: ReproducaoTabContentProps) {
   const [search, setSearch] = useState("");
   const [filterVal, setFilterVal] = useState("all");
@@ -182,6 +184,7 @@ export function ReproducaoTabContent({
         selectable={selectable}
         rowKey={rowKey}
         batchActions={batchActions}
+        onSelectionChange={onSelectionChange}
         title="Histórico de Registros"
         searchValue={search}
         onSearchChange={setSearch}

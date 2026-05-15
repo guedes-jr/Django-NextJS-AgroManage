@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { Plus, Trash2, Tag, Calendar, Banknote, User, Activity, FileText, Warehouse } from "lucide-react";
+import { Plus, Trash2, Tag, Calendar, Banknote, User, Activity, FileText, Warehouse, GitBranch, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AnimalFormModalProps {
@@ -34,9 +34,14 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       peso: "", 
       valor: "", 
       granjaOrigem: "",
-      quantidade: "1"
+      quantidade: "1",
+      // Filiação
+      sireName: "",
+      damName: "",
     }
   ]);
+  // Track which rows have filiation expanded
+  const [showFiliation, setShowFiliation] = useState<Record<number, boolean>>({});
 
   // Update rows when modal opens with new initialData
   useEffect(() => {
@@ -54,8 +59,11 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
         peso: "", 
         valor: "", 
         granjaOrigem: "",
-        quantidade: "1"
+        quantidade: "1",
+        sireName: "",
+        damName: "",
       }]);
+      setShowFiliation({});
     }
   }, [isOpen, initialData, type]);
 
@@ -73,7 +81,9 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       peso: "", 
       valor: "", 
       granjaOrigem: "",
-      quantidade: "1"
+      quantidade: "1",
+      sireName: "",
+      damName: "",
     }]);
   };
 
@@ -118,7 +128,8 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
     onSave(payload);
     onClose();
     setTimeout(() => {
-      setRows([{ id: Date.now(), numero: "", nome: "", categoria: "", sexo: "", origem: "Comprado", raca: "", nascimento: "", dataCompra: "", peso: "", valor: "", granjaOrigem: "", quantidade: "1" }]);
+      setRows([{ id: Date.now(), numero: "", nome: "", categoria: "", sexo: "", origem: "Comprado", raca: "", nascimento: "", dataCompra: "", peso: "", valor: "", granjaOrigem: "", quantidade: "1", sireName: "", damName: "" }]);
+      setShowFiliation({});
     }, 300);
   };
 
@@ -332,6 +343,90 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {/* — Filiação (colapsável) — */}
+                  <div className="col-12">
+                    <button
+                      type="button"
+                      onClick={() => setShowFiliation(prev => ({ ...prev, [row.id]: !prev[row.id] }))}
+                      className="d-flex align-items-center gap-2 btn btn-sm border-0 px-0 fw-semibold"
+                      style={{
+                        color: showFiliation[row.id] ? 'var(--primary)' : 'var(--muted-foreground)',
+                        background: 'transparent',
+                        fontSize: '0.82rem',
+                        transition: 'color 0.2s',
+                      }}
+                    >
+                      <GitBranch size={14} />
+                      {showFiliation[row.id] ? 'Ocultar Filiação' : '+ Adicionar Filiação (Pai / Mãe)'}
+                      <ChevronDown
+                        size={14}
+                        style={{
+                          transform: showFiliation[row.id] ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.25s',
+                        }}
+                      />
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {showFiliation[row.id] && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.25 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div
+                            className="mt-3 p-3 rounded-3"
+                            style={{
+                              background: 'color-mix(in srgb, var(--primary), transparent 94%)',
+                              border: '1px dashed color-mix(in srgb, var(--primary), transparent 60%)',
+                            }}
+                          >
+                            <p className="small fw-semibold mb-3 d-flex align-items-center gap-2" style={{ color: 'var(--primary)' }}>
+                              <GitBranch size={13} /> Filiação do Animal
+                              <span className="fw-normal text-muted-foreground ms-1">(opcional)</span>
+                            </p>
+                            <div className="row g-3">
+                              <div className="col-12 col-md-6">
+                                <div className="login-input-group mb-0">
+                                  <label className="login-label">Pai (Reprodutor)</label>
+                                  <div className="login-input-wrapper">
+                                    <input
+                                      type="text"
+                                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                                      placeholder="Brinco ou registro do pai..."
+                                      value={row.sireName}
+                                      onChange={(e) => updateRow(row.id, "sireName", e.target.value)}
+                                    />
+                                    <User size={14} className="login-input-icon text-muted-foreground" />
+                                  </div>
+                                  <span className="small text-muted-foreground mt-1 d-block">Se o reprodutor estiver cadastrado, o vínculo será feito automaticamente pelo brinco.</span>
+                                </div>
+                              </div>
+                              <div className="col-12 col-md-6">
+                                <div className="login-input-group mb-0">
+                                  <label className="login-label">Mãe</label>
+                                  <div className="login-input-wrapper">
+                                    <input
+                                      type="text"
+                                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                                      placeholder="Brinco ou registro da mãe..."
+                                      value={row.damName}
+                                      onChange={(e) => updateRow(row.id, "damName", e.target.value)}
+                                    />
+                                    <User size={14} className="login-input-icon text-muted-foreground" />
+                                  </div>
+                                  <span className="small text-muted-foreground mt-1 d-block">Se a matriz estiver cadastrada, o vínculo será feito automaticamente pelo brinco.</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   
                 </div>
               </motion.div>

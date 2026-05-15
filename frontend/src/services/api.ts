@@ -40,7 +40,13 @@ apiClient.interceptors.request.use(
     if (typeof window !== "undefined") {
       access = localStorage.getItem("access_token");
 
-      if (access && config.headers) {
+      const isPublicRoute = 
+        config.url?.includes("/auth/login") || 
+        config.url?.includes("/auth/register") || 
+        config.url?.includes("/auth/password-recovery") ||
+        config.url?.includes("/auth/token/refresh");
+
+      if (access && config.headers && !isPublicRoute) {
         config.headers["Authorization"] = `Bearer ${access}`;
       }
     }
@@ -111,7 +117,16 @@ apiClient.interceptors.response.use(
       const refresh = localStorage.getItem("refresh_token");
       if (!refresh) {
         localStorage.removeItem("access_token");
-        window.location.href = "/login";
+        
+        // Se for uma rota de auth (login/register) falhando com 401, 
+        // não redirecionamos para não entrar em loop ou refresh de página.
+        const isAuthRoute = 
+          originalRequest.url?.includes("/auth/login") || 
+          originalRequest.url?.includes("/auth/register");
+
+        if (!isAuthRoute && typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+          window.location.href = "/login";
+        }
         return Promise.reject(error);
       }
 
