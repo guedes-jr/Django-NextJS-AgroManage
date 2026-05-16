@@ -5,6 +5,14 @@ import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/R
 import { getReproductionDashboard } from "@/services/livestockService";
 
 export default function BovinosReproducaoPage() {
+  const formatDateCell = (v: any) => {
+    if (!v) return "—";
+    const str = String(v);
+    if (str.includes("T")) return new Date(str).toLocaleDateString("pt-BR");
+    const parts = str.split("-");
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : str;
+  };
+
   const [dashboardData, setDashboardData] = useState<any>(null);
 
   useEffect(() => {
@@ -104,7 +112,7 @@ export default function BovinosReproducaoPage() {
         ],
         columns: [
           { key: "id", label: "Vaca/Lote", render: (v) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "data", label: "Data" },
+          { key: "data", label: "Data", render: formatDateCell },
           { key: "tipo", label: "Tipo" },
           { key: "touro", label: "Reprodutor" },
         ],
@@ -124,9 +132,9 @@ export default function BovinosReproducaoPage() {
         count: 65,
         columns: [
           { key: "id", label: "Vaca", render: (v) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "data", label: "Data Cobertura" },
+          { key: "data", label: "Data Cobertura", render: formatDateCell },
           { key: "dias", label: "Dias Gestação" },
-          { key: "previsao", label: "Previsão Parto" },
+          { key: "previsao", label: "Previsão Parto", render: formatDateCell },
         ],
         rows: [
           { id: "V-112", data: "15/08/2025", dias: 270, previsao: "25/05/2026", status: "Seca / Parto Próximo" },
@@ -146,7 +154,7 @@ export default function BovinosReproducaoPage() {
         columns: [
           { key: "id", label: "Bezerro(a)", render: (v) => <span className="repro-table-id">{String(v)}</span> },
           { key: "mae", label: "Mãe" },
-          { key: "nasc", label: "Nascimento" },
+          { key: "nasc", label: "Nascimento", render: formatDateCell },
           { key: "peso", label: "Peso Nasc." },
         ],
         rows: [

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "./Button";
@@ -16,8 +17,10 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, description, children, footer, maxWidth = "max-w-2xl" }: ModalProps) {
-  
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     if (isOpen) {
       document.body.style.overflow = "hidden";
     } else {
@@ -26,7 +29,9 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
     return () => { document.body.style.overflow = "unset"; }
   }, [isOpen]);
 
-  return (
+  if (!mounted) return null;
+
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -39,22 +44,22 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
             style={{ 
               background: "rgba(0, 0, 0, 0.4)", 
               backdropFilter: "blur(4px)",
-              zIndex: 1040 
+              zIndex: 9998 
             }}
             onClick={onClose}
           />
-          <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-2 p-md-4 pe-none" style={{ zIndex: 1050 }}>
+          <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-2 p-md-4 pe-none" style={{ zIndex: 9999 }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className={`${maxWidth} mx-auto w-auto pe-auto`}
+              className={`${maxWidth} mx-auto w-100 pe-auto`}
             >
               <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
                 
                 {(title || description) && (
-                  <div className="p-3 p-md-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
+                  <div className="py-2 px-3 py-md-3 px-md-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
                     <div>
                       {title && <h2 className="fw-bold mb-1" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>{title}</h2>}
                       {description && <p className="text-muted-foreground small mb-0">{description}</p>}
@@ -81,4 +86,6 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
       )}
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 }

@@ -890,6 +890,7 @@ class ReproductionDashboardView(APIView):
         
         marras_count = animals.filter(category='Marrã' if species_code == 'suinos' else 'Novilha').count()
         matrizes_ativas = animals.filter(category='Matriz' if species_code == 'suinos' else 'Vaca', status='active').count()
+        reprodutores_count = animals.filter(category='Cachaço' if species_code == 'suinos' else 'Touro', status='active').count()
         gestantes = animals.filter(reproductive_status=Animal.ReproductiveStatus.GESTANTE).count()
         aguardando_cobertura = animals.filter(reproductive_status=Animal.ReproductiveStatus.AGUARDANDO_COBERTURA).count()
         
@@ -945,6 +946,7 @@ class ReproductionDashboardView(APIView):
             "kpis": {
                 "marras": marras_count,
                 "matrizes_ativas": matrizes_ativas,
+                "reprodutores": reprodutores_count,
                 "gestantes": gestantes,
                 "aguardando_cobertura": aguardando_cobertura,
                 "nascidos_mes": nascidos_mes,

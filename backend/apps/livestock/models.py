@@ -65,6 +65,7 @@ class AnimalBatch(BaseModel):
         LEITAO = "Leitão", "Leitão"
         TERMINACAO = "Terminação", "Terminação"
         CACHACO = "Cachaço", "Cachaço"
+        REPRODUTOR = "Reprodutor", "Reprodutor"
         AGUARDANDO_COBERTURA = "Aguardando Cobertura", "Aguardando Cobertura"
         PINTO = "Pinto", "Pinto"
         FRANGO_CORTE = "Frango de Corte", "Frango de Corte"

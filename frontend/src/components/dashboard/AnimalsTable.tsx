@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Search, ArrowUpDown, Filter, MoreHorizontal, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 
 interface Animal {
   id: string;
@@ -72,6 +73,7 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
   const [attributeFilter, setAttributeFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Animal; direction: 'asc' | 'desc' } | null>(null);
+  const [selectedAnimalId, setSelectedAnimalId] = useState<string | null>(null);
   const itemsPerPage = 8;
 
   const attributeOptions = {
@@ -311,7 +313,12 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
                       </TableCell>
                       <TableCell className="text-end border-0">
                         <div className="d-flex gap-2 justify-content-end">
-                          <Button variant="outline-secondary" size="sm" className="p-2 border border-border bg-background hover-bg-muted text-foreground rounded-circle">
+                          <Button 
+                            variant="outline-secondary" 
+                            size="sm" 
+                            className="p-2 border border-border bg-background hover-bg-muted text-foreground rounded-circle"
+                            onClick={() => setSelectedAnimalId(animal.id)}
+                          >
                             <Eye size={16} />
                           </Button>
                           <Button variant="outline-secondary" size="sm" className="p-2 border border-border bg-background hover-bg-muted text-foreground rounded-circle">
@@ -345,6 +352,14 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
           </div>
         )}
       </div>
+
+      {selectedAnimalId && (
+        <AnimalTechnicalSheetModal 
+          isOpen={!!selectedAnimalId} 
+          onClose={() => setSelectedAnimalId(null)} 
+          animalId={selectedAnimalId} 
+        />
+      )}
     </div>
   );
 }

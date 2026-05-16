@@ -442,8 +442,8 @@ export function FeedConsumptionDashboard({
                 <tbody>
                   {stats?.latest_entries.map((entry: any) => (
                     <tr key={entry.id}>
-                      <td className="fw-medium text-dark">{new Date(entry.data_inicio).toLocaleDateString()}</td>
-                      <td className="fw-medium text-dark">{new Date(entry.data_fim).toLocaleDateString()}</td>
+                      <td className="fw-medium text-dark">{new Date(entry.data_inicio).toLocaleDateString('pt-BR')}</td>
+                      <td className="fw-medium text-dark">{new Date(entry.data_fim).toLocaleDateString('pt-BR')}</td>
                       <td>
                         <span className="badge bg-success/20 text-success rounded-pill px-2 py-1">Lote</span>
                       </td>
@@ -599,7 +599,7 @@ export function FeedConsumptionDashboard({
                       <div className="fw-bold small text-dark" style={{fontSize: '0.8rem'}}>{entry.quantidade} kg</div>
                     </div>
                     <div className="d-flex justify-content-between align-items-center mt-1">
-                      <div className="small text-muted" style={{fontSize: '0.7rem'}}>{new Date(entry.data_inicio).toLocaleDateString()} a {new Date(entry.data_fim).toLocaleDateString()}</div>
+                      <div className="small text-muted" style={{fontSize: '0.7rem'}}>{new Date(entry.data_inicio).toLocaleDateString('pt-BR')} a {new Date(entry.data_fim).toLocaleDateString('pt-BR')}</div>
                       <div className="fw-semibold small text-success" style={{fontSize: '0.75rem'}}>R$ {Number(entry.custo_total).toFixed(2)}</div>
                     </div>
                   </div>

@@ -76,7 +76,10 @@ function getKPIs(type: "bovinos" | "suinos" | "aves", data: any[]): KPICard[] {
       ];
     case "suinos":
       const matrizes = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes').length;
-      const reprodutores = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores').length;
+      const reprodutores = data.filter(a => {
+        const cat = a.category?.toLowerCase();
+        return cat === 'reprodutor' || cat === 'reprodutores' || cat === 'cachaço' || cat === 'touro';
+      }).length;
       const lotes = data.filter(a => a.category?.toLowerCase().includes('lote')).length;
       return [
         { label: "Matrizes", value: matrizes, icon: "pig", color: "oklch(0.6 0.22 27)" },
@@ -156,7 +159,7 @@ export default function AnimalsPage() {
         quantity: parseInt(raw.quantidade, 10) || 1,
         name: raw.nome || "",
         category: raw.category || raw.categoria,
-        gender: raw.sexo,
+        gender: raw.sexo === "Macho" ? "M" : (raw.sexo === "Femea" || raw.sexo === "Fêmea") ? "F" : (raw.sexo === "Misto" ? "Misto" : raw.sexo),
         origin: raw.origem === "Comprado" ? "purchased" : raw.origem === "Nascido" ? "born" : "donated",
         purchase_value: raw.valor ? parseFloat(raw.valor) : null,
         avg_weight_kg: raw.peso ? parseFloat(raw.peso) : null,
@@ -260,7 +263,7 @@ export default function AnimalsPage() {
                       desc: 'Cadastre machos para reprodução.',
                       icon: <div className="reg-card-icon" style={{ background: '#eff6ff' }}><Icon iconNode={pigHead} size={28} color="#3b82f6" /></div>,
                       features: ['Controle de cobertura', 'Avaliação de desempenho', 'Histórico reprodutivo'],
-                      targetCat: (activeTab === 'suinos' ? 'Cachaço' : activeTab === 'bovinos' ? 'Touro' : 'Matriz'),
+                      targetCat: (activeTab === 'suinos' ? 'Cachaço' : activeTab === 'bovinos' ? 'Touro' : 'Reprodutor'),
                       targetSex: 'Macho'
                     },
                     { 

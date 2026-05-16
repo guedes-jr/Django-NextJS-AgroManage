@@ -7,12 +7,13 @@ import { ChevronRight, Warehouse, CheckCircle2, AlertOctagon, Clock, BarChart3, 
 import { Icon } from "lucide-react";
 import { cowHead, pigHead } from "@lucide/lab";
 import { motion, AnimatePresence } from "framer-motion";
+import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import "@/app/home/rebanho/animais/animais.css";
 import { AnimalFormModal } from "@/components/dashboard/AnimalFormModal";
 import { EditAnimalModal } from "@/components/dashboard/EditAnimalModal";
-import { Search, Edit2, Trash2, Activity, Tag } from "lucide-react";
+import { Search, Edit2, Trash2, Activity, Tag, Eye } from "lucide-react";
 
 // Helper for color-mix
 const colorMix = (color: string, opacity: number) => `color-mix(in srgb, ${color}, transparent ${100 - opacity * 100}%)`;
@@ -48,6 +49,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   
   // States for List and Edit/Delete
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSheetAnimalId, setSelectedSheetAnimalId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingAnimal, setEditingAnimal] = useState<any>(null);
 
@@ -141,7 +143,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
       else if (title === "Novos Lotes") { categoria = "Bezerro"; sexo = "Misto"; }
     } else if (species === "aves") {
       if (title === "Fêmeas") { categoria = "Poedeira"; sexo = "Femea"; }
-      else if (title === "Machos") { categoria = "Matriz"; sexo = "Macho"; }
+      else if (title === "Machos") { categoria = "Reprodutor"; sexo = "Macho"; }
       else if (title === "Novos Lotes") { categoria = "Pinto"; sexo = "Misto"; }
     }
 
@@ -197,7 +199,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     
     if (species === "suinos") {
         const matrizesData = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes');
-        const reprodutoresData = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço');
+        const reprodutoresData = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço' || a.category?.toLowerCase() === 'touro');
         const lotesData = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'terminação');
         
         const matrizesCount = matrizesData.reduce((acc, a) => acc + (a.quantity || 1), 0);
@@ -480,6 +482,22 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                             <td className="py-3 text-end pe-4">
                               <button 
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
+                                onClick={() => setSelectedSheetAnimalId(row.id)}
+                                title="Visualizar Ficha Técnica"
+                                style={{ width: '36px', height: '36px' }}
+                              >
+                                <Eye size={16} />
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
+                                onClick={() => setSelectedSheetAnimalId(row.id)}
+                                title="Visualizar Ficha Técnica"
+                                style={{ width: '36px', height: '36px' }}
+                              >
+                                <Eye size={16} />
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
                                 onClick={() => router.push(`/home/rebanho/suinos/animal/${row.id}`)}
                                 title="Ver detalhes do animal"
                                 style={{ width: '36px', height: '36px' }}
@@ -528,6 +546,14 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         onSave={handleSaveEdit}
         animal={editingAnimal}
       />
+
+      {selectedSheetAnimalId && (
+        <AnimalTechnicalSheetModal 
+          isOpen={!!selectedSheetAnimalId} 
+          onClose={() => setSelectedSheetAnimalId(null)} 
+          animalId={selectedSheetAnimalId} 
+        />
+      )}
     </motion.div>
   );
 }

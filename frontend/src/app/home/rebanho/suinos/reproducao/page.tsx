@@ -42,6 +42,14 @@ const TAB_FETCH_MAP: Record<TabId, () => Promise<any>> = {
   engorda: () => getEngordas('suinos'),
 };
 
+const formatDateCell = (v: any) => {
+  if (!v) return "—";
+  const str = String(v);
+  if (str.includes("T")) return new Date(str).toLocaleDateString("pt-BR");
+  const parts = str.split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : str;
+};
+
 function ReproducaoPageContent() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
@@ -243,7 +251,7 @@ function ReproducaoPageContent() {
           { key: "identifier", label: "Brinco", render: (v: any) => <span className="repro-table-id">{String(v)}</span> },
           { key: "idade", label: "Idade (dias)" },
           { key: "peso", label: "Peso (kg)" },
-          { key: "entrada", label: "Entrada" },
+          { key: "entrada", label: "Entrada", render: formatDateCell },
         ],
         rows: tab.marras?.rows || [],
         statusKey: "status",
@@ -317,7 +325,7 @@ function ReproducaoPageContent() {
           { key: "identifier", label: "Brinco", render: (v: any) => <span className="repro-table-id">{String(v)}</span> },
           { key: "op", label: "Ordem de Parto" },
           { key: "dias_abertos", label: "Dias Abertos" },
-          { key: "ultima_cobertura", label: "Última Cobertura" },
+          { key: "ultima_cobertura", label: "Última Cobertura", render: formatDateCell },
         ],
         rows: tab.matrizes?.rows || [],
         statusKey: "status",
@@ -398,9 +406,9 @@ function ReproducaoPageContent() {
         tabAiSuggestions: tab.gestacao?.aiSuggestions || [],
         columns: [
           { key: "identifier", label: "Brinco", render: (v: any) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "cobertura", label: "Data Cobertura" },
+          { key: "cobertura", label: "Data Cobertura", render: formatDateCell },
           { key: "dias", label: "Dias Gestação" },
-          { key: "previsao", label: "Previsão DG/Parto" },
+          { key: "previsao", label: "Previsão DG/Parto", render: formatDateCell },
           { key: "dias_faltantes", label: "Prazo Próximo Evento" },
         ],
         actions: [
@@ -447,13 +455,13 @@ function ReproducaoPageContent() {
         tabAiSuggestions: tab.maternidade?.aiSuggestions || [],
         columns: [
           { key: "identifier", label: "Matriz", render: (v: any) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "data_parto", label: "Data Parto" },
+          { key: "data_parto", label: "Data Parto", render: formatDateCell },
           { key: "vivos", label: "Nascidos Vivos" },
           { key: "obitos", label: "Óbitos" },
           { key: "mumificados", label: "Mumificados" },
           { key: "vivos_atual", label: "Vivos Atual" },
           { key: "idade", label: "Dias (Idade)" },
-          { key: "previsao_desmame", label: "Prev. Desmame" },
+          { key: "previsao_desmame", label: "Prev. Desmame", render: formatDateCell },
         ],
         rows: tab.maternidade?.rows || [],
         statusKey: "status",
@@ -488,7 +496,7 @@ function ReproducaoPageContent() {
         tabAiSuggestions: tab.creche?.aiSuggestions || [],
         columns: [
           { key: "lote", label: "Lote" },
-          { key: "entrada", label: "Entrada" },
+          { key: "entrada", label: "Entrada", render: formatDateCell },
           { key: "qtd", label: "Qtd. Atual" },
           { key: "peso", label: "Peso Médio" },
         ],
@@ -525,12 +533,12 @@ function ReproducaoPageContent() {
         tabAiSuggestions: tab.crescimento?.aiSuggestions || [],
         columns: [
           { key: "lote", label: "Lote" },
-          { key: "entrada", label: "Entrada" },
+          { key: "entrada", label: "Entrada", render: formatDateCell },
           { key: "dias", label: "Dias" },
           { key: "qtd", label: "Qtd." },
           { key: "peso", label: "Peso (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
           { key: "gpd", label: "GPD (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
-          { key: "previsao", label: "Prev. Engorda" },
+          { key: "previsao", label: "Prev. Engorda", render: formatDateCell },
         ],
         rows: tab.crescimento?.rows || [],
         statusKey: "status",
@@ -572,7 +580,7 @@ function ReproducaoPageContent() {
           { key: "dias", label: "Dias" },
           { key: "peso", label: "Peso (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
           { key: "gpd", label: "GPD (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
-          { key: "previsao", label: "Prev. Venda" },
+          { key: "previsao", label: "Prev. Venda", render: formatDateCell },
         ],
         rows: tab.engorda?.rows || [],
         statusKey: "status",

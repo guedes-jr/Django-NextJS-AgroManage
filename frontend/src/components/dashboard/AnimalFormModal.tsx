@@ -247,29 +247,25 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                         </select>
                      </div>
                   </div>
-                  {!initialData?.categoria && (
-                    <div className="col-12 col-md-3">
-                       <div className="login-input-group mb-0">
-                          <label className="login-label fw-bold">Categoria <span className="text-danger">*</span></label>
-                          <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.categoria} onChange={(e) => updateRow(row.id, "categoria", e.target.value)}>
-                            <option value="">Selecione...</option>
-                            {currentConfig.categorias.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                       </div>
-                    </div>
-                  )}
-                  {!initialData?.sexo && (
-                    <div className="col-12 col-md-3">
-                       <div className="login-input-group mb-0">
-                          <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
-                          <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
-                            <option value="Macho">Macho</option>
-                            <option value="Femea">Fêmea</option>
-                            <option value="Misto">Misto</option>
-                          </select>
-                       </div>
-                    </div>
-                  )}
+                  <div className="col-12 col-md-3">
+                     <div className="login-input-group mb-0">
+                        <label className="login-label fw-bold">Categoria <span className="text-danger">*</span></label>
+                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.categoria} onChange={(e) => updateRow(row.id, "categoria", e.target.value)}>
+                          <option value="">Selecione...</option>
+                          {currentConfig.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                     </div>
+                  </div>
+                  <div className="col-12 col-md-3">
+                     <div className="login-input-group mb-0">
+                        <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
+                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
+                          <option value="Macho">Macho</option>
+                          <option value="Femea">Fêmea</option>
+                          <option value="Misto">Misto</option>
+                        </select>
+                     </div>
+                  </div>
 
                   {/* Linha 2 */}
                   <div className="col-12 col-md-3">

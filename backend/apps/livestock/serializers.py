@@ -47,7 +47,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     # Field to receive data
     species_code_input = serializers.CharField(write_only=True, required=False)
     breed_name_input = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    farm_id = serializers.IntegerField(write_only=True, required=False)
+    farm_id = serializers.UUIDField(write_only=True, required=False)
     
     # Fields to return data
     species_code = serializers.CharField(source='species.code', read_only=True)
@@ -178,7 +178,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             batch = super().create(validated_data)
             
             # If it's a reproductive category, create individual animals for tracking
-            repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço']
+            repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor']
             if batch.category in repro_categories:
                 # We already have Animal imported at the top
                 for i in range(batch.quantity or 1):
@@ -211,7 +211,7 @@ class AnimalSerializer(serializers.ModelSerializer):
     # Field to receive data
     species_code_input = serializers.CharField(write_only=True, required=False)
     breed_name_input = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    farm_id = serializers.IntegerField(write_only=True, required=False)
+    farm_id = serializers.UUIDField(write_only=True, required=False)
 
     # Fields to return data
     species_name = serializers.CharField(source='species.name', read_only=True)

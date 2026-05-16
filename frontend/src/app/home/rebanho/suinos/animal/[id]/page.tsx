@@ -29,6 +29,7 @@ import { BreedInfoModal } from "@/components/animal/BreedInfoModal";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
+import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export default function AnimalDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("geral");
   const [showBreedInfo, setShowBreedInfo] = useState(false);
+  const [showTechnicalSheet, setShowTechnicalSheet] = useState(false);
 
   // Quick Action State
   const [qaModal, setQaModal] = useState<{ open: boolean; type: string; title: string }>({ open: false, type: '', title: '' });
@@ -266,11 +268,12 @@ export default function AnimalDetailPage() {
           <button className="btn btn-light border border-border text-foreground hover-bg-muted d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm" onClick={() => setQaModal({ open: true, type: 'vaccine', title: 'Registrar Vacina' })}>
             <Syringe size={16} /> <span className="d-none d-sm-inline">Vacinar</span>
           </button>
-          {isFemale && (
-            <button className="btn btn-light border border-border text-foreground hover-bg-muted d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm" onClick={() => setQaModal({ open: true, type: 'mating', title: 'Registrar Cobertura' })}>
-              <Heart size={16} /> <span className="d-none d-sm-inline">Cobertura</span>
-            </button>
-          )}
+          <button 
+            className="btn btn-light border border-border text-foreground hover-bg-muted d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm"
+            onClick={() => setShowTechnicalSheet(true)}
+          >
+            <ClipboardList size={16} /> <span className="d-none d-sm-inline">Ficha Técnica</span>
+          </button>
         </div>
       </div>
 
@@ -496,6 +499,12 @@ export default function AnimalDetailPage() {
       {breedInfo && (
         <BreedInfoModal isOpen={showBreedInfo} onClose={() => setShowBreedInfo(false)} breed={breedInfo} />
       )}
+
+      <AnimalTechnicalSheetModal 
+        isOpen={showTechnicalSheet} 
+        onClose={() => setShowTechnicalSheet(false)} 
+        animalId={animal.id} 
+      />
 
       {/* Quick Action Modal */}
       <Modal 
