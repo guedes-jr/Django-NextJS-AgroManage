@@ -15,6 +15,8 @@ interface AnimalFormModalProps {
   initialData?: {
     categoria?: string;
     sexo?: string;
+    isMatrixShortcut?: boolean;
+    isSireShortcut?: boolean;
   };
 }
 
@@ -26,7 +28,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       numero: "", 
       nome: "", 
       categoria: initialData?.categoria || "", 
-      sexo: initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"), 
+      sexo: initialData?.isSireShortcut ? "Macho" : (initialData?.isMatrixShortcut ? "Femea" : (initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"))), 
       origem: "Comprado", 
       raca: "", 
       nascimento: "", 
@@ -51,7 +53,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
         numero: "", 
         nome: "", 
         categoria: initialData?.categoria || "", 
-        sexo: initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"), 
+        sexo: initialData?.isSireShortcut ? "Macho" : (initialData?.isMatrixShortcut ? "Femea" : (initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"))), 
         origem: "Comprado", 
         raca: "", 
         nascimento: "", 
@@ -73,7 +75,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       numero: "", 
       nome: "", 
       categoria: initialData?.categoria || "", 
-      sexo: initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"), 
+      sexo: initialData?.isSireShortcut ? "Macho" : (initialData?.isMatrixShortcut ? "Femea" : (initialData?.sexo || (type === "bovinos" ? "Macho" : "Misto"))), 
       origem: "Comprado", 
       raca: "", 
       nascimento: "", 
@@ -151,17 +153,23 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
   const currentConfig = typeConfig[type] || typeConfig.bovinos;
 
   const getNumberPlaceholder = (cat?: string) => {
+    if (initialData?.isMatrixShortcut || initialData?.isSireShortcut) {
+      if (type === "suinos") return "Ex: BR-123";
+      if (type === "bovinos") return "Ex: 001";
+      return "Ex: A-12";
+    }
     if (type === "bovinos") return "Ex: 001";
     if (type === "suinos") {
-      if (cat === "Matriz" || cat === "Cachaço") return "Ex: BR-123";
+      if (cat === "Matriz" || cat === "Cachaço" || cat === "Marrã") return "Ex: BR-123";
       return "Ex: 14-A";
     }
     return "Ex: G1";
   }
   const getNumberLabel = (cat?: string) => {
+    if (initialData?.isMatrixShortcut || initialData?.isSireShortcut) return "Brinco (Nº)";
     if (type === "bovinos") return "Brinco (Nº)";
     if (type === "suinos") {
-      if (cat === "Matriz" || cat === "Cachaço") return "Brinco (Nº)";
+      if (cat === "Matriz" || cat === "Cachaço" || cat === "Marrã") return "Brinco (Nº)";
       return "Lote (Nº)";
     }
     return "Galpão (Nº)";
@@ -230,14 +238,16 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                         </div>
                      </div>
                   </div>
-                  <div className="col-12 col-md-3">
-                     <div className="login-input-group mb-0">
-                        <label className="login-label fw-bold">Qtd. de Animais <span className="text-danger">*</span></label>
-                        <div className="login-input-wrapper">
-                          <input type="number" min="1" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} placeholder="1" value={row.quantidade} onChange={(e) => updateRow(row.id, "quantidade", e.target.value)} />
-                        </div>
-                     </div>
-                  </div>
+                  {!initialData?.isMatrixShortcut && !initialData?.isSireShortcut && (
+                    <div className="col-12 col-md-3">
+                       <div className="login-input-group mb-0">
+                          <label className="login-label fw-bold">Qtd. de Animais <span className="text-danger">*</span></label>
+                          <div className="login-input-wrapper">
+                            <input type="number" min="1" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} placeholder="1" value={row.quantidade} onChange={(e) => updateRow(row.id, "quantidade", e.target.value)} />
+                          </div>
+                       </div>
+                    </div>
+                  )}
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
                         <label className="login-label">Linhagem/Raça</label>
@@ -256,16 +266,18 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                         </select>
                      </div>
                   </div>
-                  <div className="col-12 col-md-3">
-                     <div className="login-input-group mb-0">
-                        <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
-                          <option value="Macho">Macho</option>
-                          <option value="Femea">Fêmea</option>
-                          <option value="Misto">Misto</option>
-                        </select>
-                     </div>
-                  </div>
+                  {!initialData?.isMatrixShortcut && !initialData?.isSireShortcut && (
+                    <div className="col-12 col-md-3">
+                       <div className="login-input-group mb-0">
+                          <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
+                          <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
+                            <option value="Macho">Macho</option>
+                            <option value="Femea">Fêmea</option>
+                            <option value="Misto">Misto</option>
+                          </select>
+                       </div>
+                    </div>
+                  )}
 
                   {/* Linha 2 */}
                   <div className="col-12 col-md-3">

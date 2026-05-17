@@ -106,7 +106,7 @@ export default function AnimalsPage() {
   const [avesData, setAvesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const [modalConfig, setModalConfig] = useState<{ open: boolean; initialData?: { categoria: string; sexo: string } }>({
+  const [modalConfig, setModalConfig] = useState<{ open: boolean; initialData?: { categoria: string; sexo: string; isMatrixShortcut?: boolean; isSireShortcut?: boolean } }>({
     open: false,
   });
 
@@ -256,7 +256,8 @@ export default function AnimalsPage() {
                       icon: <div className="reg-card-icon" style={{ background: '#fef2f2' }}><Icon iconNode={pigHead} size={28} color="#ef4444" /></div>,
                       features: ['Controle de ciclo reprodutivo', 'Histórico de partos', 'Desempenho reprodutivo'],
                       targetCat: 'Matriz',
-                      targetSex: 'Femea'
+                      targetSex: 'Femea',
+                      isMatrixShortcut: true
                     },
                     { 
                       title: activeTab === 'suinos' ? 'Reprodutores' : 'Machos', 
@@ -264,7 +265,8 @@ export default function AnimalsPage() {
                       icon: <div className="reg-card-icon" style={{ background: '#eff6ff' }}><Icon iconNode={pigHead} size={28} color="#3b82f6" /></div>,
                       features: ['Controle de cobertura', 'Avaliação de desempenho', 'Histórico reprodutivo'],
                       targetCat: (activeTab === 'suinos' ? 'Cachaço' : activeTab === 'bovinos' ? 'Touro' : 'Reprodutor'),
-                      targetSex: 'Macho'
+                      targetSex: 'Macho',
+                      isSireShortcut: true
                     },
                     { 
                       title: activeTab === 'suinos' ? 'Lote de Leitões' : 'Novos Lotes', 
@@ -291,7 +293,15 @@ export default function AnimalsPage() {
                         </ul>
                         
                         <button 
-                          onClick={() => setModalConfig({ open: true, initialData: { categoria: card.targetCat, sexo: card.targetSex } })} 
+                          onClick={() => setModalConfig({ 
+                            open: true, 
+                            initialData: { 
+                              categoria: card.targetCat, 
+                              sexo: card.targetSex,
+                              isMatrixShortcut: card.isMatrixShortcut,
+                              isSireShortcut: card.isSireShortcut
+                            } 
+                          })} 
                           className="btn-reg-outline"
                         >
                           Cadastrar {card.title}

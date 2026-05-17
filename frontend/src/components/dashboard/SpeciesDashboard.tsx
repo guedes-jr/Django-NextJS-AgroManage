@@ -45,7 +45,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalInitialData, setModalInitialData] = useState<{ categoria: string; sexo: string } | undefined>();
+  const [modalInitialData, setModalInitialData] = useState<{ categoria: string; sexo: string; isMatrixShortcut?: boolean; isSireShortcut?: boolean } | undefined>();
   
   // States for List and Edit/Delete
   const [searchTerm, setSearchTerm] = useState("");
@@ -132,22 +132,24 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const handleOpenModal = (title: string) => {
     let categoria = "";
     let sexo = "Misto";
+    let isMatrixShortcut = false;
+    let isSireShortcut = false;
 
     if (species === "suinos") {
-      if (title === "Matrizes") { categoria = "Marrã"; sexo = "Femea"; }
-      else if (title === "Reprodutores") { categoria = "Cachaço"; sexo = "Macho"; }
+      if (title === "Matrizes") { categoria = "Marrã"; sexo = "Femea"; isMatrixShortcut = true; }
+      else if (title === "Reprodutores") { categoria = "Cachaço"; sexo = "Macho"; isSireShortcut = true; }
       else if (title === "Lotes em Terminação") { categoria = "Terminação"; sexo = "Misto"; }
     } else if (species === "bovinos") {
-      if (title === "Fêmeas") { categoria = "Matriz"; sexo = "Femea"; }
-      else if (title === "Machos") { categoria = "Touro"; sexo = "Macho"; }
+      if (title === "Fêmeas") { categoria = "Matriz"; sexo = "Femea"; isMatrixShortcut = true; }
+      else if (title === "Machos") { categoria = "Touro"; sexo = "Macho"; isSireShortcut = true; }
       else if (title === "Novos Lotes") { categoria = "Bezerro"; sexo = "Misto"; }
     } else if (species === "aves") {
-      if (title === "Fêmeas") { categoria = "Poedeira"; sexo = "Femea"; }
-      else if (title === "Machos") { categoria = "Reprodutor"; sexo = "Macho"; }
+      if (title === "Fêmeas") { categoria = "Poedeira"; sexo = "Femea"; isMatrixShortcut = true; }
+      else if (title === "Machos") { categoria = "Reprodutor"; sexo = "Macho"; isSireShortcut = true; }
       else if (title === "Novos Lotes") { categoria = "Pinto"; sexo = "Misto"; }
     }
 
-    setModalInitialData({ categoria, sexo });
+    setModalInitialData({ categoria, sexo, isMatrixShortcut, isSireShortcut });
     setIsModalOpen(true);
   };
 
