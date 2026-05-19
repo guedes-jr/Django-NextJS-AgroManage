@@ -342,7 +342,7 @@ class BirthSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'pregnancy', 'female', 'female_identifier', 'birth_date',
             'birth_time_start', 'birth_time_end', 'birth_order',
-            'live_born', 'stillborn', 'mummified', 'total_born', 'notes', 'batch'
+            'live_born', 'stillborn', 'mummified', 'total_born', 'avg_weight_kg', 'notes', 'batch'
         ]
 
 

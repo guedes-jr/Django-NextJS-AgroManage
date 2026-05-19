@@ -482,6 +482,13 @@ export function ReproducaoDashboard({
                 type: "number",
                 initialValue: 0
               },
+              { 
+                name: "avg_weight_kg", 
+                label: "Peso Médio dos Leitões (kg)", 
+                type: "number",
+                required: true,
+                initialValue: 1.4
+              },
             ],
             onConfirm: async (data) => {
               const performBirth = async (animalRow: any) => {
@@ -498,6 +505,7 @@ export function ReproducaoDashboard({
                     live_born: parseInt(data.live_born) || 0,
                     stillborn: parseInt(data.stillborn) || 0,
                     mummified: parseInt(data.mummified) || 0,
+                    avg_weight_kg: data.avg_weight_kg ? parseFloat(data.avg_weight_kg) : null,
                     notes: data.notes || ""
                   });
 

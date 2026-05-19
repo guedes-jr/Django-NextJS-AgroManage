@@ -262,6 +262,7 @@ class Birth(BaseModel):
     live_born = models.PositiveIntegerField(default=0)
     stillborn = models.PositiveIntegerField(default=0)
     mummified = models.PositiveIntegerField(default=0)
+    avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text="Peso médio dos leitões ao nascimento")
     
     notes = models.TextField(blank=True)
     batch = models.ForeignKey("AnimalBatch", on_delete=models.SET_NULL, null=True, blank=True, related_name="birth_records")
