@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader2 } from "lucide-react";
 import "./reproducao.css";
 
@@ -14,6 +14,7 @@ export interface ModalField {
   colSpan?: "full" | "half";
   initialValue?: string | number;
   disabled?: boolean;
+  showIf?: (values: Record<string, string>) => boolean;
 }
 
 interface ReproducaoModalProps {
@@ -36,18 +37,36 @@ export function ReproducaoModal({
   onConfirm,
 }: ReproducaoModalProps) {
   const [loading, setLoading] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+
+  // Reset/Initialize values when modal opens or fields change
+  useEffect(() => {
+    if (open) {
+      const initial: Record<string, string> = {};
+      fields.forEach((f) => {
+        initial[f.name] = String(f.initialValue ?? "");
+      });
+      setFormValues(initial);
+    }
+  }, [open, fields]);
 
   if (!open) return null;
+
+  const handleFieldChange = (name: string, val: string) => {
+    setFormValues((prev) => ({ ...prev, [name]: val }));
+  };
+
+  const visibleFields = fields.filter((f) => !f.showIf || f.showIf(formValues));
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!onConfirm || loading) return;
-    const form = e.currentTarget;
+    
     const data: Record<string, string> = {};
-    fields.forEach((f) => {
-      const el = form.elements.namedItem(f.name) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
-      if (el) data[f.name] = el.value;
+    visibleFields.forEach((f) => {
+      data[f.name] = formValues[f.name] || "";
     });
+
     setLoading(true);
     try {
       await onConfirm(data);
@@ -72,13 +91,10 @@ export function ReproducaoModal({
           </button>
         </div>
 
-        <form 
-          key={`${title}-${fields.length}-${open}`} 
-          onSubmit={handleSubmit}
-        >
+        <form onSubmit={handleSubmit}>
           <div className="repro-modal-body">
             <div className="repro-fields-grid">
-              {fields.map((field) => (
+              {visibleFields.map((field) => (
                 <div
                   key={field.name}
                   className="repro-field"
@@ -100,7 +116,8 @@ export function ReproducaoModal({
                       name={field.name} 
                       required={field.required} 
                       disabled={loading || field.disabled}
-                      defaultValue={field.initialValue}
+                      value={formValues[field.name] ?? ""}
+                      onChange={(e) => handleFieldChange(field.name, e.target.value)}
                     >
                       <option value="">Selecione...</option>
                       {field.options?.map((opt) => (
@@ -116,7 +133,8 @@ export function ReproducaoModal({
                       placeholder={field.placeholder}
                       required={field.required}
                       disabled={loading || field.disabled}
-                      defaultValue={field.initialValue}
+                      value={formValues[field.name] ?? ""}
+                      onChange={(e) => handleFieldChange(field.name, e.target.value)}
                     />
                   ) : (
                     <input
@@ -126,7 +144,8 @@ export function ReproducaoModal({
                       placeholder={field.placeholder}
                       required={field.required}
                       disabled={loading || field.disabled}
-                      defaultValue={field.initialValue}
+                      value={formValues[field.name] ?? ""}
+                      onChange={(e) => handleFieldChange(field.name, e.target.value)}
                     />
                   )}
                 </div>

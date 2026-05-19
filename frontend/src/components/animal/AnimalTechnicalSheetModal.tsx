@@ -73,7 +73,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
       isOpen={isOpen}
       onClose={onClose}
       title={`Ficha Técnica - ${animal?.identifier || '...'}`}
-      maxWidth="max-w-[850px]"
+      maxWidth="max-w-3xl"
       footer={
         <div className="d-flex justify-content-end gap-2 w-100">
           <button className="btn btn-light rounded-pill px-4 d-flex align-items-center gap-2" onClick={onClose}>
@@ -91,7 +91,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
           <span className="text-muted-foreground">Gerando ficha técnica detalhada...</span>
         </div>
       ) : (
-        <div className="bg-muted/10 min-vh-100 d-flex justify-content-center p-0 p-md-5 overflow-auto print-container-wrapper" style={{ maxHeight: '90vh' }}>
+        <div className="bg-muted/10 min-vh-100 d-flex justify-content-center p-0 p-md-5 print-container-wrapper">
           {/* Ficha Content (Paper Simulation) */}
           <div 
             ref={printRef}
@@ -393,49 +393,154 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
             {/* Print Styles */}
             <style>{`
               @media print {
-                /* Hide everything */
-                body {
-                  visibility: hidden !important;
-                  background: white !important;
+                /* Force html and body to exactly 1 page height and hide overflow to prevent blank pages */
+                html, body {
+                  overflow: hidden !important;
+                  height: 100% !important;
+                  max-height: 100% !important;
+                }
+
+                /* Force color printing in all browsers */
+                * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+
+                /* Hide everything at the body level except the modal portal container that has our sheet */
+                body > *:not(:has(.print-container-wrapper)) {
+                  display: none !important;
                 }
                 
-                /* Show ONLY the print container */
-                .print-container-wrapper {
-                  visibility: visible !important;
-                  position: absolute !important;
-                  left: 0 !important;
-                  top: 0 !important;
+                /* Reset the target modal portal container to flow naturally as a standard page block and take full height */
+                body > *:has(.print-container-wrapper) {
+                  position: static !important;
+                  overflow: visible !important;
                   width: 100% !important;
-                  height: auto !important;
+                  height: 100% !important;
+                  min-height: 100% !important;
+                  max-height: 100% !important;
+                }
+                
+                /* Reset ONLY the outer modal wrappers (ancestors of .print-container-wrapper) to prevent clipping, leaving subcomponents styled */
+                .position-fixed:has(.print-container-wrapper),
+                .dashboard-card:has(.print-container-wrapper),
+                .overflow-auto:has(.print-container-wrapper),
+                .flex-grow-1:has(.print-container-wrapper) {
+                  position: static !important;
+                  overflow: visible !important;
+                  max-height: 100% !important;
+                  height: 100% !important;
+                  min-height: 100% !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  background: transparent !important;
+                }
+                
+                /* Hide the modal title header, close buttons and print button during printing */
+                .border-bottom.d-flex.justify-content-between.align-items-center, /* Modal Title / Header */
+                div.d-flex.justify-content-end.gap-2.w-100, /* Modal Footer Buttons */
+                button,
+                .btn {
+                  display: none !important;
+                }
+                
+                /* Ensure correct color rendering and full height flow of the print wrapper */
+                .print-container-wrapper {
+                  display: block !important;
+                  position: relative !important;
+                  width: 100% !important;
+                  height: 100% !important;
+                  min-height: 100% !important;
+                  max-height: 100% !important;
                   margin: 0 !important;
                   padding: 0 !important;
                   background: white !important;
                 }
                 
-                .print-container-wrapper * {
-                  visibility: visible !important;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                }
-                
+                /* Format the sheet to perfectly fit the A4 page and push the footer to the bottom of the canvas */
                 .unique-animal-print-sheet { 
-                  width: 210mm !important;
-                  height: 297mm !important;
-                  margin: 0 auto !important;
-                  padding: 10mm !important;
+                  width: 100% !important;
+                  height: 277mm !important;
+                  min-height: 277mm !important;
+                  max-height: 277mm !important;
+                  margin: 0 !important;
+                  padding: 12mm 15mm !important; /* Safe padding inside physical margins to prevent clipping by browser headers/footers */
+                  box-sizing: border-box !important;
                   box-shadow: none !important;
                   border: none !important;
                   background: white !important;
-                  overflow: hidden !important;
-                  page-break-after: avoid !important;
-                  page-break-inside: avoid !important;
+                  overflow: visible !important;
                   display: flex !important;
                   flex-direction: column !important;
+                  page-break-inside: avoid !important;
+                  page-break-after: avoid !important;
+                  break-after: avoid !important;
+                }
+
+                /* High-fidelity CSS overrides for subcomponents inside sheet */
+                .print-container-wrapper .dashboard-card {
+                  border: 1px solid #e2e8f0 !important;
+                  border-radius: 8px !important;
+                  background-color: #ffffff !important;
+                  box-shadow: none !important;
+                  padding: 8px !important;
+                }
+                
+                .print-container-wrapper .bg-success\\/5 {
+                  background-color: #f0fdf4 !important;
+                  border: 1px solid #dcfce7 !important;
+                }
+                
+                .print-container-wrapper .bg-success\\/10 {
+                  background-color: #f0fdf4 !important;
+                  border: 1px solid #dcfce7 !important;
+                }
+                
+                .print-container-wrapper .bg-success\\/15 {
+                  background-color: #dcfce7 !important;
+                  color: #166534 !important;
+                  border: 1px solid #bbf7d0 !important;
+                }
+
+                .print-container-wrapper .badge.bg-success\\/15 {
+                  background-color: #dcfce7 !important;
+                  color: #166534 !important;
+                }
+                
+                .print-container-wrapper .bg-muted\\/20 {
+                  background-color: #f8fafc !important;
+                  border: 1px solid #e2e8f0 !important;
+                }
+                
+                .print-container-wrapper .timeline-small .bg-success {
+                  background-color: #16a34a !important;
+                }
+                
+                .print-container-wrapper .timeline-small .border-success\\/30 {
+                  border-color: rgba(22, 163, 74, 0.3) !important;
+                }
+
+                .print-container-wrapper table.table {
+                  border-collapse: collapse !important;
+                  width: 100% !important;
+                }
+                
+                .print-container-wrapper table.table th {
+                  background-color: #f8fafc !important;
+                  color: #0f172a !important;
+                  border-bottom: 2px solid #e2e8f0 !important;
+                  font-weight: bold !important;
+                  padding: 4px 8px !important;
+                }
+
+                .print-container-wrapper table.table td {
+                  border-bottom: 1px solid #f1f5f9 !important;
+                  padding: 4px 8px !important;
                 }
 
                 @page { 
                   size: A4 portrait; 
-                  margin: 0 !important; 
+                  margin: 10mm !important; 
                 }
               }
               

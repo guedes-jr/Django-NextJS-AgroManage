@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, FlaskConical, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
 import { apiClient } from "@/services/api";
 
-export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "material" | "suplemento" | "outro";
+export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "material" | "suplemento" | "semen" | "outro";
 
 interface InventoryFormModalProps {
   isOpen: boolean;
@@ -30,6 +30,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; unidade: string; color: s
   medicamento: { label: "Medicamento",     unidade: "unidade", color: "#ef4444" },
   vacina:      { label: "Vacina",          unidade: "dose",    color: "#3b82f6" },
   material:    { label: "Material",        unidade: "unidade", color: "#6b7280" },
+  semen:       { label: "Sêmen / Doses",   unidade: "dose",    color: "#ec4899" },
   outro:       { label: "Outro",           unidade: "unidade", color: "#14b8a6" },
 };
 
@@ -60,6 +61,7 @@ function emptyRow(category?: InventoryCategory) {
     nome: "", categoria: category || "outro",
     unidade_medida: cfg?.unidade || "unidade",
     descricao: "", fabricante: "", especie_animal: "",
+    tipo_semen: "convencional",
     estoque_minimo: "",
     custo_unitario: "", ultimo_custo: 0,
     local_armazenamento: "", fornecedor: "", nota_fiscal: "",
@@ -149,6 +151,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   const isVac = (cat: string) => cat === "vacina";
   const isMedOrVac = (cat: string) => cat === "medicamento" || cat === "vacina";
   const isFeed = (cat: string) => ["racao", "nucleo", "suplemento"].includes(cat);
+  const isSemen = (cat: string) => cat === "semen";
   const isLastStep = currentStep === STEPS.length - 1;
 
   return (
@@ -330,11 +333,27 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                           <FlaskConical size={14} className="me-1" /> Detalhes Técnicos e Especificações
                         </p>
                         
-                        {!isMedOrVac(row.categoria) && !isFeed(row.categoria) && (
+                        {!isMedOrVac(row.categoria) && !isFeed(row.categoria) && !isSemen(row.categoria) && (
                           <div className="p-5 text-center bg-muted/5 rounded-2xl border border-dashed">
                             <Package size={32} className="text-muted mb-3 opacity-20" />
                             <div className="text-muted-foreground small fw-bold">Nenhum campo técnico adicional para esta categoria.</div>
                             <div className="text-muted-foreground text-xs">Você pode prosseguir para a próxima etapa.</div>
+                          </div>
+                        )}
+
+                        {isSemen(row.categoria) && (
+                          <div className="row g-4 animate-in fade-in slide-in-from-right-2">
+                            <div className="col-12 col-md-6">
+                              <div className="login-input-group mb-0">
+                                <label className="login-label fw-semibold text-xs">Classificação do Sêmen <span className="text-danger">*</span></label>
+                                <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                  value={row.tipo_semen || "convencional"} onChange={e => update(row.id as any, "tipo_semen", e.target.value)}>
+                                  <option value="convencional">Convencional</option>
+                                  <option value="sexado_macho">Sexado Macho</option>
+                                  <option value="sexado_femea">Sexado Fêmea</option>
+                                </select>
+                              </div>
+                            </div>
                           </div>
                         )}
 

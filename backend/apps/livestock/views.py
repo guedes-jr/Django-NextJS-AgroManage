@@ -512,6 +512,86 @@ class EngordaView(BasePhaseView):
         })
 
 
+def build_animal_history(animal):
+    """Retorna lista de eventos ordenados para um Animal individual."""
+    events = []
+
+    # 1. Matings
+    for m in animal.matings_as_female.all():
+        events.append({
+            "type": "mating",
+            "date": m.mating_date,
+            "title": f"Cobertura / Inseminação ({m.get_mating_type_display()})",
+            "subtitle": f"Reprodutor: {m.sire_info or (m.sire.identifier if m.sire else 'N/A')}",
+            "status": m.get_status_display()
+        })
+
+    # 2. Pregnancies
+    for p in animal.pregnancies.all():
+        events.append({
+            "type": "pregnancy",
+            "date": p.start_date,
+            "title": "Gestação Confirmada",
+            "subtitle": f"Previsão de parto: {p.expected_birth_date}",
+            "status": p.get_status_display()
+        })
+
+    # 3. Births
+    for b in animal.births.all():
+        events.append({
+            "type": "birth",
+            "date": b.birth_date,
+            "title": "Parto Realizado",
+            "subtitle": f"Nascidos: {b.total_born} (Vivos: {b.live_born})",
+            "status": "Concluído"
+        })
+
+    # 4. Weights
+    for w in animal.weights.all():
+        events.append({
+            "type": "weight",
+            "date": w.weighing_date,
+            "title": "Registro de Peso",
+            "subtitle": f"Peso: {w.weight_kg} kg",
+            "status": "Medição"
+        })
+
+    # 5. Vaccinations
+    for v in animal.vaccinations.all():
+        events.append({
+            "type": "vaccination",
+            "date": v.application_date,
+            "title": f"Vacinação: {v.vaccine_name}",
+            "subtitle": f"Dose: {v.get_dose_type_display()}",
+            "status": "Aplicada"
+        })
+
+    # 6. Health
+    for h in animal.health_records.all():
+        events.append({
+            "type": "health",
+            "date": h.application_date,
+            "title": f"Clínico: {h.get_treatment_type_display()}",
+            "subtitle": h.description,
+            "status": "Registro"
+        })
+
+    # 7. Feeding
+    for f in animal.feeding_records.all():
+        events.append({
+            "type": "feeding",
+            "date": f.date,
+            "title": f"Alimentação: {f.feed_type}",
+            "subtitle": f"Quantidade: {f.quantity_kg} kg",
+            "status": "Registro"
+        })
+
+    # Sort events by date descending
+    events.sort(key=lambda x: x['date'], reverse=True)
+
+    return events
+
+
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalBatchSerializer
 
@@ -542,6 +622,26 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     "Please check your data and try again."
                 )
             raise
+
+    @action(detail=True, methods=['get'], url_path='animal-detail')
+    def animal_detail(self, request, pk=None):
+        """Retorna o Animal individual associado a este lote, se houver."""
+        batch = self.get_object()
+        animal = Animal.objects.filter(batch=batch).first()
+        if animal:
+            serializer = AnimalSerializer(animal, context={'request': request})
+            return Response(serializer.data)
+        return Response({"detail": "Nenhum animal individual encontrado para este lote."}, status=404)
+
+    @action(detail=True, methods=['get'], url_path='animal-history')
+    def animal_history(self, request, pk=None):
+        """Retorna o full-history do Animal individual associado a este lote."""
+        batch = self.get_object()
+        animal = Animal.objects.filter(batch=batch).first()
+        if animal:
+            events = build_animal_history(animal)
+            return Response(events)
+        return Response({"detail": "Nenhum animal individual encontrado para este lote."}, status=404)
 
 
 class AnimalViewSet(viewsets.ModelViewSet):
@@ -689,83 +789,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='full-history')
     def full_history(self, request, pk=None):
         animal = self.get_object()
-        
-        # Collect all related events
-        events = []
-        
-        # 1. Matings
-        for m in animal.matings_as_female.all():
-            events.append({
-                "type": "mating",
-                "date": m.mating_date,
-                "title": f"Cobertura / Inseminação ({m.get_mating_type_display()})",
-                "subtitle": f"Reprodutor: {m.sire_info or (m.sire.identifier if m.sire else 'N/A')}",
-                "status": m.get_status_display()
-            })
-            
-        # 2. Pregnancies
-        for p in animal.pregnancies.all():
-            events.append({
-                "type": "pregnancy",
-                "date": p.start_date,
-                "title": "Gestação Confirmada",
-                "subtitle": f"Previsão de parto: {p.expected_birth_date}",
-                "status": p.get_status_display()
-            })
-            
-        # 3. Births
-        for b in animal.births.all():
-            events.append({
-                "type": "birth",
-                "date": b.birth_date,
-                "title": "Parto Realizado",
-                "subtitle": f"Nascidos: {b.total_born} (Vivos: {b.live_born})",
-                "status": "Concluído"
-            })
-            
-        # 4. Weights
-        for w in animal.weights.all():
-            events.append({
-                "type": "weight",
-                "date": w.weighing_date,
-                "title": "Registro de Peso",
-                "subtitle": f"Peso: {w.weight_kg} kg",
-                "status": "Medição"
-            })
-            
-        # 5. Vaccinations
-        for v in animal.vaccinations.all():
-            events.append({
-                "type": "vaccination",
-                "date": v.application_date,
-                "title": f"Vacinação: {v.vaccine_name}",
-                "subtitle": f"Dose: {v.get_dose_type_display()}",
-                "status": "Aplicada"
-            })
-            
-        # 6. Health
-        for h in animal.health_records.all():
-            events.append({
-                "type": "health",
-                "date": h.application_date,
-                "title": f"Clínico: {h.get_treatment_type_display()}",
-                "subtitle": h.description,
-                "status": "Registro"
-            })
-            
-        # 7. Feeding
-        for f in animal.feeding_records.all():
-            events.append({
-                "type": "feeding",
-                "date": f.date,
-                "title": f"Alimentação: {f.feed_type}",
-                "subtitle": f"Quantidade: {f.quantity_kg} kg",
-                "status": "Registro"
-            })
-            
-        # Sort events by date descending
-        events.sort(key=lambda x: x['date'], reverse=True)
-        
+        events = build_animal_history(animal)
         return Response(events)
 
 

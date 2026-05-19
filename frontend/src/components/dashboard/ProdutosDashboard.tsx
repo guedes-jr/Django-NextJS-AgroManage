@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState, ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -14,9 +15,11 @@ import {
   Box,
   Activity,
   RefreshCw,
+  FlaskConical,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
+import { QuickMovementModal } from "@/components/dashboard/QuickMovementModal";
 import { Badge } from "@/components/ui/Badge";
 import "@/app/home/estoque/estoque.css";
 
@@ -43,6 +46,7 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   medicamento: "medicamento",
   vacina: "vacina",
   material: "material",
+  semen: "semen",
 };
 
 const CATEGORY_ICONS: Record<string, ReactNode> = {
@@ -50,6 +54,7 @@ const CATEGORY_ICONS: Record<string, ReactNode> = {
   nucleo: <Box size={16} />,
   medicamento: <Activity size={16} />,
   vacina: <Syringe size={16} />,
+  semen: <FlaskConical size={16} />,
 };
 
 function toNumber(value: string | number | null | undefined): number {
@@ -71,6 +76,21 @@ export function ProdutosDashboard() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [askMovementModal, setAskMovementModal] = useState<{ open: boolean; item: any }>({ open: false, item: null });
+  const [movementModalConfig, setMovementModalConfig] = useState<{ open: boolean; item: any; type: "in" | "out" }>({ open: false, item: null, type: "in" });
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const openModalParam = searchParams.get("openModal");
+    const categoryParam = searchParams.get("category");
+    if (openModalParam === "true" && categoryParam) {
+      setModalConfig({
+        open: true,
+        category: categoryParam as InventoryCategory
+      });
+    }
+  }, [searchParams]);
 
   const fetchItems = async (targetPage = 1) => {
     const accessToken = localStorage.getItem("access_token");
@@ -175,8 +195,15 @@ export function ProdutosDashboard() {
       peso_embalagem: row.peso_embalagem ? parseFloat(row.peso_embalagem) : undefined,
       volume_por_dose: row.volume_por_dose ? parseFloat(row.volume_por_dose) : undefined,
     }));
-    await apiClient.post("/inventory/items/bulk_create/", payload);
+    const { data: createdItems } = await apiClient.post("/inventory/items/bulk_create/", payload);
     await fetchItems(1);
+
+    if (createdItems && createdItems.length > 0) {
+      setAskMovementModal({
+        open: true,
+        item: createdItems[0]
+      });
+    }
   };
 
   const filteredItems = useMemo(() => {
@@ -270,6 +297,7 @@ export function ProdutosDashboard() {
             { key: "nucleo", title: "Núcleo / Premix", desc: "Núcleo, suplementos...", color: "oklch(0.65 0.16 230)" },
             { key: "medicamento", title: "Medicamentos", desc: "Antibióticos, vitaminas...", color: "oklch(0.7 0.18 25)" },
             { key: "vacina", title: "Vacinas", desc: "Vacinas, injetáveis...", color: "oklch(0.7 0.22 290)" },
+            { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
             { key: "material", title: "Outros Materiais", desc: "Materiais e equipamentos...", color: "oklch(0.6 0.05 240)" },
           ].map((cat) => (
             <div key={cat.key} className="col">
@@ -346,6 +374,7 @@ export function ProdutosDashboard() {
               <option value="nucleo">Núcleo / Premix</option>
               <option value="medicamento">Medicamento</option>
               <option value="vacina">Vacina</option>
+              <option value="semen">Sêmen</option>
               <option value="material">Material</option>
             </select>
           </div>
@@ -433,6 +462,86 @@ export function ProdutosDashboard() {
         category={modalConfig.category}
         onSave={handleSaveItems}
         initialData={modalConfig.initialData}
+      />
+
+      {/* ─── Confirmation Modal ─── */}
+      {askMovementModal.open && (
+        <div className="modal-root" style={{ position: 'relative', zIndex: 1150 }}>
+          <div
+            className="modal-backdrop"
+            style={{ 
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(0, 0, 0, 0.4)", backdropFilter: "blur(4px)", zIndex: 1140 
+            }}
+            onClick={() => setAskMovementModal({ open: false, item: null })}
+          />
+          <div 
+            className="modal-container"
+            style={{ 
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150,
+              pointerEvents: 'none', padding: '1rem'
+            }}
+          >
+            <div
+              className="modal-content text-center p-5"
+              style={{ 
+                maxWidth: "440px", width: "100%", pointerEvents: 'auto',
+                background: "#fdfdfb", borderRadius: "1.5rem",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                border: "1px solid #e2e8f0"
+              }}
+            >
+              <div className="mb-3 d-inline-flex align-items-center justify-content-center animate-bounce" style={{ width: "64px", height: "64px", borderRadius: "50%", background: "oklch(0.96 0.04 145)", color: "oklch(0.55 0.16 145)", fontSize: "2rem" }}>
+                🎉
+              </div>
+              <h3 className="fw-black text-dark mb-2" style={{ fontSize: "1.25rem" }}>
+                Produto Cadastrado!
+              </h3>
+              <p className="text-muted-foreground small mb-4">
+                O produto <strong>{askMovementModal.item?.nome}</strong> foi criado com sucesso. Deseja realizar o <strong>primeiro lançamento (entrada de estoque)</strong> para ele agora?
+              </p>
+              
+              <div className="d-flex gap-3">
+                <button
+                  type="button"
+                  className="btn py-3 px-4 rounded-xl fw-bold border-0 flex-grow-1"
+                  style={{ background: "#e2e8f0", color: "#475569", cursor: 'pointer' }}
+                  onClick={() => setAskMovementModal({ open: false, item: null })}
+                >
+                  Não, depois
+                </button>
+                <button
+                  type="button"
+                  className="btn py-3 px-4 rounded-xl fw-bold text-white border-0 flex-grow-1 animate-pulse"
+                  style={{ background: "var(--primary)", cursor: 'pointer' }}
+                  onClick={() => {
+                    const itemToMove = askMovementModal.item;
+                    setAskMovementModal({ open: false, item: null });
+                    setMovementModalConfig({
+                      open: true,
+                      item: itemToMove,
+                      type: "in"
+                    });
+                  }}
+                >
+                  Sim, lançar agora
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Quick Movement Modal ─── */}
+      <QuickMovementModal
+        isOpen={movementModalConfig.open}
+        onClose={() => {
+          setMovementModalConfig({ open: false, item: null, type: "in" });
+          fetchItems(1);
+        }}
+        item={movementModalConfig.item}
+        type={movementModalConfig.type}
       />
     </div>
   );

@@ -145,11 +145,21 @@ export const discardAnimal = async (animalId: number | string, data: { status: s
 };
 
 export const fetchAnimalDetails = async (id: string | number) => {
-  const response = await apiClient.get(`/livestock/animals/${id}/`);
-  return response.data;
+  try {
+    const response = await apiClient.get(`/livestock/animals/${id}/`);
+    return response.data;
+  } catch {
+    const response = await apiClient.get(`/livestock/batches/${id}/animal-detail/`);
+    return response.data;
+  }
 };
 
 export const fetchAnimalHistory = async (id: string | number) => {
-  const response = await apiClient.get(`/livestock/animals/${id}/full-history/`);
-  return response.data;
+  try {
+    const response = await apiClient.get(`/livestock/animals/${id}/full-history/`);
+    return response.data;
+  } catch {
+    const response = await apiClient.get(`/livestock/batches/${id}/animal-history/`);
+    return response.data;
+  }
 };

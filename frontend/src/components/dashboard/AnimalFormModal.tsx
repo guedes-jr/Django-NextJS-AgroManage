@@ -154,9 +154,8 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
 
   const getNumberPlaceholder = (cat?: string) => {
     if (initialData?.isMatrixShortcut || initialData?.isSireShortcut) {
-      if (type === "suinos") return "Ex: BR-123";
       if (type === "bovinos") return "Ex: 001";
-      return "Ex: A-12";
+      return "Ex: BR-123";
     }
     if (type === "bovinos") return "Ex: 001";
     if (type === "suinos") {
@@ -233,7 +232,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                      <div className="login-input-group mb-0">
                         <label className="login-label fw-bold">{getNumberLabel(row.categoria)} <span className="text-danger">*</span></label>
                         <div className="login-input-wrapper">
-                          <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground" placeholder={getNumberPlaceholder(row.categoria)} value={row.numero} onChange={(e) => updateRow(row.id, "numero", e.target.value)} />
+                          <input type="text" className="login-input login-input-icon-left bg-white text-foreground" placeholder={getNumberPlaceholder(row.categoria)} value={row.numero} onChange={(e) => updateRow(row.id, "numero", e.target.value)} />
                           <Tag className="login-input-icon text-muted-foreground" size={16} />
                         </div>
                      </div>
@@ -243,7 +242,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                        <div className="login-input-group mb-0">
                           <label className="login-label fw-bold">Qtd. de Animais <span className="text-danger">*</span></label>
                           <div className="login-input-wrapper">
-                            <input type="number" min="1" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} placeholder="1" value={row.quantidade} onChange={(e) => updateRow(row.id, "quantidade", e.target.value)} />
+                            <input type="number" min="1" className="login-input bg-white text-foreground" style={{ paddingLeft: "1rem" }} placeholder="1" value={row.quantidade} onChange={(e) => updateRow(row.id, "quantidade", e.target.value)} />
                           </div>
                        </div>
                     </div>
@@ -251,7 +250,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
                         <label className="login-label">Linhagem/Raça</label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.raca} onChange={(e) => updateRow(row.id, "raca", e.target.value)}>
+                        <select className="login-input bg-white text-foreground" style={{ paddingLeft: "1rem" }} value={row.raca} onChange={(e) => updateRow(row.id, "raca", e.target.value)}>
                           <option value="">Não informada</option>
                           {currentConfig.racas.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
@@ -260,7 +259,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
                         <label className="login-label fw-bold">Categoria <span className="text-danger">*</span></label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.categoria} onChange={(e) => updateRow(row.id, "categoria", e.target.value)}>
+                        <select className="login-input bg-white text-foreground" style={{ paddingLeft: "1rem" }} value={row.categoria} onChange={(e) => updateRow(row.id, "categoria", e.target.value)}>
                           <option value="">Selecione...</option>
                           {currentConfig.categorias.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
@@ -270,7 +269,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                     <div className="col-12 col-md-3">
                        <div className="login-input-group mb-0">
                           <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
-                          <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
+                          <select className="login-input bg-white text-foreground" style={{ paddingLeft: "1rem" }} value={row.sexo} onChange={(e) => updateRow(row.id, "sexo", e.target.value)}>
                             <option value="Macho">Macho</option>
                             <option value="Femea">Fêmea</option>
                             <option value="Misto">Misto</option>
@@ -283,7 +282,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
                         <label className="login-label fw-bold">Origem <span className="text-danger">*</span></label>
-                        <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={row.origem} onChange={(e) => updateRow(row.id, "origem", e.target.value)}>
+                        <select className="login-input bg-white text-foreground" style={{ paddingLeft: "1rem" }} value={row.origem} onChange={(e) => updateRow(row.id, "origem", e.target.value)}>
                           <option value="Comprado">Comprado</option>
                           <option value="Nascido">Nascido</option>
                           <option value="Doado">Doado</option>
@@ -294,7 +293,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                      <div className="login-input-group mb-0">
                         <label className="login-label">Nome (Alternativo)</label>
                         <div className="login-input-wrapper">
-                          <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground" placeholder="Identificação" value={row.nome} onChange={(e) => updateRow(row.id, "nome", e.target.value)} />
+                          <input type="text" className="login-input login-input-icon-left bg-white text-foreground" placeholder="Identificação" value={row.nome} onChange={(e) => updateRow(row.id, "nome", e.target.value)} />
                           <FileText className="login-input-icon text-muted-foreground" size={16} />
                         </div>
                      </div>
@@ -303,7 +302,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                      <div className="login-input-group mb-0">
                         <label className="login-label">Nascimento / Eclosão</label>
                         <div className="login-input-wrapper">
-                          <input type="date" className="login-input login-input-icon-left bg-transparent text-muted-foreground" value={row.nascimento} onChange={(e) => updateRow(row.id, "nascimento", e.target.value)} />
+                          <input type="date" className="login-input login-input-icon-left bg-white text-muted-foreground" value={row.nascimento} onChange={(e) => updateRow(row.id, "nascimento", e.target.value)} />
                           <Calendar className="login-input-icon text-muted-foreground" size={16} />
                         </div>
                      </div>
@@ -312,7 +311,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                      <div className="login-input-group mb-0">
                         <label className="login-label">Data de Compra</label>
                         <div className="login-input-wrapper">
-                          <input type="date" className={`login-input login-input-icon-left transition-colors ${row.origem !== 'Comprado' ? 'bg-muted opacity-50 cursor-not-allowed' : 'bg-transparent text-muted-foreground'}`} disabled={row.origem !== 'Comprado'} value={row.dataCompra} onChange={(e) => updateRow(row.id, "dataCompra", e.target.value)} />
+                          <input type="date" className={`login-input login-input-icon-left transition-colors ${row.origem !== 'Comprado' ? 'bg-muted opacity-50 cursor-not-allowed' : 'bg-white text-muted-foreground'}`} disabled={row.origem !== 'Comprado'} value={row.dataCompra} onChange={(e) => updateRow(row.id, "dataCompra", e.target.value)} />
                           <Calendar className={`login-input-icon ${row.origem !== 'Comprado' ? 'text-muted-foreground opacity-50' : 'text-muted-foreground'}`} size={16} />
                         </div>
                      </div>
@@ -323,7 +322,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                      <div className="login-input-group mb-0">
                         <label className="login-label">Peso Médio (kg)</label>
                         <div className="login-input-wrapper">
-                          <input type="number" step="0.1" className="login-input bg-transparent pe-5 text-foreground" style={{ paddingLeft: "1rem" }} placeholder="0.0" value={row.peso} onChange={(e) => updateRow(row.id, "peso", e.target.value)} />
+                          <input type="number" step="0.1" className="login-input bg-white pe-5 text-foreground" style={{ paddingLeft: "1rem" }} placeholder="0.0" value={row.peso} onChange={(e) => updateRow(row.id, "peso", e.target.value)} />
                           <span className="position-absolute end-0 top-50 translate-middle-y pe-3 small text-muted-foreground fw-bold pe-none">kg</span>
                         </div>
                      </div>
@@ -332,7 +331,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                      <div className="login-input-group mb-0">
                         <label className="login-label">Valor Unitário (R$)</label>
                         <div className="login-input-wrapper">
-                          <input type="number" step="0.01" className={`login-input ps-5 transition-colors ${row.origem !== 'Comprado' ? 'bg-muted opacity-50 cursor-not-allowed' : 'bg-transparent text-foreground'}`} placeholder="0.00" disabled={row.origem !== 'Comprado'} value={row.valor} onChange={(e) => updateRow(row.id, "valor", e.target.value)} />
+                          <input type="number" step="0.01" className={`login-input ps-5 transition-colors ${row.origem !== 'Comprado' ? 'bg-muted opacity-50 cursor-not-allowed' : 'bg-white text-foreground'}`} placeholder="0.00" disabled={row.origem !== 'Comprado'} value={row.valor} onChange={(e) => updateRow(row.id, "valor", e.target.value)} />
                           <span className="position-absolute start-0 top-50 translate-middle-y ps-3 small text-muted-foreground fw-bold pe-none">R$</span>
                         </div>
                      </div>
@@ -344,7 +343,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                          <div className="login-input-group mb-0">
                             <label className="login-label text-primary fw-bold">Granja Origem (Fornecedor)</label>
                             <div className="login-input-wrapper">
-                              <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground border-primary/30" placeholder="Nome da propriedade ou fornecedor..." value={row.granjaOrigem} onChange={(e) => updateRow(row.id, "granjaOrigem", e.target.value)} />
+                              <input type="text" className="login-input login-input-icon-left bg-white text-foreground border-primary/30" placeholder="Nome da propriedade ou fornecedor..." value={row.granjaOrigem} onChange={(e) => updateRow(row.id, "granjaOrigem", e.target.value)} />
                               <Warehouse size={16} className="login-input-icon text-primary" />
                             </div>
                          </div>
@@ -403,7 +402,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                                   <div className="login-input-wrapper">
                                     <input
                                       type="text"
-                                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                                      className="login-input login-input-icon-left bg-white text-foreground"
                                       placeholder="Brinco ou registro do pai..."
                                       value={row.sireName}
                                       onChange={(e) => updateRow(row.id, "sireName", e.target.value)}
@@ -419,7 +418,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                                   <div className="login-input-wrapper">
                                     <input
                                       type="text"
-                                      className="login-input login-input-icon-left bg-transparent text-foreground"
+                                      className="login-input login-input-icon-left bg-white text-foreground"
                                       placeholder="Brinco ou registro da mãe..."
                                       value={row.damName}
                                       onChange={(e) => updateRow(row.id, "damName", e.target.value)}

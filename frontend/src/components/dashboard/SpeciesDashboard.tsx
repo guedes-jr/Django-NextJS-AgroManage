@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
-import "@/app/home/rebanho/animais/animais.css";
+import "./animais.css";
 import { AnimalFormModal } from "@/components/dashboard/AnimalFormModal";
 import { EditAnimalModal } from "@/components/dashboard/EditAnimalModal";
 import { Search, Edit2, Trash2, Activity, Tag, Eye } from "lucide-react";
@@ -200,7 +200,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
     const totalAnimals = data.reduce((acc, a) => acc + (a.quantity || 1), 0);
     
     if (species === "suinos") {
-        const matrizesData = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes');
+        const matrizesData = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes' || a.category?.toLowerCase() === 'marrã');
         const reprodutoresData = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço' || a.category?.toLowerCase() === 'touro');
         const lotesData = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'terminação');
         

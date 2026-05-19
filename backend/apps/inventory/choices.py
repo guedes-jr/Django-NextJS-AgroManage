@@ -11,6 +11,7 @@ class CategoriaItem(models.TextChoices):
     MEDICAMENTO = "medicamento", "Medicamento"
     VACINA = "vacina", "Vacina"
     MATERIAL = "material", "Material"
+    SEMEN = "semen", "Sêmen"
     OUTRO = "outro", "Outro"
 
 
@@ -78,4 +79,10 @@ class TipoRegistroConsumo(models.TextChoices):
     TOTAL_PERIODO = "total_periodo", "Total no Período"
     DIARIO = "diario", "Consumo Diário"
     POR_CABECA = "por_cabeca", "Por Cabeça"
+
+
+class TipoSemen(models.TextChoices):
+    CONVENCIONAL = "convencional", "Convencional"
+    SEXADO_MACHO = "sexado_macho", "Sexado Macho"
+    SEXADO_FEMEA = "sexado_femea", "Sexado Fêmea"
 

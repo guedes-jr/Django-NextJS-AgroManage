@@ -11,3 +11,7 @@ TOKEN_CONTEXT
 - prefer compact technical sections
 - avoid repeating unchanged code
 - reuse stable conventions
+
+TESTING_CREDENTIALS
+- email: joao@agr.com
+- password: Junior@12

@@ -1,7 +1,8 @@
 "use client";
-
+ 
 import { useState, useEffect } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, X } from "lucide-react";
+import Link from "next/link";
 import "./reproducao.css";
 import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
 import { ReproducaoKpiCards, KpiCard } from "./ReproducaoKpiCards";
@@ -15,6 +16,7 @@ import {
   QuickAction,
 } from "./ReproducaoTabContent";
 import { ReproducaoModal, ModalField } from "./ReproducaoModal";
+import { apiClient } from "@/services/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -248,6 +250,7 @@ import {
   discardAnimal,
   createBirth,
   registerMating,
+  createMating,
   updateAnimal,
   createAnimalBatch,
   updatePregnancy,
@@ -276,6 +279,36 @@ export function ReproducaoDashboard({
   const router = useRouter();
   const [internalActiveTab, setInternalActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
+  const [noReproducersWarningOpen, setNoReproducersWarningOpen] = useState(false);
+  const [allSemenItems, setAllSemenItems] = useState<any[]>([]);
+  const [semenItems, setSemenItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSemen = async () => {
+      try {
+        const mapEspecie = (e: string) => {
+          if (e === "suinos") return "suino";
+          if (e === "bovinos") return "bovino";
+          if (e === "aves") return "ave";
+          return e;
+        };
+        const mappedSp = mapEspecie(config.especie);
+        const { data: allData } = await apiClient.get("/inventory/items/all_items/", {
+          params: { categoria: "semen" }
+        });
+        setAllSemenItems(allData || []);
+        const filtered = (allData || []).filter((s: any) => 
+          s.especie_animal === mappedSp || 
+          s.especie_animal === "multiplo" || 
+          !s.especie_animal
+        );
+        setSemenItems(filtered);
+      } catch (err) {
+        console.error("Erro ao buscar sêmen do estoque:", err);
+      }
+    };
+    fetchSemen();
+  }, [config.especie]);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = controlledOnTabChange ?? setInternalActiveTab;
@@ -299,6 +332,14 @@ export function ReproducaoDashboard({
   });
 
   const handleAction = (action: any, rows: any[] = []) => {
+    const currentTab = config.tabs.find((t) => t.id === activeTab);
+    const isMatingAction = action.type === 'mating_marra' || (action.type === 'primary' && currentTab?.primaryActionLabel === "Registrar Cobertura");
+    
+    if (isMatingAction && !hasReproducers && !hasSemenStock) {
+      setNoReproducersWarningOpen(true);
+      return;
+    }
+
     if (action.onClick) {
       action.onClick();
       return;
@@ -449,32 +490,18 @@ export function ReproducaoDashboard({
                 const identifier = animalRow.identifier;
 
                 try {
-                  // Buscar detalhes para ter farm e species
-                  const animalDetails = await fetchAnimalDetails(animalId);
-
-                  // 1. Criar o lote de leitões primeiro
-                  const batch = await createAnimalBatch({
-                    batch_code: `L-${identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
-                    quantity: parseInt(data.live_born) || 0,
-                    phase: "gestacao_maternidade",
-                    category: "Leitão",
-                    status: "active",
-                    species_code_input: "suinos",
-                    farm_id: animalDetails.farm_id || animalDetails.farm,
-                    entry_date: data.birth_date,
-                    mother: animalId,
-                    notes: `Leitegada da matriz ${identifier}`
-                  });
-
-                  // 2. Criar registro de parto (Vinculado à prenhez e ao lote recém criado)
+                  // 1. Criar registro de parto (Vinculado à prenhez)
                   await createBirth({ 
-                    ...data, 
-                    female: animalId,
                     pregnancy: pregnancyId,
-                    batch: batch.id
+                    female: animalId,
+                    birth_date: data.birth_date,
+                    live_born: parseInt(data.live_born) || 0,
+                    stillborn: parseInt(data.stillborn) || 0,
+                    mummified: parseInt(data.mummified) || 0,
+                    notes: data.notes || ""
                   });
 
-                  // 3. Marcar prenhez como concluída
+                  // 2. Marcar prenhez como concluída
                   await updatePregnancy(pregnancyId, { status: 'completed' });
 
                   // 4. Mover mãe para Lactante
@@ -504,59 +531,276 @@ export function ReproducaoDashboard({
             }
           });
           break;
+      case 'wean': {
+        const weanOptions = (rows.length > 0 ? rows : (config.tabs.find(t => t.id === 'maternidade')?.rows || [])).map(r => ({
+          value: String(r.id), // Birth ID
+          label: String(r.identifier || `Matriz ${r.animal_id || r.id}`) // Matrix Identifier
+        }));
+
+        if (weanOptions.length === 0) {
+          alert("Não há matrizes em lactação disponíveis para desmame.");
+          return;
+        }
+
+        setActionModal({
+          open: true,
+          title: rows.length > 1 ? `Confirmar Desmame em Lote (${rows.length})` : "Confirmar Desmame",
+          subtitle: "Registre o desmame e destine os leitões para a creche",
+          fields: [
+            {
+              name: "birth_id",
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)",
+              type: rows.length > 1 ? "text" : "select",
+              options: weanOptions,
+              initialValue: rows.length === 1 ? weanOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : weanOptions[0]?.value),
+              disabled: rows.length >= 1,
+              required: true
+            },
+            {
+              name: "weaning_date",
+              label: "Data do Desmame",
+              type: "date",
+              required: true,
+              initialValue: new Date().toISOString().split('T')[0]
+            },
+            {
+              name: "weaned_quantity",
+              label: "Quantidade Desmamada",
+              type: "number",
+              required: true,
+              initialValue: rows.length === 1 ? (rows[0].vivos_atual || rows[0].vivos || 10) : 10,
+              placeholder: "Quantidade de leitões"
+            },
+            {
+              name: "avg_weaning_weight_kg",
+              label: "Peso Médio ao Desmame (kg)",
+              type: "number",
+              required: true,
+              initialValue: 6.5,
+              placeholder: "Ex: 6.5"
+            },
+            {
+              name: "weaning_type",
+              label: "Tipo de Desmame",
+              type: "select",
+              required: true,
+              options: [
+                { value: "total", label: "Desmame Total (Matriz retorna para Cobertura)" },
+                { value: "parcial", label: "Desmame Parcial (Matriz continua em Lactação)" }
+              ],
+              initialValue: "total"
+            },
+            {
+              name: "batch_code",
+              label: "Código do Novo Lote na Creche",
+              type: "text",
+              required: true,
+              initialValue: rows.length === 1 
+                ? `L-CRECHE-${rows[0].identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
+                : `L-CRECHE-LOTE-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
+            }
+          ],
+          onConfirm: async (data) => {
+            const performWean = async (row: any) => {
+              const birthId = row.id;
+              const femaleId = row.animal_id;
+              const identifier = row.identifier;
+              const vivosAtual = parseInt(row.vivos_atual || row.vivos) || 0;
+
+              try {
+                // Buscar detalhes do animal para farm_id
+                const animalDetails = await fetchAnimalDetails(femaleId);
+                const farmId = animalDetails.farm_id || animalDetails.farm;
+
+                // 1. Criar o lote de leitões na Creche
+                const batchQty = parseInt(data.weaned_quantity) || vivosAtual;
+                const batch = await createAnimalBatch({
+                  batch_code: data.batch_code || `L-CRECHE-${identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+                  quantity: batchQty,
+                  phase: "creche",
+                  category: "Leitão",
+                  status: "active",
+                  species_code_input: "suinos",
+                  farm_id: farmId,
+                  entry_date: data.weaning_date,
+                  mother: femaleId,
+                  avg_weight_kg: data.avg_weaning_weight_kg ? parseFloat(data.avg_weaning_weight_kg) : null,
+                  notes: `Lote desmamado da matriz ${identifier} (${data.weaning_type === 'total' ? 'Desmame Total' : 'Desmame Parcial'})`
+                });
+
+                // 2. Criar ou atualizar Litter (Leitegada / Registro de Desmame)
+                await apiClient.post("/livestock/litters/", {
+                  birth: birthId,
+                  weaning_date: data.weaning_date,
+                  weaned_quantity: batchQty,
+                  avg_weaning_weight_kg: data.avg_weaning_weight_kg ? parseFloat(data.avg_weaning_weight_kg) : null,
+                  notes: `Desmame da matriz ${identifier}`
+                });
+
+                // 3. Vincular o lote recém criado ao Parto (Birth)
+                await apiClient.patch(`/livestock/births/${birthId}/`, {
+                  batch: batch.id
+                });
+
+                // 4. Mudar status reprodutivo da matriz
+                if (data.weaning_type === "total") {
+                  await updateAnimal(femaleId, {
+                    reproductive_status: "aguardando_cobertura",
+                    previous_phase: ""
+                  });
+                } else {
+                  await updateAnimal(femaleId, {
+                    reproductive_status: "lactante"
+                  });
+                }
+              } catch (err) {
+                console.error(`Erro ao desmamar matriz ${identifier}:`, err);
+                throw err;
+              }
+            };
+
+            try {
+              const targets = rows.length > 0 ? rows : [ (config.tabs.find(t => t.id === 'maternidade')?.rows || []).find(r => String(r.id) === data.birth_id) ].filter(Boolean);
+              if (targets.length > 1) {
+                await Promise.all(targets.map(r => performWean(r)));
+              } else if (targets.length === 1) {
+                await performWean(targets[0]);
+              }
+              onSuccess?.();
+              setActionModal(prev => ({ ...prev, open: false }));
+            } catch (err) {
+              console.error("Erro geral no desmame:", err);
+            }
+          }
+        });
+      }
+      break;
       case 'mating_marra': {
         const sireOpts = (reproducerOptions || []).map(r => ({
           value: String(r.id),
           label: `${r.identifier}${r.category ? ` (${r.category})` : ''}`,
         }));
+        const semenOpts = (semenItems || []).map(s => {
+          const classif = s.tipo_semen_display || (s.tipo_semen === 'sexado_macho' ? 'Sexado Macho' : s.tipo_semen === 'sexado_femea' ? 'Sexado Fêmea' : 'Convencional');
+          return {
+            value: String(s.id),
+            label: `${s.nome} [${classif}] (Estoque: ${s.estoque_atual || 0} doses)`,
+          };
+        });
         setActionModal({
           open: true,
-          title: "💖 Registrar Cobertura da Marrã",
-          subtitle: "Registre a primeira cobertura e inicie o ciclo reprodutivo",
+          title: rows.length > 1 ? `💖 Registrar Cobertura em Lote (${rows.length})` : "💖 Registrar Cobertura da Marrã",
+          subtitle: rows.length > 1 ? "Registre a cobertura para as matrizes selecionadas" : "Registre a primeira cobertura e inicie o ciclo reprodutivo",
           fields: [
             {
               name: "id",
-              label: "Marrã (Brinco)",
-              type: animalOptions.length > 0 ? "select" : "text",
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Marrã (Brinco)",
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? `${rows.length} selecionadas` : undefined),
+              disabled: rows.length >= 1,
               placeholder: "Selecione a marrã",
               required: true,
             },
-            { name: "mating_date", label: "Data da Cobertura", type: "date", required: true },
+            { 
+              name: "mating_date", 
+              label: "Data da Cobertura", 
+              type: "date", 
+              required: true,
+              initialValue: new Date().toISOString().split('T')[0]
+            },
             {
               name: "mating_type",
               label: "Tipo de Cobertura",
               type: "select",
               options: [
-                { value: "ai", label: "Inseminação Artificial" },
                 { value: "natural", label: "Monta Natural" },
+                { value: "ai", label: "Inseminação Artificial" },
                 { value: "iatf", label: "IATF" },
               ],
+              initialValue: "natural",
+              required: true,
+            },
+            {
+              name: "material_origin",
+              label: "Origem do Sêmen / Material",
+              type: "select",
+              options: [
+                { value: "reprodutor", label: "Reprodutor Cadastrado" },
+                { value: "semen", label: "Sêmen do Estoque" },
+              ],
+              initialValue: "reprodutor",
+              required: true,
+              showIf: (vals) => vals.mating_type === "ai" || vals.mating_type === "iatf",
             },
             {
               name: "sire_id",
               label: sireOpts.length > 0 ? "Reprodutor (Cachaço)" : "Reprodutor (não há machos cadastrados)",
               type: sireOpts.length > 0 ? "select" : "text",
-              options: sireOpts.length > 0 ? [{ value: "", label: "Não informar" }, ...sireOpts] : undefined,
+              options: sireOpts.length > 0 ? sireOpts : undefined,
               placeholder: sireOpts.length > 0 ? "Selecione o reprodutor" : "Não há reprodutores cadastrados",
+              required: true,
+              showIf: (vals) => vals.mating_type === "natural" || vals.material_origin === "reprodutor",
+            },
+            {
+              name: "semen_item_id",
+              label: "Selecionar Sêmen do Estoque",
+              type: "select",
+              options: semenOpts.length > 0 ? semenOpts : undefined,
+              placeholder: semenOpts.length > 0 ? "Selecione o sêmen..." : "Não há sêmen cadastrado no estoque",
+              required: true,
+              showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
             {
               name: "sire_info",
-              label: "Reprodutor (texto livre)",
+              label: "Identificação do Sêmen (texto livre)",
               type: "text",
-              placeholder: "Registro externo, dose de semêm, etc.",
+              placeholder: "Ex: Raça, lote do cachaço externo, etc.",
+              showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
             { name: "notes", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
-            const animalId = data.id;
-            if (!animalId) throw new Error("Selecione a marrã");
-            await registerMating(animalId, {
+            let computedSireInfo = data.sire_info || "";
+            if (data.material_origin === "semen" && data.semen_item_id) {
+              const selectedSemen = (semenItems || []).find(s => String(s.id) === String(data.semen_item_id));
+              if (selectedSemen) {
+                computedSireInfo = `Sêmen: ${selectedSemen.nome}`;
+              }
+            }
+
+            const payload = {
               mating_date: data.mating_date,
-              mating_type: data.mating_type || "ai",
-              sire_info: data.sire_info || "",
-              ...(data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
-            });
+              mating_type: data.mating_type || "natural",
+              sire_info: computedSireInfo,
+              ...(data.material_origin !== "semen" && data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
+              notes: data.notes || "",
+            };
+
+            const targetRows = rows.length > 0 ? rows : [data];
+            const animalIds = rows.length > 1 
+              ? rows.map(r => r.animal_id || r.id || r.pk || r.identifier)
+              : [data.id || (rows.length === 1 ? (rows[0].animal_id || rows[0].id || rows[0].pk || rows[0].identifier) : null)];
+
+            if (animalIds.some(id => !id)) throw new Error("Selecione a fêmea/marrã");
+
+            // 1. Register the coverages
+            await Promise.all(animalIds.map(animalId => registerMating(String(animalId), payload)));
+
+            // 2. Perform inventory consumption if semen is used
+            if (data.material_origin === "semen" && data.semen_item_id) {
+              try {
+                await apiClient.post("/inventory/movimentacoes/", {
+                  item: data.semen_item_id,
+                  tipo: "consumo",
+                  quantidade: 1.0 * Math.max(1, targetRows.length),
+                  observacao: `Consumo automático por inseminação artificial na fêmea ${animalIds.join(", ")}.`,
+                });
+              } catch (movErr) {
+                console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);
+              }
+            }
+
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           },
@@ -601,6 +845,128 @@ export function ReproducaoDashboard({
   const isActiveTabLoading = activeTab === "dashboard"
     ? initialLoading
     : tabLoading?.[activeTab] ?? false;
+  const getPrimaryModalFields = (): ModalField[] => {
+    if (currentTab?.primaryActionLabel === "Registrar Cobertura") {
+      const sireOpts = (reproducerOptions || []).map(r => ({
+        value: String(r.id),
+        label: `${r.identifier}${r.category ? ` (${r.category})` : ''}`,
+      }));
+      const semenOpts = (semenItems || []).map(s => {
+        const classif = s.tipo_semen_display || (s.tipo_semen === 'sexado_macho' ? 'Sexado Macho' : s.tipo_semen === 'sexado_femea' ? 'Sexado Fêmea' : 'Convencional');
+        return {
+          value: String(s.id),
+          label: `${s.nome} [${classif}] (Estoque: ${s.estoque_atual || 0} doses)`,
+        };
+      });
+      return [
+        {
+          name: "matriz",
+          label: "Matriz (Brinco)",
+          type: "text",
+          required: true,
+        },
+        { 
+          name: "data_cobertura", 
+          label: "Data da Cobertura", 
+          type: "date", 
+          required: true,
+          initialValue: new Date().toISOString().split('T')[0]
+        },
+        {
+          name: "tipo",
+          label: "Tipo de Cobertura",
+          type: "select",
+          options: [
+            { value: "MN", label: "Monta Natural" },
+            { value: "IA", label: "Inseminação Artificial" },
+          ],
+          initialValue: "MN",
+          required: true,
+        },
+        {
+          name: "material_origin",
+          label: "Origem do Sêmen / Material",
+          type: "select",
+          options: [
+            { value: "reprodutor", label: "Reprodutor Cadastrado" },
+            { value: "semen", label: "Sêmen do Estoque" },
+          ],
+          initialValue: "reprodutor",
+          required: true,
+          showIf: (vals: Record<string, string>) => vals.tipo === "IA",
+        },
+        {
+          name: "sire_id",
+          label: sireOpts.length > 0 ? "Reprodutor (Cachaço)" : "Reprodutor (não há machos cadastrados)",
+          type: sireOpts.length > 0 ? "select" : "text",
+          options: sireOpts.length > 0 ? sireOpts : undefined,
+          placeholder: sireOpts.length > 0 ? "Selecione o reprodutor" : "Não há reprodutores cadastrados",
+          required: true,
+          showIf: (vals: Record<string, string>) => vals.tipo === "MN" || vals.material_origin === "reprodutor",
+        },
+        {
+          name: "semen_item_id",
+          label: "Selecionar Sêmen do Estoque",
+          type: "select",
+          options: semenOpts.length > 0 ? semenOpts : undefined,
+          placeholder: semenOpts.length > 0 ? "Selecione o sêmen..." : "Não há sêmen cadastrado no estoque",
+          required: true,
+          showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
+        },
+        {
+          name: "sire_info",
+          label: "Identificação do Sêmen (texto livre)",
+          type: "text",
+          placeholder: "Ex: Raça, lote do cachaço externo, etc.",
+          showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
+        },
+      ];
+    }
+    return (currentTab?.primaryActionModalFields as ModalField[]) || [];
+  };
+
+  const handlePrimaryConfirm = async (data: Record<string, string>) => {
+    if (currentTab?.primaryActionLabel === "Registrar Cobertura") {
+      let computedSireInfo = data.sire_info || "";
+      if (data.material_origin === "semen" && data.semen_item_id) {
+        const selectedSemen = (semenItems || []).find(s => String(s.id) === String(data.semen_item_id));
+        if (selectedSemen) {
+          computedSireInfo = `Sêmen: ${selectedSemen.nome}`;
+        }
+      }
+
+      // 1. Save using createMating
+      await createMating({
+        female_identifier: data.matriz,
+        mating_date: data.data_cobertura,
+        mating_type: data.tipo === "IA" ? "ai" : "natural",
+        sire_info: computedSireInfo,
+        ...(data.material_origin !== "semen" && data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
+      });
+
+      // 2. Perform inventory consumption if semen is used
+      if (data.tipo === "IA" && data.material_origin === "semen" && data.semen_item_id) {
+        try {
+          await apiClient.post("/inventory/movimentacoes/", {
+            item: data.semen_item_id,
+            tipo: "consumo",
+            quantidade: 1.0,
+            observacao: `Consumo automático por Inseminação Artificial na fêmea ${data.matriz}.`,
+          });
+        } catch (movErr) {
+          console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);
+        }
+      }
+
+      onSuccess?.();
+    } else if (currentTab?.onSave) {
+      await currentTab.onSave(data);
+    }
+  };
+  const hasReproducers = reproducerOptions && reproducerOptions.length > 0;
+  const hasSemenProduct = semenItems && semenItems.length > 0;
+  const hasSemenStock = semenItems && semenItems.some(s => parseFloat(s.estoque_atual || 0) > 0);
+
   const hasTabData = activeTab === "dashboard" || currentTab?.count !== undefined;
 
   return (
@@ -636,7 +1002,13 @@ export function ReproducaoDashboard({
           <button
             className="btn btn-primary d-inline-flex align-items-center gap-2 fw-semibold px-4 py-2 shadow-sm rounded-pill transition-all hover-scale"
             style={{ fontSize: '0.9rem', backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' }}
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              if (currentTab.primaryActionLabel === "Registrar Cobertura" && !hasReproducers && !hasSemenStock) {
+                setNoReproducersWarningOpen(true);
+              } else {
+                setModalOpen(true);
+              }
+            }}
           >
             <Plus size={18} />
             {currentTab.primaryActionLabel}
@@ -645,18 +1017,18 @@ export function ReproducaoDashboard({
       </div>
 
       {/* ─── Tabs ─── */}
-      <ul className="nav nav-tabs mb-4 border-bottom w-100">
+      <ul className="nav nav-tabs mb-4 border-0 w-100 flex-nowrap overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: 'none' }}>
         {allTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
-            <li className="nav-item" key={tab.id}>
+            <li className="nav-item" key={tab.id} style={{ flexShrink: 0 }}>
               <button
-                className={`nav-link d-flex align-items-center gap-2 py-3 px-4 fw-semibold border-0 border-bottom border-3 rounded-0 ${
+                className={`nav-link d-flex align-items-center py-2.5 px-2 px-xl-3 fw-semibold border-0 border-bottom border-3 rounded-0 ${
                   isActive
                     ? "active text-success border-success bg-transparent"
                     : "text-muted border-transparent hover-bg-light"
                 }`}
-                style={{ fontSize: '0.9rem', marginBottom: '-1px' }}
+                style={{ fontSize: '0.85rem', marginBottom: '-1px', gap: '6px' }}
                 onClick={() => setActiveTab(tab.id)}
               >
                 <span className={isActive ? "text-success" : "text-muted"}>{tab.icon}</span>
@@ -745,9 +1117,9 @@ export function ReproducaoDashboard({
           onClose={() => setModalOpen(false)}
           title={currentTab.primaryActionModalTitle ?? currentTab.primaryActionLabel ?? "Novo registro"}
           subtitle={currentTab.primaryActionModalSubtitle}
-          fields={currentTab.primaryActionModalFields}
+          fields={getPrimaryModalFields()}
           confirmLabel="Salvar"
-          onConfirm={currentTab.onSave}
+          onConfirm={handlePrimaryConfirm}
         />
       )}
 
@@ -761,6 +1133,115 @@ export function ReproducaoDashboard({
         confirmLabel="Confirmar"
         onConfirm={actionModal.onConfirm}
       />
+
+      {/* ─── No Reproducers Warning Modal ─── */}
+      {noReproducersWarningOpen && (
+        <div className="repro-modal-overlay" onClick={() => setNoReproducersWarningOpen(false)}>
+          <div className="repro-modal" style={{ maxWidth: "480px" }}>
+            <div className="repro-modal-header" style={{ paddingBottom: "0.5rem" }}>
+              <div>
+                <div className="repro-modal-title text-danger d-flex align-items-center gap-2" style={{ fontSize: "1.25rem" }}>
+                  <span>⚠️</span> Sem Material Reprodutor Disponível
+                </div>
+              </div>
+              <button className="repro-modal-close" onClick={() => setNoReproducersWarningOpen(false)} type="button">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="repro-modal-body text-center py-4">
+              <div className="mb-3 d-inline-flex align-items-center justify-content-center animate-bounce" style={{ width: "64px", height: "64px", borderRadius: "50%", background: "oklch(0.96 0.04 25)", color: "oklch(0.5 0.15 25)", fontSize: "2rem" }}>
+                🧪
+              </div>
+              <h5 className="fw-black text-foreground mb-3 text-uppercase small" style={{ letterSpacing: '0.05em' }}>
+                Diagnóstico de Disponibilidade
+              </h5>
+              
+              <div className="text-start px-3 py-3 bg-muted/10 rounded-xl mb-4 border border-border/40" style={{ fontSize: '0.85rem' }}>
+                <div className="mb-3 d-flex align-items-center gap-2">
+                  <span className={hasReproducers ? "text-success" : "text-danger"} style={{ fontSize: '1.1rem' }}>
+                    {hasReproducers ? "✔" : "❌"}
+                  </span>
+                  <div>
+                    <strong>Reprodutores:</strong> {hasReproducers 
+                      ? `${reproducerOptions.length} ativos.` 
+                      : "Nenhum macho reprodutor ativo cadastrado."}
+                  </div>
+                </div>
+
+                <div className="d-flex align-items-start gap-2">
+                  <span className={hasSemenStock ? "text-success" : "text-danger"} style={{ fontSize: '1.1rem', marginTop: '-2px' }}>
+                    {hasSemenStock ? "✔" : "❌"}
+                  </span>
+                  <div>
+                    <strong>Sêmen em Estoque:</strong>{" "}
+                    {hasSemenStock ? (
+                      "Disponível para uso."
+                    ) : (
+                      <>
+                        {semenItems.length === 0 ? (
+                          <>
+                            Nenhum produto cadastrado para <strong>{config.especie === 'suinos' ? 'Suínos' : config.especie === 'bovinos' ? 'Bovinos' : 'Aves'}</strong>.
+                            {allSemenItems.length > 0 && (
+                              <div className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>
+                                💡 Nota: Identificamos sêmen cadastrado para outra(s) espécie(s) ({
+                                  Array.from(new Set(allSemenItems.map(s => {
+                                    if (s.especie_animal === 'suino') return 'Suínos';
+                                    if (s.especie_animal === 'bovino') return 'Bovinos';
+                                    if (s.especie_animal === 'ave') return 'Aves';
+                                    return s.especie_animal_display || s.especie_animal;
+                                  }))).join(', ')
+                                }), mas nenhum para <strong>{config.especie === 'suinos' ? 'Suínos' : config.especie === 'bovinos' ? 'Bovinos' : 'Aves'}</strong>. Por favor, verifique se selecionou a espécie correta ao cadastrar o produto no estoque.
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            Cadastrado, mas está <strong>sem estoque (0 doses)</strong>.
+                            <div className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>
+                              Produtos encontrados: {semenItems.map(s => s.nome).join(', ')}.
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-muted-foreground mb-0" style={{ fontSize: "0.82rem", lineHeight: "1.5" }}>
+                Para registrar uma cobertura, você precisa possuir pelo menos um reprodutor ativo cadastrado OU sêmen com saldo disponível no estoque para a espécie correspondente.
+              </p>
+            </div>
+
+            <div className="repro-modal-footer d-flex flex-column gap-2 w-100" style={{ padding: "0 1.5rem 1.5rem" }}>
+              <Link
+                href={`/home/rebanho/${config.especie}/cadastro`}
+                className="repro-btn-primary w-100 justify-content-center text-decoration-none text-center d-flex align-items-center gap-2"
+                style={{ background: "oklch(0.55 0.16 145)", border: "none", boxShadow: "0 4px 12px oklch(0.55 0.16 145 / 0.2)" }}
+                onClick={() => setNoReproducersWarningOpen(false)}
+              >
+                Cadastrar Novo Reprodutor
+              </Link>
+              <Link
+                href={`/home/estoque/produtos?openModal=true&category=semen`}
+                className="repro-btn-primary w-100 justify-content-center text-decoration-none text-center d-flex align-items-center gap-2"
+                style={{ background: "oklch(0.65 0.22 350)", border: "none", boxShadow: "0 4px 12px oklch(0.65 0.22 350 / 0.2)" }}
+                onClick={() => setNoReproducersWarningOpen(false)}
+              >
+                Adicionar Sêmen ao Estoque
+              </Link>
+              <button
+                type="button"
+                className="repro-btn-secondary w-100 justify-content-center"
+                onClick={() => setNoReproducersWarningOpen(false)}
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

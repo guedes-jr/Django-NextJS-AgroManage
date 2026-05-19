@@ -142,7 +142,15 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         if not organization:
             return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
 
+        categoria = request.query_params.get("categoria")
+        especie_animal = request.query_params.get("especie_animal")
+
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
+        if categoria:
+            items = items.filter(categoria=categoria)
+        if especie_animal:
+            items = items.filter(especie_animal=especie_animal)
+
         serializer = self.get_serializer(items, many=True)
         return Response(serializer.data)
 

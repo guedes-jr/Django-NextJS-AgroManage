@@ -189,50 +189,12 @@ function ReproducaoPageContent() {
         rowKey: "id",
         batchActions: [
           { 
-            label: "Registrar Cobertura (Hoje)", 
+            label: "Registrar Cobertura", 
             icon: "🤰", 
             variant: "primary", 
-            onClick: async (rows: any[]) => { 
-              const today = new Date().toISOString().split('T')[0];
-              await Promise.all(rows.map(r => createMating({
-                female_identifier: r.identifier,
-                mating_date: today,
-                mating_type: "ai",
-                sire_info: "Cobertura em massa"
-              })));
-              showToast(`${rows.length} coberturas registradas!`, "success"); 
-              refetchTabs(["marras", "matrizes", "gestacao", "dashboard"], false, true);
-              setActiveTab("gestacao");
-            } 
+            type: "mating_marra"
           },
         ],
-        primaryActionLabel: "Nova Marrã",
-        primaryActionModalFields: [
-          { name: "brinco", label: "Brinco/ID", type: "text", required: true },
-          { name: "data_entrada", label: "Data de Entrada", type: "date", required: true },
-          { name: "peso", label: "Peso Inicial (kg)", type: "number" },
-          { name: "raca", label: "Raça", type: "select", options: [
-            { value: "Large White", label: "Large White" },
-            { value: "Landrace", label: "Landrace" },
-            { value: "Duroc", label: "Duroc" },
-            { value: "Pietrain", label: "Pietrain" },
-            { value: "Moura", label: "Moura" },
-            { value: "Wessex", label: "Wessex" },
-          ]},
-        ],
-        onSave: async (data: any) => {
-          await createAnimal({
-            identifier: data.brinco,
-            entry_date: data.data_entrada,
-            initial_weight_kg: data.peso ? parseFloat(data.peso) : null,
-            gender: "F",
-            category: "Marrã",
-            species_code_input: "suinos",
-            breed_name_input: data.raca,
-          });
-          showToast("Marrã cadastrada com sucesso!", "success");
-          refetchTabs(["marras", "matrizes", "dashboard"], false, true);
-        },
         kpis: [
           { label: "Total Marrãs", value: m.total ?? 0, icon: "🐖", color: "oklch(0.95 0.05 145)", trend: "up" },
           { label: "Disponíveis", value: m.disponiveis ?? 0, icon: "✅", color: "oklch(0.94 0.04 230)", trend: "neutral" },
@@ -240,7 +202,6 @@ function ReproducaoPageContent() {
           { label: "Prontas", value: m.prontas ?? 0, icon: "🎯", color: "oklch(0.96 0.04 290)", trend: "up" },
         ],
         tabActions: [
-          { label: "Nova Marrã", icon: "➕", color: "oklch(0.55 0.16 145)", desc: "Cadastrar nova marrã", type: 'primary' },
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
           { label: "Registrar Cobertura", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Primeira cobertura", type: 'mating_marra' },
@@ -272,21 +233,10 @@ function ReproducaoPageContent() {
         rowKey: "id",
         batchActions: [
           { 
-            label: "Registrar Cobertura (Hoje)", 
+            label: "Registrar Cobertura", 
             icon: "🤰", 
             variant: "primary", 
-            onClick: async (rows: any[]) => { 
-              const today = new Date().toISOString().split('T')[0];
-              await Promise.all(rows.map(r => createMating({
-                female_identifier: r.identifier,
-                mating_date: today,
-                mating_type: "ai",
-                sire_info: "Cobertura em massa"
-              })));
-              showToast(`${rows.length} coberturas registradas!`, "success"); 
-              refetchTabs(["matrizes", "gestacao", "dashboard"], false, true);
-              setActiveTab("gestacao");
-            } 
+            type: "mating_marra"
           },
           { label: "Descartar", icon: "🚫", variant: "danger", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimal(r.id as number, { status: "finished" }))); showToast(`${rows.length} matrizes descartadas.`, "success"); refetchTabs(["matrizes", "dashboard"], false, true); } },
         ],
@@ -400,7 +350,6 @@ function ReproducaoPageContent() {
           { label: "Confirmar Parto", icon: "🍼", color: "oklch(0.55 0.16 145)", desc: "Registrar nascimento", type: 'birth' },
           { label: "Registrar Perda", icon: "❌", color: "oklch(0.6 0.22 27)", desc: "Aborto / Reabsorção" },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinação pré-parto", type: 'vaccine' },
-          { label: "Mover p/ Maternidade", icon: "🚚", color: "oklch(0.78 0.15 85)", desc: "Trocar setor" },
         ],
         tabAlerts: tab.gestacao?.alerts || [],
         tabAiSuggestions: tab.gestacao?.aiSuggestions || [],
@@ -436,7 +385,7 @@ function ReproducaoPageContent() {
         selectable: true,
         rowKey: "id",
         batchActions: [
-          { label: "Confirmar Desmame", icon: "🔄", variant: "primary", onClick: async (rows: any[]) => { await batchWean(rows.map(r => r.id as number)); refetchTabs(["maternidade", "creche", "dashboard"], false, true); } },
+          { label: "Confirmar Desmame", icon: "🔄", variant: "primary", type: 'wean' as any },
         ],
         kpis: [
           { label: "Em Lactação", value: matn.em_lactacao ?? 0, icon: "🍼", color: "oklch(0.96 0.04 290)", trend: "up" },
@@ -449,7 +398,7 @@ function ReproducaoPageContent() {
           { label: "Registrar Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Registrar procedimento" },
           { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito" },
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Pesar leitões", type: 'weight' },
-          { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche" },
+          { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche", type: 'wean' },
         ],
         tabAlerts: tab.maternidade?.alerts || [],
         tabAiSuggestions: tab.maternidade?.aiSuggestions || [],

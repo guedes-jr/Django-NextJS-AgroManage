@@ -143,6 +143,9 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
     unidade_display = serializers.CharField(
         source="get_unidade_medida_display", read_only=True
     )
+    tipo_semen_display = serializers.CharField(
+        source="get_tipo_semen_display", read_only=True
+    )
 
     custo_unitario = serializers.DecimalField(
         max_digits=10, decimal_places=2, write_only=True, required=False, allow_null=True
@@ -163,6 +166,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "unidade_medida", "unidade_display",
             # General
             "descricao", "fabricante", "especie_animal",
+            "tipo_semen", "tipo_semen_display",
             "estoque_minimo", "prioridade", "ativo",
             # Technical — medicine/vaccine
             "principio_ativo", "concentracao", "via_aplicacao",

@@ -19,6 +19,7 @@ from .choices import (
     LocalArmazenamento,
     TipoContratoFornecedor,
     TipoRegistroConsumo,
+    TipoSemen,
 )
 
 
@@ -47,6 +48,12 @@ class ItemEstoque(BaseModel):
     fabricante = models.CharField(max_length=100, blank=True)
     especie_animal = models.CharField(
         max_length=30, choices=EspecieAnimal.choices, blank=True
+    )
+    tipo_semen = models.CharField(
+        max_length=20,
+        choices=TipoSemen.choices,
+        blank=True,
+        help_text="Classificação do sêmen (Convencional, Sexado Macho/Fêmea)",
     )
 
     # -- Estoque mínimo -------------------------------------------------------
