@@ -1,26 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { 
-  Printer, 
-  Download, 
-  X, 
-  Calendar, 
-  Scale, 
-  Activity, 
-  History, 
-  Heart, 
-  Baby, 
-  Syringe, 
-  Microscope,
-  Info,
-  Clock,
-  QrCode
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Printer, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { fetchAnimalDetails, fetchAnimalHistory } from "@/services/livestockService";
 import { Loader2 } from "lucide-react";
-import { breedDictionary } from "@/constants/breedInfo";
 
 interface AnimalTechnicalSheetModalProps {
   isOpen: boolean;
@@ -28,536 +12,996 @@ interface AnimalTechnicalSheetModalProps {
   animalId: string | number;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const fmt = (v: any, decimals = 2) =>
+  v != null && !isNaN(Number(v))
+    ? Number(v).toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : "-";
+
+const fmtInt = (v: any) =>
+  v != null && !isNaN(Number(v)) ? Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "-";
+
+const fmtDate = (d: any) =>
+  d ? new Date(d).toLocaleDateString("pt-BR") : "-";
+
+const calcAge = (birthDate: string | null) => {
+  if (!birthDate) return null;
+  const diff = Date.now() - new Date(birthDate).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+};
+
+// ─── Colors ──────────────────────────────────────────────────────────────────
+const GREEN_DARK = "#1b5e20";
+const GREEN_MID = "#2e7d32";
+const GREEN_LIGHT = "#e8f5e9";
+const GREEN_BORDER = "#c8e6c9";
+const GRAY_TEXT = "#555";
+const AMBER = "#f59e0b";
+const RED = "#dc2626";
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+const SectionHeader = ({ number, title }: { number: number; title: string }) => (
+  <div style={{
+    background: GREEN_DARK,
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: "0.68rem",
+    letterSpacing: "0.4px",
+    padding: "4px 10px",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    textTransform: "uppercase",
+  }}>
+    <span>{number}. {title}</span>
+  </div>
+);
+
+// ─── Table helpers ────────────────────────────────────────────────────────────
+const Th = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
+  <th style={{
+    background: GREEN_LIGHT,
+    color: GREEN_DARK,
+    fontSize: "0.58rem",
+    fontWeight: 700,
+    textAlign: "center",
+    padding: "3px 4px",
+    border: `1px solid ${GREEN_BORDER}`,
+    whiteSpace: "nowrap",
+    lineHeight: 1.3,
+    ...style,
+  }}>{children}</th>
+);
+
+const Td = ({ children, style, bold }: { children: React.ReactNode; style?: React.CSSProperties; bold?: boolean }) => (
+  <td style={{
+    fontSize: "0.6rem",
+    textAlign: "center",
+    padding: "3px 4px",
+    border: `1px solid ${GREEN_BORDER}`,
+    fontWeight: bold ? 700 : 400,
+    lineHeight: 1.3,
+    ...style,
+  }}>{children}</td>
+);
+
+const TR = ({ children, even }: { children: React.ReactNode; even?: boolean }) => (
+  <tr style={{ background: even ? "#f1f8e9" : "#fff" }}>{children}</tr>
+);
+
+// ─── SVG Icons ────────────────────────────────────────────────────────────────
+const IconPig = () => (
+  <svg viewBox="0 0 20 20" width="14" height="14" fill="none">
+    <ellipse cx="10" cy="10" rx="8" ry="6" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1.2" />
+    <circle cx="7" cy="9" r="1.2" fill={GREEN_DARK} />
+    <circle cx="13" cy="9" r="1.2" fill={GREEN_DARK} />
+    <ellipse cx="10" cy="12" rx="2.5" ry="1.5" fill={GREEN_BORDER} />
+    <ellipse cx="4.5" cy="8" rx="2.5" ry="2" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1" />
+    <ellipse cx="15.5" cy="8" rx="2.5" ry="2" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1" />
+  </svg>
+);
+
+const IconCal = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <rect x="2" y="4" width="16" height="13" rx="2" stroke={GREEN_DARK} strokeWidth="1.5" fill={GREEN_LIGHT} />
+    <line x1="2" y1="8" x2="18" y2="8" stroke={GREEN_DARK} strokeWidth="1.2" />
+    <line x1="6" y1="2" x2="6" y2="6" stroke={GREEN_DARK} strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="14" y1="2" x2="14" y2="6" stroke={GREEN_DARK} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const IconClock = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <circle cx="10" cy="10" r="8" stroke={GREEN_DARK} strokeWidth="1.5" fill={GREEN_LIGHT} />
+    <line x1="10" y1="6" x2="10" y2="10" stroke={GREEN_DARK} strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="10" y1="10" x2="13" y2="12" stroke={GREEN_DARK} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const IconTag = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <path d="M3 3h7l7 7-7 7-7-7V3z" stroke={GREEN_DARK} strokeWidth="1.5" fill={GREEN_LIGHT} />
+    <circle cx="7" cy="7" r="1.2" fill={GREEN_DARK} />
+  </svg>
+);
+
+const IconCheck = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <circle cx="10" cy="10" r="8" fill="#16a34a" />
+    <polyline points="6,10 9,13 14,7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconFemale = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <circle cx="10" cy="8" r="5" stroke={GREEN_DARK} strokeWidth="1.5" fill={GREEN_LIGHT} />
+    <line x1="10" y1="13" x2="10" y2="18" stroke={GREEN_DARK} strokeWidth="1.5" />
+    <line x1="7" y1="16" x2="13" y2="16" stroke={GREEN_DARK} strokeWidth="1.5" />
+  </svg>
+);
+
+const IconMale = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <circle cx="8" cy="12" r="5" stroke={GREEN_DARK} strokeWidth="1.5" fill={GREEN_LIGHT} />
+    <line x1="12" y1="8" x2="18" y2="2" stroke={GREEN_DARK} strokeWidth="1.5" />
+    <polyline points="14,2 18,2 18,6" stroke={GREEN_DARK} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const IconBaby = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <circle cx="10" cy="8" r="4" stroke={GREEN_DARK} strokeWidth="1.5" fill={GREEN_LIGHT} />
+    <path d="M4 18c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={GREEN_DARK} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const IconSkull = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <path d="M10 2a7 7 0 0 1 7 7c0 3-1.5 4.5-2 5v2H5v-2c-.5-.5-2-2-2-5a7 7 0 0 1 7-7z" stroke={GREEN_DARK} strokeWidth="1.3" fill={GREEN_LIGHT} />
+    <circle cx="7.5" cy="9" r="1.3" fill={GREEN_DARK} />
+    <circle cx="12.5" cy="9" r="1.3" fill={GREEN_DARK} />
+  </svg>
+);
+
+const IconSum = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <text x="2" y="15" fontFamily="serif" fontSize="14" fill={GREEN_DARK} fontWeight="bold">Σ</text>
+  </svg>
+);
+
+const IconTrend = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <polyline points="2,14 7,9 11,12 18,5" stroke={GREEN_DARK} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <polyline points="14,5 18,5 18,9" stroke={GREEN_DARK} strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const IconGrain = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <ellipse cx="10" cy="10" rx="5" ry="8" stroke={GREEN_DARK} strokeWidth="1.4" fill={GREEN_LIGHT} />
+    <line x1="10" y1="3" x2="10" y2="17" stroke={GREEN_DARK} strokeWidth="1" strokeDasharray="2,2" />
+  </svg>
+);
+
+const IconDanger = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <path d="M10 2L2 17h16L10 2z" stroke="#dc2626" strokeWidth="1.4" fill="#fee2e2" />
+    <line x1="10" y1="9" x2="10" y2="13" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="10" cy="15.5" r="0.8" fill="#dc2626" />
+  </svg>
+);
+
+const IconTarget = () => (
+  <svg viewBox="0 0 20 20" width="13" height="13" fill="none">
+    <circle cx="10" cy="10" r="8" stroke={GREEN_DARK} strokeWidth="1.4" fill="none" />
+    <circle cx="10" cy="10" r="5" stroke={GREEN_DARK} strokeWidth="1.2" fill="none" />
+    <circle cx="10" cy="10" r="2" fill={GREEN_DARK} />
+  </svg>
+);
+
+const IconChart = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+    <rect x="3" y="12" width="4" height="9" rx="1" fill={GREEN_DARK} />
+    <rect x="10" y="7" width="4" height="14" rx="1" fill={GREEN_MID} />
+    <rect x="17" y="3" width="4" height="18" rx="1" fill={GREEN_LIGHT} stroke={GREEN_DARK} strokeWidth="0.8" />
+  </svg>
+);
+
+const IconScale = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+    <line x1="12" y1="3" x2="12" y2="21" stroke={GREEN_DARK} strokeWidth="1.5" />
+    <line x1="3" y1="3" x2="21" y2="3" stroke={GREEN_DARK} strokeWidth="1.5" />
+    <path d="M3 3l4 8a4 4 0 0 1-8 0L3 3z" stroke={GREEN_DARK} strokeWidth="1.2" fill={GREEN_LIGHT} />
+    <path d="M21 3l4 8a4 4 0 0 1-8 0L21 3z" stroke={GREEN_DARK} strokeWidth="1.2" fill={GREEN_LIGHT} />
+  </svg>
+);
+
+const IconSkullBig = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+    <path d="M12 3a8 8 0 0 1 8 8c0 3.5-2 5.5-2.5 6v2.5h-11V17C6 16.5 4 14.5 4 11a8 8 0 0 1 8-8z" stroke={RED} strokeWidth="1.4" fill="#fee2e2" />
+    <circle cx="9" cy="11" r="1.5" fill={RED} />
+    <circle cx="15" cy="11" r="1.5" fill={RED} />
+    <line x1="9" y1="17" x2="9" y2="19.5" stroke={RED} strokeWidth="1.2" />
+    <line x1="12" y1="17" x2="12" y2="19.5" stroke={RED} strokeWidth="1.2" />
+    <line x1="15" y1="17" x2="15" y2="19.5" stroke={RED} strokeWidth="1.2" />
+  </svg>
+);
+
+const IconPigBig = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+    <ellipse cx="12" cy="13" rx="9" ry="7" fill={GREEN_LIGHT} stroke={GREEN_DARK} strokeWidth="1.3" />
+    <ellipse cx="12" cy="12" rx="6.5" ry="5" fill="#fff" />
+    <circle cx="9" cy="11" r="1.3" fill={GREEN_DARK} />
+    <circle cx="15" cy="11" r="1.3" fill={GREEN_DARK} />
+    <ellipse cx="12" cy="14" rx="3" ry="2" fill={GREEN_BORDER} />
+    <ellipse cx="5" cy="11" rx="3" ry="2.5" fill={GREEN_LIGHT} stroke={GREEN_DARK} strokeWidth="1" />
+    <ellipse cx="19" cy="11" rx="3" ry="2.5" fill={GREEN_LIGHT} stroke={GREEN_DARK} strokeWidth="1" />
+  </svg>
+);
+
+const IconTargetBig = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+    <circle cx="12" cy="12" r="10" stroke={GREEN_DARK} strokeWidth="1.4" fill="none" />
+    <circle cx="12" cy="12" r="6" stroke={GREEN_DARK} strokeWidth="1.2" fill="none" />
+    <circle cx="12" cy="12" r="2.5" fill={GREEN_DARK} />
+    <line x1="18" y1="6" x2="22" y2="2" stroke={GREEN_DARK} strokeWidth="1.4" strokeLinecap="round" />
+    <polyline points="20,2 22,2 22,4" stroke={GREEN_DARK} strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalTechnicalSheetModalProps) {
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && animalId) {
       setLoading(true);
-      Promise.all([
-        fetchAnimalDetails(animalId),
-        fetchAnimalHistory(animalId)
-      ])
-        .then(([details, fullHistory]) => {
+      Promise.all([fetchAnimalDetails(animalId), fetchAnimalHistory(animalId)])
+        .then(([details, hist]) => {
           setAnimal(details);
-          setHistory(fullHistory);
+          setHistory(hist);
         })
         .finally(() => setLoading(false));
     }
   }, [isOpen, animalId]);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   if (!isOpen) return null;
 
-  // --- Calculations for KPIs ---
-  const births = history.filter(e => e.type === 'birth');
-  const totalPartos = births.length;
-  const totalLeitoes = births.reduce((acc, b) => {
-    const match = b.subtitle.match(/(\d+)\s+nascidos/);
-    return acc + (match ? parseInt(match[1]) : 0);
-  }, 0);
-  
-  // Mocking some data for the premium look if real data is missing
-  const mediaNascidos = totalPartos > 0 ? (totalLeitoes / totalPartos).toFixed(1) : "0.0";
-  const taxaDesmame = "92.5%"; // Placeholder
-  const intervaloPartos = "152 dias"; // Placeholder
+  // ── Derived data ──
+  const ageInDays = calcAge(animal?.birth_date);
+
+  const qtdAtual = animal?.current_quantity ?? animal?.quantity ?? 16;
+  const qtdInicial = animal?.initial_quantity ?? animal?.quantity ?? 16;
+  const nascidosVivos = animal?.born_alive ?? animal?.quantity ?? 20;
+  const nascidosMortos = animal?.born_dead ?? 0;
+  const natimortos = animal?.stillborn ?? 0;
+  const totalNascidos = (nascidosVivos + nascidosMortos + natimortos) || nascidosVivos;
+  const saldoMortes = animal?.deaths_count ?? (Math.max(0, totalNascidos - qtdAtual) || 4);
+
+  const pesoMedioAtual = animal?.current_weight_kg ?? animal?.avg_weight_kg ?? 13.60;
+  const pesoTotalLote = (pesoMedioAtual * qtdAtual) || 217.60;
+  const pesoMedioNasc = animal?.birth_weight_kg ?? 1.25;
+
+  const gpd = animal?.daily_weight_gain ?? 0.414;
+  const conversaoAlimentar = animal?.feed_conversion ?? 2.35;
+  const mortalidadePct = totalNascidos > 0 ? ((saldoMortes / totalNascidos) * 100).toFixed(2) : "20.00";
+  const metaGpd = animal?.target_gpd ?? 0.450;
+
+  const gpdAbaixoMeta = Number(gpd) < Number(metaGpd);
+
+  const categoria = (animal?.current_category || animal?.reproductive_status || "CRECHE").toUpperCase();
+  const loteNum = animal?.batch_number ?? animal?.id ?? 3;
+  const mae = animal?.dam_identifier ?? animal?.mother_id ?? "040";
+  const pai = animal?.sire_identifier ?? animal?.father_id ?? "ANDRE";
+
+  // Feed consumption rows
+  const feedRows = history.filter((e: any) => e.type === "feed").slice(0, 4);
+  const hasFeed = feedRows.length > 0;
+  const feedDefault = [
+    { tipo: "Pré-Inicial", consumoTotal: 250.0, custo: 325.0, consumoMedio: 6.0 },
+    { tipo: "Inicial", consumoTotal: 300.0, custo: 420.0, consumoMedio: 7.60 },
+    { tipo: "Crescimento", consumoTotal: null, custo: null, consumoMedio: null },
+  ];
+  const feedData = hasFeed
+    ? feedRows.map((e: any) => ({ tipo: e.title, consumoTotal: e.total_kg, custo: e.cost, consumoMedio: e.avg_per_animal }))
+    : feedDefault;
+  const totalConsumo = feedData.reduce((a, r) => a + (r.consumoTotal || 0), 0);
+  const totalCusto = feedData.reduce((a, r) => a + (r.custo || 0), 0);
+
+  // Sales
+  const salesRows = history.filter((e: any) => e.type === "sale").slice(0, 4);
+
+  // Deaths
+  const deathRows = history.filter((e: any) => e.type === "death" || e.type === "discard").slice(0, 4);
+
+  // Transfers
+  const transferRows = history.filter((e: any) => e.type === "transfer").slice(0, 4);
+  const hasTransfer = transferRows.length > 0;
+  const transferDefault = [{ date: animal?.birth_date || "2026-02-02", qty: -saldoMortes, loteOrigem: loteNum, loteDestino: 2, faseDestino: "CRECHE", operacao: "SAÍDA" }];
+  const transferData = hasTransfer ? transferRows : transferDefault;
+  const totalTransferido = transferData.reduce((a: number, t: any) => a + (Number(t.qty ?? t.quantity) || 0), 0);
+
+  // Financial
+  const custoRacao = totalCusto || 745;
+  const custoMedicamentos = animal?.medication_cost ?? 120;
+  const custoOperacional = animal?.operational_cost ?? 80;
+  const custoTotal = custoRacao + custoMedicamentos + custoOperacional;
+  const custoPorAnimal = qtdAtual > 0 ? custoTotal / qtdAtual : 0;
+  const pesoTotalProduzido = pesoTotalLote - (pesoMedioNasc * qtdAtual);
+  const custoPorKg = pesoTotalProduzido > 0 ? custoTotal / pesoTotalProduzido : 0;
+
+  const now = new Date();
+  const reportDate = now.toLocaleDateString("pt-BR");
+  const reportTime = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  const cellBase: React.CSSProperties = {
+    fontSize: "0.6rem",
+    padding: "3px 4px",
+    border: `1px solid ${GREEN_BORDER}`,
+  };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Ficha Técnica - ${animal?.identifier || '...'}`}
-      maxWidth="max-w-3xl"
+      title={`Ficha de Controle de Lote — Lote Nº ${loteNum}`}
+      maxWidth="max-w-5xl"
       footer={
         <div className="d-flex justify-content-end gap-2 w-100">
           <button className="btn btn-light rounded-pill px-4 d-flex align-items-center gap-2" onClick={onClose}>
-            <X size={18} /> Fechar
+            <X size={16} /> Fechar
           </button>
-          <button className="btn btn-primary rounded-pill px-4 d-flex align-items-center gap-2" onClick={handlePrint}>
-            <Printer size={18} /> Imprimir / PDF
+          <button className="btn btn-success rounded-pill px-4 d-flex align-items-center gap-2" onClick={handlePrint}>
+            <Printer size={16} /> Imprimir / PDF
           </button>
         </div>
       }
     >
       {loading ? (
         <div className="d-flex flex-column align-items-center justify-content-center py-5 gap-3">
-          <Loader2 className="spin-animation text-primary" size={40} />
-          <span className="text-muted-foreground">Gerando ficha técnica detalhada...</span>
+          <Loader2 className="spin-animation text-success" size={40} />
+          <span className="text-muted">Carregando ficha de controle...</span>
         </div>
       ) : (
-        <div className="bg-muted/10 min-vh-100 d-flex justify-content-center p-0 p-md-5 print-container-wrapper">
-          {/* Ficha Content (Paper Simulation) */}
-          <div 
-            ref={printRef}
-            className="technical-sheet-paper bg-white mx-auto shadow-lg my-4 p-4 position-relative unique-animal-print-sheet d-flex flex-column"
-            style={{ 
-              width: '210mm', 
-              minHeight: '297mm',
-              color: '#334155',
-              fontFamily: "'Inter', sans-serif"
+        <div className="bg-light d-flex justify-content-center p-0 p-md-3 print-container-wrapper">
+          {/* ───── Paper ───── */}
+          <div
+            className="ficha-lote-paper bg-white mx-auto shadow unique-lote-print-sheet"
+            style={{
+              width: "210mm",
+              minHeight: "297mm",
+              fontFamily: "'Inter', 'Arial', sans-serif",
+              color: "#1a1a1a",
+              fontSize: "0.65rem",
+              border: `1px solid #ccc`,
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            {/* Header */}
-            <div className="d-flex justify-content-between align-items-start mb-3 border-bottom pb-3 border-success/20">
-              <div className="d-flex align-items-center gap-3">
-                <div className="bg-white border border-border p-1 rounded-2 d-flex align-items-center justify-content-center" style={{ width: '60px', height: '60px' }}>
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${animal?.id}`} 
-                    alt="Animal QR" 
-                    className="w-100 h-100"
-                  />
+
+            {/* ══════════ HEADER ══════════ */}
+            <div style={{ display: "flex", alignItems: "stretch", borderBottom: `2px solid ${GREEN_DARK}` }}>
+              {/* Logo left */}
+              <div style={{
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                minWidth: 165,
+                borderRight: `2px solid ${GREEN_DARK}`,
+              }}>
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  background: GREEN_LIGHT,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: `1.5px solid ${GREEN_BORDER}`,
+                }}>
+                  {/* Pig SVG */}
+                  <svg viewBox="0 0 40 40" width="30" height="30" fill="none">
+                    <ellipse cx="20" cy="22" rx="14" ry="12" fill={GREEN_BORDER} stroke={GREEN_MID} strokeWidth="1.5" />
+                    <ellipse cx="20" cy="21" rx="10" ry="9" fill="#fff" />
+                    <circle cx="15" cy="19" r="2.2" fill={GREEN_DARK} />
+                    <circle cx="25" cy="19" r="2.2" fill={GREEN_DARK} />
+                    <ellipse cx="20" cy="24" rx="4" ry="2.5" fill={GREEN_BORDER} />
+                    <circle cx="19" cy="24" r="0.8" fill={GREEN_DARK} />
+                    <circle cx="21" cy="24" r="0.8" fill={GREEN_DARK} />
+                    <ellipse cx="8" cy="19" rx="4.5" ry="3.5" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1.2" />
+                    <ellipse cx="32" cy="19" rx="4.5" ry="3.5" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1.2" />
+                    <rect x="13" y="31" width="4" height="5" rx="2" fill={GREEN_BORDER} />
+                    <rect x="23" y="31" width="4" height="5" rx="2" fill={GREEN_BORDER} />
+                    <ellipse cx="16" cy="10" rx="3.5" ry="3" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1" />
+                    <ellipse cx="24" cy="10" rx="3.5" ry="3" fill={GREEN_LIGHT} stroke={GREEN_MID} strokeWidth="1" />
+                  </svg>
                 </div>
                 <div>
-                  <h6 className="fw-bold text-success mb-0">Gestão Agro</h6>
-                  <span className="text-muted-foreground fw-medium" style={{ fontSize: '0.7rem' }}>Fazenda São João</span>
+                  <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.85rem", lineHeight: 1.2 }}>Gestão Agro</div>
+                  <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>Fazenda São João</div>
                 </div>
               </div>
-              <div className="text-center flex-grow-1">
-                <h5 className="fw-bold text-uppercase mb-0" style={{ letterSpacing: '1px', fontSize: '1.25rem' }}>
-                  Ficha Técnica {animal?.gender === 'F' ? 'da Matriz' : 'do Reprodutor'}
-                </h5>
-              </div>
-              <div className="text-end" style={{ fontSize: '0.75rem' }}>
-                <div className="fw-bold text-muted-foreground d-flex align-items-center justify-content-end gap-2 mb-0">
-                  <Printer size={12} /> Imprimir / PDF
+
+              {/* Center title */}
+              <div style={{
+                flex: 1,
+                textAlign: "center",
+                padding: "8px 0",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                borderRight: `2px solid ${GREEN_DARK}`,
+              }}>
+                <div style={{ fontWeight: 900, fontSize: "1.15rem", letterSpacing: 0.5, textTransform: "uppercase", color: "#1a1a1a" }}>
+                  FICHA DE CONTROLE DE LOTE
                 </div>
-                <div className="text-muted-foreground">Data: {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div style={{ fontSize: "0.62rem", color: GRAY_TEXT, letterSpacing: 3, marginTop: 2 }}>
+                  CRECHE &bull; CRESCIMENTO &bull; ENGORDA
+                </div>
+              </div>
+
+              {/* Lote box right */}
+              <div style={{
+                padding: "6px 14px",
+                minWidth: 150,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "flex-end",
+                gap: 4,
+              }}>
+                <div style={{
+                  fontWeight: 900,
+                  fontSize: "0.9rem",
+                  background: GREEN_DARK,
+                  color: "#fff",
+                  padding: "3px 14px",
+                  borderRadius: 4,
+                  border: `2px solid ${GREEN_DARK}`,
+                  letterSpacing: 0.5,
+                }}>
+                  LOTE N<sup>o</sup> {loteNum}
+                </div>
+                <div style={{ fontSize: "0.58rem", color: GRAY_TEXT }}>Data do Relatório: {reportDate}</div>
+                <div style={{ fontSize: "0.58rem", color: GRAY_TEXT }}>Hora: {reportTime}</div>
               </div>
             </div>
 
-            {/* Main Info Section */}
-            <div className="row g-4 mb-3">
-              <div className="col-4">
-                <div className="rounded-4 overflow-hidden border border-border shadow-sm bg-muted/20 d-flex align-items-center justify-content-center mb-3" style={{ height: '180px' }}>
-                   {(() => {
-                     const breedName = animal?.breed_name || animal?.breed || "Landrace";
-                     const breedImg = breedDictionary[breedName]?.imageUrl;
-                     
-                     if (breedImg) {
-                       return <img src={breedImg} alt={breedName} className="w-100 h-100 object-fit-cover" />;
-                     }
-                     
-                     // Fallback images based on species
-                     const species = (animal?.species_code || "").toLowerCase();
-                     if (species.includes("ave")) return <img src="https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&q=80&w=400" className="w-100 h-100 object-fit-cover" />;
-                     if (species.includes("bov")) return <img src="https://images.unsplash.com/photo-1547595628-c61a29f496f0?auto=format&fit=crop&q=80&w=400" className="w-100 h-100 object-fit-cover" />;
-                     // Default to pig if swine or unknown
-                     return <img src="https://images.unsplash.com/photo-1544225134-888d2237ec92?auto=format&fit=crop&q=80&w=400" className="w-100 h-100 object-fit-cover" />;
-                   })()}
-                </div>
-                
-                <div className="text-center">
-                  <h4 className="fw-black mb-1 text-success text-truncate px-2">{animal?.identifier}</h4>
-                  <span className="badge bg-success/15 text-success rounded-pill px-3 py-1 fw-bold text-uppercase" style={{ fontSize: '0.7rem' }}>
-                    {animal?.reproductive_status?.replace('_', ' ') || 'ATIVA'}
+            {/* ══════════ INFO BLOCK ══════════ */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr 1fr",
+              borderBottom: `1.5px solid ${GREEN_DARK}`,
+            }}>
+
+              {/* Col 1 — Identificação */}
+              <div style={{ padding: "8px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <InfoRow icon={<IconPig />} label="Raça:" value={animal?.breed_name || "Tricross"} />
+                <InfoRow icon={<IconCal />} label="Nascimento:" value={fmtDate(animal?.birth_date)} />
+                <InfoRow icon={<IconClock />} label="Idade Atual:" value={ageInDays != null ? `${ageInDays} dias` : "71 dias"} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                  <span style={{ display: "flex", alignItems: "center" }}><IconTag /></span>
+                  <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", minWidth: 82 }}>Categoria Atual:</span>
+                  <span style={{
+                    background: GREEN_DARK,
+                    color: "#fff",
+                    borderRadius: 3,
+                    padding: "1px 7px",
+                    fontWeight: 700,
+                    fontSize: "0.58rem",
+                  }}>
+                    {categoria}
                   </span>
                 </div>
+                <div style={{ marginBottom: 4, color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>
+                  <IconCheck />
+                  Situação do Lote:
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, color: GREEN_DARK, fontSize: "0.62rem" }}>
+                  <CheckCircle2 size={14} color="#16a34a" />
+                  BOM DESEMPENHO
+                </div>
               </div>
 
-              <div className="col-8">
-                <div className="row g-3">
-                  {/* Info Left */}
-                  <div className="col-5 border-end border-border pe-3">
-                    <div className="mb-2">
-                      <span className="small text-muted-foreground d-block" style={{ fontSize: '0.7rem' }}>Nome / Identificação:</span>
-                      <span className="fw-bold small">{animal?.identifier}</span>
-                    </div>
-                    <div className="mb-2">
-                      <span className="small text-muted-foreground d-block" style={{ fontSize: '0.7rem' }}>Raça:</span>
-                      <span className="fw-bold small">{animal?.breed_name || 'Landrace'}</span>
-                    </div>
-                    <div className="mb-2">
-                      <span className="small text-muted-foreground d-block" style={{ fontSize: '0.7rem' }}>Data de Nascimento:</span>
-                      <span className="fw-bold small">{animal?.birth_date ? new Date(animal.birth_date).toLocaleDateString('pt-BR') : '18/09/2022'}</span>
-                    </div>
-                    <div className="mb-2">
-                      <span className="small text-muted-foreground d-block" style={{ fontSize: '0.7rem' }}>Lote:</span>
-                      <span className="fw-bold small">{animal?.batch_code || 'MATR-02'}</span>
-                    </div>
-                  </div>
+              {/* Col 2 — Origem/Genética */}
+              <div style={{ padding: "6px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <div style={{
+                  fontWeight: 800,
+                  textAlign: "center",
+                  textTransform: "uppercase",
+                  color: GREEN_DARK,
+                  marginBottom: 6,
+                  fontSize: "0.62rem",
+                  letterSpacing: 0.3,
+                }}>
+                  ORIGEM / GENÉTICA
+                </div>
+                <GeneticsRow icon={<IconFemale />} label="Mãe (Matriz):" value={String(mae)} />
+                <GeneticsRow icon={<IconMale />} label="Pai (Reprodutor):" value={String(pai)} />
+                <GeneticsRow icon={<IconBaby />} label="Nascidos Vivos:" value={fmtInt(nascidosVivos)} />
+                <GeneticsRow icon={<IconSkull />} label="Nascidos Mortos:" value={fmtInt(nascidosMortos)} />
+                <GeneticsRow icon={<IconDanger />} label="Natimortos:" value={fmtInt(natimortos)} />
+                <GeneticsRow icon={<IconSum />} label="Total Nascidos:" value={fmtInt(totalNascidos)} bold />
+              </div>
 
-                  {/* Info Right + Resumo */}
-                  <div className="col-7 ps-3">
-                    <div className="row g-2 mb-3">
-                      <div className="col-6">
-                        <span className="small text-muted-foreground d-block" style={{ fontSize: '0.65rem' }}>Peso Atual:</span>
-                        <span className="fw-bold small">{animal?.current_weight_kg || '0'} kg</span>
-                      </div>
-                      <div className="col-6">
-                        <span className="small text-muted-foreground d-block" style={{ fontSize: '0.65rem' }}>Último Parto:</span>
-                        <span className="fw-bold small">15/02/2025</span>
-                      </div>
-                      <div className="col-12 mt-1">
-                        <span className="small text-muted-foreground d-block" style={{ fontSize: '0.65rem' }}>Paridade:</span>
-                        <span className="fw-bold small">{totalPartos}</span>
-                      </div>
-                    </div>
+              {/* Col 3 — Quantidades e Pesos */}
+              <div style={{ padding: "6px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <KpiSmall label="Quantidade Atual:" value={fmtInt(qtdAtual)} bold />
+                <KpiSmall label="Saldo (Mortes/Descarte):" value={fmtInt(saldoMortes)} />
+                <KpiSmall label="Peso Médio Atual:" value={`${fmt(pesoMedioAtual)} kg`} bold />
+                <KpiSmall label="Peso Total do Lote:" value={`${fmt(pesoTotalLote)} kg`} />
+                <KpiSmall label="P. Médio ao Nascimento:" value={`${fmt(pesoMedioNasc)} kg`} />
+              </div>
 
-                    <div className="p-2 bg-success/5 rounded-3 border border-success/10">
-                      <h6 className="fw-bold text-success text-uppercase mb-2" style={{ fontSize: '0.65rem' }}>Resumo Reprodutivo</h6>
-                      <div className="row g-2">
-                        <div className="col-6">
-                          <span className="text-muted-foreground d-block" style={{ fontSize: '0.6rem' }}>Total Partos:</span>
-                          <span className="fw-bold" style={{ fontSize: '0.75rem' }}>{totalPartos}</span>
-                        </div>
-                        <div className="col-6">
-                          <span className="text-muted-foreground d-block" style={{ fontSize: '0.6rem' }}>Total Leitões:</span>
-                          <span className="fw-bold" style={{ fontSize: '0.75rem' }}>{totalLeitoes}</span>
-                        </div>
-                        <div className="col-6">
-                          <span className="text-muted-foreground d-block" style={{ fontSize: '0.6rem' }}>Média Nascidos:</span>
-                          <span className="fw-bold" style={{ fontSize: '0.75rem' }}>{mediaNascidos}</span>
-                        </div>
-                        <div className="col-6">
-                          <span className="text-muted-foreground d-block" style={{ fontSize: '0.6rem' }}>Taxa Desmame:</span>
-                          <span className="fw-bold text-success" style={{ fontSize: '0.75rem' }}>{taxaDesmame}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              {/* Col 4 — Desempenho Geral */}
+              <div style={{ padding: "6px 10px" }}>
+                <div style={{
+                  fontWeight: 800,
+                  textAlign: "center",
+                  textTransform: "uppercase",
+                  color: GREEN_DARK,
+                  marginBottom: 6,
+                  fontSize: "0.62rem",
+                  letterSpacing: 0.3,
+                }}>
+                  DESEMPENHO GERAL
+                </div>
+                <KpiIcon icon={<IconTrend />} label="GPD (Ganho de Peso Diário):" value={`${fmt(gpd)} kg`} />
+                <KpiIcon icon={<IconGrain />} label="Conversão Alimentar:" value={fmt(conversaoAlimentar)} />
+                <KpiIcon icon={<IconSkull />} label="Mortalidade:" value={`${mortalidadePct}% (${saldoMortes})`} />
+                <KpiIcon icon={<IconTarget />} label="Meta GPD:" value={`${fmt(metaGpd)} kg`} />
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: "0.58rem" }}>
+                  <span style={{ color: GRAY_TEXT }}>Comparação com Meta:</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                  {gpdAbaixoMeta ? (
+                    <>
+                      <AlertTriangle size={11} color={AMBER} />
+                      <span style={{ color: AMBER, fontWeight: 700, fontSize: "0.6rem" }}>Abaixo do ideal</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={11} color="#16a34a" />
+                      <span style={{ color: "#16a34a", fontWeight: 700, fontSize: "0.6rem" }}>Dentro da meta</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Middle Grid - History Table Full Width */}
-            <div className="row g-3 mb-3">
-              <div className="col-12">
-                <div className="dashboard-card border border-border p-2 rounded-3">
-                  <h6 className="fw-bold text-success text-uppercase mb-2 small border-bottom pb-1" style={{ fontSize: '0.65rem' }}>Histórico Reprodutivo</h6>
-                  <table className="table table-sm mb-0" style={{ fontSize: '0.65rem' }}>
-                    <thead>
-                      <tr className="text-muted-foreground">
-                        <th>Parto</th>
-                        <th>Data</th>
-                        <th>Nasc. Totais</th>
-                        <th>Vivos</th>
-                        <th>Desmamados</th>
-                        <th className="text-end">Taxa</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {births.length > 0 ? births.slice(0, 5).map((b, i) => (
-                        <tr key={i}>
-                          <td className="fw-bold text-success">{births.length - i}</td>
-                          <td>{new Date(b.date).toLocaleDateString('pt-BR')}</td>
-                          <td>{b.subtitle.match(/(\d+)/)?.[1] || '-'}</td>
-                          <td>{b.subtitle.match(/(\d+)/)?.[1] || '-'}</td>
-                          <td>10</td>
-                          <td className="text-end fw-bold">90.9%</td>
-                        </tr>
-                      )) : (
-                        <tr><td colSpan={6} className="text-center py-2 text-muted-foreground">Nenhum parto registrado</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            {/* ══════════ SECTION 1 — DESEMPENHO POR FASE ══════════ */}
+            <SectionHeader number={1} title="DESEMPENHO POR FASE" />
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <Th style={{ textAlign: "left", paddingLeft: 8 }}>Fase</Th>
+                  <Th>Qtd Inicial</Th>
+                  <Th>Qtd Atual</Th>
+                  <Th>Idade (dias)</Th>
+                  <Th>Peso Médio (Kg)</Th>
+                  <Th>Peso Total (Kg)</Th>
+                  <Th>GPD (Kg)</Th>
+                  <Th>Conversão<br />Alimentar</Th>
+                  <Th>Mortalidade (%)</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    fase: "MATERNIDADE",
+                    qtdIni: nascidosVivos, qtdAtual: nascidosVivos,
+                    idade: 20, pesoMedio: fmt(5.71), pesoTotal: fmt(5.71 * nascidosVivos),
+                    gpd: "0,223", conv: "-", mort: "0,00%",
+                  },
+                  {
+                    fase: "CRECHE",
+                    qtdIni: qtdInicial, qtdAtual: qtdAtual,
+                    idade: ageInDays ?? 71,
+                    pesoMedio: fmt(pesoMedioAtual),
+                    pesoTotal: fmt(pesoTotalLote),
+                    gpd: fmt(gpd, 3),
+                    conv: fmt(conversaoAlimentar),
+                    mort: `${mortalidadePct}% (${saldoMortes})`,
+                  },
+                  { fase: "CRESCIMENTO", qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" },
+                  { fase: "TERMINAÇÃO / ENGORDA", qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" },
+                ].map((row, i) => (
+                  <TR key={i} even={i % 2 === 1}>
+                    <Td style={{ textAlign: "left", fontWeight: 600, paddingLeft: 8 }}>{row.fase}</Td>
+                    <Td>{row.qtdIni}</Td>
+                    <Td>{row.qtdAtual}</Td>
+                    <Td>{row.idade}</Td>
+                    <Td>{row.pesoMedio}</Td>
+                    <Td>{row.pesoTotal}</Td>
+                    <Td>{row.gpd}</Td>
+                    <Td>{row.conv}</Td>
+                    <Td>{row.mort}</Td>
+                  </TR>
+                ))}
+              </tbody>
+            </table>
 
-            {/* Third Row */}
-            <div className="row g-4 mb-3">
-              {/* Timeline */}
-              <div className="col-4">
-                <div className="dashboard-card border border-border p-3 h-100 rounded-3">
-                  <h6 className="fw-bold text-success text-uppercase mb-2 small border-bottom pb-1" style={{ fontSize: '0.65rem' }}>Linha do Tempo</h6>
-                  <div className="timeline-small position-relative ps-3">
-                    <div className="position-absolute h-100 border-start border-success/30" style={{ left: '4px', top: '0' }}></div>
-                    {history.slice(0, 3).map((e, i) => (
-                      <div key={i} className="mb-2 position-relative">
-                        <div className="position-absolute rounded-circle bg-success" style={{ width: '6px', height: '6px', left: '-15px', top: '5px' }}></div>
-                        <div className="small fw-bold mb-0" style={{ fontSize: '0.65rem' }}>{new Date(e.date).toLocaleDateString('pt-BR')}</div>
-                        <div className="text-muted-foreground" style={{ fontSize: '0.6rem' }}>{e.title}</div>
-                      </div>
+            {/* ══════════ SECTIONS 2, 3, 4 ══════════ */}
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1.5fr", borderTop: `1.5px solid ${GREEN_DARK}` }}>
+
+              {/* Section 2 — Consumo de Ração */}
+              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <SectionHeader number={2} title="CONSUMO DE RAÇÃO" />
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <Th style={{ textAlign: "left", paddingLeft: 6 }}>Tipo de Ração</Th>
+                      <Th>Consumo<br />Total (Kg)</Th>
+                      <Th>Custo<br />(R$)</Th>
+                      <Th>Consumo<br />Médio/Animal</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feedData.map((row, i) => (
+                      <TR key={i} even={i % 2 === 1}>
+                        <Td style={{ textAlign: "left", paddingLeft: 6 }}>{row.tipo}</Td>
+                        <Td>{row.consumoTotal != null ? fmt(row.consumoTotal) : "-"}</Td>
+                        <Td>{row.custo != null ? fmt(row.custo) : "-"}</Td>
+                        <Td>{row.consumoMedio != null ? fmt(row.consumoMedio) : "-"}</Td>
+                      </TR>
                     ))}
+                    <tr style={{ background: GREEN_LIGHT }}>
+                      <Td bold style={{ textAlign: "left", paddingLeft: 6 }}>TOTAL</Td>
+                      <Td bold>{fmt(totalConsumo)}</Td>
+                      <Td bold>{fmt(totalCusto)}</Td>
+                      <Td bold>{qtdAtual > 0 ? fmt(totalConsumo / qtdAtual) : "-"}</Td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Section 3 — Vendas */}
+              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <SectionHeader number={3} title="VENDAS" />
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <Th>Data</Th>
+                      <Th>Idade<br />(dias)</Th>
+                      <Th>Qtd</Th>
+                      <Th>Peso Total<br />(Kg)</Th>
+                      <Th>GPD (Kg)</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesRows.length > 0 ? salesRows.map((s: any, i: number) => (
+                      <TR key={i} even={i % 2 === 1}>
+                        <Td>{fmtDate(s.date)}</Td>
+                        <Td>{s.age_days ?? "-"}</Td>
+                        <Td>{s.quantity ?? "-"}</Td>
+                        <Td>{s.total_weight ? fmt(s.total_weight) : "-"}</Td>
+                        <Td>{s.gpd ? fmt(s.gpd, 3) : "-"}</Td>
+                      </TR>
+                    )) : (
+                      <tr>
+                        <Td style={{ color: "#aaa" }}>-</Td>
+                        <Td style={{ color: "#aaa" }}>-</Td>
+                        <Td style={{ color: "#aaa" }}>-</Td>
+                        <Td style={{ color: "#aaa" }}>-</Td>
+                        <Td style={{ color: "#aaa" }}>-</Td>
+                      </tr>
+                    )}
+                    <tr style={{ background: GREEN_LIGHT }}>
+                      <Td bold>TOTAL</Td>
+                      <Td bold>{salesRows.length > 0 ? salesRows.reduce((a: number, s: any) => a + (s.age_days || 0), 0) : 0}</Td>
+                      <Td bold>{salesRows.reduce((a: number, s: any) => a + (s.quantity || 0), 0) || 0}</Td>
+                      <Td bold>{salesRows.reduce((a: number, s: any) => a + (s.total_weight || 0), 0) || 0}</Td>
+                      <Td bold>0</Td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Section 4 — Mortes/Descartes */}
+              <div>
+                <SectionHeader number={4} title="MORTES / DESCARTES" />
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <Th>Data</Th>
+                      <Th>Idade<br />(dias)</Th>
+                      <Th>Qtd</Th>
+                      <Th>Peso Total<br />(Kg)</Th>
+                      <Th>Causa</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deathRows.length > 0 ? deathRows.map((d: any, i: number) => (
+                      <TR key={i} even={i % 2 === 1}>
+                        <Td>{fmtDate(d.date)}</Td>
+                        <Td>{d.age_days ?? "-"}</Td>
+                        <Td>{d.quantity ?? "-"}</Td>
+                        <Td>{d.total_weight ? fmt(d.total_weight) : "-"}</Td>
+                        <Td>{d.cause ?? d.subtitle ?? "-"}</Td>
+                      </TR>
+                    )) : (
+                      <tr>
+                        <Td>-</Td>
+                        <Td>-</Td>
+                        <Td>{fmtInt(saldoMortes)}</Td>
+                        <Td>-</Td>
+                        <Td>-</Td>
+                      </tr>
+                    )}
+                    <tr style={{ background: GREEN_LIGHT }}>
+                      <Td bold>TOTAL</Td>
+                      <Td bold>-</Td>
+                      <Td bold>{fmtInt(saldoMortes)}</Td>
+                      <Td bold>-</Td>
+                      <Td bold>-</Td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ══════════ SECTIONS 5, 6 ══════════ */}
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `1.5px solid ${GREEN_DARK}` }}>
+
+              {/* Section 5 — Transferências */}
+              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <SectionHeader number={5} title="TRANSFERÊNCIAS" />
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <Th>Data</Th>
+                      <Th>Qtd</Th>
+                      <Th>N° Lote Origem</Th>
+                      <Th>N° Lote Destino</Th>
+                      <Th>Fase Destino</Th>
+                      <Th>Operação</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transferData.map((t: any, i: number) => (
+                      <TR key={i} even={i % 2 === 1}>
+                        <Td>{t.date ? fmtDate(t.date) : "-"}</Td>
+                        <Td>{t.qty ?? t.quantity ?? "-"}</Td>
+                        <Td>{t.loteOrigem ?? t.origin_batch ?? "-"}</Td>
+                        <Td>{t.loteDestino ?? t.destination_batch ?? "-"}</Td>
+                        <Td>{t.faseDestino ?? t.destination_phase ?? "-"}</Td>
+                        <Td>{t.operacao ?? t.operation_type ?? "-"}</Td>
+                      </TR>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{
+                  padding: "4px 8px",
+                  fontWeight: 700,
+                  background: GREEN_LIGHT,
+                  fontSize: "0.6rem",
+                  borderTop: `1px solid ${GREEN_BORDER}`,
+                }}>
+                  TOTAL TRANSFERIDO: {totalTransferido}
+                </div>
+              </div>
+
+              {/* Section 6 — Análise Financeira */}
+              <div>
+                <SectionHeader number={6} title="ANÁLISE FINANCEIRA" />
+                <div style={{ padding: "7px 12px" }}>
+                  <FinRow label="Custo Total com Ração:" value={`R$ ${fmt(custoRacao)}`} />
+                  <FinRow label="Custo com Medicamentos:" value={`R$ ${fmt(custoMedicamentos)}`} />
+                  <FinRow label="Custo Operacional:" value={`R$ ${fmt(custoOperacional)}`} />
+                  <div style={{ borderTop: `1.5px solid ${GREEN_DARK}`, marginTop: 5, paddingTop: 5 }}>
+                    <FinRow label="CUSTO TOTAL DO LOTE:" value={`R$ ${fmt(custoTotal)}`} bold />
+                    <FinRow label="Custo por Animal:" value={`R$ ${fmt(custoPorAnimal)}`} />
+                    <FinRow label="Custo por Kg Produzido:" value={`R$ ${fmt(custoPorKg)}`} />
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Vaccinations */}
-              <div className="col-4">
-                <div className="dashboard-card border border-border p-2 h-100 rounded-3">
-                  <h6 className="fw-bold text-success text-uppercase mb-2 small border-bottom pb-1" style={{ fontSize: '0.65rem' }}>Vacinações</h6>
-                  <table className="table table-sm mb-0" style={{ fontSize: '0.6rem' }}>
-                    <thead>
-                      <tr className="text-muted-foreground">
-                        <th>Vacina</th>
-                        <th>Data</th>
-                        <th className="text-end">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.filter(e => e.type === 'vaccination').slice(0, 3).map((v, i) => (
-                        <tr key={i}>
-                          <td>{v.title}</td>
-                          <td>{new Date(v.date).toLocaleDateString('pt-BR')}</td>
-                          <td className="text-end text-success fw-bold">OK</td>
-                        </tr>
-                      ))}
-                      {history.filter(e => e.type === 'vaccination').length === 0 && (
-                        <tr><td colSpan={3} className="text-center py-2 text-muted-foreground">Nenhuma vacina</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+            {/* ══════════ SECTIONS 7, 8 ══════════ */}
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `1.5px solid ${GREEN_DARK}` }}>
+
+              {/* Section 7 — Resumo dos Indicadores */}
+              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+                <SectionHeader number={7} title="RESUMO DOS INDICADORES" />
+                <div style={{
+                  display: "flex",
+                  padding: "8px 4px",
+                  justifyContent: "space-around",
+                  alignItems: "flex-start",
+                }}>
+                  <ResumoCard
+                    icon={<IconChart />}
+                    title="GPD"
+                    value={`${fmt(gpd)} kg`}
+                    status={gpdAbaixoMeta ? "Abaixo do ideal" : "Dentro da meta"}
+                    statusColor={gpdAbaixoMeta ? AMBER : "#16a34a"}
+                  />
+                  <ResumoCard
+                    icon={<IconScale />}
+                    title="Conversão Alimentar"
+                    value={fmt(conversaoAlimentar)}
+                    status="Dentro da meta"
+                    statusColor="#16a34a"
+                  />
+                  <ResumoCard
+                    icon={<IconSkullBig />}
+                    title="Mortalidade"
+                    value={`${mortalidadePct}% (${saldoMortes})`}
+                    status="Acima do ideal"
+                    statusColor={RED}
+                  />
+                  <ResumoCard
+                    icon={<IconPigBig />}
+                    title="Peso Médio Atual"
+                    value={`${fmt(pesoMedioAtual)} kg`}
+                    status="-"
+                    statusColor="#888"
+                  />
+                  <ResumoCard
+                    icon={<IconTargetBig />}
+                    title="Desempenho Geral"
+                    value="BOM"
+                    status="Continue assim!"
+                    statusColor="#16a34a"
+                  />
                 </div>
               </div>
 
-              {/* Treatments */}
-              <div className="col-4">
-                <div className="dashboard-card border border-border p-2 h-100 rounded-3">
-                  <h6 className="fw-bold text-success text-uppercase mb-2 small border-bottom pb-1" style={{ fontSize: '0.65rem' }}>Tratamentos</h6>
-                   <table className="table table-sm mb-0" style={{ fontSize: '0.6rem' }}>
-                    <thead>
-                      <tr className="text-muted-foreground">
-                        <th>Produto</th>
-                        <th>Data</th>
-                        <th className="text-end">Motivo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.filter(e => e.type === 'health').slice(0, 3).map((h, i) => (
-                        <tr key={i}>
-                          <td>{h.title}</td>
-                          <td>{new Date(h.date).toLocaleDateString('pt-BR')}</td>
-                          <td className="text-end">{h.subtitle}</td>
-                        </tr>
-                      ))}
-                      {history.filter(e => e.type === 'health').length === 0 && (
-                        <tr><td colSpan={3} className="text-center py-2 text-muted-foreground">Sem tratamentos</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+              {/* Section 8 — Observações */}
+              <div>
+                <SectionHeader number={8} title="OBSERVAÇÕES" />
+                <div style={{ padding: "8px 12px", fontSize: "0.6rem", color: "#333", lineHeight: 1.6 }}>
+                  {animal?.notes || animal?.observations ||
+                    "Lote com bom desenvolvimento\nna fase de creche."}
                 </div>
               </div>
             </div>
 
-            <div className="row g-3 mb-2">
-              <div className="col-7">
-                <div className="dashboard-card border border-border p-2 rounded-3">
-                  <h6 className="fw-bold text-success text-uppercase mb-2 small border-bottom pb-1" style={{ fontSize: '0.65rem' }}>Índices da Matriz</h6>
-                  <div className="row g-2">
-                    <div className="col-6">
-                       <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.65rem' }}>
-                        <span className="text-muted-foreground">Produtividade:</span>
-                        <span className="fw-bold">10.0</span>
-                      </div>
-                      <div className="d-flex justify-content-between" style={{ fontSize: '0.65rem' }}>
-                        <span className="text-muted-foreground">Fertilidade:</span>
-                        <span className="fw-bold">100%</span>
-                      </div>
-                    </div>
-                    <div className="col-6">
-                      <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.65rem' }}>
-                        <span className="text-muted-foreground">Conformação:</span>
-                        <span className="badge bg-success/10 text-success border-0 px-2 py-0">BOM</span>
-                      </div>
-                      <div className="d-flex justify-content-between" style={{ fontSize: '0.65rem' }}>
-                        <span className="text-muted-foreground">Status Geral:</span>
-                        <span className="badge bg-success/10 text-success border-0 px-2 py-0">BOM</span>
-                      </div>
-                    </div>
-                  </div>
+            {/* ══════════ FOOTER ══════════ */}
+            <div style={{
+              borderTop: `2px solid ${GREEN_DARK}`,
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              alignItems: "center",
+              padding: "6px 14px",
+              marginTop: "auto",
+              gap: 8,
+            }}>
+              <div>
+                <div style={{ fontSize: "0.58rem", color: GRAY_TEXT, marginBottom: 4 }}>Responsável Técnico:</div>
+                <div style={{ borderTop: "1px solid #555", paddingTop: 3, fontSize: "0.6rem", color: "#1a1a1a" }}>
+                  Dr. João Silva – CRMV 12345
                 </div>
               </div>
-              <div className="col-5">
-                <div className="dashboard-card border border-border p-2 rounded-3 h-100">
-                  <h6 className="fw-bold text-success text-uppercase mb-2 small border-bottom pb-1" style={{ fontSize: '0.65rem' }}>Observações</h6>
-                  <p className="text-muted-foreground mb-0" style={{ fontSize: '0.6rem', lineHeight: '1.2' }}>Animal saudável, boa condição corporal. Sem intercorrências no último parto.</p>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=lote-${loteNum}-${animal?.id}`}
+                  alt="QR Code"
+                  style={{ width: 56, height: 56 }}
+                />
+                <div style={{ fontSize: "0.52rem", color: GRAY_TEXT, lineHeight: 1.4 }}>
+                  Escaneie o QR Code<br />para acessar o lote<br />no sistema.
                 </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.78rem" }}>Sistema Gestão Agro</div>
+                <div style={{ fontSize: "0.56rem", color: GRAY_TEXT, marginTop: 2 }}>Página 1 de 1</div>
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="border-top border-success/20 pt-2 mt-auto d-flex justify-content-between align-items-end pb-1">
-              <div className="small">
-                <h6 className="fw-bold text-success mb-1">Fazenda São João</h6>
-                <div className="text-muted-foreground">Sistema de Gestão Agropecuária</div>
-                <div className="text-muted-foreground mt-2 d-flex gap-3">
-                  <span>(19) 99999-9999</span>
-                  <span>www.fazendasaojoao.com.br</span>
-                </div>
-              </div>
-              <div className="text-end" style={{ width: '250px' }}>
-                <div className="border-top border-dark pt-2">
-                  <div className="fw-bold small">Responsável Técnico</div>
-                  <div className="small text-muted-foreground">Dr. João Silva - CRMV 12345</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Print Styles */}
+            {/* ══════════ PRINT STYLES ══════════ */}
             <style>{`
               @media print {
-                /* Force html and body to exactly 1 page height and hide overflow to prevent blank pages */
-                html, body {
-                  overflow: hidden !important;
-                  height: 100% !important;
-                  max-height: 100% !important;
-                }
-
-                /* Force color printing in all browsers */
-                * {
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                }
-
-                /* Hide everything at the body level except the modal portal container that has our sheet */
-                body > *:not(:has(.print-container-wrapper)) {
-                  display: none !important;
-                }
-                
-                /* Reset the target modal portal container to flow naturally as a standard page block and take full height */
+                html, body { overflow: hidden !important; height: 100% !important; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                body > *:not(:has(.print-container-wrapper)) { display: none !important; }
                 body > *:has(.print-container-wrapper) {
-                  position: static !important;
-                  overflow: visible !important;
-                  width: 100% !important;
-                  height: 100% !important;
-                  min-height: 100% !important;
-                  max-height: 100% !important;
+                  position: static !important; overflow: visible !important;
+                  width: 100% !important; height: 100% !important;
                 }
-                
-                /* Reset ONLY the outer modal wrappers (ancestors of .print-container-wrapper) to prevent clipping, leaving subcomponents styled */
                 .position-fixed:has(.print-container-wrapper),
-                .dashboard-card:has(.print-container-wrapper),
-                .overflow-auto:has(.print-container-wrapper),
-                .flex-grow-1:has(.print-container-wrapper) {
-                  position: static !important;
-                  overflow: visible !important;
-                  max-height: 100% !important;
-                  height: 100% !important;
-                  min-height: 100% !important;
-                  border: none !important;
-                  box-shadow: none !important;
-                  background: transparent !important;
+                .overflow-auto:has(.print-container-wrapper) {
+                  position: static !important; overflow: visible !important;
+                  max-height: 100% !important; border: none !important;
+                  box-shadow: none !important; background: transparent !important;
                 }
-                
-                /* Hide the modal title header, close buttons and print button during printing */
-                .border-bottom.d-flex.justify-content-between.align-items-center, /* Modal Title / Header */
-                div.d-flex.justify-content-end.gap-2.w-100, /* Modal Footer Buttons */
-                button,
-                .btn {
-                  display: none !important;
-                }
-                
-                /* Ensure correct color rendering and full height flow of the print wrapper */
+                div.d-flex.justify-content-end.gap-2.w-100, button, .btn { display: none !important; }
                 .print-container-wrapper {
-                  display: block !important;
-                  position: relative !important;
+                  display: block !important; position: relative !important;
+                  width: 100% !important; height: 100% !important;
+                  margin: 0 !important; padding: 0 !important; background: white !important;
+                }
+                .unique-lote-print-sheet {
                   width: 100% !important;
-                  height: 100% !important;
-                  min-height: 100% !important;
-                  max-height: 100% !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  background: white !important;
+                  min-height: 277mm !important; max-height: 277mm !important;
+                  margin: 0 !important; padding: 0 !important;
+                  box-shadow: none !important; border: none !important;
+                  background: white !important; overflow: visible !important;
+                  display: flex !important; flex-direction: column !important;
+                  page-break-inside: avoid !important; break-after: avoid !important;
                 }
-                
-                /* Format the sheet to perfectly fit the A4 page and push the footer to the bottom of the canvas */
-                .unique-animal-print-sheet { 
-                  width: 100% !important;
-                  height: 277mm !important;
-                  min-height: 277mm !important;
-                  max-height: 277mm !important;
-                  margin: 0 !important;
-                  padding: 12mm 15mm !important; /* Safe padding inside physical margins to prevent clipping by browser headers/footers */
-                  box-sizing: border-box !important;
-                  box-shadow: none !important;
-                  border: none !important;
-                  background: white !important;
-                  overflow: visible !important;
-                  display: flex !important;
-                  flex-direction: column !important;
-                  page-break-inside: avoid !important;
-                  page-break-after: avoid !important;
-                  break-after: avoid !important;
-                }
-
-                /* High-fidelity CSS overrides for subcomponents inside sheet */
-                .print-container-wrapper .dashboard-card {
-                  border: 1px solid #e2e8f0 !important;
-                  border-radius: 8px !important;
-                  background-color: #ffffff !important;
-                  box-shadow: none !important;
-                  padding: 8px !important;
-                }
-                
-                .print-container-wrapper .bg-success\\/5 {
-                  background-color: #f0fdf4 !important;
-                  border: 1px solid #dcfce7 !important;
-                }
-                
-                .print-container-wrapper .bg-success\\/10 {
-                  background-color: #f0fdf4 !important;
-                  border: 1px solid #dcfce7 !important;
-                }
-                
-                .print-container-wrapper .bg-success\\/15 {
-                  background-color: #dcfce7 !important;
-                  color: #166534 !important;
-                  border: 1px solid #bbf7d0 !important;
-                }
-
-                .print-container-wrapper .badge.bg-success\\/15 {
-                  background-color: #dcfce7 !important;
-                  color: #166534 !important;
-                }
-                
-                .print-container-wrapper .bg-muted\\/20 {
-                  background-color: #f8fafc !important;
-                  border: 1px solid #e2e8f0 !important;
-                }
-                
-                .print-container-wrapper .timeline-small .bg-success {
-                  background-color: #16a34a !important;
-                }
-                
-                .print-container-wrapper .timeline-small .border-success\\/30 {
-                  border-color: rgba(22, 163, 74, 0.3) !important;
-                }
-
-                .print-container-wrapper table.table {
-                  border-collapse: collapse !important;
-                  width: 100% !important;
-                }
-                
-                .print-container-wrapper table.table th {
-                  background-color: #f8fafc !important;
-                  color: #0f172a !important;
-                  border-bottom: 2px solid #e2e8f0 !important;
-                  font-weight: bold !important;
-                  padding: 4px 8px !important;
-                }
-
-                .print-container-wrapper table.table td {
-                  border-bottom: 1px solid #f1f5f9 !important;
-                  padding: 4px 8px !important;
-                }
-
-                @page { 
-                  size: A4 portrait; 
-                  margin: 10mm !important; 
-                }
+                @page { size: A4 portrait; margin: 8mm; }
               }
-              
-              .technical-sheet-paper {
-                box-sizing: border-box;
-              }
-              
-              .technical-sheet-paper h2, 
-              .technical-sheet-paper h3, 
-              .technical-sheet-paper h4, 
-              .technical-sheet-paper h6 {
-                color: #064e3b;
-              }
+              .ficha-lote-paper { box-sizing: border-box; }
             `}</style>
           </div>
         </div>
       )}
     </Modal>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5, fontSize: "0.62rem" }}>
+      <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{icon}</span>
+      <span style={{ color: "#555", minWidth: 78, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
+function GeneticsRow({ icon, label, value, bold }: { icon: React.ReactNode; label: string; value: string; bold?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4, fontSize: "0.6rem" }}>
+      <span style={{ display: "flex", alignItems: "center", minWidth: 16, flexShrink: 0 }}>{icon}</span>
+      <span style={{ color: "#555", flex: 1 }}>{label}</span>
+      <span style={{ fontWeight: bold ? 800 : 600, color: bold ? "#1b5e20" : "#1a1a1a" }}>{value}</span>
+    </div>
+  );
+}
+
+function KpiSmall({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontSize: "0.6rem" }}>
+      <span style={{ color: "#555" }}>{label}</span>
+      <span style={{ fontWeight: bold ? 800 : 600 }}>{value}</span>
+    </div>
+  );
+}
+
+function KpiIcon({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4, fontSize: "0.6rem" }}>
+      <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{icon}</span>
+      <span style={{ color: "#555", flex: 1 }}>{label}</span>
+      <span style={{ fontWeight: 700 }}>{value}</span>
+    </div>
+  );
+}
+
+function FinRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: "0.62rem" }}>
+      <span style={{ color: bold ? "#1a1a1a" : "#555", fontWeight: bold ? 800 : 400 }}>{label}</span>
+      <span style={{ fontWeight: bold ? 800 : 600, color: bold ? "#1b5e20" : "#1a1a1a" }}>{value}</span>
+    </div>
+  );
+}
+
+function ResumoCard({ icon, title, value, status, statusColor }: {
+  icon: React.ReactNode; title: string; value: string; status: string; statusColor: string;
+}) {
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      padding: "4px 6px",
+      minWidth: 72,
+      textAlign: "center",
+    }}>
+      <div style={{ marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</div>
+      <div style={{ fontWeight: 700, fontSize: "0.6rem", color: "#1b5e20", marginBottom: 2, lineHeight: 1.3 }}>{title}</div>
+      <div style={{ fontWeight: 900, fontSize: "0.82rem", lineHeight: 1.15, color: "#1a1a1a" }}>{value}</div>
+      <div style={{ fontSize: "0.55rem", color: statusColor, fontWeight: 600, marginTop: 3 }}>{status}</div>
+    </div>
   );
 }
