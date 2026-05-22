@@ -428,7 +428,7 @@ function ReproducaoPageContent() {
         selectable: true,
         rowKey: "lote",
         batchActions: [
-          { label: "Transferir p/ Crescimento", icon: "🔄", variant: "primary", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimalBatch(r.id as number, { phase: "crescimento" }))); refetchTabs(["creche", "crescimento", "dashboard"], false, true); showToast(`${rows.length} lotes transferidos!`, "success"); } },
+          { label: "Transferir p/ Crescimento", icon: "🔄", variant: "primary", type: "transfer_crescimento" },
         ],
         kpis: [
           { label: "Total Lotes", value: cr.total ?? 0, icon: "📦", color: "oklch(0.95 0.04 185)", trend: "up" },
@@ -439,7 +439,7 @@ function ReproducaoPageContent() {
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso do lote", type: 'weight' },
           { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
-          { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para crescimento" },
+          { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para crescimento", type: "transfer_crescimento" },
         ],
         tabAlerts: tab.creche?.alerts || [],
         tabAiSuggestions: tab.creche?.aiSuggestions || [],
@@ -463,7 +463,7 @@ function ReproducaoPageContent() {
         selectable: true,
         rowKey: "lote",
         batchActions: [
-          { label: "Transferir p/ Engorda", icon: "🔄", variant: "primary", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimalBatch(r.id as number, { phase: "engorda" }))); refetchTabs(["crescimento", "engorda", "dashboard"], false, true); showToast(`${rows.length} lotes transferidos!`, "success"); } },
+          { label: "Transferir p/ Engorda", icon: "🔄", variant: "primary", type: "transfer_engorda" },
         ],
         kpis: [
           { label: "Total Lotes", value: cresc.total ?? 0, icon: "📦", color: "oklch(0.94 0.04 230)", trend: "neutral" },
@@ -476,7 +476,7 @@ function ReproducaoPageContent() {
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
           { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
           { label: "Lançar Medicação", icon: "💊", color: "oklch(0.6 0.22 27)", desc: "Medicação", type: 'vaccine' },
-          { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para engorda" },
+          { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para engorda", type: "transfer_engorda" },
         ],
         tabAlerts: tab.crescimento?.alerts || [],
         tabAiSuggestions: tab.crescimento?.aiSuggestions || [],

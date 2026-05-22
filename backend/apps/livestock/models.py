@@ -102,6 +102,7 @@ class AnimalBatch(BaseModel):
     mother = models.ForeignKey('Animal', on_delete=models.SET_NULL, null=True, blank=True, related_name="offspring_batches")
     avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
+    source_batches = models.ManyToManyField('self', blank=True, symmetrical=False, related_name='merged_into')
 
     class Meta(BaseModel.Meta):
         verbose_name = "Animal Batch"
@@ -110,6 +111,23 @@ class AnimalBatch(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.batch_code} ({self.species}) @ {self.farm}"
+
+
+class BatchPhaseHistory(BaseModel):
+    batch = models.ForeignKey(AnimalBatch, on_delete=models.CASCADE, related_name='phase_histories')
+    phase = models.CharField(max_length=50)
+    quantity = models.PositiveIntegerField()
+    avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    entry_date = models.DateField()
+    exit_date = models.DateField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Batch Phase History"
+        verbose_name_plural = "Batch Phase Histories"
+        ordering = ['entry_date']
+
+    def __str__(self):
+        return f"{self.batch.batch_code} - {self.phase}"
 
 
 class Animal(BaseModel):

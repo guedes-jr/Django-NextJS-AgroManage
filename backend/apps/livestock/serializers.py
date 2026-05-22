@@ -48,6 +48,9 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     species_code_input = serializers.CharField(write_only=True, required=False)
     breed_name_input = serializers.CharField(write_only=True, required=False, allow_blank=True)
     farm_id = serializers.UUIDField(write_only=True, required=False)
+    source_batch_ids = serializers.ListField(
+        child=serializers.UUIDField(), write_only=True, required=False
+    )
     
     # Fields to return data
     species_code = serializers.CharField(source='species.code', read_only=True)
@@ -60,7 +63,8 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             'id', 'batch_code', 'name', 'category', 'phase',
             'gender', 'origin', 'purchase_value', 'avg_weight_kg', 
             'entry_date', 'status', 'species_code', 'breed_name',
-            'species_code_input', 'breed_name_input', 'farm_id', 'quantity', 'mother'
+            'species_code_input', 'breed_name_input', 'farm_id', 'quantity', 'mother',
+            'notes', 'source_batch_ids'
         ]
 
     def validate_batch_code(self, value):
@@ -174,8 +178,12 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             
         validated_data['farm'] = farm
         
+        source_batch_ids = validated_data.pop('source_batch_ids', [])
+        
         try:
             batch = super().create(validated_data)
+            if source_batch_ids:
+                batch.source_batches.set(source_batch_ids)
             
             # If it's a reproductive category, create individual animals for tracking
             repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor']
@@ -205,6 +213,26 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             return batch
         except Exception as e:
             raise serializers.ValidationError(f'Erro ao criar lote: {str(e)}')
+
+    def update(self, instance, validated_data):
+        old_phase = instance.phase
+        new_phase = validated_data.get('phase', old_phase)
+        
+        # Se a fase mudou, criamos o registro de historico da fase antiga
+        if old_phase and new_phase != old_phase:
+            from django.utils import timezone
+            from .models import BatchPhaseHistory
+            exit_date = validated_data.get('entry_date') or timezone.now().date()
+            BatchPhaseHistory.objects.create(
+                batch=instance,
+                phase=old_phase,
+                quantity=instance.quantity,
+                avg_weight_kg=instance.avg_weight_kg,
+                entry_date=instance.entry_date,
+                exit_date=exit_date
+            )
+            
+        return super().update(instance, validated_data)
 
 
 class AnimalSerializer(serializers.ModelSerializer):

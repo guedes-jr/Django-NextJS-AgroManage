@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import "./reproducao.css";
+import { useToast } from "@/components/ui/Toast";
 import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
 import { ReproducaoKpiCards, KpiCard } from "./ReproducaoKpiCards";
 import { ReproducaoAlerts, AlertItem, AiSuggestion } from "./ReproducaoAlerts";
@@ -17,6 +18,7 @@ import {
 } from "./ReproducaoTabContent";
 import { ReproducaoModal, ModalField } from "./ReproducaoModal";
 import { apiClient } from "@/services/api";
+import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +55,7 @@ export interface TabConfig {
     icon: string; 
     color: string; 
     desc: string; 
-    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra';
+    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda';
     onClick?: () => void;
   }[];
   tabAlerts?: AlertItem[];
@@ -253,6 +255,7 @@ import {
   createMating,
   updateAnimal,
   createAnimalBatch,
+  updateAnimalBatch,
   updatePregnancy,
   fetchAnimalDetails
 } from "@/services/livestockService";
@@ -277,11 +280,14 @@ export function ReproducaoDashboard({
   onTabChange?: (id: string) => void;
 }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [internalActiveTab, setInternalActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
   const [noReproducersWarningOpen, setNoReproducersWarningOpen] = useState(false);
   const [allSemenItems, setAllSemenItems] = useState<any[]>([]);
   const [semenItems, setSemenItems] = useState<any[]>([]);
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | number | null>(null);
 
   useEffect(() => {
     const fetchSemen = async () => {
@@ -330,6 +336,181 @@ export function ReproducaoDashboard({
     fields: [],
     onConfirm: async () => {},
   });
+
+  const handleTransferPhase = async (targetPhase: "crescimento" | "engorda", rows: any[] = []) => {
+    const activeTabRows = rows.length > 0 ? rows : selectedRows;
+    const currentTab = config.tabs.find((t) => t.id === activeTab);
+    const availableRows = activeTabRows.length > 0 ? activeTabRows : (currentTab?.rows || []);
+
+    if (availableRows.length === 0) {
+      alert("Nenhum lote selecionado para transferência.");
+      return;
+    }
+
+    const targetRows = rows.length > 0 ? rows : (selectedRows.length > 0 ? selectedRows : [availableRows[0]]);
+
+    const firstRow = targetRows[0];
+    const initialBatchCode = firstRow?.lote || firstRow?.batch_code || "";
+    const initialQty = targetRows.reduce((sum, r) => sum + (parseInt(r.qtd || r.quantity) || 0), 0);
+    
+    const parseWeight = (val: any) => {
+      if (!val) return 0;
+      return parseFloat(String(val).replace(/[^\d.]/g, "")) || 0;
+    };
+
+    let totalWeightProduct = 0;
+    let totalQtyForWeight = 0;
+    targetRows.forEach(r => {
+      const qty = parseInt(r.qtd || r.quantity) || 0;
+      const weight = parseWeight(r.peso || r.avg_weight_kg);
+      if (weight > 0) {
+        totalWeightProduct += weight * qty;
+        totalQtyForWeight += qty;
+      }
+    });
+    const avgWeight = totalQtyForWeight > 0 ? (totalWeightProduct / totalQtyForWeight) : 0;
+    const initialAvgWeight = avgWeight > 0 ? Math.round(avgWeight * 100) / 100 : (parseWeight(firstRow?.peso || firstRow?.avg_weight_kg) || "");
+
+    const title = targetPhase === "crescimento" ? "Transferir para Crescimento" : "Transferir para Engorda";
+    const subtitle = targetRows.length > 1 
+      ? `Transferindo ${targetRows.length} lotes selecionados`
+      : `Transferindo lote ${initialBatchCode}`;
+
+    const fields: ModalField[] = [];
+
+    fields.push({
+      name: "batch_code_display",
+      label: targetRows.length > 1 ? "Lotes Selecionados" : "Lote",
+      type: "text",
+      initialValue: targetRows.length > 1 
+        ? targetRows.map(r => r.lote || r.batch_code).join(", ")
+        : initialBatchCode,
+      disabled: true,
+      colSpan: "full"
+    });
+
+    const isMultiSelect = targetRows.length > 1;
+    if (isMultiSelect) {
+      fields.push({
+        name: "merge_batches",
+        label: "Juntar lotes em um único lote?",
+        type: "select",
+        options: [
+          { value: "Não", label: "Não (Transferir lotes individualmente)" },
+          { value: "Sim", label: "Sim (Mesclar lotes em um novo lote)" }
+        ],
+        initialValue: "Não",
+        required: true,
+        colSpan: "full"
+      });
+
+      fields.push({
+        name: "new_batch_code",
+        label: "Código do Novo Lote",
+        type: "text",
+        placeholder: `L-${targetPhase.toUpperCase()}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+        initialValue: `L-${targetPhase.toUpperCase()}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+        required: true,
+        colSpan: "full",
+        showIf: (values) => values.merge_batches === "Sim"
+      });
+    }
+
+    fields.push({
+      name: "quantity",
+      label: "Quantidade de Animais",
+      type: "number",
+      initialValue: initialQty,
+      required: true,
+      colSpan: "half",
+      showIf: (values) => !isMultiSelect || values.merge_batches === "Sim"
+    });
+
+    fields.push({
+      name: "avg_weight_kg",
+      label: "Peso Médio (kg)",
+      type: "number",
+      placeholder: "0.00",
+      initialValue: initialAvgWeight,
+      required: true,
+      colSpan: "half",
+      showIf: (values) => !isMultiSelect || values.merge_batches === "Sim"
+    });
+
+    fields.push({
+      name: "entry_date",
+      label: "Data da Transferência",
+      type: "date",
+      initialValue: new Date().toISOString().split('T')[0],
+      required: true,
+      colSpan: "full"
+    });
+
+    setActionModal({
+      open: true,
+      title,
+      subtitle,
+      fields,
+      onConfirm: async (data) => {
+        const isMerging = data.merge_batches === "Sim";
+
+        try {
+          if (isMerging) {
+            // Merging selected batches
+            // 1. Get full details of the first batch to copy organization/farm/category
+            const firstBatchDetail = await apiClient.get(`/livestock/batches/${targetRows[0].id}/`).then(res => res.data);
+            
+            // 2. Create the new merged batch
+            await createAnimalBatch({
+              batch_code: data.new_batch_code,
+              quantity: parseInt(data.quantity),
+              avg_weight_kg: parseFloat(data.avg_weight_kg),
+              phase: targetPhase,
+              category: firstBatchDetail.category || (targetPhase === "crescimento" ? "Leitão" : "Terminação"),
+              status: "active",
+              species_code_input: "suinos",
+              farm_id: firstBatchDetail.farm_id || firstBatchDetail.farm,
+              entry_date: data.entry_date,
+              notes: `Lote criado a partir da junção dos lotes: ${targetRows.map(r => r.lote || r.batch_code).join(", ")}`,
+              source_batch_ids: targetRows.map(r => r.id)
+            });
+
+            // 3. Mark the source batches as finished
+            await Promise.all(targetRows.map(r => 
+              updateAnimalBatch(r.id as number, { status: "finished" })
+            ));
+
+            showToast("Lotes mesclados e transferidos com sucesso!", "success");
+          } else {
+            // Transferring individually
+            if (targetRows.length === 1) {
+              // Single batch: update phase, quantity, weight, entry_date
+              await updateAnimalBatch(targetRows[0].id as number, {
+                phase: targetPhase,
+                quantity: parseInt(data.quantity),
+                avg_weight_kg: parseFloat(data.avg_weight_kg),
+                entry_date: data.entry_date
+              });
+            } else {
+              // Multiple batches without merge: update each batch's phase and entry_date
+              await Promise.all(targetRows.map(r => 
+                updateAnimalBatch(r.id as number, {
+                  phase: targetPhase,
+                  entry_date: data.entry_date
+                })
+              ));
+            }
+            showToast(`${targetRows.length} lote(s) transferido(s) com sucesso!`, "success");
+          }
+          onSuccess?.();
+          setActionModal(prev => ({ ...prev, open: false }));
+        } catch (err: any) {
+          console.error("Erro ao transferir lotes:", err);
+          showToast(err.response?.data?.detail || "Erro ao transferir lotes. Verifique as informações.", "error");
+        }
+      }
+    });
+  };
 
   const handleAction = (action: any, rows: any[] = []) => {
     const currentTab = config.tabs.find((t) => t.id === activeTab);
@@ -815,6 +996,12 @@ export function ReproducaoDashboard({
         });
         break;
       }
+      case 'transfer_crescimento':
+        handleTransferPhase("crescimento", rows);
+        break;
+      case 'transfer_engorda':
+        handleTransferPhase("engorda", rows);
+        break;
       case 'promote':
         setActionModal({
           open: true,
@@ -1088,7 +1275,13 @@ export function ReproducaoDashboard({
                 onRowClick={(row) => {
                   const id = row.animal_id || row.id || row.pk || row.identifier;
                   if (id) {
-                    router.push(`/home/rebanho/suinos/animal/${id}`);
+                    // Se for aba de lote, abre a Ficha do Lote. Caso contrário, página do animal
+                    if (["creche", "crescimento", "engorda"].includes(currentTab.id)) {
+                      setSelectedBatchId(id as string | number);
+                      setBatchSheetOpen(true);
+                    } else {
+                      router.push(`/home/rebanho/suinos/animal/${id}`);
+                    }
                   }
                 }}
                 actions={currentTab.actions?.map(action => ({
@@ -1128,6 +1321,17 @@ export function ReproducaoDashboard({
           fields={getPrimaryModalFields()}
           confirmLabel="Salvar"
           onConfirm={handlePrimaryConfirm}
+        />
+      )}
+
+      {batchSheetOpen && selectedBatchId && (
+        <BatchTechnicalSheetModal
+          isOpen={batchSheetOpen}
+          onClose={() => {
+            setBatchSheetOpen(false);
+            setSelectedBatchId(null);
+          }}
+          batchId={selectedBatchId}
         />
       )}
 

@@ -372,7 +372,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     </th>
                   ))}
                   {statusKey && <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>}
-                  {actions && actions.length > 0 && (
+                  {((actions && actions.length > 0) || onRowClick) && (
                     <th className="fw-bold text-muted-foreground border-0 py-3 text-end pe-4" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Ações</th>
                   )}
                 </tr>
@@ -410,10 +410,10 @@ export function DataTable<T extends Record<string, unknown>>({
                           <StatusBadge status={String(row[statusKey] ?? "")} statusMap={statusMap ?? {}} />
                         </td>
                       )}
-                      {actions && actions.length > 0 && (
+                      {((actions && actions.length > 0) || onRowClick) && (
                         <td className="py-3 text-end pe-4" onClick={(e) => e.stopPropagation()}>
                           <div className="d-flex align-items-center justify-content-end gap-2">
-                            {actions.map((action, ai) => (
+                            {actions && actions.map((action, ai) => (
                               <button
                                 key={ai}
                                 className={`btn btn-sm btn-light rounded-circle p-2 transition-colors border-0 ${
@@ -431,14 +431,17 @@ export function DataTable<T extends Record<string, unknown>>({
                                 {action.icon ?? <Edit2 size={16} />}
                               </button>
                             ))}
-                            <button
-                              className="btn btn-sm btn-light rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
-                              title="Ver detalhes"
-                              type="button"
-                              style={{ width: "36px", height: "36px" }}
-                            >
-                              <Eye size={16} />
-                            </button>
+                            {onRowClick && (
+                              <button
+                                className="btn btn-sm btn-light rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
+                                title="Ver detalhes"
+                                type="button"
+                                onClick={() => onRowClick(row)}
+                                style={{ width: "36px", height: "36px" }}
+                              >
+                                <Eye size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

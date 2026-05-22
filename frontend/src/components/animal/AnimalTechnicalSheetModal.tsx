@@ -294,7 +294,11 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
   const gpdAbaixoMeta = Number(gpd) < Number(metaGpd);
 
   const categoria = (animal?.current_category || animal?.reproductive_status || "CRECHE").toUpperCase();
-  const loteNum = animal?.batch_number ?? animal?.id ?? 3;
+  const rawLoteId = animal?.batch_number ?? animal?.id ?? 3;
+  // Truncate UUID-style IDs to avoid header overflow
+  const loteNum = typeof rawLoteId === "string" && rawLoteId.length > 10
+    ? rawLoteId.slice(0, 8).toUpperCase()
+    : rawLoteId;
   const mae = animal?.dam_identifier ?? animal?.mother_id ?? "040";
   const pai = animal?.sire_identifier ?? animal?.father_id ?? "ANDRE";
 
@@ -376,10 +380,11 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
               minHeight: "297mm",
               fontFamily: "'Inter', 'Arial', sans-serif",
               color: "#1a1a1a",
-              fontSize: "0.65rem",
-              border: `1px solid #ccc`,
+              fontSize: "0.63rem",
+              border: `2px solid ${GREEN_DARK}`,
               display: "flex",
               flexDirection: "column",
+              overflow: "hidden",
             }}
           >
 
@@ -387,11 +392,11 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
             <div style={{ display: "flex", alignItems: "stretch", borderBottom: `2px solid ${GREEN_DARK}` }}>
               {/* Logo left */}
               <div style={{
-                padding: "8px 12px",
+                padding: "6px 10px",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                minWidth: 165,
+                minWidth: 155,
                 borderRight: `2px solid ${GREEN_DARK}`,
               }}>
                 <div style={{
@@ -627,10 +632,10 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
             </table>
 
             {/* ══════════ SECTIONS 2, 3, 4 ══════════ */}
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1.5fr", borderTop: `1.5px solid ${GREEN_DARK}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1.5fr", borderTop: `2px solid ${GREEN_DARK}`, borderBottom: `1px solid ${GREEN_BORDER}` }}>
 
               {/* Section 2 — Consumo de Ração */}
-              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+              <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
                 <SectionHeader number={2} title="CONSUMO DE RAÇÃO" />
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -661,7 +666,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
               </div>
 
               {/* Section 3 — Vendas */}
-              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+              <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
                 <SectionHeader number={3} title="VENDAS" />
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -746,10 +751,10 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
             </div>
 
             {/* ══════════ SECTIONS 5, 6 ══════════ */}
-            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `1.5px solid ${GREEN_DARK}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `2px solid ${GREEN_DARK}` }}>
 
               {/* Section 5 — Transferências */}
-              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+              <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
                 <SectionHeader number={5} title="TRANSFERÊNCIAS" />
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -789,7 +794,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
               {/* Section 6 — Análise Financeira */}
               <div>
                 <SectionHeader number={6} title="ANÁLISE FINANCEIRA" />
-                <div style={{ padding: "7px 12px" }}>
+                <div style={{ padding: "5px 10px" }}>
                   <FinRow label="Custo Total com Ração:" value={`R$ ${fmt(custoRacao)}`} />
                   <FinRow label="Custo com Medicamentos:" value={`R$ ${fmt(custoMedicamentos)}`} />
                   <FinRow label="Custo Operacional:" value={`R$ ${fmt(custoOperacional)}`} />
@@ -803,14 +808,14 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
             </div>
 
             {/* ══════════ SECTIONS 7, 8 ══════════ */}
-            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `1.5px solid ${GREEN_DARK}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `2px solid ${GREEN_DARK}` }}>
 
               {/* Section 7 — Resumo dos Indicadores */}
-              <div style={{ borderRight: `1px solid ${GREEN_BORDER}` }}>
+              <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
                 <SectionHeader number={7} title="RESUMO DOS INDICADORES" />
                 <div style={{
                   display: "flex",
-                  padding: "8px 4px",
+                  padding: "6px 4px",
                   justifyContent: "space-around",
                   alignItems: "flex-start",
                 }}>
@@ -855,9 +860,9 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
               {/* Section 8 — Observações */}
               <div>
                 <SectionHeader number={8} title="OBSERVAÇÕES" />
-                <div style={{ padding: "8px 12px", fontSize: "0.6rem", color: "#333", lineHeight: 1.6 }}>
+                <div style={{ padding: "6px 10px", fontSize: "0.6rem", color: "#333", lineHeight: 1.5 }}>
                   {animal?.notes || animal?.observations ||
-                    "Lote com bom desenvolvimento\nna fase de creche."}
+                    "Lote com bom desenvolvimento na fase de creche."}
                 </div>
               </div>
             </div>
@@ -866,31 +871,33 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
             <div style={{
               borderTop: `2px solid ${GREEN_DARK}`,
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
+              gridTemplateColumns: "1fr auto 1fr",
               alignItems: "center",
-              padding: "6px 14px",
+              padding: "5px 14px",
               marginTop: "auto",
-              gap: 8,
+              flexShrink: 0,
+              gap: 12,
+              minHeight: 60,
             }}>
               <div>
-                <div style={{ fontSize: "0.58rem", color: GRAY_TEXT, marginBottom: 4 }}>Responsável Técnico:</div>
-                <div style={{ borderTop: "1px solid #555", paddingTop: 3, fontSize: "0.6rem", color: "#1a1a1a" }}>
+                <div style={{ fontSize: "0.57rem", color: GRAY_TEXT, marginBottom: 3 }}>Responsável Técnico:</div>
+                <div style={{ borderTop: "1px solid #555", paddingTop: 2, fontSize: "0.58rem", color: "#1a1a1a" }}>
                   Dr. João Silva – CRMV 12345
                 </div>
               </div>
-              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=lote-${loteNum}-${animal?.id}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=52x52&data=lote-${loteNum}-${animal?.id}`}
                   alt="QR Code"
-                  style={{ width: 56, height: 56 }}
+                  style={{ width: 48, height: 48, display: "block" }}
                 />
-                <div style={{ fontSize: "0.52rem", color: GRAY_TEXT, lineHeight: 1.4 }}>
+                <div style={{ fontSize: "0.5rem", color: GRAY_TEXT, lineHeight: 1.3, whiteSpace: "nowrap" }}>
                   Escaneie o QR Code<br />para acessar o lote<br />no sistema.
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.78rem" }}>Sistema Gestão Agro</div>
-                <div style={{ fontSize: "0.56rem", color: GRAY_TEXT, marginTop: 2 }}>Página 1 de 1</div>
+                <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.75rem" }}>Sistema Gestão Agro</div>
+                <div style={{ fontSize: "0.54rem", color: GRAY_TEXT, marginTop: 2 }}>Página 1 de 1</div>
               </div>
             </div>
 
@@ -918,14 +925,16 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
                 }
                 .unique-lote-print-sheet {
                   width: 100% !important;
-                  min-height: 277mm !important; max-height: 277mm !important;
+                  height: 277mm !important;
                   margin: 0 !important; padding: 0 !important;
-                  box-shadow: none !important; border: none !important;
-                  background: white !important; overflow: visible !important;
+                  box-shadow: none !important;
+                  border: 2px solid #1b5e20 !important;
+                  background: white !important;
+                  overflow: hidden !important;
                   display: flex !important; flex-direction: column !important;
                   page-break-inside: avoid !important; break-after: avoid !important;
                 }
-                @page { size: A4 portrait; margin: 8mm; }
+                @page { size: A4 portrait; margin: 6mm; }
               }
               .ficha-lote-paper { box-sizing: border-box; }
             `}</style>

@@ -9,7 +9,7 @@ import {
   AlertListCard,
   AiSuggestionsCard,
 } from "@/components/ui";
-import { Search } from "lucide-react";
+
 
 export type BadgeVariant = "green" | "blue" | "amber" | "red" | "purple" | "gray" | "teal";
 
@@ -171,14 +171,7 @@ export function ReproducaoTabContent({
         rows={filtered}
         statusKey={statusKey}
         statusMap={statusMapForDataTable}
-        actions={[
-          {
-            label: "Ver detalhes do animal",
-            icon: <Search size={16} />,
-            onClick: (row) => onRowClick?.(row),
-          },
-          ...actions
-        ]}
+        actions={actions}
         emptyIcon={emptyIcon}
         emptyText={emptyText}
         selectable={selectable}

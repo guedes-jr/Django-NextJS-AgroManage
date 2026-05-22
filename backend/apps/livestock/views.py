@@ -319,7 +319,7 @@ class CrecheView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = AnimalBatch.objects.filter(**filters).filter(
+        qs = AnimalBatch.objects.filter(**filters, status='active').filter(
             phase__in=['creche', 'gestacao_maternidade']
         )
         total = qs.count()
@@ -622,6 +622,53 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     "Please check your data and try again."
                 )
             raise
+
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """Retorna o histórico completo do lote, incluindo suas fases anteriores e lotes de origem."""
+        batch = self.get_object()
+        
+        def get_batch_history(b):
+            history_list = []
+            
+            # 1. Obter histórico recursivamente dos lotes que deram origem a este (merge)
+            for source in b.source_batches.all():
+                history_list.extend(get_batch_history(source))
+                
+            # 2. Obter as fases antigas deste lote
+            for ph in b.phase_histories.all().order_by('entry_date'):
+                history_list.append({
+                    'batch_id': b.id,
+                    'batch_code': b.batch_code,
+                    'phase': ph.phase,
+                    'quantity': ph.quantity,
+                    'avg_weight_kg': float(ph.avg_weight_kg) if ph.avg_weight_kg else None,
+                    'entry_date': ph.entry_date.isoformat() if ph.entry_date else None,
+                    'exit_date': ph.exit_date.isoformat() if ph.exit_date else None,
+                    'is_current': False
+                })
+                
+            # 3. Adicionar a fase atual ativa deste lote
+            if b.phase:
+                history_list.append({
+                    'batch_id': b.id,
+                    'batch_code': b.batch_code,
+                    'phase': b.phase,
+                    'quantity': b.quantity,
+                    'avg_weight_kg': float(b.avg_weight_kg) if b.avg_weight_kg else None,
+                    'entry_date': b.entry_date.isoformat() if b.entry_date else None,
+                    'exit_date': b.exit_date.isoformat() if b.exit_date else None,
+                    'is_current': b.status == 'active'
+                })
+            
+            return history_list
+            
+        full_history = get_batch_history(batch)
+        
+        # Ordenar cronologicamente por entry_date
+        full_history.sort(key=lambda x: x['entry_date'] if x['entry_date'] else '0000-00-00')
+        
+        return Response(full_history)
 
     @action(detail=True, methods=['get'], url_path='animal-detail')
     def animal_detail(self, request, pk=None):
