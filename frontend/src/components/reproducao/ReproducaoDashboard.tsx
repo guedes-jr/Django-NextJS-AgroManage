@@ -55,7 +55,7 @@ export interface TabConfig {
     icon: string; 
     color: string; 
     desc: string; 
-    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda';
+    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet';
     onClick?: () => void;
   }[];
   tabAlerts?: AlertItem[];
@@ -1022,6 +1022,12 @@ export function ReproducaoDashboard({
             setActionModal(prev => ({ ...prev, open: false }));
           }
         });
+        break;
+      case 'technical_sheet':
+        if (rows.length > 0) {
+          setBatchSheetOpen(true);
+          setSelectedBatchId(rows[0].id);
+        }
         break;
       case 'primary':
         setModalOpen(true);

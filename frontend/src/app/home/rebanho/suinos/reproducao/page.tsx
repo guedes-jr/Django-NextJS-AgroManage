@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Eye } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -367,6 +367,12 @@ function ReproducaoPageContent() {
             variant: "primary",
             type: 'birth',
             onClick: () => {},
+          } as any,
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
           } as any
         ],
         rows: tab.gestacao?.rows || [],
