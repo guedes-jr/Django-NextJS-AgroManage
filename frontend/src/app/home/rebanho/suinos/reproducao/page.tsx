@@ -267,7 +267,7 @@ function ReproducaoPageContent() {
           { label: "Registrar Cobertura", icon: "🤰", color: "oklch(0.55 0.16 230)", desc: "Nova cobertura", type: 'primary' },
           { label: "Diagnóstico Prenhez", icon: "🔬", color: "oklch(0.55 0.16 145)", desc: "Confirmar gestação", type: 'diagnosis' },
           { label: "Descartar Matriz", icon: "🚫", color: "oklch(0.6 0.22 27)", desc: "Remover do plantel", type: 'discard' },
-          { label: "Histórico", icon: "📋", color: "oklch(0.78 0.15 85)", desc: "Ver histórico" },
+          { label: "Histórico", icon: "📋", color: "oklch(0.78 0.15 85)", desc: "Ver histórico", type: 'technical_sheet' },
         ],
         tabAlerts: tab.matrizes?.alerts || [],
         tabAiSuggestions: tab.matrizes?.aiSuggestions || [],
@@ -348,7 +348,7 @@ function ReproducaoPageContent() {
         ],
         tabActions: [
           { label: "Confirmar Parto", icon: "🍼", color: "oklch(0.55 0.16 145)", desc: "Registrar nascimento", type: 'birth' },
-          { label: "Registrar Perda", icon: "❌", color: "oklch(0.6 0.22 27)", desc: "Aborto / Reabsorção" },
+          { label: "Registrar Perda", icon: "❌", color: "oklch(0.6 0.22 27)", desc: "Aborto / Reabsorção", type: 'loss' },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinação pré-parto", type: 'vaccine' },
         ],
         tabAlerts: tab.gestacao?.alerts || [],
@@ -401,8 +401,8 @@ function ReproducaoPageContent() {
           { label: "Média Nascidos", value: matn.media_nascidos ?? "—", icon: "📊", color: "oklch(0.55 0.16 145)", trend: "neutral" },
         ],
         tabActions: [
-          { label: "Registrar Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Registrar procedimento" },
-          { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito" },
+          { label: "Registrar Procedimento / Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Registrar procedimento", type: 'procedure' },
+          { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito", type: 'mortality' },
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Pesar leitões", type: 'weight' },
           { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche", type: 'wean' },
         ],

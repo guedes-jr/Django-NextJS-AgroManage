@@ -497,3 +497,366 @@ class FeedingRecord(BaseModel):
     def __str__(self) -> str:
         target = self.animal.identifier if self.animal else self.batch.batch_code if self.batch else "—"
         return f"{self.feed_type} ({self.quantity_kg}kg) para {target} em {self.date}"
+
+
+class Symptom(BaseModel):
+    """Sintoma padrão"""
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True)
+    species = models.ManyToManyField(Species)
+    urgency_level = models.CharField(
+        max_length=20,
+        choices=[
+            ('low', 'Baixa'),
+            ('medium', 'Média'),
+            ('high', 'Alta'),
+            ('critical', 'Crítica'),
+        ],
+        default='medium'
+    )
+    
+    class Meta:
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+
+
+class Disease(BaseModel):
+    """Doença/Patologia"""
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True)
+    species = models.ForeignKey(
+        Species,
+        on_delete=models.CASCADE,
+        related_name='diseases'
+    )
+    description = models.TextField()
+    
+    # Sintomas e manifestação
+    symptoms = models.ManyToManyField(Symptom)
+    typical_symptoms = models.JSONField(
+        default=list,
+        help_text='Sintomas típicos dessa doença'
+    )
+    
+    # Tratamento
+    recommended_treatment = models.TextField()
+    typical_duration_days = models.IntegerField(null=True, blank=True)
+    
+    # Epidemiologia
+    incubation_period_days = models.IntegerField(null=True, blank=True)
+    transmission_route = models.CharField(
+        max_length=50,
+        choices=[
+            ('direct', 'Contato direto'),
+            ('indirect', 'Contato indireto'),
+            ('respiratory', 'Via respiratória'),
+            ('alimentar', 'Via alimentar'),
+            ('unknown', 'Desconhecida'),
+        ]
+    )
+    is_infectious = models.BooleanField(default=False)
+    is_reportable = models.BooleanField(default=False)
+    
+    # Estatísticas
+    mortality_rate = models.FloatField(null=True, blank=True)
+    recovery_rate = models.FloatField(null=True, blank=True)
+    
+    # Metadata
+    prevention_measures = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['species', 'name']
+        verbose_name_plural = "Diseases"
+    
+    def __str__(self):
+        return f"{self.name} ({self.species.code})"
+
+
+class ClinicalRecord(BaseModel):
+    """Registro Clínico do Animal"""
+    
+    RECORD_TYPES = [
+        ('consultation', 'Consulta'),
+        ('diagnosis', 'Diagnóstico'),
+        ('treatment', 'Tratamento'),
+        ('follow_up', 'Acompanhamento'),
+        ('recovery', 'Recuperação'),
+    ]
+    
+    SEVERITY_CHOICES = [
+        ('mild', 'Leve'),
+        ('moderate', 'Moderado'),
+        ('severe', 'Grave'),
+        ('critical', 'Crítico'),
+    ]
+    
+    IMPROVEMENT_STATUS = [
+        ('no_improvement', 'Sem melhora'),
+        ('stable', 'Estável'),
+        ('improving', 'Melhorando'),
+        ('recovered', 'Curado'),
+    ]
+    
+    OUTCOME_CHOICES = [
+        ('cured', 'Curado'),
+        ('death', 'Morte'),
+        ('chronic', 'Crônico'),
+        ('unknown', 'Desconhecido'),
+        ('pending', 'Pendente'),
+    ]
+    
+    # Identificação
+    farm = models.ForeignKey(
+        'farms.Farm',
+        on_delete=models.CASCADE,
+        related_name='clinical_records'
+    )
+    animal = models.ForeignKey(
+        Animal,
+        on_delete=models.CASCADE,
+        related_name='clinical_records'
+    )
+    batch = models.ForeignKey(
+        AnimalBatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    
+    # Tipo e Data
+    record_type = models.CharField(
+        max_length=20,
+        choices=RECORD_TYPES,
+        default='consultation'
+    )
+    record_date = models.DateField()
+    record_time = models.TimeField(null=True, blank=True)
+    
+    # Sintomas Observados
+    symptoms_observed = models.JSONField(default=list)
+    clinical_notes = models.TextField()
+    body_temperature = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True
+    )
+    
+    # Diagnóstico
+    disease = models.ForeignKey(
+        Disease,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='clinical_records'
+    )
+    severity = models.CharField(
+        max_length=20,
+        choices=SEVERITY_CHOICES,
+        default='moderate'
+    )
+    
+    # Prescrição
+    prescribed_medications = models.JSONField(
+        default=list,
+        help_text='Lista de medicamentos prescritos'
+    )
+    
+    # Evolução
+    followup_date = models.DateField(null=True, blank=True)
+    improvement_status = models.CharField(
+        max_length=20,
+        choices=IMPROVEMENT_STATUS,
+        null=True,
+        blank=True
+    )
+    
+    # Resultado
+    outcome = models.CharField(
+        max_length=20,
+        choices=OUTCOME_CHOICES,
+        default='pending'
+    )
+    outcome_date = models.DateField(null=True, blank=True)
+    
+    # Custo
+    treatment_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    
+    # Veterinário
+    veterinarian = models.CharField(max_length=100, blank=True)
+    
+    # Notas
+    notes = models.TextField(blank=True)
+    is_critical = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-record_date', '-record_time']
+        indexes = [
+            models.Index(fields=['farm', '-record_date']),
+            models.Index(fields=['animal', '-record_date']),
+            models.Index(fields=['disease', '-record_date']),
+        ]
+        verbose_name = "Clinical Record"
+        verbose_name_plural = "Clinical Records"
+    
+    def __str__(self):
+        return f"{self.animal.identifier} - {self.record_date} ({self.disease})"
+
+
+class MedicationInventory(BaseModel):
+    """Inventário de Medicamentos"""
+    
+    farm = models.ForeignKey('farms.Farm', on_delete=models.CASCADE)
+    
+    # Informações
+    medication_name = models.CharField(max_length=150)
+    active_ingredient = models.CharField(max_length=150, blank=True)
+    dosage = models.CharField(max_length=50)
+    concentration = models.CharField(max_length=50, blank=True)
+    unit = models.CharField(
+        max_length=20,
+        choices=[
+            ('mg', 'Miligrama'),
+            ('ml', 'Mililitro'),
+            ('g', 'Grama'),
+            ('unit', 'Unidade'),
+        ]
+    )
+    
+    # Lote
+    batch_number = models.CharField(max_length=50)
+    manufacturing_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField()
+    
+    # Quantidade
+    quantity_available = models.DecimalField(max_digits=10, decimal_places=3)
+    reorder_level = models.DecimalField(max_digits=10, decimal_places=3)
+    
+    # Financeiro
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
+    supplier = models.CharField(max_length=100)
+    
+    # Uso
+    species_indicated = models.ManyToManyField(Species)
+    therapeutic_class = models.CharField(max_length=100, blank=True)
+    
+    # Metadata
+    storage_conditions = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    is_available = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = [['farm', 'medication_name', 'batch_number']]
+        ordering = ['-expiry_date']
+        verbose_name_plural = "Medication Inventories"
+    
+    def __str__(self):
+        return f"{self.medication_name} ({self.batch_number})"
+    
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now().date() > self.expiry_date
+    
+    @property
+    def days_to_expiry(self):
+        from django.utils import timezone
+        return (self.expiry_date - timezone.now().date()).days
+
+
+class SanitaryAlert(BaseModel):
+    """Alerta Sanitário"""
+    
+    ALERT_TYPES = [
+        ('disease_outbreak', 'Surto de Doença'),
+        ('medication_expired', 'Medicamento Vencido'),
+        ('vaccine_expired', 'Vacina Vencida'),
+        ('high_mortality', 'Mortalidade Elevada'),
+        ('other', 'Outro'),
+    ]
+    
+    SEVERITY_LEVELS = [
+        ('low', 'Baixa'),
+        ('medium', 'Média'),
+        ('high', 'Alta'),
+        ('critical', 'Crítica'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('active', 'Ativo'),
+        ('acknowledged', 'Reconhecido'),
+        ('resolved', 'Resolvido'),
+    ]
+    
+    farm = models.ForeignKey('farms.Farm', on_delete=models.CASCADE)
+    
+    alert_type = models.CharField(max_length=30, choices=ALERT_TYPES)
+    severity = models.CharField(max_length=20, choices=SEVERITY_LEVELS)
+    
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    recommended_actions = models.TextField()
+    
+    # Escopo
+    affected_animals = models.ManyToManyField(Animal, blank=True)
+    affected_batches = models.ManyToManyField(AnimalBatch, blank=True)
+    disease = models.ForeignKey(
+        Disease,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+    
+    # Timeline
+    created_date = models.DateField(auto_now_add=True)
+    acknowledged_date = models.DateField(null=True, blank=True)
+    resolved_date = models.DateField(null=True, blank=True)
+    
+    # Metadata
+    generated_by = models.CharField(max_length=50, default='system')
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-created_date']
+        verbose_name_plural = "Sanitary Alerts"
+    
+    def __str__(self):
+        return f"{self.title} ({self.severity})"
+
+
+class HistoricoEvento(BaseModel):
+    """
+    Registro de histórico operacional genérico (Descartes, Mortalidade, Perdas, Transferências).
+    """
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="historicos_operacionais")
+    tipo_evento = models.CharField(max_length=50)
+    descricao = models.TextField()
+    data_evento = models.DateField()
+    matriz = models.ForeignKey(Animal, null=True, blank=True, on_delete=models.CASCADE, related_name="historicos")
+    lote = models.ForeignKey(AnimalBatch, null=True, blank=True, on_delete=models.CASCADE, related_name="historicos")
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Histórico de Evento"
+        verbose_name_plural = "Históricos de Eventos"
+        ordering = ["-data_evento"]
+
+    def __str__(self):
+        target = self.matriz.identifier if self.matriz else self.lote.batch_code if self.lote else "Geral"
+        return f"{self.tipo_evento} - {target} em {self.data_evento}"
+

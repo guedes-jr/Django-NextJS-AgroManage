@@ -139,8 +139,23 @@ export const promoteToMating = async (animalId: number | string) => {
   return response.data;
 };
 
-export const discardAnimal = async (animalId: number | string, data: { status: string; notes?: string }) => {
-  const response = await apiClient.patch(`/livestock/animals/${animalId}/`, data);
+export const discardAnimal = async (animalId: number | string, data: { data_descarte: string; motivo: string; peso?: number; valor_venda?: number; tipo_descarte: string; observacao?: string }) => {
+  const response = await apiClient.post(`/livestock/animals/${animalId}/descartar-matriz/`, data);
+  return response.data;
+};
+
+export const registerLoss = async (pregnancyId: number | string, data: any) => {
+  const response = await apiClient.post(`/livestock/pregnancies/${pregnancyId}/registrar-perda/`, data);
+  return response.data;
+};
+
+export const registerMortality = async (birthId: number | string, data: any) => {
+  const response = await apiClient.post(`/livestock/births/${birthId}/registrar-mortalidade/`, data);
+  return response.data;
+};
+
+export const registerProcedure = async (birthId: number | string, data: any) => {
+  const response = await apiClient.post(`/livestock/births/${birthId}/registrar-procedimento/`, data);
   return response.data;
 };
 

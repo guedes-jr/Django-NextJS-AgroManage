@@ -170,7 +170,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-white small mb-0 fw-medium opacity-75">
-              © {new Date().getFullYear()} Gestão Agro
+              © 2026 Gestão Agro
             </p>
           </div>
         </div>

@@ -1,0 +1,189 @@
+.clinico-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.clinico-modal {
+  background: var(--background);
+  width: 100%;
+  max-width: 600px;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.clinico-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: var(--card);
+}
+
+.clinico-modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 0.25rem;
+}
+
+.clinico-modal-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+
+.clinico-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--muted-foreground);
+  padding: 0.5rem;
+  margin: -0.5rem -0.5rem 0 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clinico-modal-close:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.clinico-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.clinico-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.clinico-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.clinico-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.clinico-field input,
+.clinico-field select,
+.clinico-field textarea {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--background);
+  font-size: 0.875rem;
+  color: var(--foreground);
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.clinico-field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.clinico-field input:focus,
+.clinico-field select:focus,
+.clinico-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.clinico-field input:disabled,
+.clinico-field select:disabled,
+.clinico-field textarea:disabled {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+}
+
+.clinico-modal-footer {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: var(--card);
+}
+
+.clinico-btn-secondary,
+.clinico-btn-primary {
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.clinico-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.clinico-btn-secondary:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.clinico-btn-primary {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: var(--primary-foreground);
+}
+
+.clinico-btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.clinico-btn-primary:disabled,
+.clinico-btn-secondary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 640px) {
+  .clinico-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}

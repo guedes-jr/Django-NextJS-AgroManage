@@ -123,6 +123,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
 
+  const isActive = (href: string) =>
+    href === "/home" ? pathname === href : pathname.startsWith(href);
+
   useEffect(() => {
     // Close sidebar on mobile when route changes
     if (window.innerWidth < 992 && onClose) {
@@ -136,7 +139,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       )
     );
     if (activeParent && !expandedMenus.includes(activeParent.title)) {
-      setExpandedMenus([activeParent.title]);
+      setExpandedMenus(prev => [...prev, activeParent.title]);
     }
 
     // Automatically expand species group if a sub-item is active
@@ -150,9 +153,6 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       });
     });
   }, [pathname]);
-
-  const isActive = (href: string) =>
-    href === "/home" ? pathname === href : pathname.startsWith(href);
 
   const toggleExpand = (title: string) => {
     setExpandedMenus(prev =>

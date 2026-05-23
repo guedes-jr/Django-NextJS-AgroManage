@@ -250,6 +250,9 @@ import {
   diagnosePregnancy, 
   promoteToMating, 
   discardAnimal,
+  registerLoss,
+  registerMortality,
+  registerProcedure,
   createBirth,
   registerMating,
   createMating,
@@ -618,6 +621,131 @@ export function ReproducaoDashboard({
             } else {
               await diagnosePregnancy(data.id as any, data.result as 'positive' | 'negative', data.diagnosis_date);
             }
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'discard':
+        setActionModal({
+          open: true,
+          title: "Descartar Matriz",
+          fields: [
+            { 
+              name: "id", 
+              label: "Matriz (Brinco)", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+            { name: "data_descarte", label: "Data do Descarte", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "motivo", label: "Motivo / Justificativa", type: "text", required: true },
+            { name: "tipo_descarte", label: "Tipo de Descarte", type: "select", options: [
+              { value: "VENDA", label: "Venda" },
+              { value: "MORTE", label: "Morte" },
+              { value: "DESCARTE_SANITARIO", label: "Descarte Sanitário" },
+              { value: "BAIXA_PRODUTIVA", label: "Baixa Produtiva" },
+              { value: "OUTRO", label: "Outro" },
+            ]},
+            { name: "peso", label: "Peso (kg)", type: "number" },
+            { name: "valor_venda", label: "Valor de Venda (R$)", type: "number" },
+            { name: "observacao", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            await discardAnimal(data.id, data);
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'loss':
+        setActionModal({
+          open: true,
+          title: "Registrar Perda na Gestação",
+          fields: [
+            { 
+              name: "id", 
+              label: "Gestação / Matriz", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+            { name: "data", label: "Data da Perda", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "tipo_perda", label: "Tipo de Perda", type: "select", required: true, options: [
+              { value: "ABORTO", label: "Aborto" },
+              { value: "REABSORCAO", label: "Reabsorção" },
+              { value: "RETORNO_CIO", label: "Retorno de Cio" },
+              { value: "OUTRO", label: "Outro" },
+            ]},
+            { name: "observacao", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            await registerLoss(data.id, data);
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'procedure':
+        setActionModal({
+          open: true,
+          title: "Registrar Procedimento / Manejo",
+          fields: [
+            { 
+              name: "id", 
+              label: "Leitegada / Matriz", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+            { name: "data", label: "Data do Procedimento", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "tipo", label: "Tipo de Manejo", type: "select", required: true, options: [
+              { value: "TRANSFERENCIA_LEITAO", label: "Transferência de Leitões" },
+              { value: "ADOCAO_ENXERTIA", label: "Adoção/Enxertia" },
+              { value: "APLICACAO_FERRO", label: "Aplicação de Ferro" },
+              { value: "CORTE_DENTE", label: "Corte de Dente" },
+              { value: "CORTE_CAUDA", label: "Corte de Cauda" },
+              { value: "CASTRACAO", label: "Castração" },
+              { value: "SEPARACAO_LEITAO_FRACO", label: "Separação de Leitão Fraco" },
+              { value: "OBSERVACAO_GERAL", label: "Observação Geral" },
+            ]},
+            { name: "quantidade", label: "Quantidade (se aplicável)", type: "number" },
+            { name: "destino_matriz_id", label: "ID Matriz Destino (para Transferência)", type: "number" },
+            { name: "observacao", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            await registerProcedure(data.id, data);
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'mortality':
+        setActionModal({
+          open: true,
+          title: "Registrar Mortalidade (Maternidade)",
+          fields: [
+            { 
+              name: "id", 
+              label: "Leitegada / Matriz", 
+              type: animalOptions.length > 0 ? "select" : "text", 
+              options: animalOptions,
+              required: true 
+            },
+            { name: "data", label: "Data do Óbito", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "quantidade", label: "Qtd de Leitões Mortos", type: "number", required: true },
+            { name: "causa", label: "Causa Provável", type: "select", required: true, options: [
+              { value: "ESMAGAMENTO", label: "Esmagamento" },
+              { value: "NATIMORTO", label: "Natimorto" },
+              { value: "FRACO", label: "Fraco" },
+              { value: "DOENCA", label: "Doença" },
+              { value: "DESCONHECIDA", label: "Desconhecida" },
+              { value: "OUTRA", label: "Outra" },
+            ]},
+            { name: "observacao", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            await registerMortality(data.id, data);
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }

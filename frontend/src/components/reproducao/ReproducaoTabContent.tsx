@@ -183,6 +183,7 @@ export function ReproducaoTabContent({
         onSearchChange={setSearch}
         searchPlaceholder={searchPlaceholder}
         filters={dtFilters}
+        onRowClick={onRowClick}
       />
 
       {(tabAlerts && tabAlerts.length > 0) || (tabAiSuggestions && tabAiSuggestions.length > 0) ? (

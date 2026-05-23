@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
-from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord
+from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord
 from collections import Counter
 
 class AnimalBatchListSerializer(serializers.ListSerializer):
@@ -405,3 +405,85 @@ class WeightRecordSerializer(serializers.ModelSerializer):
         model = WeightRecord
         fields = '__all__'
 
+
+class SymptomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Symptom
+        fields = ['id', 'name', 'code', 'urgency_level']
+
+class DiseaseSerializer(serializers.ModelSerializer):
+    symptoms = SymptomSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Disease
+        fields = [
+            'id', 'name', 'code', 'description',
+            'symptoms', 'recommended_treatment',
+            'incubation_period_days', 'mortality_rate',
+            'is_infectious', 'is_reportable'
+        ]
+
+class ClinicalRecordSerializer(serializers.ModelSerializer):
+    animal_identifier = serializers.CharField(
+        source='animal.identifier',
+        read_only=True
+    )
+    disease_name = serializers.CharField(
+        source='disease.name',
+        read_only=True
+    )
+    
+    class Meta:
+        model = ClinicalRecord
+        fields = [
+            'id', 'farm', 'animal', 'animal_identifier',
+            'record_type', 'record_date', 'record_time',
+            'symptoms_observed', 'clinical_notes',
+            'disease', 'disease_name', 'severity',
+            'prescribed_medications', 'outcome',
+            'veterinarian', 'created_at'
+        ]
+        read_only_fields = ['created_at']
+
+class MedicationSerializer(serializers.ModelSerializer):
+    days_to_expiry = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MedicationInventory
+        fields = [
+            'id', 'farm', 'medication_name', 'dosage',
+            'quantity_available', 'expiry_date',
+            'unit_cost', 'supplier', 'is_available',
+            'days_to_expiry'
+        ]
+    
+    def get_days_to_expiry(self, obj):
+        return obj.days_to_expiry
+
+class AlertSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SanitaryAlert
+        fields = [
+            'id', 'alert_type', 'severity', 'title',
+            'description', 'status', 'created_date'
+        ]
+
+
+class HealthRecordSerializer(serializers.ModelSerializer):
+    animal_identifier = serializers.CharField(
+        source='animal.identifier',
+        read_only=True
+    )
+    treatment_type_display = serializers.CharField(
+        source='get_treatment_type_display',
+        read_only=True
+    )
+    
+    class Meta:
+        model = HealthRecord
+        fields = [
+            'id', 'farm', 'animal', 'animal_identifier',
+            'treatment_type', 'treatment_type_display',
+            'description', 'application_date',
+            'veterinary', 'cost', 'notes'
+        ]

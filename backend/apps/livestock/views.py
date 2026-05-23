@@ -1,14 +1,17 @@
-from rest_framework import viewsets, status, serializers
+from rest_framework import viewsets, status, serializers, filters
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from django.db import IntegrityError
 from django.utils import timezone
 import datetime
-from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord
+from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
     PregnancySerializer, BirthSerializer, LitterSerializer,
-    IncubationSerializer
+    IncubationSerializer, SymptomSerializer, DiseaseSerializer,
+    ClinicalRecordSerializer, MedicationSerializer, AlertSerializer,
+    HealthRecordSerializer
 )
 from rest_framework.views import APIView
 
@@ -586,6 +589,16 @@ def build_animal_history(animal):
             "status": "Registro"
         })
 
+    # 8. Histórico Genérico (Descartes, Perdas, etc)
+    for he in animal.historicos.all():
+        events.append({
+            "type": "historico_evento",
+            "date": he.data_evento,
+            "title": he.tipo_evento,
+            "subtitle": he.descricao,
+            "status": "Evento"
+        })
+
     # Sort events by date descending
     events.sort(key=lambda x: x['date'], reverse=True)
 
@@ -833,6 +846,41 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
         return Response({"message": f"Diagnóstico {result} registrado.", "status": animal.reproductive_status})
 
+    @action(detail=True, methods=['post'], url_path='descartar-matriz')
+    def descartar_matriz(self, request, pk=None):
+        animal = self.get_object()
+        data_descarte = request.data.get('data_descarte', timezone.now().date())
+        motivo = request.data.get('motivo', '')
+        peso = request.data.get('peso')
+        valor_venda = request.data.get('valor_venda')
+        tipo_descarte = request.data.get('tipo_descarte', 'OUTRO')
+        observacao = request.data.get('observacao', '')
+
+        status_map = {
+            'VENDA': Animal.Status.SOLD,
+            'MORTE': Animal.Status.DEAD,
+            'DESCARTE_SANITARIO': Animal.Status.DEAD,
+            'BAIXA_PRODUTIVA': Animal.Status.FINISHED,
+        }
+        animal.status = status_map.get(tipo_descarte, Animal.Status.FINISHED)
+        animal.reproductive_status = ''
+        animal.save(update_fields=['status', 'reproductive_status'])
+
+        HistoricoEvento.objects.create(
+            farm=animal.farm,
+            tipo_evento='Descarte',
+            descricao=f"Motivo: {motivo} | Tipo: {tipo_descarte} | Obs: {observacao}",
+            data_evento=data_descarte,
+            matriz=animal,
+            metadata={
+                'peso': peso,
+                'valor_venda': valor_venda,
+                'tipo_descarte': tipo_descarte,
+                'motivo': motivo
+            }
+        )
+        return Response({"message": "Matriz descartada com sucesso", "status": animal.status})
+
     @action(detail=True, methods=['get'], url_path='full-history')
     def full_history(self, request, pk=None):
         animal = self.get_object()
@@ -859,6 +907,30 @@ class PregnancyViewSet(viewsets.ModelViewSet):
             return Pregnancy.objects.filter(female__farm__organization=user.organization)
         return Pregnancy.objects.none()
 
+    @action(detail=True, methods=['post'], url_path='registrar-perda')
+    def registrar_perda(self, request, pk=None):
+        pregnancy = self.get_object()
+        data = request.data.get('data', timezone.now().date())
+        tipo_perda = request.data.get('tipo_perda', 'ABORTO')
+        observacao = request.data.get('observacao', '')
+        
+        pregnancy.status = 'failed'
+        pregnancy.save(update_fields=['status'])
+        
+        female = pregnancy.female
+        female.reproductive_status = Animal.ReproductiveStatus.VAZIA
+        female.save(update_fields=['reproductive_status'])
+        
+        HistoricoEvento.objects.create(
+            farm=female.farm,
+            tipo_evento='Perda Gestacional',
+            descricao=f"Tipo: {tipo_perda} | Obs: {observacao}",
+            data_evento=data,
+            matriz=female,
+            metadata={'tipo_perda': tipo_perda}
+        )
+        return Response({"message": "Perda gestacional registrada."})
+
 
 class BirthViewSet(viewsets.ModelViewSet):
     serializer_class = BirthSerializer
@@ -868,6 +940,50 @@ class BirthViewSet(viewsets.ModelViewSet):
         if user.is_authenticated and hasattr(user, 'organization'):
             return Birth.objects.filter(female__farm__organization=user.organization)
         return Birth.objects.none()
+
+    @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
+    def registrar_mortalidade(self, request, pk=None):
+        birth = self.get_object()
+        data = request.data.get('data', timezone.now().date())
+        quantidade = int(request.data.get('quantidade', 1))
+        causa = request.data.get('causa', 'DESCONHECIDA')
+        observacao = request.data.get('observacao', '')
+        
+        birth.stillborn += quantidade
+        if birth.live_born >= quantidade:
+            birth.live_born -= quantidade
+        else:
+            birth.live_born = 0
+        birth.save(update_fields=['stillborn', 'live_born'])
+        
+        HistoricoEvento.objects.create(
+            farm=birth.female.farm,
+            tipo_evento='Mortalidade Maternidade',
+            descricao=f"Qtd: {quantidade} | Causa: {causa} | Obs: {observacao}",
+            data_evento=data,
+            matriz=birth.female,
+            metadata={'quantidade': quantidade, 'causa': causa}
+        )
+        return Response({"message": "Mortalidade registrada."})
+
+    @action(detail=True, methods=['post'], url_path='registrar-procedimento')
+    def registrar_procedimento(self, request, pk=None):
+        birth = self.get_object()
+        data = request.data.get('data', timezone.now().date())
+        tipo = request.data.get('tipo', 'OBSERVACAO_GERAL')
+        quantidade = request.data.get('quantidade')
+        destino_matriz_id = request.data.get('destino_matriz_id')
+        observacao = request.data.get('observacao', '')
+        
+        HistoricoEvento.objects.create(
+            farm=birth.female.farm,
+            tipo_evento='Procedimento Maternidade',
+            descricao=f"Tipo: {tipo} | Obs: {observacao}",
+            data_evento=data,
+            matriz=birth.female,
+            metadata={'tipo': tipo, 'quantidade': quantidade, 'destino_matriz_id': destino_matriz_id}
+        )
+        return Response({"message": "Procedimento registrado."})
 
     @action(detail=False, methods=['post'])
     def batch_wean(self, request):
@@ -1040,6 +1156,74 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
             return VaccinationRecord.objects.filter(farm__organization=user.organization)
         return VaccinationRecord.objects.none()
 
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        
+        # Resolve animal from animal_identifier (if passed)
+        animal_identifier = data.get('animal_identifier')
+        if animal_identifier:
+            try:
+                from .models import Animal
+                animal = Animal.objects.filter(
+                    identifier=animal_identifier,
+                    farm__organization=request.user.organization
+                ).first()
+                if animal:
+                    data['animal'] = animal.id
+                    data['farm'] = animal.farm.id
+                    data['species'] = animal.species.id
+                else:
+                    return Response(
+                        {"detail": f"Animal com brinco '{animal_identifier}' não foi encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception as e:
+                return Response(
+                    {"detail": f"Erro ao buscar animal: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Resolve batch from batch_code (if passed)
+        batch_code = data.get('batch_code')
+        if batch_code and not data.get('animal'):
+            try:
+                from .models import AnimalBatch
+                batch = AnimalBatch.objects.filter(
+                    batch_code=batch_code,
+                    farm__organization=request.user.organization
+                ).first()
+                if batch:
+                    data['batch'] = batch.id
+                    data['farm'] = batch.farm.id
+                    data['species'] = batch.species.id
+                else:
+                    return Response(
+                        {"detail": f"Lote com código '{batch_code}' não foi encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception as e:
+                return Response(
+                    {"detail": f"Erro ao buscar lote: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        # Set default farm if neither animal nor batch is specified
+        if not data.get('farm'):
+            from farms.models import Farm
+            first_farm = Farm.objects.filter(organization=request.user.organization).first()
+            if first_farm:
+                data['farm'] = first_farm.id
+                from .models import Species
+                suinos_sp = Species.objects.filter(code='suinos').first()
+                if suinos_sp:
+                    data['species'] = suinos_sp.id
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class WeightRecordViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
@@ -1051,3 +1235,153 @@ class WeightRecordViewSet(viewsets.ModelViewSet):
         if user.is_authenticated and hasattr(user, 'organization'):
             return WeightRecord.objects.filter(farm__organization=user.organization)
         return WeightRecord.objects.none()
+
+
+class ClinicalRecordViewSet(viewsets.ModelViewSet):
+    serializer_class = ClinicalRecordSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['farm', 'animal', 'disease', 'severity', 'record_type']
+    search_fields = ['animal__identifier', 'clinical_notes']
+    ordering_fields = ['record_date']
+    ordering = ['-record_date']
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'organization'):
+            return ClinicalRecord.objects.filter(farm__organization=user.organization)
+        return ClinicalRecord.objects.none()
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        
+        # Resolve animal from animal_identifier
+        animal_identifier = data.get('animal_identifier')
+        if animal_identifier:
+            try:
+                from .models import Animal
+                animal = Animal.objects.filter(
+                    identifier=animal_identifier,
+                    farm__organization=request.user.organization
+                ).first()
+                if animal:
+                    data['animal'] = animal.id
+                    data['farm'] = animal.farm.id
+                else:
+                    return Response(
+                        {"detail": f"Animal com brinco '{animal_identifier}' não foi encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception as e:
+                return Response(
+                    {"detail": f"Erro ao buscar animal: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """Histórico clínico do animal"""
+        record = self.get_object()
+        animal_records = ClinicalRecord.objects.filter(
+            animal=record.animal
+        ).order_by('-record_date')
+        serializer = self.get_serializer(animal_records, many=True)
+        return Response(serializer.data)
+
+class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Disease.objects.all()
+    serializer_class = DiseaseSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['species']
+    search_fields = ['name', 'code']
+
+class MedicationViewSet(viewsets.ModelViewSet):
+    serializer_class = MedicationSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['farm', 'is_available']
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'organization'):
+            return MedicationInventory.objects.filter(farm__organization=user.organization)
+        return MedicationInventory.objects.none()
+    
+    @action(detail=False, methods=['get'])
+    def expiring_soon(self, request):
+        """Medicamentos vencendo em 30 dias"""
+        from datetime import timedelta
+        from django.utils import timezone
+        today = timezone.now().date()
+        expiring = self.get_queryset().filter(
+            expiry_date__lte=today + timedelta(days=30),
+            expiry_date__gte=today
+        )
+        serializer = self.get_serializer(expiring, many=True)
+        return Response(serializer.data)
+
+class AlertViewSet(viewsets.ModelViewSet):
+    serializer_class = AlertSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['farm', 'status', 'severity']
+    ordering = ['-created_date']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'organization'):
+            return SanitaryAlert.objects.filter(farm__organization=user.organization)
+        return SanitaryAlert.objects.none()
+
+
+class HealthRecordViewSet(viewsets.ModelViewSet):
+    serializer_class = HealthRecordSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['farm', 'treatment_type', 'animal']
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'organization'):
+            return HealthRecord.objects.filter(farm__organization=user.organization)
+        return HealthRecord.objects.none()
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        
+        # Resolve animal from animal_identifier
+        animal_identifier = data.get('animal_identifier')
+        if animal_identifier:
+            try:
+                from .models import Animal
+                animal = Animal.objects.filter(
+                    identifier=animal_identifier,
+                    farm__organization=request.user.organization
+                ).first()
+                if animal:
+                    data['animal'] = animal.id
+                    data['farm'] = animal.farm.id
+                else:
+                    return Response(
+                        {"detail": f"Animal com brinco '{animal_identifier}' não foi encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception as e:
+                return Response(
+                    {"detail": f"Erro ao buscar animal: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+class SymptomViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Symptom.objects.all()
+    serializer_class = SymptomSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'code']
