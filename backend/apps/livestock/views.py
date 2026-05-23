@@ -14,6 +14,30 @@ from .serializers import (
     HealthRecordSerializer
 )
 from rest_framework.views import APIView
+from decimal import Decimal
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _dar_baixa_vacina(vaccine_item, user, quantidade: Decimal = Decimal("1"),
+                       observacao: str = "") -> None:
+    """Dá baixa de 1 dose (ou quantidade informada) do item de vacina no estoque."""
+    from apps.inventory.choices import TipoMovimentacao
+    from apps.inventory.services import registrar_movimentacao
+
+    lote = vaccine_item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by(
+        "data_entrada", "id"
+    ).first()
+    if not lote:
+        return  # sem estoque disponível — não bloqueia
+
+    registrar_movimentacao(
+        item=vaccine_item,
+        lote=lote,
+        tipo=TipoMovimentacao.CONSUMO,
+        quantidade=quantidade,
+        responsavel=user,
+        observacao=observacao or "Consumo por vacinação",
+    )
 
 # ─── Phase Dashboard Views ────────────────────────────────────────────────────
 
@@ -278,15 +302,16 @@ class MaternidadeView(BasePhaseView):
             idade = (now - b.birth_date).days if b.birth_date else None
             previsao_desmame = (b.birth_date + datetime.timedelta(days=21)).isoformat() if b.birth_date else None
             
+            vivos_calculado = b.live_born - b.mortality
             if hasattr(b, 'litter') and b.litter.weaning_date:
                 status = "Desmamado"
-                vivos_atual = b.litter.weaned_quantity or 0
+                vivos_atual = b.litter.weaned_quantity or max(vivos_calculado, 0)
             elif idade is not None and idade >= 21:
                 status = "Pronto p/ Desmame"
-                vivos_atual = b.live_born
+                vivos_atual = max(vivos_calculado, 0)
             else:
                 status = "Lactação"
-                vivos_atual = b.live_born
+                vivos_atual = max(vivos_calculado, 0)
 
             rows.append({
                 "id": b.id,
@@ -294,7 +319,8 @@ class MaternidadeView(BasePhaseView):
                 "identifier": b.female.identifier,
                 "data_parto": b.birth_date.isoformat() if b.birth_date else None,
                 "vivos": b.live_born,
-                "obitos": b.stillborn,
+                "obitos": b.stillborn + b.mortality,
+                "mortalidade_pos": b.mortality,
                 "mumificados": b.mummified,
                 "idade": idade,
                 "status": status,
@@ -766,6 +792,20 @@ class AnimalViewSet(viewsets.ModelViewSet):
             animal.previous_phase = animal.reproductive_status
             animal.reproductive_status = Animal.ReproductiveStatus.COBERTA
             animal.save(update_fields=['previous_phase', 'reproductive_status'])
+
+            HistoricoEvento.objects.create(
+                farm=animal.farm,
+                tipo_evento='Cobertura',
+                descricao=f"Tipo: {mating.get_mating_type_display()} | Reprodutor: {mating.sire_info or (mating.sire.identifier if mating.sire else 'N/A')}",
+                data_evento=mating.mating_date,
+                matriz=animal,
+                metadata={
+                    'mating_type': mating.mating_type,
+                    'sire_info': mating.sire_info,
+                    'sire_id': mating.sire_id,
+                    'expected_birth_date': str(mating.expected_birth_date) if mating.expected_birth_date else None,
+                }
+            )
             return Response(MatingSerializer(mating).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -786,27 +826,67 @@ class AnimalViewSet(viewsets.ModelViewSet):
             weighing_date=date,
             notes=request.data.get('notes', '')
         )
+        HistoricoEvento.objects.create(
+            farm=animal.farm,
+            tipo_evento='Pesagem',
+            descricao=f"Peso: {weight} kg",
+            data_evento=date,
+            matriz=animal,
+            metadata={'weight_kg': str(weight)}
+        )
         return Response({"message": "Peso registrado com sucesso", "weight": weight}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='register-vaccination')
     def register_vaccination(self, request, pk=None):
         animal = self.get_object()
         vaccine_name = request.data.get('vaccine_name')
+        vaccine_item_id = request.data.get('vaccine_item_id')
         date = request.data.get('application_date', timezone.now().date())
-        
-        if not vaccine_name:
-            return Response({"error": "Nome da vacina é obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
-            
+
+        if not vaccine_name and not vaccine_item_id:
+            return Response({"error": "Nome da vacina ou vacina do estoque é obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
+
+        vaccine_item = None
+        if vaccine_item_id:
+            from apps.inventory.models import ItemEstoque
+            try:
+                vaccine_item = ItemEstoque.objects.get(id=vaccine_item_id, categoria='vacina')
+                if not vaccine_name:
+                    vaccine_name = vaccine_item.nome
+            except ItemEstoque.DoesNotExist:
+                return Response({"error": "Vacina não encontrada no estoque."}, status=status.HTTP_400_BAD_REQUEST)
+
         record = VaccinationRecord.objects.create(
             farm=animal.farm,
             species=animal.species,
             animal=animal,
             vaccine_name=vaccine_name,
+            vaccine_item=vaccine_item,
             application_date=date,
             dose_type=request.data.get('dose_type', VaccinationRecord.DoseType.UNICA),
             dosage_ml=request.data.get('dosage_ml'),
             notes=request.data.get('notes', '')
         )
+
+        HistoricoEvento.objects.create(
+            farm=animal.farm,
+            tipo_evento='Vacinação',
+            descricao=f"Vacina: {vaccine_name} | Dose: {record.get_dose_type_display()} | Data: {date}",
+            data_evento=date,
+            matriz=animal,
+            metadata={
+                'vacina': vaccine_name,
+                'vaccine_item_id': vaccine_item_id,
+                'dosagem_ml': request.data.get('dosage_ml'),
+                'dose_type': request.data.get('dose_type'),
+            }
+        )
+
+        # Baixa de estoque
+        if vaccine_item:
+            _dar_baixa_vacina(vaccine_item, request.user,
+                              observacao=f"Vacinação do animal {animal.identifier}")
+
         return Response({"message": "Vacina registrada com sucesso"}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='diagnose-pregnancy')
@@ -831,6 +911,14 @@ class AnimalViewSet(viewsets.ModelViewSet):
                         'status': 'ongoing'
                     }
                 )
+            HistoricoEvento.objects.create(
+                farm=animal.farm,
+                tipo_evento='Diagnóstico de Gestação',
+                descricao="Resultado: POSITIVO — Gestação confirmada.",
+                data_evento=date,
+                matriz=animal,
+                metadata={'resultado': 'positive', 'data_diagnostico': str(date)}
+            )
         elif result == 'negative':
             # Retornar para a fase anterior salva (Marrã ou Aguardando Cobertura)
             prev = animal.previous_phase or Animal.ReproductiveStatus.VAZIA
@@ -843,6 +931,15 @@ class AnimalViewSet(viewsets.ModelViewSet):
             if latest_mating and latest_mating.status == Mating.Status.PENDING_DG:
                 latest_mating.status = Mating.Status.FAILED
                 latest_mating.save(update_fields=['status'])
+
+            HistoricoEvento.objects.create(
+                farm=animal.farm,
+                tipo_evento='Diagnóstico de Gestação',
+                descricao=f"Resultado: NEGATIVO — Retorno para {prev}.",
+                data_evento=date,
+                matriz=animal,
+                metadata={'resultado': 'negative', 'data_diagnostico': str(date), 'previous_phase': prev}
+            )
 
         return Response({"message": f"Diagnóstico {result} registrado.", "status": animal.reproductive_status})
 
@@ -913,14 +1010,17 @@ class PregnancyViewSet(viewsets.ModelViewSet):
         data = request.data.get('data', timezone.now().date())
         tipo_perda = request.data.get('tipo_perda', 'ABORTO')
         observacao = request.data.get('observacao', '')
-        
+
         pregnancy.status = 'failed'
         pregnancy.save(update_fields=['status'])
-        
+
         female = pregnancy.female
-        female.reproductive_status = Animal.ReproductiveStatus.VAZIA
+        if tipo_perda in ('RETORNO_CIO', 'REABSORCAO'):
+            female.reproductive_status = Animal.ReproductiveStatus.AGUARDANDO_COBERTURA
+        else:
+            female.reproductive_status = Animal.ReproductiveStatus.VAZIA
         female.save(update_fields=['reproductive_status'])
-        
+
         HistoricoEvento.objects.create(
             farm=female.farm,
             tipo_evento='Perda Gestacional',
@@ -941,6 +1041,23 @@ class BirthViewSet(viewsets.ModelViewSet):
             return Birth.objects.filter(female__farm__organization=user.organization)
         return Birth.objects.none()
 
+    def perform_create(self, serializer):
+        birth = serializer.save()
+        HistoricoEvento.objects.create(
+            farm=birth.female.farm,
+            tipo_evento='Parto',
+            descricao=f"Nascidos: {birth.total_born} (Vivos: {birth.live_born}, Óbitos: {birth.stillborn})",
+            data_evento=birth.birth_date,
+            matriz=birth.female,
+            metadata={
+                'live_born': birth.live_born,
+                'stillborn': birth.stillborn,
+                'mummified': birth.mummified,
+                'total_born': birth.total_born,
+                'avg_weight_kg': str(birth.avg_weight_kg) if birth.avg_weight_kg else None,
+            }
+        )
+
     @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
     def registrar_mortalidade(self, request, pk=None):
         birth = self.get_object()
@@ -948,14 +1065,17 @@ class BirthViewSet(viewsets.ModelViewSet):
         quantidade = int(request.data.get('quantidade', 1))
         causa = request.data.get('causa', 'DESCONHECIDA')
         observacao = request.data.get('observacao', '')
-        
-        birth.stillborn += quantidade
-        if birth.live_born >= quantidade:
-            birth.live_born -= quantidade
-        else:
-            birth.live_born = 0
-        birth.save(update_fields=['stillborn', 'live_born'])
-        
+
+        vivos_atual = birth.live_born - birth.mortality
+        if quantidade > vivos_atual:
+            return Response(
+                {"error": f"Mortalidade ({quantidade}) não pode ser maior que leitões vivos ({vivos_atual})."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        birth.mortality += quantidade
+        birth.save(update_fields=['mortality'])
+
         HistoricoEvento.objects.create(
             farm=birth.female.farm,
             tipo_evento='Mortalidade Maternidade',
@@ -974,7 +1094,34 @@ class BirthViewSet(viewsets.ModelViewSet):
         quantidade = request.data.get('quantidade')
         destino_matriz_id = request.data.get('destino_matriz_id')
         observacao = request.data.get('observacao', '')
-        
+
+        if tipo == 'TRANSFERENCIA_LEITAO':
+            qtd = int(quantidade or 0)
+            vivos_origem = birth.live_born - birth.mortality
+            if qtd > vivos_origem:
+                return Response(
+                    {"error": f"Transferência ({qtd}) excede leitões vivos na origem ({vivos_origem})."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            birth.mortality += qtd  # reduz vivos na origem
+            birth.save(update_fields=['mortality'])
+
+            if destino_matriz_id:
+                from .models import Birth as BirthModel
+                destino = BirthModel.objects.filter(
+                    female_id=destino_matriz_id, batch=birth.batch
+                ).order_by('-birth_date').first()
+                if destino:
+                    # Registra recebimento como um procedimento no destino
+                    HistoricoEvento.objects.create(
+                        farm=destino.female.farm,
+                        tipo_evento='Procedimento Maternidade',
+                        descricao=f"Recebimento por transferência ({qtd} leitões) da matriz {birth.female.identifier}",
+                        data_evento=data,
+                        matriz=destino.female,
+                        metadata={'tipo': 'RECEBIMENTO_TRANSFERENCIA', 'quantidade': qtd, 'origem_matriz_id': birth.female.id}
+                    )
+
         HistoricoEvento.objects.create(
             farm=birth.female.farm,
             tipo_evento='Procedimento Maternidade',
@@ -1016,6 +1163,19 @@ class BirthViewSet(viewsets.ModelViewSet):
             if b.batch:
                 b.batch.phase = 'creche'
                 b.batch.save(update_fields=['phase'])
+
+            HistoricoEvento.objects.create(
+                farm=b.female.farm,
+                tipo_evento='Desmame',
+                descricao=f"Qtd: {litter.weaned_quantity} leitões | Peso médio: {litter.avg_weaning_weight_kg or 'N/A'} kg",
+                data_evento=now,
+                matriz=b.female,
+                metadata={
+                    'weaned_quantity': litter.weaned_quantity,
+                    'avg_weaning_weight_kg': str(litter.avg_weaning_weight_kg) if litter.avg_weaning_weight_kg else None,
+                    'weaning_date': str(now),
+                }
+            )
 
             weaned += 1
         return Response({"message": f"{weaned} leitegada(s) desmamada(s) com sucesso."})
@@ -1222,6 +1382,30 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
+
+        # Registrar no histórico operacional
+        record = serializer.instance
+        if record.animal:
+            HistoricoEvento.objects.create(
+                farm=record.farm,
+                tipo_evento='Vacinação',
+                descricao=f"Vacina: {record.vaccine_name} | Data: {record.application_date}",
+                data_evento=record.application_date,
+                matriz=record.animal,
+                lote=record.batch,
+                metadata={
+                    'vacina': record.vaccine_name,
+                    'dosagem_ml': str(record.dosage_ml) if record.dosage_ml else None,
+                    'dose_type': record.dose_type,
+                }
+            )
+
+        # Baixa de estoque
+        if record.vaccine_item:
+            target_desc = record.animal.identifier if record.animal else record.batch.batch_code if record.batch else "desconhecido"
+            _dar_baixa_vacina(record.vaccine_item, request.user,
+                              observacao=f"Vacinação de {target_desc}")
+
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
@@ -1235,6 +1419,18 @@ class WeightRecordViewSet(viewsets.ModelViewSet):
         if user.is_authenticated and hasattr(user, 'organization'):
             return WeightRecord.objects.filter(farm__organization=user.organization)
         return WeightRecord.objects.none()
+
+    def perform_create(self, serializer):
+        record = serializer.save()
+        if record.animal:
+            HistoricoEvento.objects.create(
+                farm=record.farm,
+                tipo_evento='Pesagem',
+                descricao=f"Peso: {record.weight_kg} kg",
+                data_evento=record.weighing_date,
+                matriz=record.animal,
+                metadata={'weight_kg': str(record.weight_kg)}
+            )
 
 
 class ClinicalRecordViewSet(viewsets.ModelViewSet):

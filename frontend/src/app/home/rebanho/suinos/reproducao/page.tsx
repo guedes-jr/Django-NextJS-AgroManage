@@ -238,21 +238,25 @@ function ReproducaoPageContent() {
             variant: "primary", 
             type: "mating_marra"
           },
-          { label: "Descartar", icon: "🚫", variant: "danger", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimal(r.id as number, { status: "finished" }))); showToast(`${rows.length} matrizes descartadas.`, "success"); refetchTabs(["matrizes", "dashboard"], false, true); } },
+          { label: "Descartar", icon: "🚫", variant: "danger", type: "discard" },
         ],
         primaryActionLabel: "Registrar Cobertura",
         primaryActionModalFields: [
           { name: "matriz", label: "Matriz (Brinco)", type: "text", required: true },
           { name: "data_cobertura", label: "Data da Cobertura", type: "date", required: true },
-          { name: "tipo", label: "Tipo", type: "select", options: [{ value: "IA", label: "Inseminação Artificial" }, { value: "MN", label: "Monta Natural" }] },
-          { name: "reprodutor", label: "Reprodutor / Dose", type: "text" },
+          { name: "mating_type", label: "Tipo de Cobertura", type: "select", options: [
+            { value: "natural", label: "Monta Natural" },
+            { value: "ai", label: "Inseminação Artificial" },
+            { value: "iatf", label: "IATF" },
+          ], initialValue: "natural" },
+          { name: "sire_info", label: "Reprodutor / Dose", type: "text" },
         ],
         onSave: async (data: any) => {
           await createMating({
             female_identifier: data.matriz,
             mating_date: data.data_cobertura,
-            mating_type: data.tipo === "IA" ? "ai" : "natural",
-            sire_info: data.reprodutor || "",
+            mating_type: data.mating_type,
+            sire_info: data.sire_info || "",
           });
           showToast("Cobertura registrada com sucesso!", "success");
           refetchTabs(["matrizes", "gestacao", "dashboard"], false, true);
@@ -267,7 +271,7 @@ function ReproducaoPageContent() {
           { label: "Registrar Cobertura", icon: "🤰", color: "oklch(0.55 0.16 230)", desc: "Nova cobertura", type: 'primary' },
           { label: "Diagnóstico Prenhez", icon: "🔬", color: "oklch(0.55 0.16 145)", desc: "Confirmar gestação", type: 'diagnosis' },
           { label: "Descartar Matriz", icon: "🚫", color: "oklch(0.6 0.22 27)", desc: "Remover do plantel", type: 'discard' },
-          { label: "Histórico", icon: "📋", color: "oklch(0.78 0.15 85)", desc: "Ver histórico", type: 'technical_sheet' },
+          { label: "Histórico", icon: "📋", color: "oklch(0.78 0.15 85)", desc: "Ver histórico", type: 'history' },
         ],
         tabAlerts: tab.matrizes?.alerts || [],
         tabAiSuggestions: tab.matrizes?.aiSuggestions || [],
@@ -326,18 +330,7 @@ function ReproducaoPageContent() {
             label: "Registrar Perda", 
             icon: "⚠️", 
             variant: "danger", 
-            onClick: async (rows: any[]) => {
-              try {
-                await Promise.all(rows.map(r => {
-                  const id = r.animal_id || r.id;
-                  return diagnosePregnancy(id, 'negative');
-                }));
-                showToast(`Perda registrada para ${rows.length}.`, "success");
-                refetchTabs(["gestacao", "dashboard"], false, true);
-              } catch (err) {
-                showToast("Erro ao registrar perda", "error");
-              }
-            } 
+            type: 'loss', 
           },
         ],
         kpis: [
@@ -413,6 +406,7 @@ function ReproducaoPageContent() {
           { key: "data_parto", label: "Data Parto", render: formatDateCell },
           { key: "vivos", label: "Nascidos Vivos" },
           { key: "obitos", label: "Óbitos" },
+          { key: "mortalidade_pos", label: "Mortalidade" },
           { key: "mumificados", label: "Mumificados" },
           { key: "vivos_atual", label: "Vivos Atual" },
           { key: "idade", label: "Dias (Idade)" },

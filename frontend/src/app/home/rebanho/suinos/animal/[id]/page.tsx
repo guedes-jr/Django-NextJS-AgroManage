@@ -21,7 +21,7 @@ import {
   ClipboardList
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchAnimalDetails, fetchAnimalHistory, registerWeight, registerVaccination, registerMating } from "@/services/livestockService";
+import { fetchAnimalDetails, fetchAnimalHistory, registerWeight, registerVaccination, registerMating, fetchVaccines } from "@/services/livestockService";
 import { useToast } from "@/components/ui/Toast";
 
 import { breedDictionary } from "@/constants/breedInfo";
@@ -118,6 +118,7 @@ export default function AnimalDetailPage() {
   // Quick Action State
   const [qaModal, setQaModal] = useState<{ open: boolean; type: string; title: string }>({ open: false, type: '', title: '' });
   const [qaFormData, setQaFormData] = useState<any>({});
+  const [vaccineItems, setVaccineItems] = useState<any[]>([]);
 
   const loadData = async () => {
     try {
@@ -137,6 +138,7 @@ export default function AnimalDetailPage() {
 
   useEffect(() => {
     loadData();
+    fetchVaccines().then(setVaccineItems).catch(() => {});
   }, [id]);
 
   const handleQuickActionSubmit = async (e: React.FormEvent) => {
@@ -145,7 +147,12 @@ export default function AnimalDetailPage() {
       if (qaModal.type === 'weight') {
         await registerWeight(animal.id, { weight_kg: parseFloat(qaFormData.weight), weighing_date: qaFormData.date });
       } else if (qaModal.type === 'vaccine') {
-        await registerVaccination(animal.id, { vaccine_name: qaFormData.name, application_date: qaFormData.date });
+        const selectedVaccine = vaccineItems.find((v: any) => String(v.id) === String(qaFormData.vaccine_item_id));
+        await registerVaccination(animal.id, {
+          vaccine_item_id: qaFormData.vaccine_item_id,
+          vaccine_name: selectedVaccine?.nome || '',
+          application_date: qaFormData.date
+        });
       } else if (qaModal.type === 'mating') {
         await registerMating(animal.id, { mating_date: qaFormData.date, mating_type: qaFormData.mating_type, sire_info: qaFormData.sire });
       }
@@ -527,7 +534,15 @@ export default function AnimalDetailPage() {
           )}
           {qaModal.type === 'vaccine' && (
             <>
-              <Input label="Nome da Vacina" required value={qaFormData.name || ''} onChange={e => setQaFormData({...qaFormData, name: e.target.value})} />
+              <div className="form-group mb-3">
+                <label className="form-label small fw-medium text-foreground">Vacina <span className="text-danger">*</span></label>
+                <select className="form-select bg-card text-foreground border-border rounded-3" required value={qaFormData.vaccine_item_id || ''} onChange={e => setQaFormData({...qaFormData, vaccine_item_id: e.target.value})}>
+                  <option value="">{vaccineItems.length === 0 ? 'Nenhuma vacina no estoque' : 'Selecione a vacina...'}</option>
+                  {vaccineItems.map((v: any) => (
+                    <option key={v.id} value={v.id}>{v.nome}{v.estoque_atual ? ` (Estoque: ${v.estoque_atual})` : ''}</option>
+                  ))}
+                </select>
+              </div>
               <Input label="Data" type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
             </>
           )}

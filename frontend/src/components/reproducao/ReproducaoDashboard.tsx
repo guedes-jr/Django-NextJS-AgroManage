@@ -19,6 +19,7 @@ import {
 import { ReproducaoModal, ModalField } from "./ReproducaoModal";
 import { apiClient } from "@/services/api";
 import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
+import { HistoryTimeline, TimelineEvent } from "@/components/ui/HistoryTimeline";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -260,7 +261,8 @@ import {
   createAnimalBatch,
   updateAnimalBatch,
   updatePregnancy,
-  fetchAnimalDetails
+  fetchAnimalDetails,
+  fetchAnimalHistory
 } from "@/services/livestockService";
 
 import { useRouter } from "next/navigation";
@@ -289,8 +291,34 @@ export function ReproducaoDashboard({
   const [noReproducersWarningOpen, setNoReproducersWarningOpen] = useState(false);
   const [allSemenItems, setAllSemenItems] = useState<any[]>([]);
   const [semenItems, setSemenItems] = useState<any[]>([]);
+  const [vaccineItems, setVaccineItems] = useState<any[]>([]);
   const [batchSheetOpen, setBatchSheetOpen] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<string | number | null>(null);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyEvents, setHistoryEvents] = useState<TimelineEvent[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const TYPE_ICON: Record<string, string> = {
+    mating: '🤰',
+    pregnancy: '✅',
+    birth: '🍼',
+    weight: '⚖️',
+    vaccination: '💉',
+    health: '🩺',
+    feeding: '🌾',
+    historico_evento: '📌',
+  };
+
+  const TYPE_COLOR: Record<string, 'success' | 'info' | 'warning' | 'system'> = {
+    mating: 'info',
+    pregnancy: 'success',
+    birth: 'success',
+    weight: 'system',
+    vaccination: 'info',
+    health: 'warning',
+    feeding: 'system',
+    historico_evento: 'warning',
+  };
 
   useEffect(() => {
     const fetchSemen = async () => {
@@ -318,6 +346,20 @@ export function ReproducaoDashboard({
     };
     fetchSemen();
   }, [config.especie]);
+
+  useEffect(() => {
+    const fetchVaccines = async () => {
+      try {
+        const { data } = await apiClient.get("/inventory/items/all_items/", {
+          params: { categoria: "vacina" }
+        });
+        setVaccineItems(data || []);
+      } catch (err) {
+        console.error("Erro ao buscar vacinas do estoque:", err);
+      }
+    };
+    fetchVaccines();
+  }, []);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = controlledOnTabChange ?? setInternalActiveTab;
@@ -560,10 +602,15 @@ export function ReproducaoDashboard({
           }
         });
         break;
-      case 'vaccine':
+      case 'vaccine': {
+        const vaccineOpts = (vaccineItems || []).map(v => ({
+          value: String(v.id),
+          label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+        }));
         setActionModal({
           open: true,
-          title: "Registrar Vacina / Medicamento",
+          title: "Registrar Vacina",
+          subtitle: vaccineItems.length === 0 ? "Nenhuma vacina cadastrada no estoque." : undefined,
           fields: [
             { 
               name: "id", 
@@ -572,7 +619,7 @@ export function ReproducaoDashboard({
               options: animalOptions,
               required: true 
             },
-            { name: "vaccine_name", label: "Nome do Produto", type: "text", required: true },
+            { name: "vaccine_item_id", label: "Vacina", type: "select", options: vaccineOpts, required: true, placeholder: "Selecione a vacina..." },
             { name: "application_date", label: "Data de Aplicação", type: "date", required: true },
             { name: "dose_type", label: "Tipo de Dose", type: "select", options: [
               { value: "unica", label: "Dose Única" },
@@ -587,6 +634,7 @@ export function ReproducaoDashboard({
           }
         });
         break;
+      }
       case 'diagnosis':
         setActionModal({
           open: true,
@@ -633,9 +681,11 @@ export function ReproducaoDashboard({
           fields: [
             { 
               name: "id", 
-              label: "Matriz (Brinco)", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)", 
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
               options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              disabled: rows.length >= 1,
               required: true 
             },
             { name: "data_descarte", label: "Data do Descarte", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
@@ -652,7 +702,11 @@ export function ReproducaoDashboard({
             { name: "observacao", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
-            await discardAnimal(data.id, data);
+            if (rows.length > 1) {
+              await Promise.all(rows.map(r => discardAnimal(r.id as number, data)));
+            } else {
+              await discardAnimal(data.id, data);
+            }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -665,9 +719,11 @@ export function ReproducaoDashboard({
           fields: [
             { 
               name: "id", 
-              label: "Gestação / Matriz", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+              label: rows.length > 1 ? "Gestação / Matriz" : "Gestação / Matriz", 
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
               options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              disabled: rows.length >= 1,
               required: true 
             },
             { name: "data", label: "Data da Perda", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
@@ -680,7 +736,11 @@ export function ReproducaoDashboard({
             { name: "observacao", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
-            await registerLoss(data.id, data);
+            if (rows.length > 1) {
+              await Promise.all(rows.map(r => registerLoss(r.id as number, data)));
+            } else {
+              await registerLoss(data.id, data);
+            }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -694,8 +754,10 @@ export function ReproducaoDashboard({
             { 
               name: "id", 
               label: "Leitegada / Matriz", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
               options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              disabled: rows.length >= 1,
               required: true 
             },
             { name: "data", label: "Data do Procedimento", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
@@ -714,7 +776,11 @@ export function ReproducaoDashboard({
             { name: "observacao", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
-            await registerProcedure(data.id, data);
+            if (rows.length > 1) {
+              await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
+            } else {
+              await registerProcedure(data.id, data);
+            }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -728,8 +794,10 @@ export function ReproducaoDashboard({
             { 
               name: "id", 
               label: "Leitegada / Matriz", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
               options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              disabled: rows.length >= 1,
               required: true 
             },
             { name: "data", label: "Data do Óbito", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
@@ -745,7 +813,11 @@ export function ReproducaoDashboard({
             { name: "observacao", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
-            await registerMortality(data.id, data);
+            if (rows.length > 1) {
+              await Promise.all(rows.map(r => registerMortality(r.id as number, data)));
+            } else {
+              await registerMortality(data.id, data);
+            }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -1151,6 +1223,25 @@ export function ReproducaoDashboard({
           }
         });
         break;
+      case 'history':
+        if (rows.length > 0) {
+          setHistoryModalOpen(true);
+          setHistoryLoading(true);
+          setHistoryEvents([]);
+          fetchAnimalHistory(rows[0].id).then((events: any[]) => {
+            setHistoryEvents(events.map((e: any) => ({
+              date: e.date,
+              icon: TYPE_ICON[e.type as string] || '📋',
+              text: `${e.title} — ${e.subtitle}`,
+              type: TYPE_COLOR[e.type as string] || 'system',
+            })));
+          }).catch(() => {
+            showToast("Erro ao carregar histórico", "error");
+          }).finally(() => {
+            setHistoryLoading(false);
+          });
+        }
+        break;
       case 'technical_sheet':
         if (rows.length > 0) {
           setBatchSheetOpen(true);
@@ -1256,31 +1347,38 @@ export function ReproducaoDashboard({
 
   const handlePrimaryConfirm = async (data: Record<string, string>) => {
     if (currentTab?.primaryActionLabel === "Registrar Cobertura") {
-      let computedSireInfo = data.sire_info || "";
-      if (data.material_origin === "semen" && data.semen_item_id) {
-        const selectedSemen = (semenItems || []).find(s => String(s.id) === String(data.semen_item_id));
+      // Support both the simplified primary form and the rich mating_marra form
+      const mating_type = data.mating_type || (data.tipo === "IA" ? "ai" : data.tipo === "MN" ? "natural" : "natural");
+      const sire_info = data.sire_info || data.reprodutor || "";
+      const material_origin = data.material_origin || "";
+      const semen_item_id = data.semen_item_id || null;
+
+      let computedSireInfo = sire_info;
+      if (material_origin === "semen" && semen_item_id) {
+        const selectedSemen = (semenItems || []).find(s => String(s.id) === String(semen_item_id));
         if (selectedSemen) {
           computedSireInfo = `Sêmen: ${selectedSemen.nome}`;
         }
       }
 
       // 1. Save using createMating
+      const female_id = data.matriz || data.id || data.female_identifier || "";
       await createMating({
-        female_identifier: data.matriz,
-        mating_date: data.data_cobertura,
-        mating_type: data.tipo === "IA" ? "ai" : "natural",
+        female_identifier: female_id,
+        mating_date: data.data_cobertura || data.mating_date,
+        mating_type: mating_type,
         sire_info: computedSireInfo,
-        ...(data.material_origin !== "semen" && data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
+        ...(material_origin !== "semen" && data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
       });
 
       // 2. Perform inventory consumption if semen is used
-      if (data.tipo === "IA" && data.material_origin === "semen" && data.semen_item_id) {
+      if (mating_type === "ai" && material_origin === "semen" && semen_item_id) {
         try {
           await apiClient.post("/inventory/movimentacoes/", {
-            item: data.semen_item_id,
+            item: semen_item_id,
             tipo: "consumo",
             quantidade: 1.0,
-            observacao: `Consumo automático por Inseminação Artificial na fêmea ${data.matriz}.`,
+            observacao: `Consumo automático por Inseminação Artificial na fêmea ${female_id}.`,
           });
         } catch (movErr) {
           console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);
@@ -1467,6 +1565,30 @@ export function ReproducaoDashboard({
           }}
           batchId={selectedBatchId}
         />
+      )}
+
+      {/* ─── History Modal ─── */}
+      {historyModalOpen && (
+        <div className="repro-modal-overlay" onClick={() => setHistoryModalOpen(false)}>
+          <div className="repro-modal" onClick={e => e.stopPropagation()}>
+            <div className="repro-modal-header">
+              <div>
+                <div className="repro-modal-title">📋 Histórico da Matriz</div>
+                <div className="repro-modal-subtitle">Linha do tempo de eventos</div>
+              </div>
+              <button className="repro-modal-close" onClick={() => setHistoryModalOpen(false)} type="button">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="repro-modal-body">
+              {historyLoading ? (
+                <div className="d-flex justify-content-center py-5"><Loader2 size={32} className="spin-animation text-muted" /></div>
+              ) : (
+                <HistoryTimeline events={historyEvents} />
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ─── Generic Action Modal ─── */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, Loader2, ChevronRight, Syringe, Calendar, Users, Activity } from "lucide-react";
 import Link from "next/link";
 import { clinicalService } from "@/services/clinicalService";
+import { fetchVaccines } from "@/services/livestockService";
 import { DataTable } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { ClinicalModal, ModalField } from "@/components/clinico/ClinicalModal";
@@ -13,6 +14,7 @@ export default function VacinacaoPage() {
   const [loading, setLoading] = useState(true);
   const [vaccinations, setVaccinations] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [vaccineItems, setVaccineItems] = useState<any[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -29,6 +31,7 @@ export default function VacinacaoPage() {
 
   useEffect(() => {
     fetchData();
+    fetchVaccines().then(setVaccineItems).catch(() => {});
   }, []);
 
   const formatDate = (dateStr: string) => {
@@ -82,10 +85,12 @@ export default function VacinacaoPage() {
 
   const handleCreateVaccination = async (data: any) => {
     try {
+      const selectedVaccine = vaccineItems.find((v: any) => String(v.id) === String(data.vaccine_item_id));
       const payload = {
         animal_identifier: data.target_type === "animal" ? data.animal_identifier : "",
         batch_code: data.target_type === "batch" ? data.batch_code : "",
-        vaccine_name: data.vaccine_name,
+        vaccine_item_id: data.vaccine_item_id || null,
+        vaccine_name: selectedVaccine?.nome || data.vaccine_name || '',
         application_date: data.application_date,
         dose_type: data.dose_type,
         dosage_ml: data.dosage_ml ? parseFloat(data.dosage_ml) : null,
@@ -134,7 +139,21 @@ export default function VacinacaoPage() {
       colSpan: "half",
       showIf: (values) => values.target_type === "batch",
     },
-    { name: "vaccine_name", label: "Nome da Vacina", type: "text", required: true, colSpan: "half" },
+    {
+      name: "vaccine_item_id",
+      label: "Vacina",
+      type: "select",
+      required: true,
+      colSpan: "half",
+      options: (vaccineItems.length > 0
+        ? vaccineItems.map((v: any) => ({
+            value: String(v.id),
+            label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual})` : ''}`,
+          }))
+        : [{ value: "", label: "Nenhuma vacina no estoque" }]
+      ),
+      initialValue: vaccineItems.length > 0 ? String(vaccineItems[0].id) : "",
+    },
     {
       name: "application_date",
       label: "Data da Aplicação",

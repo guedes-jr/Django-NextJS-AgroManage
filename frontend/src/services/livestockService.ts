@@ -124,9 +124,14 @@ export const registerWeight = async (animalId: number | string, data: { weight_k
   return response.data;
 };
 
-export const registerVaccination = async (animalId: number | string, data: { vaccine_name: string; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
+export const registerVaccination = async (animalId: number | string, data: { vaccine_name?: string; vaccine_item_id?: number; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
   const response = await apiClient.post(`/livestock/animals/${animalId}/register-vaccination/`, data);
   return response.data;
+};
+
+export const fetchVaccines = async (): Promise<any[]> => {
+  const { data } = await apiClient.get("/inventory/items/all_items/", { params: { categoria: "vacina" } });
+  return data || [];
 };
 
 export const diagnosePregnancy = async (animalId: number | string, result: 'positive' | 'negative', diagnosisDate?: string) => {

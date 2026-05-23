@@ -1,6 +1,6 @@
 "use client";
 
-interface TimelineEvent {
+export interface TimelineEvent {
   date: string;
   icon: string;
   text: string;

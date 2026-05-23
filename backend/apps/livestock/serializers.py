@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento
 from collections import Counter
 
@@ -80,6 +81,21 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError("Batch code é obrigatório e não pode estar vazio.")
         return value.strip()
+
+    def validate(self, data):
+        """Validação de fase produtiva para lotes comprados."""
+        origin = data.get('origin')
+        phase = data.get('phase')
+
+        if origin == AnimalBatch.Origin.PURCHASED and not phase:
+            category = data.get('category', '')
+            repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor', 'Poedeira']
+            if category not in repro_categories:
+                raise serializers.ValidationError(
+                    {'phase': 'Fase produtiva é obrigatória para lotes comprados não-reprodutivos.'}
+                )
+
+        return data
 
     def validate_entry_date(self, value):
         """Validate entry_date format."""
@@ -189,43 +205,58 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         source_batch_ids = validated_data.pop('source_batch_ids', [])
         
         try:
-            # ── Fase 2: Mapeamento automático categoria → fase produtiva ──────────
-            # Se o payload não traz phase explicitamente, derivar da categoria
-            if not validated_data.get('phase') and validated_data.get('category'):
-                auto_phase = CATEGORY_TO_PHASE.get(validated_data['category'])
-                if auto_phase:
-                    validated_data['phase'] = auto_phase
-            # ─────────────────────────────────────────────────────────────────────
+            with transaction.atomic():
+                # ── Fase 2: Mapeamento automático categoria → fase produtiva ──────────
+                # Se o payload não traz phase explicitamente, derivar da categoria
+                if not validated_data.get('phase') and validated_data.get('category'):
+                    auto_phase = CATEGORY_TO_PHASE.get(validated_data['category'])
+                    if auto_phase:
+                        validated_data['phase'] = auto_phase
+                # ─────────────────────────────────────────────────────────────────────
 
-            batch = super().create(validated_data)
-            if source_batch_ids:
-                batch.source_batches.set(source_batch_ids)
+                batch = super().create(validated_data)
+                if source_batch_ids:
+                    batch.source_batches.set(source_batch_ids)
 
-            # ── Fase 2: Registrar HistoricoEvento de entrada na fase produtiva ──
-            if batch.phase and batch.origin == AnimalBatch.Origin.PURCHASED:
-                phase_labels = {
-                    'creche': 'Creche',
-                    'crescimento': 'Crescimento',
-                    'engorda': 'Engorda',
-                }
-                phase_label = phase_labels.get(batch.phase, batch.phase.capitalize())
-                HistoricoEvento.objects.create(
-                    farm=batch.farm,
-                    tipo_evento='Entrada de Lote',
-                    descricao=(
-                        f"Lote {batch.batch_code} cadastrado como comprado e "
-                        f"enviado automaticamente para a fase {phase_label}."
-                    ),
-                    data_evento=batch.entry_date,
-                    lote=batch,
-                    metadata={
-                        'fase': batch.phase,
-                        'categoria': batch.category,
-                        'quantidade': batch.quantity,
-                        'origem': batch.origin,
+                # ── Registrar BatchPhaseHistory da fase inicial ──
+                if batch.phase:
+                    from .models import BatchPhaseHistory
+                    BatchPhaseHistory.objects.create(
+                        batch=batch,
+                        phase=batch.phase,
+                        quantity=batch.quantity,
+                        avg_weight_kg=batch.avg_weight_kg,
+                        entry_date=batch.entry_date,
+                    )
+
+                # ── Fase 2: Registrar HistoricoEvento de entrada na fase produtiva ──
+                if batch.phase:
+                    origin_label = dict(AnimalBatch.Origin.choices).get(batch.origin, batch.origin)
+                    phase_labels = {
+                        'creche': 'Creche',
+                        'crescimento': 'Crescimento',
+                        'engorda': 'Engorda',
+                        'gestacao': 'Gestação',
+                        'maternidade': 'Maternidade',
                     }
-                )
-            # ─────────────────────────────────────────────────────────────────────
+                    phase_label = phase_labels.get(batch.phase, batch.phase.capitalize())
+                    HistoricoEvento.objects.create(
+                        farm=batch.farm,
+                        tipo_evento='Entrada de Lote',
+                        descricao=(
+                            f"Lote {batch.batch_code} cadastrado (origem: {origin_label}) "
+                            f"na fase {phase_label}."
+                        ),
+                        data_evento=batch.entry_date,
+                        lote=batch,
+                        metadata={
+                            'fase': batch.phase,
+                            'categoria': batch.category,
+                            'quantidade': batch.quantity,
+                            'origem': batch.origin,
+                        }
+                    )
+                # ─────────────────────────────────────────────────────────────────────
 
             # If it's a reproductive category, create individual animals for tracking
             repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor']
@@ -437,9 +468,38 @@ class IncubationSerializer(serializers.ModelSerializer):
 
 
 class VaccinationRecordSerializer(serializers.ModelSerializer):
+    vaccine_item_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    vaccine_item_name = serializers.CharField(source='vaccine_item.nome', read_only=True, default=None)
+
     class Meta:
         model = VaccinationRecord
         fields = '__all__'
+        extra_kwargs = {
+            'vaccine_item': {'read_only': True},
+        }
+
+    def validate_vaccine_item_id(self, value):
+        if value is None:
+            return value
+        from apps.inventory.models import ItemEstoque
+        try:
+            item = ItemEstoque.objects.get(id=value, categoria='vacina')
+        except ItemEstoque.DoesNotExist:
+            raise serializers.ValidationError("Vacina não encontrada no estoque.")
+        return value
+
+    def create(self, validated_data):
+        vaccine_item_id = validated_data.pop('vaccine_item_id', None)
+        if vaccine_item_id:
+            from apps.inventory.models import ItemEstoque
+            try:
+                item = ItemEstoque.objects.get(id=vaccine_item_id)
+                validated_data['vaccine_item'] = item
+                if not validated_data.get('vaccine_name'):
+                    validated_data['vaccine_name'] = item.nome
+            except ItemEstoque.DoesNotExist:
+                pass
+        return super().create(validated_data)
 
 
 class WeightRecordSerializer(serializers.ModelSerializer):

@@ -280,6 +280,7 @@ class Birth(BaseModel):
     live_born = models.PositiveIntegerField(default=0)
     stillborn = models.PositiveIntegerField(default=0)
     mummified = models.PositiveIntegerField(default=0)
+    mortality = models.PositiveIntegerField(default=0, help_text="Mortalidade pós-parto (registrada durante maternidade)")
     avg_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text="Peso médio dos leitões ao nascimento")
     
     notes = models.TextField(blank=True)
@@ -396,6 +397,13 @@ class VaccinationRecord(BaseModel):
     batch = models.ForeignKey("AnimalBatch", on_delete=models.SET_NULL, null=True, blank=True, related_name="vaccinations")
 
     vaccine_name = models.CharField(max_length=100)
+    vaccine_item = models.ForeignKey(
+        "inventory.ItemEstoque",
+        on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="vacinacoes",
+        help_text="Item do estoque (vacina) vinculado"
+    )
     application_date = models.DateField()
     next_dose_date = models.DateField(null=True, blank=True)
     dose_type = models.CharField(max_length=20, choices=DoseType.choices, default=DoseType.UNICA)
