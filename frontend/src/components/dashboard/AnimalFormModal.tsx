@@ -37,6 +37,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       valor: "", 
       granjaOrigem: "",
       quantidade: "1",
+      faseAtual: "",
       // Filiação
       sireName: "",
       damName: "",
@@ -62,12 +63,36 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
         valor: "", 
         granjaOrigem: "",
         quantidade: "1",
+        faseAtual: getCategoryPhase(initialData?.categoria || ""),
         sireName: "",
         damName: "",
       }]);
       setShowFiliation({});
     }
   }, [isOpen, initialData, type]);
+
+  // Mapeamento categoria → fase produtiva padrão
+  const getCategoryPhase = (cat: string): string => {
+    const map: Record<string, string> = {
+      'Leitão': 'creche',
+      'Terminação': 'engorda',
+    };
+    return map[cat] || '';
+  };
+
+  // Categorias reprodutivas: não precisam de fase produtiva
+  const REPRO_CATEGORIES = ['Matríz', 'Matriz', 'Marrã', 'Cachaço', 'Reprodutor', 'Touro', 'Novilha', 'Vaca', 'Poedeira'];
+
+  const isBatchCategory = (cat: string) => {
+    return !REPRO_CATEGORIES.includes(cat) && cat !== '';
+  };
+
+  const FASE_PRODUTIVA_OPTIONS = [
+    { value: 'creche', label: 'Creche (Leitão)' },
+    { value: 'crescimento', label: 'Crescimento' },
+    { value: 'engorda', label: 'Engorda / Terminação' },
+  ];
+
 
   const addRow = () => {
     setRows([...rows, { 
@@ -84,6 +109,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       valor: "", 
       granjaOrigem: "",
       quantidade: "1",
+      faseAtual: getCategoryPhase(initialData?.categoria || ""),
       sireName: "",
       damName: "",
     }]);
@@ -96,7 +122,15 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
   };
 
   const updateRow = (id: number, field: string, value: string) => {
-    setRows(rows.map((r) => r.id === id ? { ...r, [field]: value } : r));
+    setRows(rows.map((r) => {
+      if (r.id !== id) return r;
+      const updated = { ...r, [field]: value };
+      // Auto-preenche faseAtual ao mudar categoria
+      if (field === 'categoria') {
+        updated.faseAtual = getCategoryPhase(value);
+      }
+      return updated;
+    }));
   };
 
   const handleSubmit = () => {
@@ -119,6 +153,15 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       if (!row.dataCompra && !row.nascimento) {
         errors.push(`Registro #${index + 1}: Data de compra ou nascimento é obrigatória`);
       }
+      // Fase 2: validar fase produtiva para lotes comprados não-reprodutivos
+      if (
+        type === 'suinos' &&
+        row.origem === 'Comprado' &&
+        isBatchCategory(row.categoria) &&
+        !row.faseAtual
+      ) {
+        errors.push(`Registro #${index + 1}: Fase produtiva é obrigatória para lotes comprados`);
+      }
     });
 
     if (errors.length > 0) {
@@ -130,7 +173,7 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
     onSave(payload);
     onClose();
     setTimeout(() => {
-      setRows([{ id: Date.now(), numero: "", nome: "", categoria: "", sexo: "", origem: "Comprado", raca: "", nascimento: "", dataCompra: "", peso: "", valor: "", granjaOrigem: "", quantidade: "1", sireName: "", damName: "" }]);
+      setRows([{ id: Date.now(), numero: "", nome: "", categoria: "", sexo: "", origem: "Comprado", raca: "", nascimento: "", dataCompra: "", peso: "", valor: "", granjaOrigem: "", quantidade: "1", faseAtual: "", sireName: "", damName: "" }]);
       setShowFiliation({});
     }, 300);
   };
@@ -289,6 +332,48 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                         </select>
                      </div>
                   </div>
+
+                  {/* Fase 2: Campo de Fase Produtiva — apenas suínos, origem Comprado, categoria não-reprodutiva */}
+                  <AnimatePresence>
+                    {type === 'suinos' && row.origem === 'Comprado' && isBatchCategory(row.categoria) && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="col-12 col-md-3"
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div className="login-input-group mb-0">
+                          <label className="login-label fw-bold" style={{ color: 'var(--primary)' }}>
+                            Fase Produtiva <span className="text-danger">*</span>
+                          </label>
+                          <div
+                            className="rounded-2 p-1"
+                            style={{
+                              background: 'color-mix(in srgb, var(--primary), transparent 93%)',
+                              border: '1px solid color-mix(in srgb, var(--primary), transparent 65%)',
+                            }}
+                          >
+                            <select
+                              className="login-input bg-transparent text-foreground fw-semibold border-0 shadow-none"
+                              style={{ paddingLeft: '0.75rem', outline: 'none' }}
+                              value={row.faseAtual}
+                              onChange={(e) => updateRow(row.id, 'faseAtual', e.target.value)}
+                            >
+                              <option value="">Selecione a fase...</option>
+                              {FASE_PRODUTIVA_OPTIONS.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <span className="small mt-1 d-block" style={{ color: 'var(--primary)', opacity: 0.8 }}>
+                            O lote será direcionado automaticamente para esta aba.
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
                         <label className="login-label">Nome (Alternativo)</label>

@@ -1,7 +1,15 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
-from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord
+from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento
 from collections import Counter
+
+# Mapeamento automático de categoria de lote → fase produtiva
+CATEGORY_TO_PHASE = {
+    'Leitão': 'creche',
+    'Crescimento': 'crescimento',
+    'Terminação': 'engorda',
+    'Engorda': 'engorda',
+}
 
 class AnimalBatchListSerializer(serializers.ListSerializer):
     """Custom ListSerializer to detect duplicates within the bulk request."""
@@ -181,10 +189,44 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         source_batch_ids = validated_data.pop('source_batch_ids', [])
         
         try:
+            # ── Fase 2: Mapeamento automático categoria → fase produtiva ──────────
+            # Se o payload não traz phase explicitamente, derivar da categoria
+            if not validated_data.get('phase') and validated_data.get('category'):
+                auto_phase = CATEGORY_TO_PHASE.get(validated_data['category'])
+                if auto_phase:
+                    validated_data['phase'] = auto_phase
+            # ─────────────────────────────────────────────────────────────────────
+
             batch = super().create(validated_data)
             if source_batch_ids:
                 batch.source_batches.set(source_batch_ids)
-            
+
+            # ── Fase 2: Registrar HistoricoEvento de entrada na fase produtiva ──
+            if batch.phase and batch.origin == AnimalBatch.Origin.PURCHASED:
+                phase_labels = {
+                    'creche': 'Creche',
+                    'crescimento': 'Crescimento',
+                    'engorda': 'Engorda',
+                }
+                phase_label = phase_labels.get(batch.phase, batch.phase.capitalize())
+                HistoricoEvento.objects.create(
+                    farm=batch.farm,
+                    tipo_evento='Entrada de Lote',
+                    descricao=(
+                        f"Lote {batch.batch_code} cadastrado como comprado e "
+                        f"enviado automaticamente para a fase {phase_label}."
+                    ),
+                    data_evento=batch.entry_date,
+                    lote=batch,
+                    metadata={
+                        'fase': batch.phase,
+                        'categoria': batch.category,
+                        'quantidade': batch.quantity,
+                        'origem': batch.origin,
+                    }
+                )
+            # ─────────────────────────────────────────────────────────────────────
+
             # If it's a reproductive category, create individual animals for tracking
             repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor']
             if batch.category in repro_categories:

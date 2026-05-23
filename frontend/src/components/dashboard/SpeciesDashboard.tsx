@@ -72,6 +72,12 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
 
   const handleSaveAnimals = async (payload: any[]) => {
     try {
+      const PHASE_LABELS: Record<string, string> = {
+        creche: 'Creche',
+        crescimento: 'Crescimento',
+        engorda: 'Engorda',
+      };
+
       const formattedPayload = payload.map(row => ({
         batch_code: row.numero,
         quantity: parseInt(row.quantidade, 10) || 1,
@@ -84,12 +90,23 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         entry_date: row.dataCompra || row.nascimento || new Date().toISOString().split('T')[0],
         status: "active",
         species_code_input: species,
-        breed_name_input: row.raca
+        breed_name_input: row.raca,
+        // Fase 2: enviar fase produtiva ao backend
+        ...(row.faseAtual ? { phase: row.faseAtual } : {}),
       }));
+
+      // Montar mensagem de sucesso com informação de fase
+      const fasesMensagem = formattedPayload
+        .filter(r => r.phase)
+        .map(r => PHASE_LABELS[r.phase] || r.phase);
+      const uniqueFases = [...new Set(fasesMensagem)];
 
       console.log("Sending payload from SpeciesDashboard:", formattedPayload);
       await apiClient.post("/livestock/batches/bulk_create_batches/", formattedPayload);
-      showToast("Registros salvos com sucesso! 🎉", "success", 15000);
+      const successMsg = uniqueFases.length > 0
+        ? `Lote cadastrado com sucesso e enviado para: ${uniqueFases.join(', ')}. 🎉`
+        : "Registros salvos com sucesso! 🎉";
+      showToast(successMsg, "success", 15000);
       await fetchAnimals();
       setIsModalOpen(false);
     } catch (err: any) {
