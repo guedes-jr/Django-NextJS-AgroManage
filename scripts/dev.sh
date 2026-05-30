@@ -81,7 +81,7 @@ start_backend() {
   echo -e "${BACKEND_PREFIX} Starting Django dev server on http://localhost:8000 ..."
   source "$BACKEND_DIR/.venv/bin/activate"
   cd "$BACKEND_DIR"
-  stream_with_prefix "$BACKEND_PREFIX" python manage.py runserver 2>&1 &
+  stream_with_prefix "$BACKEND_PREFIX" "$BACKEND_DIR/.venv/bin/python" manage.py runserver 2>&1 &
   BACKEND_PID=$!
   echo -e "${BACKEND_PREFIX} PID: $BACKEND_PID"
 }

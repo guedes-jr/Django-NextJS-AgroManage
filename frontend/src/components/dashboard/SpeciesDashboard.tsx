@@ -8,6 +8,7 @@ import { Icon } from "lucide-react";
 import { cowHead, pigHead } from "@lucide/lab";
 import { motion, AnimatePresence } from "framer-motion";
 import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
+import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
 import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import "./animais.css";
@@ -49,9 +50,26 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   
   // States for List and Edit/Delete
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSheetAnimalId, setSelectedSheetAnimalId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingAnimal, setEditingAnimal] = useState<any>(null);
+  // Ficha Técnica: store the selected batch ID + which modal type to show
+  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null);
+  const [selectedSheetType, setSelectedSheetType] = useState<"batch" | "matriz" | "reprodutor" | null>(null);
+
+  const openTechnicalSheet = (row: any) => {
+    const category = (row?.category || "").toLowerCase();
+    const isMatriz = ["matriz", "marrã", "marra"].some(c => category.includes(c));
+    const isReprodutor = ["reprodutor", "cachaço", "cacho", "touro"].some(c => category.includes(c));
+    setSelectedSheetId(row.id);
+    if (isMatriz) setSelectedSheetType("matriz");
+    else if (isReprodutor) setSelectedSheetType("reprodutor");
+    else setSelectedSheetType("batch");
+  };
+
+  const closeTechnicalSheet = () => {
+    setSelectedSheetId(null);
+    setSelectedSheetType(null);
+  };
 
   const fetchAnimals = async () => {
     setLoading(true);
@@ -501,7 +519,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                             <td className="py-3 text-end pe-4">
                               <button 
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
-                                onClick={() => setSelectedSheetAnimalId(row.id)}
+                                onClick={() => openTechnicalSheet(row)}
                                 title="Visualizar Ficha Técnica"
                                 style={{ width: '36px', height: '36px' }}
                               >
@@ -558,13 +576,17 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         animal={editingAnimal}
       />
 
-      {selectedSheetAnimalId && (
-        <AnimalTechnicalSheetModal 
-          isOpen={!!selectedSheetAnimalId} 
-          onClose={() => setSelectedSheetAnimalId(null)} 
-          animalId={selectedSheetAnimalId} 
-        />
-      )}
+      {/* Ficha Técnica — sempre rendered mas apenas um isOpen=true */}
+      <AnimalTechnicalSheetModal
+        isOpen={selectedSheetType === "matriz" || selectedSheetType === "reprodutor"}
+        onClose={closeTechnicalSheet}
+        animalId={selectedSheetId || ""}
+      />
+      <BatchTechnicalSheetModal
+        isOpen={selectedSheetType === "batch"}
+        onClose={closeTechnicalSheet}
+        batchId={selectedSheetId || ""}
+      />
     </motion.div>
   );
 }
