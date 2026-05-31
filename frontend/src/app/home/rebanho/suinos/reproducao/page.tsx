@@ -335,7 +335,7 @@ function ReproducaoPageContent() {
                   return diagnosePregnancy(id, 'positive');
                 }));
                 showToast(`Prenhez confirmada para ${rows.length}!`, "success");
-                refetchTabs(["gestacao", "maternidade", "dashboard"], false, true);
+                refetchTabs(["gestacao", "maternidade", "dashboard", "matrizes"], false, true);
               } catch (err) {
                 showToast("Erro ao confirmar prenhez", "error");
               }

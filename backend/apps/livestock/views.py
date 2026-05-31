@@ -147,7 +147,10 @@ class MatrizesView(BasePhaseView):
         if vazias > 5:
             ai_suggestions.append({"text": f"Há {vazias} matrizes vazias. Revise o manejo reprodutivo."})
 
-        qs_paged, _ = self.paginate_queryset(request, qs)
+        # Filtrar a tabela para exibir apenas matrizes que precisam de manejo reprodutivo
+        qs_table = qs.filter(reproductive_status__in=['vazia', 'aguardando_cobertura', 'em_preparo', 'pronta', 'descanso', 'coberta'])
+        
+        qs_paged, _ = self.paginate_queryset(request, qs_table)
         rows = []
         for a in qs_paged:
             ultima_cob = a.matings_as_female.order_by('-mating_date').first()
