@@ -9,6 +9,9 @@ interface AnimalTechnicalSheetModalProps {
   isOpen: boolean;
   onClose: () => void;
   animalId: string | number;
+  /** "animal" = ID direto do Animal individual (p.ex. da página /suinos/animal/[id])
+   *  "batch"  = ID do AnimalBatch (p.ex. do card na listagem do rebaño) — default */
+  mode?: "animal" | "batch";
 }
 
 // ─── Shared Helpers ──────────────────────────────────────────────────────────
@@ -771,7 +774,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalTechnicalSheetModalProps) {
+export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "batch" }: AnimalTechnicalSheetModalProps) {
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -779,44 +782,59 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
   useEffect(() => {
     if (isOpen && animalId) {
       setLoading(true);
-      
-      // Step 1: Fetch batch details first to determine category
-      apiClient.get(`/livestock/batches/${animalId}/`)
-        .then((batchRes) => {
-          const batchData = batchRes.data;
-          const category = (batchData?.category || "").toLowerCase();
-          const isReproductive = ["matriz", "marrã", "reprodutor", "cachaço", "cacho", "touro", "vaca", "novilha"].some(
-            c => category.includes(c)
-          );
-          
-          if (isReproductive) {
-            // Step 2: Fetch individual animal details & history
-            return Promise.all([
-              apiClient.get(`/livestock/batches/${animalId}/animal-detail/`).catch(() => null),
-              apiClient.get(`/livestock/batches/${animalId}/animal-history/`).catch(() => null),
-            ]).then(([animalRes, historyRes]) => {
-              if (animalRes && animalRes.data) {
-                setAnimal(animalRes.data);
-                setHistory(historyRes?.data || []);
-              } else {
-                // Fallback to batch data if individual animal not found
-                setAnimal(batchData);
-                setHistory([]);
-              }
-            });
-          } else {
-            // Non-reproductive, just use the batch and its phase history
-            return apiClient.get(`/livestock/batches/${animalId}/history/`)
-              .then((histRes) => {
-                setAnimal(batchData);
-                setHistory(histRes.data || []);
-              });
+      setAnimal(null);
+      setHistory([]);
+
+      if (mode === "animal") {
+        // ── Modo Animal: ID já é de um Animal individual ─────────────────────
+        Promise.all([
+          apiClient.get(`/livestock/animals/${animalId}/`).catch(() => null),
+          apiClient.get(`/livestock/animals/${animalId}/full-history/`).catch(() => null),
+        ]).then(([animalRes, historyRes]) => {
+          if (animalRes?.data) {
+            setAnimal(animalRes.data);
+            setHistory(historyRes?.data || []);
           }
         })
         .catch(console.error)
         .finally(() => setLoading(false));
+
+      } else {
+        // ── Modo Batch: ID é de um AnimalBatch (fluxo original) ───────────────
+        apiClient.get(`/livestock/batches/${animalId}/`)
+          .then((batchRes) => {
+            const batchData = batchRes.data;
+            const category = (batchData?.category || "").toLowerCase();
+            const isReproductive = ["matriz", "marrã", "reprodutor", "cachaço", "cacho", "touro", "vaca", "novilha"].some(
+              c => category.includes(c)
+            );
+
+            if (isReproductive) {
+              return Promise.all([
+                apiClient.get(`/livestock/batches/${animalId}/animal-detail/`).catch(() => null),
+                apiClient.get(`/livestock/batches/${animalId}/animal-history/`).catch(() => null),
+              ]).then(([animalRes, historyRes]) => {
+                if (animalRes?.data) {
+                  setAnimal(animalRes.data);
+                  setHistory(historyRes?.data || []);
+                } else {
+                  setAnimal(batchData);
+                  setHistory([]);
+                }
+              });
+            } else {
+              return apiClient.get(`/livestock/batches/${animalId}/history/`)
+                .then((histRes) => {
+                  setAnimal(batchData);
+                  setHistory(histRes.data || []);
+                });
+            }
+          })
+          .catch(console.error)
+          .finally(() => setLoading(false));
+      }
     }
-  }, [isOpen, animalId]);
+  }, [isOpen, animalId, mode]);
 
   const handlePrint = () => window.print();
 

@@ -19,6 +19,7 @@ import {
 import { ReproducaoModal, ModalField } from "./ReproducaoModal";
 import { apiClient } from "@/services/api";
 import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
+import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 import { HistoryTimeline, TimelineEvent } from "@/components/ui/HistoryTimeline";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1557,14 +1558,26 @@ export function ReproducaoDashboard({
       )}
 
       {batchSheetOpen && selectedBatchId && (
-        <BatchTechnicalSheetModal
-          isOpen={batchSheetOpen}
-          onClose={() => {
-            setBatchSheetOpen(false);
-            setSelectedBatchId(null);
-          }}
-          batchId={selectedBatchId}
-        />
+        ["creche", "crescimento", "engorda"].includes(activeTab) ? (
+          <BatchTechnicalSheetModal
+            isOpen={batchSheetOpen}
+            onClose={() => {
+              setBatchSheetOpen(false);
+              setSelectedBatchId(null);
+            }}
+            batchId={selectedBatchId}
+          />
+        ) : (
+          <AnimalTechnicalSheetModal
+            isOpen={batchSheetOpen}
+            onClose={() => {
+              setBatchSheetOpen(false);
+              setSelectedBatchId(null);
+            }}
+            animalId={selectedBatchId}
+            mode="animal"
+          />
+        )
       )}
 
       {/* ─── History Modal ─── */}

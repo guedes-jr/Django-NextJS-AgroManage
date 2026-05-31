@@ -937,17 +937,17 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 margin: 0 !important; padding: 0 !important; background: white !important;
               }
               .unique-lote-print-sheet {
-                width: 100% !important;
-                min-height: 277mm !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                min-height: 297mm !important;
                 margin: 0 !important; padding: 0 !important;
                 box-shadow: none !important;
-                border: 2px solid #1b5e20 !important;
+                border: none !important;
                 background: white !important;
-                overflow: visible !important;
+                overflow: hidden !important;
                 display: flex !important; flex-direction: column !important;
-                page-break-inside: auto !important; break-after: auto !important;
               }
-              @page { size: A4 portrait; margin: 10mm; }
+              @page { size: A4 portrait; margin: 0; }
               }
               .ficha-lote-paper { box-sizing: border-box; }
             `}</style>

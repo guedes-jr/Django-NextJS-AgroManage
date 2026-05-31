@@ -510,7 +510,8 @@ export default function AnimalDetailPage() {
       <AnimalTechnicalSheetModal 
         isOpen={showTechnicalSheet} 
         onClose={() => setShowTechnicalSheet(false)} 
-        animalId={animal.id} 
+        animalId={animal.id}
+        mode="animal"
       />
 
       {/* Quick Action Modal */}
