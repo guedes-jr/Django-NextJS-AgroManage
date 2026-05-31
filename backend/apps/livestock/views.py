@@ -541,92 +541,274 @@ class EngordaView(BasePhaseView):
         })
 
 
+def build_reproductive_cycles(animal):
+    """
+    Retorna uma lista estruturada de ciclos reprodutivos para uma Matriz fêmea,
+    seguindo a cadeia: Cobertura ➔ Gestação ➔ Parto ➔ Desmame.
+    """
+    cycles = []
+    
+    # Se não for fêmea, retorna vazio
+    if animal.gender != 'F':
+        return cycles
+        
+    # Ordena as coberturas cronologicamente
+    matings = animal.matings_as_female.all().order_by('mating_date')
+    
+    for idx, m in enumerate(matings):
+        cycle = {
+            "cycle_number": idx + 1,
+            "mating_date": m.mating_date.isoformat() if m.mating_date else None,
+            "mating_type": m.mating_type,
+            "mating_type_display": m.get_mating_type_display(),
+            "sire_identifier": m.sire.identifier if m.sire else None,
+            "sire_info": m.sire_info,
+            "status": m.status,
+            "status_display": m.get_status_display(),
+            "expected_birth_date": m.expected_birth_date.isoformat() if m.expected_birth_date else None,
+            # Campos de Gestação
+            "gestation_days": None,
+            "pregnancy_confirmed": False,
+            "pregnancy_status": None,
+            # Campos de Parto
+            "birth_date": None,
+            "total_born": None,
+            "live_born": None,
+            "stillborn": None,
+            "mummified": None,
+            "mortality": 0,
+            "avg_birth_weight_kg": None,
+            # Campos de Desmame (Litter)
+            "weaning_date": None,
+            "weaned_quantity": None,
+            "avg_weaning_weight_kg": None,
+            "lactation_days": None,
+            "notes": m.notes,
+            # Retorno
+            "heat_return_date": None,
+        }
+        
+        # Verificar se há gestação associada
+        if hasattr(m, 'pregnancy'):
+            p = m.pregnancy
+            cycle["pregnancy_confirmed"] = p.status != 'failed'
+            cycle["pregnancy_status"] = p.status
+            if p.expected_birth_date:
+                cycle["expected_birth_date"] = p.expected_birth_date.isoformat()
+                
+            # Verificar se há parto associado à gestação
+            if hasattr(p, 'birth'):
+                b = p.birth
+                cycle["birth_date"] = b.birth_date.isoformat() if b.birth_date else None
+                cycle["total_born"] = b.total_born
+                cycle["live_born"] = b.live_born
+                cycle["stillborn"] = b.stillborn
+                cycle["mummified"] = b.mummified
+                cycle["mortality"] = b.mortality
+                cycle["avg_birth_weight_kg"] = float(b.avg_weight_kg) if b.avg_weight_kg else None
+                
+                if b.birth_date and m.mating_date:
+                    cycle["gestation_days"] = (b.birth_date - m.mating_date).days
+                
+                # Verificar se há desmame (Litter) associado ao parto
+                if hasattr(b, 'litter'):
+                    l = b.litter
+                    if l.weaning_date:
+                        cycle["weaning_date"] = l.weaning_date.isoformat()
+                        cycle["weaned_quantity"] = l.weaned_quantity
+                        cycle["avg_weaning_weight_kg"] = float(l.avg_weaning_weight_kg) if l.avg_weaning_weight_kg else None
+                        
+                        if b.birth_date:
+                            cycle["lactation_days"] = (l.weaning_date - b.birth_date).days
+                            
+        # Se a gestação ou a cobertura falhou, pode haver um evento de perda gestacional ou retorno ao cio
+        next_mating = matings[idx+1] if idx + 1 < len(matings) else None
+        
+        # Filtrar históricos no intervalo deste ciclo
+        historicos_ciclo = animal.historicos.filter(data_evento__gte=m.mating_date)
+        if next_mating:
+            historicos_ciclo = historicos_ciclo.filter(data_evento__lt=next_mating.mating_date)
+            
+        # Procurar por Diagnóstico de Gestação negativo ou Perda/Aborto
+        for h in historicos_ciclo:
+            if h.tipo_evento == 'Diagnóstico de Gestação' and h.metadata and h.metadata.get('resultado') == 'negative':
+                cycle["notes"] = h.descricao
+                cycle["heat_return_date"] = h.data_evento.isoformat()
+            elif h.tipo_evento == 'Perda Gestacional':
+                cycle["notes"] = h.descricao
+                cycle["heat_return_date"] = h.data_evento.isoformat()
+                
+        cycles.append(cycle)
+        
+    return cycles
+
+
 def build_animal_history(animal):
     """Retorna lista de eventos ordenados para um Animal individual."""
     events = []
 
     # 1. Matings
-    for m in animal.matings_as_female.all():
+    matings_qs = animal.matings_as_sire.all() if animal.gender == 'M' else animal.matings_as_female.all()
+    for m in matings_qs:
+        partner_label = f"Matriz: {m.female.identifier}" if animal.gender == 'M' else f"Reprodutor: {m.sire_info or (m.sire.identifier if m.sire else 'N/A')}"
         events.append({
             "type": "mating",
-            "date": m.mating_date,
+            "date": m.mating_date.isoformat() if m.mating_date else None,
             "title": f"Cobertura / Inseminação ({m.get_mating_type_display()})",
-            "subtitle": f"Reprodutor: {m.sire_info or (m.sire.identifier if m.sire else 'N/A')}",
-            "status": m.get_status_display()
+            "subtitle": partner_label,
+            "status": m.get_status_display(),
+            "details": {
+                "id": str(m.id),
+                "mating_type": m.mating_type,
+                "sire_identifier": m.sire.identifier if m.sire else None,
+                "sire_info": m.sire_info,
+                "female_identifier": m.female.identifier,
+                "expected_birth_date": m.expected_birth_date.isoformat() if m.expected_birth_date else None,
+                "status": m.status,
+                "notes": m.notes,
+            }
         })
 
     # 2. Pregnancies
     for p in animal.pregnancies.all():
         events.append({
             "type": "pregnancy",
-            "date": p.start_date,
+            "date": p.start_date.isoformat() if p.start_date else None,
             "title": "Gestação Confirmada",
             "subtitle": f"Previsão de parto: {p.expected_birth_date}",
-            "status": p.get_status_display()
+            "status": p.get_status_display(),
+            "details": {
+                "id": str(p.id),
+                "start_date": p.start_date.isoformat() if p.start_date else None,
+                "expected_birth_date": p.expected_birth_date.isoformat() if p.expected_birth_date else None,
+                "status": p.status,
+                "notes": p.notes,
+            }
         })
 
     # 3. Births
     for b in animal.births.all():
+        litter_info = None
+        if hasattr(b, 'litter'):
+            litter_info = {
+                "id": str(b.litter.id),
+                "weaning_date": b.litter.weaning_date.isoformat() if b.litter.weaning_date else None,
+                "weaned_quantity": b.litter.weaned_quantity,
+                "avg_weaning_weight_kg": float(b.litter.avg_weaning_weight_kg) if b.litter.avg_weaning_weight_kg else None,
+                "notes": b.litter.notes,
+            }
         events.append({
             "type": "birth",
-            "date": b.birth_date,
+            "date": b.birth_date.isoformat() if b.birth_date else None,
             "title": "Parto Realizado",
             "subtitle": f"Nascidos: {b.total_born} (Vivos: {b.live_born})",
-            "status": "Concluído"
+            "status": "Concluído",
+            "details": {
+                "id": str(b.id),
+                "birth_date": b.birth_date.isoformat() if b.birth_date else None,
+                "birth_order": b.birth_order,
+                "live_born": b.live_born,
+                "stillborn": b.stillborn,
+                "mummified": b.mummified,
+                "total_born": b.total_born,
+                "mortality": b.mortality,
+                "avg_weight_kg": float(b.avg_weight_kg) if b.avg_weight_kg else None,
+                "notes": b.notes,
+                "litter": litter_info,
+            }
         })
 
     # 4. Weights
     for w in animal.weights.all():
         events.append({
             "type": "weight",
-            "date": w.weighing_date,
+            "date": w.weighing_date.isoformat() if w.weighing_date else None,
             "title": "Registro de Peso",
             "subtitle": f"Peso: {w.weight_kg} kg",
-            "status": "Medição"
+            "status": "Medição",
+            "details": {
+                "id": str(w.id),
+                "weight_kg": float(w.weight_kg),
+                "weighing_date": w.weighing_date.isoformat() if w.weighing_date else None,
+                "notes": w.notes,
+            }
         })
 
     # 5. Vaccinations
     for v in animal.vaccinations.all():
         events.append({
             "type": "vaccination",
-            "date": v.application_date,
+            "date": v.application_date.isoformat() if v.application_date else None,
             "title": f"Vacinação: {v.vaccine_name}",
             "subtitle": f"Dose: {v.get_dose_type_display()}",
-            "status": "Aplicada"
+            "status": "Aplicada",
+            "details": {
+                "id": str(v.id),
+                "vaccine_name": v.vaccine_name,
+                "application_date": v.application_date.isoformat() if v.application_date else None,
+                "next_dose_date": v.next_dose_date.isoformat() if v.next_dose_date else None,
+                "dose_type": v.dose_type,
+                "dosage_ml": float(v.dosage_ml) if v.dosage_ml else None,
+                "notes": v.notes,
+            }
         })
 
     # 6. Health
     for h in animal.health_records.all():
         events.append({
             "type": "health",
-            "date": h.application_date,
+            "date": h.application_date.isoformat() if h.application_date else None,
             "title": f"Clínico: {h.get_treatment_type_display()}",
             "subtitle": h.description,
-            "status": "Registro"
+            "status": "Registro",
+            "details": {
+                "id": str(h.id),
+                "treatment_type": h.treatment_type,
+                "treatment_type_display": h.get_treatment_type_display(),
+                "description": h.description,
+                "application_date": h.application_date.isoformat() if h.application_date else None,
+                "veterinary": h.veterinary,
+                "cost": float(h.cost) if h.cost else None,
+                "notes": h.notes,
+            }
         })
 
     # 7. Feeding
     for f in animal.feeding_records.all():
         events.append({
             "type": "feeding",
-            "date": f.date,
+            "date": f.date.isoformat() if f.date else None,
             "title": f"Alimentação: {f.feed_type}",
             "subtitle": f"Quantidade: {f.quantity_kg} kg",
-            "status": "Registro"
+            "status": "Registro",
+            "details": {
+                "id": str(f.id),
+                "feed_type": f.feed_type,
+                "quantity_kg": float(f.quantity_kg),
+                "date": f.date.isoformat() if f.date else None,
+                "notes": f.notes,
+            }
         })
 
     # 8. Histórico Genérico (Descartes, Perdas, etc)
     for he in animal.historicos.all():
         events.append({
             "type": "historico_evento",
-            "date": he.data_evento,
+            "date": he.data_evento.isoformat() if he.data_evento else None,
             "title": he.tipo_evento,
             "subtitle": he.descricao,
-            "status": "Evento"
+            "status": "Evento",
+            "details": {
+                "id": str(he.id),
+                "tipo_evento": he.tipo_evento,
+                "descricao": he.descricao,
+                "data_evento": he.data_evento.isoformat() if he.data_evento else None,
+                "metadata": he.metadata,
+            }
         })
 
     # Sort events by date descending
-    events.sort(key=lambda x: x['date'], reverse=True)
+    events.sort(key=lambda x: x['date'] if x['date'] else '0000-00-00', reverse=True)
 
     return events
 

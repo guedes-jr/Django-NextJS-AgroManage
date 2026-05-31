@@ -20,8 +20,16 @@ const fmt = (v: any, decimals = 2) =>
 const fmtInt = (v: any) =>
   v != null && !isNaN(Number(v)) ? Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "-";
 
-const fmtDate = (d: any) =>
-  d ? new Date(d).toLocaleDateString("pt-BR") : "-";
+const fmtDate = (d: any) => {
+  if (!d) return "-";
+  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    const [year, month, day] = d.split("-");
+    return `${day}/${month}/${year}`;
+  }
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return d;
+  return dateObj.toLocaleDateString("pt-BR");
+};
 
 const calcAge = (birthDate: string | null) => {
   if (!birthDate) return null;
@@ -29,8 +37,37 @@ const calcAge = (birthDate: string | null) => {
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const years = Math.floor(days / 365);
   const months = Math.floor((days % 365) / 30);
-  if (years > 0) return `${years} anos e ${months} meses`;
-  return `${months} meses`;
+  if (years > 0) {
+    if (months > 0) return `${years} ano${years > 1 ? "s" : ""} e ${months} mê${months > 1 ? "ses" : "s"}`;
+    return `${years} ano${years > 1 ? "s" : ""}`;
+  }
+  return `${months} mê${months > 1 ? "ses" : "s"}`;
+};
+
+const fmtOrigin = (origin: string) => {
+  if (!origin) return "Nascida na Granja";
+  const mapping: Record<string, string> = {
+    purchased: "Compra Externa",
+    born: "Nascido na Granja",
+    donated: "Doação / Outro",
+  };
+  return mapping[origin.toLowerCase()] || origin;
+};
+
+const fmtReproductiveStatus = (status: string) => {
+  if (!status) return "ATIVA";
+  const mapping: Record<string, string> = {
+    vazia: "VAZIA",
+    em_preparo: "EM PREPARO",
+    pronta: "PRONTA P/ SERVIÇO",
+    coberta: "COBERTA (AGUARDANDO DG)",
+    gestante: "PRENHE / GESTANTE",
+    lactante: "LACTANTE / MATERNIDADE",
+    descanso: "EM DESCANSO",
+    ativa: "ATIVA",
+    aguardando_cobertura: "AGUARDANDO COBERTURA",
+  };
+  return mapping[status.toLowerCase()] || status.toUpperCase();
 };
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
@@ -124,41 +161,77 @@ const TR = ({ children, even, style, ...props }: TrProps) => (
 // ─── Matriz Template ─────────────────────────────────────────────────────────
 function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
   const ageString = calcAge(animal?.birth_date);
+  const cycles = animal?.reproductive_cycles || [];
   
   // History calculations
   const partos = history.filter((e: any) => e.type === "birth");
   const coberturas = history.filter((e: any) => e.type === "mating");
-  const desmames = history.filter((e: any) => e.type === "weaning");
+  const desmamesCount = cycles.filter((c: any) => c.weaning_date).length;
   const prenhezes = history.filter((e: any) => e.type === "pregnancy");
   
-  const numPartos = partos.length || 1;
-  const numCoberturas = coberturas.length || 2;
-  const numPrenhezes = prenhezes.length || 1;
-  const numDesmames = desmames.length || 1;
+  const numPartos = partos.length;
+  const numCoberturas = coberturas.length;
+  const numPrenhezes = prenhezes.length;
+  const numDesmames = desmamesCount;
   
-  const nascidosVivos = partos.reduce((acc: number, p: any) => acc + (p.born_alive || 16), 0);
-  const produtividade = numPartos > 0 ? (nascidosVivos / numPartos).toFixed(2) : "16.00";
-  const taxaPrenhez = numCoberturas > 0 ? ((numPrenhezes / numCoberturas) * 100).toFixed(2) : "50.00";
+  // Average farrowing interval in days
+  let avgInterval = "-";
+  if (partos.length > 1) {
+    const dates = partos
+      .map((p: any) => new Date(p.details?.birth_date || p.date))
+      .filter((d: any) => !isNaN(d.getTime()))
+      .sort((a: any, b: any) => a - b);
+    let totalDays = 0;
+    for (let i = 1; i < dates.length; i++) {
+      totalDays += Math.round((dates[i].getTime() - dates[i-1].getTime()) / (1000 * 60 * 60 * 24));
+    }
+    avgInterval = `${Math.round(totalDays / (dates.length - 1))} dias`;
+  }
+  
+  const nascidosVivos = partos.reduce((acc: number, p: any) => acc + (p.details?.live_born || 0), 0);
+  const produtividade = numPartos > 0 ? (nascidosVivos / numPartos).toFixed(1) : "0";
+  const taxaPrenhez = numCoberturas > 0 ? ((numPrenhezes / numCoberturas) * 100).toFixed(1) : "0";
 
-  // Dummy table data if history is empty
-  const histRow = [
-    { n: 1, dataCob: "20/03/2026", tipo: "IA", rep: "ANDRE", dataConf: "05/04/2026", diasGest: "114", dataParto: "10/07/2026", totalNasc: 18, vivos: 16, mortos: 1, natimortos: 1, dataDesm: "09/08/2026", desmamados: 15, diasLact: 30, retCio: "16/08/2026", obs: "-" },
-    { n: 2, dataCob: "16/08/2026", tipo: "IA", rep: "ANDRE", dataConf: "-", diasGest: "-", dataParto: "-", totalNasc: "-", vivos: "-", mortos: "-", natimortos: "-", dataDesm: "-", desmamados: "-", diasLact: "-", retCio: "-", obs: "Aguardando confirmação" }
-  ];
+  // Dynamic cycle table rows
+  const histRow = cycles.map((c: any) => ({
+    n: c.cycle_number,
+    dataCob: fmtDate(c.mating_date) || "-",
+    tipo: c.mating_type_display || c.mating_type || "-",
+    rep: c.sire_identifier || c.sire_info || "-",
+    dataConf: c.pregnancy_confirmed ? "Confirmada" : (c.pregnancy_status === "failed" ? "Falhou" : "-"),
+    diasGest: c.gestation_days || "-",
+    dataParto: fmtDate(c.birth_date) || "-",
+    totalNasc: c.total_born !== null ? c.total_born : "-",
+    vivos: c.live_born !== null ? c.live_born : "-",
+    mortos: c.stillborn !== null ? c.stillborn : "-",
+    natimortos: c.mummified !== null ? c.mummified : "-",
+    dataDesm: fmtDate(c.weaning_date) || "-",
+    desmamados: c.weaned_quantity !== null ? c.weaned_quantity : "-",
+    diasLact: c.lactation_days || "-",
+    retCio: fmtDate(c.heat_return_date) || "-",
+    obs: c.notes || "-"
+  }));
 
-  const vacinas = [
-    { vacina: "Parvovirose", data: "05/03/2026", prox: "-", obs: "Marrã" },
-    { vacina: "Leptospirose", data: "05/03/2026", prox: "-", obs: "Marrã" },
-    { vacina: "E. Coli", data: "05/03/2026", prox: "-", obs: "Marrã" },
-    { vacina: "Clostridiose", data: "15/06/2026", prox: "15/12/2026", obs: "Gestação" },
-    { vacina: "PPV", data: "15/06/2026", prox: "15/12/2026", obs: "Gestação" }
-  ];
+  // Dynamic Vaccinations
+  const vacinas = history
+    .filter((e: any) => e.type === "vaccination")
+    .map((v: any) => ({
+      vacina: v.details?.vaccine_name || v.title.replace("Vacinação: ", ""),
+      data: fmtDate(v.details?.application_date || v.date),
+      prox: fmtDate(v.details?.next_dose_date) || "-",
+      obs: v.details?.notes || v.subtitle || "-"
+    }));
 
-  const tratamentos = [
-    { prod: "Ivermectina", motivo: "Vermífugo", data: "01/02/2026", dose: "1mL/33kg", resp: "João" },
-    { prod: "Draxxin", motivo: "Respiratório", data: "15/03/2026", dose: "1mL/20kg", resp: "João" },
-    { prod: "Ferro Dextran", motivo: "Anemia", data: "25/06/2026", dose: "5mL", resp: "João" },
-  ];
+  // Dynamic Treatments / Medical records
+  const tratamentos = history
+    .filter((e: any) => e.type === "health")
+    .map((h: any) => ({
+      prod: h.details?.description || h.subtitle || "",
+      motivo: h.details?.treatment_type_display || h.title.replace("Clínico: ", "") || "Tratamento",
+      data: fmtDate(h.details?.application_date || h.date),
+      dose: h.details?.notes || "-",
+      resp: h.details?.veterinary || "Vet"
+    }));
 
   return (
     <>
@@ -203,20 +276,22 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
         <div style={{ borderRight: `2px solid ${GREEN_DARK}` }}>
           <SectionHeader number={1} title="IDENTIFICAÇÃO" />
           <div style={{ padding: "10px", display: "grid", gridTemplateColumns: "130px 1fr", rowGap: 8, fontSize: "0.65rem", alignItems: "center" }}>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧑‍🌾 Nome / Número:</span> <b>{animal?.identifier || "040"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏷️ Brinco:</span> <b>{animal?.earring || "040"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧬 Raça / Linhagem:</span> <b>{animal?.breed_name || "Tricross"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date) || "01/02/2020"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⏱️ Idade:</span> <b>{ageString || "4 anos e 2 meses"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧑‍🌾 Nome / Número:</span> <b>{animal?.identifier || "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏷️ Brinco:</span> <b>{animal?.identifier || "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧬 Raça / Linhagem:</span> <b>{animal?.breed_name || "Mestiça"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⏱️ Idade:</span> <b>{ageString || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📉 Categoria Atual:</span> 
-              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>GESTAÇÃO</span>
+              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{(animal?.category || "Matriz").toUpperCase()}</span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🩺 Situação:</span> 
-              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>PRENHE</span>
+              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{fmtReproductiveStatus(animal?.reproductive_status)}</span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>✅ Status:</span> 
-              <span style={{ background: "#1b5e20", color: "#fff", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle2 size={12}/> ATIVA</span>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>01/02/2026</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>Nascida na Granja</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📝 Observações:</span> <b>-</b>
+              <span style={{ background: animal?.status === "active" ? "#1b5e20" : "#74c0fc", color: "#fff", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content", display: "flex", alignItems: "center", gap: 4 }}>
+                <CheckCircle2 size={12}/> {animal?.status === "active" ? "ATIVA" : "INATIVA"}
+              </span>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>{fmtOrigin(animal?.batch_origin)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📝 Observações:</span> <b>{animal?.notes || "-"}</b>
           </div>
         </div>
 
@@ -230,7 +305,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
               <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>🕒 Int. Médio Parto</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>-</span>
+              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{avgInterval}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
               <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>📅 Nº de Coberturas</span>
@@ -287,21 +362,27 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             </tr>
           </thead>
           <tbody>
-            {histRow.map((r, i) => (
-              <TR key={i} even={i % 2 !== 0}>
-                <Td bold>{r.n}</Td>
-                <Td>{r.dataCob}</Td>
-                <Td>{r.rep} ({r.tipo})</Td>
-                <Td>{r.dataParto}</Td>
-                <Td>{r.diasGest}</Td>
-                <Td>{r.vivos !== "-" ? `${r.totalNasc} (${r.vivos}/${r.mortos}/${r.natimortos})` : "-"}</Td>
-                <Td>{r.dataDesm}</Td>
-                <Td>{r.desmamados}</Td>
-                <Td>{r.diasLact}</Td>
-                <Td>{r.retCio}</Td>
-                <Td style={{ fontSize: "0.55rem" }}>{r.obs}</Td>
+            {histRow.length === 0 ? (
+              <TR>
+                <Td colSpan={11} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhum histórico reprodutivo registrado</Td>
               </TR>
-            ))}
+            ) : (
+              histRow.map((r: any, i: number) => (
+                <TR key={i} even={i % 2 !== 0}>
+                  <Td bold>{r.n}</Td>
+                  <Td>{r.dataCob}</Td>
+                  <Td>{r.rep} ({r.tipo})</Td>
+                  <Td>{r.dataParto}</Td>
+                  <Td>{r.diasGest}</Td>
+                  <Td>{r.vivos !== "-" ? `${r.totalNasc} (${r.vivos}/${r.mortos}/${r.natimortos})` : "-"}</Td>
+                  <Td>{r.dataDesm}</Td>
+                  <Td>{r.desmamados}</Td>
+                  <Td>{r.diasLact}</Td>
+                  <Td>{r.retCio}</Td>
+                  <Td style={{ fontSize: "0.55rem" }}>{r.obs}</Td>
+                </TR>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -321,14 +402,20 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               </tr>
             </thead>
             <tbody>
-              {vacinas.map((v, i) => (
-                <TR key={i} even={i % 2 !== 0}>
-                  <Td>{v.vacina}</Td>
-                  <Td>{v.data}</Td>
-                  <Td>{v.prox}</Td>
-                  <Td>{v.obs}</Td>
+              {vacinas.length === 0 ? (
+                <TR>
+                  <Td colSpan={4} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhuma vacinação registrada</Td>
                 </TR>
-              ))}
+              ) : (
+                vacinas.map((v: any, i: number) => (
+                  <TR key={i} even={i % 2 !== 0}>
+                    <Td>{v.vacina}</Td>
+                    <Td>{v.data}</Td>
+                    <Td>{v.prox}</Td>
+                    <Td>{v.obs}</Td>
+                  </TR>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -347,15 +434,21 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               </tr>
             </thead>
             <tbody>
-              {tratamentos.map((t, i) => (
-                <TR key={i} even={i % 2 !== 0}>
-                  <Td>{t.prod}</Td>
-                  <Td>{t.motivo}</Td>
-                  <Td>{t.data}</Td>
-                  <Td>{t.dose}</Td>
-                  <Td>{t.resp}</Td>
+              {tratamentos.length === 0 ? (
+                <TR>
+                  <Td colSpan={5} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhum tratamento registrado</Td>
                 </TR>
-              ))}
+              ) : (
+                tratamentos.map((t: any, i: number) => (
+                  <TR key={i} even={i % 2 !== 0}>
+                    <Td>{t.prod}</Td>
+                    <Td>{t.motivo}</Td>
+                    <Td>{t.data}</Td>
+                    <Td>{t.dose}</Td>
+                    <Td>{t.resp}</Td>
+                  </TR>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -365,8 +458,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden", marginBottom: 15 }}>
         <SectionHeader number={6} title="OBSERVAÇÕES" />
         <div style={{ padding: "10px", fontSize: "0.65rem", color: "#333", lineHeight: 1.5 }}>
-          Matriz apresenta bom escore corporal. Acompanhamento gestacional dentro do padrão.<br/>
-          Retorno ao cio previsto para 16/08/2026.
+          {animal?.notes || "Nenhuma observação registrada para esta matriz."}
         </div>
       </div>
 
@@ -427,17 +519,9 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ background: "#f0f0f0", padding: "6px", borderRadius: "50%" }}>🏠</div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: "0.65rem", color: "#1a1a1a" }}>Responsável pela Granja</div>
-              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>João da Silva<br/>Data: {reportDate}</div>
-            </div>
+            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=52x52&data=matriz-${animal?.identifier}`} alt="QR Code" style={{ width: 42, height: 42 }} />
+            <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#1a1a1a" }}>QR Code<br/><span style={{ fontSize: "0.55rem", color: GRAY_TEXT, fontWeight: 400 }}>Escaneie para acessar o histórico.</span></div>
           </div>
-        </div>
-        
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=52x52&data=matriz-${animal?.identifier}`} alt="QR Code" style={{ width: 42, height: 42 }} />
-          <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#1a1a1a" }}>QR Code<br/><span style={{ fontSize: "0.55rem", color: GRAY_TEXT, fontWeight: 400 }}>Escaneie para acessar o histórico<br/>completo da matriz no sistema.</span></div>
         </div>
       </div>
     </>
@@ -450,19 +534,34 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
   
   // History calculations
   const coberturas = history.filter((e: any) => e.type === "mating");
-  const coletas = history.filter((e: any) => e.type === "semen_collection");
   
-  const numCoberturas = coberturas.length || 0;
-  const numColetas = coletas.length || 0;
+  const numCoberturas = coberturas.length;
+  // Semen collections are not tracked in DB, fallback to 0 or check if custom collections are added
+  const numColetas = history.filter((e: any) => e.type === "semen_collection").length;
   
-  const vacinas = [
-    { vacina: "Parvovirose", data: "10/01/2026", prox: "10/07/2026", obs: "Rotina" },
-    { vacina: "Leptospirose", data: "10/01/2026", prox: "10/07/2026", obs: "Rotina" },
-  ];
+  const successfulMatings = coberturas.filter((m: any) => m.details?.status === "confirmed").length;
+  const taxaSucesso = numCoberturas > 0 ? `${((successfulMatings / numCoberturas) * 100).toFixed(1)}%` : "0%";
 
-  const tratamentos = [
-    { prod: "Ivermectina", motivo: "Vermífugo", data: "01/02/2026", dose: "1mL/33kg", resp: "João" },
-  ];
+  // Dynamic Vaccinations
+  const vacinas = history
+    .filter((e: any) => e.type === "vaccination")
+    .map((v: any) => ({
+      vacina: v.details?.vaccine_name || v.title.replace("Vacinação: ", ""),
+      data: fmtDate(v.details?.application_date || v.date),
+      prox: fmtDate(v.details?.next_dose_date) || "-",
+      obs: v.details?.notes || v.subtitle || "-"
+    }));
+
+  // Dynamic Treatments / Medical records
+  const tratamentos = history
+    .filter((e: any) => e.type === "health")
+    .map((h: any) => ({
+      prod: h.details?.description || h.subtitle || "",
+      motivo: h.details?.treatment_type_display || h.title.replace("Clínico: ", "") || "Tratamento",
+      data: fmtDate(h.details?.application_date || h.date),
+      dose: h.details?.notes || "-",
+      resp: h.details?.veterinary || "Vet"
+    }));
 
   return (
     <>
@@ -491,7 +590,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
         {/* Info box right */}
         <div style={{ minWidth: 160, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
           <div style={{ background: GREEN_DARK, color: "#fff", padding: "6px 12px", width: "100%", textAlign: "center", fontWeight: 800, fontSize: "1.1rem", letterSpacing: 1 }}>
-            REPRODUTOR Nº {animal?.identifier || "001"}
+            REPRODUTOR Nº {animal?.identifier || "..."}
           </div>
           <div style={{ fontSize: "0.55rem", color: GRAY_TEXT, marginTop: 4, width: "100%", textAlign: "right", paddingRight: 4 }}>
             Data do Relatório: {reportDate}<br/>Hora: {reportTime}
@@ -505,17 +604,19 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
         <div style={{ borderRight: `2px solid ${GREEN_DARK}` }}>
           <SectionHeader number={1} title="IDENTIFICAÇÃO" />
           <div style={{ padding: "10px", display: "grid", gridTemplateColumns: "130px 1fr", rowGap: 8, fontSize: "0.65rem", alignItems: "center" }}>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧑‍🌾 Nome / Número:</span> <b>{animal?.identifier || "ANDRE"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏷️ Brinco:</span> <b>{animal?.earring || "001"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧬 Raça / Linhagem:</span> <b>{animal?.breed_name || "Pietrain"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date) || "15/06/2023"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⏱️ Idade:</span> <b>{ageString || "2 anos e 10 meses"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧑‍🌾 Nome / Número:</span> <b>{animal?.identifier || "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏷️ Brinco:</span> <b>{animal?.identifier || "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧬 Raça / Linhagem:</span> <b>{animal?.breed_name || "Mestiço"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⏱️ Idade:</span> <b>{ageString || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📉 Categoria Atual:</span> 
-              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>REPRODUTOR</span>
+              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{(animal?.category || "Reprodutor").toUpperCase()}</span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>✅ Status:</span> 
-              <span style={{ background: "#1b5e20", color: "#fff", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle2 size={12}/> ATIVO</span>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>15/06/2024</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>Compra Externa</b>
+              <span style={{ background: animal?.status === "active" ? "#1b5e20" : "#74c0fc", color: "#fff", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content", display: "flex", alignItems: "center", gap: 4 }}>
+                <CheckCircle2 size={12}/> {animal?.status === "active" ? "ATIVO" : "INATIVO"}
+              </span>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>{fmtOrigin(animal?.batch_origin)}</b>
           </div>
         </div>
 
@@ -533,20 +634,58 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
               <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>🎯 Taxa de Sucesso</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>92.5%</span>
+              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{taxaSucesso}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
               <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>⚖️ Peso Atual</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{animal?.current_weight_kg || 280} kg</span>
+              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{animal?.current_weight_kg || "-"} kg</span>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ══════════ SEC 3 - Histórico de Coberturas ══════════ */}
+      <div style={{ borderBottom: `2px solid ${GREEN_DARK}` }}>
+        <SectionHeader number={3} title="HISTÓRICO DE COBERTURAS / MONTAS" />
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <Th>Nº</Th>
+              <Th>Data</Th>
+              <Th>Matriz Coberta</Th>
+              <Th>Tipo</Th>
+              <Th>Status</Th>
+              <Th>Previsão Parto</Th>
+              <Th>Observações</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {coberturas.length === 0 ? (
+              <TR>
+                <Td colSpan={7} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhuma cobertura registrada</Td>
+              </TR>
+            ) : (
+              coberturas.map((m: any, i: number) => (
+                <TR key={i} even={i % 2 !== 0}>
+                  <Td bold>{i + 1}</Td>
+                  <Td>{fmtDate(m.date)}</Td>
+                  <Td>{m.subtitle?.replace("Matriz: ", "") || "-"}</Td>
+                  <Td>{m.details?.mating_type || "-"}</Td>
+                  <Td>{m.status || "-"}</Td>
+                  <Td>{fmtDate(m.details?.expected_birth_date)}</Td>
+                  <Td style={{ fontSize: "0.55rem" }}>{m.details?.notes || "-"}</Td>
+                </TR>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* ══════════ SEC 4 & 5 ══════════ */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: `2px solid ${GREEN_DARK}` }}>
         {/* Vacinas */}
         <div style={{ borderRight: `2px solid ${GREEN_DARK}` }}>
+
           <SectionHeader number={4} title="VACINAÇÕES" />
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -558,14 +697,20 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
               </tr>
             </thead>
             <tbody>
-              {vacinas.map((v, i) => (
-                <TR key={i} even={i % 2 !== 0}>
-                  <Td>{v.vacina}</Td>
-                  <Td>{v.data}</Td>
-                  <Td>{v.prox}</Td>
-                  <Td>{v.obs}</Td>
+              {vacinas.length === 0 ? (
+                <TR>
+                  <Td colSpan={4} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhuma vacinação registrada</Td>
                 </TR>
-              ))}
+              ) : (
+                vacinas.map((v: any, i: number) => (
+                  <TR key={i} even={i % 2 !== 0}>
+                    <Td>{v.vacina}</Td>
+                    <Td>{v.data}</Td>
+                    <Td>{v.prox}</Td>
+                    <Td>{v.obs}</Td>
+                  </TR>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -584,15 +729,21 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
               </tr>
             </thead>
             <tbody>
-              {tratamentos.map((t, i) => (
-                <TR key={i} even={i % 2 !== 0}>
-                  <Td>{t.prod}</Td>
-                  <Td>{t.motivo}</Td>
-                  <Td>{t.data}</Td>
-                  <Td>{t.dose}</Td>
-                  <Td>{t.resp}</Td>
+              {tratamentos.length === 0 ? (
+                <TR>
+                  <Td colSpan={5} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhum tratamento registrado</Td>
                 </TR>
-              ))}
+              ) : (
+                tratamentos.map((t: any, i: number) => (
+                  <TR key={i} even={i % 2 !== 0}>
+                    <Td>{t.prod}</Td>
+                    <Td>{t.motivo}</Td>
+                    <Td>{t.data}</Td>
+                    <Td>{t.dose}</Td>
+                    <Td>{t.resp}</Td>
+                  </TR>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -609,7 +760,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
             </div>
           </div>
         </div>
-        
+
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src={`https://api.qrserver.com/v1/create-qr-code/?size=52x52&data=reprodutor-${animal?.identifier}`} alt="QR Code" style={{ width: 42, height: 42 }} />
           <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#1a1a1a" }}>QR Code<br/><span style={{ fontSize: "0.55rem", color: GRAY_TEXT, fontWeight: 400 }}>Escaneie para acessar o histórico.</span></div>
@@ -628,14 +779,39 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId }: AnimalT
   useEffect(() => {
     if (isOpen && animalId) {
       setLoading(true);
-      // Matrizes and Reprodutores are stored as batches — fetch from batch endpoints
-      Promise.all([
-        apiClient.get(`/livestock/batches/${animalId}/`),
-        apiClient.get(`/livestock/batches/${animalId}/history/`),
-      ])
-        .then(([detailRes, histRes]) => {
-          setAnimal(detailRes.data);
-          setHistory(histRes.data || []);
+      
+      // Step 1: Fetch batch details first to determine category
+      apiClient.get(`/livestock/batches/${animalId}/`)
+        .then((batchRes) => {
+          const batchData = batchRes.data;
+          const category = (batchData?.category || "").toLowerCase();
+          const isReproductive = ["matriz", "marrã", "reprodutor", "cachaço", "cacho", "touro", "vaca", "novilha"].some(
+            c => category.includes(c)
+          );
+          
+          if (isReproductive) {
+            // Step 2: Fetch individual animal details & history
+            return Promise.all([
+              apiClient.get(`/livestock/batches/${animalId}/animal-detail/`).catch(() => null),
+              apiClient.get(`/livestock/batches/${animalId}/animal-history/`).catch(() => null),
+            ]).then(([animalRes, historyRes]) => {
+              if (animalRes && animalRes.data) {
+                setAnimal(animalRes.data);
+                setHistory(historyRes?.data || []);
+              } else {
+                // Fallback to batch data if individual animal not found
+                setAnimal(batchData);
+                setHistory([]);
+              }
+            });
+          } else {
+            // Non-reproductive, just use the batch and its phase history
+            return apiClient.get(`/livestock/batches/${animalId}/history/`)
+              .then((histRes) => {
+                setAnimal(batchData);
+                setHistory(histRes.data || []);
+              });
+          }
         })
         .catch(console.error)
         .finally(() => setLoading(false));

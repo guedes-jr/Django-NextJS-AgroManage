@@ -319,26 +319,37 @@ class AnimalSerializer(serializers.ModelSerializer):
     species_code = serializers.CharField(source='species.code', read_only=True)
     breed_name = serializers.CharField(source='breed.name', read_only=True)
     batch_code = serializers.CharField(source='batch.batch_code', read_only=True)
+    batch_origin = serializers.SerializerMethodField()
 
     # Filiação — leitura
     sire_identifier = serializers.CharField(source='sire_ref.identifier', read_only=True, default=None)
     dam_identifier = serializers.CharField(source='dam_ref.identifier', read_only=True, default=None)
+    
+    # Ciclos reprodutivos estruturados
+    reproductive_cycles = serializers.SerializerMethodField()
 
     class Meta:
         model = Animal
         fields = [
             'id', 'farm', 'species', 'species_name', 'species_code', 'breed', 'breed_name',
-            'batch', 'batch_code', 'identifier', 'birth_date', 'entry_date',
+            'batch', 'batch_code', 'batch_origin', 'identifier', 'birth_date', 'entry_date',
             'gender', 'category', 'status', 'reproductive_status',
             'initial_weight_kg', 'current_weight_kg', 'notes',
             # Controle reprodutivo
-            'birth_count', 'previous_phase',
+            'birth_count', 'previous_phase', 'reproductive_cycles',
             # Filiação
             'sire_ref', 'dam_ref', 'sire_name', 'dam_name',
             'sire_identifier', 'dam_identifier',
             'species_code_input', 'breed_name_input', 'farm_id'
         ]
-        read_only_fields = ['farm', 'species', 'birth_count', 'previous_phase']
+        read_only_fields = ['farm', 'species', 'birth_count', 'previous_phase', 'reproductive_cycles', 'batch_origin']
+
+    def get_batch_origin(self, obj):
+        return obj.batch.origin if obj.batch else None
+
+    def get_reproductive_cycles(self, obj):
+        from .views import build_reproductive_cycles
+        return build_reproductive_cycles(obj)
 
     def create(self, validated_data):
         species_code = validated_data.pop('species_code_input', None)
