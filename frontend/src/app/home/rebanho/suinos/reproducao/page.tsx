@@ -214,6 +214,14 @@ function ReproducaoPageContent() {
           { key: "peso", label: "Peso (kg)" },
           { key: "entrada", label: "Entrada", render: formatDateCell },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: tab.marras?.rows || [],
         statusKey: "status",
         statusMap: {
@@ -280,6 +288,14 @@ function ReproducaoPageContent() {
           { key: "op", label: "Ordem de Parto" },
           { key: "dias_abertos", label: "Dias Abertos" },
           { key: "ultima_cobertura", label: "Última Cobertura", render: formatDateCell },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: tab.matrizes?.rows || [],
         statusKey: "status",
@@ -412,6 +428,14 @@ function ReproducaoPageContent() {
           { key: "idade", label: "Dias (Idade)" },
           { key: "previsao_desmame", label: "Prev. Desmame", render: formatDateCell },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: tab.maternidade?.rows || [],
         statusKey: "status",
         statusMap: {
@@ -448,6 +472,14 @@ function ReproducaoPageContent() {
           { key: "entrada", label: "Entrada", render: formatDateCell },
           { key: "qtd", label: "Qtd. Atual" },
           { key: "peso", label: "Peso Médio" },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: tab.creche?.rows || [],
         statusKey: "status",
@@ -488,6 +520,14 @@ function ReproducaoPageContent() {
           { key: "peso", label: "Peso (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
           { key: "gpd", label: "GPD (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
           { key: "previsao", label: "Prev. Engorda", render: formatDateCell },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: tab.crescimento?.rows || [],
         statusKey: "status",
@@ -530,6 +570,14 @@ function ReproducaoPageContent() {
           { key: "peso", label: "Peso (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
           { key: "gpd", label: "GPD (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
           { key: "previsao", label: "Prev. Venda", render: formatDateCell },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: tab.engorda?.rows || [],
         statusKey: "status",

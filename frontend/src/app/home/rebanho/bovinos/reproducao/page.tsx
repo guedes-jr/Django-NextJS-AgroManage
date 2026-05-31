@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { getReproductionDashboard } from "@/services/livestockService";
 
@@ -87,6 +88,14 @@ export default function BovinosReproducaoPage() {
           { key: "dias_lactacao", label: "Dias em Lactação" },
           { key: "dias_abertos", label: "Dias Abertos" },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { id: "V-210", categoria: "Vaca", dias_lactacao: 150, dias_abertos: 95, status: "Vazia" },
           { id: "V-305", categoria: "Novilha", dias_lactacao: 0, dias_abertos: 0, status: "Pronta" },
@@ -116,6 +125,14 @@ export default function BovinosReproducaoPage() {
           { key: "tipo", label: "Tipo" },
           { key: "touro", label: "Reprodutor" },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { id: "Lote IATF 01", data: "05/05/2026", tipo: "IATF", touro: "Nelore XPTO", status: "Aguardando DG" },
           { id: "V-150", data: "10/05/2026", tipo: "Monta Natural", touro: "T-01", status: "Aguardando DG" },
@@ -135,6 +152,14 @@ export default function BovinosReproducaoPage() {
           { key: "data", label: "Data Cobertura", render: formatDateCell },
           { key: "dias", label: "Dias Gestação" },
           { key: "previsao", label: "Previsão Parto", render: formatDateCell },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: [
           { id: "V-112", data: "15/08/2025", dias: 270, previsao: "25/05/2026", status: "Seca / Parto Próximo" },
@@ -157,6 +182,14 @@ export default function BovinosReproducaoPage() {
           { key: "nasc", label: "Nascimento", render: formatDateCell },
           { key: "peso", label: "Peso Nasc." },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { id: "B-2601", mae: "V-101", nasc: "01/05/2026", peso: "32 kg", status: "Ao pé da vaca" },
           { id: "B-2602", mae: "V-088", nasc: "03/05/2026", peso: "35 kg", status: "Ao pé da vaca" },
@@ -177,6 +210,14 @@ export default function BovinosReproducaoPage() {
           { key: "qtd", label: "Qtd. Atual" },
           { key: "peso", label: "Peso Médio" },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { lote: "L-Recria-25", idade: "12 meses", qtd: 45, peso: "210 kg", status: "Pasto" },
         ],
@@ -195,6 +236,14 @@ export default function BovinosReproducaoPage() {
           { key: "sistema", label: "Sistema" },
           { key: "qtd", label: "Qtd." },
           { key: "peso", label: "Peso / Arroba" },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: [
           { lote: "L-Confinamento", sistema: "Confinamento", qtd: 40, peso: "495 kg (16.5@)", status: "Engorda" },

@@ -439,7 +439,7 @@ export function DataTable<T extends Record<string, unknown>>({
                                 onClick={() => onRowClick(row)}
                                 style={{ width: "36px", height: "36px" }}
                               >
-                                <Eye size={16} />
+                                <Search size={16} />
                               </button>
                             )}
                           </div>

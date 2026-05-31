@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { getReproductionDashboard } from "@/services/livestockService";
 
@@ -78,6 +79,14 @@ export default function AvesReproducaoPage() {
           { key: "qtd", label: "Quantidade" },
           { key: "mortalidade", label: "Mortalidade" },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { lote: "Galpão 1", idade: 45, qtd: 1200, mortalidade: "2%", status: "Produção" },
           { lote: "Galpão 2", idade: 28, qtd: 1300, mortalidade: "1.5%", status: "Produção" },
@@ -104,6 +113,14 @@ export default function AvesReproducaoPage() {
           { key: "galpao", label: "Galpão" },
           { key: "total", label: "Total Ovos" },
           { key: "incubaveis", label: "Incubáveis (%)" },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: [
           { data: "12/05/2026", galpao: "Galpão 1", total: 1080, incubaveis: "95%", status: "Coletado" },
@@ -132,6 +149,14 @@ export default function AvesReproducaoPage() {
           { key: "dias", label: "Dias" },
           { key: "previsao", label: "Prev. Eclosão" },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { lote: "I-45", data: "22/04/2026", qtd: 2000, dias: 20, previsao: "13/05/2026", status: "Transferência" },
           { lote: "I-46", data: "29/04/2026", qtd: 2500, dias: 13, previsao: "20/05/2026", status: "Incubadora" },
@@ -152,6 +177,14 @@ export default function AvesReproducaoPage() {
           { key: "pintos", label: "Pintinhos (vivos)" },
           { key: "eclosao", label: "Eclosão (%)" },
         ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
+        ],
         rows: [
           { lote: "I-44", data: "06/05/2026", pintos: 1780, eclosao: "89%", status: "Alojado" },
         ],
@@ -170,6 +203,14 @@ export default function AvesReproducaoPage() {
           { key: "idade", label: "Idade (dias)" },
           { key: "qtd", label: "Qtd. Atual" },
           { key: "peso", label: "Peso Médio" },
+        ],
+        actions: [
+          {
+            label: "Ver Ficha Técnica",
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as any
         ],
         rows: [
           { galpao: "G-Cresc 1", idade: 21, qtd: 4000, peso: "850g", status: "Dentro da Curva" },

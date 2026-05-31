@@ -1513,7 +1513,7 @@ export function ReproducaoDashboard({
                       setSelectedBatchId(id as string | number);
                       setBatchSheetOpen(true);
                     } else {
-                      router.push(`/home/rebanho/suinos/animal/${id}`);
+                      router.push(`/home/rebanho/${config.especie}/animal/${id}`);
                     }
                   }
                 }}
