@@ -278,7 +278,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     tipo: c.mating_type_display || c.mating_type || "-",
     rep: c.mating_type === 'natural' && c.sire_name ? `${c.sire_identifier} - ${c.sire_name}` : (c.sire_identifier || c.sire_info || "-"),
     dataConf: c.pregnancy_confirmed ? "Confirmada" : (c.pregnancy_status === "failed" ? "Falhou" : "-"),
-    diasGest: c.gestation_days || "-",
+    prevParto: fmtDate(c.expected_birth_date) || "-",
     dataParto: fmtDate(c.birth_date) || "-",
     totalNasc: c.total_born !== null ? c.total_born : "-",
     vivos: c.live_born !== null ? c.live_born : "-",
@@ -430,9 +430,9 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               <Th>Nº</Th>
               <Th>Data</Th>
               <Th>Macho<br/>(Tipo)</Th>
+              <Th>Prev.<br/>Parto</Th>
               <Th>Data<br/>Parto</Th>
-              <Th>Dias<br/>Gest.</Th>
-              <Th>Nascidos<br/>(V / M / N)</Th>
+              <Th>Nascidos<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 | 🔴 | ⚫)</span></Th>
               <Th>Data<br/>Desmame</Th>
               <Th>Qtd.<br/>Desm.</Th>
               <Th>Dias<br/>Lact.</Th>
@@ -451,9 +451,20 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
                   <Td bold>{r.n}</Td>
                   <Td>{r.dataCob}</Td>
                   <Td>{r.rep} ({r.tipo})</Td>
+                  <Td>{r.prevParto}</Td>
                   <Td>{r.dataParto}</Td>
-                  <Td>{r.diasGest}</Td>
-                  <Td>{r.vivos !== "-" ? `${r.totalNasc} (${r.vivos}/${r.mortos}/${r.natimortos})` : "-"}</Td>
+                  <Td>
+                    {r.vivos !== "-" ? (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: "1.2" }}>
+                        <strong>{r.totalNasc}</strong>
+                        <div style={{ fontSize: "0.65rem", display: "flex", gap: "6px", marginTop: "2px" }}>
+                          <span title="Vivos">🟢 {r.vivos}</span>
+                          <span title="Natimortos">🔴 {r.mortos}</span>
+                          <span title="Mumificados">⚫ {r.natimortos}</span>
+                        </div>
+                      </div>
+                    ) : "-"}
+                  </Td>
                   <Td>{r.dataDesm}</Td>
                   <Td>{r.desmamados}</Td>
                   <Td>{r.diasLact}</Td>
