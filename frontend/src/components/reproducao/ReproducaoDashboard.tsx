@@ -1159,11 +1159,16 @@ export function ReproducaoDashboard({
               }
             }
 
+            const isSireText = isNaN(Number(data.sire_id));
+            if (isSireText && data.sire_id) {
+              computedSireInfo = computedSireInfo ? `${computedSireInfo} - ${data.sire_id}` : data.sire_id;
+            }
+
             const payload = {
               mating_date: data.mating_date,
               mating_type: data.mating_type || "natural",
               sire_info: computedSireInfo,
-              ...(data.material_origin !== "semen" && data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
+              ...(data.material_origin !== "semen" && data.sire_id && !isSireText ? { sire_id: Number(data.sire_id) } : {}),
               notes: data.notes || "",
             };
 
@@ -1362,6 +1367,11 @@ export function ReproducaoDashboard({
         }
       }
 
+      const isSireText = isNaN(Number(data.sire_id));
+      if (isSireText && data.sire_id) {
+        computedSireInfo = computedSireInfo ? `${computedSireInfo} - ${data.sire_id}` : data.sire_id;
+      }
+
       // 1. Save using createMating
       const female_id = data.matriz || data.id || data.female_identifier || "";
       await createMating({
@@ -1369,7 +1379,7 @@ export function ReproducaoDashboard({
         mating_date: data.data_cobertura || data.mating_date,
         mating_type: mating_type,
         sire_info: computedSireInfo,
-        ...(material_origin !== "semen" && data.sire_id ? { sire_id: Number(data.sire_id) } : {}),
+        ...(material_origin !== "semen" && data.sire_id && !isSireText ? { sire_id: Number(data.sire_id) } : {}),
       });
 
       // 2. Perform inventory consumption if semen is used
