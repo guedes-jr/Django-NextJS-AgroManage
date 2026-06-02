@@ -106,6 +106,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         purchase_value: parseFloat(row.valor) || null,
         avg_weight_kg: parseFloat(row.peso) || null,
         entry_date: row.dataCompra || row.nascimento || new Date().toISOString().split('T')[0],
+        birth_date: row.nascimento || null,
         status: "active",
         species_code_input: species,
         breed_name_input: row.raca,

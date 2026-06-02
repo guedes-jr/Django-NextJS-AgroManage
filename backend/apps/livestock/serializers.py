@@ -60,6 +60,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     source_batch_ids = serializers.ListField(
         child=serializers.UUIDField(), write_only=True, required=False
     )
+    birth_date = serializers.DateField(write_only=True, required=False, allow_null=True)
     
     # Fields to return data
     species_code = serializers.CharField(source='species.code', read_only=True)
@@ -73,7 +74,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             'gender', 'origin', 'purchase_value', 'avg_weight_kg', 
             'entry_date', 'status', 'species_code', 'breed_name',
             'species_code_input', 'breed_name_input', 'farm_id', 'quantity', 'mother',
-            'notes', 'source_batch_ids'
+            'notes', 'source_batch_ids', 'birth_date'
         ]
 
     def validate_batch_code(self, value):
@@ -96,6 +97,13 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                 )
 
         return data
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        # Obter o animal individual associado e retornar a data de nascimento
+        animal = Animal.objects.filter(batch=instance).first()
+        ret['birth_date'] = animal.birth_date.isoformat() if animal and animal.birth_date else None
+        return ret
 
     def validate_entry_date(self, value):
         """Validate entry_date format."""
@@ -131,6 +139,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         species_code = validated_data.pop('species_code_input', None)
         breed_name = validated_data.pop('breed_name_input', None)
         farm_id = validated_data.pop('farm_id', None)
+        birth_date = validated_data.pop('birth_date', None)
         
         # Ensure batch_code exists
         batch_code = validated_data.get('batch_code')
@@ -269,7 +278,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                         identifier = f"{batch.batch_code}-{i+1}"
                     
                     # Create or update individual animal
-                    Animal.objects.get_or_create(
+                    animal_obj, created = Animal.objects.get_or_create(
                         farm=batch.farm,
                         identifier=identifier,
                         defaults={
@@ -279,10 +288,14 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                             'gender': batch.gender if batch.gender in ['M', 'F'] else ('F' if batch.category in ['Matriz', 'Marrã', 'Vaca', 'Novilha'] else 'M'),
                             'category': batch.category,
                             'entry_date': batch.entry_date,
+                            'birth_date': birth_date or (batch.entry_date if batch.origin == 'born' else None),
                             'initial_weight_kg': batch.avg_weight_kg,
                             'current_weight_kg': batch.avg_weight_kg,
                         }
                     )
+                    if not created:
+                        animal_obj.birth_date = birth_date or (batch.entry_date if batch.origin == 'born' else None)
+                        animal_obj.save()
             return batch
         except Exception as e:
             raise serializers.ValidationError(f'Erro ao criar lote: {str(e)}')
@@ -305,7 +318,26 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                 exit_date=exit_date
             )
             
-        return super().update(instance, validated_data)
+        birth_date = validated_data.pop('birth_date', None)
+        
+        batch = super().update(instance, validated_data)
+        
+        # Sincronizar o animal individual se for categoria reprodutiva
+        repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor']
+        if batch.category in repro_categories:
+            animals = Animal.objects.filter(batch=batch)
+            for a in animals:
+                a.identifier = batch.batch_code
+                a.gender = batch.gender if batch.gender in ['M', 'F'] else ('F' if batch.category in ['Matriz', 'Marrã', 'Vaca', 'Novilha'] else 'M')
+                a.category = batch.category
+                a.entry_date = batch.entry_date
+                if birth_date is not None:
+                    a.birth_date = birth_date
+                elif batch.origin == 'born':
+                    a.birth_date = batch.entry_date
+                a.save()
+                
+        return batch
 
 
 class AnimalSerializer(serializers.ModelSerializer):
