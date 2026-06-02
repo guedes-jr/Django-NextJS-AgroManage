@@ -565,6 +565,7 @@ def build_reproductive_cycles(animal):
             "mating_type": m.mating_type,
             "mating_type_display": m.get_mating_type_display(),
             "sire_identifier": m.sire.identifier if m.sire else None,
+            "sire_name": m.sire.batch.name if m.sire and m.sire.batch else None,
             "sire_info": m.sire_info,
             "status": m.status,
             "status_display": m.get_status_display(),
