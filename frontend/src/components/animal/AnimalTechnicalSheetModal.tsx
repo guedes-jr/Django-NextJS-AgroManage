@@ -161,6 +161,41 @@ const TR = ({ children, even, style, ...props }: TrProps) => (
   >{children}</tr>
 );
 
+// ─── StatBox ──────────────────────────────────────────────────────────────────
+interface StatBoxProps {
+  icon: string;
+  label: string;
+  value: any;
+  highlight?: boolean;
+  danger?: boolean;
+}
+const StatBox = ({ icon, label, value, highlight, danger }: StatBoxProps) => (
+  <div style={{
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottom: "1px solid #eee",
+    paddingBottom: 6,
+    gap: 2,
+    borderRadius: 4,
+    padding: "6px 4px",
+    background: highlight ? "#f0fdf4" : danger ? "#fff5f5" : "transparent",
+    border: highlight ? "1px solid #bbf7d0" : danger ? "1px solid #fecaca" : "none",
+  }}>
+    <span style={{ fontSize: "0.55rem", color: GRAY_TEXT, textAlign: "center", lineHeight: 1.2 }}>
+      {icon} {label}
+    </span>
+    <span style={{
+      fontWeight: 800,
+      fontSize: "0.85rem",
+      color: highlight ? GREEN_DARK : danger ? "#b91c1c" : "#1a1a1a",
+    }}>
+      {value ?? "-"}
+    </span>
+  </div>
+);
+
 // ─── Matriz Template ─────────────────────────────────────────────────────────
 function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
   const ageString = calcAge(animal?.birth_date);
@@ -194,6 +229,47 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
   const nascidosVivos = partos.reduce((acc: number, p: any) => acc + (p.details?.live_born || 0), 0);
   const produtividade = numPartos > 0 ? (nascidosVivos / numPartos).toFixed(1) : "0";
   const taxaPrenhez = numCoberturas > 0 ? ((numPrenhezes / numCoberturas) * 100).toFixed(1) : "0";
+
+  // ── Novas Métricas ────────────────────────────────────────────────────────────
+  // Total e média de desmamados
+  const totalDesmamados = cycles
+    .filter((c: any) => c.weaned_quantity != null)
+    .reduce((acc: number, c: any) => acc + (c.weaned_quantity || 0), 0);
+  const avgDesmamados = numDesmames > 0 ? (totalDesmamados / numDesmames).toFixed(1) : "-";
+
+  // Taxa de mortalidade de leitões (stillborn + mortality pós-parto)
+  const totalMortos = partos.reduce((acc: number, p: any) =>
+    acc + (p.details?.stillborn || 0) + (p.details?.mortality || 0), 0);
+  const denominadorMort = nascidosVivos + totalMortos;
+  const taxaMortalidade = denominadorMort > 0
+    ? ((totalMortos / denominadorMort) * 100).toFixed(1)
+    : "0";
+
+  // Média de dias de lactação
+  const lactDays = cycles
+    .filter((c: any) => c.lactation_days != null)
+    .map((c: any) => c.lactation_days as number);
+  const avgLactacaoDias = lactDays.length > 0
+    ? Math.round(lactDays.reduce((a: number, b: number) => a + b, 0) / lactDays.length)
+    : "-";
+
+  // Média de dias de gestação
+  const gestDays = cycles
+    .filter((c: any) => c.gestation_days != null)
+    .map((c: any) => c.gestation_days as number);
+  const avgGestacaoDias = gestDays.length > 0
+    ? Math.round(gestDays.reduce((a: number, b: number) => a + b, 0) / gestDays.length)
+    : "-";
+
+  // Peso médio dos leitões ao nascimento
+  const birthWeights = cycles
+    .filter((c: any) => c.avg_birth_weight_kg != null)
+    .map((c: any) => c.avg_birth_weight_kg as number);
+  const avgPesoNascimento = birthWeights.length > 0
+    ? (birthWeights.reduce((a: number, b: number) => a + b, 0) / birthWeights.length).toFixed(2)
+    : "-";
+  // ──────────────────────────────────────────────────────────────────────────────
+
 
   // Dynamic cycle table rows
   const histRow = cycles.map((c: any) => ({
@@ -294,6 +370,9 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               </span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date)}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>{fmtOrigin(animal?.batch_origin)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⚖️ Peso Atual:</span> <b>{animal?.current_weight_kg ? `${fmt(animal.current_weight_kg)} kg` : "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🐗 Pai (Reprodutor):</span> <b>{animal?.sire_name || animal?.sire_identifier || "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🐷 Mãe:</span> <b>{animal?.dam_name || animal?.dam_identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📝 Observações:</span> <b>{animal?.notes || "-"}</b>
           </div>
         </div>
@@ -301,39 +380,36 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
         {/* Resumo Reprodutivo */}
         <div>
           <SectionHeader number={2} title="RESUMO REPRODUTIVO" />
-          <div style={{ padding: "10px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>🐷 Nº de Partos</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{numPartos}</span>
+          <div style={{ padding: "10px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 12px" }}>
+
+            {/* Coluna: Partos */}
+            <StatBox icon="🐷" label="Nº de Partos" value={numPartos} />
+            <StatBox icon="🕒" label="Int. Médio Parto" value={avgInterval} />
+            <StatBox icon="📅" label="Dias Gest. Médio" value={avgGestacaoDias !== "-" ? `${avgGestacaoDias} dias` : "-"} />
+
+            {/* Coluna: Coberturas */}
+            <StatBox icon="🐗" label="Nº de Coberturas" value={numCoberturas} />
+            <StatBox icon="🎯" label="Taxa de Prenhez" value={`${taxaPrenhez}%`} />
+            <StatBox icon="➕" label="Nº de Prenhezes" value={numPrenhezes} />
+
+            {/* Coluna: Leitões nascidos */}
+            <StatBox icon="🍼" label="Total Nasc. Vivos" value={nascidosVivos} highlight />
+            <StatBox icon="📈" label="Média Nasc. Vivos/Parto" value={produtividade} highlight />
+            <StatBox icon="⚖️" label="Peso Médio Nasc. (kg)" value={avgPesoNascimento !== "-" ? `${avgPesoNascimento} kg` : "-"} highlight />
+
+            {/* Coluna: Desmame */}
+            <StatBox icon="🐖" label="Total Desmamados" value={totalDesmamados} />
+            <StatBox icon="📉" label="Média Desm./Parto" value={avgDesmamados} />
+            <StatBox icon="🗓️" label="Dias Lact. Médio" value={avgLactacaoDias !== "-" ? `${avgLactacaoDias} dias` : "-"} />
+
+            {/* Última linha: mortalidade + desmames + situação */}
+            <StatBox icon="⚠️" label="Taxa Mort. Leitões" value={`${taxaMortalidade}%`} danger={parseFloat(taxaMortalidade) > 10} />
+            <StatBox icon="✔️" label="Nº de Desmames" value={numDesmames} />
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6, gap: 2 }}>
+              <span style={{ color: GRAY_TEXT, fontSize: "0.55rem", display: "flex", alignItems: "center", gap: 4, textAlign: "center" }}>✅ Situação Reprod.</span>
+              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: "0.6rem" }}>{fmtReproductiveStatus(animal?.reproductive_status)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>🕒 Int. Médio Parto</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{avgInterval}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>📅 Nº de Coberturas</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{numCoberturas}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>📈 Produtividade</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{produtividade}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>➕ Nº de Prenhezes</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{numPrenhezes}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>🎯 Taxa de Prenhez</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{taxaPrenhez}%</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>🐖 Nº de Desmames</span>
-              <span style={{ fontWeight: 800, fontSize: "0.85rem" }}>{numDesmames}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 6 }}>
-              <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>✔️ Situação Reprod.</span>
-              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: "0.65rem" }}>NORMAL</span>
-            </div>
+
           </div>
         </div>
       </div>
