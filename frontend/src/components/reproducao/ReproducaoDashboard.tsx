@@ -1281,7 +1281,6 @@ export function ReproducaoDashboard({
             setActionModal(prev => ({ ...prev, open: false }));
           },
         });
-        });
         break;
       }
       case 'heat':
