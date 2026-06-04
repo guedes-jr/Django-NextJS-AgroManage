@@ -5,13 +5,13 @@ from rest_framework.decorators import action
 from django.db import IntegrityError
 from django.utils import timezone
 import datetime
-from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento
+from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
     PregnancySerializer, BirthSerializer, LitterSerializer,
     IncubationSerializer, SymptomSerializer, DiseaseSerializer,
     ClinicalRecordSerializer, MedicationSerializer, AlertSerializer,
-    HealthRecordSerializer
+    HealthRecordSerializer, HeatRecordSerializer, LitterMedicationSerializer
 )
 from rest_framework.views import APIView
 from decimal import Decimal
@@ -99,6 +99,12 @@ class MarrasView(BasePhaseView):
         rows = []
         for a in animals:
             idade = (timezone.now().date() - a.birth_date).days if a.birth_date else None
+            # Buscar dados de cio
+            heats = list(a.heat_records.order_by('heat_number'))
+            heat_map = {h.heat_number: h for h in heats}
+            cio1 = heat_map.get(1)
+            cio2 = heat_map.get(2)
+            cio3 = heat_map.get(3)
             rows.append({
                 "id": a.id,
                 "identifier": a.identifier,
@@ -106,6 +112,13 @@ class MarrasView(BasePhaseView):
                 "peso": float(a.current_weight_kg) if a.current_weight_kg else None,
                 "entrada": a.entry_date.isoformat() if a.entry_date else None,
                 "status": a.reproductive_status,
+                "cio1_data": cio1.heat_date.isoformat() if cio1 else None,
+                "cio1_previsto": cio1.is_predicted if cio1 else None,
+                "cio2_data": cio2.heat_date.isoformat() if cio2 else None,
+                "cio2_previsto": cio2.is_predicted if cio2 else None,
+                "cio3_data": cio3.heat_date.isoformat() if cio3 else None,
+                "cio3_previsto": cio3.is_predicted if cio3 else None,
+                "previsao_cobertura": cio3.heat_date.isoformat() if cio3 else None,
             })
 
         return Response({
@@ -915,6 +928,116 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             return Response(events)
         return Response({"detail": "Nenhum animal individual encontrado para este lote."}, status=404)
 
+    @action(detail=False, methods=['post'], url_path='merge_batches')
+    def merge_batches(self, request):
+        """
+        Junta múltiplos lotes em um novo lote unificado.
+        Encerra os lotes originais e cria novo lote herdando histórico.
+        """
+        from django.db import transaction as db_transaction
+
+        batch_ids = request.data.get('batch_ids', [])
+        new_batch_code = request.data.get('new_batch_code', '')
+        entry_date = request.data.get('entry_date', timezone.now().date())
+        quantity = request.data.get('quantity')
+        avg_weight_kg = request.data.get('avg_weight_kg')
+        notes = request.data.get('notes', '')
+
+        if len(batch_ids) < 2:
+            return Response(
+                {"error": "Selecione pelo menos 2 lotes para juntar."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not new_batch_code:
+            return Response(
+                {"error": "Código do novo lote é obrigatório."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        qs = self.get_queryset()
+        source_batches = list(qs.filter(id__in=batch_ids))
+        if len(source_batches) != len(batch_ids):
+            return Response(
+                {"error": "Um ou mais lotes não foram encontrados."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        first = source_batches[0]
+        total_qty = quantity or sum(b.quantity for b in source_batches)
+
+        # Peso médio ponderado
+        if avg_weight_kg:
+            merged_weight = float(avg_weight_kg)
+        else:
+            weighted = sum(
+                float(b.avg_weight_kg) * b.quantity
+                for b in source_batches
+                if b.avg_weight_kg and b.quantity
+            )
+            total_w_qty = sum(b.quantity for b in source_batches if b.avg_weight_kg)
+            merged_weight = round(weighted / total_w_qty, 2) if total_w_qty else None
+
+        source_codes = ", ".join(b.batch_code for b in source_batches)
+
+        try:
+            with db_transaction.atomic():
+                # 1. Criar novo lote
+                new_batch = AnimalBatch.objects.create(
+                    farm=first.farm,
+                    species=first.species,
+                    breed=first.breed,
+                    batch_code=new_batch_code,
+                    quantity=total_qty,
+                    avg_weight_kg=merged_weight,
+                    phase=first.phase,
+                    category=first.category,
+                    status='active',
+                    origin=first.origin,
+                    entry_date=entry_date,
+                    notes=notes or f"Lote formado pela junção dos lotes: {source_codes}",
+                )
+                # 2. Vincular lotes originais como source
+                new_batch.source_batches.set(source_batches)
+
+                # 3. Herdar histórico de medicamentos das leitegadas
+                for sb in source_batches:
+                    LitterMedication.objects.filter(birth__batch=sb).update(
+                        batch=new_batch
+                    )
+
+                # 4. Encerrar lotes originais
+                for sb in source_batches:
+                    sb.status = 'finished'
+                    sb.exit_date = entry_date
+                    sb.save(update_fields=['status', 'exit_date'])
+
+                # 5. Registrar histórico
+                HistoricoEvento.objects.create(
+                    farm=first.farm,
+                    tipo_evento='Junção de Lotes',
+                    descricao=(
+                        f"Novo lote {new_batch_code} formado pela junção de: {source_codes}. "
+                        f"Total: {total_qty} animais."
+                    ),
+                    data_evento=entry_date,
+                    lote=new_batch,
+                    metadata={
+                        'source_batch_ids': batch_ids,
+                        'source_codes': source_codes,
+                        'total_quantity': total_qty,
+                        'avg_weight_kg': str(merged_weight) if merged_weight else None,
+                    }
+                )
+
+            serializer = AnimalBatchSerializer(new_batch)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao juntar lotes: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class AnimalViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalSerializer
@@ -1129,6 +1252,88 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
         return Response({"message": f"Diagnóstico {result} registrado.", "status": animal.reproductive_status})
 
+    @action(detail=True, methods=['post'], url_path='register-heat')
+    def register_heat(self, request, pk=None):
+        """
+        Registra o 1º cio real da marrã.
+        Automaticamente gera previsão do 2º e 3º cios (+21 e +42 dias).
+        """
+        animal = self.get_object()
+        heat_date_str = request.data.get('heat_date')
+        notes = request.data.get('notes', '')
+
+        if not heat_date_str:
+            return Response(
+                {"error": "Data do cio é obrigatória."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        import datetime
+        try:
+            heat_date = datetime.date.fromisoformat(str(heat_date_str))
+        except ValueError:
+            return Response(
+                {"error": "Data inválida. Use formato YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar se já existe 1º cio real registrado
+        existing = HeatRecord.objects.filter(
+            animal=animal, heat_number=1, is_predicted=False
+        ).first()
+
+        if existing:
+            # Atualizar o cio existente e recriar previsões
+            existing.heat_date = heat_date
+            existing.notes = notes
+            existing.save(update_fields=['heat_date', 'notes'])
+            # Atualizar previsões do 2º e 3º cios
+            HeatRecord.objects.filter(animal=animal, heat_number=2, is_predicted=True).update(
+                heat_date=heat_date + datetime.timedelta(days=21)
+            )
+            HeatRecord.objects.filter(animal=animal, heat_number=3, is_predicted=True).update(
+                heat_date=heat_date + datetime.timedelta(days=42)
+            )
+            heat = existing
+        else:
+            heat = HeatRecord.objects.create(
+                animal=animal,
+                heat_number=1,
+                heat_date=heat_date,
+                is_predicted=False,
+                notes=notes,
+            )
+
+        HistoricoEvento.objects.create(
+            farm=animal.farm,
+            tipo_evento='Registro de Cio',
+            descricao=f"1º Cio registrado em {heat_date.strftime('%d/%m/%Y')}. "
+                      f"2º Cio previsto: {(heat_date + datetime.timedelta(days=21)).strftime('%d/%m/%Y')}. "
+                      f"3º Cio (Cobertura) previsto: {(heat_date + datetime.timedelta(days=42)).strftime('%d/%m/%Y')}.",
+            data_evento=heat_date,
+            matriz=animal,
+            metadata={
+                'cio1': str(heat_date),
+                'cio2_previsto': str(heat_date + datetime.timedelta(days=21)),
+                'cio3_previsto': str(heat_date + datetime.timedelta(days=42)),
+            }
+        )
+
+        heats = HeatRecord.objects.filter(animal=animal).order_by('heat_number')
+        serializer = HeatRecordSerializer(heats, many=True)
+        return Response({
+            "message": "Cio registrado com sucesso. Previsões geradas automaticamente.",
+            "heat_records": serializer.data,
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='heat-history')
+    def heat_history(self, request, pk=None):
+        """Retorna o histórico de cios do animal."""
+        animal = self.get_object()
+        heats = HeatRecord.objects.filter(animal=animal).order_by('heat_number')
+        serializer = HeatRecordSerializer(heats, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'], url_path='descartar-matriz')
     def descartar_matriz(self, request, pk=None):
         animal = self.get_object()
@@ -1277,11 +1482,12 @@ class BirthViewSet(viewsets.ModelViewSet):
         birth = self.get_object()
         data = request.data.get('data', timezone.now().date())
         tipo = request.data.get('tipo', 'OBSERVACAO_GERAL')
-        quantidade = request.data.get('quantidade')
-        destino_matriz_id = request.data.get('destino_matriz_id')
         observacao = request.data.get('observacao', '')
 
         if tipo == 'TRANSFERENCIA_LEITAO':
+            quantidade = request.data.get('quantidade')
+            origem_identifier = request.data.get('origem_identifier', birth.female.identifier)
+            destino_identifier = request.data.get('destino_identifier', '')
             qtd = int(quantidade or 0)
             vivos_origem = birth.live_born - birth.mortality
             if qtd > vivos_origem:
@@ -1289,34 +1495,97 @@ class BirthViewSet(viewsets.ModelViewSet):
                     {"error": f"Transferência ({qtd}) excede leitões vivos na origem ({vivos_origem})."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            birth.mortality += qtd  # reduz vivos na origem
+            birth.mortality += qtd
             birth.save(update_fields=['mortality'])
 
-            if destino_matriz_id:
-                from .models import Birth as BirthModel
-                destino = BirthModel.objects.filter(
-                    female_id=destino_matriz_id, batch=birth.batch
-                ).order_by('-birth_date').first()
-                if destino:
-                    # Registra recebimento como um procedimento no destino
+            # Registrar na matriz destino se fornecida
+            if destino_identifier:
+                destino_birth = Birth.objects.filter(
+                    female__identifier=destino_identifier,
+                    female__farm=birth.female.farm,
+                ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date').first()
+                if destino_birth:
                     HistoricoEvento.objects.create(
-                        farm=destino.female.farm,
+                        farm=destino_birth.female.farm,
                         tipo_evento='Procedimento Maternidade',
-                        descricao=f"Recebimento por transferência ({qtd} leitões) da matriz {birth.female.identifier}",
+                        descricao=f"Recebimento de {qtd} leitões transferidos da matriz {origem_identifier}",
                         data_evento=data,
-                        matriz=destino.female,
-                        metadata={'tipo': 'RECEBIMENTO_TRANSFERENCIA', 'quantidade': qtd, 'origem_matriz_id': birth.female.id}
+                        matriz=destino_birth.female,
+                        metadata={
+                            'tipo': 'RECEBIMENTO_TRANSFERENCIA',
+                            'quantidade': qtd,
+                            'origem_identifier': origem_identifier,
+                        }
                     )
 
-        HistoricoEvento.objects.create(
-            farm=birth.female.farm,
-            tipo_evento='Procedimento Maternidade',
-            descricao=f"Tipo: {tipo} | Obs: {observacao}",
-            data_evento=data,
-            matriz=birth.female,
-            metadata={'tipo': tipo, 'quantidade': quantidade, 'destino_matriz_id': destino_matriz_id}
-        )
-        return Response({"message": "Procedimento registrado."})
+            HistoricoEvento.objects.create(
+                farm=birth.female.farm,
+                tipo_evento='Procedimento Maternidade',
+                descricao=f"Transferência de {qtd} leitões para matriz {destino_identifier or 'N/A'}",
+                data_evento=data,
+                matriz=birth.female,
+                metadata={
+                    'tipo': tipo,
+                    'quantidade': qtd,
+                    'destino_identifier': destino_identifier,
+                    'origem_identifier': origem_identifier,
+                }
+            )
+            return Response({"message": "Transferência registrada com sucesso."})
+
+        elif tipo == 'APLICACAO_MEDICAMENTO':
+            medicamento = request.data.get('medicamento', '')
+            dosagem = request.data.get('dosagem', '')
+            motivo = request.data.get('motivo', '')
+            responsavel = request.data.get('responsavel', '')
+
+            if not medicamento:
+                return Response(
+                    {"error": "Nome do medicamento é obrigatório."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            med = LitterMedication.objects.create(
+                birth=birth,
+                batch=birth.batch,
+                medicamento=medicamento,
+                dosagem=dosagem,
+                data_aplicacao=data,
+                motivo=motivo,
+                responsavel=responsavel,
+                notes=observacao,
+            )
+
+            HistoricoEvento.objects.create(
+                farm=birth.female.farm,
+                tipo_evento='Medicação Maternidade',
+                descricao=f"Medicamento: {medicamento} | Dosagem: {dosagem} | Motivo: {motivo} | Responsável: {responsavel}",
+                data_evento=data,
+                matriz=birth.female,
+                lote=birth.batch,
+                metadata={
+                    'tipo': 'APLICACAO_MEDICAMENTO',
+                    'medicamento': medicamento,
+                    'dosagem': dosagem,
+                    'motivo': motivo,
+                    'responsavel': responsavel,
+                    'litter_medication_id': med.id,
+                }
+            )
+            return Response({"message": "Medicação registrada com sucesso e vinculada à leitegada."})
+
+        else:
+            # Outros tipos genéricos
+            quantidade = request.data.get('quantidade')
+            HistoricoEvento.objects.create(
+                farm=birth.female.farm,
+                tipo_evento='Procedimento Maternidade',
+                descricao=f"Tipo: {tipo} | Obs: {observacao}",
+                data_evento=data,
+                matriz=birth.female,
+                metadata={'tipo': tipo, 'quantidade': quantidade}
+            )
+            return Response({"message": "Procedimento registrado."})
 
     @action(detail=False, methods=['post'])
     def batch_wean(self, request):

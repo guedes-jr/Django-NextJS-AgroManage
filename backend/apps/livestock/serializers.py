@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento
+from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento, HeatRecord, LitterMedication
 from collections import Counter
 
 # Mapeamento automático de categoria de lote → fase produtiva
@@ -632,3 +632,31 @@ class HealthRecordSerializer(serializers.ModelSerializer):
             'description', 'application_date',
             'veterinary', 'cost', 'notes'
         ]
+
+
+class HeatRecordSerializer(serializers.ModelSerializer):
+    animal_identifier = serializers.CharField(source='animal.identifier', read_only=True)
+    heat_date_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HeatRecord
+        fields = [
+            'id', 'animal', 'animal_identifier', 'heat_number',
+            'heat_date', 'heat_date_display', 'is_predicted', 'notes', 'created_at'
+        ]
+        read_only_fields = ['created_at']
+
+    def get_heat_date_display(self, obj):
+        if obj.heat_date:
+            return obj.heat_date.strftime('%d/%m/%Y')
+        return None
+
+
+class LitterMedicationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LitterMedication
+        fields = [
+            'id', 'birth', 'batch', 'medicamento', 'dosagem',
+            'data_aplicacao', 'motivo', 'responsavel', 'notes', 'created_at'
+        ]
+        read_only_fields = ['created_at']

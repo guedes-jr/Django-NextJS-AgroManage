@@ -22,6 +22,8 @@ import {
   batchWean,
   getReproducers,
   diagnosePregnancy,
+  registerHeat,
+  mergeBatches,
 } from "@/services/livestockService";
 
 type TabId = "dashboard" | "marras" | "matrizes" | "gestacao" | "maternidade" | "creche" | "crescimento" | "engorda";
@@ -194,6 +196,12 @@ function ReproducaoPageContent() {
             variant: "primary", 
             type: "mating_marra"
           },
+          {
+            label: "Registrar Cio",
+            icon: "🔴",
+            variant: "secondary",
+            type: "heat",
+          },
         ],
         kpis: [
           { label: "Total Marrãs", value: m.total ?? 0, icon: "🐖", color: "oklch(0.95 0.05 145)", trend: "up" },
@@ -204,6 +212,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
+          { label: "Registrar Cio", icon: "🔴", color: "oklch(0.65 0.18 15)", desc: "1º Cio / Previsão automática", type: 'heat' },
           { label: "Registrar Cobertura", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Primeira cobertura", type: 'mating_marra' },
         ],
         tabAlerts: tab.marras?.alerts || [],
@@ -213,6 +222,9 @@ function ReproducaoPageContent() {
           { key: "idade", label: "Idade (dias)" },
           { key: "peso", label: "Peso (kg)" },
           { key: "entrada", label: "Entrada", render: formatDateCell },
+          { key: "cio1_data", label: "1º Cio", render: (v: any, row: any) => v ? <span style={{ color: row.cio1_previsto ? 'var(--muted-foreground)' : 'inherit', fontStyle: row.cio1_previsto ? 'italic' : 'normal' }}>{formatDateCell(v)}{row.cio1_previsto ? ' (prev.)' : ''}</span> : <span className="text-muted">—</span> },
+          { key: "cio2_data", label: "2º Cio", render: (v: any, row: any) => v ? <span style={{ color: 'var(--muted-foreground)', fontStyle: 'italic' }}>{formatDateCell(v)} (prev.)</span> : <span className="text-muted">—</span> },
+          { key: "cio3_data", label: "3º Cio / Cobertura", render: (v: any, row: any) => v ? <span style={{ color: 'oklch(0.55 0.16 145)', fontWeight: 600, fontStyle: 'italic' }}>{formatDateCell(v)} (prev.)</span> : <span className="text-muted">—</span> },
         ],
         actions: [
           {
@@ -410,7 +422,7 @@ function ReproducaoPageContent() {
           { label: "Média Nascidos", value: matn.media_nascidos ?? "—", icon: "📊", color: "oklch(0.55 0.16 145)", trend: "neutral" },
         ],
         tabActions: [
-          { label: "Registrar Procedimento / Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Registrar procedimento", type: 'procedure' },
+          { label: "Registrar Procedimento / Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Transferir leitões ou medicação", type: 'procedure' },
           { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito", type: 'mortality' },
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Pesar leitões", type: 'weight' },
           { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche", type: 'wean' },
@@ -453,6 +465,7 @@ function ReproducaoPageContent() {
         rowKey: "lote",
         batchActions: [
           { label: "Transferir p/ Crescimento", icon: "🔄", variant: "primary", type: "transfer_crescimento" },
+          { label: "Juntar Lotes", icon: "🔗", variant: "secondary", type: "merge_batches" },
         ],
         kpis: [
           { label: "Total Lotes", value: cr.total ?? 0, icon: "📦", color: "oklch(0.95 0.04 185)", trend: "up" },
@@ -463,6 +476,7 @@ function ReproducaoPageContent() {
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso do lote", type: 'weight' },
           { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
+          { label: "Juntar Lotes", icon: "🔗", color: "oklch(0.65 0.15 270)", desc: "Unificar lotes", type: 'merge_batches' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para crescimento", type: "transfer_crescimento" },
         ],
         tabAlerts: tab.creche?.alerts || [],

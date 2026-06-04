@@ -868,3 +868,86 @@ class HistoricoEvento(BaseModel):
         target = self.matriz.identifier if self.matriz else self.lote.batch_code if self.lote else "Geral"
         return f"{self.tipo_evento} - {target} em {self.data_evento}"
 
+
+class HeatRecord(BaseModel):
+    """
+    Registro de cio de uma Marrã ou Matriz.
+    Ao registrar o 1º cio, o sistema gera automaticamente previsão
+    do 2º (21 dias) e 3º cio (42 dias). Cobertura ocorre no 3º cio.
+    """
+    animal = models.ForeignKey(
+        Animal, on_delete=models.CASCADE, related_name="heat_records"
+    )
+    heat_number = models.PositiveSmallIntegerField(
+        default=1, help_text="Número do cio (1º, 2º, 3º...)"
+    )
+    heat_date = models.DateField(help_text="Data do cio (real ou prevista)")
+    is_predicted = models.BooleanField(
+        default=False, help_text="True se a data for uma previsão automática"
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Registro de Cio"
+        verbose_name_plural = "Registros de Cio"
+        ordering = ["animal", "heat_number"]
+
+    def __str__(self) -> str:
+        tipo = "Previsto" if self.is_predicted else "Real"
+        return f"{self.animal.identifier} — {self.heat_number}º Cio ({tipo}) em {self.heat_date}"
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+
+        # Ao registrar o 1º cio real, gerar previsões para o 2º e 3º cios automaticamente
+        if is_new and not self.is_predicted and self.heat_number == 1:
+            import datetime
+            # 2º cio: +21 dias
+            HeatRecord.objects.get_or_create(
+                animal=self.animal,
+                heat_number=2,
+                defaults={
+                    "heat_date": self.heat_date + datetime.timedelta(days=21),
+                    "is_predicted": True,
+                }
+            )
+            # 3º cio: +42 dias (cobertura)
+            HeatRecord.objects.get_or_create(
+                animal=self.animal,
+                heat_number=3,
+                defaults={
+                    "heat_date": self.heat_date + datetime.timedelta(days=42),
+                    "is_predicted": True,
+                }
+            )
+
+
+class LitterMedication(BaseModel):
+    """
+    Medicamento/procedimento aplicado em uma leitegada na Maternidade.
+    Essa informação acompanha o lote ao ser transferido para Creche/Crescimento/Engorda.
+    """
+    birth = models.ForeignKey(
+        Birth, on_delete=models.CASCADE, related_name="medications"
+    )
+    batch = models.ForeignKey(
+        AnimalBatch, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="litter_medications",
+        help_text="Lote da Creche/Crescimento/Engorda herdeiro do histórico"
+    )
+    medicamento = models.CharField(max_length=150)
+    dosagem = models.CharField(max_length=100, blank=True)
+    data_aplicacao = models.DateField()
+    motivo = models.CharField(max_length=200, blank=True)
+    responsavel = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Medicamento da Leitegada"
+        verbose_name_plural = "Medicamentos da Leitegada"
+        ordering = ["-data_aplicacao"]
+
+    def __str__(self) -> str:
+        return f"{self.medicamento} — Leitegada {self.birth_id} em {self.data_aplicacao}"
+

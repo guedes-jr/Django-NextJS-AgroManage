@@ -263,7 +263,9 @@ import {
   updateAnimalBatch,
   updatePregnancy,
   fetchAnimalDetails,
-  fetchAnimalHistory
+  fetchAnimalHistory,
+  registerHeat,
+  mergeBatches,
 } from "@/services/livestockService";
 
 import { useRouter } from "next/navigation";
@@ -751,6 +753,7 @@ export function ReproducaoDashboard({
         setActionModal({
           open: true,
           title: "Registrar Procedimento / Manejo",
+          subtitle: "Selecione o tipo de manejo para a leitegada",
           fields: [
             { 
               name: "id", 
@@ -761,22 +764,89 @@ export function ReproducaoDashboard({
               disabled: rows.length >= 1,
               required: true 
             },
-            { name: "data", label: "Data do Procedimento", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
-            { name: "tipo", label: "Tipo de Manejo", type: "select", required: true, options: [
-              { value: "TRANSFERENCIA_LEITAO", label: "Transferência de Leitões" },
-              { value: "ADOCAO_ENXERTIA", label: "Adoção/Enxertia" },
-              { value: "APLICACAO_FERRO", label: "Aplicação de Ferro" },
-              { value: "CORTE_DENTE", label: "Corte de Dente" },
-              { value: "CORTE_CAUDA", label: "Corte de Cauda" },
-              { value: "CASTRACAO", label: "Castração" },
-              { value: "SEPARACAO_LEITAO_FRACO", label: "Separação de Leitão Fraco" },
-              { value: "OBSERVACAO_GERAL", label: "Observação Geral" },
-            ]},
-            { name: "quantidade", label: "Quantidade (se aplicável)", type: "number" },
-            { name: "destino_matriz_id", label: "ID Matriz Destino (para Transferência)", type: "number" },
-            { name: "observacao", label: "Observações", type: "textarea" },
+            { 
+              name: "tipo", 
+              label: "Tipo de Procedimento", 
+              type: "select", 
+              required: true,
+              options: [
+                { value: "TRANSFERENCIA_LEITAO", label: "🔄 Transferência de Leitões" },
+                { value: "APLICACAO_MEDICAMENTO", label: "💊 Aplicação de Medicamentos" },
+              ],
+              initialValue: "TRANSFERENCIA_LEITAO",
+              colSpan: "full"
+            },
+            // Campos para Transferência de Leitões
+            { 
+              name: "quantidade", 
+              label: "Quantidade de Leitões", 
+              type: "number", 
+              required: true,
+              showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
+            },
+            { 
+              name: "destino_identifier", 
+              label: "Brinco da Matriz Destino", 
+              type: "text", 
+              required: true,
+              placeholder: "Ex: 062",
+              showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
+            },
+            { 
+              name: "data", 
+              label: "Data", 
+              type: "date", 
+              required: true, 
+              initialValue: new Date().toISOString().split('T')[0],
+              showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
+            },
+            { 
+              name: "observacao", 
+              label: "Observação", 
+              type: "textarea",
+              showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
+            },
+            // Campos para Aplicação de Medicamentos
+            { 
+              name: "medicamento", 
+              label: "Medicamento", 
+              type: "text", 
+              required: true,
+              placeholder: "Ex: Ferro Injetável",
+              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+            },
+            { 
+              name: "dosagem", 
+              label: "Dosagem", 
+              type: "text",
+              placeholder: "Ex: 1ml/animal",
+              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+            },
+            { 
+              name: "data", 
+              label: "Data de Aplicação", 
+              type: "date", 
+              required: true, 
+              initialValue: new Date().toISOString().split('T')[0],
+              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+            },
+            { 
+              name: "motivo", 
+              label: "Motivo", 
+              type: "text",
+              placeholder: "Ex: Prevenção de anemia",
+              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+            },
+            { 
+              name: "responsavel", 
+              label: "Responsável", 
+              type: "text",
+              placeholder: "Nome do responsável",
+              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+            },
           ],
           onConfirm: async (data) => {
+            const targets = rows.length > 0 ? rows : animalOptions.map(o => ({ id: o.value }));
             if (rows.length > 1) {
               await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
             } else {
@@ -845,6 +915,18 @@ export function ReproducaoDashboard({
                 required: true,
                 initialValue: new Date().toISOString().split('T')[0]
               },
+              {
+                name: "birth_time_start",
+                label: "Hora de Início do Parto",
+                type: "time",
+                required: false,
+              },
+              {
+                name: "birth_time_end",
+                label: "Hora de Término do Parto",
+                type: "time",
+                required: false,
+              },
               { 
                 name: "live_born", 
                 label: "Nascidos Vivos", 
@@ -875,15 +957,16 @@ export function ReproducaoDashboard({
             onConfirm: async (data) => {
               const performBirth = async (animalRow: any) => {
                 const animalId = animalRow.animal_id || animalRow.id;
-                const pregnancyId = animalRow.id; // Nas gestações o ID principal é o da Prenhez
+                const pregnancyId = animalRow.id;
                 const identifier = animalRow.identifier;
 
                 try {
-                  // 1. Criar registro de parto (Vinculado à prenhez)
                   await createBirth({ 
                     pregnancy: pregnancyId,
                     female: animalId,
                     birth_date: data.birth_date,
+                    birth_time_start: data.birth_time_start || null,
+                    birth_time_end: data.birth_time_end || null,
                     live_born: parseInt(data.live_born) || 0,
                     stillborn: parseInt(data.stillborn) || 0,
                     mummified: parseInt(data.mummified) || 0,
@@ -891,10 +974,8 @@ export function ReproducaoDashboard({
                     notes: data.notes || ""
                   });
 
-                  // 2. Marcar prenhez como concluída
                   await updatePregnancy(pregnancyId, { status: 'completed' });
 
-                  // 4. Mover mãe para Lactante
                   await updateAnimal(animalId, { 
                     reproductive_status: "lactante" 
                   });
@@ -1200,8 +1281,99 @@ export function ReproducaoDashboard({
             setActionModal(prev => ({ ...prev, open: false }));
           },
         });
+        });
         break;
       }
+      case 'heat':
+        setActionModal({
+          open: true,
+          title: "Registrar Cio",
+          subtitle: "Registre o 1º cio para prever os próximos",
+          fields: [
+            {
+              name: "id",
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Marrã / Matriz (Brinco)",
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
+              options: animalOptions,
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              disabled: rows.length >= 1,
+              required: true,
+            },
+            {
+              name: "heat_date",
+              label: "Data do Cio",
+              type: "date",
+              required: true,
+              initialValue: new Date().toISOString().split('T')[0]
+            },
+            {
+              name: "notes",
+              label: "Observações",
+              type: "textarea"
+            }
+          ],
+          onConfirm: async (data) => {
+            if (rows.length > 1) {
+              await Promise.all(rows.map(r => registerHeat(r.id || r.pk || r.identifier, data)));
+            } else {
+              await registerHeat(data.id, data);
+            }
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
+      case 'merge_batches':
+        if (rows.length < 2) {
+          alert("Selecione pelo menos 2 lotes para juntar.");
+          return;
+        }
+        setActionModal({
+          open: true,
+          title: "Juntar Lotes",
+          subtitle: `Você está prestes a juntar ${rows.length} lotes em um só.`,
+          fields: [
+            {
+              name: "source_batches",
+              label: "Lotes Selecionados",
+              type: "text",
+              initialValue: rows.map(r => r.lote || r.batch_code).join(", "),
+              disabled: true,
+              colSpan: "full",
+            },
+            {
+              name: "new_batch_code",
+              label: "Código do Novo Lote",
+              type: "text",
+              required: true,
+              initialValue: `L-JUNCAO-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+              colSpan: "full",
+            },
+            {
+              name: "entry_date",
+              label: "Data da Junção",
+              type: "date",
+              required: true,
+              initialValue: new Date().toISOString().split('T')[0]
+            },
+            {
+              name: "notes",
+              label: "Observações",
+              type: "textarea"
+            }
+          ],
+          onConfirm: async (data) => {
+            await mergeBatches({
+              batch_ids: rows.map(r => r.id),
+              new_batch_code: data.new_batch_code,
+              entry_date: data.entry_date,
+              notes: data.notes
+            });
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          }
+        });
+        break;
       case 'transfer_crescimento':
         handleTransferPhase("crescimento", rows);
         break;

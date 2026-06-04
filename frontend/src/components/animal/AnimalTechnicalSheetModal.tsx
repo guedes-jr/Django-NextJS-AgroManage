@@ -284,8 +284,10 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     vivos: c.live_born !== null ? c.live_born : "-",
     mortos: c.stillborn !== null ? c.stillborn : "-",
     natimortos: c.mummified !== null ? c.mummified : "-",
+    pesoNasc: c.avg_birth_weight_kg ? fmt(c.avg_birth_weight_kg) : "-",
     dataDesm: fmtDate(c.weaning_date) || "-",
     desmamados: c.weaned_quantity !== null ? c.weaned_quantity : "-",
+    pesoDesm: c.avg_weaning_weight_kg ? fmt(c.avg_weaning_weight_kg) : "-",
     diasLact: c.lactation_days || "-",
     retCio: fmtDate(c.heat_return_date) || "-",
     obs: c.notes || "-"
@@ -310,6 +312,15 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       data: fmtDate(h.details?.application_date || h.date),
       dose: h.details?.notes || "-",
       resp: h.details?.veterinary || "Vet"
+    }));
+
+  // Dynamic Heat Records
+  const cios = history
+    .filter((e: any) => e.type === "registro_cio")
+    .map((c: any) => ({
+      data1: fmtDate(c.details?.cio1) || "-",
+      data2: fmtDate(c.details?.cio2_previsto) || "-",
+      data3: fmtDate(c.details?.cio3_previsto) || "-"
     }));
 
   return (
@@ -422,8 +433,8 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             <tr>
               <Th style={{ borderBottom: "none" }}></Th>
               <Th colSpan={2} style={{ borderBottom: `2px solid ${GREEN_DARK}` }}>Cobertura / IA</Th>
-              <Th colSpan={3} style={{ borderBottom: `2px solid ${GREEN_DARK}` }}>Parto</Th>
-              <Th colSpan={4} style={{ borderBottom: `2px solid ${GREEN_DARK}` }}>Desmame / Retorno</Th>
+              <Th colSpan={4} style={{ borderBottom: `2px solid ${GREEN_DARK}` }}>Parto</Th>
+              <Th colSpan={5} style={{ borderBottom: `2px solid ${GREEN_DARK}` }}>Desmame / Retorno</Th>
               <Th style={{ borderBottom: "none" }}></Th>
             </tr>
             <tr>
@@ -433,12 +444,15 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               <Th>Prev.<br/>Parto</Th>
               <Th>Data<br/>Parto</Th>
               <Th>Nascidos<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 | 🔴 | ⚫)</span></Th>
+              <Th>Peso Nasc.<br/>(kg)</Th>
               <Th>Data<br/>Desmame</Th>
               <Th>Qtd.<br/>Desm.</Th>
+              <Th>Peso Desm.<br/>(kg)</Th>
               <Th>Dias<br/>Lact.</Th>
               <Th>Data<br/>Ret. Cio</Th>
               <Th>Observações</Th>
             </tr>
+
           </thead>
           <tbody>
             {histRow.length === 0 ? (
@@ -465,8 +479,10 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
                       </div>
                     ) : "-"}
                   </Td>
+                  <Td>{r.pesoNasc}</Td>
                   <Td>{r.dataDesm}</Td>
                   <Td>{r.desmamados}</Td>
+                  <Td>{r.pesoDesm}</Td>
                   <Td>{r.diasLact}</Td>
                   <Td>{r.retCio}</Td>
                   <Td style={{ fontSize: "0.55rem" }}>{r.obs}</Td>
@@ -544,17 +560,48 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
         </div>
       </div>
 
-      {/* ══════════ SEC 6 ══════════ */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15, marginBottom: 15 }}>
+        {/* Histórico de Cios */}
+        <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden", gridColumn: "1 / -1" }}>
+          <SectionHeader number={7} title="HISTÓRICO DE CIOS (MARRÃ)" />
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <Th>1º Cio (Real)</Th>
+                <Th>2º Cio (Previsto / Real)</Th>
+                <Th>3º Cio / Cobertura (Previsto)</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {cios.length === 0 ? (
+                <TR>
+                  <Td colSpan={3} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhum cio registrado</Td>
+                </TR>
+              ) : (
+                cios.map((c: any, i: number) => (
+                  <TR key={i} even={i % 2 !== 0}>
+                    <Td>{c.data1}</Td>
+                    <Td>{c.data2}</Td>
+                    <Td>{c.data3}</Td>
+                  </TR>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ══════════ SEC 8 ══════════ */}
       <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden", marginBottom: 15 }}>
-        <SectionHeader number={6} title="OBSERVAÇÕES" />
+        <SectionHeader number={8} title="OBSERVAÇÕES" />
         <div style={{ padding: "10px", fontSize: "0.65rem", color: "#333", lineHeight: 1.5 }}>
           {animal?.notes || "Nenhuma observação registrada para esta matriz."}
         </div>
       </div>
 
-      {/* ══════════ SEC 7 - Flow ══════════ */}
+      {/* ══════════ SEC 9 - Flow ══════════ */}
       <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden", marginBottom: 15 }}>
-        <SectionHeader number={7} title="FLUXO DA FASE REPRODUTIVA" />
+        <SectionHeader number={9} title="FLUXO DA FASE REPRODUTIVA" />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 20px" }}>
           
           <div style={{ textAlign: "center", width: 100 }}>

@@ -183,3 +183,67 @@ export const fetchAnimalHistory = async (id: string | number) => {
     return response.data;
   }
 };
+
+export const registerHeat = async (
+  animalId: string | number,
+  data: { heat_date: string; notes?: string }
+) => {
+  const response = await apiClient.post(
+    `/livestock/animals/${animalId}/register-heat/`,
+    data
+  );
+  return response.data;
+};
+
+export const getHeatHistory = async (animalId: string | number) => {
+  const response = await apiClient.get(
+    `/livestock/animals/${animalId}/heat-history/`
+  );
+  return response.data;
+};
+
+export const mergeBatches = async (data: {
+  batch_ids: (string | number)[];
+  new_batch_code: string;
+  entry_date: string;
+  quantity?: number;
+  avg_weight_kg?: number;
+  notes?: string;
+}) => {
+  const response = await apiClient.post("/livestock/batches/merge_batches/", data);
+  return response.data;
+};
+
+export const registerLitterMedication = async (
+  birthId: string | number,
+  data: {
+    medicamento: string;
+    dosagem?: string;
+    data_aplicacao: string;
+    motivo?: string;
+    responsavel?: string;
+    notes?: string;
+  }
+) => {
+  const response = await apiClient.post(
+    `/livestock/births/${birthId}/registrar-procedimento/`,
+    { tipo: "APLICACAO_MEDICAMENTO", data: data.data_aplicacao, ...data }
+  );
+  return response.data;
+};
+
+export const transferLeitoes = async (
+  birthId: string | number,
+  data: {
+    quantidade: number;
+    destino_identifier: string;
+    data: string;
+    observacao?: string;
+  }
+) => {
+  const response = await apiClient.post(
+    `/livestock/births/${birthId}/registrar-procedimento/`,
+    { tipo: "TRANSFERENCIA_LEITAO", ...data }
+  );
+  return response.data;
+};
