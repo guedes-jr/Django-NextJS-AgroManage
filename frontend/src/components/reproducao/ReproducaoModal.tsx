@@ -7,7 +7,7 @@ import "./reproducao.css";
 export interface ModalField {
   name: string;
   label: string;
-  type: "text" | "date" | "number" | "select" | "textarea" | "hidden";
+  type: "text" | "date" | "time" | "number" | "select" | "textarea" | "hidden";
   placeholder?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
