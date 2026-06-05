@@ -275,72 +275,132 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
   if (!isOpen) return null;
 
-  // ── Derived data ──
+  // ── Derived data — usa APENAS dados reais do histórico do lote ──
   const ageInDays = calcAge(animal?.birth_date);
 
-  const qtdAtual = animal?.current_quantity ?? animal?.quantity ?? 16;
-  const qtdInicial = animal?.initial_quantity ?? animal?.quantity ?? 16;
-  const nascidosVivos = animal?.born_alive ?? animal?.quantity ?? 20;
-  const nascidosMortos = animal?.born_dead ?? 0;
-  const natimortos = animal?.stillborn ?? 0;
-  const totalNascidos = (nascidosVivos + nascidosMortos + natimortos) || nascidosVivos;
-  const saldoMortes = animal?.deaths_count ?? (Math.max(0, totalNascidos - qtdAtual) || 4);
+  // Quantidades — sem fallback fictício
+  const qtdAtual: number | null = animal?.quantity ?? null;
+  const qtdInicial: number | null = animal?.initial_quantity ?? null;
 
-  const pesoMedioAtual = animal?.current_weight_kg ?? animal?.avg_weight_kg ?? 13.60;
-  const pesoTotalLote = (pesoMedioAtual * qtdAtual) || 217.60;
-  const pesoMedioNasc = animal?.birth_weight_kg ?? 1.25;
+  // Dados do parto (oriundos do Birth record, via serializer aprimorado)
+  const nascidosVivos: number | null = animal?.born_alive ?? null;
+  const nascidosMortos: number | null = animal?.born_dead ?? null;
+  const natimortos: number | null = animal?.stillborn ?? null;
+  const totalNascidos: number | null =
+    nascidosVivos != null
+      ? nascidosVivos + (nascidosMortos ?? 0) + (natimortos ?? 0)
+      : null;
 
-  const gpd = animal?.daily_weight_gain ?? 0.414;
-  const conversaoAlimentar = animal?.feed_conversion ?? 2.35;
-  const mortalidadePct = totalNascidos > 0 ? ((saldoMortes / totalNascidos) * 100).toFixed(2) : "20.00";
-  const metaGpd = animal?.target_gpd ?? 0.450;
+  // Mortes: somente dado real (calculado no serializer)
+  const saldoMortes: number | null = animal?.deaths_count ?? null;
 
-  const gpdAbaixoMeta = Number(gpd) < Number(metaGpd);
+  // Pesos — sem fallback fictício
+  const pesoMedioAtual: number | null =
+    animal?.current_weight_kg != null ? Number(animal.current_weight_kg)
+    : animal?.avg_weight_kg != null ? Number(animal.avg_weight_kg)
+    : null;
+  const pesoTotalLote: number | null =
+    pesoMedioAtual != null && qtdAtual != null ? pesoMedioAtual * qtdAtual : null;
+  const pesoMedioNasc: number | null =
+    animal?.birth_weight_kg != null ? Number(animal.birth_weight_kg) : null;
 
-  const categoria = (animal?.current_category || animal?.reproductive_status || "CRECHE").toUpperCase();
-  const rawLoteId = animal?.batch_number ?? animal?.id ?? 3;
-  // Truncate UUID-style IDs to avoid header overflow
+  // GPD — calculado apenas quando existem dados reais de peso e nascimento
+  const gpd: number | null = (() => {
+    if (animal?.daily_weight_gain != null) return Number(animal.daily_weight_gain);
+    if (pesoMedioAtual != null && pesoMedioNasc != null && ageInDays != null && ageInDays > 0) {
+      return (pesoMedioAtual - pesoMedioNasc) / ageInDays;
+    }
+    return null;
+  })();
+
+  const metaGpd: number | null = animal?.target_gpd != null ? Number(animal.target_gpd) : null;
+  const gpdAbaixoMeta: boolean | null =
+    gpd != null && metaGpd != null ? gpd < metaGpd : null;
+
+  // Identidade do lote
+  const categoria = (animal?.phase || animal?.category || animal?.current_category || "").toUpperCase() || "-";
+  const rawLoteId = animal?.batch_code ?? animal?.id ?? "-";
   const loteNum = typeof rawLoteId === "string" && rawLoteId.length > 10
     ? rawLoteId.slice(0, 8).toUpperCase()
     : rawLoteId;
-  const mae = animal?.dam_identifier ?? animal?.mother_id ?? "040";
-  const pai = animal?.sire_identifier ?? animal?.father_id ?? "ANDRE";
 
-  // Feed consumption rows
-  const feedRows = history.filter((e: any) => e.type === "feed").slice(0, 4);
+  // Origem genética (vem do Birth record vinculado ao lote, via serializer)
+  const mae: string | null = animal?.dam_identifier ?? null;
+  const pai: string | null = animal?.sire_identifier ?? null;
+
+  // ── Consumo de Ração — SOMENTE registros reais (sem feedDefault fictício) ──
+  const feedRows = history.filter((e: any) => e.type === "feed").slice(0, 20);
   const hasFeed = feedRows.length > 0;
-  const feedDefault = [
-    { tipo: "Pré-Inicial", consumoTotal: 250.0, custo: 325.0, consumoMedio: 6.0 },
-    { tipo: "Inicial", consumoTotal: 300.0, custo: 420.0, consumoMedio: 7.60 },
-    { tipo: "Crescimento", consumoTotal: null, custo: null, consumoMedio: null },
-  ];
-  const feedData = hasFeed
-    ? feedRows.map((e: any) => ({ tipo: e.title, consumoTotal: e.total_kg, custo: e.cost, consumoMedio: e.avg_per_animal }))
-    : feedDefault;
-  const totalConsumo = feedData.reduce((a, r) => a + (r.consumoTotal || 0), 0);
-  const totalCusto = feedData.reduce((a, r) => a + (r.custo || 0), 0);
+  const feedData = feedRows.map((e: any) => ({
+    tipo: e.title,
+    consumoTotal: e.total_kg ?? null,
+    custo: e.cost ?? null,
+    consumoMedio: e.avg_per_animal ?? null,
+  }));
+  const totalConsumo = feedData.reduce((a, r) => a + (r.consumoTotal ?? 0), 0);
+  const totalCusto = feedData.reduce((a, r) => a + (r.custo ?? 0), 0);
+
+  // Conversão Alimentar — somente quando há ração E peso reais
+  const conversaoAlimentar: number | null = (() => {
+    if (animal?.feed_conversion != null) return Number(animal.feed_conversion);
+    if (hasFeed && gpd != null && gpd > 0 && qtdAtual != null && qtdAtual > 0 && ageInDays != null) {
+      const consumoMedioAnimal = totalConsumo / qtdAtual;
+      const ganhoTotal = gpd * ageInDays;
+      if (ganhoTotal > 0) return consumoMedioAnimal / ganhoTotal;
+    }
+    return null;
+  })();
+
+  // Mortalidade % — somente quando há deaths_count real e total nascidos
+  const mortalidadePct: string | null =
+    totalNascidos != null && totalNascidos > 0 && saldoMortes != null && saldoMortes > 0
+      ? ((saldoMortes / totalNascidos) * 100).toFixed(2)
+      : null;
 
   // Sales
-  const salesRows = history.filter((e: any) => e.type === "sale").slice(0, 4);
+  const salesRows = history.filter((e: any) => e.type === "sale").slice(0, 10);
 
-  // Deaths
-  const deathRows = history.filter((e: any) => e.type === "death" || e.type === "discard").slice(0, 4);
+  // Deaths — somente registros reais
+  const deathRows = history.filter((e: any) => e.type === "death" || e.type === "discard").slice(0, 20);
 
-  // Transfers
-  const transferRows = history.filter((e: any) => e.type === "transfer").slice(0, 4);
+  // Transfers — somente registros reais (sem transferDefault fictício)
+  const transferRows = history.filter((e: any) => e.type === "transfer").slice(0, 10);
   const hasTransfer = transferRows.length > 0;
-  const transferDefault = [{ date: animal?.birth_date || "2026-02-02", qty: -saldoMortes, loteOrigem: loteNum, loteDestino: 2, faseDestino: "CRECHE", operacao: "SAÍDA" }];
-  const transferData = hasTransfer ? transferRows : transferDefault;
-  const totalTransferido = transferData.reduce((a: number, t: any) => a + (Number(t.qty ?? t.quantity) || 0), 0);
+  const totalTransferido = transferRows.reduce((a: number, t: any) => a + (Number(t.qty ?? t.quantity) || 0), 0);
 
-  // Financial
-  const custoRacao = totalCusto || 745;
-  const custoMedicamentos = animal?.medication_cost ?? 120;
-  const custoOperacional = animal?.operational_cost ?? 80;
-  const custoTotal = custoRacao + custoMedicamentos + custoOperacional;
-  const custoPorAnimal = qtdAtual > 0 ? custoTotal / qtdAtual : 0;
-  const pesoTotalProduzido = pesoTotalLote - (pesoMedioNasc * qtdAtual);
-  const custoPorKg = pesoTotalProduzido > 0 ? custoTotal / pesoTotalProduzido : 0;
+  // Financeiro — sem valores fictícios
+  const custoRacao: number | null = hasFeed && totalCusto > 0 ? totalCusto : null;
+  const custoMedicamentos: number | null = animal?.medication_cost ?? null;
+  const custoOperacional: number | null = animal?.operational_cost ?? null;
+  const hasFinancial = custoRacao != null || custoMedicamentos != null || custoOperacional != null;
+  const custoTotal: number | null = hasFinancial
+    ? (custoRacao ?? 0) + (custoMedicamentos ?? 0) + (custoOperacional ?? 0)
+    : null;
+  const custoPorAnimal: number | null =
+    custoTotal != null && qtdAtual != null && qtdAtual > 0 ? custoTotal / qtdAtual : null;
+  const pesoTotalProduzido: number | null =
+    pesoTotalLote != null && pesoMedioNasc != null && qtdAtual != null
+      ? pesoTotalLote - pesoMedioNasc * qtdAtual
+      : null;
+  const custoPorKg: number | null =
+    custoTotal != null && pesoTotalProduzido != null && pesoTotalProduzido > 0
+      ? custoTotal / pesoTotalProduzido
+      : null;
+
+  // Desempenho Geral — somente quando há indicadores reais
+  const hasEnoughPerformanceData = gpd != null || conversaoAlimentar != null || mortalidadePct != null;
+  const desempenhoGeral = (() => {
+    if (!hasEnoughPerformanceData) return null;
+    let score = 0; let total = 0;
+    if (gpd != null && metaGpd != null) { total++; if (gpd >= metaGpd) score++; }
+    if (mortalidadePct != null) { total++; if (parseFloat(mortalidadePct) < 5) score++; }
+    if (conversaoAlimentar != null) { total++; if (conversaoAlimentar < 2.5) score++; }
+    if (total === 0) return null;
+    const ratio = score / total;
+    if (ratio >= 0.66) return { label: "BOM", color: "#16a34a", status: "Continue assim!" };
+    if (ratio >= 0.33) return { label: "REGULAR", color: AMBER, status: "Atenção necessária" };
+    return { label: "ABAIXO", color: RED, status: "Verificar indicadores" };
+  })();
 
   const now = new Date();
   const reportDate = now.toLocaleDateString("pt-BR");
@@ -490,31 +550,39 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
               {/* Col 1 — Identificação */}
               <div style={{ padding: "8px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
-                <InfoRow icon={<IconPig />} label="Raça:" value={animal?.breed_name || "Tricross"} />
+                <InfoRow icon={<IconPig />} label="Raça:" value={animal?.breed_name || "-"} />
                 <InfoRow icon={<IconCal />} label="Nascimento:" value={fmtDate(animal?.birth_date)} />
-                <InfoRow icon={<IconClock />} label="Idade Atual:" value={ageInDays != null ? `${ageInDays} dias` : "71 dias"} />
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                  <span style={{ display: "flex", alignItems: "center" }}><IconTag /></span>
-                  <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", minWidth: 82 }}>Categoria Atual:</span>
-                  <span style={{
-                    background: GREEN_DARK,
-                    color: "#fff",
-                    borderRadius: 3,
-                    padding: "1px 7px",
-                    fontWeight: 700,
-                    fontSize: "0.58rem",
-                  }}>
-                    {categoria}
-                  </span>
-                </div>
+                <InfoRow icon={<IconClock />} label="Idade Atual:" value={ageInDays != null ? `${ageInDays} dias` : "-"} />
+                {categoria && categoria !== "-" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                    <span style={{ display: "flex", alignItems: "center" }}><IconTag /></span>
+                    <span style={{ color: GRAY_TEXT, fontSize: "0.6rem", minWidth: 82 }}>Categoria Atual:</span>
+                    <span style={{
+                      background: GREEN_DARK,
+                      color: "#fff",
+                      borderRadius: 3,
+                      padding: "1px 7px",
+                      fontWeight: 700,
+                      fontSize: "0.58rem",
+                    }}>
+                      {categoria}
+                    </span>
+                  </div>
+                )}
                 <div style={{ marginBottom: 4, color: GRAY_TEXT, fontSize: "0.6rem", display: "flex", alignItems: "center", gap: 6 }}>
                   <IconCheck />
                   Situação do Lote:
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, color: GREEN_DARK, fontSize: "0.62rem" }}>
-                  <CheckCircle2 size={14} color="#16a34a" />
-                  BOM DESEMPENHO
-                </div>
+                {desempenhoGeral ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, color: desempenhoGeral.color, fontSize: "0.62rem" }}>
+                    <CheckCircle2 size={14} color={desempenhoGeral.color} />
+                    {desempenhoGeral.label} DESEMPENHO
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "0.6rem", color: GRAY_TEXT, fontStyle: "italic" }}>
+                    Aguardando dados...
+                  </div>
+                )}
               </div>
 
               {/* Col 2 — Origem/Genética */}
@@ -530,21 +598,21 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 }}>
                   ORIGEM / GENÉTICA
                 </div>
-                <GeneticsRow icon={<IconFemale />} label="Mãe (Matriz):" value={String(mae)} />
-                <GeneticsRow icon={<IconMale />} label="Pai (Reprodutor):" value={String(pai)} />
-                <GeneticsRow icon={<IconBaby />} label="Nascidos Vivos:" value={fmtInt(nascidosVivos)} />
-                <GeneticsRow icon={<IconSkull />} label="Nascidos Mortos:" value={fmtInt(nascidosMortos)} />
-                <GeneticsRow icon={<IconDanger />} label="Natimortos:" value={fmtInt(natimortos)} />
-                <GeneticsRow icon={<IconSum />} label="Total Nascidos:" value={fmtInt(totalNascidos)} bold />
+                <GeneticsRow icon={<IconFemale />} label="Mãe (Matriz):" value={mae ?? "-"} />
+                <GeneticsRow icon={<IconMale />} label="Pai (Reprodutor):" value={pai ?? "-"} />
+                <GeneticsRow icon={<IconBaby />} label="Nascidos Vivos:" value={nascidosVivos != null ? fmtInt(nascidosVivos) : "-"} />
+                <GeneticsRow icon={<IconSkull />} label="Nascidos Mortos:" value={nascidosMortos != null ? fmtInt(nascidosMortos) : "-"} />
+                <GeneticsRow icon={<IconDanger />} label="Natimortos:" value={natimortos != null ? fmtInt(natimortos) : "-"} />
+                <GeneticsRow icon={<IconSum />} label="Total Nascidos:" value={totalNascidos != null ? fmtInt(totalNascidos) : "-"} bold />
               </div>
 
               {/* Col 3 — Quantidades e Pesos */}
               <div style={{ padding: "6px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
-                <KpiSmall label="Quantidade Atual:" value={fmtInt(qtdAtual)} bold />
-                <KpiSmall label="Saldo (Mortes/Descarte):" value={fmtInt(saldoMortes)} />
-                <KpiSmall label="Peso Médio Atual:" value={`${fmt(pesoMedioAtual)} kg`} bold />
-                <KpiSmall label="Peso Total do Lote:" value={`${fmt(pesoTotalLote)} kg`} />
-                <KpiSmall label="P. Médio ao Nascimento:" value={`${fmt(pesoMedioNasc)} kg`} />
+                <KpiSmall label="Quantidade Atual:" value={qtdAtual != null ? fmtInt(qtdAtual) : "-"} bold />
+                <KpiSmall label="Saldo (Mortes/Descarte):" value={saldoMortes != null ? fmtInt(saldoMortes) : "-"} />
+                <KpiSmall label="Peso Médio Atual:" value={pesoMedioAtual != null ? `${fmt(pesoMedioAtual)} kg` : "-"} bold />
+                <KpiSmall label="Peso Total do Lote:" value={pesoTotalLote != null ? `${fmt(pesoTotalLote)} kg` : "-"} />
+                <KpiSmall label="P. Médio ao Nascimento:" value={pesoMedioNasc != null ? `${fmt(pesoMedioNasc)} kg` : "-"} />
               </div>
 
               {/* Col 4 — Desempenho Geral */}
@@ -560,26 +628,32 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 }}>
                   DESEMPENHO GERAL
                 </div>
-                <KpiIcon icon={<IconTrend />} label="GPD (Ganho de Peso Diário):" value={`${fmt(gpd)} kg`} />
-                <KpiIcon icon={<IconGrain />} label="Conversão Alimentar:" value={fmt(conversaoAlimentar)} />
-                <KpiIcon icon={<IconSkull />} label="Mortalidade:" value={`${mortalidadePct}% (${saldoMortes})`} />
-                <KpiIcon icon={<IconTarget />} label="Meta GPD:" value={`${fmt(metaGpd)} kg`} />
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: "0.58rem" }}>
-                  <span style={{ color: GRAY_TEXT }}>Comparação com Meta:</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                  {gpdAbaixoMeta ? (
-                    <>
-                      <AlertTriangle size={11} color={AMBER} />
-                      <span style={{ color: AMBER, fontWeight: 700, fontSize: "0.6rem" }}>Abaixo do ideal</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 size={11} color="#16a34a" />
-                      <span style={{ color: "#16a34a", fontWeight: 700, fontSize: "0.6rem" }}>Dentro da meta</span>
-                    </>
-                  )}
-                </div>
+                <KpiIcon icon={<IconTrend />} label="GPD (Ganho de Peso Diário):" value={gpd != null ? `${fmt(gpd, 3)} kg` : "-"} />
+                <KpiIcon icon={<IconGrain />} label="Conversão Alimentar:" value={conversaoAlimentar != null ? fmt(conversaoAlimentar) : "-"} />
+                <KpiIcon icon={<IconSkull />} label="Mortalidade:" value={mortalidadePct != null ? `${mortalidadePct}% (${saldoMortes})` : saldoMortes != null ? `${saldoMortes} mortes` : "-"} />
+                {metaGpd != null && (
+                  <KpiIcon icon={<IconTarget />} label="Meta GPD:" value={`${fmt(metaGpd)} kg`} />
+                )}
+                {gpdAbaixoMeta !== null && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: "0.58rem" }}>
+                      <span style={{ color: GRAY_TEXT }}>Comparação com Meta:</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      {gpdAbaixoMeta ? (
+                        <>
+                          <AlertTriangle size={11} color={AMBER} />
+                          <span style={{ color: AMBER, fontWeight: 700, fontSize: "0.6rem" }}>Abaixo do ideal</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={11} color="#16a34a" />
+                          <span style={{ color: "#16a34a", fontWeight: 700, fontSize: "0.6rem" }}>Dentro da meta</span>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -603,19 +677,29 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 {[
                   {
                     fase: "MATERNIDADE",
-                    qtdIni: nascidosVivos, qtdAtual: nascidosVivos,
-                    idade: 20, pesoMedio: fmt(5.71), pesoTotal: fmt(5.71 * nascidosVivos),
-                    gpd: "0,223", conv: "-", mort: "0,00%",
+                    qtdIni: totalNascidos != null ? fmtInt(totalNascidos) : "-",
+                    qtdAtual: nascidosVivos != null ? fmtInt(nascidosVivos) : "-",
+                    idade: "-",
+                    pesoMedio: pesoMedioNasc != null ? fmt(pesoMedioNasc) : "-",
+                    pesoTotal: (pesoMedioNasc != null && nascidosVivos != null) ? fmt(pesoMedioNasc * nascidosVivos) : "-",
+                    gpd: "-",
+                    conv: "-",
+                    mort: (nascidosMortos != null || natimortos != null)
+                      ? String((nascidosMortos ?? 0) + (natimortos ?? 0))
+                      : "-",
                   },
                   {
                     fase: "CRECHE",
-                    qtdIni: qtdInicial, qtdAtual: qtdAtual,
-                    idade: ageInDays ?? 71,
-                    pesoMedio: fmt(pesoMedioAtual),
-                    pesoTotal: fmt(pesoTotalLote),
-                    gpd: fmt(gpd, 3),
-                    conv: fmt(conversaoAlimentar),
-                    mort: `${mortalidadePct}% (${saldoMortes})`,
+                    qtdIni: qtdInicial != null ? fmtInt(qtdInicial) : "-",
+                    qtdAtual: qtdAtual != null ? fmtInt(qtdAtual) : "-",
+                    idade: ageInDays != null ? ageInDays : "-",
+                    pesoMedio: pesoMedioAtual != null ? fmt(pesoMedioAtual) : "-",
+                    pesoTotal: pesoTotalLote != null ? fmt(pesoTotalLote) : "-",
+                    gpd: gpd != null ? fmt(gpd, 3) : "-",
+                    conv: conversaoAlimentar != null ? fmt(conversaoAlimentar) : "-",
+                    mort: mortalidadePct != null
+                      ? `${mortalidadePct}% (${saldoMortes})`
+                      : saldoMortes != null ? String(saldoMortes) : "-",
                   },
                   { fase: "CRESCIMENTO", qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" },
                   { fase: "TERMINAÇÃO / ENGORDA", qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" },
@@ -651,20 +735,36 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     </tr>
                   </thead>
                   <tbody>
-                    {feedData.map((row, i) => (
-                      <TR key={i} even={i % 2 === 1}>
-                        <Td style={{ textAlign: "left", paddingLeft: 6 }}>{row.tipo}</Td>
-                        <Td>{row.consumoTotal != null ? fmt(row.consumoTotal) : "-"}</Td>
-                        <Td>{row.custo != null ? fmt(row.custo) : "-"}</Td>
-                        <Td>{row.consumoMedio != null ? fmt(row.consumoMedio) : "-"}</Td>
-                      </TR>
-                    ))}
-                    <tr style={{ background: GREEN_LIGHT }}>
-                      <Td bold style={{ textAlign: "left", paddingLeft: 6 }}>TOTAL</Td>
-                      <Td bold>{fmt(totalConsumo)}</Td>
-                      <Td bold>{fmt(totalCusto)}</Td>
-                      <Td bold>{qtdAtual > 0 ? fmt(totalConsumo / qtdAtual) : "-"}</Td>
-                    </tr>
+                    {hasFeed ? (
+                      <>
+                        {feedData.map((row, i) => (
+                          <TR key={i} even={i % 2 === 1}>
+                            <Td style={{ textAlign: "left", paddingLeft: 6 }}>{row.tipo}</Td>
+                            <Td>{row.consumoTotal != null ? fmt(row.consumoTotal) : "-"}</Td>
+                            <Td>{row.custo != null ? fmt(row.custo) : "-"}</Td>
+                            <Td>{row.consumoMedio != null ? fmt(row.consumoMedio) : "-"}</Td>
+                          </TR>
+                        ))}
+                        <tr style={{ background: GREEN_LIGHT }}>
+                          <Td bold style={{ textAlign: "left", paddingLeft: 6 }}>TOTAL</Td>
+                          <Td bold>{fmt(totalConsumo)}</Td>
+                          <Td bold>{totalCusto > 0 ? fmt(totalCusto) : "-"}</Td>
+                          <Td bold>{qtdAtual != null && qtdAtual > 0 ? fmt(totalConsumo / qtdAtual) : "-"}</Td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td colSpan={4} style={{
+                          textAlign: "center",
+                          padding: "10px 6px",
+                          color: "#aaa",
+                          fontSize: "0.6rem",
+                          fontStyle: "italic",
+                        }}>
+                          Sem registros de consumo de ração.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -725,30 +825,38 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     </tr>
                   </thead>
                   <tbody>
-                    {deathRows.length > 0 ? deathRows.map((d: any, i: number) => (
-                      <TR key={i} even={i % 2 === 1}>
-                        <Td>{fmtDate(d.date)}</Td>
-                        <Td>{d.age_days ?? "-"}</Td>
-                        <Td>{d.quantity ?? "-"}</Td>
-                        <Td>{d.total_weight ? fmt(d.total_weight) : "-"}</Td>
-                        <Td>{d.cause ?? d.subtitle ?? "-"}</Td>
-                      </TR>
-                    )) : (
+                    {deathRows.length > 0 ? (
+                      <>
+                        {deathRows.map((d: any, i: number) => (
+                          <TR key={i} even={i % 2 === 1}>
+                            <Td>{fmtDate(d.date)}</Td>
+                            <Td>{d.age_days ?? "-"}</Td>
+                            <Td>{d.quantity ?? "-"}</Td>
+                            <Td>{d.total_weight ? fmt(d.total_weight) : "-"}</Td>
+                            <Td>{d.cause ?? d.subtitle ?? "-"}</Td>
+                          </TR>
+                        ))}
+                        <tr style={{ background: GREEN_LIGHT }}>
+                          <Td bold>TOTAL</Td>
+                          <Td bold>-</Td>
+                          <Td bold>{fmtInt(deathRows.reduce((a: number, d: any) => a + (Number(d.quantity) || 0), 0))}</Td>
+                          <Td bold>-</Td>
+                          <Td bold>-</Td>
+                        </tr>
+                      </>
+                    ) : (
                       <tr>
-                        <Td>-</Td>
-                        <Td>-</Td>
-                        <Td>{fmtInt(saldoMortes)}</Td>
-                        <Td>-</Td>
-                        <Td>-</Td>
+                        <td colSpan={5} style={{
+                          textAlign: "center",
+                          padding: "10px 6px",
+                          color: "#aaa",
+                          fontSize: "0.6rem",
+                          fontStyle: "italic",
+                        }}>
+                          Sem registros de mortalidade.
+                        </td>
                       </tr>
                     )}
-                    <tr style={{ background: GREEN_LIGHT }}>
-                      <Td bold>TOTAL</Td>
-                      <Td bold>-</Td>
-                      <Td bold>{fmtInt(saldoMortes)}</Td>
-                      <Td bold>-</Td>
-                      <Td bold>-</Td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -772,41 +880,62 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     </tr>
                   </thead>
                   <tbody>
-                    {transferData.map((t: any, i: number) => (
-                      <TR key={i} even={i % 2 === 1}>
-                        <Td>{t.date ? fmtDate(t.date) : "-"}</Td>
-                        <Td>{t.qty ?? t.quantity ?? "-"}</Td>
-                        <Td>{t.loteOrigem ?? t.origin_batch ?? "-"}</Td>
-                        <Td>{t.loteDestino ?? t.destination_batch ?? "-"}</Td>
-                        <Td>{t.faseDestino ?? t.destination_phase ?? "-"}</Td>
-                        <Td>{t.operacao ?? t.operation_type ?? "-"}</Td>
-                      </TR>
-                    ))}
+                    {hasTransfer ? (
+                      transferRows.map((t: any, i: number) => (
+                        <TR key={i} even={i % 2 === 1}>
+                          <Td>{t.date ? fmtDate(t.date) : "-"}</Td>
+                          <Td>{t.qty ?? t.quantity ?? "-"}</Td>
+                          <Td>{t.loteOrigem ?? t.origin_batch ?? "-"}</Td>
+                          <Td>{t.loteDestino ?? t.destination_batch ?? "-"}</Td>
+                          <Td>{t.faseDestino ?? t.destination_phase ?? "-"}</Td>
+                          <Td>{t.operacao ?? t.operation_type ?? "-"}</Td>
+                        </TR>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} style={{
+                          textAlign: "center",
+                          padding: "10px 6px",
+                          color: "#aaa",
+                          fontSize: "0.6rem",
+                          fontStyle: "italic",
+                        }}>
+                          Sem registros de transferência.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
-                <div style={{
-                  padding: "4px 8px",
-                  fontWeight: 700,
-                  background: GREEN_LIGHT,
-                  fontSize: "0.6rem",
-                  borderTop: `1px solid ${GREEN_BORDER}`,
-                }}>
-                  TOTAL TRANSFERIDO: {totalTransferido}
-                </div>
+                {hasTransfer && (
+                  <div style={{
+                    padding: "4px 8px",
+                    fontWeight: 700,
+                    background: GREEN_LIGHT,
+                    fontSize: "0.6rem",
+                    borderTop: `1px solid ${GREEN_BORDER}`,
+                  }}>
+                    TOTAL TRANSFERIDO: {totalTransferido}
+                  </div>
+                )}
               </div>
 
               {/* Section 6 — Análise Financeira */}
               <div>
                 <SectionHeader number={6} title="ANÁLISE FINANCEIRA" />
                 <div style={{ padding: "5px 10px" }}>
-                  <FinRow label="Custo Total com Ração:" value={`R$ ${fmt(custoRacao)}`} />
-                  <FinRow label="Custo com Medicamentos:" value={`R$ ${fmt(custoMedicamentos)}`} />
-                  <FinRow label="Custo Operacional:" value={`R$ ${fmt(custoOperacional)}`} />
+                  <FinRow label="Custo Total com Ração:" value={custoRacao != null ? `R$ ${fmt(custoRacao)}` : "-"} />
+                  <FinRow label="Custo com Medicamentos:" value={custoMedicamentos != null ? `R$ ${fmt(custoMedicamentos)}` : "-"} />
+                  <FinRow label="Custo Operacional:" value={custoOperacional != null ? `R$ ${fmt(custoOperacional)}` : "-"} />
                   <div style={{ borderTop: `1.5px solid ${GREEN_DARK}`, marginTop: 5, paddingTop: 5 }}>
-                    <FinRow label="CUSTO TOTAL DO LOTE:" value={`R$ ${fmt(custoTotal)}`} bold />
-                    <FinRow label="Custo por Animal:" value={`R$ ${fmt(custoPorAnimal)}`} />
-                    <FinRow label="Custo por Kg Produzido:" value={`R$ ${fmt(custoPorKg)}`} />
+                    <FinRow label="CUSTO TOTAL DO LOTE:" value={custoTotal != null ? `R$ ${fmt(custoTotal)}` : "-"} bold />
+                    <FinRow label="Custo por Animal:" value={custoPorAnimal != null ? `R$ ${fmt(custoPorAnimal)}` : "-"} />
+                    <FinRow label="Custo por Kg Produzido:" value={custoPorKg != null ? `R$ ${fmt(custoPorKg)}` : "-"} />
                   </div>
+                  {!hasFinancial && (
+                    <div style={{ textAlign: "center", color: "#aaa", fontSize: "0.6rem", fontStyle: "italic", paddingTop: 4 }}>
+                      Sem lançamentos financeiros registrados.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -826,37 +955,49 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   <ResumoCard
                     icon={<IconChart />}
                     title="GPD"
-                    value={`${fmt(gpd)} kg`}
-                    status={gpdAbaixoMeta ? "Abaixo do ideal" : "Dentro da meta"}
-                    statusColor={gpdAbaixoMeta ? AMBER : "#16a34a"}
+                    value={gpd != null ? `${fmt(gpd, 3)} kg` : "-"}
+                    status={
+                      gpdAbaixoMeta === null ? "Sem dados" :
+                      gpdAbaixoMeta ? "Abaixo do ideal" : "Dentro da meta"
+                    }
+                    statusColor={gpdAbaixoMeta === null ? "#888" : gpdAbaixoMeta ? AMBER : "#16a34a"}
                   />
                   <ResumoCard
                     icon={<IconScale />}
                     title="Conversão Alimentar"
-                    value={fmt(conversaoAlimentar)}
-                    status="Dentro da meta"
-                    statusColor="#16a34a"
+                    value={conversaoAlimentar != null ? fmt(conversaoAlimentar) : "-"}
+                    status={conversaoAlimentar != null ? (conversaoAlimentar < 2.5 ? "Dentro da meta" : "Acima do ideal") : "Sem dados"}
+                    statusColor={conversaoAlimentar != null ? (conversaoAlimentar < 2.5 ? "#16a34a" : AMBER) : "#888"}
                   />
                   <ResumoCard
                     icon={<IconSkullBig />}
                     title="Mortalidade"
-                    value={`${mortalidadePct}% (${saldoMortes})`}
-                    status="Acima do ideal"
-                    statusColor={RED}
+                    value={
+                      mortalidadePct != null ? `${mortalidadePct}% (${saldoMortes})` :
+                      saldoMortes != null ? `${saldoMortes} mortes` : "-"
+                    }
+                    status={
+                      mortalidadePct == null ? "Sem registros" :
+                      parseFloat(mortalidadePct) < 5 ? "Dentro do normal" : "Acima do ideal"
+                    }
+                    statusColor={
+                      mortalidadePct == null ? "#888" :
+                      parseFloat(mortalidadePct) < 5 ? "#16a34a" : RED
+                    }
                   />
                   <ResumoCard
                     icon={<IconPigBig />}
                     title="Peso Médio Atual"
-                    value={`${fmt(pesoMedioAtual)} kg`}
-                    status="-"
-                    statusColor="#888"
+                    value={pesoMedioAtual != null ? `${fmt(pesoMedioAtual)} kg` : "-"}
+                    status={pesoMedioAtual != null ? "Última pesagem" : "Sem pesagem"}
+                    statusColor={pesoMedioAtual != null ? "#16a34a" : "#888"}
                   />
                   <ResumoCard
                     icon={<IconTargetBig />}
                     title="Desempenho Geral"
-                    value="BOM"
-                    status="Continue assim!"
-                    statusColor="#16a34a"
+                    value={desempenhoGeral ? desempenhoGeral.label : "-"}
+                    status={desempenhoGeral ? desempenhoGeral.status : "Dados insuficientes"}
+                    statusColor={desempenhoGeral ? desempenhoGeral.color : "#888"}
                   />
                 </div>
               </div>
@@ -865,8 +1006,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               <div>
                 <SectionHeader number={8} title="OBSERVAÇÕES" />
                 <div style={{ padding: "6px 10px", fontSize: "0.6rem", color: "#333", lineHeight: 1.5 }}>
-                  {animal?.notes || animal?.observations ||
-                    "Lote com bom desenvolvimento na fase de creche."}
+                  {animal?.notes || animal?.observations || "Nenhuma observação registrada para este lote."}
                 </div>
               </div>
             </div>

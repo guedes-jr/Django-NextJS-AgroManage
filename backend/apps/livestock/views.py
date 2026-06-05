@@ -863,49 +863,77 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def history(self, request, pk=None):
-        """Retorna o histórico completo do lote, incluindo suas fases anteriores e lotes de origem."""
+        """Retorna o histórico completo do lote, incluindo fases, consumo de ração e pesagens reais."""
         batch = self.get_object()
-        
+
         def get_batch_history(b):
             history_list = []
-            
-            # 1. Obter histórico recursivamente dos lotes que deram origem a este (merge)
+
+            # 1. Histórico recursivo de lotes de origem (merge)
             for source in b.source_batches.all():
                 history_list.extend(get_batch_history(source))
-                
-            # 2. Obter as fases antigas deste lote
+
+            # 2. Fases anteriores deste lote
             for ph in b.phase_histories.all().order_by('entry_date'):
                 history_list.append({
-                    'batch_id': b.id,
+                    'type': 'phase',
+                    'batch_id': str(b.id),
                     'batch_code': b.batch_code,
                     'phase': ph.phase,
                     'quantity': ph.quantity,
                     'avg_weight_kg': float(ph.avg_weight_kg) if ph.avg_weight_kg else None,
                     'entry_date': ph.entry_date.isoformat() if ph.entry_date else None,
                     'exit_date': ph.exit_date.isoformat() if ph.exit_date else None,
-                    'is_current': False
+                    'is_current': False,
                 })
-                
-            # 3. Adicionar a fase atual ativa deste lote
+
+            # 3. Fase atual ativa
             if b.phase:
                 history_list.append({
-                    'batch_id': b.id,
+                    'type': 'phase',
+                    'batch_id': str(b.id),
                     'batch_code': b.batch_code,
                     'phase': b.phase,
                     'quantity': b.quantity,
                     'avg_weight_kg': float(b.avg_weight_kg) if b.avg_weight_kg else None,
                     'entry_date': b.entry_date.isoformat() if b.entry_date else None,
                     'exit_date': b.exit_date.isoformat() if b.exit_date else None,
-                    'is_current': b.status == 'active'
+                    'is_current': b.status == 'active',
                 })
-            
+
+            # 4. Registros reais de consumo de ração vinculados ao lote
+            for fr in b.feeding_records.all().order_by('date'):
+                qty = b.quantity if b.quantity and b.quantity > 0 else None
+                history_list.append({
+                    'type': 'feed',
+                    'batch_id': str(b.id),
+                    'title': fr.feed_type,
+                    'total_kg': float(fr.quantity_kg),
+                    'cost': None,           # FeedingRecord não possui campo de custo
+                    'avg_per_animal': round(float(fr.quantity_kg) / qty, 3) if qty else None,
+                    'date': fr.date.isoformat() if fr.date else None,
+                    'entry_date': fr.date.isoformat() if fr.date else None,
+                    'notes': fr.notes,
+                })
+
+            # 5. Registros reais de pesagem do lote
+            for wr in b.weights.all().order_by('-weighing_date'):
+                history_list.append({
+                    'type': 'weight',
+                    'batch_id': str(b.id),
+                    'weight_kg': float(wr.weight_kg),
+                    'date': wr.weighing_date.isoformat() if wr.weighing_date else None,
+                    'entry_date': wr.weighing_date.isoformat() if wr.weighing_date else None,
+                    'notes': wr.notes,
+                })
+
             return history_list
-            
+
         full_history = get_batch_history(batch)
-        
-        # Ordenar cronologicamente por entry_date
-        full_history.sort(key=lambda x: x['entry_date'] if x['entry_date'] else '0000-00-00')
-        
+
+        # Ordenar cronologicamente
+        full_history.sort(key=lambda x: x.get('entry_date') or '0000-00-00')
+
         return Response(full_history)
 
     @action(detail=True, methods=['get'], url_path='animal-detail')

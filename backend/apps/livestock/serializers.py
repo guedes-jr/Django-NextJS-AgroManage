@@ -103,6 +103,62 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         # Obter o animal individual associado e retornar a data de nascimento
         animal = Animal.objects.filter(batch=instance).first()
         ret['birth_date'] = animal.birth_date.isoformat() if animal and animal.birth_date else None
+
+        # ── Dados do parto vinculado a este lote (Birth.batch FK) ────────────
+        try:
+            birth = (
+                Birth.objects
+                .filter(batch=instance)
+                .select_related('female', 'pregnancy__mating__sire')
+                .prefetch_related('litter')
+                .first()
+            )
+        except Exception:
+            birth = None
+
+        if birth:
+            ret['born_alive'] = birth.live_born
+            ret['stillborn'] = birth.stillborn
+            ret['mummified'] = birth.mummified
+            ret['birth_weight_kg'] = float(birth.avg_weight_kg) if birth.avg_weight_kg else None
+            ret['dam_identifier'] = birth.female.identifier if birth.female else None
+
+            # Reprodutor via cadeia Parto → Gestação → Cobertura → Sire
+            sire_id = None
+            try:
+                if hasattr(birth, 'pregnancy') and birth.pregnancy:
+                    mating = birth.pregnancy.mating
+                    if mating.sire:
+                        sire_id = mating.sire.identifier
+                    elif mating.sire_info:
+                        sire_id = mating.sire_info
+            except Exception:
+                pass
+            ret['sire_identifier'] = sire_id
+
+            # Quantidade inicial = desmamados (Litter) ou nascidos vivos como fallback
+            try:
+                litter = birth.litter
+                ret['initial_quantity'] = litter.weaned_quantity if litter else birth.live_born
+            except Exception:
+                ret['initial_quantity'] = birth.live_born
+        else:
+            ret['born_alive'] = None
+            ret['stillborn'] = None
+            ret['mummified'] = None
+            ret['birth_weight_kg'] = None
+            ret['dam_identifier'] = None
+            ret['sire_identifier'] = None
+            ret['initial_quantity'] = None
+
+        # Mortes calculadas (diferença entre quantidade inicial e atual)
+        initial_qty = ret.get('initial_quantity')
+        current_qty = instance.quantity
+        if initial_qty is not None and current_qty is not None:
+            ret['deaths_count'] = max(0, int(initial_qty) - int(current_qty))
+        else:
+            ret['deaths_count'] = None
+
         return ret
 
     def validate_entry_date(self, value):
