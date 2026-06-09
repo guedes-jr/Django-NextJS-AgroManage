@@ -247,3 +247,25 @@ export const transferLeitoes = async (
   );
   return response.data;
 };
+
+/**
+ * Transfere um lote para uma nova fase produtiva, consolidando os dados finais
+ * da fase anterior (quantidade de saída, peso médio de saída, data da transição).
+ * Isso congela os dados da fase antiga no histórico conforme a regra do ajuste.md.
+ */
+export const changeBatchPhase = async (
+  batchId: string | number,
+  data: {
+    new_phase: "creche" | "crescimento" | "engorda" | "gestacao_maternidade" | "reproducao" | "aguardando_cobertura" | "outro";
+    exit_weight_kg?: number;
+    exit_quantity?: number;
+    exit_date?: string; // YYYY-MM-DD, default = hoje
+    notes?: string;
+  }
+) => {
+  const response = await apiClient.post(
+    `/livestock/batches/${batchId}/change-phase/`,
+    data
+  );
+  return response.data;
+};

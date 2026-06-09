@@ -659,65 +659,188 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
             {/* ══════════ SECTION 1 — DESEMPENHO POR FASE ══════════ */}
             <SectionHeader number={1} title="DESEMPENHO POR FASE" />
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <Th style={{ textAlign: "left", paddingLeft: 8 }}>Fase</Th>
-                  <Th>Qtd Inicial</Th>
-                  <Th>Qtd Atual</Th>
-                  <Th>Idade (dias)</Th>
-                  <Th>Peso Médio (Kg)</Th>
-                  <Th>Peso Total (Kg)</Th>
-                  <Th>GPD (Kg)</Th>
-                  <Th>Conversão<br />Alimentar</Th>
-                  <Th>Mortalidade (%)</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  {
-                    fase: "MATERNIDADE",
-                    qtdIni: totalNascidos != null ? fmtInt(totalNascidos) : "-",
-                    qtdAtual: nascidosVivos != null ? fmtInt(nascidosVivos) : "-",
-                    idade: "-",
-                    pesoMedio: pesoMedioNasc != null ? fmt(pesoMedioNasc) : "-",
-                    pesoTotal: (pesoMedioNasc != null && nascidosVivos != null) ? fmt(pesoMedioNasc * nascidosVivos) : "-",
-                    gpd: "-",
+            {/* ── Lógica consolidada: cada fase exibe dados apenas quando foi concluída. ── */}
+            {(() => {
+              // Fases concluídas vindas do endpoint /history (type === 'phase' com exit_date)
+              const phaseHistory = history.filter((e: any) => e.type === "phase");
+              const currentPhase = animal?.phase ?? null; // ex: "creche", "crescimento", "engorda"
+
+              // Helper: buscar a fase concluída no histórico (tem exit_date)
+              const getCompletedPhase = (phaseKey: string) =>
+                phaseHistory.find((p: any) => p.phase === phaseKey && p.exit_date) ?? null;
+
+              // Helper: fase está atualmente em andamento
+              const isCurrentPhase = (phaseKey: string) => currentPhase === phaseKey;
+
+              // Helper: fase ainda não começou (não está no histórico e não é a atual)
+              const isNotStarted = (phaseKey: string) =>
+                !isCurrentPhase(phaseKey) && !phaseHistory.some((p: any) => p.phase === phaseKey);
+
+              // Cálculo de GPD para uma fase concluída usando pesos do history
+              const calcFaseGpd = (phaseKey: string): number | null => {
+                const ph = getCompletedPhase(phaseKey);
+                if (!ph || !ph.entry_date || !ph.exit_date) return null;
+                const diasFase = (new Date(ph.exit_date).getTime() - new Date(ph.entry_date).getTime()) / (1000 * 60 * 60 * 24);
+                if (diasFase <= 0 || ph.avg_weight_kg == null) return null;
+                // Precisamos do peso de entrada na fase para calcular o ganho
+                // O peso ao entrar na fase está no registro anterior ou em birth_weight_kg
+                const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
+                const prevKey = prevPhaseMap[phaseKey];
+                const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey) : null;
+                const pesoEntrada = prevPh?.avg_weight_kg ?? (pesoMedioNasc ?? null);
+                if (pesoEntrada == null) return null;
+                return (Number(ph.avg_weight_kg) - Number(pesoEntrada)) / diasFase;
+              };
+
+              // Mortalidade de uma fase concluída
+              const calcFaseMort = (phaseKey: string): string => {
+                const ph = getCompletedPhase(phaseKey);
+                if (!ph) return "-";
+                const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
+                const prevKey = prevPhaseMap[phaseKey];
+                const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey) : null;
+                const qtdIni = prevKey === "maternidade"
+                  ? (animal?.weaned_quantity ?? animal?.initial_quantity ?? null)
+                  : (prevPh?.quantity ?? null);
+                const qtdFim = ph.quantity ?? null;
+                if (qtdIni == null || qtdFim == null) return ph.quantity != null ? fmtInt(ph.quantity) : "-";
+                const mortes = Math.max(0, Number(qtdIni) - Number(qtdFim));
+                const pct = qtdIni > 0 ? ((mortes / qtdIni) * 100).toFixed(1) : "0.0";
+                return mortes > 0 ? `${pct}% (${mortes})` : "0";
+              };
+
+              // Cálculo da idade total ao fim de uma fase (em dias desde o nascimento)
+              const calcIdadeFimFase = (phaseKey: string): string => {
+                const ph = getCompletedPhase(phaseKey);
+                if (!ph?.exit_date || !animal?.birth_date) return "-";
+                const dias = Math.floor(
+                  (new Date(ph.exit_date).getTime() - new Date(animal.birth_date).getTime()) / (1000 * 60 * 60 * 24)
+                );
+                return dias > 0 ? String(dias) : "-";
+              };
+
+              // ── MATERNIDADE ─────────────────────────────────────────────────────
+              // Dados da maternidade ficam congelados quando o desmame ocorreu
+              const maternidadeConcluida = animal?.weaning_date != null || currentPhase !== null;
+              const weanedQty: number | null = animal?.weaned_quantity ?? null;
+              const weanedPeso: number | null = animal?.avg_weaning_weight_kg != null
+                ? Number(animal.avg_weaning_weight_kg) : null;
+              const mortMaternidade: number | null = animal?.maternity_mortality ?? null;
+              const mortMatPct: string =
+                nascidosVivos != null && nascidosVivos > 0 && mortMaternidade != null && mortMaternidade > 0
+                  ? `${((mortMaternidade / nascidosVivos) * 100).toFixed(1)}% (${mortMaternidade})`
+                  : mortMaternidade != null && mortMaternidade > 0 ? String(mortMaternidade) : "0";
+
+              // ── Maternidade: Idade ao desmame e GPD de lactação ─────────────────
+              const weaningDate: string | null = animal?.weaning_date ?? null;
+              const idadeAoDesmame: number | null = (() => {
+                if (!weaningDate || !animal?.birth_date) return null;
+                const dias = Math.floor(
+                  (new Date(weaningDate).getTime() - new Date(animal.birth_date).getTime()) / (1000 * 60 * 60 * 24)
+                );
+                return dias > 0 ? dias : null;
+              })();
+
+              // GPD Maternidade = (peso ao desmame - peso ao nascimento) / dias de lactação
+              const gpdMaternidade: number | null = (() => {
+                if (weanedPeso == null || pesoMedioNasc == null || idadeAoDesmame == null || idadeAoDesmame <= 0) return null;
+                return (weanedPeso - pesoMedioNasc) / idadeAoDesmame;
+              })();
+
+              // ── Estrutura de linhas ──────────────────────────────────────────────
+              type PhaseRow = { fase: string; qtdIni: string; qtdAtual: string; idade: string; pesoMedio: string; pesoTotal: string; gpd: string; conv: string; mort: string; status: "concluida" | "andamento" | "vazia" };
+
+              const EMPTY: Omit<PhaseRow, "fase" | "status"> = { qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" };
+              const EM_ANDAMENTO: Omit<PhaseRow, "fase" | "status"> = { qtdIni: qtdAtual != null ? fmtInt(qtdAtual) : "-", qtdAtual: qtdAtual != null ? fmtInt(qtdAtual) : "-", idade: ageInDays != null ? String(ageInDays) : "-", pesoMedio: pesoMedioAtual != null ? fmt(pesoMedioAtual) : "-", pesoTotal: pesoTotalLote != null ? fmt(pesoTotalLote) : "-", gpd: gpd != null ? fmt(gpd, 3) : "-", conv: "-", mort: "-" };
+
+              const buildFaseRow = (faseLabel: string, phaseKey: string): PhaseRow => {
+                const ph = getCompletedPhase(phaseKey);
+                if (ph) {
+                  const faseGpd = calcFaseGpd(phaseKey);
+                  const pesoSaida = ph.avg_weight_kg != null ? Number(ph.avg_weight_kg) : null;
+                  const qtdSaida = ph.quantity != null ? Number(ph.quantity) : null;
+                  const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
+                  const prevKey = prevPhaseMap[phaseKey];
+                  const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey) : null;
+                  const qtdEntrada = prevKey === "maternidade"
+                    ? (weanedQty ?? qtdInicial)
+                    : (prevPh?.quantity ?? null);
+                  return {
+                    fase: faseLabel, status: "concluida",
+                    qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada) : "-",
+                    qtdAtual: qtdSaida != null ? fmtInt(qtdSaida) : "-",
+                    idade: calcIdadeFimFase(phaseKey),
+                    pesoMedio: pesoSaida != null ? fmt(pesoSaida) : "-",
+                    pesoTotal: pesoSaida != null && qtdSaida != null ? fmt(pesoSaida * qtdSaida) : "-",
+                    gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
                     conv: "-",
-                    mort: (nascidosMortos != null || natimortos != null)
-                      ? String((nascidosMortos ?? 0) + (natimortos ?? 0))
-                      : "-",
-                  },
-                  {
-                    fase: "CRECHE",
-                    qtdIni: qtdInicial != null ? fmtInt(qtdInicial) : "-",
-                    qtdAtual: qtdAtual != null ? fmtInt(qtdAtual) : "-",
-                    idade: ageInDays != null ? ageInDays : "-",
-                    pesoMedio: pesoMedioAtual != null ? fmt(pesoMedioAtual) : "-",
-                    pesoTotal: pesoTotalLote != null ? fmt(pesoTotalLote) : "-",
-                    gpd: gpd != null ? fmt(gpd, 3) : "-",
-                    conv: conversaoAlimentar != null ? fmt(conversaoAlimentar) : "-",
-                    mort: mortalidadePct != null
-                      ? `${mortalidadePct}% (${saldoMortes})`
-                      : saldoMortes != null ? String(saldoMortes) : "-",
-                  },
-                  { fase: "CRESCIMENTO", qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" },
-                  { fase: "TERMINAÇÃO / ENGORDA", qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" },
-                ].map((row, i) => (
-                  <TR key={i} even={i % 2 === 1}>
-                    <Td style={{ textAlign: "left", fontWeight: 600, paddingLeft: 8 }}>{row.fase}</Td>
-                    <Td>{row.qtdIni}</Td>
-                    <Td>{row.qtdAtual}</Td>
-                    <Td>{row.idade}</Td>
-                    <Td>{row.pesoMedio}</Td>
-                    <Td>{row.pesoTotal}</Td>
-                    <Td>{row.gpd}</Td>
-                    <Td>{row.conv}</Td>
-                    <Td>{row.mort}</Td>
-                  </TR>
-                ))}
-              </tbody>
-            </table>
+                    mort: calcFaseMort(phaseKey),
+                  };
+                }
+                if (isCurrentPhase(phaseKey)) return { fase: faseLabel, status: "andamento", ...EM_ANDAMENTO };
+                return { fase: faseLabel, status: "vazia", ...EMPTY };
+              };
+
+              const rows: PhaseRow[] = [
+                // MATERNIDADE — concluída quando existe desmame
+                maternidadeConcluida
+                  ? {
+                      fase: "MATERNIDADE", status: "concluida",
+                      qtdIni: totalNascidos != null ? fmtInt(totalNascidos) : "-",
+                      qtdAtual: weanedQty != null ? fmtInt(weanedQty) : (nascidosVivos != null ? fmtInt(nascidosVivos) : "-"),
+                      idade: idadeAoDesmame != null ? String(idadeAoDesmame) : "-",
+                      pesoMedio: weanedPeso != null ? fmt(weanedPeso) : (pesoMedioNasc != null ? fmt(pesoMedioNasc) : "-"),
+                      pesoTotal: weanedPeso != null && weanedQty != null ? fmt(weanedPeso * weanedQty) : "-",
+                      gpd: gpdMaternidade != null ? fmt(gpdMaternidade, 3) : "-",
+                      conv: "-",
+                      mort: mortMatPct,
+                    }
+                  : { fase: "MATERNIDADE", status: "andamento", ...EMPTY },
+                buildFaseRow("CRECHE", "creche"),
+                buildFaseRow("CRESCIMENTO", "crescimento"),
+                buildFaseRow("TERMINAÇÃO / ENGORDA", "engorda"),
+              ];
+
+              return (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <Th style={{ textAlign: "left", paddingLeft: 8 }}>Fase</Th>
+                      <Th>Qtd Inicial</Th>
+                      <Th>Qtd Final</Th>
+                      <Th>Idade (dias)</Th>
+                      <Th>Peso Médio (Kg)</Th>
+                      <Th>Peso Total (Kg)</Th>
+                      <Th>GPD (Kg)</Th>
+                      <Th>Conversão<br />Alimentar</Th>
+                      <Th>Mortalidade</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <TR key={i} even={i % 2 === 1}>
+                        <Td style={{ textAlign: "left", fontWeight: 700, paddingLeft: 8 }}>
+                          {row.fase}
+                          {row.status === "andamento" && (
+                            <span style={{ marginLeft: 6, fontSize: "0.52rem", fontWeight: 400, color: AMBER, background: "#fffbeb", border: `1px solid ${AMBER}`, borderRadius: 3, padding: "1px 5px" }}>
+                              EM ANDAMENTO
+                            </span>
+                          )}
+                        </Td>
+                        <Td>{row.qtdIni}</Td>
+                        <Td>{row.qtdAtual}</Td>
+                        <Td>{row.idade}</Td>
+                        <Td>{row.pesoMedio}</Td>
+                        <Td>{row.pesoTotal}</Td>
+                        <Td>{row.gpd}</Td>
+                        <Td>{row.conv}</Td>
+                        <Td>{row.mort}</Td>
+                      </TR>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
 
             {/* ══════════ SECTIONS 2, 3, 4 ══════════ */}
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1.5fr", borderTop: `2px solid ${GREEN_DARK}`, borderBottom: `1px solid ${GREEN_BORDER}` }}>

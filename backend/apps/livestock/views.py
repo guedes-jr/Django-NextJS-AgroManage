@@ -936,6 +936,137 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
         return Response(full_history)
 
+    @action(detail=True, methods=['post'], url_path='change-phase')
+    def change_phase(self, request, pk=None):
+        """
+        Transfere o lote para uma nova fase produtiva, consolidando os dados
+        da fase anterior (quantidade final, peso médio de saída, data de saída).
+
+        Payload esperado:
+        {
+            "new_phase": "crescimento",         // fase destino
+            "exit_weight_kg": 25.5,             // peso médio de saída (kg)
+            "exit_quantity": 18,                // quantidade final saindo da fase
+            "exit_date": "2025-06-01",          // data da transição (ISO)
+            "notes": "Texto opcional"
+        }
+        """
+        batch = self.get_object()
+        old_phase = batch.phase
+        new_phase = request.data.get('new_phase')
+        exit_weight_kg = request.data.get('exit_weight_kg')
+        exit_quantity = request.data.get('exit_quantity')
+        exit_date_str = request.data.get('exit_date')
+        notes = request.data.get('notes', '')
+
+        # Validações básicas
+        VALID_PHASES = ['creche', 'crescimento', 'engorda', 'gestacao_maternidade', 'reproducao', 'aguardando_cobertura', 'outro']
+        if not new_phase or new_phase not in VALID_PHASES:
+            return Response(
+                {'error': f'new_phase inválido. Opções: {", ".join(VALID_PHASES)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if new_phase == old_phase:
+            return Response(
+                {'error': 'O lote já está nessa fase.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Parse da data de saída
+        from datetime import date as date_type
+        if exit_date_str:
+            try:
+                import datetime
+                exit_date = datetime.date.fromisoformat(exit_date_str)
+            except ValueError:
+                return Response({'error': 'exit_date inválido. Use o formato YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            exit_date = timezone.now().date()
+
+        from .models import BatchPhaseHistory
+        from django.db import transaction
+
+        with transaction.atomic():
+            # 1. Consolidar a fase anterior: salvar/atualizar o registro de BatchPhaseHistory
+            #    com os dados finais (peso e quantidade de saída) e a exit_date.
+            if old_phase:
+                # Buscar registro existente da fase atual (sem exit_date) e atualizar,
+                # ou criar um novo caso não exista.
+                phase_record, created = BatchPhaseHistory.objects.get_or_create(
+                    batch=batch,
+                    phase=old_phase,
+                    exit_date__isnull=True,
+                    defaults={
+                        'quantity': exit_quantity or batch.quantity,
+                        'avg_weight_kg': exit_weight_kg or batch.avg_weight_kg,
+                        'entry_date': batch.entry_date,
+                        'exit_date': exit_date,
+                    }
+                )
+                if not created:
+                    # Atualizar o registro existente com os dados finais
+                    phase_record.exit_date = exit_date
+                    if exit_weight_kg is not None:
+                        phase_record.avg_weight_kg = exit_weight_kg
+                    if exit_quantity is not None:
+                        phase_record.quantity = exit_quantity
+                    phase_record.save()
+
+            # 2. Atualizar o lote: nova fase, novo peso e quantidade se fornecidos
+            update_fields = ['phase', 'entry_date']
+            batch.phase = new_phase
+            batch.entry_date = exit_date  # A data de entrada na nova fase = data de saída da anterior
+            if exit_quantity is not None:
+                batch.quantity = int(exit_quantity)
+                update_fields.append('quantity')
+            if exit_weight_kg is not None:
+                batch.avg_weight_kg = exit_weight_kg
+                update_fields.append('avg_weight_kg')
+            batch.save(update_fields=update_fields)
+
+            # 3. Criar o registro de histórico da NOVA fase (sem exit_date → em andamento)
+            BatchPhaseHistory.objects.create(
+                batch=batch,
+                phase=new_phase,
+                quantity=batch.quantity,
+                avg_weight_kg=batch.avg_weight_kg,
+                entry_date=exit_date,
+            )
+
+            # 4. Registrar HistoricoEvento
+            phase_labels = {
+                'creche': 'Creche', 'crescimento': 'Crescimento',
+                'engorda': 'Terminação/Engorda', 'gestacao_maternidade': 'Gestação/Maternidade',
+                'reproducao': 'Reprodução',
+            }
+            old_label = phase_labels.get(old_phase, old_phase or 'N/A')
+            new_label = phase_labels.get(new_phase, new_phase)
+            HistoricoEvento.objects.create(
+                farm=batch.farm,
+                tipo_evento='Transferência de Fase',
+                descricao=(
+                    f"Lote {batch.batch_code} transferido de {old_label} para {new_label}. "
+                    f"Qtd: {batch.quantity} animais. Peso médio de saída: {exit_weight_kg or '-'} kg."
+                    + (f" {notes}" if notes else "")
+                ),
+                data_evento=exit_date,
+                lote=batch,
+                metadata={
+                    'fase_anterior': old_phase,
+                    'fase_nova': new_phase,
+                    'quantidade': batch.quantity,
+                    'peso_medio_saida': float(exit_weight_kg) if exit_weight_kg else None,
+                }
+            )
+
+        return Response({
+            'message': f'Lote transferido de {old_label} para {new_label} com sucesso.',
+            'batch_id': str(batch.id),
+            'old_phase': old_phase,
+            'new_phase': new_phase,
+            'exit_date': exit_date.isoformat(),
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['get'], url_path='animal-detail')
     def animal_detail(self, request, pk=None):
         """Retorna o Animal individual associado a este lote, se houver."""

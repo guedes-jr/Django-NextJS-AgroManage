@@ -140,8 +140,19 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             try:
                 litter = birth.litter
                 ret['initial_quantity'] = litter.weaned_quantity if litter else birth.live_born
+                if litter:
+                    ret['weaned_quantity'] = litter.weaned_quantity
+                    ret['avg_weaning_weight_kg'] = float(litter.avg_weaning_weight_kg) if litter.avg_weaning_weight_kg else None
+                    ret['weaning_date'] = litter.weaning_date.isoformat() if litter.weaning_date else None
             except Exception:
                 ret['initial_quantity'] = birth.live_born
+
+            # Mortalidade na maternidade (Nascidos vivos - Desmamados)
+            if ret.get('weaned_quantity') is not None and birth.live_born is not None:
+                ret['maternity_mortality'] = max(0, birth.live_born - ret['weaned_quantity'])
+            else:
+                ret['maternity_mortality'] = None
+
         else:
             ret['born_alive'] = None
             ret['stillborn'] = None
@@ -150,6 +161,10 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             ret['dam_identifier'] = None
             ret['sire_identifier'] = None
             ret['initial_quantity'] = None
+            ret['weaned_quantity'] = None
+            ret['avg_weaning_weight_kg'] = None
+            ret['weaning_date'] = None
+            ret['maternity_mortality'] = None
 
         # Mortes calculadas (diferença entre quantidade inicial e atual)
         initial_qty = ret.get('initial_quantity')
