@@ -10,6 +10,7 @@ urlpatterns = [
     path("", include(router.urls)),
     path("me/", views.my_organization_view, name="my-organization"),
     path("update-project/", views.update_project_view, name="update-project"),
+    path("update-logs/", views.update_logs_view, name="update-logs"),
 ]
 
 

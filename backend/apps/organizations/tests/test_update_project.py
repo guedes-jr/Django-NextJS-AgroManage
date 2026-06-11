@@ -53,3 +53,28 @@ class UpdateProjectAPITestCase(APITestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("Atualização do projeto iniciada", response.data["detail"])
+
+    def test_anonymous_user_cannot_view_logs(self):
+        response = self.client.get(reverse("update-logs"))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_operator_cannot_view_logs(self):
+        self.client.force_authenticate(user=self.operator)
+        response = self.client.get(reverse("update-logs"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_owner_can_view_logs(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(reverse("update-logs"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("status", response.data)
+        self.assertIn("progress", response.data)
+        self.assertIn("logs", response.data)
+
+    def test_admin_can_view_logs(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse("update-logs"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("status", response.data)
+        self.assertIn("progress", response.data)
+        self.assertIn("logs", response.data)

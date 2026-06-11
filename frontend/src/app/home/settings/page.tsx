@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Building2, 
   Users, 
@@ -84,6 +84,10 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("organization");
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [updatingProject, setUpdatingProject] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [updateLogs, setUpdateLogs] = useState("");
+  const terminalRef = useRef<HTMLPreElement>(null);
   const [org, setOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -289,6 +293,46 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchData();
   }, [activeTab]);
+
+  const fetchUpdateLogs = async () => {
+    try {
+      const res = await apiClient.get("/organizations/update-logs/");
+      setUpdateStatus(res.data.status);
+      setUpdateProgress(res.data.progress);
+      setUpdateLogs(res.data.logs);
+      return res.data.status;
+    } catch (err) {
+      console.error("Erro ao carregar logs de atualização:", err);
+      return "failed";
+    }
+  };
+
+  useEffect(() => {
+    let intervalId: any = null;
+
+    if (activeTab === "system" && isAdmin) {
+      fetchUpdateLogs().then((status) => {
+        if (status === "running") {
+          intervalId = setInterval(async () => {
+            const currentStatus = await fetchUpdateLogs();
+            if (currentStatus !== "running") {
+              clearInterval(intervalId);
+            }
+          }, 2000);
+        }
+      });
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [activeTab, isAdmin]);
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [updateLogs]);
 
   const handleUpdateOrg = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -636,13 +680,24 @@ export default function SettingsPage() {
       return;
     }
     setUpdatingProject(true);
+    setUpdateStatus("running");
+    setUpdateProgress(5);
+    setUpdateLogs("Iniciando processo...");
     setError(null);
     setSuccess(null);
     try {
-      const res = await apiClient.post("/organizations/update-project/");
-      setSuccess(res.data.detail || "Atualização iniciada com sucesso!");
+      await apiClient.post("/organizations/update-project/");
+      
+      // Start polling immediately
+      const intervalId = setInterval(async () => {
+        const currentStatus = await fetchUpdateLogs();
+        if (currentStatus !== "running") {
+          clearInterval(intervalId);
+        }
+      }, 2000);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Erro ao iniciar atualização.");
+      setUpdateStatus("failed");
     } finally {
       setUpdatingProject(false);
     }
@@ -1336,10 +1391,10 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
-                      <div className="d-flex justify-content-start">
+                      <div className="d-flex justify-content-start mb-4">
                         <button 
                           onClick={handleUpdateProject}
-                          disabled={updatingProject}
+                          disabled={updatingProject || updateStatus === "running"}
                           className="btn btn-danger-elegant px-4 py-2.5 d-flex align-items-center gap-2 rounded-xl fw-bold text-white"
                           style={{ 
                             background: "oklch(0.6 0.2 25)", 
@@ -1348,7 +1403,7 @@ export default function SettingsPage() {
                             boxShadow: "0 4px 12px oklch(0.6 0.2 25 / 0.2)" 
                           }}
                         >
-                          {updatingProject ? (
+                          {updatingProject || updateStatus === "running" ? (
                             <>
                               <Loader2 size={18} className="animate-spin" />
                               Atualizando...
@@ -1361,6 +1416,53 @@ export default function SettingsPage() {
                           )}
                         </button>
                       </div>
+
+                      {updateStatus !== "idle" && (
+                        <div className="mt-4 fade-in">
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <span className="small fw-bold text-muted-foreground">Progresso da Atualização</span>
+                            <span className="small fw-bold" style={{ color: "var(--primary)" }}>{updateProgress}%</span>
+                          </div>
+                          <div className="progress mb-4" style={{ height: "10px", borderRadius: "10px", background: "var(--background)", overflow: "hidden" }}>
+                            <div 
+                              className={`progress-bar progress-bar-striped ${updateStatus === "running" ? "progress-bar-animated" : ""} ${updateStatus === "failed" ? "bg-danger" : "bg-primary"}`}
+                              role="progressbar" 
+                              style={{ width: `${updateProgress}%`, transition: "width 0.5s ease" }}
+                              aria-valuenow={updateProgress} 
+                              aria-valuemin={0} 
+                              aria-valuemax={100}
+                            ></div>
+                          </div>
+
+                          <div className="terminal-container rounded-xl overflow-hidden" style={{ background: "#0f172a", border: "1px solid #1e293b", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}>
+                            <div className="terminal-header d-flex align-items-center px-3 py-2" style={{ background: "#1e293b", borderBottom: "1px solid #334155" }}>
+                              <div className="d-flex gap-2">
+                                <div className="rounded-circle" style={{ width: "12px", height: "12px", background: "#ef4444" }}></div>
+                                <div className="rounded-circle" style={{ width: "12px", height: "12px", background: "#eab308" }}></div>
+                                <div className="rounded-circle" style={{ width: "12px", height: "12px", background: "#22c55e" }}></div>
+                              </div>
+                              <div className="mx-auto extra-small text-muted fw-medium" style={{ color: "#94a3b8" }}>
+                                deploy@agromanage: ~
+                              </div>
+                            </div>
+                            <pre 
+                              ref={terminalRef}
+                              className="p-3 m-0"
+                              style={{ 
+                                height: "300px", 
+                                overflowY: "auto", 
+                                color: "#10b981", 
+                                fontFamily: "'Fira Code', 'Courier New', Courier, monospace", 
+                                fontSize: "0.85rem",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-all"
+                              }}
+                            >
+                              {updateLogs || "Aguardando logs..."}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
