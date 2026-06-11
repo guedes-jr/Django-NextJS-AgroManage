@@ -245,5 +245,6 @@ LOGGING = {
 # ---------------------------------------------------------------------------
 # Project Update command
 # ---------------------------------------------------------------------------
-UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="/bin/update_project")
+UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="/home/deploy/bin/update_project")
+DEPLOY_PASSWORD = env("DEPLOY_PASSWORD", default="")
 

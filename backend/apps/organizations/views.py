@@ -72,12 +72,19 @@ def update_project_view(request):
         # Fallback to devnull if we can't write to log file
         log_file = open(os.devnull, "w")
 
+    # Pass the password as an environment variable to the subprocess
+    env_vars = os.environ.copy()
+    deploy_password = getattr(settings, "DEPLOY_PASSWORD", "")
+    if deploy_password:
+        env_vars["DEPLOY_PASSWORD"] = deploy_password
+
     try:
         # Start the process in a new session (detached)
         subprocess.Popen(
             [command],
             stdout=log_file,
             stderr=log_file,
+            env=env_vars,
             start_new_session=True
         )
         return Response(

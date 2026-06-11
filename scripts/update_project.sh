@@ -13,6 +13,14 @@ FRONTEND_SERVICE="agromanage-frontend"
 
 DJANGO_SETTINGS_MODULE_VALUE="config.settings.prod"
 
+run_sudo() {
+  if [ -n "${DEPLOY_PASSWORD:-}" ]; then
+    echo "$DEPLOY_PASSWORD" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 echo "=========================================="
 echo "[DEPLOY] Atualizando AgroManage"
 echo "=========================================="
@@ -130,25 +138,25 @@ npm run build
 
 echo "[DEPLOY] Reiniciando serviços..."
 
-sudo systemctl daemon-reload
-sudo systemctl restart "$BACKEND_SERVICE"
-sudo systemctl restart "$FRONTEND_SERVICE"
-sudo systemctl reload nginx
+run_sudo systemctl daemon-reload
+run_sudo systemctl restart "$BACKEND_SERVICE"
+run_sudo systemctl restart "$FRONTEND_SERVICE"
+run_sudo systemctl reload nginx
 
 echo "[DEPLOY] Aguardando serviços subirem..."
 sleep 5
 
 echo "[DEPLOY] Verificando status do backend..."
-if ! sudo systemctl is-active --quiet "$BACKEND_SERVICE"; then
+if ! run_sudo systemctl is-active --quiet "$BACKEND_SERVICE"; then
   echo "[ERRO] Backend não subiu corretamente."
-  sudo systemctl status "$BACKEND_SERVICE" --no-pager
+  run_sudo systemctl status "$BACKEND_SERVICE" --no-pager
   exit 1
 fi
 
 echo "[DEPLOY] Verificando status do frontend..."
-if ! sudo systemctl is-active --quiet "$FRONTEND_SERVICE"; then
+if ! run_sudo systemctl is-active --quiet "$FRONTEND_SERVICE"; then
   echo "[ERRO] Frontend não subiu corretamente."
-  sudo systemctl status "$FRONTEND_SERVICE" --no-pager
+  run_sudo systemctl status "$FRONTEND_SERVICE" --no-pager
   exit 1
 fi
 
