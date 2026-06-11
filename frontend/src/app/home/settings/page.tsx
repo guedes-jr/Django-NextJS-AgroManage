@@ -83,6 +83,7 @@ type Tab = "organization" | "members" | "subscription" | "security" | "preferenc
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("organization");
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const isAdmin = currentUser?.role === "owner" || currentUser?.role === "admin";
   const [updatingProject, setUpdatingProject] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [updateProgress, setUpdateProgress] = useState(0);
@@ -702,8 +703,6 @@ export default function SettingsPage() {
       setUpdatingProject(false);
     }
   };
-
-  const isAdmin = currentUser?.role === "owner" || currentUser?.role === "admin";
 
   const tabs = [
     { id: "organization", label: "Organização", icon: Building2 },
