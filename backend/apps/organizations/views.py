@@ -3,6 +3,10 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
+import os
+import subprocess
+from django.conf import settings
+from django.utils import timezone
 from .models import Organization, OrganizationAddress, OrganizationContact
 from .serializers import (
     OrganizationSerializer, 
@@ -38,6 +42,56 @@ def my_organization_view(request):
     serializer.save()
     
     return Response(serializer.data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def update_project_view(request):
+    """Trigger the update_project command in the background."""
+    # Permission check: Only Owners or Admins of the organization can trigger project update
+    if request.user.role not in ["owner", "admin"]:
+        return Response(
+            {"detail": "Apenas administradores podem atualizar o projeto."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    command = getattr(settings, "UPDATE_PROJECT_COMMAND", "/bin/update_project")
+
+    # Determine log folder and file path
+    logs_dir = settings.BASE_DIR.parent / "logs"
+    if not logs_dir.exists():
+        logs_dir = settings.BASE_DIR / "logs"
+
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_path = logs_dir / "update_project.log"
+        log_file = open(log_path, "a")
+        log_file.write(f"\n--- Update triggered by user {request.user.email} at {timezone.now()} ---\n")
+        log_file.flush()
+    except Exception:
+        # Fallback to devnull if we can't write to log file
+        log_file = open(os.devnull, "w")
+
+    try:
+        # Start the process in a new session (detached)
+        subprocess.Popen(
+            [command],
+            stdout=log_file,
+            stderr=log_file,
+            start_new_session=True
+        )
+        return Response(
+            {
+                "detail": "Atualização do projeto iniciada com sucesso em segundo plano. O sistema pode ficar temporariamente indisponível durante a reinicialização dos serviços."
+            },
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return Response(
+            {"detail": f"Falha ao iniciar o comando de atualização: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
 
 class OrganizationBaseViewSet(viewsets.ModelViewSet):

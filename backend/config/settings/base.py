@@ -241,3 +241,9 @@ LOGGING = {
         },
     },
 }
+
+# ---------------------------------------------------------------------------
+# Project Update command
+# ---------------------------------------------------------------------------
+UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="/bin/update_project")
+

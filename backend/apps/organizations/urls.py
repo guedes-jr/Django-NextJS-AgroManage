@@ -9,6 +9,7 @@ router.register(r"contacts", views.OrganizationContactViewSet, basename="org-con
 urlpatterns = [
     path("", include(router.urls)),
     path("me/", views.my_organization_view, name="my-organization"),
+    path("update-project/", views.update_project_view, name="update-project"),
 ]
 
 

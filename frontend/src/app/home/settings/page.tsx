@@ -22,7 +22,8 @@ import {
   Mail,
   Phone,
   Lock,
-  User
+  User,
+  RefreshCw
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { Badge } from "@/components/ui/Badge";
@@ -77,10 +78,12 @@ interface Member {
   is_active: boolean;
 }
 
-type Tab = "organization" | "members" | "subscription" | "security" | "preferences";
+type Tab = "organization" | "members" | "subscription" | "security" | "preferences" | "system";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("organization");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [updatingProject, setUpdatingProject] = useState(false);
   const [org, setOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,6 +274,17 @@ export default function SettingsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        setCurrentUser(JSON.parse(userStr));
+      } catch (e) {
+        console.error("Error parsing user from localStorage:", e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -617,12 +631,32 @@ export default function SettingsPage() {
     }
   };
 
+  const handleUpdateProject = async () => {
+    if (!window.confirm("Deseja realmente atualizar o projeto? O sistema ficará temporariamente indisponível durante a reinicialização dos serviços.")) {
+      return;
+    }
+    setUpdatingProject(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await apiClient.post("/organizations/update-project/");
+      setSuccess(res.data.detail || "Atualização iniciada com sucesso!");
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Erro ao iniciar atualização.");
+    } finally {
+      setUpdatingProject(false);
+    }
+  };
+
+  const isAdmin = currentUser?.role === "owner" || currentUser?.role === "admin";
+
   const tabs = [
     { id: "organization", label: "Organização", icon: Building2 },
     { id: "members", label: "Membros", icon: Users },
     { id: "subscription", label: "Assinatura", icon: CreditCard },
     { id: "security", label: "Segurança", icon: ShieldCheck },
     { id: "preferences", label: "Preferências", icon: Settings },
+    ...(isAdmin ? [{ id: "system", label: "Sistema", icon: RefreshCw }] : []),
   ];
 
   return (
@@ -1265,6 +1299,66 @@ export default function SettingsPage() {
                           className={`btn-sm px-3 py-1 fw-bold rounded-xl border-0 ${twoFactorEnabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}
                         >
                           {twoFactorEnabled ? 'Ativado' : 'Desativado'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- System Tab --- */}
+                {activeTab === "system" && isAdmin && (
+                  <div className="fade-in">
+                    <div className="section-header mb-5">
+                      <h2 className="fw-bold h5 mb-1">Manutenção do Sistema</h2>
+                      <p className="small text-muted-foreground">Gerencie as atualizações e manutenção da plataforma</p>
+                    </div>
+
+                    <div className="dashboard-card p-4 border-dashed mb-4" style={{ borderColor: "oklch(0.6 0.2 25 / 0.3)" }}>
+                      <div className="d-flex align-items-center gap-3 mb-3">
+                        <div className="icon-box bg-danger/10 text-danger rounded-xl p-2" style={{ background: "oklch(0.6 0.2 25 / 0.1)", color: "oklch(0.6 0.2 25)" }}>
+                          <AlertTriangle size={20} />
+                        </div>
+                        <div>
+                          <h4 className="fw-bold small mb-1">Atualizar Código do Projeto</h4>
+                          <p className="extra-small text-muted-foreground mb-0">
+                            Puxar a versão mais recente do Git e reiniciar os servidores de backend/frontend.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="alert alert-warning border-0 rounded-xl mb-4 py-3 px-4" style={{ background: "oklch(0.95 0.05 40 / 0.3)", color: "oklch(0.5 0.1 40)" }}>
+                        <div className="d-flex align-items-start gap-2">
+                          <AlertTriangle size={16} className="mt-1 flex-shrink-0" />
+                          <div className="small fw-medium">
+                            <strong>Atenção:</strong> Esta ação interromperá as conexões ativas por alguns instantes
+                            enquanto o servidor reinicia para aplicar a atualização.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="d-flex justify-content-start">
+                        <button 
+                          onClick={handleUpdateProject}
+                          disabled={updatingProject}
+                          className="btn btn-danger-elegant px-4 py-2.5 d-flex align-items-center gap-2 rounded-xl fw-bold text-white"
+                          style={{ 
+                            background: "oklch(0.6 0.2 25)", 
+                            border: "none", 
+                            fontSize: "0.875rem", 
+                            boxShadow: "0 4px 12px oklch(0.6 0.2 25 / 0.2)" 
+                          }}
+                        >
+                          {updatingProject ? (
+                            <>
+                              <Loader2 size={18} className="animate-spin" />
+                              Atualizando...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw size={18} />
+                              Atualizar Projeto
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

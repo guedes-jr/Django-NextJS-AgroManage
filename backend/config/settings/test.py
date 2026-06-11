@@ -12,3 +12,6 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 DEFAULT_FILE_STORAGE = "django.core.files.storage.InMemoryStorage"
+
+# Test project update command simulation
+UPDATE_PROJECT_COMMAND = "true"

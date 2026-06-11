@@ -29,3 +29,6 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.dummy.DummyCache",
     }
 }
+
+# Dev-friendly project update command simulation
+UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="echo 'Simulating project update'")
