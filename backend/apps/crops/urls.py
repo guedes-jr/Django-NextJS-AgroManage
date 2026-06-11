@@ -1,10 +1,19 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-router = DefaultRouter()
+from . import views
 
-# router.register(r"resource", views.ResourceViewSet)
+router = DefaultRouter()
+router.register(r"fields", views.FieldViewSet, basename="crops-fields")
+router.register(r"plantations", views.PlantingCycleViewSet, basename="crops-plantations")
+router.register(r"plantings", views.PlantingViewSet, basename="crops-plantings")
+router.register(r"fertilizations", views.FertilizationViewSet, basename="crops-fertilizations")
+router.register(r"fertigations", views.FertigationViewSet, basename="crops-fertigations")
+router.register(r"pesticides", views.PesticideApplicationViewSet, basename="crops-pesticides")
+router.register(r"irrigations", views.IrrigationViewSet, basename="crops-irrigations")
+router.register(r"harvests", views.HarvestViewSet, basename="crops-harvests")
 
 urlpatterns = [
+    path("dashboard/", views.CropsDashboardView.as_view(), name="crops-dashboard"),
     path("", include(router.urls)),
 ]

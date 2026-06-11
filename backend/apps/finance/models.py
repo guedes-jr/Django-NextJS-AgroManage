@@ -94,6 +94,11 @@ class Transaction(BaseModel):
         BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions"
     )
 
+    planting_cycle = models.ForeignKey(
+        "crops.PlantingCycle", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="finance_transactions",
+    )
+
     created_by = models.ForeignKey(
         "accounts.User", on_delete=models.SET_NULL, null=True, related_name="transactions"
     )

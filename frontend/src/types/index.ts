@@ -163,3 +163,217 @@ export interface TableSort {
   field: string;
   direction: SortDirection;
 }
+
+// ─── Crops / Plantations ─────────────────────────────────────────────────────
+
+export type PlantationStatus =
+  | "planned"
+  | "planting"
+  | "growing"
+  | "management"
+  | "harvesting"
+  | "finished"
+  | "cancelled";
+
+export type CropType =
+  | "grain"
+  | "fruit"
+  | "vegetable"
+  | "forage"
+  | "fiber"
+  | "other";
+
+export interface Plantation {
+  [key: string]: unknown;
+  id: string;
+  name: string;
+  organization?: string;
+  farm: string;
+  farm_name: string;
+  field: string;
+  field_name: string;
+  sector?: string;
+  sector_name?: string;
+  crop_type: CropType;
+  crop_type_display: string;
+  crop_name: string;
+  variety: string;
+  hybrid: string;
+  planted_area_ha: string | null;
+  population: number | null;
+  spacing: string;
+  planting_date: string;
+  expected_harvest_date: string | null;
+  actual_harvest_date: string | null;
+  status: PlantationStatus;
+  status_display: string;
+  estimated_production_kg: string | null;
+  estimated_bags: string | null;
+  estimated_revenue: string | null;
+  responsible_user: string | null;
+  responsible_name: string | null;
+  days_in_cultivation?: number;
+  days_remaining?: number | null;
+  investment_total?: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlantationDashboard {
+  id: string;
+  name: string;
+  crop_name: string;
+  crop_type_display: string;
+  field_name: string;
+  farm_name: string;
+  variety: string;
+  area_ha: string;
+  planting_date: string;
+  expected_harvest_date: string | null;
+  actual_harvest_date: string | null;
+  status: PlantationStatus;
+  status_display: string;
+  days_in_cultivation: number;
+  days_remaining: number | null;
+  investment_total: string;
+  cost_per_ha: string;
+  estimated_revenue: string;
+  estimated_revenue_per_ha: string;
+  estimated_profit: string;
+  estimated_profit_per_ha: string;
+  estimated_roi: string;
+  estimated_production_kg: string;
+  estimated_bags: string;
+  population: number | null;
+  spacing: string;
+  responsible_name: string;
+}
+
+export interface Planting {
+  id: string;
+  plantation: string;
+  item: string;
+  item_name: string;
+  supplier: string | null;
+  supplier_name: string | null;
+  lot: string | null;
+  quantity: string;
+  unit: string;
+  quantity_per_ha: string | null;
+  unit_price: string | null;
+  total_price: string | null;
+  population: number | null;
+  spacing: string;
+  depth: string;
+  planting_date: string;
+  operator: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Fertilization {
+  id: string;
+  plantation: string;
+  item: string;
+  item_name: string;
+  supplier: string | null;
+  supplier_name: string | null;
+  lot: string | null;
+  quantity: string;
+  unit: string;
+  dose_per_ha: string | null;
+  unit_price: string | null;
+  total_price: string | null;
+  application_method: string;
+  application_method_display: string;
+  area_applied_ha: string | null;
+  application_date: string;
+  operator: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Fertigation {
+  id: string;
+  plantation: string;
+  item: string;
+  item_name: string;
+  lot: string | null;
+  quantity: string;
+  unit: string;
+  syrup_liters: string | null;
+  concentration: string;
+  application_time_hours: string | null;
+  area_applied_ha: string | null;
+  unit_price: string | null;
+  total_price: string | null;
+  application_date: string;
+  operator: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PesticideApplication {
+  id: string;
+  plantation: string;
+  item: string;
+  item_name: string;
+  pesticide_type: string;
+  pesticide_type_display: string;
+  active_ingredient: string;
+  dose: string;
+  quantity: string;
+  unit: string;
+  supplier: string | null;
+  supplier_name: string | null;
+  lot: string | null;
+  unit_price: string | null;
+  total_price: string | null;
+  area_applied_ha: string | null;
+  application_date: string;
+  operator: string;
+  target: string;
+  equipment: string;
+  withholding_days: number | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Irrigation {
+  id: string;
+  plantation: string;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  pump: string;
+  pump_power_kw: string | null;
+  hours: string | null;
+  flow_rate_l_per_h: string | null;
+  liters_used: string | null;
+  energy_kwh: string | null;
+  kwh_value: string | null;
+  energy_cost: string | null;
+  operator: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Field {
+  id: string;
+  farm: string;
+  farm_name: string;
+  sector: string | null;
+  sector_name: string | null;
+  name: string;
+  area_ha: string;
+  soil_type: string;
+  is_active: boolean;
+  notes: string;
+  created_at: string;
+}

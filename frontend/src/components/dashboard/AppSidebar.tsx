@@ -17,6 +17,7 @@ import {
   BarChart3,
   HeartPulse,
   X,
+  Wheat,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -86,6 +87,7 @@ const menuItems: MenuItem[] = [
       { title: "Exames", href: "/home/clinico/exames" },
     ]
   },
+  { title: "Plantações", href: "/home/plantacoes", icon: Wheat },
   { title: "Financeiro", href: "/home/financeiro", icon: Wallet },
   { 
     title: "Estoque", 
