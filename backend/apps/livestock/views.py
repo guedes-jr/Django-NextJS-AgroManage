@@ -983,81 +983,21 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         else:
             exit_date = timezone.now().date()
 
-        from .models import BatchPhaseHistory
         from django.db import transaction
+        from .services import PHASE_LABELS, transfer_batch_phase
 
         with transaction.atomic():
-            # 1. Consolidar a fase anterior: salvar/atualizar o registro de BatchPhaseHistory
-            #    com os dados finais (peso e quantidade de saída) e a exit_date.
-            if old_phase:
-                # Buscar registro existente da fase atual (sem exit_date) e atualizar,
-                # ou criar um novo caso não exista.
-                phase_record, created = BatchPhaseHistory.objects.get_or_create(
-                    batch=batch,
-                    phase=old_phase,
-                    exit_date__isnull=True,
-                    defaults={
-                        'quantity': exit_quantity or batch.quantity,
-                        'avg_weight_kg': exit_weight_kg or batch.avg_weight_kg,
-                        'entry_date': batch.entry_date,
-                        'exit_date': exit_date,
-                    }
-                )
-                if not created:
-                    # Atualizar o registro existente com os dados finais
-                    phase_record.exit_date = exit_date
-                    if exit_weight_kg is not None:
-                        phase_record.avg_weight_kg = exit_weight_kg
-                    if exit_quantity is not None:
-                        phase_record.quantity = exit_quantity
-                    phase_record.save()
-
-            # 2. Atualizar o lote: nova fase, novo peso e quantidade se fornecidos
-            update_fields = ['phase', 'entry_date']
-            batch.phase = new_phase
-            batch.entry_date = exit_date  # A data de entrada na nova fase = data de saída da anterior
-            if exit_quantity is not None:
-                batch.quantity = int(exit_quantity)
-                update_fields.append('quantity')
-            if exit_weight_kg is not None:
-                batch.avg_weight_kg = exit_weight_kg
-                update_fields.append('avg_weight_kg')
-            batch.save(update_fields=update_fields)
-
-            # 3. Criar o registro de histórico da NOVA fase (sem exit_date → em andamento)
-            BatchPhaseHistory.objects.create(
-                batch=batch,
-                phase=new_phase,
-                quantity=batch.quantity,
-                avg_weight_kg=batch.avg_weight_kg,
-                entry_date=exit_date,
+            transfer_batch_phase(
+                batch,
+                new_phase,
+                exit_date,
+                exit_quantity=int(exit_quantity) if exit_quantity is not None else None,
+                exit_weight_kg=exit_weight_kg,
+                notes=notes,
             )
 
-            # 4. Registrar HistoricoEvento
-            phase_labels = {
-                'creche': 'Creche', 'crescimento': 'Crescimento',
-                'engorda': 'Terminação/Engorda', 'gestacao_maternidade': 'Gestação/Maternidade',
-                'reproducao': 'Reprodução',
-            }
-            old_label = phase_labels.get(old_phase, old_phase or 'N/A')
-            new_label = phase_labels.get(new_phase, new_phase)
-            HistoricoEvento.objects.create(
-                farm=batch.farm,
-                tipo_evento='Transferência de Fase',
-                descricao=(
-                    f"Lote {batch.batch_code} transferido de {old_label} para {new_label}. "
-                    f"Qtd: {batch.quantity} animais. Peso médio de saída: {exit_weight_kg or '-'} kg."
-                    + (f" {notes}" if notes else "")
-                ),
-                data_evento=exit_date,
-                lote=batch,
-                metadata={
-                    'fase_anterior': old_phase,
-                    'fase_nova': new_phase,
-                    'quantidade': batch.quantity,
-                    'peso_medio_saida': float(exit_weight_kg) if exit_weight_kg else None,
-                }
-            )
+        old_label = PHASE_LABELS.get(old_phase, old_phase or 'N/A')
+        new_label = PHASE_LABELS.get(new_phase, new_phase)
 
         return Response({
             'message': f'Lote transferido de {old_label} para {new_label} com sucesso.',
@@ -1164,8 +1104,10 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                         batch=new_batch
                     )
 
-                # 4. Encerrar lotes originais
+                # 4. Encerrar lotes originais (congelando a fase atual antes)
+                from .services import finalize_batch_current_phase
                 for sb in source_batches:
+                    finalize_batch_current_phase(sb, entry_date)
                     sb.status = 'finished'
                     sb.exit_date = entry_date
                     sb.save(update_fields=['status', 'exit_date'])
@@ -1773,10 +1715,45 @@ class BirthViewSet(viewsets.ModelViewSet):
             female.previous_phase = ''  # limpar fase anterior
             female.save(update_fields=['reproductive_status', 'previous_phase'])
 
-            # Mover o lote (AnimalBatch) para a fase de Creche
+            # Mover o lote (AnimalBatch) para a fase de Creche e congelar maternidade
             if b.batch:
-                b.batch.phase = 'creche'
-                b.batch.save(update_fields=['phase'])
+                from decimal import Decimal
+                from .models import BatchPhaseHistory
+                from .services import open_batch_phase, record_maternity_exit_on_weaning
+
+                batch = b.batch
+                weaned_qty = litter.weaned_quantity or b.live_born
+                weaning_weight = litter.avg_weaning_weight_kg
+
+                if not BatchPhaseHistory.objects.filter(batch=batch, phase='maternidade').exists():
+                    BatchPhaseHistory.objects.create(
+                        batch=batch,
+                        phase='maternidade',
+                        quantity=b.live_born,
+                        avg_weight_kg=b.avg_weight_kg or batch.avg_weight_kg,
+                        entry_date=b.birth_date or batch.entry_date,
+                    )
+
+                record_maternity_exit_on_weaning(
+                    batch,
+                    now,
+                    weaned_quantity=weaned_qty,
+                    avg_weaning_weight_kg=Decimal(str(weaning_weight)) if weaning_weight else None,
+                )
+
+                batch.phase = 'creche'
+                batch.entry_date = now
+                batch.quantity = weaned_qty
+                if weaning_weight is not None:
+                    batch.avg_weight_kg = weaning_weight
+                batch.save(update_fields=['phase', 'entry_date', 'quantity', 'avg_weight_kg'])
+                open_batch_phase(
+                    batch,
+                    'creche',
+                    now,
+                    quantity=weaned_qty,
+                    avg_weight_kg=weaning_weight,
+                )
 
             HistoricoEvento.objects.create(
                 farm=b.female.farm,

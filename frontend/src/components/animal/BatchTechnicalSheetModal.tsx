@@ -672,9 +672,17 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               // Helper: fase está atualmente em andamento
               const isCurrentPhase = (phaseKey: string) => currentPhase === phaseKey;
 
-              // Helper: fase ainda não começou (não está no histórico e não é a atual)
-              const isNotStarted = (phaseKey: string) =>
-                !isCurrentPhase(phaseKey) && !phaseHistory.some((p: any) => p.phase === phaseKey);
+              // ── Dados de maternidade (desmame) ──────────────────────────────────
+              const weanedQty: number | null = animal?.weaned_quantity ?? null;
+              const weanedPeso: number | null = animal?.avg_weaning_weight_kg != null
+                ? Number(animal.avg_weaning_weight_kg) : null;
+              const weaningDate: string | null = animal?.weaning_date ?? null;
+              const maternidadeConcluida = weaningDate != null;
+              const maternidadeEmAndamento =
+                !maternidadeConcluida &&
+                animal?.birth_date != null &&
+                (currentPhase == null || currentPhase === "gestacao_maternidade");
+              const mortMaternidade: number | null = animal?.maternity_mortality ?? null;
 
               // Cálculo de GPD para uma fase concluída usando pesos do history
               const calcFaseGpd = (phaseKey: string): number | null => {
@@ -682,31 +690,29 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 if (!ph || !ph.entry_date || !ph.exit_date) return null;
                 const diasFase = (new Date(ph.exit_date).getTime() - new Date(ph.entry_date).getTime()) / (1000 * 60 * 60 * 24);
                 if (diasFase <= 0 || ph.avg_weight_kg == null) return null;
-                // Precisamos do peso de entrada na fase para calcular o ganho
-                // O peso ao entrar na fase está no registro anterior ou em birth_weight_kg
                 const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                 const prevKey = prevPhaseMap[phaseKey];
-                const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey) : null;
-                const pesoEntrada = prevPh?.avg_weight_kg ?? (pesoMedioNasc ?? null);
+                const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
+                const pesoEntrada = prevKey === "maternidade"
+                  ? (weanedPeso ?? pesoMedioNasc ?? null)
+                  : (prevPh?.avg_weight_kg ?? (pesoMedioNasc ?? null));
                 if (pesoEntrada == null) return null;
                 return (Number(ph.avg_weight_kg) - Number(pesoEntrada)) / diasFase;
               };
 
-              // Mortalidade de uma fase concluída
+              // Mortalidade absoluta de uma fase concluída
               const calcFaseMort = (phaseKey: string): string => {
                 const ph = getCompletedPhase(phaseKey);
                 if (!ph) return "-";
                 const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                 const prevKey = prevPhaseMap[phaseKey];
-                const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey) : null;
+                const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
                 const qtdIni = prevKey === "maternidade"
-                  ? (animal?.weaned_quantity ?? animal?.initial_quantity ?? null)
+                  ? (weanedQty ?? nascidosVivos ?? qtdInicial)
                   : (prevPh?.quantity ?? null);
                 const qtdFim = ph.quantity ?? null;
-                if (qtdIni == null || qtdFim == null) return ph.quantity != null ? fmtInt(ph.quantity) : "-";
-                const mortes = Math.max(0, Number(qtdIni) - Number(qtdFim));
-                const pct = qtdIni > 0 ? ((mortes / qtdIni) * 100).toFixed(1) : "0.0";
-                return mortes > 0 ? `${pct}% (${mortes})` : "0";
+                if (qtdIni == null || qtdFim == null) return "-";
+                return String(Math.max(0, Number(qtdIni) - Number(qtdFim)));
               };
 
               // Cálculo da idade total ao fim de uma fase (em dias desde o nascimento)
@@ -719,20 +725,43 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 return dias > 0 ? String(dias) : "-";
               };
 
-              // ── MATERNIDADE ─────────────────────────────────────────────────────
-              // Dados da maternidade ficam congelados quando o desmame ocorreu
-              const maternidadeConcluida = animal?.weaning_date != null || currentPhase !== null;
-              const weanedQty: number | null = animal?.weaned_quantity ?? null;
-              const weanedPeso: number | null = animal?.avg_weaning_weight_kg != null
-                ? Number(animal.avg_weaning_weight_kg) : null;
-              const mortMaternidade: number | null = animal?.maternity_mortality ?? null;
-              const mortMatPct: string =
-                nascidosVivos != null && nascidosVivos > 0 && mortMaternidade != null && mortMaternidade > 0
-                  ? `${((mortMaternidade / nascidosVivos) * 100).toFixed(1)}% (${mortMaternidade})`
-                  : mortMaternidade != null && mortMaternidade > 0 ? String(mortMaternidade) : "0";
+              // Conversão alimentar de uma fase concluída
+              const calcFaseConv = (phaseKey: string): string => {
+                const ph = getCompletedPhase(phaseKey);
+                if (!ph || !ph.entry_date || !ph.exit_date) return "-";
+                
+                // Filtrar os consumos de ração ocorridos no período desta fase
+                const feedInPhase = history.filter((e: any) => {
+                  if (e.type !== "feed" || !e.date) return false;
+                  const d = new Date(e.date).getTime();
+                  return d >= new Date(ph.entry_date).getTime() && d <= new Date(ph.exit_date).getTime();
+                });
+                
+                if (feedInPhase.length === 0) return "-";
+                
+                const totalFeedKg = feedInPhase.reduce((a: number, c: any) => a + (c.total_kg || 0), 0);
+                if (totalFeedKg <= 0) return "-";
 
-              // ── Maternidade: Idade ao desmame e GPD de lactação ─────────────────
-              const weaningDate: string | null = animal?.weaning_date ?? null;
+                const faseGpd = calcFaseGpd(phaseKey);
+                if (!faseGpd || faseGpd <= 0) return "-";
+                
+                const diasFase = (new Date(ph.exit_date).getTime() - new Date(ph.entry_date).getTime()) / (1000 * 60 * 60 * 24);
+                if (diasFase <= 0) return "-";
+                
+                // O ganho total de peso da fase por animal é o GPD * dias
+                const ganhoTotalPorAnimal = faseGpd * diasFase;
+                
+                // Consumo médio por animal na fase
+                const qtdFim = ph.quantity ?? null;
+                if (!qtdFim || qtdFim <= 0) return "-";
+                
+                const consumoMedioPorAnimal = totalFeedKg / qtdFim;
+                
+                const conv = consumoMedioPorAnimal / ganhoTotalPorAnimal;
+                return fmt(conv);
+              };
+
+              // ── MATERNIDADE ─────────────────────────────────────────────────────
               const idadeAoDesmame: number | null = (() => {
                 if (!weaningDate || !animal?.birth_date) return null;
                 const dias = Math.floor(
@@ -751,7 +780,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               type PhaseRow = { fase: string; qtdIni: string; qtdAtual: string; idade: string; pesoMedio: string; pesoTotal: string; gpd: string; conv: string; mort: string; status: "concluida" | "andamento" | "vazia" };
 
               const EMPTY: Omit<PhaseRow, "fase" | "status"> = { qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" };
-              const EM_ANDAMENTO: Omit<PhaseRow, "fase" | "status"> = { qtdIni: qtdAtual != null ? fmtInt(qtdAtual) : "-", qtdAtual: qtdAtual != null ? fmtInt(qtdAtual) : "-", idade: ageInDays != null ? String(ageInDays) : "-", pesoMedio: pesoMedioAtual != null ? fmt(pesoMedioAtual) : "-", pesoTotal: pesoTotalLote != null ? fmt(pesoTotalLote) : "-", gpd: gpd != null ? fmt(gpd, 3) : "-", conv: "-", mort: "-" };
+              const EM_ANDAMENTO: Omit<PhaseRow, "fase" | "status"> = { qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" };
 
               const buildFaseRow = (faseLabel: string, phaseKey: string): PhaseRow => {
                 const ph = getCompletedPhase(phaseKey);
@@ -761,9 +790,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   const qtdSaida = ph.quantity != null ? Number(ph.quantity) : null;
                   const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                   const prevKey = prevPhaseMap[phaseKey];
-                  const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey) : null;
+                  const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
                   const qtdEntrada = prevKey === "maternidade"
-                    ? (weanedQty ?? qtdInicial)
+                    ? (weanedQty ?? nascidosVivos ?? qtdInicial)
                     : (prevPh?.quantity ?? null);
                   return {
                     fase: faseLabel, status: "concluida",
@@ -773,7 +802,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     pesoMedio: pesoSaida != null ? fmt(pesoSaida) : "-",
                     pesoTotal: pesoSaida != null && qtdSaida != null ? fmt(pesoSaida * qtdSaida) : "-",
                     gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
-                    conv: "-",
+                    conv: calcFaseConv(phaseKey),
                     mort: calcFaseMort(phaseKey),
                   };
                 }
@@ -782,20 +811,21 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               };
 
               const rows: PhaseRow[] = [
-                // MATERNIDADE — concluída quando existe desmame
                 maternidadeConcluida
                   ? {
                       fase: "MATERNIDADE", status: "concluida",
-                      qtdIni: totalNascidos != null ? fmtInt(totalNascidos) : "-",
-                      qtdAtual: weanedQty != null ? fmtInt(weanedQty) : (nascidosVivos != null ? fmtInt(nascidosVivos) : "-"),
+                      qtdIni: nascidosVivos != null ? fmtInt(nascidosVivos) : "-",
+                      qtdAtual: weanedQty != null ? fmtInt(weanedQty) : "-",
                       idade: idadeAoDesmame != null ? String(idadeAoDesmame) : "-",
-                      pesoMedio: weanedPeso != null ? fmt(weanedPeso) : (pesoMedioNasc != null ? fmt(pesoMedioNasc) : "-"),
+                      pesoMedio: weanedPeso != null ? fmt(weanedPeso) : "-",
                       pesoTotal: weanedPeso != null && weanedQty != null ? fmt(weanedPeso * weanedQty) : "-",
                       gpd: gpdMaternidade != null ? fmt(gpdMaternidade, 3) : "-",
                       conv: "-",
-                      mort: mortMatPct,
+                      mort: mortMaternidade != null ? String(mortMaternidade) : "0",
                     }
-                  : { fase: "MATERNIDADE", status: "andamento", ...EMPTY },
+                  : maternidadeEmAndamento
+                    ? { fase: "MATERNIDADE", status: "andamento", ...EM_ANDAMENTO }
+                    : { fase: "MATERNIDADE", status: "vazia", ...EMPTY },
                 buildFaseRow("CRECHE", "creche"),
                 buildFaseRow("CRESCIMENTO", "crescimento"),
                 buildFaseRow("TERMINAÇÃO / ENGORDA", "engorda"),

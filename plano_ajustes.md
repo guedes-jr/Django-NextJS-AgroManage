@@ -1,33 +1,383 @@
-# Plano de Ajustes: Lógica da Tabela de Desempenho por Fase
+# PROMPT PARA IMPLEMENTAÇÃO DA INTERFACE APRESENTADA NO VÍDEO
 
-A solicitação exige que a tabela "Desempenho por Fase" da ficha técnica do lote exiba os resultados consolidados apenas quando a fase for **concluída**. Fases em andamento não devem mostrar resultados parciais, mas indicar que estão em andamento.
+Você deverá analisar completamente o projeto existente e implementar uma interface administrativa semelhante à apresentada no vídeo de referência.
 
-## User Review Required
+## Objetivo
 
-- **Mortalidade**: Atualmente a mortalidade geral é calculada pela diferença entre a quantidade inicial e a quantidade atual do lote. Para o cálculo da mortalidade por fase, assumiremos que a quantidade ao final de uma fase anterior é o "inicial" da próxima fase (ex: Quantidade desmamada = Quantidade inicial da Creche. A diferença entre a Quantidade inicial da Creche e a Quantidade ao final da Creche será a mortalidade da Creche). 
-- **Conversão Alimentar**: Como o consumo de ração está associado a datas específicas, a conversão da fase será calculada filtrando os registros de consumo de ração compreendidos entre a `entry_date` e `exit_date` da respectiva fase. Se não houver dados exatos, exibiremos `-`.
+Criar uma área administrativa moderna para gerenciamento de apostas, mantendo o padrão visual e estrutural do sistema existente.
 
-## Open Questions
+A implementação deve parecer uma evolução natural do projeto, sem mudanças bruscas na identidade visual.
 
-- **Idade Final**: No vídeo/descrição, não fica explícito como tratar a idade ao fim de cada fase. Se a idade na creche terminou em 70 dias, o crescimento deve mostrar a idade final (ex: 140 dias) ou os dias decorridos DENTRO do crescimento? Assumiremos **Idade Total do Animal ao fim da fase**, que é o padrão (ex: Creche termina com 70 dias de vida, Crescimento termina com 145 dias de vida, etc).
+---
 
-## Proposed Changes
+## Estrutura Geral
 
-### 1. Backend (`backend/apps/livestock/serializers.py`)
-- Alterar o `AnimalBatchSerializer` (método `to_representation`) para enviar explicitamente os dados de desmame e da maternidade, facilitando o preenchimento da primeira linha:
-  - `weaning_date`
-  - `weaned_quantity`
-  - `avg_weaning_weight_kg`
-  - `maternity_mortality` (diferença entre nascidos vivos e desmamados).
+A interface deve possuir:
 
-### 2. Frontend (`frontend/src/components/animal/BatchTechnicalSheetModal.tsx`)
-- **Reescrever o array de dados "Desempenho por Fase":**
-  - Identificar todas as fases completas (`type === 'phase'` no histórico) e a fase atual.
-  - **Maternidade**: Preenchida caso o lote possua dados de desmame ou se a fase atual for Creche, Crescimento ou Terminação.
-  - **Creche**: 
-    - Se estiver concluída: buscar os dados correspondentes no array `history`.
-    - Se `animal.phase === "creche"`: mostrar "Em andamento".
-    - Se anterior a creche: mostrar "-".
-  - **Crescimento**: Mesma lógica da Creche.
-  - **Terminação/Engorda**: Mesma lógica da Creche.
-- **Ajustes de Colunas**: Ajustar as colunas (Qtd Inicial, Qtd Atual, Idade, Peso Médio, Peso Total, GPD, Conversão Alimentar, Mortalidade) para extrair e calcular valores referentes a cada bloco isolado de forma consolidada.
+* Cabeçalho superior
+* Menu lateral responsivo
+* Área central de conteúdo
+* Cards informativos
+* Tabelas organizadas
+* Botões de ação
+* Campos de pesquisa
+* Filtros rápidos
+* Paginação
+* Mensagens de sucesso e erro
+* Feedback visual durante carregamentos
+
+---
+
+## Layout
+
+O layout deve ser limpo e organizado.
+
+Utilizar espaçamento consistente.
+
+Manter boa hierarquia visual.
+
+Elementos alinhados.
+
+Bordas suaves.
+
+Sombras discretas.
+
+Componentes reutilizáveis.
+
+Interface responsiva.
+
+---
+
+## Dashboard
+
+Criar um painel contendo:
+
+Quantidade total de registros.
+
+Quantidade ativa.
+
+Quantidade inativa.
+
+Últimas movimentações.
+
+Resumo das operações.
+
+Indicadores rápidos.
+
+---
+
+## Área de Consulta
+
+Implementar uma tabela contendo:
+
+ID
+
+Número
+
+Descrição
+
+Status
+
+Data
+
+Usuário
+
+Categoria
+
+Ações
+
+A tabela deve permitir:
+
+Pesquisa instantânea.
+
+Ordenação.
+
+Filtros.
+
+Paginação.
+
+Atualização dinâmica.
+
+---
+
+## Sistema de Busca
+
+Adicionar busca em tempo real.
+
+Permitir pesquisa por:
+
+Número
+
+Nome
+
+Descrição
+
+Código
+
+Categoria
+
+Status
+
+Data
+
+Sem necessidade de recarregar a página.
+
+---
+
+## Cadastro
+
+Criar formulário contendo:
+
+Campos obrigatórios.
+
+Campos opcionais.
+
+Validação automática.
+
+Mensagens de erro.
+
+Campos mascarados quando necessário.
+
+Salvar via AJAX quando possível.
+
+---
+
+## Edição
+
+Permitir edição rápida.
+
+Carregar dados existentes.
+
+Manter histórico.
+
+Atualizar apenas campos alterados.
+
+Evitar perda de dados.
+
+---
+
+## Exclusão
+
+Solicitar confirmação.
+
+Exibir modal.
+
+Informar impacto.
+
+Executar exclusão segura.
+
+Atualizar lista automaticamente.
+
+---
+
+## Interface
+
+Botões padronizados.
+
+Ícones consistentes.
+
+Espaçamentos uniformes.
+
+Mesma tipografia.
+
+Mesmo estilo visual do restante do projeto.
+
+---
+
+## Componentes
+
+Criar componentes reutilizáveis para:
+
+Tabela
+
+Modal
+
+Botão
+
+Input
+
+Select
+
+Checkbox
+
+Badge
+
+Alert
+
+Toast
+
+Loader
+
+Card
+
+Paginação
+
+---
+
+## Backend
+
+Criar endpoints REST seguindo o padrão existente.
+
+Implementar:
+
+GET
+
+POST
+
+PUT
+
+DELETE
+
+Validação de entrada.
+
+Tratamento de erros.
+
+Retornos padronizados.
+
+---
+
+## Banco de Dados
+
+Caso necessário:
+
+Criar migrations.
+
+Criar índices.
+
+Preservar dados existentes.
+
+Evitar consultas lentas.
+
+---
+
+## Segurança
+
+Validar permissões.
+
+Validar autenticação.
+
+Sanitizar entradas.
+
+Evitar SQL Injection.
+
+Evitar XSS.
+
+Evitar CSRF.
+
+Validar uploads.
+
+Validar parâmetros.
+
+---
+
+## Performance
+
+Usar paginação.
+
+Lazy Loading quando possível.
+
+Evitar consultas repetidas.
+
+Evitar renderizações desnecessárias.
+
+Cache onde fizer sentido.
+
+---
+
+## UX
+
+Toda ação deve gerar retorno visual.
+
+Salvar:
+
+Exibir confirmação.
+
+Excluir:
+
+Solicitar confirmação.
+
+Erro:
+
+Exibir mensagem clara.
+
+Carregamento:
+
+Mostrar indicador visual.
+
+---
+
+## Responsividade
+
+Compatível com:
+
+Desktop
+
+Notebook
+
+Tablet
+
+Celular
+
+---
+
+## Código
+
+Seguir exatamente o padrão existente do projeto.
+
+Não criar código duplicado.
+
+Reutilizar funções existentes.
+
+Reutilizar componentes existentes.
+
+Reutilizar serviços existentes.
+
+Manter organização atual das pastas.
+
+---
+
+## Validação Final
+
+Antes de concluir:
+
+Verificar funcionamento completo.
+
+Testar CRUD.
+
+Testar filtros.
+
+Testar pesquisa.
+
+Testar paginação.
+
+Testar permissões.
+
+Testar integração backend/frontend.
+
+Testar erros.
+
+Testar responsividade.
+
+---
+
+## Entrega
+
+Ao finalizar apresentar:
+
+Resumo das alterações.
+
+Arquivos modificados.
+
+Arquivos criados.
+
+Arquivos removidos.
+
+Explicação técnica.
+
+Possíveis impactos.
+
+Melhorias futuras.
+
+Instruções para testes.
+
+Nunca implemente alterações sem primeiro compreender completamente a arquitetura existente do projeto.

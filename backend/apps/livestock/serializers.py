@@ -374,23 +374,43 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         old_phase = instance.phase
         new_phase = validated_data.get('phase', old_phase)
-        
-        # Se a fase mudou, criamos o registro de historico da fase antiga
-        if old_phase and new_phase != old_phase:
-            from django.utils import timezone
-            from .models import BatchPhaseHistory
-            exit_date = validated_data.get('entry_date') or timezone.now().date()
-            BatchPhaseHistory.objects.create(
-                batch=instance,
-                phase=old_phase,
-                quantity=instance.quantity,
-                avg_weight_kg=instance.avg_weight_kg,
-                entry_date=instance.entry_date,
-                exit_date=exit_date
-            )
-            
+        old_status = instance.status
+        new_status = validated_data.get('status', old_status)
         birth_date = validated_data.pop('birth_date', None)
-        
+
+        phase_changed = 'phase' in validated_data and old_phase and new_phase != old_phase
+        finishing = (
+            'status' in validated_data
+            and new_status in ('finished', 'sold')
+            and old_status not in ('finished', 'sold')
+        )
+
+        if phase_changed:
+            from django.utils import timezone
+            from .services import transfer_batch_phase
+
+            exit_date = validated_data.get('entry_date') or timezone.now().date()
+            exit_qty = validated_data.get('quantity', instance.quantity)
+            exit_weight = validated_data.get('avg_weight_kg', instance.avg_weight_kg)
+            transfer_batch_phase(
+                instance,
+                new_phase,
+                exit_date,
+                exit_quantity=int(exit_qty) if exit_qty is not None else None,
+                exit_weight_kg=exit_weight,
+            )
+            validated_data.pop('phase', None)
+            validated_data.pop('entry_date', None)
+            validated_data.pop('quantity', None)
+            validated_data.pop('avg_weight_kg', None)
+
+        if finishing and not phase_changed:
+            from django.utils import timezone
+            from .services import finalize_batch_current_phase
+
+            exit_date = validated_data.get('exit_date') or timezone.now().date()
+            finalize_batch_current_phase(instance, exit_date)
+
         batch = super().update(instance, validated_data)
         
         # Sincronizar o animal individual se for categoria reprodutiva

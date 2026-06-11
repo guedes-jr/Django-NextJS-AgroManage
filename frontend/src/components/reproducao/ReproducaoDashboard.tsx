@@ -261,6 +261,7 @@ import {
   updateAnimal,
   createAnimalBatch,
   updateAnimalBatch,
+  changeBatchPhase,
   updatePregnancy,
   fetchAnimalDetails,
   fetchAnimalHistory,
@@ -523,30 +524,32 @@ export function ReproducaoDashboard({
               source_batch_ids: targetRows.map(r => r.id)
             });
 
-            // 3. Mark the source batches as finished
+            // 3. Mark the source batches as finished (phase already frozen on merge endpoint)
             await Promise.all(targetRows.map(r => 
               updateAnimalBatch(r.id as number, { status: "finished" })
             ));
 
             showToast("Lotes mesclados e transferidos com sucesso!", "success");
           } else {
-            // Transferring individually
+            // Transferring individually — congela a fase anterior via change-phase
             if (targetRows.length === 1) {
-              // Single batch: update phase, quantity, weight, entry_date
-              await updateAnimalBatch(targetRows[0].id as number, {
-                phase: targetPhase,
-                quantity: parseInt(data.quantity),
-                avg_weight_kg: parseFloat(data.avg_weight_kg),
-                entry_date: data.entry_date
+              await changeBatchPhase(targetRows[0].id as number, {
+                new_phase: targetPhase,
+                exit_quantity: parseInt(data.quantity),
+                exit_weight_kg: parseFloat(data.avg_weight_kg),
+                exit_date: data.entry_date,
               });
             } else {
-              // Multiple batches without merge: update each batch's phase and entry_date
-              await Promise.all(targetRows.map(r => 
-                updateAnimalBatch(r.id as number, {
-                  phase: targetPhase,
-                  entry_date: data.entry_date
-                })
-              ));
+              await Promise.all(targetRows.map((r) => {
+                const rowQty = parseInt(r.qtd || r.quantity) || 0;
+                const rowWeight = parseWeight(r.peso || r.avg_weight_kg);
+                return changeBatchPhase(r.id as number, {
+                  new_phase: targetPhase,
+                  exit_date: data.entry_date,
+                  ...(rowQty > 0 ? { exit_quantity: rowQty } : {}),
+                  ...(rowWeight > 0 ? { exit_weight_kg: rowWeight } : {}),
+                });
+              }));
             }
             showToast(`${targetRows.length} lote(s) transferido(s) com sucesso!`, "success");
           }
