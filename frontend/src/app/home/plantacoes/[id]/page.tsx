@@ -2,17 +2,45 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, Weight, Package, Percent } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 
 type PlantationDetail = Plantation & PlantationDashboard;
+type PlantingOperation = {
+  id: string;
+  planting_date?: string | null;
+  item_name?: string | null;
+  quantity?: string | number | null;
+  unit?: string | null;
+  total_price?: string | null;
+  operator?: string | null;
+};
+type ApplicationOperation = {
+  id: string;
+  application_date?: string | null;
+  item_name?: string | null;
+  pesticide_type_display?: string | null;
+  quantity?: string | number | null;
+  unit?: string | null;
+  total_price?: string | null;
+  operator?: string | null;
+};
+type IrrigationOperation = {
+  id: string;
+  date?: string | null;
+  hours?: string | number | null;
+  flow_rate_l_per_h?: string | number | null;
+  liters_used?: string | number | null;
+  energy_kwh?: string | number | null;
+  energy_cost?: string | null;
+};
 
 const statusColors: Record<PlantationStatus, string> = {
   planned: "#6b7280",
@@ -34,15 +62,68 @@ const statusOptions = [
   { value: "cancelled", label: "Cancelada" },
 ];
 
+const shortcutStages = {
+  plantio: { image: "/images/crops/seed.png", color: "oklch(0.66 0.16 70)" },
+  adubacao: { image: "/images/crops/base-fertilization.png", color: "oklch(0.62 0.17 145)" },
+  fertirrigacao: { image: "/images/crops/fertigation.png", color: "oklch(0.6 0.16 220)" },
+  defensivos: { image: "/images/crops/pesticides.png", color: "oklch(0.65 0.18 290)" },
+  irrigacao: { image: "/images/crops/irrigation.png", color: "oklch(0.62 0.17 190)" },
+};
+
 function MetricCard({ icon, label, value, variant = "info" }: { icon: React.ReactNode; label: string; value: string; variant?: "info" | "success" | "warning" | "danger" }) {
-  const borderMap = {
-    info: "#3b82f6", success: "#10b981", warning: "#f59e0b", danger: "#ef4444",
+  const colorMap = {
+    info: "oklch(0.6 0.16 240)", success: "oklch(0.58 0.16 145)", warning: "oklch(0.7 0.18 85)", danger: "oklch(0.65 0.19 25)",
   };
+  const color = colorMap[variant];
+
   return (
-    <Card className="p-3 border-start" style={{ borderLeft: `4px solid ${borderMap[variant]}` }}>
-      <div className="d-flex align-items-center gap-2 mb-1 text-muted small">{icon} {label}</div>
-      <div className="fs-4 fw-bold">{value}</div>
-    </Card>
+    <div className="dashboard-card p-4 h-100">
+      <div className="d-flex align-items-center gap-3">
+        <div
+          className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+          style={{
+            width: 44,
+            height: 44,
+            background: `color-mix(in srgb, ${color}, transparent 88%)`,
+            color,
+          }}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: "0.02em", fontSize: "0.65rem" }}>{label}</div>
+          <div className="fw-black text-foreground" style={{ fontSize: "1.25rem" }}>{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShortcutCard({ image, label, desc, color, onClick }: { image: string; label: string; desc: string; color: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="dashboard-card p-3 w-100 h-100 text-start"
+      onClick={onClick}
+      style={{ cursor: "pointer" }}
+    >
+      <div className="d-flex align-items-center gap-3">
+        <div
+          className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+          style={{
+            width: 64,
+            height: 64,
+            background: `color-mix(in srgb, ${color}, transparent 92%)`,
+          }}
+        >
+          <Image src={image} alt="" width={52} height={52} style={{ objectFit: "contain" }} />
+        </div>
+        <div className="min-w-0">
+          <div className="fw-bold text-foreground">{label}</div>
+          <div className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>{desc}</div>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -59,7 +140,7 @@ export default function PlantacaoDetailPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  const [plantings, setPlantings] = useState<any[]>([]);
+  const [plantings, setPlantings] = useState<PlantingOperation[]>([]);
   const [showPlantio, setShowPlantio] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<{ id: string; nome: string }[]>([]);
   const [plantioForm, setPlantioForm] = useState({
@@ -68,22 +149,22 @@ export default function PlantacaoDetailPage() {
   });
   const [savingPlantio, setSavingPlantio] = useState(false);
 
-  const [fertilizations, setFertilizations] = useState<any[]>([]);
+  const [fertilizations, setFertilizations] = useState<ApplicationOperation[]>([]);
   const [showAdubacao, setShowAdubacao] = useState(false);
   const [adubacaoForm, setAdubacaoForm] = useState({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
   const [savingAdubacao, setSavingAdubacao] = useState(false);
 
-  const [fertigations, setFertigations] = useState<any[]>([]);
+  const [fertigations, setFertigations] = useState<ApplicationOperation[]>([]);
   const [showFertirrigacao, setShowFertirrigacao] = useState(false);
   const [fertirrigacaoForm, setFertirrigacaoForm] = useState({ item: "", quantity: "", unit: "", total_price: "", application_date: "", operator: "" });
   const [savingFertirrigacao, setSavingFertirrigacao] = useState(false);
 
-  const [pesticides, setPesticides] = useState<any[]>([]);
+  const [pesticides, setPesticides] = useState<ApplicationOperation[]>([]);
   const [showDefensivo, setShowDefensivo] = useState(false);
   const [defensivoForm, setDefensivoForm] = useState({ item: "", pesticide_type: "insecticide", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
   const [savingDefensivo, setSavingDefensivo] = useState(false);
 
-  const [irrigations, setIrrigations] = useState<any[]>([]);
+  const [irrigations, setIrrigations] = useState<IrrigationOperation[]>([]);
   const [showIrrigacao, setShowIrrigacao] = useState(false);
   const [irrigacaoForm, setIrrigacaoForm] = useState({
     date: "", hours: "", flow_rate_l_per_h: "", pump_power_kw: "",
@@ -303,27 +384,60 @@ export default function PlantacaoDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="d-flex align-items-center gap-3 mb-4 flex-wrap">
-        <button className="btn btn-outline-secondary btn-sm" onClick={() => router.back()}>
-          <ArrowLeft size={16} />
-        </button>
-        <div className="flex-grow-1">
-          <h4 className="mb-0 fw-bold">{plantation.name || plantation.crop_name}</h4>
-          <small className="text-muted">{plantation.farm_name} › {plantation.field_name}</small>
+      <div className="dashboard-card p-4 mb-4">
+        <div className="d-flex align-items-center gap-3 flex-wrap">
+          <button className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" onClick={() => router.back()} style={{ width: 36, height: 36 }}>
+            <ArrowLeft size={16} />
+          </button>
+          <div className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+            style={{ width: 48, height: 48, background: "color-mix(in srgb, oklch(0.58 0.16 145), transparent 88%)" }}>
+            <Image src="/images/crops/seed.png" alt="" width={38} height={38} style={{ objectFit: "contain" }} />
+          </div>
+          <div className="flex-grow-1 min-w-0">
+            <h1 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.75rem" }}>{plantation.name || plantation.crop_name}</h1>
+            <div className="text-muted-foreground fw-medium small">{plantation.farm_name} › {plantation.field_name}</div>
+          </div>
+          <Badge style={{ background: statusColors[plantation.status] || "#6b7280", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", borderRadius: "8px" }}>
+            {plantation.status_display}
+          </Badge>
+          <Button variant="outline-secondary" size="sm" onClick={() => setShowEdit(true)}>
+            <Edit3 size={14} /> Editar
+          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={handleDelete} title="Excluir">
+            <Trash2 size={14} />
+          </Button>
         </div>
-        <Badge style={{ background: statusColors[plantation.status] || "#6b7280", color: "#fff", fontSize: "0.75rem", fontWeight: 600, padding: "4px 12px", borderRadius: "6px" }}>
-          {plantation.status_display}
-        </Badge>
-        <Button variant="outline-secondary" size="sm" onClick={() => setShowEdit(true)}>
-          <Edit3 size={14} /> Editar
-        </Button>
-        <Button variant="outline-secondary" size="sm" onClick={handleDelete}>
-          <Trash2 size={14} />
-        </Button>
+      </div>
+
+      {/* Shortcuts */}
+      <div className="mb-4">
+        <div className="d-flex align-items-end justify-content-between mb-3 gap-3 flex-wrap">
+          <div>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.15rem" }}>Atalhos da plantação</h2>
+            <p className="text-muted-foreground small mb-0">Lançamentos operacionais mais usados neste ciclo.</p>
+          </div>
+        </div>
+        <div className="row g-3">
+          <div className="col-12 col-md-6 col-xl">
+            <ShortcutCard image={shortcutStages.plantio.image} label="Registrar plantio" desc="Sementes e implantação" color={shortcutStages.plantio.color} onClick={() => setShowPlantio(true)} />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <ShortcutCard image={shortcutStages.adubacao.image} label="Adubação" desc="Fertilizantes e correções" color={shortcutStages.adubacao.color} onClick={() => setShowAdubacao(true)} />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <ShortcutCard image={shortcutStages.fertirrigacao.image} label="Fertirrigação" desc="Aplicação via irrigação" color={shortcutStages.fertirrigacao.color} onClick={() => setShowFertirrigacao(true)} />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <ShortcutCard image={shortcutStages.defensivos.image} label="Defensivos" desc="Controle fitossanitário" color={shortcutStages.defensivos.color} onClick={() => setShowDefensivo(true)} />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <ShortcutCard image={shortcutStages.irrigacao.image} label="Irrigação" desc="Água, energia e bomba" color={shortcutStages.irrigacao.color} onClick={() => setShowIrrigacao(true)} />
+          </div>
+        </div>
       </div>
 
       {/* Main KPIs */}
-      <div className="row g-3 mb-4">
+      <div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
           <MetricCard icon={<Calendar size={14} />} label="Dias de Cultivo" value={plantation.days_in_cultivation != null ? `${plantation.days_in_cultivation} dias` : "-"} variant="info" />
         </div>
@@ -339,7 +453,7 @@ export default function PlantacaoDetailPage() {
       </div>
 
       {/* Second row — financial KPIs */}
-      <div className="row g-3 mb-4">
+      <div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
           <MetricCard icon={<DollarSign size={14} />} label="Receita Estimada" value={money(plantation.estimated_revenue)} variant="success" />
         </div>
@@ -355,7 +469,7 @@ export default function PlantacaoDetailPage() {
       </div>
 
       {/* Third row — production KPIs */}
-      <div className="row g-3 mb-4">
+      <div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
           <MetricCard icon={<Weight size={14} />} label="Produção Estimada" value={plantation.estimated_production_kg ? `${fmt(plantation.estimated_production_kg, 0)} kg` : "-"} variant="info" />
         </div>
@@ -374,7 +488,7 @@ export default function PlantacaoDetailPage() {
       <div className="row g-4">
         {/* Culture Data */}
         <div className="col-md-6">
-          <Card className="p-3">
+          <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><Sprout size={16} className="me-1" /> Dados da Cultura</h6>
             <table className="table table-sm table-borderless mb-0">
               <tbody>
@@ -386,12 +500,12 @@ export default function PlantacaoDetailPage() {
                 <tr><td className="text-muted small">Espaçamento</td><td className="fw-medium">{plantation.spacing || "-"}</td></tr>
               </tbody>
             </table>
-          </Card>
+          </div>
         </div>
 
         {/* Dates */}
         <div className="col-md-6">
-          <Card className="p-3">
+          <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><Calendar size={16} className="me-1" /> Datas</h6>
             <table className="table table-sm table-borderless mb-0">
               <tbody>
@@ -401,12 +515,12 @@ export default function PlantacaoDetailPage() {
                 <tr><td className="text-muted small">Responsável</td><td className="fw-medium">{plantation.responsible_name || "-"}</td></tr>
               </tbody>
             </table>
-          </Card>
+          </div>
         </div>
 
         {/* Financial Summary */}
         <div className="col-md-6">
-          <Card className="p-3">
+          <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><DollarSign size={16} className="me-1" /> Resumo Financeiro</h6>
             <table className="table table-sm table-borderless mb-0">
               <tbody>
@@ -418,12 +532,12 @@ export default function PlantacaoDetailPage() {
                 <tr><td className="text-muted small">ROI</td><td className={`fw-medium ${plantation.estimated_roi && parseFloat(plantation.estimated_roi) >= 0 ? "text-success" : "text-danger"}`}>{plantation.estimated_roi ? `${fmt(plantation.estimated_roi)}%` : "-"}</td></tr>
               </tbody>
             </table>
-          </Card>
+          </div>
         </div>
 
         {/* Production Summary */}
         <div className="col-md-6">
-          <Card className="p-3">
+          <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><Warehouse size={16} className="me-1" /> Resumo de Produção</h6>
             <table className="table table-sm table-borderless mb-0">
               <tbody>
@@ -432,21 +546,21 @@ export default function PlantacaoDetailPage() {
                 <tr><td className="text-muted small">Área Plantada</td><td className="fw-medium">{plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"}</td></tr>
               </tbody>
             </table>
-          </Card>
+          </div>
         </div>
 
         {plantation.notes && (
           <div className="col-12">
-            <Card className="p-3">
+            <div className="dashboard-card p-4">
               <h6 className="fw-bold mb-2">Observações</h6>
               <p className="mb-0 text-muted">{plantation.notes}</p>
-            </Card>
+            </div>
           </div>
         )}
       </div>
 
       {/* ── Plantio ──────────────────────────────────────────────────── */}
-      <Card className="p-3 mt-4">
+      <div className="dashboard-card p-4 mt-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="fw-bold mb-0"><Sprout size={16} className="me-1" /> Plantio</h6>
           <Button variant="agro" size="sm" onClick={() => setShowPlantio(true)}>Registrar Plantio</Button>
@@ -466,7 +580,7 @@ export default function PlantacaoDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {plantings.map((p: any) => (
+                {plantings.map((p) => (
                   <tr key={p.id}>
                     <td className="fw-medium">{p.planting_date ? new Date(p.planting_date).toLocaleDateString("pt-BR") : "-"}</td>
                     <td>{p.item_name || "-"}</td>
@@ -479,10 +593,10 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* ── Adubação ─────────────────────────────────────────────────── */}
-      <Card className="p-3 mt-3">
+      <div className="dashboard-card p-4 mt-3">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="fw-bold mb-0"> Adubação</h6>
           <Button variant="agro" size="sm" onClick={() => setShowAdubacao(true)}>Registrar</Button>
@@ -494,7 +608,7 @@ export default function PlantacaoDetailPage() {
             <table className="table table-sm table-borderless mb-0">
               <thead><tr className="text-muted small"><th>Data</th><th>Insumo</th><th>Quantidade</th><th>Valor</th><th>Operador</th></tr></thead>
               <tbody>
-                {fertilizations.map((p: any) => (
+                {fertilizations.map((p) => (
                   <tr key={p.id}>
                     <td className="fw-medium">{p.application_date ? new Date(p.application_date).toLocaleDateString("pt-BR") : "-"}</td>
                     <td>{p.item_name || "-"}</td>
@@ -507,10 +621,10 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* ── Fertirrigação ────────────────────────────────────────────── */}
-      <Card className="p-3 mt-3">
+      <div className="dashboard-card p-4 mt-3">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="fw-bold mb-0"> Fertirrigação</h6>
           <Button variant="agro" size="sm" onClick={() => setShowFertirrigacao(true)}>Registrar</Button>
@@ -522,7 +636,7 @@ export default function PlantacaoDetailPage() {
             <table className="table table-sm table-borderless mb-0">
               <thead><tr className="text-muted small"><th>Data</th><th>Insumo</th><th>Quantidade</th><th>Valor</th><th>Operador</th></tr></thead>
               <tbody>
-                {fertigations.map((p: any) => (
+                {fertigations.map((p) => (
                   <tr key={p.id}>
                     <td className="fw-medium">{p.application_date ? new Date(p.application_date).toLocaleDateString("pt-BR") : "-"}</td>
                     <td>{p.item_name || "-"}</td>
@@ -535,10 +649,10 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* ── Defensivos ──────────────────────────────────────────────── */}
-      <Card className="p-3 mt-3">
+      <div className="dashboard-card p-4 mt-3">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="fw-bold mb-0"> Defensivos</h6>
           <Button variant="agro" size="sm" onClick={() => setShowDefensivo(true)}>Registrar</Button>
@@ -550,7 +664,7 @@ export default function PlantacaoDetailPage() {
             <table className="table table-sm table-borderless mb-0">
               <thead><tr className="text-muted small"><th>Data</th><th>Insumo</th><th>Tipo</th><th>Quantidade</th><th>Valor</th></tr></thead>
               <tbody>
-                {pesticides.map((p: any) => (
+                {pesticides.map((p) => (
                   <tr key={p.id}>
                     <td className="fw-medium">{p.application_date ? new Date(p.application_date).toLocaleDateString("pt-BR") : "-"}</td>
                     <td>{p.item_name || "-"}</td>
@@ -563,10 +677,10 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* ── Irrigação ─────────────────────────────────────────────────── */}
-      <Card className="p-3 mt-3">
+      <div className="dashboard-card p-4 mt-3">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="fw-bold mb-0"> Irrigação</h6>
           <Button variant="agro" size="sm" onClick={() => setShowIrrigacao(true)}>Registrar</Button>
@@ -578,7 +692,7 @@ export default function PlantacaoDetailPage() {
             <table className="table table-sm table-borderless mb-0">
               <thead><tr className="text-muted small"><th>Data</th><th>Horas</th><th>Vazão (L/h)</th><th>Litros</th><th>kWh</th><th>Custo</th></tr></thead>
               <tbody>
-                {irrigations.map((irr: any) => (
+                {irrigations.map((irr) => (
                   <tr key={irr.id}>
                     <td className="fw-medium">{irr.date ? new Date(irr.date + "T12:00:00").toLocaleDateString("pt-BR") : "-"}</td>
                     <td>{irr.hours ?? "-"}</td>
@@ -592,7 +706,7 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Modal: Novo Plantio */}
       <Modal isOpen={showPlantio} onClose={() => setShowPlantio(false)} title="Registrar Plantio"

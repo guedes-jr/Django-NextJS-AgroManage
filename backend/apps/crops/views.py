@@ -1,7 +1,7 @@
 """
 ViewSets for the crops app.
 """
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -41,6 +41,20 @@ class FieldViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated and self.request.user.organization:
             return qs.filter(farm__organization=self.request.user.organization)
         return qs.none()
+
+    def perform_create(self, serializer):
+        farm = serializer.validated_data.get("farm")
+        organization = getattr(self.request.user, "organization", None)
+        if not organization or farm.organization_id != organization.id:
+            raise serializers.ValidationError({"farm": "Propriedade inválida para esta organização."})
+        serializer.save()
+
+    def perform_update(self, serializer):
+        farm = serializer.validated_data.get("farm", serializer.instance.farm)
+        organization = getattr(self.request.user, "organization", None)
+        if not organization or farm.organization_id != organization.id:
+            raise serializers.ValidationError({"farm": "Propriedade inválida para esta organização."})
+        serializer.save()
 
 
 class PlantingCycleViewSet(viewsets.ModelViewSet):

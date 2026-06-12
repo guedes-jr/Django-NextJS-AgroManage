@@ -12,18 +12,96 @@ BACKEND_SERVICE="agromanage-backend"
 FRONTEND_SERVICE="agromanage-frontend"
 
 DJANGO_SETTINGS_MODULE_VALUE="config.settings.prod"
+ENV_FILE="$BACKEND_DIR/.env"
+DEFAULT_UPDATE_TIMEOUT_SECONDS="600"
+SUDO_TIMEOUT_SECONDS="60"
+CURL_TIMEOUT_SECONDS="20"
+
+load_env_var() {
+  local key="$1"
+  local file="$2"
+  if [ -f "$file" ]; then
+    grep -E "^[[:space:]]*${key}=" "$file" | tail -n 1 | sed -E "s/^[[:space:]]*${key}=//; s/[[:space:]]*$//; s/^['\"]//; s/['\"]$//" || true
+  fi
+  return 0
+}
+
+DEPLOY_USER="${DEPLOY_USER:-$(load_env_var DEPLOY_USER "$ENV_FILE")}"
+DEPLOY_USER="${DEPLOY_USER:-deploy}"
+DEPLOY_PASSWORD="${DEPLOY_PASSWORD:-$(load_env_var DEPLOY_PASSWORD "$ENV_FILE")}"
+UPDATE_TIMEOUT_SECONDS="${UPDATE_TIMEOUT_SECONDS:-$(load_env_var UPDATE_TIMEOUT_SECONDS "$ENV_FILE")}"
+UPDATE_TIMEOUT_SECONDS="${UPDATE_TIMEOUT_SECONDS:-$DEFAULT_UPDATE_TIMEOUT_SECONDS}"
+
+start_watchdog() {
+  (
+    sleep "$UPDATE_TIMEOUT_SECONDS"
+    echo "[ERRO] Tempo limite de atualização excedido (${UPDATE_TIMEOUT_SECONDS}s). Encerrando processo."
+    kill -TERM -- "-$$" 2>/dev/null || kill -TERM "$$" 2>/dev/null || true
+    sleep 10
+    kill -KILL -- "-$$" 2>/dev/null || kill -KILL "$$" 2>/dev/null || true
+  ) &
+  WATCHDOG_PID=$!
+}
+
+stop_watchdog() {
+  if [ -n "${WATCHDOG_PID:-}" ]; then
+    kill "$WATCHDOG_PID" 2>/dev/null || true
+  fi
+}
+
+trap stop_watchdog EXIT
+
+run_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --foreground "$seconds" "$@"
+    return $?
+  fi
+
+  "$@"
+}
 
 run_sudo() {
   if [ -n "${DEPLOY_PASSWORD:-}" ]; then
-    echo "$DEPLOY_PASSWORD" | sudo -S "$@"
+    printf '%s\n' "$DEPLOY_PASSWORD" | run_timeout "$SUDO_TIMEOUT_SECONDS" sudo -S -p "" "$@"
   else
-    sudo "$@"
+    run_timeout "$SUDO_TIMEOUT_SECONDS" sudo -n "$@"
   fi
 }
+
+require_sudo_access() {
+  if [ -n "${DEPLOY_PASSWORD:-}" ]; then
+    if ! printf '%s\n' "$DEPLOY_PASSWORD" | run_timeout "$SUDO_TIMEOUT_SECONDS" sudo -S -p "" -v; then
+      echo "[ERRO] DEPLOY_PASSWORD foi carregado, mas o sudo recusou a senha para o usuário $(id -un)."
+      exit 1
+    fi
+    return
+  fi
+
+  if ! run_timeout "$SUDO_TIMEOUT_SECONDS" sudo -n -v; then
+    echo "[ERRO] DEPLOY_PASSWORD não foi carregado e sudo sem senha não está configurado para o usuário $(id -un)."
+    echo "[ERRO] Configure DEPLOY_PASSWORD em $ENV_FILE ou NOPASSWD no sudoers para os comandos systemctl/nginx necessários."
+    exit 1
+  fi
+}
+
+if [ "$(id -un)" != "$DEPLOY_USER" ]; then
+  echo "[DEPLOY] Alternando execução para o usuário $DEPLOY_USER..."
+  if [ -n "${DEPLOY_PASSWORD:-}" ]; then
+    printf '%s\n' "$DEPLOY_PASSWORD" | run_timeout "$SUDO_TIMEOUT_SECONDS" sudo -S -p "" -u "$DEPLOY_USER" env DEPLOY_USER="$DEPLOY_USER" UPDATE_TIMEOUT_SECONDS="$UPDATE_TIMEOUT_SECONDS" bash "$0" "$@"
+    exit $?
+  fi
+  exec sudo -u "$DEPLOY_USER" env DEPLOY_USER="$DEPLOY_USER" UPDATE_TIMEOUT_SECONDS="$UPDATE_TIMEOUT_SECONDS" bash "$0" "$@"
+fi
+
+start_watchdog
 
 echo "=========================================="
 echo "[DEPLOY] Atualizando AgroManage"
 echo "=========================================="
+echo "[DEPLOY] Timeout global configurado: ${UPDATE_TIMEOUT_SECONDS}s"
 
 if [ ! -d "$PROJECT_DIR" ]; then
   echo "[ERRO] Diretório do projeto não encontrado: $PROJECT_DIR"
@@ -137,6 +215,7 @@ echo "[DEPLOY] Gerando build do Next.js..."
 npm run build
 
 echo "[DEPLOY] Reiniciando serviços..."
+require_sudo_access
 
 run_sudo systemctl daemon-reload
 run_sudo systemctl restart "$BACKEND_SERVICE"
@@ -161,13 +240,13 @@ if ! run_sudo systemctl is-active --quiet "$FRONTEND_SERVICE"; then
 fi
 
 echo "[DEPLOY] Testando backend local..."
-if ! curl -fsI http://127.0.0.1:8000/admin/ > /dev/null; then
+if ! run_timeout "$CURL_TIMEOUT_SECONDS" curl -fsI http://127.0.0.1:8000/admin/ > /dev/null; then
   echo "[ERRO] Backend não respondeu em http://127.0.0.1:8000/admin/"
   exit 1
 fi
 
 echo "[DEPLOY] Testando frontend local..."
-if ! curl -fsI http://127.0.0.1:3000/login > /dev/null; then
+if ! run_timeout "$CURL_TIMEOUT_SECONDS" curl -fsI http://127.0.0.1:3000/login > /dev/null; then
   echo "[ERRO] Frontend não respondeu em http://127.0.0.1:3000/login"
   exit 1
 fi

@@ -75,7 +75,13 @@ def update_project_view(request):
 
     # Pass the password as an environment variable to the subprocess
     env_vars = os.environ.copy()
+    deploy_user = getattr(settings, "DEPLOY_USER", "deploy")
     deploy_password = getattr(settings, "DEPLOY_PASSWORD", "")
+    update_timeout_seconds = getattr(settings, "UPDATE_TIMEOUT_SECONDS", "600")
+    if update_timeout_seconds:
+        env_vars["UPDATE_TIMEOUT_SECONDS"] = str(update_timeout_seconds)
+    if deploy_user:
+        env_vars["DEPLOY_USER"] = deploy_user
     if deploy_password:
         env_vars["DEPLOY_PASSWORD"] = deploy_password
 
@@ -241,4 +247,3 @@ class OrganizationAddressViewSet(OrganizationBaseViewSet):
 class OrganizationContactViewSet(OrganizationBaseViewSet):
     queryset = OrganizationContact.objects.all()
     serializer_class = OrganizationContactSerializer
-

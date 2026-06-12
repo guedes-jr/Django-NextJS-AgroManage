@@ -245,6 +245,7 @@ LOGGING = {
 # ---------------------------------------------------------------------------
 # Project Update command
 # ---------------------------------------------------------------------------
-UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="/home/deploy/bin/update_project")
+UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="/var/www/agromanage/scripts/update_project.sh")
+UPDATE_TIMEOUT_SECONDS = env("UPDATE_TIMEOUT_SECONDS", default="600")
+DEPLOY_USER = env("DEPLOY_USER", default="deploy")
 DEPLOY_PASSWORD = env("DEPLOY_PASSWORD", default="")
-

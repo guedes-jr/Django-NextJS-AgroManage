@@ -65,6 +65,13 @@ export const cropService = {
   listFields: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/fields/", { params }),
 
+  createField: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/fields/", data),
+
+  // ── Farms ────────────────────────────────────────────────────────────────
+  listFarms: (params?: Record<string, string | number>) =>
+    apiClient.get("/farms/", { params }),
+
   // ── Choices ──────────────────────────────────────────────────────────────
   statusChoices: [
     { value: "planned", label: "Planejada" },

@@ -66,6 +66,7 @@ def get_crops_dashboard(organization):
     from decimal import Decimal
     from django.db.models import Sum, Count, Q
     from django.utils import timezone
+    from .models import PlantingCycle
 
     qs = PlantingCycle.objects.filter(organization=organization)
     today = timezone.now().date()
