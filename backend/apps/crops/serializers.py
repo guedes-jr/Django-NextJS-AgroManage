@@ -34,7 +34,8 @@ class PlantingCycleListSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "field", "field_name", "farm", "farm_name",
             "crop_type", "crop_type_display", "crop_name", "variety",
-            "planted_area_ha", "planting_date", "expected_harvest_date",
+            "planted_area_ha", "seed_quantity_used",
+            "planting_date", "expected_harvest_date",
             "status", "status_display",
             "estimated_production_kg", "estimated_bags",
             "responsible_user", "responsible_name",
@@ -67,7 +68,7 @@ class PlantingCycleDetailSerializer(serializers.ModelSerializer):
             "field", "field_name", "sector", "sector_name",
             "name", "crop_type", "crop_type_display",
             "crop_name", "variety", "hybrid",
-            "planted_area_ha", "population", "spacing",
+            "planted_area_ha", "seed_quantity_used", "population", "spacing",
             "planting_date", "expected_harvest_date", "actual_harvest_date",
             "status", "status_display",
             "estimated_production_kg", "estimated_bags", "estimated_revenue",

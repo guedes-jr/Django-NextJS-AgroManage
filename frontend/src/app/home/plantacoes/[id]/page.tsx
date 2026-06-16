@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, Weight, Package, Percent } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, Percent, CheckCircle2, ArrowRight, CircleDashed, Waves } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -63,11 +63,18 @@ const statusOptions = [
 ];
 
 const shortcutStages = {
+  estrutura: { image: "/images/crops/sector-structure.png", color: "oklch(0.62 0.12 70)" },
+  preparo: { image: "/images/crops/land-preparation.png", color: "oklch(0.7 0.18 85)" },
   plantio: { image: "/images/crops/seed.png", color: "oklch(0.66 0.16 70)" },
   adubacao: { image: "/images/crops/base-fertilization.png", color: "oklch(0.62 0.17 145)" },
   fertirrigacao: { image: "/images/crops/fertigation.png", color: "oklch(0.6 0.16 220)" },
+  foliarDefensivos: { image: "/images/crops/foliar-fertilization.png", color: "oklch(0.58 0.16 145)" },
   defensivos: { image: "/images/crops/pesticides.png", color: "oklch(0.65 0.18 290)" },
   irrigacao: { image: "/images/crops/irrigation.png", color: "oklch(0.62 0.17 190)" },
+  agronomo: { image: "/images/crops/agronomist.png", color: "oklch(0.54 0.14 145)" },
+  maoObra: { image: "/images/crops/labor.png", color: "oklch(0.54 0.14 145)" },
+  historico: { image: "/images/crops/applications.png", color: "oklch(0.58 0.16 145)" },
+  colheita: { image: "/images/crops/harvest.png", color: "oklch(0.66 0.16 82)" },
 };
 
 function MetricCard({ icon, label, value, variant = "info" }: { icon: React.ReactNode; label: string; value: string; variant?: "info" | "success" | "warning" | "danger" }) {
@@ -99,28 +106,90 @@ function MetricCard({ icon, label, value, variant = "info" }: { icon: React.Reac
   );
 }
 
-function ShortcutCard({ image, label, desc, color, onClick }: { image: string; label: string; desc: string; color: string; onClick: () => void }) {
+type ShortcutStatus = "completed" | "in_progress" | "pending" | "running";
+
+const shortcutStatusConfig: Record<ShortcutStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  completed: {
+    label: "Concluído",
+    color: "oklch(0.48 0.15 145)",
+    bg: "oklch(0.96 0.035 145)",
+    icon: <CheckCircle2 size={15} />,
+  },
+  in_progress: {
+    label: "Em andamento",
+    color: "oklch(0.67 0.17 70)",
+    bg: "oklch(0.97 0.04 78)",
+    icon: <CircleDashed size={15} />,
+  },
+  pending: {
+    label: "Pendente",
+    color: "oklch(0.55 0.16 245)",
+    bg: "oklch(0.96 0.035 245)",
+    icon: <Clock size={15} />,
+  },
+  running: {
+    label: "Em funcionamento",
+    color: "oklch(0.55 0.16 220)",
+    bg: "oklch(0.96 0.035 220)",
+    icon: <Waves size={15} />,
+  },
+};
+
+function ShortcutCard({ number, image, label, desc, status, onClick }: { number: number; image: string; label: string; desc: string; status: ShortcutStatus; onClick: () => void }) {
+  const statusConfig = shortcutStatusConfig[status];
+
   return (
     <button
       type="button"
-      className="dashboard-card p-3 w-100 h-100 text-start"
+      className="dashboard-card p-0 w-100 h-100 text-start border-0 overflow-hidden"
       onClick={onClick}
-      style={{ cursor: "pointer" }}
+      style={{ cursor: "pointer", borderRadius: 12, minHeight: 214 }}
     >
-      <div className="d-flex align-items-center gap-3">
+      <div className="d-flex flex-column h-100">
         <div
-          className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+          className="position-relative d-flex align-items-center justify-content-center w-100"
           style={{
-            width: 64,
-            height: 64,
-            background: `color-mix(in srgb, ${color}, transparent 92%)`,
+            height: 90,
+            background: "#fff",
+            borderBottom: "1px solid color-mix(in srgb, var(--border), transparent 45%)",
           }}
         >
-          <Image src={image} alt="" width={52} height={52} style={{ objectFit: "contain" }} />
+          <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 25vw" style={{ objectFit: "contain", padding: 8 }} />
         </div>
-        <div className="min-w-0">
-          <div className="fw-bold text-foreground">{label}</div>
-          <div className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>{desc}</div>
+        <div className="d-flex flex-column flex-grow-1 p-2">
+          <div className="min-w-0 flex-grow-1">
+            <div className="fw-black text-foreground mb-1" style={{ fontSize: "0.9rem" }}>{number}. {label}</div>
+            <div className="text-muted-foreground" style={{ fontSize: "0.76rem", lineHeight: 1.3 }}>{desc}</div>
+          </div>
+          <div className="d-flex align-items-center justify-content-between gap-2 mt-2">
+            <span
+              className="d-inline-flex align-items-center gap-2 fw-bold"
+              style={{
+                color: statusConfig.color,
+                background: statusConfig.bg,
+                border: `1px solid color-mix(in srgb, ${statusConfig.color}, transparent 78%)`,
+                borderRadius: 999,
+                padding: "6px 8px",
+                fontSize: "0.68rem",
+              }}
+            >
+              {statusConfig.icon}
+              {statusConfig.label}
+            </span>
+            <span
+              className="d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 999,
+                color: "var(--primary)",
+                border: "1px solid var(--border)",
+                background: "white",
+              }}
+            >
+              <ArrowRight size={17} />
+            </span>
+          </div>
         </div>
       </div>
     </button>
@@ -414,25 +483,122 @@ export default function PlantacaoDetailPage() {
         <div className="d-flex align-items-end justify-content-between mb-3 gap-3 flex-wrap">
           <div>
             <h2 className="fw-bold mb-1" style={{ fontSize: "1.15rem" }}>Atalhos da plantação</h2>
-            <p className="text-muted-foreground small mb-0">Lançamentos operacionais mais usados neste ciclo.</p>
+            <p className="text-muted-foreground small mb-0">Etapas operacionais do ciclo produtivo desta plantação.</p>
           </div>
         </div>
         <div className="row g-3">
-          <div className="col-12 col-md-6 col-xl">
-            <ShortcutCard image={shortcutStages.plantio.image} label="Registrar plantio" desc="Sementes e implantação" color={shortcutStages.plantio.color} onClick={() => setShowPlantio(true)} />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <ShortcutCard image={shortcutStages.adubacao.image} label="Adubação" desc="Fertilizantes e correções" color={shortcutStages.adubacao.color} onClick={() => setShowAdubacao(true)} />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <ShortcutCard image={shortcutStages.fertirrigacao.image} label="Fertirrigação" desc="Aplicação via irrigação" color={shortcutStages.fertirrigacao.color} onClick={() => setShowFertirrigacao(true)} />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <ShortcutCard image={shortcutStages.defensivos.image} label="Defensivos" desc="Controle fitossanitário" color={shortcutStages.defensivos.color} onClick={() => setShowDefensivo(true)} />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <ShortcutCard image={shortcutStages.irrigacao.image} label="Irrigação" desc="Água, energia e bomba" color={shortcutStages.irrigacao.color} onClick={() => setShowIrrigacao(true)} />
-          </div>
+          {[
+            {
+              number: 1,
+              label: "Estrutura do Setor",
+              desc: "Talhões, áreas, equipes, equipamentos e insumos",
+              stage: shortcutStages.estrutura,
+              status: "completed" as ShortcutStatus,
+              onClick: () => undefined,
+              wide: false,
+            },
+            {
+              number: 2,
+              label: "Preparação da Terra",
+              desc: "Calagem, aração, gradagem e mais",
+              stage: shortcutStages.preparo,
+              status: "completed" as ShortcutStatus,
+              onClick: () => undefined,
+              wide: false,
+            },
+            {
+              number: 3,
+              label: "Adubação de Base",
+              desc: "Produtos, doses, quantidades e custo",
+              stage: shortcutStages.adubacao,
+              status: "completed" as ShortcutStatus,
+              onClick: () => setShowAdubacao(true),
+              wide: false,
+            },
+            {
+              number: 4,
+              label: "Semente",
+              desc: "Híbrido, quantidade, sacas e custo",
+              stage: shortcutStages.plantio,
+              status: "in_progress" as ShortcutStatus,
+              onClick: () => setShowPlantio(true),
+              wide: false,
+            },
+            {
+              number: 5,
+              label: "Fertirrigação",
+              desc: "Adubos via fertirrigação, doses, volume e custo",
+              stage: shortcutStages.fertirrigacao,
+              status: "in_progress" as ShortcutStatus,
+              onClick: () => setShowFertirrigacao(true),
+              wide: false,
+            },
+            {
+              number: 6,
+              label: "Foliar & Defensivos",
+              desc: "Produtos, doses, volume e custo",
+              stage: shortcutStages.foliarDefensivos,
+              status: "pending" as ShortcutStatus,
+              onClick: () => setShowDefensivo(true),
+              wide: false,
+            },
+            {
+              number: 7,
+              label: "Irrigação",
+              desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
+              stage: shortcutStages.irrigacao,
+              status: "running" as ShortcutStatus,
+              onClick: () => setShowIrrigacao(true),
+              wide: false,
+            },
+            {
+              number: 8,
+              label: "Área do Agrônomo",
+              desc: "Recomendações, programações e acompanhamentos",
+              stage: shortcutStages.agronomo,
+              status: "in_progress" as ShortcutStatus,
+              onClick: () => undefined,
+              wide: false,
+            },
+            {
+              number: 9,
+              label: "Mão de Obra",
+              desc: "Atividades, horas trabalhadas e custos",
+              stage: shortcutStages.maoObra,
+              status: "pending" as ShortcutStatus,
+              onClick: () => undefined,
+              wide: false,
+            },
+            {
+              number: 10,
+              label: "Histórico",
+              desc: "Linha do tempo de todas as atividades realizadas",
+              stage: shortcutStages.historico,
+              status: "pending" as ShortcutStatus,
+              onClick: () => undefined,
+              wide: true,
+            },
+            {
+              number: 11,
+              label: "Colheita",
+              desc: "Produção, sacas, umidade e valor",
+              stage: shortcutStages.colheita,
+              status: "pending" as ShortcutStatus,
+              onClick: () => undefined,
+              wide: true,
+            },
+          ].map((shortcut) => (
+            <div key={shortcut.number} className="col-12 col-sm-6 col-lg-4 col-xl-3">
+              <ShortcutCard
+                number={shortcut.number}
+                image={shortcut.stage.image}
+                label={shortcut.label}
+                desc={shortcut.desc}
+                status={shortcut.status}
+                onClick={shortcut.onClick}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -458,7 +624,7 @@ export default function PlantacaoDetailPage() {
           <MetricCard icon={<DollarSign size={14} />} label="Receita Estimada" value={money(plantation.estimated_revenue)} variant="success" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Target size={14} />} label="Lucro Estimado" value={money(plantation.estimated_profit)} variant={plantation.estimated_profit && parseFloat(plantation.estimated_profit) >= 0 ? "success" : "danger"} />
+          <MetricCard icon={<Target size={14} />} label="Lucro Real" value={money(plantation.real_profit)} variant={plantation.real_profit && parseFloat(plantation.real_profit) >= 0 ? "success" : "danger"} />
         </div>
         <div className="col-md-3 col-6">
           <MetricCard icon={<Percent size={14} />} label="ROI Estimado" value={plantation.estimated_roi ? `${fmt(plantation.estimated_roi)}%` : "-"} variant={plantation.estimated_roi && parseFloat(plantation.estimated_roi) >= 0 ? "success" : "danger"} />
@@ -468,18 +634,12 @@ export default function PlantacaoDetailPage() {
         </div>
       </div>
 
-      {/* Third row — production KPIs */}
+      {/* Third row — per-hectare KPIs */}
       <div className="row g-4 mb-4">
-        <div className="col-md-3 col-6">
-          <MetricCard icon={<Weight size={14} />} label="Produção Estimada" value={plantation.estimated_production_kg ? `${fmt(plantation.estimated_production_kg, 0)} kg` : "-"} variant="info" />
-        </div>
-        <div className="col-md-3 col-6">
-          <MetricCard icon={<Package size={14} />} label="Sacas Estimadas" value={plantation.estimated_bags ? `${fmt(plantation.estimated_bags, 0)}` : "-"} variant="info" />
-        </div>
-        <div className="col-md-3 col-6">
+        <div className="col-md-6 col-12">
           <MetricCard icon={<TrendingUp size={14} />} label="Receita por ha" value={money(plantation.estimated_revenue_per_ha)} variant="success" />
         </div>
-        <div className="col-md-3 col-6">
+        <div className="col-md-6 col-12">
           <MetricCard icon={<TrendingDown size={14} />} label="Lucro por ha" value={money(plantation.estimated_profit_per_ha)} variant={plantation.estimated_profit_per_ha && parseFloat(plantation.estimated_profit_per_ha) >= 0 ? "success" : "danger"} />
         </div>
       </div>
@@ -528,7 +688,7 @@ export default function PlantacaoDetailPage() {
                 <tr><td className="text-muted small">Custo por Hectare</td><td className="fw-medium">{money(plantation.cost_per_ha)}</td></tr>
                 <tr><td className="text-muted small">Receita Estimada</td><td className="fw-medium text-success">{money(plantation.estimated_revenue)}</td></tr>
                 <tr><td className="text-muted small">Receita por Hectare</td><td className="fw-medium">{money(plantation.estimated_revenue_per_ha)}</td></tr>
-                <tr><td className="text-muted small">Lucro Estimado</td><td className={`fw-medium ${plantation.estimated_profit && parseFloat(plantation.estimated_profit) >= 0 ? "text-success" : "text-danger"}`}>{money(plantation.estimated_profit)}</td></tr>
+                <tr><td className="text-muted small">Lucro Real</td><td className={`fw-medium ${plantation.real_profit && parseFloat(plantation.real_profit) >= 0 ? "text-success" : "text-danger"}`}>{money(plantation.real_profit)}</td></tr>
                 <tr><td className="text-muted small">ROI</td><td className={`fw-medium ${plantation.estimated_roi && parseFloat(plantation.estimated_roi) >= 0 ? "text-success" : "text-danger"}`}>{plantation.estimated_roi ? `${fmt(plantation.estimated_roi)}%` : "-"}</td></tr>
               </tbody>
             </table>

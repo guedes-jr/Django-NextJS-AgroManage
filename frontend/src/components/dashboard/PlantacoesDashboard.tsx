@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, TrendingUp, Zap, Calendar, Tag, FileText, MapPin, Activity, AlignLeft } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Droplets, ClipboardList, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { cropService } from "@/services/cropService";
 import type { Plantation, PlantationStatus } from "@/types";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -41,70 +39,114 @@ type DashboardData = {
   status_counts?: Record<string, number>;
 };
 
-const cropStageCards = [
-  { number: 1, title: "Análise do Solo", desc: "Resultados, laudos e histórico", image: "/images/crops/soil-analysis.png", status: "Base técnica", color: "oklch(0.58 0.16 145)" },
-  { number: 2, title: "Preparação da Terra", desc: "Calagem, aração e gradagem", image: "/images/crops/land-preparation.png", status: "Operações", color: "oklch(0.7 0.18 85)" },
-  { number: 3, title: "Adubação de Base", desc: "Produtos, doses e custos", image: "/images/crops/base-fertilization.png", status: "Nutrição", color: "oklch(0.62 0.17 145)" },
-  { number: 4, title: "Sementes e Mudas", desc: "Híbrido, quantidade e custo", image: "/images/crops/seed.png", status: "Plantio", color: "oklch(0.66 0.16 70)" },
-  { number: 5, title: "Fertirrigação", desc: "Adubos via irrigação", image: "/images/crops/fertigation.png", status: "Água + nutrição", color: "oklch(0.6 0.16 220)" },
-  { number: 6, title: "Defensivos", desc: "Herbicidas, fungicidas e inseticidas", image: "/images/crops/pesticides.png", status: "Proteção", color: "oklch(0.65 0.18 290)" },
+const defaultCultureOptions = [
+  "Abacaxi",
+  "Algodão",
+  "Alface",
+  "Amendoim",
+  "Arroz",
+  "Aveia",
+  "Banana",
+  "Batata",
+  "Café",
+  "Cana-de-açúcar",
+  "Cebola",
+  "Cenoura",
+  "Feijão",
+  "Girassol",
+  "Laranja",
+  "Mandioca",
+  "Melancia",
+  "Milheto",
+  "Milho",
+  "Sorgo",
+  "Soja",
+  "Tomate",
+  "Trigo",
+  "Uva",
 ];
+const featuredCultureOptions = ["Milho", "Soja", "Feijão", "Sorgo", "Milheto"];
+
+const cropVisuals: Record<string, { image: string; icon: React.ReactNode; color: string }> = {
+  milho: { image: "/images/crops/cultures/corn.png", icon: <Wheat size={18} />, color: "oklch(0.7 0.17 86)" },
+  soja: { image: "/images/crops/cultures/soybean.png", icon: <Leaf size={18} />, color: "oklch(0.56 0.16 145)" },
+  feijão: { image: "/images/crops/cultures/bean.png", icon: <Sprout size={18} />, color: "oklch(0.58 0.13 65)" },
+  feijao: { image: "/images/crops/cultures/bean.png", icon: <Sprout size={18} />, color: "oklch(0.58 0.13 65)" },
+  sorgo: { image: "/images/crops/cultures/sorghum.png", icon: <Wheat size={18} />, color: "oklch(0.58 0.15 38)" },
+  milheto: { image: "/images/crops/cultures/millet.png", icon: <Flower2 size={18} />, color: "oklch(0.6 0.14 112)" },
+};
+
+const cropVisualKeywords = [
+  { keys: ["milho", "corn"], visual: cropVisuals.milho },
+  { keys: ["soja", "soybean"], visual: cropVisuals.soja },
+  { keys: ["feijao", "feijão", "bean"], visual: cropVisuals.feijão },
+  { keys: ["sorgo", "sorghum"], visual: cropVisuals.sorgo },
+  { keys: ["milheto", "millet"], visual: cropVisuals.milheto },
+];
+
+const normalizeCropName = (value: string) =>
+  value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 function KpiCard({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; color: string }) {
   return (
-    <div className="dashboard-card p-4 h-100">
-      <div className="d-flex align-items-center gap-3">
+    <div className="dashboard-card h-100" style={{ borderRadius: 8, padding: "18px 20px" }}>
+      <div className="d-flex align-items-center gap-3 h-100" style={{ minHeight: 58 }}>
         <div
-          className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+          className="d-flex align-items-center justify-content-center flex-shrink-0"
           style={{
-            width: 44,
-            height: 44,
-            background: `color-mix(in srgb, ${color}, transparent 88%)`,
+            width: 36,
+            height: 36,
             color,
           }}
         >
         {icon}
         </div>
         <div className="flex-grow-1 min-w-0">
-          <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: "0.02em", fontSize: "0.65rem" }}>{label}</div>
-          <div className="fw-black text-foreground" style={{ fontSize: "1.2rem" }}>{value}</div>
-          {sub && <div className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>{sub}</div>}
+          <div className="text-muted-foreground fw-semibold mb-1" style={{ fontSize: "0.72rem" }}>{label}</div>
+          <div className="fw-black text-foreground lh-sm" style={{ fontSize: "1.06rem" }}>{value}</div>
+          {sub && <div className="text-muted-foreground mt-1" style={{ fontSize: "0.72rem" }}>{sub}</div>}
         </div>
       </div>
     </div>
   );
 }
 
-function CropStageCard({ stage }: { stage: typeof cropStageCards[number] }) {
+function AlertCard({ icon, title, value, color, tint }: { icon: React.ReactNode; title: string; value: string; color: string; tint: string }) {
   return (
-    <div className="dashboard-card p-3 h-100">
-      <div className="d-flex align-items-start gap-3">
-        <div
-          className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
-          style={{
-            width: 72,
-            height: 72,
-            background: `color-mix(in srgb, ${stage.color}, transparent 92%)`,
-          }}
-        >
-          <Image src={stage.image} alt="" width={58} height={58} style={{ objectFit: "contain" }} />
+    <button
+      type="button"
+      className="border-0 text-start w-100 h-100 d-flex align-items-center justify-content-between gap-3"
+      style={{ background: tint, borderRadius: 8, color: "var(--foreground)", padding: "15px 16px", minHeight: 58 }}
+    >
+      <div className="d-flex align-items-center gap-3 min-w-0">
+        <div className="flex-shrink-0 d-flex align-items-center justify-content-center" style={{ color }}>
+          {icon}
         </div>
         <div className="min-w-0">
-          <div className="text-muted-foreground small fw-bold mb-1">{stage.number}. {stage.title}</div>
-          <div className="fw-semibold text-foreground mb-2" style={{ fontSize: "0.88rem" }}>{stage.desc}</div>
-          <span
-            className="badge rounded-pill fw-semibold"
-            style={{
-              background: `color-mix(in srgb, ${stage.color}, transparent 88%)`,
-              color: stage.color,
-              fontSize: "0.68rem",
-            }}
-          >
-            {stage.status}
-          </span>
+          <div className="fw-bold text-truncate" style={{ fontSize: "0.76rem" }}>{title}</div>
+          <div className="text-muted-foreground" style={{ fontSize: "0.7rem" }}>{value}</div>
         </div>
       </div>
-    </div>
+      <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
+    </button>
+  );
+}
+
+function CultureCard({ name, count, image, icon, color, onClick }: { name: string; count: number; image: string; icon: React.ReactNode; color: string; onClick?: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="dashboard-card p-0 h-100 w-100 text-center border-0" style={{ borderRadius: 8, minHeight: 118 }}>
+      <div className="position-relative overflow-hidden" style={{ height: 74, background: `color-mix(in srgb, ${color}, white 78%)`, borderRadius: "8px 8px 0 0" }}>
+        <Image src={image} alt="" width={360} height={170} sizes="(max-width: 768px) 50vw, 180px" style={{ objectFit: "cover", width: "100%", height: "100%" }} />
+        <span className="position-absolute top-0 start-0 w-100 h-100" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.12))" }} />
+        <span className="position-absolute d-flex align-items-center justify-content-center shadow-sm" style={{ left: 9, top: 9, width: 26, height: 26, borderRadius: 999, background: "rgba(255,255,255,0.92)", color }}>
+          {icon}
+        </span>
+      </div>
+      <div className="px-3 py-2">
+        <div className="fw-bold text-foreground text-truncate" style={{ fontSize: "0.82rem" }}>{name}</div>
+        <div className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>{count} plantação{count !== 1 ? "es" : ""}</div>
+      </div>
+    </button>
   );
 }
 
@@ -124,6 +166,7 @@ export default function PlantacoesDashboard() {
     variety: "",
     hybrid: "",
     planted_area_ha: "",
+    seed_quantity_used: "",
     population: "",
     spacing: "",
     planting_date: "",
@@ -132,6 +175,7 @@ export default function PlantacoesDashboard() {
     notes: "",
   });
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const [fields, setFields] = useState<FieldOption[]>([]);
   const [farms, setFarms] = useState<FarmOption[]>([]);
   const [showFieldModal, setShowFieldModal] = useState(false);
@@ -211,12 +255,14 @@ export default function PlantacoesDashboard() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ field: "", name: "", crop_type: "grain", crop_name: "", variety: "", hybrid: "", planted_area_ha: "", population: "", spacing: "", planting_date: "", expected_harvest_date: "", status: "planned", notes: "" });
+    setFormError("");
+    setForm({ field: "", name: "", crop_type: "grain", crop_name: "", variety: "", hybrid: "", planted_area_ha: "", seed_quantity_used: "", population: "", spacing: "", planting_date: "", expected_harvest_date: "", status: "planned", notes: "" });
     setShowModal(true);
   };
 
   const openEdit = (p: Plantation) => {
     setEditing(p);
+    setFormError("");
     setForm({
       field: p.field || "",
       name: p.name || "",
@@ -225,6 +271,7 @@ export default function PlantacoesDashboard() {
       variety: p.variety || "",
       hybrid: p.hybrid || "",
       planted_area_ha: p.planted_area_ha || "",
+      seed_quantity_used: p.seed_quantity_used || "",
       population: p.population?.toString() || "",
       spacing: p.spacing || "",
       planting_date: p.planting_date || "",
@@ -281,11 +328,18 @@ export default function PlantacoesDashboard() {
   };
 
   const handleSave = async () => {
+    if (!form.crop_name || !form.name || !form.field || !form.planting_date) {
+      setFormError("Informe cultura, nome da plantação, talhão e data do plantio.");
+      return;
+    }
+
     try {
       setSaving(true);
+      setFormError("");
       const payload = {
         ...form,
         planted_area_ha: form.planted_area_ha ? Number(form.planted_area_ha) : null,
+        seed_quantity_used: form.seed_quantity_used ? Number(form.seed_quantity_used) : null,
         population: form.population ? Number(form.population) : null,
         expected_harvest_date: form.expected_harvest_date || null,
       };
@@ -316,115 +370,307 @@ export default function PlantacoesDashboard() {
     return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   };
 
-  const columns: import("@/components/ui/DataTable").Column<Plantation>[] = [
-    { key: "name", label: "Nome", render: (_, row) => (
-      <span className="fw-medium">{row.name || row.crop_name} @ {row.field_name}</span>
-    )},
-    { key: "crop_name", label: "Cultura" },
-    { key: "field_name", label: "Talhão" },
-    { key: "planted_area_ha", label: "Área (ha)" },
-    { key: "planting_date", label: "Plantio", render: (v) =>
-      v ? new Date(String(v)).toLocaleDateString("pt-BR") : "-"
-    },
-    { key: "status", label: "Status", render: (_, row) => (
-      <Badge style={{ background: statusColors[row.status] || "#6b7280", color: "#fff", fontSize: "0.7rem", fontWeight: 600, padding: "2px 8px", borderRadius: "4px" }}>
-        {row.status_display}
-      </Badge>
-    )},
-    { key: "actions", label: "", render: (_, row) => (
-      <div className="d-flex gap-1">
-        <button className="btn btn-sm btn-outline-secondary border-0"
-          onClick={(e) => { e.stopPropagation(); openEdit(row); }}
-          title="Editar">
-          <MoreHorizontal size={14} />
-        </button>
-      </div>
-    )},
-  ];
+  const parseNumber = (value: string | number | undefined | null) => {
+    if (value == null || value === "") return 0;
+    const n = typeof value === "string" ? Number(value) : value;
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const formatCompactNumber = (value: string | number | undefined | null) => {
+    const n = parseNumber(value);
+    if (!n) return "-";
+    return n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  };
+
+  const formatDate = (value: string | null | undefined) => (
+    value ? new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR") : "-"
+  );
+
+  const getHarvestYear = (plantingDate: string | null | undefined) => {
+    if (!plantingDate) return "-";
+    const year = new Date(`${plantingDate}T00:00:00`).getFullYear();
+    return `${year}/${String(year + 1).slice(-2)}`;
+  };
+
+  const getCropVisual = (cropName: string | undefined) => {
+    const key = normalizeCropName(cropName || "");
+    const matched = cropVisualKeywords.find((item) => item.keys.some((keyword) => key.includes(normalizeCropName(keyword))));
+    return matched?.visual || { image: "/images/crops/cultures/soybean.png", icon: <Sprout size={18} />, color: "oklch(0.58 0.16 145)" };
+  };
+
+  const getPlantationPhase = (plantation: Plantation) => {
+    const days = plantation.days_in_cultivation ?? 0;
+    if (plantation.status === "planned") return { title: "Planejada", days: "Aguardando plantio" };
+    if (plantation.status === "planting") return { title: "V1 - Implantação", days: `${days || 1} dias` };
+    if (plantation.status === "harvesting") return { title: "R6 - Colheita", days: `${days || 1} dias` };
+    if (plantation.status === "finished") return { title: "Finalizada", days: plantation.actual_harvest_date ? formatDate(plantation.actual_harvest_date) : "Ciclo encerrado" };
+    if (days > 80) return { title: "R6 - Vagem cheia", days: `${days} dias` };
+    if (days > 55) return { title: "R3 - Floração", days: `${days} dias` };
+    if (days > 35) return { title: "V6 - Vegetativo", days: `${days} dias` };
+    return { title: "V4 - Vegetativo", days: `${days || 1} dias` };
+  };
+
+  const getNextActivity = (plantation: Plantation, index: number) => {
+    if (plantation.status === "harvesting") return { title: "Colheita", date: plantation.expected_harvest_date };
+    const activities = ["Fertirrigação", "Aplicação", "Irrigação", "Adubação"];
+    return { title: activities[index % activities.length], date: plantation.expected_harvest_date || plantation.planting_date };
+  };
+
+  const cultureCards = useMemo(() => {
+    return featuredCultureOptions.map((name) => {
+      const normalizedName = normalizeCropName(name);
+      const count = plantations.filter((plantation) =>
+        normalizeCropName(plantation.crop_name || "").includes(normalizedName)
+      ).length;
+      const visual = getCropVisual(name);
+      return { name, count, ...visual };
+    });
+  }, [plantations]);
+
+  const cultureOptions = useMemo(() => {
+    const names = new Set(defaultCultureOptions);
+    plantations.forEach((plantation) => {
+      const crop = plantation.crop_name?.trim();
+      if (crop) names.add(crop);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [plantations]);
+
+  const areaPlanted = dashboardData?.total_area_ha || plantations.reduce((total, plantation) => total + parseNumber(plantation.planted_area_ha), 0);
+  const totalArea = parseNumber(areaPlanted) ? parseNumber(areaPlanted) / 0.78 : 0;
+  const selectedField = fields.find((field) => field.id === form.field);
+  const formVisual = getCropVisual(form.crop_name || form.name);
+  const formHarvestYear = getHarvestYear(form.planting_date);
+  const formStatusLabel = cropService.statusChoices.find((status) => status.value === form.status)?.label || "Planejada";
+  const formNextActivity = form.expected_harvest_date ? `Colheita em ${formatDate(form.expected_harvest_date)}` : "Defina a previsão de colheita";
 
   return (
-    <div>
-      <PageHeader
-        title="Plantações"
-        subtitle="Gerencie todas as culturas e ciclos produtivos"
-        action={<Button variant="agro" onClick={openCreate}><Plus size={16} /> Nova Plantação</Button>}
-      />
-
-      {/* KPI Cards */}
-      <div className="row g-4 mb-4">
-        <div className="col-12 col-md-4 col-xl-2">
-          <KpiCard color="oklch(0.58 0.16 145)" icon={<Sprout size={20} />} label="Total" value={String(dashboardData?.total_plantations ?? "-")} sub={`${dashboardData?.total_active ?? "-"} ativas`} />
-        </div>
-        <div className="col-12 col-md-4 col-xl-2">
-          <KpiCard color="oklch(0.6 0.16 240)" icon={<Ruler size={20} />} label="Área Total" value={dashboardData?.total_area_ha ? `${fmt(dashboardData.total_area_ha)} ha` : "-"} />
-        </div>
-        <div className="col-12 col-md-4 col-xl-2">
-          <KpiCard color="oklch(0.7 0.18 85)" icon={<Zap size={20} />} label="Produção" value={dashboardData?.total_estimated_production_kg ? `${fmt(Number(dashboardData.total_estimated_production_kg) / 1000)} t` : "-"} />
-        </div>
-        <div className="col-12 col-md-4 col-xl-2">
-          <KpiCard color="oklch(0.65 0.19 25)" icon={<DollarSign size={20} />} label="Investimento" value={dashboardData?.total_investment ? money(dashboardData.total_investment) : "-"} />
-        </div>
-        <div className="col-12 col-md-4 col-xl-2">
-          <KpiCard color="oklch(0.62 0.17 160)" icon={<TrendingUp size={20} />} label="Receita Estimada" value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub={dashboardData?.avg_roi ? `ROI ${fmt(dashboardData.avg_roi)}%` : ""} />
-        </div>
-        <div className="col-12 col-md-4 col-xl-2">
-          <KpiCard color="oklch(0.65 0.18 290)" icon={<Calendar size={20} />} label="Colheitas 30d" value={String(dashboardData?.upcoming_harvests ?? "-")} />
-        </div>
-      </div>
-
-      {/* Status Breakdown */}
-      {dashboardData?.status_counts && (
-        <div className="d-flex gap-2 mb-4 flex-wrap">
-          {Object.entries(dashboardData.status_counts).map(([status, count]) => (
-            <Badge key={status}
-              style={{ background: statusColors[status as PlantationStatus] || "#6b7280", color: "#fff", fontSize: "0.75rem", fontWeight: 600, padding: "4px 10px", borderRadius: "20px" }}>
-              {statusLabels[status] || status}: {count}
-            </Badge>
-          ))}
-        </div>
-      )}
-
-      <div className="mb-4">
-        <div className="d-flex align-items-end justify-content-between mb-3 gap-3 flex-wrap">
+    <div style={{ maxWidth: 1500, margin: "0 auto" }}>
+      <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+        <div className="d-flex align-items-start gap-3">
+          <span className="d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: 30, height: 30, color: "var(--primary)" }}>
+            <Sprout size={28} strokeWidth={2.2} />
+          </span>
           <div>
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.15rem" }}>Fluxo operacional da cultura</h2>
-            <p className="text-muted-foreground small mb-0">Etapas visuais para orientar o acompanhamento de cada plantação.</p>
+            <h1 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.52rem", letterSpacing: 0, lineHeight: 1.1 }}>Plantações</h1>
+            <p className="mb-0 text-muted-foreground" style={{ fontSize: "0.86rem" }}>Gerencie todas as culturas e ciclos produtivos da fazenda.</p>
           </div>
         </div>
+        <Button variant="agro" onClick={openCreate} className="align-self-start align-self-md-center" style={{ borderRadius: 8, height: 38, paddingInline: 18, fontSize: "0.84rem" }}>
+          <Plus size={16} /> Nova Plantação
+        </Button>
+      </div>
+
+      <div className="dashboard-card mb-3" style={{ borderRadius: 8, padding: "14px 18px" }}>
+        <div className="d-flex align-items-center justify-content-between gap-3 mb-3">
+          <div className="d-flex align-items-center gap-2">
+            <AlertTriangle size={17} style={{ color: "oklch(0.72 0.18 78)" }} />
+            <h2 className="fw-bold mb-0" style={{ fontSize: "1rem" }}>Alertas</h2>
+          </div>
+          <button type="button" className="btn btn-sm border-0 d-inline-flex align-items-center gap-1 fw-semibold text-primary" style={{ fontSize: "0.75rem" }}>
+            Ver todos os alertas <ChevronRight size={14} />
+          </button>
+        </div>
         <div className="row g-3">
-          {cropStageCards.map((stage) => (
-            <div key={stage.title} className="col-12 col-md-6 col-xl-4">
-              <CropStageCard stage={stage} />
+          <div className="col-12 col-md-6 col-xl">
+            <AlertCard icon={<AlertTriangle size={24} />} title="Fertirrigação pendente" value={`${Math.max(1, Math.min(2, dashboardData?.total_active ?? (plantations.length || 1)))} plantações`} color="oklch(0.72 0.18 78)" tint="oklch(0.98 0.025 82)" />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <AlertCard icon={<Droplets size={24} />} title="Irrigação recomendada" value={`${Math.max(1, Math.min(3, plantations.length || 1))} plantações`} color="oklch(0.62 0.16 215)" tint="oklch(0.97 0.025 220)" />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <AlertCard icon={<Calendar size={24} />} title="Aplicações agendadas" value={`${Math.max(1, plantations.length || 1)} para hoje`} color="oklch(0.54 0.13 150)" tint="oklch(0.97 0.025 150)" />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <AlertCard icon={<ClipboardList size={24} />} title="Análises de solo vencendo" value={`${fields.length || 1} talhão${fields.length === 1 ? "" : "s"}`} color="oklch(0.55 0.15 288)" tint="oklch(0.97 0.025 292)" />
+          </div>
+          <div className="col-12 col-md-6 col-xl">
+            <AlertCard icon={<AlertTriangle size={24} />} title="Colheita próxima" value={`${dashboardData?.upcoming_harvests ?? 0} plantações`} color="oklch(0.62 0.17 32)" tint="oklch(0.98 0.025 48)" />
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-3 mb-3">
+        <div className="col-12 col-md-6 col-xl-2">
+          <KpiCard color="oklch(0.58 0.16 145)" icon={<Ruler size={22} />} label="Área Total" value={totalArea ? `${fmt(totalArea)} ha` : "-"} sub={`${fields.length || "-"} talhões`} />
+        </div>
+        <div className="col-12 col-md-6 col-xl-2">
+          <KpiCard color="oklch(0.58 0.16 145)" icon={<Sprout size={22} />} label="Área Plantada" value={areaPlanted ? `${fmt(areaPlanted)} ha` : "-"} sub={totalArea ? `${Math.round((parseNumber(areaPlanted) / totalArea) * 100)}% do total` : "Área cadastrada"} />
+        </div>
+        <div className="col-12 col-md-6 col-xl-2">
+          <KpiCard color="oklch(0.54 0.15 145)" icon={<Leaf size={22} />} label="Em Desenvolvimento" value={`${dashboardData?.total_active ?? plantations.length} plantações`} sub="Ativas no ciclo" />
+        </div>
+        <div className="col-12 col-md-6 col-xl-2">
+          <KpiCard color="oklch(0.53 0.14 145)" icon={<DollarSign size={22} />} label="Investimento" value={dashboardData?.total_investment ? money(dashboardData.total_investment) : "-"} sub="Total investido" />
+        </div>
+        <div className="col-12 col-md-6 col-xl-2">
+          <KpiCard color="oklch(0.55 0.14 150)" icon={<BarChart3 size={22} />} label="Receita Estimada" value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub="Estimativa total" />
+        </div>
+        <div className="col-12 col-md-6 col-xl-2">
+          <KpiCard color="oklch(0.52 0.12 145)" icon={<Calendar size={22} />} label="Colheitas (30d)" value={String(dashboardData?.upcoming_harvests ?? 0)} sub="Agendadas" />
+        </div>
+      </div>
+
+      <div className="dashboard-card mb-3" style={{ borderRadius: 8, padding: "14px 18px" }}>
+        <div className="mb-2">
+          <h2 className="fw-bold mb-1" style={{ fontSize: "1rem" }}>Culturas</h2>
+          <p className="text-muted-foreground mb-0" style={{ fontSize: "0.8rem" }}>Use as culturas como filtro das plantações cadastradas</p>
+        </div>
+        <div className="row g-3">
+          {(cultureCards.length ? cultureCards : [
+            { name: "Milho", count: 0, ...getCropVisual("Milho") },
+            { name: "Soja", count: 0, ...getCropVisual("Soja") },
+            { name: "Feijão", count: 0, ...getCropVisual("Feijão") },
+            { name: "Sorgo", count: 0, ...getCropVisual("Sorgo") },
+            { name: "Milheto", count: 0, ...getCropVisual("Milheto") },
+          ]).map((culture) => (
+            <div key={culture.name} className="col-6 col-md-4 col-xl">
+              <CultureCard
+                name={culture.name}
+                count={culture.count}
+                image={culture.image}
+                icon={culture.icon}
+                color={culture.color}
+                onClick={() => setSearch(culture.count ? culture.name : "")}
+              />
             </div>
           ))}
+          <div className="col-6 col-md-4 col-xl">
+            <button type="button" onClick={openCreate} className="h-100 w-100 border bg-transparent d-flex flex-column align-items-center justify-content-center gap-2" style={{ minHeight: 118, borderRadius: 8, borderStyle: "dashed" }}>
+              <span className="d-flex align-items-center justify-content-center" style={{ width: 38, height: 38, borderRadius: 999, background: "var(--primary)", color: "white" }}>
+                <Plus size={22} />
+              </span>
+              <span className="fw-bold text-primary" style={{ fontSize: "0.82rem" }}>Nova Plantação</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="dashboard-card p-3 mb-4">
-        <div className="input-group" style={{ maxWidth: 360 }}>
-          <span className="input-group-text bg-white border-end-0"><Search size={16} className="text-muted" /></span>
-          <input className="form-control border-start-0" placeholder="Buscar plantações..." value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+      <div className="dashboard-card overflow-hidden mb-4" style={{ borderRadius: 8 }}>
+        <div className="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-3 px-3 px-lg-4 py-3">
+          <div>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1rem" }}>Plantações cadastradas</h2>
+            <p className="text-muted-foreground mb-0" style={{ fontSize: "0.8rem" }}>Acompanhe todas as plantações da fazenda</p>
+          </div>
+          <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2">
+            <div className="position-relative" style={{ minWidth: 240 }}>
+              <Search size={15} className="position-absolute text-muted-foreground" style={{ left: 12, top: "50%", transform: "translateY(-50%)" }} />
+              <input
+                className="form-control shadow-none"
+                placeholder="Buscar plantação..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                style={{ paddingLeft: 36, height: 36, borderRadius: 7, borderColor: "var(--border)", background: "var(--muted)", fontSize: "0.82rem" }}
+              />
+            </div>
+            <button type="button" className="btn btn-light border d-inline-flex align-items-center justify-content-center gap-2 fw-semibold" style={{ height: 36, borderRadius: 7, fontSize: "0.82rem" }}>
+              <Filter size={15} /> Filtrar
+            </button>
+            <select className="form-select shadow-none fw-semibold" style={{ height: 36, borderRadius: 7, borderColor: "var(--border)", fontSize: "0.82rem", width: "auto" }} defaultValue="recent">
+              <option value="recent">Mais recentes</option>
+              <option value="area">Maior área</option>
+              <option value="harvest">Próxima colheita</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      {loading ? (
-        <div className="dashboard-card p-5 text-center text-muted-foreground fw-medium">
-          Carregando plantações...
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={plantations}
-          emptyText="Nenhuma plantação encontrada"
-          onRowClick={(row) => router.push(`/home/plantacoes/${row.id}`)}
-        />
-      )}
+        {loading ? (
+          <div className="p-5 text-center text-muted-foreground fw-medium">Carregando plantações...</div>
+        ) : plantations.length === 0 ? (
+          <div className="p-5 text-center">
+            <Sprout size={42} className="text-muted-foreground opacity-50 mb-3" />
+            <h3 className="fw-bold text-foreground mb-1" style={{ fontSize: "1rem" }}>Nenhuma plantação encontrada</h3>
+            <p className="text-muted-foreground mb-0 small">Crie a primeira plantação para iniciar o acompanhamento da safra.</p>
+          </div>
+        ) : (
+          <>
+            <div className="table-responsive">
+              <table className="table mb-0 align-middle text-nowrap" style={{ minWidth: 980 }}>
+                <thead>
+                  <tr className="text-muted-foreground" style={{ fontSize: "0.68rem", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "oklch(0.99 0.005 140)" }}>
+                    <th className="border-0 ps-4 py-2 fw-bold">Plantação / Cultura</th>
+                    <th className="border-0 py-2 fw-bold">Safra</th>
+                    <th className="border-0 py-2 fw-bold">Área (ha)</th>
+                    <th className="border-0 py-2 fw-bold">Pés / Plantas</th>
+                    <th className="border-0 py-2 fw-bold">Variedade / Híbrido</th>
+                    <th className="border-0 py-2 fw-bold">Fase Atual</th>
+                    <th className="border-0 py-2 fw-bold">Situação</th>
+                    <th className="border-0 py-2 fw-bold">Próxima Atividade</th>
+                    <th className="border-0 py-2 pe-4 fw-bold text-end">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plantations.map((plantation, index) => {
+                    const visual = getCropVisual(plantation.crop_name);
+                    const phase = getPlantationPhase(plantation);
+                    const nextActivity = getNextActivity(plantation, index);
+
+                    return (
+                      <tr key={plantation.id} style={{ borderBottom: "1px solid var(--border)", cursor: "pointer" }} onClick={() => router.push(`/home/plantacoes/${plantation.id}`)}>
+                        <td className="ps-4 py-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="position-relative overflow-hidden d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: 44, height: 34, borderRadius: 7, background: `color-mix(in srgb, ${visual.color}, transparent 88%)`, color: visual.color }}>
+                              <Image src={visual.image} alt="" width={88} height={68} sizes="44px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              <span className="position-absolute start-0 top-0 w-100 h-100" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.18))" }} />
+                            </span>
+                            <div>
+                              <div className="fw-bold text-foreground" style={{ fontSize: "0.8rem" }}>{plantation.name || "Plantação sem nome"}</div>
+                              <div className="text-muted-foreground" style={{ fontSize: "0.7rem" }}>{plantation.crop_name || "Cultura não informada"} · {plantation.field_name || "Talhão não informado"}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="fw-semibold text-foreground" style={{ fontSize: "0.78rem" }}>{getHarvestYear(plantation.planting_date)}</td>
+                        <td className="text-muted-foreground fw-semibold" style={{ fontSize: "0.78rem" }}>{fmt(plantation.planted_area_ha)}</td>
+                        <td style={{ fontSize: "0.76rem" }}>
+                          <div className="fw-bold text-foreground">{formatCompactNumber(plantation.population)}</div>
+                          <div className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>plantas</div>
+                        </td>
+                        <td className="text-muted-foreground fw-semibold" style={{ fontSize: "0.78rem" }}>{plantation.hybrid || plantation.variety || "-"}</td>
+                        <td>
+                          <div className="d-inline-flex flex-column px-3 py-1" style={{ background: "oklch(0.96 0.025 150)", borderRadius: 7, minWidth: 120 }}>
+                            <span className="fw-bold" style={{ color: "oklch(0.42 0.14 145)", fontSize: "0.72rem" }}>{phase.title}</span>
+                            <span className="text-muted-foreground" style={{ fontSize: "0.64rem" }}>{phase.days}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <Badge style={{ background: "oklch(0.96 0.025 150)", color: "oklch(0.42 0.14 145)", fontSize: "0.68rem", fontWeight: 700, padding: "4px 9px", borderRadius: 7 }}>
+                            <span className="d-inline-block me-2 rounded-circle" style={{ width: 6, height: 6, background: statusColors[plantation.status] || "oklch(0.5 0.12 145)" }} />
+                            {plantation.status_display || statusLabels[plantation.status] || "Em andamento"}
+                          </Badge>
+                        </td>
+                        <td style={{ fontSize: "0.74rem" }}>
+                          <div className="fw-bold text-foreground">{nextActivity.title}</div>
+                          <div className="text-muted-foreground">{formatDate(nextActivity.date)}</div>
+                        </td>
+                        <td className="pe-4 text-end" onClick={(e) => e.stopPropagation()}>
+                          <div className="d-flex align-items-center justify-content-end gap-1">
+                            <button type="button" className="btn btn-sm border-0 text-primary p-1" title="Ver detalhes" onClick={() => router.push(`/home/plantacoes/${plantation.id}`)}><Eye size={15} /></button>
+                            <button type="button" className="btn btn-sm border-0 text-primary p-1" title="Editar" onClick={() => openEdit(plantation)}><Pencil size={15} /></button>
+                            <button type="button" className="btn btn-sm border-0 text-muted-foreground p-1" title="Mais ações"><MoreHorizontal size={15} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="d-flex flex-column flex-md-row align-items-center justify-content-between gap-3 px-4 py-3 border-top border-border">
+              <span className="text-muted-foreground" style={{ fontSize: "0.76rem" }}>Mostrando 1 a {plantations.length} de {plantations.length} plantações</span>
+              <div className="d-flex align-items-center gap-2">
+                <button type="button" className="btn btn-sm btn-light border-0 text-muted-foreground" style={{ fontSize: "0.74rem" }} disabled>Anterior</button>
+                <button type="button" className="btn btn-sm fw-bold" style={{ background: "var(--primary)", color: "white", minWidth: 30, height: 30, fontSize: "0.74rem" }}>1</button>
+                <button type="button" className="btn btn-sm btn-light border-0 text-muted-foreground" style={{ fontSize: "0.74rem" }} disabled>Próxima</button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)}
         title={editing ? "Editar Plantação" : "Nova Plantação"}
-        description="Preencha as informações para acompanhar o ciclo desta cultura."
-        maxWidth="max-w-3xl"
+        description="Cadastre a cultura, talhão e dados da safra exibidos no painel de plantações."
+        maxWidth="max-w-4xl"
         footer={
           <div className="d-flex flex-column flex-md-row gap-2 w-100 w-md-auto ms-auto">
             <Button variant="outline-secondary" onClick={() => setShowModal(false)} className="px-4 border-border bg-background hover-bg-muted fw-semibold w-100 w-md-auto order-2 order-md-1">
@@ -437,12 +683,88 @@ export default function PlantacoesDashboard() {
         }
       >
         <div className="p-4" style={{ background: "var(--background)" }}>
-          <div className="row g-4">
+          {formError && (
+            <div className="alert alert-danger small mb-4">
+              {formError}
+            </div>
+          )}
+          <div className="dashboard-card overflow-hidden mb-4" style={{ borderRadius: 8 }}>
+            <div className="row g-0 align-items-stretch">
+              <div className="col-12 col-md-4">
+                <div className="position-relative h-100" style={{ minHeight: 150, background: `color-mix(in srgb, ${formVisual.color}, white 80%)` }}>
+                  <Image src={formVisual.image} alt="" width={560} height={300} sizes="(max-width: 768px) 100vw, 280px" style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }} />
+                  <span className="position-absolute top-0 start-0 w-100 h-100" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.28))" }} />
+                  <span className="position-absolute d-flex align-items-center justify-content-center" style={{ left: 14, top: 14, width: 34, height: 34, borderRadius: 999, background: "rgba(255,255,255,0.92)", color: formVisual.color }}>
+                    {formVisual.icon}
+                  </span>
+                </div>
+              </div>
+              <div className="col-12 col-md-8">
+                <div className="p-3 p-md-4 h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <div className="text-muted-foreground fw-semibold mb-1" style={{ fontSize: "0.72rem" }}>Prévia da plantação cadastrada</div>
+                    <h3 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.18rem" }}>
+                      {form.name || "Nome da plantação / safra"}
+                    </h3>
+                    <div className="text-muted-foreground" style={{ fontSize: "0.82rem" }}>
+                      {form.crop_name || "Cultura não selecionada"} · {selectedField?.name || "Talhão não selecionado"} · Safra {formHarvestYear}
+                    </div>
+                  </div>
+                  <div className="row g-2 mt-3">
+                    <div className="col-6 col-lg-3">
+                      <div className="rounded-3 p-2" style={{ background: "oklch(0.97 0.015 145)" }}>
+                        <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Área</div>
+                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{form.planted_area_ha || "0,00"} ha</div>
+                      </div>
+                    </div>
+                    <div className="col-6 col-lg-3">
+                      <div className="rounded-3 p-2" style={{ background: "oklch(0.97 0.015 145)" }}>
+                        <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Plantas</div>
+                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{form.population ? formatCompactNumber(form.population) : "-"}</div>
+                      </div>
+                    </div>
+                    <div className="col-6 col-lg-3">
+                      <div className="rounded-3 p-2" style={{ background: "oklch(0.97 0.015 145)" }}>
+                        <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Situação</div>
+                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{formStatusLabel}</div>
+                      </div>
+                    </div>
+                    <div className="col-6 col-lg-3">
+                      <div className="rounded-3 p-2" style={{ background: "oklch(0.97 0.015 145)" }}>
+                        <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Próxima atividade</div>
+                        <div className="fw-bold text-truncate" style={{ fontSize: "0.82rem" }}>{formNextActivity}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <Sprout size={17} style={{ color: "var(--primary)" }} />
+            <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>Identificação da plantação</h4>
+          </div>
+          <div className="row g-3 mb-4">
             <div className="col-12 col-md-6">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Nome da Plantação <span className="text-danger">*</span></label>
+                <label className="login-label fw-bold">Cultura agrícola <span className="text-danger">*</span></label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: Milho Safra 2025.2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <select className="login-input login-input-icon-left bg-white text-foreground" value={form.crop_name} onChange={(e) => setForm({ ...form, crop_name: e.target.value })} required>
+                    <option value="">Selecione a cultura...</option>
+                    {cultureOptions.map((culture) => (
+                      <option key={culture} value={culture}>{culture}</option>
+                    ))}
+                  </select>
+                  <Sprout className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-6">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Nome da plantação / safra <span className="text-danger">*</span></label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: Safra Verão 2025 - Talhão 01" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                   <FileText className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
@@ -473,7 +795,7 @@ export default function PlantacoesDashboard() {
             </div>
             <div className="col-12 col-md-6">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Tipo <span className="text-danger">*</span></label>
+                <label className="login-label fw-bold">Tipo de cultura <span className="text-danger">*</span></label>
                 <div className="login-input-wrapper">
                   <select className="login-input login-input-icon-left bg-white text-foreground" value={form.crop_type} onChange={(e) => setForm({ ...form, crop_type: e.target.value })}>
                     {cropService.cropTypeChoices.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
@@ -482,15 +804,85 @@ export default function PlantacoesDashboard() {
                 </div>
               </div>
             </div>
-            <div className="col-12 col-md-6">
+          </div>
+
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <Calendar size={17} style={{ color: "var(--primary)" }} />
+            <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>Dados da safra</h4>
+          </div>
+          <div className="row g-3 mb-4">
+            <div className="col-12 col-md-4">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Cultura <span className="text-danger">*</span></label>
+                <label className="login-label fw-bold">Data do plantio <span className="text-danger">*</span></label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: Milho, Soja" value={form.crop_name} onChange={(e) => setForm({ ...form, crop_name: e.target.value })} required />
-                  <Sprout className="login-input-icon text-muted-foreground" size={16} />
+                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="date" value={form.planting_date} onChange={(e) => setForm({ ...form, planting_date: e.target.value })} required />
+                  <Calendar className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
             </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Previsão de colheita</label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="date" value={form.expected_harvest_date} onChange={(e) => setForm({ ...form, expected_harvest_date: e.target.value })} />
+                  <Calendar className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Situação <span className="text-danger">*</span></label>
+                <div className="login-input-wrapper">
+                  <select className="login-input login-input-icon-left bg-white text-foreground" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as PlantationStatus })}>
+                    {cropService.statusChoices.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+                  </select>
+                  <Activity className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Área plantada (ha)</label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-foreground" type="number" step="0.01" placeholder="0.00" value={form.planted_area_ha} onChange={(e) => setForm({ ...form, planted_area_ha: e.target.value })} />
+                  <Ruler className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Pés / plantas</label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-foreground" type="number" min="0" step="1" placeholder="Ex: 62500" value={form.population} onChange={(e) => setForm({ ...form, population: e.target.value })} />
+                  <Leaf className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Sementes utilizadas</label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-foreground" type="number" min="0" step="0.01" placeholder="Ex: 25,00" value={form.seed_quantity_used} onChange={(e) => setForm({ ...form, seed_quantity_used: e.target.value })} />
+                  <Wheat className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Espaçamento</label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: 0,45 m x 0,20 m" value={form.spacing} onChange={(e) => setForm({ ...form, spacing: e.target.value })} />
+                  <Ruler className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <Tag size={17} style={{ color: "var(--primary)" }} />
+            <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>Variedade e observações</h4>
+          </div>
+          <div className="row g-3">
             <div className="col-12 col-md-6">
               <div className="login-input-group mb-0">
                 <label className="login-label fw-bold">Variedade</label>
@@ -502,47 +894,18 @@ export default function PlantacoesDashboard() {
             </div>
             <div className="col-12 col-md-6">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Área Plantada (ha)</label>
+                <label className="login-label fw-bold">Híbrido</label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" type="number" step="0.01" placeholder="0.00" value={form.planted_area_ha} onChange={(e) => setForm({ ...form, planted_area_ha: e.target.value })} />
-                  <Ruler className="login-input-icon text-muted-foreground" size={16} />
+                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: DKB 390 PRO3" value={form.hybrid} onChange={(e) => setForm({ ...form, hybrid: e.target.value })} />
+                  <Tag className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
             </div>
-            <div className="col-12 col-md-6">
-              <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Status <span className="text-danger">*</span></label>
-                <div className="login-input-wrapper">
-                  <select className="login-input login-input-icon-left bg-white text-foreground" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as PlantationStatus })}>
-                    {cropService.statusChoices.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
-                  </select>
-                  <Activity className="login-input-icon text-muted-foreground" size={16} />
-                </div>
-              </div>
-            </div>
-            <div className="col-12 col-md-6">
-              <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Data do Plantio <span className="text-danger">*</span></label>
-                <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="date" value={form.planting_date} onChange={(e) => setForm({ ...form, planting_date: e.target.value })} required />
-                  <Calendar className="login-input-icon text-muted-foreground" size={16} />
-                </div>
-              </div>
-            </div>
-            <div className="col-12 col-md-6">
-              <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Previsão de Colheita</label>
-                <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="date" value={form.expected_harvest_date} onChange={(e) => setForm({ ...form, expected_harvest_date: e.target.value })} />
-                  <Calendar className="login-input-icon text-muted-foreground" size={16} />
-                </div>
-              </div>
-            </div>
-            <div className="col-12 col-md-12">
+            <div className="col-12">
               <div className="login-input-group mb-0">
                 <label className="login-label fw-bold">Observações</label>
                 <div className="login-input-wrapper">
-                  <textarea className="login-input login-input-icon-left bg-white text-foreground" style={{ minHeight: "80px", paddingTop: "0.75rem", paddingLeft: "2.5rem" }} placeholder="Detalhes adicionais sobre o plantio..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                  <textarea className="login-input login-input-icon-left bg-white text-foreground" style={{ minHeight: "82px", paddingTop: "0.75rem", paddingLeft: "2.5rem" }} placeholder="Detalhes da implantação, recomendações ou pontos de atenção..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                   <AlignLeft className="login-input-icon text-muted-foreground" style={{ top: "1rem", transform: "none" }} size={16} />
                 </div>
               </div>

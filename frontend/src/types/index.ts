@@ -200,6 +200,7 @@ export interface Plantation {
   variety: string;
   hybrid: string;
   planted_area_ha: string | null;
+  seed_quantity_used: string | null;
   population: number | null;
   spacing: string;
   planting_date: string;
@@ -229,6 +230,7 @@ export interface PlantationDashboard {
   farm_name: string;
   variety: string;
   area_ha: string;
+  seed_quantity_used?: string | null;
   planting_date: string;
   expected_harvest_date: string | null;
   actual_harvest_date: string | null;
@@ -243,6 +245,7 @@ export interface PlantationDashboard {
   estimated_profit: string;
   estimated_profit_per_ha: string;
   estimated_roi: string;
+  real_profit: string;
   estimated_production_kg: string;
   estimated_bags: string;
   population: number | null;

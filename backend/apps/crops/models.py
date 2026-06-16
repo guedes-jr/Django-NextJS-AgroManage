@@ -92,6 +92,7 @@ class PlantingCycle(BaseModel):
 
     # ── Planting data ────────────────────────────────────────────────────────
     planted_area_ha = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    seed_quantity_used = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     population = models.PositiveIntegerField(null=True, blank=True, help_text="Plants per hectare")
     spacing = models.CharField(max_length=100, blank=True, help_text="e.g. 0.5m x 0.3m")
 

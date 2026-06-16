@@ -19,6 +19,16 @@ def get_plantation_dashboard(plantation):
 
     area = plantation.planted_area_ha or plantation.field.area_ha or Decimal("1")
     investment = plantation.investment_total
+    real_revenue = (
+        plantation.finance_transactions.filter(category__category_type="revenue")
+        .aggregate(total=Sum("amount"))["total"]
+        or Decimal("0")
+    )
+    real_expenses = (
+        plantation.finance_transactions.filter(category__category_type="expense")
+        .aggregate(total=Sum("amount"))["total"]
+        or Decimal("0")
+    )
 
     estimated_revenue = plantation.estimated_revenue or Decimal("0")
     estimated_production = plantation.estimated_production_kg or Decimal("0")
@@ -29,6 +39,7 @@ def get_plantation_dashboard(plantation):
     estimated_profit = (estimated_revenue - investment).quantize(Decimal("0.01"))
     estimated_profit_per_ha = (estimated_profit / area).quantize(Decimal("0.01")) if area else Decimal("0")
     estimated_roi = ((estimated_profit / investment) * 100).quantize(Decimal("0.01")) if investment else Decimal("0")
+    real_profit = (real_revenue - real_expenses).quantize(Decimal("0.01"))
 
     return {
         "id": plantation.id,
@@ -53,6 +64,7 @@ def get_plantation_dashboard(plantation):
         "estimated_profit": str(estimated_profit),
         "estimated_profit_per_ha": str(estimated_profit_per_ha),
         "estimated_roi": str(estimated_roi),
+        "real_profit": str(real_profit),
         "estimated_production_kg": str(estimated_production),
         "estimated_bags": str(estimated_bags),
         "population": plantation.population,
