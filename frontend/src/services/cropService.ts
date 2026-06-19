@@ -61,6 +61,12 @@ export const cropService = {
   createIrrigation: (data: Record<string, unknown>) =>
     apiClient.post("/crops/irrigations/", data),
 
+  listIrrigationPumps: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/irrigation-pumps/", { params }),
+
+  createIrrigationPump: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/irrigation-pumps/", data),
+
   // ── Fields ───────────────────────────────────────────────────────────────
   listFields: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/fields/", { params }),

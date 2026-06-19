@@ -350,11 +350,20 @@ export interface PesticideApplication {
 export interface Irrigation {
   id: string;
   plantation: string;
-  date: string;
+  date: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  irrigation_system: string;
+  irrigation_system_display: string;
   start_time: string | null;
   end_time: string | null;
+  pump_equipment: string | null;
+  pump_name: string | null;
+  pump_power_cv: string | null;
   pump: string;
   pump_power_kw: string | null;
+  hours_per_day: string | null;
+  operating_days: number;
   hours: string | null;
   flow_rate_l_per_h: string | null;
   liters_used: string | null;

@@ -11,7 +11,12 @@ router.register(r"fertilizations", views.FertilizationViewSet, basename="crops-f
 router.register(r"fertigations", views.FertigationViewSet, basename="crops-fertigations")
 router.register(r"pesticides", views.PesticideApplicationViewSet, basename="crops-pesticides")
 router.register(r"irrigations", views.IrrigationViewSet, basename="crops-irrigations")
+router.register(r"irrigation-pumps", views.IrrigationPumpViewSet, basename="crops-irrigation-pumps")
+router.register(r"soil-analyses", views.SoilAnalysisViewSet, basename="crops-soil-analyses")
+router.register(r"agronomist-recommendations", views.AgronomistRecommendationViewSet, basename="crops-agronomist-recommendations")
 router.register(r"harvests", views.HarvestViewSet, basename="crops-harvests")
+router.register(r"tractors", views.TractorViewSet, basename="crops-tractors")
+router.register(r"land-preparations", views.LandPreparationViewSet, basename="crops-land-preparations")
 
 urlpatterns = [
     path("dashboard/", views.CropsDashboardView.as_view(), name="crops-dashboard"),

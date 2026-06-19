@@ -69,13 +69,16 @@ def _create_financial_transaction(instance, request, category_name, reference_pr
         category_type="expense",
     )
 
+    item_desc = f" — {instance.item}" if hasattr(instance, "item") and instance.item else ""
+    due_date = getattr(instance, "application_date", None) or getattr(instance, "planting_date", None) or getattr(instance, "date", None)
+
     Transaction.objects.create(
         organization=organization,
         farm=farm,
         category=category,
-        description=f"{category_name}: {plantation} — {instance.item}",
+        description=f"{category_name}: {plantation}{item_desc}",
         amount=instance.total_price,
-        due_date=instance.application_date if hasattr(instance, "application_date") else instance.planting_date,
+        due_date=due_date,
         status="paid",
         planting_cycle=plantation,
         reference=f"{reference_prefix}-{instance.id}",
@@ -146,12 +149,21 @@ def create_irrigation(serializer, request):
             organization=plantation.organization,
             farm=plantation.farm,
             category=category,
-            description=f"Irrigação: {plantation} — {irrigation.date}",
+            description=f"Irrigação: {plantation} — {irrigation.start_date or irrigation.date}",
             amount=irrigation.energy_cost,
-            due_date=irrigation.date,
+            due_date=irrigation.start_date or irrigation.date,
             status="paid",
             planting_cycle=plantation,
             reference=f"IRRIGATION-{irrigation.id}",
         )
 
     return irrigation
+
+
+@transaction.atomic
+def create_land_preparation(serializer, request):
+    """Register a land preparation operation and its cost transaction."""
+    prep = serializer.save()
+    if prep.total_price > 0:
+        _create_financial_transaction(prep, request, "Máquinas", "LANDPREP")
+    return prep

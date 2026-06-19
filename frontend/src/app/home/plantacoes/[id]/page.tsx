@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, Percent, CheckCircle2, ArrowRight, CircleDashed, Waves } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, Percent, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -35,11 +35,41 @@ type ApplicationOperation = {
 type IrrigationOperation = {
   id: string;
   date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  irrigation_system_display?: string | null;
+  pump_name?: string | null;
+  operating_days?: number | null;
+  hours_per_day?: string | number | null;
   hours?: string | number | null;
   flow_rate_l_per_h?: string | number | null;
   liters_used?: string | number | null;
   energy_kwh?: string | number | null;
   energy_cost?: string | null;
+};
+type IrrigationPump = {
+  id: string;
+  name: string;
+  power_cv: string | number;
+  power_kw: string | number;
+  flow_rate_l_per_h: string | number;
+};
+type InventoryItem = {
+  id: string;
+  nome: string;
+  categoria?: string;
+  categoria_display?: string;
+  especie_animal: string;
+  unidade_medida: string;
+  estoque_atual: string;
+};
+type ApplicationLine = {
+  item: string;
+  pesticide_type?: string;
+  quantity: string;
+  unit: string;
+  unit_price: string;
+  total_price: string;
 };
 
 const statusColors: Record<PlantationStatus, string> = {
@@ -61,6 +91,64 @@ const statusOptions = [
   { value: "finished", label: "Finalizada" },
   { value: "cancelled", label: "Cancelada" },
 ];
+
+const emptyAdubacaoLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
+const emptyDefensivoLine: ApplicationLine = {
+  item: "",
+  pesticide_type: "insecticide",
+  quantity: "",
+  unit: "",
+  unit_price: "",
+  total_price: "",
+};
+
+const unitOptions = [
+  { value: "kg", label: "kg" },
+  { value: "g", label: "g" },
+  { value: "l", label: "L" },
+  { value: "ml", label: "mL" },
+  { value: "saco", label: "sc" },
+  { value: "tonelada", label: "t" },
+  { value: "unidade", label: "un" },
+];
+
+const pesticideTypeOptions = [
+  { value: "insecticide", label: "Inseticida" },
+  { value: "herbicide", label: "Herbicida" },
+  { value: "fungicide", label: "Fungicida" },
+  { value: "adjuvant", label: "Adjuvante" },
+  { value: "acaricide", label: "Acaricida" },
+  { value: "bactericide", label: "Bactericida" },
+  { value: "other", label: "Outro" },
+];
+
+const irrigationSystemOptions = [
+  { value: "center_pivot", label: "Pivô central" },
+  { value: "drip", label: "Gotejamento" },
+  { value: "sprinkler", label: "Aspersão" },
+  { value: "micro_sprinkler", label: "Microaspersão" },
+  { value: "hose", label: "Mangueira" },
+  { value: "other", label: "Outro" },
+];
+
+const cvToKw = (cv: string | number) => {
+  const value = Number(cv || 0);
+  return value ? value * 0.7355 : 0;
+};
+
+const calculateInclusiveDays = (startDate: string, endDate: string) => {
+  if (!startDate) return 1;
+  const start = new Date(`${startDate}T12:00:00`);
+  const end = new Date(`${(endDate || startDate)}T12:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
+  return Math.max(Math.floor((end.getTime() - start.getTime()) / 86400000) + 1, 1);
+};
+
+const calculateLineTotal = (quantity: string, unitPrice: string) => {
+  const q = parseFloat(quantity || "0");
+  const p = parseFloat(unitPrice || "0");
+  return q && p ? String(q * p) : "";
+};
 
 const shortcutStages = {
   estrutura: { image: "/images/crops/sector-structure.png", color: "oklch(0.62 0.12 70)" },
@@ -211,7 +299,7 @@ export default function PlantacaoDetailPage() {
 
   const [plantings, setPlantings] = useState<PlantingOperation[]>([]);
   const [showPlantio, setShowPlantio] = useState(false);
-  const [inventoryItems, setInventoryItems] = useState<{ id: string; nome: string }[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [plantioForm, setPlantioForm] = useState({
     item: "", quantity: "", unit: "", unit_price: "", total_price: "",
     planting_date: "", operator: "", notes: "",
@@ -220,26 +308,32 @@ export default function PlantacaoDetailPage() {
 
   const [fertilizations, setFertilizations] = useState<ApplicationOperation[]>([]);
   const [showAdubacao, setShowAdubacao] = useState(false);
-  const [adubacaoForm, setAdubacaoForm] = useState({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
+  const [adubacaoForm, setAdubacaoForm] = useState({ application_date: "", operator: "", notes: "" });
+  const [adubacaoLines, setAdubacaoLines] = useState<ApplicationLine[]>([{ ...emptyAdubacaoLine }]);
   const [savingAdubacao, setSavingAdubacao] = useState(false);
 
   const [fertigations, setFertigations] = useState<ApplicationOperation[]>([]);
   const [showFertirrigacao, setShowFertirrigacao] = useState(false);
-  const [fertirrigacaoForm, setFertirrigacaoForm] = useState({ item: "", quantity: "", unit: "", total_price: "", application_date: "", operator: "" });
+  const [fertirrigacaoForm, setFertirrigacaoForm] = useState({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
   const [savingFertirrigacao, setSavingFertirrigacao] = useState(false);
 
   const [pesticides, setPesticides] = useState<ApplicationOperation[]>([]);
   const [showDefensivo, setShowDefensivo] = useState(false);
-  const [defensivoForm, setDefensivoForm] = useState({ item: "", pesticide_type: "insecticide", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
+  const [defensivoForm, setDefensivoForm] = useState({ application_date: "", operator: "", notes: "" });
+  const [defensivoLines, setDefensivoLines] = useState<ApplicationLine[]>([{ ...emptyDefensivoLine }]);
   const [savingDefensivo, setSavingDefensivo] = useState(false);
 
   const [irrigations, setIrrigations] = useState<IrrigationOperation[]>([]);
   const [showIrrigacao, setShowIrrigacao] = useState(false);
+  const [showPumpModal, setShowPumpModal] = useState(false);
+  const [irrigationPumps, setIrrigationPumps] = useState<IrrigationPump[]>([]);
   const [irrigacaoForm, setIrrigacaoForm] = useState({
-    date: "", hours: "", flow_rate_l_per_h: "", pump_power_kw: "",
-    kwh_value: "", pump: "", operator: "",
+    start_date: "", end_date: "", irrigation_system: "",
+    pump_equipment: "", hours_per_day: "", kwh_value: "", operator: "",
   });
   const [savingIrrigacao, setSavingIrrigacao] = useState(false);
+  const [pumpForm, setPumpForm] = useState({ name: "", power_cv: "", flow_rate_l_per_h: "" });
+  const [savingPump, setSavingPump] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -264,20 +358,22 @@ export default function PlantacaoDetailPage() {
           population: merged.population || "",
           spacing: merged.spacing || "",
         });
-        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes] = await Promise.all([
+        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes] = await Promise.all([
           cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertilizations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listPesticideApplications({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listIrrigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
-          apiClient.get("/inventory/items/", { params: { page_size: 500 } }).catch(() => ({ data: { results: [] } })),
+          apiClient.get("/inventory/items/all_items/").catch(() => ({ data: [] })),
+          cropService.listIrrigationPumps().catch(() => ({ data: { results: [] } })),
         ]);
         setPlantings(Array.isArray(plantingsRes.data?.results) ? plantingsRes.data.results : []);
         setFertilizations(Array.isArray(fertsRes.data?.results) ? fertsRes.data.results : []);
         setFertigations(Array.isArray(fertigsRes.data?.results) ? fertigsRes.data.results : []);
         setPesticides(Array.isArray(pestsRes.data?.results) ? pestsRes.data.results : []);
         setIrrigations(Array.isArray(irrigsRes.data?.results) ? irrigsRes.data.results : []);
-        setInventoryItems(Array.isArray(itemsRes.data?.results) ? itemsRes.data.results : []);
+        setInventoryItems(Array.isArray(itemsRes.data) ? itemsRes.data : []);
+        setIrrigationPumps(Array.isArray(pumpsRes.data?.results) ? pumpsRes.data.results : []);
       } catch { console.error("Failed to load plantation"); }
       finally { setLoading(false); }
     })();
@@ -317,80 +413,214 @@ export default function PlantacaoDetailPage() {
     finally { setSaving(false); }
   };
 
+  const getStockPrice = async (itemId: string) => {
+    const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
+    const activeLot = lots.find((l) => l.custo_unitario && parseFloat(l.custo_unitario) > 0);
+    return activeLot?.custo_unitario ? String(parseFloat(activeLot.custo_unitario)) : "";
+  };
+
+  const updateApplicationLine = (
+    lines: ApplicationLine[],
+    index: number,
+    patch: Partial<ApplicationLine>,
+  ) => lines.map((line, lineIndex) => {
+    if (lineIndex !== index) return line;
+    const next = { ...line, ...patch };
+    if ("quantity" in patch || "unit_price" in patch) {
+      next.total_price = calculateLineTotal(next.quantity, next.unit_price);
+    }
+    return next;
+  });
+
+  const handleAdubacaoLineItemChange = async (index: number, itemId: string) => {
+    const selectedItem = inventoryItems.find((i) => i.id === itemId);
+    if (!selectedItem) {
+      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
+      return;
+    }
+    const newUnit = selectedItem.unidade_medida || "";
+    try {
+      const unitPrice = await getStockPrice(itemId);
+      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
+    } catch {
+      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
+    }
+  };
+
   const handleCreateAdubacao = async () => {
-    if (!plantation || !adubacaoForm.item) return;
+    const validLines = adubacaoLines.filter((line) => line.item && line.quantity);
+    if (!plantation || validLines.length === 0) return;
     try {
       setSavingAdubacao(true);
-      const total = adubacaoForm.total_price || (adubacaoForm.quantity && adubacaoForm.unit_price ? String(parseFloat(adubacaoForm.quantity) * parseFloat(adubacaoForm.unit_price)) : "0");
-      await cropService.createFertilization({
-        plantation: plantation.id, item: adubacaoForm.item, quantity: adubacaoForm.quantity,
-        unit: adubacaoForm.unit, unit_price: adubacaoForm.unit_price || null, total_price: total,
-        application_date: adubacaoForm.application_date, operator: adubacaoForm.operator,
-      });
+      await Promise.all(validLines.map((line) => cropService.createFertilization({
+        plantation: plantation.id,
+        item: line.item,
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price: line.unit_price || null,
+        total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+        application_date: adubacaoForm.application_date,
+        operator: adubacaoForm.operator,
+        notes: adubacaoForm.notes,
+      })));
       setShowAdubacao(false);
-      setAdubacaoForm({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
+      setAdubacaoForm({ application_date: "", operator: "", notes: "" });
+      setAdubacaoLines([{ ...emptyAdubacaoLine }]);
       const { data: r } = await cropService.listFertilizations({ plantation: plantation.id });
       setFertilizations(Array.isArray(r?.results) ? r.results : []);
     } catch { console.error("Failed to create fertilization"); }
     finally { setSavingAdubacao(false); }
   };
 
+  const handleFertirrigacaoItemChange = async (itemId: string) => {
+    const selectedItem = inventoryItems.find((i) => i.id === itemId);
+    if (!selectedItem) {
+      setFertirrigacaoForm((prev) => ({ ...prev, item: "", unit: "", unit_price: "", total_price: "" }));
+      return;
+    }
+    const newUnit = selectedItem.unidade_medida || "";
+    try {
+      const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
+      const activeLot = lots.find((l) => l.custo_unitario && parseFloat(l.custo_unitario) > 0);
+      const unitPrice = activeLot?.custo_unitario ? String(parseFloat(activeLot.custo_unitario)) : "";
+      setFertirrigacaoForm((prev) => ({
+        ...prev,
+        item: itemId,
+        unit: newUnit,
+        unit_price: unitPrice,
+        total_price: prev.quantity && unitPrice ? String(parseFloat(prev.quantity) * parseFloat(unitPrice)) : prev.total_price,
+      }));
+    } catch {
+      setFertirrigacaoForm((prev) => ({ ...prev, item: itemId, unit: newUnit }));
+    }
+  };
+
   const handleCreateFertirrigacao = async () => {
     if (!plantation || !fertirrigacaoForm.item) return;
     try {
       setSavingFertirrigacao(true);
+      const total = fertirrigacaoForm.total_price || (fertirrigacaoForm.quantity && fertirrigacaoForm.unit_price ? String(parseFloat(fertirrigacaoForm.quantity) * parseFloat(fertirrigacaoForm.unit_price)) : "0");
       await cropService.createFertigation({
         plantation: plantation.id, item: fertirrigacaoForm.item, quantity: fertirrigacaoForm.quantity,
-        unit: fertirrigacaoForm.unit, total_price: fertirrigacaoForm.total_price || null,
+        unit: fertirrigacaoForm.unit, unit_price: fertirrigacaoForm.unit_price || null, total_price: total,
         application_date: fertirrigacaoForm.application_date, operator: fertirrigacaoForm.operator,
       });
       setShowFertirrigacao(false);
-      setFertirrigacaoForm({ item: "", quantity: "", unit: "", total_price: "", application_date: "", operator: "" });
+      setFertirrigacaoForm({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
       const { data: r } = await cropService.listFertigations({ plantation: plantation.id });
       setFertigations(Array.isArray(r?.results) ? r.results : []);
     } catch { console.error("Failed to create fertigation"); }
     finally { setSavingFertirrigacao(false); }
   };
 
+  const handleDefensivoLineItemChange = async (index: number, itemId: string) => {
+    const selectedItem = inventoryItems.find((i) => i.id === itemId);
+    if (!selectedItem) {
+      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
+      return;
+    }
+    const newUnit = selectedItem.unidade_medida || "";
+    try {
+      const unitPrice = await getStockPrice(itemId);
+      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
+    } catch {
+      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
+    }
+  };
+
   const handleCreateDefensivo = async () => {
-    if (!plantation || !defensivoForm.item) return;
+    const validLines = defensivoLines.filter((line) => line.item && line.quantity);
+    if (!plantation || validLines.length === 0) return;
     try {
       setSavingDefensivo(true);
-      const total = defensivoForm.total_price || (defensivoForm.quantity && defensivoForm.unit_price ? String(parseFloat(defensivoForm.quantity) * parseFloat(defensivoForm.unit_price)) : "0");
-      await cropService.createPesticideApplication({
-        plantation: plantation.id, item: defensivoForm.item, pesticide_type: defensivoForm.pesticide_type,
-        quantity: defensivoForm.quantity, unit: defensivoForm.unit,
-        unit_price: defensivoForm.unit_price || null, total_price: total,
-        application_date: defensivoForm.application_date, operator: defensivoForm.operator,
-      });
+      await Promise.all(validLines.map((line) => cropService.createPesticideApplication({
+        plantation: plantation.id,
+        item: line.item,
+        pesticide_type: line.pesticide_type || "other",
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price: line.unit_price || null,
+        total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+        application_date: defensivoForm.application_date,
+        operator: defensivoForm.operator,
+        notes: defensivoForm.notes,
+      })));
       setShowDefensivo(false);
-      setDefensivoForm({ item: "", pesticide_type: "insecticide", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
+      setDefensivoForm({ application_date: "", operator: "", notes: "" });
+      setDefensivoLines([{ ...emptyDefensivoLine }]);
       const { data: r } = await cropService.listPesticideApplications({ plantation: plantation.id });
       setPesticides(Array.isArray(r?.results) ? r.results : []);
     } catch { console.error("Failed to create pesticide application"); }
     finally { setSavingDefensivo(false); }
   };
 
+  const selectedIrrigationPump = irrigationPumps.find((pump) => pump.id === irrigacaoForm.pump_equipment);
+  const irrigationDays = calculateInclusiveDays(irrigacaoForm.start_date, irrigacaoForm.end_date);
+  const irrigationHoursTotal = Number(irrigacaoForm.hours_per_day || 0) * irrigationDays;
+  const irrigationEnergyKwh = Number(selectedIrrigationPump?.power_kw || 0) * irrigationHoursTotal;
+  const irrigationEnergyCost = irrigationEnergyKwh * Number(irrigacaoForm.kwh_value || 0);
+  const irrigationWaterLiters = Number(selectedIrrigationPump?.flow_rate_l_per_h || 0) * irrigationHoursTotal;
+
+  const handleCreatePump = async () => {
+    if (!pumpForm.name || !pumpForm.power_cv || !pumpForm.flow_rate_l_per_h) return;
+    try {
+      setSavingPump(true);
+      const { data } = await cropService.createIrrigationPump({
+        name: pumpForm.name,
+        power_cv: pumpForm.power_cv,
+        flow_rate_l_per_h: pumpForm.flow_rate_l_per_h,
+      });
+      setIrrigationPumps((prev) => [...prev, data]);
+      setIrrigacaoForm((prev) => ({ ...prev, pump_equipment: data.id }));
+      setPumpForm({ name: "", power_cv: "", flow_rate_l_per_h: "" });
+      setShowPumpModal(false);
+    } catch { console.error("Failed to create irrigation pump"); }
+    finally { setSavingPump(false); }
+  };
+
   const handleCreateIrrigacao = async () => {
-    if (!plantation) return;
+    if (!plantation || !irrigacaoForm.start_date || !irrigacaoForm.pump_equipment) return;
     try {
       setSavingIrrigacao(true);
       await cropService.createIrrigation({
         plantation: plantation.id,
-        date: irrigacaoForm.date,
-        hours: irrigacaoForm.hours || null,
-        flow_rate_l_per_h: irrigacaoForm.flow_rate_l_per_h || null,
-        pump_power_kw: irrigacaoForm.pump_power_kw || null,
+        start_date: irrigacaoForm.start_date,
+        end_date: irrigacaoForm.end_date || irrigacaoForm.start_date,
+        irrigation_system: irrigacaoForm.irrigation_system,
+        pump_equipment: irrigacaoForm.pump_equipment,
+        hours_per_day: irrigacaoForm.hours_per_day || null,
         kwh_value: irrigacaoForm.kwh_value || null,
-        pump: irrigacaoForm.pump,
         operator: irrigacaoForm.operator,
       });
       setShowIrrigacao(false);
-      setIrrigacaoForm({ date: "", hours: "", flow_rate_l_per_h: "", pump_power_kw: "", kwh_value: "", pump: "", operator: "" });
+      setIrrigacaoForm({ start_date: "", end_date: "", irrigation_system: "", pump_equipment: "", hours_per_day: "", kwh_value: "", operator: "" });
       const { data: r } = await cropService.listIrrigations({ plantation: plantation.id });
       setIrrigations(Array.isArray(r?.results) ? r.results : []);
     } catch { console.error("Failed to create irrigation"); }
     finally { setSavingIrrigacao(false); }
+  };
+
+  const handlePlantioItemChange = async (itemId: string) => {
+    const selectedItem = inventoryItems.find((i) => i.id === itemId);
+    if (!selectedItem) {
+      setPlantioForm((prev) => ({ ...prev, item: "", unit: "", unit_price: "", total_price: "" }));
+      return;
+    }
+    const newUnit = selectedItem.unidade_medida || "";
+    try {
+      const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
+      const activeLot = lots.find((l) => l.custo_unitario && parseFloat(l.custo_unitario) > 0);
+      const unitPrice = activeLot?.custo_unitario ? String(parseFloat(activeLot.custo_unitario)) : "";
+      setPlantioForm((prev) => ({
+        ...prev,
+        item: itemId,
+        unit: newUnit,
+        unit_price: unitPrice,
+        total_price: prev.quantity && unitPrice ? String(parseFloat(prev.quantity) * parseFloat(unitPrice)) : prev.total_price,
+      }));
+    } catch {
+      setPlantioForm((prev) => ({ ...prev, item: itemId, unit: newUnit }));
+    }
   };
 
   const handleCreatePlantio = async () => {
@@ -428,8 +658,8 @@ export default function PlantacaoDetailPage() {
     return n.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
-  const money = (v: string | null | undefined) => {
-    if (!v) return "-";
+  const money = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined || v === "") return "-";
     return `R$ ${fmt(v)}`;
   };
 
@@ -503,7 +733,7 @@ export default function PlantacaoDetailPage() {
               desc: "Calagem, aração, gradagem e mais",
               stage: shortcutStages.preparo,
               status: "completed" as ShortcutStatus,
-              onClick: () => undefined,
+              onClick: () => router.push(`/home/plantacoes/${id}/preparo-terra`),
               wide: false,
             },
             {
@@ -557,7 +787,7 @@ export default function PlantacaoDetailPage() {
               desc: "Recomendações, programações e acompanhamentos",
               stage: shortcutStages.agronomo,
               status: "in_progress" as ShortcutStatus,
-              onClick: () => undefined,
+              onClick: () => router.push(`/home/plantacoes/${id}/agronomo`),
               wide: false,
             },
             {
@@ -850,15 +1080,20 @@ export default function PlantacaoDetailPage() {
         ) : (
           <div className="table-responsive">
             <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Data</th><th>Horas</th><th>Vazão (L/h)</th><th>Litros</th><th>kWh</th><th>Custo</th></tr></thead>
+              <thead><tr className="text-muted small"><th>Período</th><th>Sistema</th><th>Bomba</th><th>Dias</th><th>Horas Totais</th><th>Água</th><th>Energia</th><th>Custo</th></tr></thead>
               <tbody>
                 {irrigations.map((irr) => (
                   <tr key={irr.id}>
-                    <td className="fw-medium">{irr.date ? new Date(irr.date + "T12:00:00").toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{irr.hours ?? "-"}</td>
-                    <td>{irr.flow_rate_l_per_h ?? "-"}</td>
-                    <td>{irr.liters_used ? fmt(irr.liters_used) : "-"}</td>
-                    <td>{irr.energy_kwh ?? "-"}</td>
+                    <td className="fw-medium">
+                      {(irr.start_date || irr.date) ? new Date(`${irr.start_date || irr.date}T12:00:00`).toLocaleDateString("pt-BR") : "-"}
+                      {irr.end_date && irr.end_date !== (irr.start_date || irr.date) ? ` a ${new Date(`${irr.end_date}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}
+                    </td>
+                    <td>{irr.irrigation_system_display || "-"}</td>
+                    <td>{irr.pump_name || "-"}</td>
+                    <td>{irr.operating_days ?? "-"}</td>
+                    <td>{irr.hours ? `${fmt(irr.hours)} h` : "-"}</td>
+                    <td>{irr.liters_used ? `${fmt(irr.liters_used, 0)} L` : "-"}</td>
+                    <td>{irr.energy_kwh ? `${fmt(irr.energy_kwh)} kWh` : "-"}</td>
                     <td>{irr.energy_cost ? money(irr.energy_cost) : "-"}</td>
                   </tr>
                 ))}
@@ -880,13 +1115,15 @@ export default function PlantacaoDetailPage() {
         <div className="row g-3">
           <div className="col-12">
             <label className="form-label small fw-medium">Insumo (Semente) *</label>
-            <select className="form-select" value={plantioForm.item}
-              onChange={(e) => setPlantioForm({ ...plantioForm, item: e.target.value })}>
+            <select className="form-select" value={plantioForm.item} onChange={(e) => handlePlantioItemChange(e.target.value)}>
               <option value="">Selecione...</option>
-              {inventoryItems.map((i) => (
-                <option key={i.id} value={i.id}>{i.nome}</option>
-              ))}
+              {inventoryItems
+                .filter((i) => !i.especie_animal)
+                .map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
             </select>
+            {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
+              <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+            )}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Quantidade *</label>
@@ -900,18 +1137,32 @@ export default function PlantacaoDetailPage() {
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Unidade</label>
-            <input className="form-control" value={plantioForm.unit}
-              onChange={(e) => setPlantioForm({ ...plantioForm, unit: e.target.value })} placeholder="kg, sc, un" />
+            <select className="form-select" value={plantioForm.unit} onChange={(e) => setPlantioForm({ ...plantioForm, unit: e.target.value })}>
+              <option value="">Selecione...</option>
+              <option value="kg">kg — Quilograma</option>
+              <option value="g">g — Grama</option>
+              <option value="l">L — Litro</option>
+              <option value="ml">mL — Mililitro</option>
+              <option value="saco">sc — Saco</option>
+              <option value="tonelada">t — Tonelada</option>
+            </select>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Preço Unitário (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={plantioForm.unit_price}
-              onChange={(e) => {
-                const up = e.target.value;
-                const q = plantioForm.quantity;
-                const total = q && up ? String(parseFloat(q) * parseFloat(up)) : "";
-                setPlantioForm({ ...plantioForm, unit_price: up, total_price: total });
-              }} />
+            <div className="input-group">
+              <input
+                className="form-control"
+                type="number"
+                step="0.01"
+                value={plantioForm.unit_price}
+                readOnly={!!plantioForm.item}
+                style={plantioForm.item ? { backgroundColor: "var(--bs-secondary-bg, #e9ecef)", cursor: "not-allowed" } : {}}
+                onChange={(e) => { if (!plantioForm.item) { const up = e.target.value; const q = plantioForm.quantity; setPlantioForm({ ...plantioForm, unit_price: up, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); } }}
+              />
+              {plantioForm.item && (
+                <span className="input-group-text" style={{ fontSize: "0.75rem", color: "var(--bs-secondary)" }} title="Preço automático do estoque">Auto</span>
+              )}
+            </div>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Valor Total (R$)</label>
@@ -938,33 +1189,64 @@ export default function PlantacaoDetailPage() {
 
       {/* Modal: Nova Adubação */}
       <Modal isOpen={showAdubacao} onClose={() => setShowAdubacao(false)} title="Registrar Adubação"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowAdubacao(false)}>Cancelar</Button><Button onClick={handleCreateAdubacao} disabled={savingAdubacao}>{savingAdubacao ? "Salvando..." : "Salvar"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowAdubacao(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingAdubacao}>Salvar rascunho</Button><Button onClick={handleCreateAdubacao} disabled={savingAdubacao}>{savingAdubacao ? "Salvando..." : "Salvar adubação"}</Button></div>}
       >
-        <div className="row g-3">
-          <div className="col-12">
-            <label className="form-label small fw-medium">Insumo *</label>
-            <select className="form-select" value={adubacaoForm.item} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, item: e.target.value })}>
-              <option value="">Selecione...</option>
-              {inventoryItems.map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
-            </select>
+        <div className="d-flex flex-column gap-3">
+          <div className="d-flex align-items-center justify-content-between gap-2">
+            <strong className="small text-success">Fertilizantes utilizados na aplicação</strong>
+            <Button variant="outline-success" size="sm" onClick={() => setAdubacaoLines((prev) => [...prev, { ...emptyAdubacaoLine }])}>+ Adicionar</Button>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Quantidade *</label>
-            <input className="form-control" type="number" step="0.01" value={adubacaoForm.quantity}
-              onChange={(e) => { const q = e.target.value; const up = adubacaoForm.unit_price; setAdubacaoForm({ ...adubacaoForm, quantity: q, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); }} />
+          <div className="table-responsive">
+            <table className="table align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Fertilizante (Insumo)</th>
+                  <th style={{ minWidth: 130 }}>Quantidade</th>
+                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
+                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  <th className="text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adubacaoLines.map((line, index) => (
+                  <tr key={index}>
+                    <td style={{ minWidth: 260 }}>
+                      <select className="form-select" value={line.item} onChange={(e) => handleAdubacaoLineItemChange(index, e.target.value)}>
+                        <option value="">Selecione um fertilizante do estoque...</option>
+                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                          <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control" type="number" step="0.01" value={line.quantity}
+                        onChange={(e) => setAdubacaoLines((prev) => updateApplicationLine(prev, index, { quantity: e.target.value }))} />
+                    </td>
+                    <td>
+                      <select className="form-select" value={line.unit} onChange={(e) => setAdubacaoLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
+                        <option value="">Selecione...</option>
+                        {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                    </td>
+                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    <td className="text-center">
+                      <Button variant="outline-danger" size="sm" onClick={() => setAdubacaoLines((prev) => prev.length === 1 ? [{ ...emptyAdubacaoLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Unidade</label>
-            <input className="form-control" value={adubacaoForm.unit} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, unit: e.target.value })} />
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Preço Unit. (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={adubacaoForm.unit_price}
-              onChange={(e) => { const up = e.target.value; const q = adubacaoForm.quantity; setAdubacaoForm({ ...adubacaoForm, unit_price: up, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); }} />
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Valor Total (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={adubacaoForm.total_price} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, total_price: e.target.value })} />
+          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
+            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          )}
+          <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
+            <span className="fw-medium">Total de itens: {adubacaoLines.filter((line) => line.item).length}</span>
+            <strong className="text-success">Valor total da adubação: {money(adubacaoLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -973,6 +1255,11 @@ export default function PlantacaoDetailPage() {
           <div className="col-6">
             <label className="form-label small fw-medium">Operador</label>
             <input className="form-control" value={adubacaoForm.operator} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, operator: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label small fw-medium">Observações</label>
+            <textarea className="form-control" rows={2} maxLength={300} value={adubacaoForm.notes} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, notes: e.target.value })} placeholder="Ex.: Local da aplicação, condição do solo, dose recomendada..." />
+            <div className="text-end text-muted small">{adubacaoForm.notes.length}/300</div>
           </div>
         </div>
       </Modal>
@@ -984,18 +1271,49 @@ export default function PlantacaoDetailPage() {
         <div className="row g-3">
           <div className="col-12">
             <label className="form-label small fw-medium">Insumo *</label>
-            <select className="form-select" value={fertirrigacaoForm.item} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, item: e.target.value })}>
+            <select className="form-select" value={fertirrigacaoForm.item} onChange={(e) => handleFertirrigacaoItemChange(e.target.value)}>
               <option value="">Selecione...</option>
-              {inventoryItems.map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
+              {inventoryItems
+                .filter((i) => !i.especie_animal)
+                .map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
             </select>
+            {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
+              <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+            )}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Quantidade *</label>
-            <input className="form-control" type="number" step="0.01" value={fertirrigacaoForm.quantity} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, quantity: e.target.value })} />
+            <input className="form-control" type="number" step="0.01" value={fertirrigacaoForm.quantity}
+              onChange={(e) => { const q = e.target.value; const up = fertirrigacaoForm.unit_price; setFertirrigacaoForm({ ...fertirrigacaoForm, quantity: q, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); }} />
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Unidade</label>
-            <input className="form-control" value={fertirrigacaoForm.unit} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, unit: e.target.value })} />
+            <select className="form-select" value={fertirrigacaoForm.unit} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, unit: e.target.value })}>
+              <option value="">Selecione...</option>
+              <option value="kg">kg — Quilograma</option>
+              <option value="g">g — Grama</option>
+              <option value="l">L — Litro</option>
+              <option value="ml">mL — Mililitro</option>
+              <option value="saco">sc — Saco</option>
+              <option value="tonelada">t — Tonelada</option>
+            </select>
+          </div>
+          <div className="col-6">
+            <label className="form-label small fw-medium">Preço Unit. (R$)</label>
+            <div className="input-group">
+              <input
+                className="form-control"
+                type="number"
+                step="0.01"
+                value={fertirrigacaoForm.unit_price}
+                readOnly={!!fertirrigacaoForm.item}
+                style={fertirrigacaoForm.item ? { backgroundColor: "var(--bs-secondary-bg, #e9ecef)", cursor: "not-allowed" } : {}}
+                onChange={(e) => { if (!fertirrigacaoForm.item) { const up = e.target.value; const q = fertirrigacaoForm.quantity; setFertirrigacaoForm({ ...fertirrigacaoForm, unit_price: up, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); } }}
+              />
+              {fertirrigacaoForm.item && (
+                <span className="input-group-text" style={{ fontSize: "0.75rem", color: "var(--bs-secondary)" }} title="Preço automático do estoque">Auto</span>
+              )}
+            </div>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Valor Total (R$)</label>
@@ -1014,45 +1332,70 @@ export default function PlantacaoDetailPage() {
 
       {/* Modal: Novo Defensivo */}
       <Modal isOpen={showDefensivo} onClose={() => setShowDefensivo(false)} title="Registrar Defensivo"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowDefensivo(false)}>Cancelar</Button><Button onClick={handleCreateDefensivo} disabled={savingDefensivo}>{savingDefensivo ? "Salvando..." : "Salvar"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowDefensivo(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingDefensivo}>Salvar rascunho</Button><Button onClick={handleCreateDefensivo} disabled={savingDefensivo}>{savingDefensivo ? "Salvando..." : "Salvar aplicação"}</Button></div>}
       >
-        <div className="row g-3">
-          <div className="col-12">
-            <label className="form-label small fw-medium">Insumo *</label>
-            <select className="form-select" value={defensivoForm.item} onChange={(e) => setDefensivoForm({ ...defensivoForm, item: e.target.value })}>
-              <option value="">Selecione...</option>
-              {inventoryItems.map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
-            </select>
+        <div className="d-flex flex-column gap-3">
+          <div className="d-flex align-items-center justify-content-between gap-2">
+            <strong className="small text-success">Defensivos da aplicação</strong>
+            <Button variant="outline-success" size="sm" onClick={() => setDefensivoLines((prev) => [...prev, { ...emptyDefensivoLine }])}>+ Adicionar</Button>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Tipo</label>
-            <select className="form-select" value={defensivoForm.pesticide_type} onChange={(e) => setDefensivoForm({ ...defensivoForm, pesticide_type: e.target.value })}>
-              <option value="insecticide">Inseticida</option>
-              <option value="herbicide">Herbicida</option>
-              <option value="fungicide">Fungicida</option>
-              <option value="adjuvant">Adjuvante</option>
-              <option value="acaricide">Acaricida</option>
-              <option value="bactericide">Bactericida</option>
-              <option value="other">Outro</option>
-            </select>
+          <div className="table-responsive">
+            <table className="table align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Insumo</th>
+                  <th style={{ minWidth: 160 }}>Tipo</th>
+                  <th style={{ minWidth: 130 }}>Quantidade</th>
+                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
+                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  <th className="text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {defensivoLines.map((line, index) => (
+                  <tr key={index}>
+                    <td style={{ minWidth: 260 }}>
+                      <select className="form-select" value={line.item} onChange={(e) => handleDefensivoLineItemChange(index, e.target.value)}>
+                        <option value="">Selecione um insumo...</option>
+                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                          <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select className="form-select" value={line.pesticide_type || "other"} onChange={(e) => setDefensivoLines((prev) => updateApplicationLine(prev, index, { pesticide_type: e.target.value }))}>
+                        {pesticideTypeOptions.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control" type="number" step="0.01" value={line.quantity}
+                        onChange={(e) => setDefensivoLines((prev) => updateApplicationLine(prev, index, { quantity: e.target.value }))} />
+                    </td>
+                    <td>
+                      <select className="form-select" value={line.unit} onChange={(e) => setDefensivoLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
+                        <option value="">Selecione...</option>
+                        {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                    </td>
+                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    <td className="text-center">
+                      <Button variant="outline-danger" size="sm" onClick={() => setDefensivoLines((prev) => prev.length === 1 ? [{ ...emptyDefensivoLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Quantidade *</label>
-            <input className="form-control" type="number" step="0.01" value={defensivoForm.quantity}
-              onChange={(e) => { const q = e.target.value; const up = defensivoForm.unit_price; setDefensivoForm({ ...defensivoForm, quantity: q, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); }} />
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Unidade</label>
-            <input className="form-control" value={defensivoForm.unit} onChange={(e) => setDefensivoForm({ ...defensivoForm, unit: e.target.value })} />
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Preço Unit. (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={defensivoForm.unit_price}
-              onChange={(e) => { const up = e.target.value; const q = defensivoForm.quantity; setDefensivoForm({ ...defensivoForm, unit_price: up, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); }} />
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Valor Total (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={defensivoForm.total_price} onChange={(e) => setDefensivoForm({ ...defensivoForm, total_price: e.target.value })} />
+          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
+            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          )}
+          <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
+            <span className="fw-medium">Total de itens: {defensivoLines.filter((line) => line.item).length}</span>
+            <strong className="text-success">Valor total da aplicação: {money(defensivoLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1062,41 +1405,94 @@ export default function PlantacaoDetailPage() {
             <label className="form-label small fw-medium">Operador</label>
             <input className="form-control" value={defensivoForm.operator} onChange={(e) => setDefensivoForm({ ...defensivoForm, operator: e.target.value })} />
           </div>
+          <div>
+            <label className="form-label small fw-medium">Observações</label>
+            <textarea className="form-control" rows={2} maxLength={300} value={defensivoForm.notes} onChange={(e) => setDefensivoForm({ ...defensivoForm, notes: e.target.value })} placeholder="Ex.: Condições climáticas, pragas alvo, recomendações..." />
+            <div className="text-end text-muted small">{defensivoForm.notes.length}/300</div>
+          </div>
         </div>
       </Modal>
 
       {/* Modal: Nova Irrigação */}
       <Modal isOpen={showIrrigacao} onClose={() => setShowIrrigacao(false)} title="Registrar Irrigação"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowIrrigacao(false)}>Cancelar</Button><Button onClick={handleCreateIrrigacao} disabled={savingIrrigacao}>{savingIrrigacao ? "Salvando..." : "Salvar"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowIrrigacao(false)}>Cancelar</Button><Button onClick={handleCreateIrrigacao} disabled={savingIrrigacao}>{savingIrrigacao ? "Salvando..." : "Salvar irrigação"}</Button></div>}
       >
         <div className="row g-3">
           <div className="col-6">
-            <label className="form-label small fw-medium">Data *</label>
-            <input className="form-control" type="date" value={irrigacaoForm.date} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, date: e.target.value })} />
+            <label className="form-label small fw-medium">Data inicial *</label>
+            <input className="form-control" type="date" value={irrigacaoForm.start_date} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, start_date: e.target.value, end_date: irrigacaoForm.end_date || e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Bomba *</label>
-            <input className="form-control" value={irrigacaoForm.pump} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, pump: e.target.value })} />
+            <label className="form-label small fw-medium">Data final</label>
+            <input className="form-control" type="date" value={irrigacaoForm.end_date} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, end_date: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Horas</label>
-            <input className="form-control" type="number" step="0.1" value={irrigacaoForm.hours} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, hours: e.target.value })} />
+            <label className="form-label small fw-medium">Sistema de irrigação</label>
+            <select className="form-select" value={irrigacaoForm.irrigation_system} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, irrigation_system: e.target.value })}>
+              <option value="">Selecione...</option>
+              {irrigationSystemOptions.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}
+            </select>
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Vazão (L/h)</label>
-            <input className="form-control" type="number" step="0.01" value={irrigacaoForm.flow_rate_l_per_h} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, flow_rate_l_per_h: e.target.value })} />
+            <label className="form-label small fw-medium">Bomba utilizada *</label>
+            <div className="input-group">
+              <select className="form-select" value={irrigacaoForm.pump_equipment} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, pump_equipment: e.target.value })}>
+                <option value="">Selecione...</option>
+                {irrigationPumps.map((pump) => (
+                  <option key={pump.id} value={pump.id}>{pump.name} - {fmt(pump.power_cv)} CV / {fmt(pump.flow_rate_l_per_h, 0)} L/h</option>
+                ))}
+              </select>
+              <Button variant="outline-success" onClick={() => setShowPumpModal(true)} title="Cadastrar nova bomba"><Plus size={16} /></Button>
+            </div>
+            {selectedIrrigationPump && (
+              <small className="text-muted">Potência convertida: {fmt(selectedIrrigationPump.power_kw)} kW</small>
+            )}
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Potência da Bomba (kW)</label>
-            <input className="form-control" type="number" step="0.01" value={irrigacaoForm.pump_power_kw} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, pump_power_kw: e.target.value })} />
+            <label className="form-label small fw-medium">Horas de funcionamento por dia</label>
+            <input className="form-control" type="number" step="0.1" value={irrigacaoForm.hours_per_day} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, hours_per_day: e.target.value })} placeholder="Ex.: 6.5" />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Valor kWh</label>
+            <label className="form-label small fw-medium">Valor do kWh</label>
             <input className="form-control" type="number" step="0.0001" value={irrigacaoForm.kwh_value} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, kwh_value: e.target.value })} />
           </div>
           <div className="col-12">
             <label className="form-label small fw-medium">Operador</label>
             <input className="form-control" value={irrigacaoForm.operator} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, operator: e.target.value })} />
+          </div>
+          <div className="col-12">
+            <div className="rounded border bg-success-subtle p-3">
+              <div className="row g-3 small">
+                <div className="col-6 col-md-3"><span className="text-muted d-block">Dias do período</span><strong>{irrigationDays} dia{irrigationDays === 1 ? "" : "s"}</strong></div>
+                <div className="col-6 col-md-3"><span className="text-muted d-block">Horas totais</span><strong>{fmt(irrigationHoursTotal)} h</strong></div>
+                <div className="col-6 col-md-3"><span className="text-muted d-block">Energia</span><strong>{fmt(irrigationEnergyKwh)} kWh</strong></div>
+                <div className="col-6 col-md-3"><span className="text-muted d-block">Custo energia</span><strong>{money(irrigationEnergyCost)}</strong></div>
+                <div className="col-12"><span className="text-muted d-block">Volume total de água aplicado</span><strong>{fmt(irrigationWaterLiters, 0)} L</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showPumpModal} onClose={() => setShowPumpModal(false)} title="Cadastrar Bomba"
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowPumpModal(false)}>Cancelar</Button><Button onClick={handleCreatePump} disabled={savingPump}>{savingPump ? "Salvando..." : "Salvar bomba"}</Button></div>}
+      >
+        <div className="row g-3">
+          <div className="col-12">
+            <label className="form-label small fw-medium">Nome da bomba *</label>
+            <input className="form-control" value={pumpForm.name} onChange={(e) => setPumpForm({ ...pumpForm, name: e.target.value })} placeholder="Ex.: Bomba poço 01" />
+          </div>
+          <div className="col-6">
+            <label className="form-label small fw-medium">Potência (CV) *</label>
+            <input className="form-control" type="number" step="0.01" value={pumpForm.power_cv} onChange={(e) => setPumpForm({ ...pumpForm, power_cv: e.target.value })} />
+          </div>
+          <div className="col-6">
+            <label className="form-label small fw-medium">Potência convertida</label>
+            <div className="form-control bg-light">{fmt(cvToKw(pumpForm.power_cv))} kW</div>
+          </div>
+          <div className="col-12">
+            <label className="form-label small fw-medium">Vazão (L/h) *</label>
+            <input className="form-control" type="number" step="0.01" value={pumpForm.flow_rate_l_per_h} onChange={(e) => setPumpForm({ ...pumpForm, flow_rate_l_per_h: e.target.value })} />
           </div>
         </div>
       </Modal>

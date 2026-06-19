@@ -1,0 +1,473 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  ClipboardList,
+  Download,
+  Eye,
+  FileText,
+  FlaskConical,
+  MoreVertical,
+  Plus,
+  Save,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
+import apiClient from "@/services/api";
+import { cropService } from "@/services/cropService";
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Badge } from "@/components/ui/Badge";
+
+type Plantation = {
+  id: string;
+  name?: string;
+  crop_name: string;
+  field_name?: string;
+  farm_name?: string;
+  planted_area_ha?: string | number | null;
+};
+
+type InventoryItem = {
+  id: string;
+  nome: string;
+  especie_animal?: string;
+  unidade_medida?: string;
+  estoque_atual?: string;
+};
+
+type SoilAnalysis = {
+  id: string;
+  original_name: string;
+  file_url: string;
+  uploaded_by_name?: string | null;
+  created_at: string;
+};
+
+type RecommendationProduct = {
+  item: string;
+  item_name?: string;
+  dose_per_ha: string;
+  dose_unit: string;
+  total_quantity: string;
+  total_unit: string;
+  notes: string;
+};
+
+type Recommendation = {
+  id: string;
+  title: string;
+  objective?: string;
+  recommendation_date: string;
+  suggested_application_date?: string | null;
+  priority: "low" | "medium" | "high";
+  priority_display?: string;
+  status: "pending" | "in_progress" | "completed";
+  status_display?: string;
+  area_ha?: string | number | null;
+  products?: Array<RecommendationProduct & { id?: string }>;
+};
+
+const emptyProduct: RecommendationProduct = {
+  item: "",
+  dose_per_ha: "",
+  dose_unit: "l_ha",
+  total_quantity: "",
+  total_unit: "l",
+  notes: "",
+};
+
+const priorityOptions = [
+  { value: "low", label: "Baixa" },
+  { value: "medium", label: "Média" },
+  { value: "high", label: "Alta" },
+];
+
+const statusOptions = [
+  { value: "pending", label: "Pendente" },
+  { value: "in_progress", label: "Em execução" },
+  { value: "completed", label: "Concluída" },
+];
+
+const unitOptions = [
+  { value: "l", label: "L" },
+  { value: "ml", label: "mL" },
+  { value: "kg", label: "kg" },
+  { value: "g", label: "g" },
+  { value: "unidade", label: "un" },
+];
+
+const doseUnitOptions = [
+  { value: "l_ha", label: "L/ha" },
+  { value: "ml_ha", label: "mL/ha" },
+  { value: "kg_ha", label: "kg/ha" },
+  { value: "g_ha", label: "g/ha" },
+];
+
+const statusVariant = (status: Recommendation["status"]) => {
+  if (status === "completed") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
+  if (status === "in_progress") return { background: "#dbeafe", color: "#1d4ed8", border: "1px solid #93c5fd" };
+  return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
+};
+
+const today = () => new Date().toISOString().split("T")[0];
+
+export default function AgronomoPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [plantation, setPlantation] = useState<Plantation | null>(null);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [soilAnalyses, setSoilAnalyses] = useState<SoilAnalysis[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    objective: "",
+    recommendation_date: today(),
+    suggested_application_date: "",
+    priority: "medium",
+    status: "pending",
+  });
+  const [products, setProducts] = useState<RecommendationProduct[]>([{ ...emptyProduct }]);
+
+  const agriculturalItems = useMemo(
+    () => inventoryItems.filter((item) => !item.especie_animal),
+    [inventoryItems],
+  );
+
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      try {
+        setLoading(true);
+        const [plantationRes, itemsRes, soilRes, recommendationsRes] = await Promise.all([
+          cropService.get(id),
+          apiClient.get("/inventory/items/all_items/").catch(() => ({ data: [] })),
+          apiClient.get("/crops/soil-analyses/", { params: { plantation: id } }).catch(() => ({ data: { results: [] } })),
+          apiClient.get("/crops/agronomist-recommendations/", { params: { plantation: id } }).catch(() => ({ data: { results: [] } })),
+        ]);
+        setPlantation(plantationRes.data);
+        setInventoryItems(Array.isArray(itemsRes.data) ? itemsRes.data : []);
+        setSoilAnalyses(Array.isArray(soilRes.data?.results) ? soilRes.data.results : []);
+        setRecommendations(Array.isArray(recommendationsRes.data?.results) ? recommendationsRes.data.results : []);
+      } catch (error) {
+        console.error("Erro ao carregar área do agrônomo", error);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
+
+  const updateProduct = (index: number, patch: Partial<RecommendationProduct>) => {
+    setProducts((prev) => prev.map((product, productIndex) => {
+      if (productIndex !== index) return product;
+      return { ...product, ...patch };
+    }));
+  };
+
+  const handleUpload = async (file: File | null) => {
+    if (!file || !id) return;
+    try {
+      setUploading(true);
+      const data = new FormData();
+      data.append("plantation", id);
+      data.append("file", file);
+      const response = await apiClient.post("/crops/soil-analyses/", data);
+      setSoilAnalyses((prev) => [response.data, ...prev]);
+    } catch (error) {
+      console.error("Erro ao anexar análise de solo", error);
+      alert("Não foi possível anexar a análise de solo.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSaveRecommendation = async () => {
+    if (!id || !form.title.trim()) return;
+    const validProducts = products.filter((product) => product.item);
+    try {
+      setSaving(true);
+      const payload = {
+        plantation: id,
+        title: form.title,
+        objective: form.objective,
+        recommendation_date: form.recommendation_date,
+        suggested_application_date: form.suggested_application_date || null,
+        priority: form.priority,
+        status: form.status,
+        products: validProducts.map((product) => ({
+          item: product.item,
+          dose_per_ha: product.dose_per_ha || null,
+          dose_unit: product.dose_unit,
+          total_quantity: product.total_quantity || null,
+          total_unit: product.total_unit,
+          notes: product.notes,
+        })),
+      };
+      const response = await apiClient.post("/crops/agronomist-recommendations/", payload);
+      setRecommendations((prev) => [response.data, ...prev]);
+      setForm({
+        title: "",
+        objective: "",
+        recommendation_date: today(),
+        suggested_application_date: "",
+        priority: "medium",
+        status: "pending",
+      });
+      setProducts([{ ...emptyProduct }]);
+    } catch (error) {
+      console.error("Erro ao salvar recomendação", error);
+      alert("Não foi possível salvar a recomendação.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4">
+        <Skeleton height="48px" width="340px" className="mb-4" />
+        <div className="row g-4">
+          <div className="col-lg-5"><Skeleton height="360px" /></div>
+          <div className="col-lg-7"><Skeleton height="360px" /></div>
+          <div className="col-12"><Skeleton height="420px" /></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!plantation) {
+    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+  }
+
+  return (
+    <div>
+      <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-4">
+        <div className="d-flex align-items-center gap-3">
+          <button className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" onClick={() => router.back()} style={{ width: 38, height: 38, borderRadius: 10 }}>
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h1 className="fw-black mb-1 d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
+              <FlaskConical size={28} className="text-success" /> Área do Agrônomo
+            </h1>
+            <p className="text-muted mb-0 small">
+              {plantation.name || plantation.crop_name} › {plantation.field_name || "Talhão"}
+            </p>
+          </div>
+        </div>
+        <Button variant="outline-secondary" onClick={() => router.push(`/home/plantacoes/${id}`)}>
+          Voltar para a plantação
+        </Button>
+      </div>
+
+      <div className="row g-4">
+        <div className="col-lg-5">
+          <div className="dashboard-card p-4 h-100">
+            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><FlaskConical size={18} /> Análise de solo</h6>
+            <p className="text-muted small mb-4">Anexe e consulte a análise de solo vinculada a este talhão.</p>
+
+            <label
+              className="border rounded d-flex flex-column align-items-center justify-content-center text-center p-4 mb-4"
+              style={{ minHeight: 180, cursor: "pointer", background: "var(--bs-tertiary-bg, #f8f9fa)" }}
+            >
+              <UploadCloud size={42} className="text-success mb-2" />
+              <strong>{uploading ? "Enviando análise..." : "Anexar análise de solo"}</strong>
+              <span className="text-muted small mt-2">PDF, JPG ou PNG até 10MB</span>
+              <input
+                className="d-none"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                disabled={uploading}
+                onChange={(event) => handleUpload(event.target.files?.[0] || null)}
+              />
+            </label>
+
+            <h6 className="fw-bold small mb-3">Análises anexadas</h6>
+            {soilAnalyses.length === 0 ? (
+              <p className="text-muted small mb-0">Nenhuma análise de solo anexada.</p>
+            ) : (
+              <div className="d-flex flex-column gap-2">
+                {soilAnalyses.map((analysis) => (
+                  <div key={analysis.id} className="border rounded p-3 d-flex align-items-center gap-3">
+                    <FileText size={30} className="text-danger flex-shrink-0" />
+                    <div className="flex-grow-1 min-w-0">
+                      <div className="fw-semibold text-truncate">{analysis.original_name || "Análise de solo"}</div>
+                      <div className="text-muted small">
+                        Anexado em: {new Date(analysis.created_at).toLocaleDateString("pt-BR")}
+                        {analysis.uploaded_by_name ? ` por ${analysis.uploaded_by_name}` : ""}
+                      </div>
+                    </div>
+                    <Button variant="outline-secondary" size="sm" onClick={() => window.open(analysis.file_url, "_blank")} title="Visualizar">
+                      <Eye size={16} />
+                    </Button>
+                    <a className="btn btn-outline-secondary btn-sm" href={analysis.file_url} download title="Baixar">
+                      <Download size={16} />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-lg-7">
+          <div className="dashboard-card p-4 h-100">
+            <div className="d-flex align-items-center justify-content-between gap-2 mb-4">
+              <div>
+                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Recomendações do agrônomo</h6>
+                <p className="text-muted small mb-0">Histórico técnico desta cultura.</p>
+              </div>
+              <Button variant="agro" size="sm" onClick={() => document.getElementById("nova-recomendacao")?.scrollIntoView({ behavior: "smooth" })}>
+                <Plus size={16} /> Nova recomendação
+              </Button>
+            </div>
+
+            {recommendations.length === 0 ? (
+              <p className="text-muted small mb-0">Nenhuma recomendação registrada.</p>
+            ) : (
+              <div className="d-flex flex-column gap-3">
+                {recommendations.slice(0, 5).map((recommendation, index) => (
+                  <div key={recommendation.id} className="border rounded p-3">
+                    <div className="d-flex align-items-start justify-content-between gap-2">
+                      <div className="d-flex align-items-center gap-3 flex-wrap">
+                        <Badge style={{ background: "#047857", color: "#fff" }}>#{String(recommendations.length - index).padStart(2, "0")}</Badge>
+                        <span className="small">{formatDate(recommendation.recommendation_date)}</span>
+                        <span className="small">Aplicação sugerida: {formatDate(recommendation.suggested_application_date)}</span>
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
+                        <MoreVertical size={16} className="text-muted" />
+                      </div>
+                    </div>
+                    <div className="fw-bold mt-2">{recommendation.title}</div>
+                    <div className="d-flex gap-4 text-muted small mt-2 flex-wrap">
+                      <span>Produtos: {recommendation.products?.length || 0} item{(recommendation.products?.length || 0) === 1 ? "" : "s"}</span>
+                      <span>Área: {recommendation.area_ha || plantation.planted_area_ha || "-"} ha</span>
+                      <span>Prioridade: {recommendation.priority_display || recommendation.priority}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-12" id="nova-recomendacao">
+          <div className="dashboard-card p-4">
+            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Nova recomendação</h6>
+            <p className="text-muted small mb-4">Preencha os dados da recomendação agrícola.</p>
+
+            <div className="row g-3 mb-4">
+              <div className="col-lg-6">
+                <label className="form-label small fw-medium">Título da recomendação *</label>
+                <input className="form-control" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex.: Aplicar herbicida pós-emergente" />
+              </div>
+              <div className="col-md-3">
+                <label className="form-label small fw-medium">Data da recomendação *</label>
+                <input className="form-control" type="date" value={form.recommendation_date} onChange={(e) => setForm({ ...form, recommendation_date: e.target.value })} />
+              </div>
+              <div className="col-md-3">
+                <label className="form-label small fw-medium">Data sugerida para aplicação</label>
+                <input className="form-control" type="date" value={form.suggested_application_date} onChange={(e) => setForm({ ...form, suggested_application_date: e.target.value })} />
+              </div>
+              <div className="col-lg-6">
+                <label className="form-label small fw-medium">Observações / objetivo</label>
+                <textarea className="form-control" rows={2} maxLength={300} value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder="Descreva o objetivo da recomendação..." />
+                <div className="text-end text-muted small">{form.objective.length}/300</div>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label small fw-medium">Prioridade</label>
+                <select className="form-select" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                  {priorityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label small fw-medium">Status</label>
+                <select className="form-select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <h6 className="fw-bold text-success mb-3">Produtos recomendados</h6>
+            <div className="table-responsive mb-3">
+              <table className="table align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th>Produto</th>
+                    <th>Dose/ha</th>
+                    <th>Unidade</th>
+                    <th>Quantidade total</th>
+                    <th>Unidade</th>
+                    <th>Observações</th>
+                    <th className="text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((product, index) => (
+                    <tr key={index}>
+                      <td style={{ minWidth: 240 }}>
+                        <select className="form-select" value={product.item} onChange={(e) => updateProduct(index, { item: e.target.value })}>
+                          <option value="">Selecione o produto</option>
+                          {agriculturalItems.map((item) => (
+                            <option key={item.id} value={item.id}>{item.nome}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ minWidth: 120 }}>
+                        <input className="form-control" type="number" step="0.01" value={product.dose_per_ha} onChange={(e) => updateProduct(index, { dose_per_ha: e.target.value })} placeholder="0,00" />
+                      </td>
+                      <td style={{ minWidth: 110 }}>
+                        <select className="form-select" value={product.dose_unit} onChange={(e) => updateProduct(index, { dose_unit: e.target.value })}>
+                          {doseUnitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ minWidth: 140 }}>
+                        <input className="form-control" type="number" step="0.01" value={product.total_quantity} onChange={(e) => updateProduct(index, { total_quantity: e.target.value })} placeholder="0,00" />
+                      </td>
+                      <td style={{ minWidth: 100 }}>
+                        <select className="form-select" value={product.total_unit} onChange={(e) => updateProduct(index, { total_unit: e.target.value })}>
+                          {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ minWidth: 220 }}>
+                        <input className="form-control" value={product.notes} onChange={(e) => updateProduct(index, { notes: e.target.value })} placeholder="Observações" />
+                      </td>
+                      <td className="text-center">
+                        <Button variant="outline-danger" size="sm" onClick={() => setProducts((prev) => prev.length === 1 ? [{ ...emptyProduct }] : prev.filter((_, productIndex) => productIndex !== index))}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+              <Button variant="outline-success" onClick={() => setProducts((prev) => [...prev, { ...emptyProduct }])}>
+                <Plus size={16} /> Adicionar produto
+              </Button>
+              <div className="d-flex gap-2">
+                <Button variant="outline-secondary" onClick={() => router.push(`/home/plantacoes/${id}`)}>Cancelar</Button>
+                <Button variant="agro" onClick={handleSaveRecommendation} disabled={saving}>
+                  <Save size={16} /> {saving ? "Salvando..." : "Salvar recomendação"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
