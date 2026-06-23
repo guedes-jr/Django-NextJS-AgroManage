@@ -534,19 +534,94 @@ class AgronomistRecommendationProduct(BaseModel):
 class Harvest(BaseModel):
     """Harvest event for a planting cycle / plantation."""
 
+    class HarvestType(models.TextChoices):
+        PARTIAL = "partial", "Parcial"
+        TOTAL = "total", "Total"
+
+    class Destination(models.TextChoices):
+        SALE = "sale", "Venda"
+        STOCK = "stock", "Estoque"
+        OWN_USE = "own_use", "Uso próprio"
+        SEED = "seed", "Semente"
+        OTHER = "other", "Outro"
+
     planting_cycle = models.ForeignKey(PlantingCycle, on_delete=models.CASCADE, related_name="harvests")
+    harvest_type = models.CharField(
+        max_length=20, choices=HarvestType.choices, default=HarvestType.PARTIAL
+    )
     harvest_date = models.DateField()
     yield_kg = models.DecimalField(max_digits=14, decimal_places=2)
     yield_per_ha_kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    destination = models.CharField(
+        max_length=20, choices=Destination.choices, default=Destination.SALE
+    )
+    buyer = models.ForeignKey(
+        "HarvestBuyer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="harvests",
+    )
+    buyer_name = models.CharField(max_length=255, blank=True)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    revenue_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     quality_grade = models.CharField(max_length=50, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="harvests_created",
+    )
     notes = models.TextField(blank=True)
 
     class Meta(BaseModel.Meta):
-        verbose_name = "Harvest"
-        verbose_name_plural = "Harvests"
+        verbose_name = "Colheita"
+        verbose_name_plural = "Colheitas"
+        indexes = [
+            models.Index(fields=["planting_cycle", "harvest_date"]),
+            models.Index(fields=["destination", "harvest_date"]),
+        ]
 
     def __str__(self) -> str:
-        return f"Harvest {self.harvest_date} — {self.yield_kg} kg"
+        return f"{self.planting_cycle} — {self.harvest_date} ({self.yield_kg} kg)"
+
+    def save(self, *args, **kwargs):
+        if self.buyer and not self.buyer_name:
+            self.buyer_name = self.buyer.name
+
+        if self.destination == self.Destination.SALE and self.unit_price:
+            self.revenue_amount = (self.yield_kg * self.unit_price).quantize(Decimal("0.01"))
+        else:
+            self.revenue_amount = Decimal("0")
+
+        super().save(*args, **kwargs)
+
+
+class HarvestBuyer(BaseModel):
+    """Buyer/client used as the destination contact for crop sales."""
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="harvest_buyers",
+    )
+    name = models.CharField(max_length=255)
+    document = models.CharField(max_length=30, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Comprador de Colheita"
+        verbose_name_plural = "Compradores de Colheita"
+        indexes = [
+            models.Index(fields=["organization", "name"]),
+            models.Index(fields=["organization", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Tractor(BaseModel):

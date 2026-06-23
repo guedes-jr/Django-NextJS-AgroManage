@@ -198,3 +198,36 @@ def create_labor_record(serializer, request):
         )
 
     return labor_record
+
+
+@transaction.atomic
+def create_harvest(serializer, request):
+    """Register a harvest and create revenue when production is sold."""
+    harvest = serializer.save(
+        created_by=request.user if request.user.is_authenticated else None,
+    )
+
+    if harvest.destination == harvest.Destination.SALE and harvest.revenue_amount > 0:
+        from apps.finance.models import FinancialCategory, Transaction
+
+        plantation = harvest.planting_cycle
+        category, _ = FinancialCategory.objects.get_or_create(
+            organization=plantation.organization,
+            name="Colheita",
+            category_type="revenue",
+        )
+
+        Transaction.objects.create(
+            organization=plantation.organization,
+            farm=plantation.farm,
+            category=category,
+            description=f"Colheita: {plantation} — {harvest.buyer_name or harvest.buyer or 'Venda'}",
+            amount=harvest.revenue_amount,
+            due_date=harvest.harvest_date,
+            status="paid",
+            planting_cycle=plantation,
+            reference=f"HARVEST-{harvest.id}",
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+
+    return harvest

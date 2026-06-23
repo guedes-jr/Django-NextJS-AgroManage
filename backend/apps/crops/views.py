@@ -19,6 +19,7 @@ from .models import (
     SoilAnalysis,
     AgronomistRecommendation,
     Harvest,
+    HarvestBuyer,
     Tractor,
     LandPreparation,
     LaborWorker,
@@ -37,6 +38,7 @@ from .serializers import (
     SoilAnalysisSerializer,
     AgronomistRecommendationSerializer,
     HarvestSerializer,
+    HarvestBuyerSerializer,
     TractorSerializer,
     LandPreparationSerializer,
     LaborWorkerSerializer,
@@ -47,7 +49,7 @@ from .services import (
     create_planting, create_fertilization,
     create_fertigation, create_pesticide_application,
     create_irrigation, create_land_preparation,
-    create_labor_record,
+    create_labor_record, create_harvest,
 )
 from .selectors import (
     get_plantation_dashboard,
@@ -127,7 +129,7 @@ class PlantingCycleViewSet(viewsets.ModelViewSet):
 
 
 class HarvestViewSet(viewsets.ModelViewSet):
-    queryset = Harvest.objects.select_related("planting_cycle").all()
+    queryset = Harvest.objects.select_related("planting_cycle", "buyer", "created_by").all()
     serializer_class = HarvestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -140,8 +142,37 @@ class HarvestViewSet(viewsets.ModelViewSet):
             planting_cycle_id = self.request.query_params.get("planting_cycle")
             if planting_cycle_id:
                 qs = qs.filter(planting_cycle_id=planting_cycle_id)
+            destination = self.request.query_params.get("destination")
+            if destination:
+                qs = qs.filter(destination=destination)
+            harvest_type = self.request.query_params.get("harvest_type")
+            if harvest_type:
+                qs = qs.filter(harvest_type=harvest_type)
             return qs
         return qs.none()
+
+    def perform_create(self, serializer):
+        create_harvest(serializer, self.request)
+
+
+class HarvestBuyerViewSet(viewsets.ModelViewSet):
+    serializer_class = HarvestBuyerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated and self.request.user.organization:
+            qs = HarvestBuyer.objects.filter(organization=self.request.user.organization)
+            is_active = self.request.query_params.get("is_active")
+            if is_active is not None:
+                qs = qs.filter(is_active=is_active.lower() in ["1", "true", "yes"])
+            return qs
+        return HarvestBuyer.objects.none()
+
+    def perform_create(self, serializer):
+        if self.request.user.is_authenticated and self.request.user.organization:
+            serializer.save(organization=self.request.user.organization)
+        else:
+            raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
 
 
 class PlantingViewSet(viewsets.ModelViewSet):

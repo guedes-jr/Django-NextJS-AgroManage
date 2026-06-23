@@ -80,6 +80,25 @@ export const cropService = {
   createLaborRecord: (data: Record<string, unknown>) =>
     apiClient.post("/crops/labor-records/", data),
 
+  // ── Harvests ───────────────────────────────────────────
+  listHarvests: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/harvests/", { params }),
+
+  createHarvest: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/harvests/", data),
+
+  updateHarvest: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/harvests/${id}/`, data),
+
+  deleteHarvest: (id: string) =>
+    apiClient.delete(`/crops/harvests/${id}/`),
+
+  listHarvestBuyers: (params?: Record<string, string | number | boolean>) =>
+    apiClient.get("/crops/harvest-buyers/", { params }),
+
+  createHarvestBuyer: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/harvest-buyers/", data),
+
   // ── Fields ───────────────────────────────────────────────────────────────
   listFields: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/fields/", { params }),

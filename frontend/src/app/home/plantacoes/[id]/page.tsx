@@ -814,7 +814,7 @@ export default function PlantacaoDetailPage() {
               desc: "Produção, sacas, umidade e valor",
               stage: shortcutStages.colheita,
               status: "pending" as ShortcutStatus,
-              onClick: () => undefined,
+              onClick: () => router.push(`/home/plantacoes/${id}/colheita`),
               wide: true,
             },
           ].map((shortcut) => (

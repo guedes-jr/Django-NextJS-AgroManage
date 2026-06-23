@@ -13,6 +13,7 @@ from .models import (
     AgronomistRecommendation,
     AgronomistRecommendationProduct,
     Harvest,
+    HarvestBuyer,
 )
 
 
@@ -89,5 +90,16 @@ class AgronomistRecommendationAdmin(admin.ModelAdmin):
 
 @admin.register(Harvest)
 class HarvestAdmin(admin.ModelAdmin):
-    list_display = ["planting_cycle", "harvest_date", "yield_kg"]
-    list_filter = ["harvest_date"]
+    list_display = [
+        "planting_cycle", "harvest_date", "harvest_type",
+        "yield_kg", "destination", "buyer_name", "revenue_amount",
+    ]
+    list_filter = ["harvest_type", "destination", "harvest_date"]
+    search_fields = ["planting_cycle__name", "planting_cycle__crop_name", "buyer_name"]
+
+
+@admin.register(HarvestBuyer)
+class HarvestBuyerAdmin(admin.ModelAdmin):
+    list_display = ["name", "organization", "document", "phone", "is_active"]
+    list_filter = ["is_active"]
+    search_fields = ["name", "document", "phone"]

@@ -16,6 +16,7 @@ from .models import (
     AgronomistRecommendation,
     AgronomistRecommendationProduct,
     Harvest,
+    HarvestBuyer,
     Tractor,
     LandPreparation,
     LaborWorker,
@@ -345,11 +346,73 @@ class AgronomistRecommendationSerializer(serializers.ModelSerializer):
         return instance
 
 
+class HarvestBuyerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HarvestBuyer
+        fields = [
+            "id", "organization", "name", "document", "phone",
+            "is_active", "notes", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "organization", "created_at", "updated_at"]
+
+
 class HarvestSerializer(serializers.ModelSerializer):
+    buyer_name_display = serializers.CharField(source="buyer.name", read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    destination_display = serializers.CharField(source="get_destination_display", read_only=True)
+    harvest_type_display = serializers.CharField(source="get_harvest_type_display", read_only=True)
+    planting_cycle_name = serializers.CharField(source="planting_cycle.name", read_only=True)
+
     class Meta:
         model = Harvest
-        fields = "__all__"
-        read_only_fields = ["id", "created_at", "updated_at"]
+        fields = [
+            "id", "planting_cycle", "planting_cycle_name",
+            "harvest_type", "harvest_type_display",
+            "harvest_date", "yield_kg", "yield_per_ha_kg",
+            "destination", "destination_display",
+            "buyer", "buyer_name", "buyer_name_display",
+            "unit_price", "revenue_amount",
+            "quality_grade", "created_by", "created_by_name",
+            "notes", "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "planting_cycle_name", "harvest_type_display",
+            "destination_display", "buyer_name_display",
+            "revenue_amount", "created_by", "created_by_name",
+            "created_at", "updated_at",
+        ]
+
+    def get_created_by_name(self, obj):
+        if not obj.created_by:
+            return None
+        return obj.created_by.full_name or obj.created_by.email
+
+    def validate(self, attrs):
+        planting_cycle = attrs.get("planting_cycle") or getattr(self.instance, "planting_cycle", None)
+        buyer = attrs.get("buyer") or getattr(self.instance, "buyer", None)
+        destination = attrs.get("destination", getattr(self.instance, "destination", None))
+        unit_price = attrs.get("unit_price", getattr(self.instance, "unit_price", None))
+        yield_kg = attrs.get("yield_kg", getattr(self.instance, "yield_kg", None))
+        request = self.context.get("request")
+        organization = getattr(getattr(request, "user", None), "organization", None)
+
+        if planting_cycle and organization and planting_cycle.organization_id != organization.id:
+            raise serializers.ValidationError({"planting_cycle": "Plantação inválida para esta organização."})
+        if buyer and organization and buyer.organization_id != organization.id:
+            raise serializers.ValidationError({"buyer": "Comprador inválido para esta organização."})
+        if planting_cycle and buyer and planting_cycle.organization_id != buyer.organization_id:
+            raise serializers.ValidationError({"buyer": "Comprador não pertence à organização da plantação."})
+        if yield_kg is not None and yield_kg <= 0:
+            raise serializers.ValidationError({"yield_kg": "A quantidade colhida deve ser maior que zero."})
+        if destination == Harvest.Destination.SALE:
+            if not buyer and not attrs.get("buyer_name", getattr(self.instance, "buyer_name", "")):
+                raise serializers.ValidationError({"buyer": "Informe o comprador para vendas."})
+            if unit_price is None or unit_price <= 0:
+                raise serializers.ValidationError({"unit_price": "O preço de venda deve ser maior que zero."})
+        if attrs.get("notes") and len(attrs["notes"]) > 200:
+            raise serializers.ValidationError({"notes": "As observações devem ter no máximo 200 caracteres."})
+
+        return attrs
 
 
 class TractorSerializer(serializers.ModelSerializer):

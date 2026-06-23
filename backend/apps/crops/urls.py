@@ -15,6 +15,7 @@ router.register(r"irrigation-pumps", views.IrrigationPumpViewSet, basename="crop
 router.register(r"soil-analyses", views.SoilAnalysisViewSet, basename="crops-soil-analyses")
 router.register(r"agronomist-recommendations", views.AgronomistRecommendationViewSet, basename="crops-agronomist-recommendations")
 router.register(r"harvests", views.HarvestViewSet, basename="crops-harvests")
+router.register(r"harvest-buyers", views.HarvestBuyerViewSet, basename="crops-harvest-buyers")
 router.register(r"tractors", views.TractorViewSet, basename="crops-tractors")
 router.register(r"land-preparations", views.LandPreparationViewSet, basename="crops-land-preparations")
 router.register(r"labor-workers", views.LaborWorkerViewSet, basename="crops-labor-workers")
