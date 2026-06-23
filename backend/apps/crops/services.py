@@ -167,3 +167,34 @@ def create_land_preparation(serializer, request):
     if prep.total_price > 0:
         _create_financial_transaction(prep, request, "Máquinas", "LANDPREP")
     return prep
+
+
+@transaction.atomic
+def create_labor_record(serializer, request):
+    """Register a labor record and create its financial expense."""
+    labor_record = serializer.save()
+
+    if labor_record.total_amount and labor_record.total_amount > 0:
+        from apps.finance.models import FinancialCategory, Transaction
+
+        plantation = labor_record.plantation
+        category, _ = FinancialCategory.objects.get_or_create(
+            organization=plantation.organization,
+            name="Mão de Obra",
+            category_type="expense",
+        )
+
+        Transaction.objects.create(
+            organization=plantation.organization,
+            farm=plantation.farm,
+            category=category,
+            description=f"Mão de Obra: {plantation} — {labor_record.worker}",
+            amount=labor_record.total_amount,
+            due_date=labor_record.activity_date,
+            status="paid",
+            planting_cycle=plantation,
+            reference=f"LABOR-{labor_record.id}",
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+
+    return labor_record

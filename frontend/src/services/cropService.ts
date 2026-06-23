@@ -67,6 +67,19 @@ export const cropService = {
   createIrrigationPump: (data: Record<string, unknown>) =>
     apiClient.post("/crops/irrigation-pumps/", data),
 
+  // ── Labor ──────────────────────────────────────────────
+  listLaborWorkers: (params?: Record<string, string | number | boolean>) =>
+    apiClient.get("/crops/labor-workers/", { params }),
+
+  createLaborWorker: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/labor-workers/", data),
+
+  listLaborRecords: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/labor-records/", { params }),
+
+  createLaborRecord: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/labor-records/", data),
+
   // ── Fields ───────────────────────────────────────────────────────────────
   listFields: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/fields/", { params }),

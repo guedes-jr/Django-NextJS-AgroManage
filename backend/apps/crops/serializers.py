@@ -18,6 +18,8 @@ from .models import (
     Harvest,
     Tractor,
     LandPreparation,
+    LaborWorker,
+    LaborRecord,
 )
 
 
@@ -379,3 +381,64 @@ class LandPreparationSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "created_at", "updated_at"]
+
+
+class LaborWorkerSerializer(serializers.ModelSerializer):
+    worker_type_display = serializers.CharField(source="get_worker_type_display", read_only=True)
+
+    class Meta:
+        model = LaborWorker
+        fields = [
+            "id", "organization", "name", "worker_type", "worker_type_display",
+            "document", "phone", "is_active", "notes",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "organization", "worker_type_display", "created_at", "updated_at"]
+
+
+class LaborRecordSerializer(serializers.ModelSerializer):
+    worker_name = serializers.CharField(source="worker.name", read_only=True)
+    worker_type = serializers.CharField(source="worker.worker_type", read_only=True)
+    activity_type_display = serializers.CharField(source="get_activity_type_display", read_only=True)
+    payment_method_display = serializers.CharField(source="get_payment_method_display", read_only=True)
+
+    class Meta:
+        model = LaborRecord
+        fields = [
+            "id", "plantation", "worker", "worker_name", "worker_type",
+            "activity_type", "activity_type_display",
+            "payment_method", "payment_method_display",
+            "activity_date", "daily_quantity", "daily_rate", "total_amount",
+            "notes", "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "worker_name", "worker_type",
+            "activity_type_display", "payment_method_display",
+            "total_amount", "created_at", "updated_at",
+        ]
+
+    def validate(self, attrs):
+        plantation = attrs.get("plantation") or getattr(self.instance, "plantation", None)
+        worker = attrs.get("worker") or getattr(self.instance, "worker", None)
+        request = self.context.get("request")
+        organization = getattr(getattr(request, "user", None), "organization", None)
+
+        if plantation and organization and plantation.organization_id != organization.id:
+            raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+        if worker and organization and worker.organization_id != organization.id:
+            raise serializers.ValidationError({"worker": "Trabalhador inválido para esta organização."})
+        if plantation and worker and plantation.organization_id != worker.organization_id:
+            raise serializers.ValidationError({"worker": "Trabalhador não pertence à organização da plantação."})
+
+        daily_quantity = attrs.get("daily_quantity", getattr(self.instance, "daily_quantity", None))
+        daily_rate = attrs.get("daily_rate", getattr(self.instance, "daily_rate", None))
+        if daily_quantity is not None and daily_quantity <= 0:
+            raise serializers.ValidationError({"daily_quantity": "A quantidade de diárias deve ser maior que zero."})
+        if daily_rate is not None and daily_rate <= 0:
+            raise serializers.ValidationError({"daily_rate": "O valor da diária deve ser maior que zero."})
+
+        notes = attrs.get("notes")
+        if notes and len(notes) > 300:
+            raise serializers.ValidationError({"notes": "As observações devem ter no máximo 300 caracteres."})
+
+        return attrs

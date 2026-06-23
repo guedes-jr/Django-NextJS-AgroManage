@@ -625,3 +625,86 @@ class LandPreparation(BaseModel):
             if self.fuel_liters and self.fuel_price:
                 cost += self.fuel_liters * self.fuel_price
         return cost
+
+
+class LaborWorker(BaseModel):
+    """Employee or service provider available for crop labor records."""
+
+    class WorkerType(models.TextChoices):
+        EMPLOYEE = "employee", "Funcionário"
+        PROVIDER = "provider", "Prestador"
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="labor_workers",
+    )
+    name = models.CharField(max_length=255)
+    worker_type = models.CharField(
+        max_length=20, choices=WorkerType.choices, default=WorkerType.EMPLOYEE
+    )
+    document = models.CharField(max_length=30, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Trabalhador"
+        verbose_name_plural = "Trabalhadores"
+        indexes = [
+            models.Index(fields=["organization", "name"]),
+            models.Index(fields=["organization", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class LaborRecord(BaseModel):
+    """Labor expense registered against a plantation."""
+
+    class ActivityType(models.TextChoices):
+        LAND_PREPARATION = "land_preparation", "Preparo de terra"
+        PLANTING = "planting", "Plantio"
+        FERTILIZATION = "fertilization", "Adubação"
+        FERTIGATION = "fertigation", "Fertirrigação"
+        PESTICIDE_APPLICATION = "pesticide_application", "Aplicação de Defensivos"
+        IRRIGATION = "irrigation", "Irrigação"
+        HARVEST = "harvest", "Colheita"
+        OTHER = "other", "Outro"
+
+    class PaymentMethod(models.TextChoices):
+        DAILY = "daily", "Por diária"
+
+    plantation = models.ForeignKey(
+        PlantingCycle, on_delete=models.CASCADE, related_name="labor_records"
+    )
+    worker = models.ForeignKey(
+        LaborWorker, on_delete=models.PROTECT, related_name="labor_records"
+    )
+    activity_type = models.CharField(
+        max_length=40, choices=ActivityType.choices, default=ActivityType.OTHER
+    )
+    payment_method = models.CharField(
+        max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.DAILY
+    )
+    activity_date = models.DateField()
+    daily_quantity = models.DecimalField(max_digits=8, decimal_places=2)
+    daily_rate = models.DecimalField(max_digits=12, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Lançamento de Mão de Obra"
+        verbose_name_plural = "Lançamentos de Mão de Obra"
+        indexes = [
+            models.Index(fields=["plantation", "activity_date"]),
+            models.Index(fields=["worker", "activity_date"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.plantation} — {self.worker} @ {self.activity_date}"
+
+    def save(self, *args, **kwargs):
+        self.total_amount = (self.daily_quantity * self.daily_rate).quantize(Decimal("0.01"))
+        super().save(*args, **kwargs)

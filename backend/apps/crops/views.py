@@ -21,6 +21,8 @@ from .models import (
     Harvest,
     Tractor,
     LandPreparation,
+    LaborWorker,
+    LaborRecord,
 )
 from .serializers import (
     FieldSerializer,
@@ -37,12 +39,15 @@ from .serializers import (
     HarvestSerializer,
     TractorSerializer,
     LandPreparationSerializer,
+    LaborWorkerSerializer,
+    LaborRecordSerializer,
 )
 from .services import (
     create_plantation, update_plantation,
     create_planting, create_fertilization,
     create_fertigation, create_pesticide_application,
     create_irrigation, create_land_preparation,
+    create_labor_record,
 )
 from .selectors import (
     get_plantation_dashboard,
@@ -348,3 +353,45 @@ class LandPreparationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         create_land_preparation(serializer, self.request)
+
+
+class LaborWorkerViewSet(viewsets.ModelViewSet):
+    serializer_class = LaborWorkerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated and self.request.user.organization:
+            qs = LaborWorker.objects.filter(organization=self.request.user.organization)
+            is_active = self.request.query_params.get("is_active")
+            if is_active is not None:
+                qs = qs.filter(is_active=is_active.lower() in ["1", "true", "yes"])
+            return qs
+        return LaborWorker.objects.none()
+
+    def perform_create(self, serializer):
+        if self.request.user.is_authenticated and self.request.user.organization:
+            serializer.save(organization=self.request.user.organization)
+        else:
+            raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
+
+
+class LaborRecordViewSet(viewsets.ModelViewSet):
+    serializer_class = LaborRecordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated and self.request.user.organization:
+            qs = LaborRecord.objects.filter(
+                plantation__organization=self.request.user.organization
+            ).select_related("plantation", "worker")
+            plantation_id = self.request.query_params.get("plantation")
+            if plantation_id:
+                qs = qs.filter(plantation_id=plantation_id)
+            worker_id = self.request.query_params.get("worker")
+            if worker_id:
+                qs = qs.filter(worker_id=worker_id)
+            return qs
+        return LaborRecord.objects.none()
+
+    def perform_create(self, serializer):
+        create_labor_record(serializer, self.request)

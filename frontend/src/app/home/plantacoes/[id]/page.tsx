@@ -796,7 +796,7 @@ export default function PlantacaoDetailPage() {
               desc: "Atividades, horas trabalhadas e custos",
               stage: shortcutStages.maoObra,
               status: "pending" as ShortcutStatus,
-              onClick: () => undefined,
+              onClick: () => router.push(`/home/plantacoes/${id}/mao-obra`),
               wide: false,
             },
             {

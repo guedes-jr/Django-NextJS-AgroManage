@@ -17,6 +17,8 @@ router.register(r"agronomist-recommendations", views.AgronomistRecommendationVie
 router.register(r"harvests", views.HarvestViewSet, basename="crops-harvests")
 router.register(r"tractors", views.TractorViewSet, basename="crops-tractors")
 router.register(r"land-preparations", views.LandPreparationViewSet, basename="crops-land-preparations")
+router.register(r"labor-workers", views.LaborWorkerViewSet, basename="crops-labor-workers")
+router.register(r"labor-records", views.LaborRecordViewSet, basename="crops-labor-records")
 
 urlpatterns = [
     path("dashboard/", views.CropsDashboardView.as_view(), name="crops-dashboard"),
