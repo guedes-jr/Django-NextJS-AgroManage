@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Droplets, ClipboardList, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { apiClient } from "@/services/api";
 import { cropService } from "@/services/cropService";
 import type { Plantation, PlantationStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +28,15 @@ const statusLabels: Record<string, string> = {
 
 type FieldOption = { id: string; name: string; farm_name: string };
 type FarmOption = { id: string; name: string; city?: string; state?: string };
+type InventorySeedOption = {
+  id: string;
+  nome: string;
+  categoria?: string;
+  categoria_display?: string;
+  estoque_atual?: string;
+  unidade_medida?: string;
+  unidade_display?: string;
+};
 type DashboardData = {
   total_plantations?: number;
   total_active?: number;
@@ -65,7 +75,19 @@ const defaultCultureOptions = [
   "Trigo",
   "Uva",
 ];
-const featuredCultureOptions = ["Milho", "Soja", "Feijão", "Sorgo", "Milheto"];
+const featuredCultureOptions = ["Milho", "Soja", "Feijão", "Sorgo", "Milheto", "Melancia"];
+
+const irrigationTypeOptions = [
+  { value: "", label: "Selecione..." },
+  { value: "Pivô central", label: "Pivô central" },
+  { value: "Gotejamento", label: "Gotejamento" },
+  { value: "Aspersão", label: "Aspersão" },
+  { value: "Microaspersão", label: "Microaspersão" },
+  { value: "Mangueira", label: "Mangueira" },
+  { value: "Sulco", label: "Sulco" },
+  { value: "Inundação", label: "Inundação" },
+  { value: "Outro", label: "Outro" },
+];
 
 const cropVisuals: Record<string, { image: string; icon: React.ReactNode; color: string }> = {
   milho: { image: "/images/crops/cultures/corn.png", icon: <Wheat size={18} />, color: "oklch(0.7 0.17 86)" },
@@ -74,6 +96,7 @@ const cropVisuals: Record<string, { image: string; icon: React.ReactNode; color:
   feijao: { image: "/images/crops/cultures/bean.png", icon: <Sprout size={18} />, color: "oklch(0.58 0.13 65)" },
   sorgo: { image: "/images/crops/cultures/sorghum.png", icon: <Wheat size={18} />, color: "oklch(0.58 0.15 38)" },
   milheto: { image: "/images/crops/cultures/millet.png", icon: <Flower2 size={18} />, color: "oklch(0.6 0.14 112)" },
+  melancia: { image: "/images/crops/cultures/watermelon.png", icon: <Leaf size={18} />, color: "oklch(0.58 0.16 145)" },
 };
 
 const cropVisualKeywords = [
@@ -82,10 +105,53 @@ const cropVisualKeywords = [
   { keys: ["feijao", "feijão", "bean"], visual: cropVisuals.feijão },
   { keys: ["sorgo", "sorghum"], visual: cropVisuals.sorgo },
   { keys: ["milheto", "millet"], visual: cropVisuals.milheto },
+  { keys: ["melancia", "watermelon"], visual: cropVisuals.melancia },
 ];
 
 const normalizeCropName = (value: string) =>
   value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+const parseDecimalInput = (value: string | number | undefined | null) => {
+  if (value == null || value === "") return 0;
+  const rawValue = String(value).trim();
+  const normalized = rawValue.includes(",")
+    ? rawValue.replace(/\./g, "").replace(",", ".")
+    : rawValue;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const calculatePlantPopulation = (areaHa: string, rowSpacingM: string, plantSpacingM: string) => {
+  const area = parseDecimalInput(areaHa);
+  const rowSpacing = parseDecimalInput(rowSpacingM);
+  const plantSpacing = parseDecimalInput(plantSpacingM);
+  if (area <= 0 || rowSpacing <= 0 || plantSpacing <= 0) return "";
+  return String(Math.round((area * 10000) / (rowSpacing * plantSpacing)));
+};
+
+const formatSpacing = (rowSpacingM: string, plantSpacingM: string) => {
+  const parts = [];
+  if (rowSpacingM) parts.push(`ruas: ${rowSpacingM} m`);
+  if (plantSpacingM) parts.push(`plantas: ${plantSpacingM} m`);
+  return parts.join(" | ");
+};
+
+const extractSpacingValues = (spacing?: string | null) => {
+  if (!spacing) return { row: "", plant: "" };
+  const values = spacing.match(/\d+(?:[,.]\d+)?/g) || [];
+  if (spacing.toLowerCase().includes("ruas") || spacing.toLowerCase().includes("plantas")) {
+    return { row: values[0] || "", plant: values[1] || "" };
+  }
+  return { plant: values[0] || "", row: values[1] || "" };
+};
+
+const isSeedInventoryItem = (item: InventorySeedOption) => {
+  const text = `${item.nome} ${item.categoria || ""} ${item.categoria_display || ""}`.toLowerCase();
+  return (
+    text.includes("semente") ||
+    ["material", "outro", "suplemento"].includes(item.categoria || "")
+  );
+};
 
 function KpiCard({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; color: string }) {
   return (
@@ -169,7 +235,10 @@ export default function PlantacoesDashboard() {
     seed_quantity_used: "",
     population: "",
     spacing: "",
+    plant_spacing_m: "",
+    row_spacing_m: "",
     planting_date: "",
+    expected_harvest_days: "",
     expected_harvest_date: "",
     status: "planned" as PlantationStatus,
     notes: "",
@@ -178,6 +247,7 @@ export default function PlantacoesDashboard() {
   const [formError, setFormError] = useState("");
   const [fields, setFields] = useState<FieldOption[]>([]);
   const [farms, setFarms] = useState<FarmOption[]>([]);
+  const [seedItems, setSeedItems] = useState<InventorySeedOption[]>([]);
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [savingField, setSavingField] = useState(false);
   const [fieldError, setFieldError] = useState("");
@@ -236,6 +306,15 @@ export default function PlantacoesDashboard() {
     }
   }, []);
 
+  const fetchSeedItems = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get<InventorySeedOption[]>("/inventory/items/all_items/");
+      setSeedItems(Array.isArray(data) ? data.filter(isSeedInventoryItem) : []);
+    } catch {
+      console.error("Failed to load seed inventory items");
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDashboard();
@@ -252,15 +331,20 @@ export default function PlantacoesDashboard() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchFarms();
   }, [fetchFarms]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchSeedItems();
+  }, [fetchSeedItems]);
 
   const openCreate = () => {
     setEditing(null);
     setFormError("");
-    setForm({ field: "", name: "", crop_type: "grain", crop_name: "", variety: "", hybrid: "", planted_area_ha: "", seed_quantity_used: "", population: "", spacing: "", planting_date: "", expected_harvest_date: "", status: "planned", notes: "" });
+    setForm({ field: "", name: "", crop_type: "grain", crop_name: "", variety: "", hybrid: "", planted_area_ha: "", seed_quantity_used: "", population: "", spacing: "", plant_spacing_m: "", row_spacing_m: "", planting_date: "", expected_harvest_days: "", expected_harvest_date: "", status: "planned", notes: "" });
     setShowModal(true);
   };
 
   const openEdit = (p: Plantation) => {
+    const spacingValues = extractSpacingValues(p.spacing);
     setEditing(p);
     setFormError("");
     setForm({
@@ -274,7 +358,10 @@ export default function PlantacoesDashboard() {
       seed_quantity_used: p.seed_quantity_used || "",
       population: p.population?.toString() || "",
       spacing: p.spacing || "",
+      plant_spacing_m: spacingValues.plant,
+      row_spacing_m: spacingValues.row,
       planting_date: p.planting_date || "",
+      expected_harvest_days: calculateDaysBetween(p.planting_date, p.expected_harvest_date),
       expected_harvest_date: p.expected_harvest_date || "",
       status: p.status || "planned",
       notes: p.notes || "",
@@ -336,12 +423,31 @@ export default function PlantacoesDashboard() {
     try {
       setSaving(true);
       setFormError("");
+      const calculatedExpectedHarvestDate = addDaysToDate(form.planting_date, form.expected_harvest_days);
+      const calculatedPopulation = calculatePlantPopulation(form.planted_area_ha, form.row_spacing_m, form.plant_spacing_m);
+      const formattedSpacing = formatSpacing(form.row_spacing_m, form.plant_spacing_m);
+      const formPayload: Omit<typeof form, "expected_harvest_days" | "plant_spacing_m" | "row_spacing_m"> = {
+        field: form.field,
+        name: form.name,
+        crop_type: form.crop_type,
+        crop_name: form.crop_name,
+        variety: form.variety,
+        hybrid: form.hybrid,
+        planted_area_ha: form.planted_area_ha,
+        seed_quantity_used: form.seed_quantity_used,
+        population: calculatedPopulation || form.population,
+        spacing: formattedSpacing || form.spacing,
+        planting_date: form.planting_date,
+        expected_harvest_date: form.expected_harvest_date,
+        status: form.status,
+        notes: form.notes,
+      };
       const payload = {
-        ...form,
+        ...formPayload,
         planted_area_ha: form.planted_area_ha ? Number(form.planted_area_ha) : null,
         seed_quantity_used: form.seed_quantity_used ? Number(form.seed_quantity_used) : null,
-        population: form.population ? Number(form.population) : null,
-        expected_harvest_date: form.expected_harvest_date || null,
+        population: formPayload.population ? Number(formPayload.population) : null,
+        expected_harvest_date: calculatedExpectedHarvestDate || null,
       };
       if (editing) {
         await cropService.update(editing.id, payload);
@@ -385,6 +491,24 @@ export default function PlantacoesDashboard() {
   const formatDate = (value: string | null | undefined) => (
     value ? new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR") : "-"
   );
+
+  const addDaysToDate = (date: string, days: string) => {
+    const parsedDays = Number(days);
+    if (!date || !Number.isFinite(parsedDays) || parsedDays <= 0) return "";
+    const d = new Date(`${date}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return "";
+    d.setDate(d.getDate() + parsedDays);
+    return d.toISOString().split("T")[0];
+  };
+
+  const calculateDaysBetween = (startDate?: string | null, endDate?: string | null) => {
+    if (!startDate || !endDate) return "";
+    const start = new Date(`${startDate}T12:00:00`);
+    const end = new Date(`${endDate}T12:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+    const diff = Math.round((end.getTime() - start.getTime()) / 86400000);
+    return diff > 0 ? String(diff) : "";
+  };
 
   const getHarvestYear = (plantingDate: string | null | undefined) => {
     if (!plantingDate) return "-";
@@ -436,13 +560,29 @@ export default function PlantacoesDashboard() {
     return Array.from(names).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [plantations]);
 
+  const varietyOptions = useMemo(() => {
+    const names = new Set(seedItems.map((item) => item.nome).filter(Boolean));
+    if (form.variety) names.add(form.variety);
+    return Array.from(names).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [form.variety, seedItems]);
+
+  const getSeedItemLabel = (name: string) => {
+    const item = seedItems.find((seed) => seed.nome === name);
+    if (!item) return name;
+    const unit = item.unidade_display || item.unidade_medida || "";
+    const stock = item.estoque_atual ? ` - estoque: ${item.estoque_atual}${unit ? ` ${unit}` : ""}` : "";
+    return `${item.nome}${stock}`;
+  };
+
   const areaPlanted = dashboardData?.total_area_ha || plantations.reduce((total, plantation) => total + parseNumber(plantation.planted_area_ha), 0);
   const totalArea = parseNumber(areaPlanted) ? parseNumber(areaPlanted) / 0.78 : 0;
   const selectedField = fields.find((field) => field.id === form.field);
   const formVisual = getCropVisual(form.crop_name || form.name);
   const formHarvestYear = getHarvestYear(form.planting_date);
-  const formStatusLabel = cropService.statusChoices.find((status) => status.value === form.status)?.label || "Planejada";
-  const formNextActivity = form.expected_harvest_date ? `Colheita em ${formatDate(form.expected_harvest_date)}` : "Defina a previsão de colheita";
+  const calculatedExpectedHarvestDate = addDaysToDate(form.planting_date, form.expected_harvest_days);
+  const calculatedPopulation = calculatePlantPopulation(form.planted_area_ha, form.row_spacing_m, form.plant_spacing_m);
+  const displayedPopulation = calculatedPopulation || form.population;
+  const formNextActivity = calculatedExpectedHarvestDate ? `Colheita em ${formatDate(calculatedExpectedHarvestDate)}` : "Informe os dias previstos";
 
   return (
     <div style={{ maxWidth: 1500, margin: "0 auto" }}>
@@ -592,7 +732,7 @@ export default function PlantacoesDashboard() {
                     <th className="border-0 py-2 fw-bold">Safra</th>
                     <th className="border-0 py-2 fw-bold">Área (ha)</th>
                     <th className="border-0 py-2 fw-bold">Pés / Plantas</th>
-                    <th className="border-0 py-2 fw-bold">Variedade / Híbrido</th>
+                    <th className="border-0 py-2 fw-bold">Variedade</th>
                     <th className="border-0 py-2 fw-bold">Fase Atual</th>
                     <th className="border-0 py-2 fw-bold">Situação</th>
                     <th className="border-0 py-2 fw-bold">Próxima Atividade</th>
@@ -625,7 +765,7 @@ export default function PlantacoesDashboard() {
                           <div className="fw-bold text-foreground">{formatCompactNumber(plantation.population)}</div>
                           <div className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>plantas</div>
                         </td>
-                        <td className="text-muted-foreground fw-semibold" style={{ fontSize: "0.78rem" }}>{plantation.hybrid || plantation.variety || "-"}</td>
+                        <td className="text-muted-foreground fw-semibold" style={{ fontSize: "0.78rem" }}>{plantation.variety || "-"}</td>
                         <td>
                           <div className="d-inline-flex flex-column px-3 py-1" style={{ background: "oklch(0.96 0.025 150)", borderRadius: 7, minWidth: 120 }}>
                             <span className="fw-bold" style={{ color: "oklch(0.42 0.14 145)", fontSize: "0.72rem" }}>{phase.title}</span>
@@ -720,13 +860,13 @@ export default function PlantacoesDashboard() {
                     <div className="col-6 col-lg-3">
                       <div className="rounded-3 p-2" style={{ background: "oklch(0.97 0.015 145)" }}>
                         <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Plantas</div>
-                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{form.population ? formatCompactNumber(form.population) : "-"}</div>
+                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{displayedPopulation ? formatCompactNumber(displayedPopulation) : "-"}</div>
                       </div>
                     </div>
                     <div className="col-6 col-lg-3">
                       <div className="rounded-3 p-2" style={{ background: "oklch(0.97 0.015 145)" }}>
-                        <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Situação</div>
-                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{formStatusLabel}</div>
+                        <div className="text-muted-foreground" style={{ fontSize: "0.66rem" }}>Colheita</div>
+                        <div className="fw-bold" style={{ fontSize: "0.82rem" }}>{formatDate(calculatedExpectedHarvestDate)}</div>
                       </div>
                     </div>
                     <div className="col-6 col-lg-3">
@@ -822,20 +962,18 @@ export default function PlantacoesDashboard() {
             </div>
             <div className="col-12 col-md-4">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Previsão de colheita</label>
+                <label className="login-label fw-bold">Dias previstos até a colheita</label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="date" value={form.expected_harvest_date} onChange={(e) => setForm({ ...form, expected_harvest_date: e.target.value })} />
+                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="number" min="1" step="1" placeholder="Ex: 90" value={form.expected_harvest_days} onChange={(e) => setForm({ ...form, expected_harvest_days: e.target.value })} />
                   <Calendar className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
             </div>
             <div className="col-12 col-md-4">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Situação <span className="text-danger">*</span></label>
+                <label className="login-label fw-bold">Data da colheita automática</label>
                 <div className="login-input-wrapper">
-                  <select className="login-input login-input-icon-left bg-white text-foreground" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as PlantationStatus })}>
-                    {cropService.statusChoices.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
-                  </select>
+                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="date" value={calculatedExpectedHarvestDate} readOnly disabled />
                   <Activity className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
@@ -853,9 +991,10 @@ export default function PlantacoesDashboard() {
               <div className="login-input-group mb-0">
                 <label className="login-label fw-bold">Pés / plantas</label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" type="number" min="0" step="1" placeholder="Ex: 62500" value={form.population} onChange={(e) => setForm({ ...form, population: e.target.value })} />
+                  <input className="login-input login-input-icon-left bg-white text-muted-foreground" type="number" min="0" step="1" placeholder="Calculado automaticamente" value={displayedPopulation} readOnly disabled />
                   <Leaf className="login-input-icon text-muted-foreground" size={16} />
                 </div>
+                <div className="text-muted-foreground mt-1" style={{ fontSize: "0.72rem" }}>Calculado pela área plantada e espaçamentos.</div>
               </div>
             </div>
             <div className="col-12 col-md-4">
@@ -869,9 +1008,18 @@ export default function PlantacoesDashboard() {
             </div>
             <div className="col-12 col-md-4">
               <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Espaçamento</label>
+                <label className="login-label fw-bold">Espaçamento entre plantas</label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: 0,45 m x 0,20 m" value={form.spacing} onChange={(e) => setForm({ ...form, spacing: e.target.value })} />
+                  <input className="login-input login-input-icon-left bg-white text-foreground" inputMode="decimal" placeholder="Ex: 0,50" value={form.plant_spacing_m} onChange={(e) => setForm({ ...form, plant_spacing_m: e.target.value })} />
+                  <Ruler className="login-input-icon text-muted-foreground" size={16} />
+                </div>
+              </div>
+            </div>
+            <div className="col-12 col-md-4">
+              <div className="login-input-group mb-0">
+                <label className="login-label fw-bold">Espaçamento entre ruas</label>
+                <div className="login-input-wrapper">
+                  <input className="login-input login-input-icon-left bg-white text-foreground" inputMode="decimal" placeholder="Ex: 1,00" value={form.row_spacing_m} onChange={(e) => setForm({ ...form, row_spacing_m: e.target.value })} />
                   <Ruler className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
@@ -883,20 +1031,16 @@ export default function PlantacoesDashboard() {
             <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>Variedade e observações</h4>
           </div>
           <div className="row g-3">
-            <div className="col-12 col-md-6">
+            <div className="col-12">
               <div className="login-input-group mb-0">
                 <label className="login-label fw-bold">Variedade</label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: DKB 390" value={form.variety} onChange={(e) => setForm({ ...form, variety: e.target.value })} />
-                  <Tag className="login-input-icon text-muted-foreground" size={16} />
-                </div>
-              </div>
-            </div>
-            <div className="col-12 col-md-6">
-              <div className="login-input-group mb-0">
-                <label className="login-label fw-bold">Híbrido</label>
-                <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: DKB 390 PRO3" value={form.hybrid} onChange={(e) => setForm({ ...form, hybrid: e.target.value })} />
+                  <select className="login-input login-input-icon-left bg-white text-foreground" value={form.variety} onChange={(e) => setForm({ ...form, variety: e.target.value })}>
+                    <option value="">{varietyOptions.length ? "Selecione a variedade do estoque..." : "Nenhuma semente encontrada no estoque"}</option>
+                    {varietyOptions.map((variety) => (
+                      <option key={variety} value={variety}>{getSeedItemLabel(variety)}</option>
+                    ))}
+                  </select>
                   <Tag className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>
@@ -988,7 +1132,13 @@ export default function PlantacoesDashboard() {
               <div className="login-input-group mb-0">
                 <label className="login-label fw-bold">Irrigação</label>
                 <div className="login-input-wrapper">
-                  <input className="login-input login-input-icon-left bg-white text-foreground" placeholder="Ex: Pivot, gotejamento" value={fieldForm.irrigation_type} onChange={(e) => setFieldForm({ ...fieldForm, irrigation_type: e.target.value })} />
+                  <select className="login-input login-input-icon-left bg-white text-foreground" value={fieldForm.irrigation_type} onChange={(e) => setFieldForm({ ...fieldForm, irrigation_type: e.target.value })}>
+                    {irrigationTypeOptions.map((option) => (
+                      <option key={option.value || "empty"} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                   <Activity className="login-input-icon text-muted-foreground" size={16} />
                 </div>
               </div>

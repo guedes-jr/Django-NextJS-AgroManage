@@ -93,6 +93,8 @@ const statusOptions = [
 ];
 
 const emptyAdubacaoLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
+const emptyPlantioLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
+const emptyFertirrigacaoLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
 const emptyDefensivoLine: ApplicationLine = {
   item: "",
   pesticide_type: "insecticide",
@@ -163,6 +165,35 @@ const shortcutStages = {
   maoObra: { image: "/images/crops/labor.png", color: "oklch(0.54 0.14 145)" },
   historico: { image: "/images/crops/applications.png", color: "oklch(0.58 0.16 145)" },
   colheita: { image: "/images/crops/harvest.png", color: "oklch(0.66 0.16 82)" },
+};
+
+const cultureVisuals: Record<string, { image: string; color: string }> = {
+  milho: { image: "/images/crops/cultures/corn.png", color: "oklch(0.7 0.17 86)" },
+  soja: { image: "/images/crops/cultures/soybean.png", color: "oklch(0.56 0.16 145)" },
+  feijao: { image: "/images/crops/cultures/bean.png", color: "oklch(0.58 0.13 65)" },
+  sorgo: { image: "/images/crops/cultures/sorghum.png", color: "oklch(0.58 0.15 38)" },
+  milheto: { image: "/images/crops/cultures/millet.png", color: "oklch(0.6 0.14 112)" },
+  melancia: { image: "/images/crops/cultures/watermelon.png", color: "oklch(0.58 0.16 145)" },
+};
+
+const normalizeCultureName = (value: string) =>
+  value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+const cultureVisualKeywords = [
+  { keys: ["milho", "corn"], visual: cultureVisuals.milho },
+  { keys: ["soja", "soybean"], visual: cultureVisuals.soja },
+  { keys: ["feijao", "feijão", "bean"], visual: cultureVisuals.feijao },
+  { keys: ["sorgo", "sorghum"], visual: cultureVisuals.sorgo },
+  { keys: ["milheto", "millet"], visual: cultureVisuals.milheto },
+  { keys: ["melancia", "watermelon"], visual: cultureVisuals.melancia },
+];
+
+const getCultureVisual = (cropName?: string, plantationName?: string) => {
+  const normalized = normalizeCultureName(`${cropName || ""} ${plantationName || ""}`);
+  const matched = cultureVisualKeywords.find((item) =>
+    item.keys.some((keyword) => normalized.includes(normalizeCultureName(keyword)))
+  );
+  return matched?.visual || { image: "/images/crops/seed.png", color: "oklch(0.58 0.16 145)" };
 };
 
 function MetricCard({ icon, label, value, variant = "info" }: { icon: React.ReactNode; label: string; value: string; variant?: "info" | "success" | "warning" | "danger" }) {
@@ -301,9 +332,9 @@ export default function PlantacaoDetailPage() {
   const [showPlantio, setShowPlantio] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [plantioForm, setPlantioForm] = useState({
-    item: "", quantity: "", unit: "", unit_price: "", total_price: "",
     planting_date: "", operator: "", notes: "",
   });
+  const [plantioLines, setPlantioLines] = useState<ApplicationLine[]>([{ ...emptyPlantioLine }]);
   const [savingPlantio, setSavingPlantio] = useState(false);
 
   const [fertilizations, setFertilizations] = useState<ApplicationOperation[]>([]);
@@ -314,7 +345,8 @@ export default function PlantacaoDetailPage() {
 
   const [fertigations, setFertigations] = useState<ApplicationOperation[]>([]);
   const [showFertirrigacao, setShowFertirrigacao] = useState(false);
-  const [fertirrigacaoForm, setFertirrigacaoForm] = useState({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
+  const [fertirrigacaoForm, setFertirrigacaoForm] = useState({ application_date: "", operator: "", notes: "" });
+  const [fertirrigacaoLines, setFertirrigacaoLines] = useState<ApplicationLine[]>([{ ...emptyFertirrigacaoLine }]);
   const [savingFertirrigacao, setSavingFertirrigacao] = useState(false);
 
   const [pesticides, setPesticides] = useState<ApplicationOperation[]>([]);
@@ -472,41 +504,40 @@ export default function PlantacaoDetailPage() {
     finally { setSavingAdubacao(false); }
   };
 
-  const handleFertirrigacaoItemChange = async (itemId: string) => {
+  const handleFertirrigacaoLineItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((i) => i.id === itemId);
     if (!selectedItem) {
-      setFertirrigacaoForm((prev) => ({ ...prev, item: "", unit: "", unit_price: "", total_price: "" }));
+      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
       return;
     }
     const newUnit = selectedItem.unidade_medida || "";
     try {
-      const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
-      const activeLot = lots.find((l) => l.custo_unitario && parseFloat(l.custo_unitario) > 0);
-      const unitPrice = activeLot?.custo_unitario ? String(parseFloat(activeLot.custo_unitario)) : "";
-      setFertirrigacaoForm((prev) => ({
-        ...prev,
-        item: itemId,
-        unit: newUnit,
-        unit_price: unitPrice,
-        total_price: prev.quantity && unitPrice ? String(parseFloat(prev.quantity) * parseFloat(unitPrice)) : prev.total_price,
-      }));
+      const unitPrice = await getStockPrice(itemId);
+      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
     } catch {
-      setFertirrigacaoForm((prev) => ({ ...prev, item: itemId, unit: newUnit }));
+      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
     }
   };
 
   const handleCreateFertirrigacao = async () => {
-    if (!plantation || !fertirrigacaoForm.item) return;
+    const validLines = fertirrigacaoLines.filter((line) => line.item && line.quantity);
+    if (!plantation || validLines.length === 0) return;
     try {
       setSavingFertirrigacao(true);
-      const total = fertirrigacaoForm.total_price || (fertirrigacaoForm.quantity && fertirrigacaoForm.unit_price ? String(parseFloat(fertirrigacaoForm.quantity) * parseFloat(fertirrigacaoForm.unit_price)) : "0");
-      await cropService.createFertigation({
-        plantation: plantation.id, item: fertirrigacaoForm.item, quantity: fertirrigacaoForm.quantity,
-        unit: fertirrigacaoForm.unit, unit_price: fertirrigacaoForm.unit_price || null, total_price: total,
-        application_date: fertirrigacaoForm.application_date, operator: fertirrigacaoForm.operator,
-      });
+      await Promise.all(validLines.map((line) => cropService.createFertigation({
+        plantation: plantation.id,
+        item: line.item,
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price: line.unit_price || null,
+        total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+        application_date: fertirrigacaoForm.application_date,
+        operator: fertirrigacaoForm.operator,
+        notes: fertirrigacaoForm.notes,
+      })));
       setShowFertirrigacao(false);
-      setFertirrigacaoForm({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", application_date: "", operator: "" });
+      setFertirrigacaoForm({ application_date: "", operator: "", notes: "" });
+      setFertirrigacaoLines([{ ...emptyFertirrigacaoLine }]);
       const { data: r } = await cropService.listFertigations({ plantation: plantation.id });
       setFertigations(Array.isArray(r?.results) ? r.results : []);
     } catch { console.error("Failed to create fertigation"); }
@@ -600,49 +631,40 @@ export default function PlantacaoDetailPage() {
     finally { setSavingIrrigacao(false); }
   };
 
-  const handlePlantioItemChange = async (itemId: string) => {
+  const handlePlantioLineItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((i) => i.id === itemId);
     if (!selectedItem) {
-      setPlantioForm((prev) => ({ ...prev, item: "", unit: "", unit_price: "", total_price: "" }));
+      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
       return;
     }
     const newUnit = selectedItem.unidade_medida || "";
     try {
-      const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
-      const activeLot = lots.find((l) => l.custo_unitario && parseFloat(l.custo_unitario) > 0);
-      const unitPrice = activeLot?.custo_unitario ? String(parseFloat(activeLot.custo_unitario)) : "";
-      setPlantioForm((prev) => ({
-        ...prev,
-        item: itemId,
-        unit: newUnit,
-        unit_price: unitPrice,
-        total_price: prev.quantity && unitPrice ? String(parseFloat(prev.quantity) * parseFloat(unitPrice)) : prev.total_price,
-      }));
+      const unitPrice = await getStockPrice(itemId);
+      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
     } catch {
-      setPlantioForm((prev) => ({ ...prev, item: itemId, unit: newUnit }));
+      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
     }
   };
 
   const handleCreatePlantio = async () => {
-    if (!plantation || !plantioForm.item) return;
+    const validLines = plantioLines.filter((line) => line.item && line.quantity);
+    if (!plantation || validLines.length === 0) return;
     try {
       setSavingPlantio(true);
-      const total = plantioForm.total_price || (plantioForm.quantity && plantioForm.unit_price
-        ? String(parseFloat(plantioForm.quantity) * parseFloat(plantioForm.unit_price))
-        : "0");
-      await cropService.createPlanting({
+      await Promise.all(validLines.map((line) => cropService.createPlanting({
         plantation: plantation.id,
-        item: plantioForm.item,
-        quantity: plantioForm.quantity,
-        unit: plantioForm.unit,
-        unit_price: plantioForm.unit_price || null,
-        total_price: total,
+        item: line.item,
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price: line.unit_price || null,
+        total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
         planting_date: plantioForm.planting_date,
         operator: plantioForm.operator,
         notes: plantioForm.notes,
-      });
+      })));
       setShowPlantio(false);
-      setPlantioForm({ item: "", quantity: "", unit: "", unit_price: "", total_price: "", planting_date: "", operator: "", notes: "" });
+      setPlantioForm({ planting_date: "", operator: "", notes: "" });
+      setPlantioLines([{ ...emptyPlantioLine }]);
       const { data: plRes } = await cropService.listPlantings({ plantation: plantation.id });
       setPlantings(Array.isArray(plRes?.results) ? plRes.results : []);
       const { data: dashRes } = await cropService.dashboard(id!);
@@ -680,6 +702,8 @@ export default function PlantacaoDetailPage() {
     return <div className="p-4 text-muted">Plantação não encontrada.</div>;
   }
 
+  const cultureVisual = getCultureVisual(plantation.crop_name, plantation.name);
+
   return (
     <div>
       {/* Header */}
@@ -689,8 +713,8 @@ export default function PlantacaoDetailPage() {
             <ArrowLeft size={16} />
           </button>
           <div className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
-            style={{ width: 48, height: 48, background: "color-mix(in srgb, oklch(0.58 0.16 145), transparent 88%)" }}>
-            <Image src="/images/crops/seed.png" alt="" width={38} height={38} style={{ objectFit: "contain" }} />
+            style={{ width: 48, height: 48, background: `color-mix(in srgb, ${cultureVisual.color}, transparent 88%)`, overflow: "hidden" }}>
+            <Image src={cultureVisual.image} alt={plantation.crop_name || "Cultura"} width={42} height={42} style={{ objectFit: "cover", borderRadius: 8 }} />
           </div>
           <div className="flex-grow-1 min-w-0">
             <h1 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.75rem" }}>{plantation.name || plantation.crop_name}</h1>
@@ -1112,62 +1136,62 @@ export default function PlantacaoDetailPage() {
           </div>
         }
       >
-        <div className="row g-3">
-          <div className="col-12">
-            <label className="form-label small fw-medium">Insumo (Semente) *</label>
-            <select className="form-select" value={plantioForm.item} onChange={(e) => handlePlantioItemChange(e.target.value)}>
-              <option value="">Selecione...</option>
-              {inventoryItems
-                .filter((i) => !i.especie_animal)
-                .map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
-            </select>
-            {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
-              <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
-            )}
+        <div className="d-flex flex-column gap-3">
+          <div className="d-flex align-items-center justify-content-between gap-2">
+            <strong className="small text-success">Sementes utilizadas no plantio</strong>
+            <Button variant="outline-success" size="sm" onClick={() => setPlantioLines((prev) => [...prev, { ...emptyPlantioLine }])}>+ Adicionar</Button>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Quantidade *</label>
-            <input className="form-control" type="number" step="0.01" value={plantioForm.quantity}
-              onChange={(e) => {
-                const q = e.target.value;
-                const price = plantioForm.unit_price;
-                const total = q && price ? String(parseFloat(q) * parseFloat(price)) : "";
-                setPlantioForm({ ...plantioForm, quantity: q, total_price: total });
-              }} />
+          <div className="table-responsive">
+            <table className="table align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Semente (Insumo)</th>
+                  <th style={{ minWidth: 130 }}>Quantidade</th>
+                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
+                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  <th className="text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plantioLines.map((line, index) => (
+                  <tr key={index}>
+                    <td style={{ minWidth: 260 }}>
+                      <select className="form-select" value={line.item} onChange={(e) => handlePlantioLineItemChange(index, e.target.value)}>
+                        <option value="">Selecione uma semente do estoque...</option>
+                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                          <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control" type="number" step="0.01" value={line.quantity}
+                        onChange={(e) => setPlantioLines((prev) => updateApplicationLine(prev, index, { quantity: e.target.value }))} />
+                    </td>
+                    <td>
+                      <select className="form-select" value={line.unit} onChange={(e) => setPlantioLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
+                        <option value="">Selecione...</option>
+                        {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                    </td>
+                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    <td className="text-center">
+                      <Button variant="outline-danger" size="sm" onClick={() => setPlantioLines((prev) => prev.length === 1 ? [{ ...emptyPlantioLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Unidade</label>
-            <select className="form-select" value={plantioForm.unit} onChange={(e) => setPlantioForm({ ...plantioForm, unit: e.target.value })}>
-              <option value="">Selecione...</option>
-              <option value="kg">kg — Quilograma</option>
-              <option value="g">g — Grama</option>
-              <option value="l">L — Litro</option>
-              <option value="ml">mL — Mililitro</option>
-              <option value="saco">sc — Saco</option>
-              <option value="tonelada">t — Tonelada</option>
-            </select>
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Preço Unitário (R$)</label>
-            <div className="input-group">
-              <input
-                className="form-control"
-                type="number"
-                step="0.01"
-                value={plantioForm.unit_price}
-                readOnly={!!plantioForm.item}
-                style={plantioForm.item ? { backgroundColor: "var(--bs-secondary-bg, #e9ecef)", cursor: "not-allowed" } : {}}
-                onChange={(e) => { if (!plantioForm.item) { const up = e.target.value; const q = plantioForm.quantity; setPlantioForm({ ...plantioForm, unit_price: up, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); } }}
-              />
-              {plantioForm.item && (
-                <span className="input-group-text" style={{ fontSize: "0.75rem", color: "var(--bs-secondary)" }} title="Preço automático do estoque">Auto</span>
-              )}
-            </div>
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Valor Total (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={plantioForm.total_price}
-              onChange={(e) => setPlantioForm({ ...plantioForm, total_price: e.target.value })} />
+          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
+            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          )}
+          <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
+            <span className="fw-medium">Total de itens: {plantioLines.filter((line) => line.item).length}</span>
+            <strong className="text-success">Valor total das sementes: {money(plantioLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data do Plantio</label>
@@ -1268,56 +1292,62 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showFertirrigacao} onClose={() => setShowFertirrigacao(false)} title="Registrar Fertirrigação"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowFertirrigacao(false)}>Cancelar</Button><Button onClick={handleCreateFertirrigacao} disabled={savingFertirrigacao}>{savingFertirrigacao ? "Salvando..." : "Salvar"}</Button></div>}
       >
-        <div className="row g-3">
-          <div className="col-12">
-            <label className="form-label small fw-medium">Insumo *</label>
-            <select className="form-select" value={fertirrigacaoForm.item} onChange={(e) => handleFertirrigacaoItemChange(e.target.value)}>
-              <option value="">Selecione...</option>
-              {inventoryItems
-                .filter((i) => !i.especie_animal)
-                .map((i) => (<option key={i.id} value={i.id}>{i.nome}</option>))}
-            </select>
-            {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
-              <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
-            )}
+        <div className="d-flex flex-column gap-3">
+          <div className="d-flex align-items-center justify-content-between gap-2">
+            <strong className="small text-success">Insumos utilizados na fertirrigação</strong>
+            <Button variant="outline-success" size="sm" onClick={() => setFertirrigacaoLines((prev) => [...prev, { ...emptyFertirrigacaoLine }])}>+ Adicionar</Button>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Quantidade *</label>
-            <input className="form-control" type="number" step="0.01" value={fertirrigacaoForm.quantity}
-              onChange={(e) => { const q = e.target.value; const up = fertirrigacaoForm.unit_price; setFertirrigacaoForm({ ...fertirrigacaoForm, quantity: q, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); }} />
+          <div className="table-responsive">
+            <table className="table align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Insumo</th>
+                  <th style={{ minWidth: 130 }}>Quantidade</th>
+                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
+                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  <th className="text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fertirrigacaoLines.map((line, index) => (
+                  <tr key={index}>
+                    <td style={{ minWidth: 260 }}>
+                      <select className="form-select" value={line.item} onChange={(e) => handleFertirrigacaoLineItemChange(index, e.target.value)}>
+                        <option value="">Selecione um insumo do estoque...</option>
+                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                          <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control" type="number" step="0.01" value={line.quantity}
+                        onChange={(e) => setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { quantity: e.target.value }))} />
+                    </td>
+                    <td>
+                      <select className="form-select" value={line.unit} onChange={(e) => setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
+                        <option value="">Selecione...</option>
+                        {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                    </td>
+                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    <td className="text-center">
+                      <Button variant="outline-danger" size="sm" onClick={() => setFertirrigacaoLines((prev) => prev.length === 1 ? [{ ...emptyFertirrigacaoLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Unidade</label>
-            <select className="form-select" value={fertirrigacaoForm.unit} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, unit: e.target.value })}>
-              <option value="">Selecione...</option>
-              <option value="kg">kg — Quilograma</option>
-              <option value="g">g — Grama</option>
-              <option value="l">L — Litro</option>
-              <option value="ml">mL — Mililitro</option>
-              <option value="saco">sc — Saco</option>
-              <option value="tonelada">t — Tonelada</option>
-            </select>
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Preço Unit. (R$)</label>
-            <div className="input-group">
-              <input
-                className="form-control"
-                type="number"
-                step="0.01"
-                value={fertirrigacaoForm.unit_price}
-                readOnly={!!fertirrigacaoForm.item}
-                style={fertirrigacaoForm.item ? { backgroundColor: "var(--bs-secondary-bg, #e9ecef)", cursor: "not-allowed" } : {}}
-                onChange={(e) => { if (!fertirrigacaoForm.item) { const up = e.target.value; const q = fertirrigacaoForm.quantity; setFertirrigacaoForm({ ...fertirrigacaoForm, unit_price: up, total_price: q && up ? String(parseFloat(q) * parseFloat(up)) : "" }); } }}
-              />
-              {fertirrigacaoForm.item && (
-                <span className="input-group-text" style={{ fontSize: "0.75rem", color: "var(--bs-secondary)" }} title="Preço automático do estoque">Auto</span>
-              )}
-            </div>
-          </div>
-          <div className="col-6">
-            <label className="form-label small fw-medium">Valor Total (R$)</label>
-            <input className="form-control" type="number" step="0.01" value={fertirrigacaoForm.total_price} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, total_price: e.target.value })} />
+          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
+            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          )}
+          <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
+            <span className="fw-medium">Total de itens: {fertirrigacaoLines.filter((line) => line.item).length}</span>
+            <strong className="text-success">Valor total da fertirrigação: {money(fertirrigacaoLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1326,6 +1356,11 @@ export default function PlantacaoDetailPage() {
           <div className="col-6">
             <label className="form-label small fw-medium">Operador</label>
             <input className="form-control" value={fertirrigacaoForm.operator} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, operator: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label small fw-medium">Observações</label>
+            <textarea className="form-control" rows={2} maxLength={300} value={fertirrigacaoForm.notes} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, notes: e.target.value })} placeholder="Ex.: Volume de calda, setor irrigado, condição do sistema..." />
+            <div className="text-end text-muted small">{fertirrigacaoForm.notes.length}/300</div>
           </div>
         </div>
       </Modal>
