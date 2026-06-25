@@ -91,14 +91,6 @@ const statusOptions = [
   { value: "completed", label: "Concluída" },
 ];
 
-const unitOptions = [
-  { value: "l", label: "L" },
-  { value: "ml", label: "mL" },
-  { value: "kg", label: "kg" },
-  { value: "g", label: "g" },
-  { value: "unidade", label: "un" },
-];
-
 const doseUnitOptions = [
   { value: "l_ha", label: "L/ha" },
   { value: "ml_ha", label: "mL/ha" },
@@ -118,6 +110,24 @@ const formatDate = (value?: string | null) => {
 };
 
 const today = () => new Date().toISOString().split("T")[0];
+
+const totalUnitByDoseUnit: Record<string, string> = {
+  l_ha: "l",
+  ml_ha: "ml",
+  kg_ha: "kg",
+  g_ha: "g",
+};
+
+const parseDecimal = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(String(value).replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatDecimal = (value: number) => {
+  if (!Number.isFinite(value)) return "";
+  return value.toFixed(2);
+};
 
 export default function AgronomoPage() {
   const { id } = useParams<{ id: string }>();
@@ -143,6 +153,16 @@ export default function AgronomoPage() {
     () => inventoryItems.filter((item) => !item.especie_animal),
     [inventoryItems],
   );
+  const recommendationAreaHa = useMemo(
+    () => parseDecimal(plantation?.planted_area_ha),
+    [plantation?.planted_area_ha],
+  );
+
+  const calculateTotalQuantity = (product: RecommendationProduct) => {
+    const dose = parseDecimal(product.dose_per_ha);
+    if (dose === null || recommendationAreaHa === null) return "";
+    return formatDecimal(dose * recommendationAreaHa);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -208,8 +228,8 @@ export default function AgronomoPage() {
           item: product.item,
           dose_per_ha: product.dose_per_ha || null,
           dose_unit: product.dose_unit,
-          total_quantity: product.total_quantity || null,
-          total_unit: product.total_unit,
+          total_quantity: calculateTotalQuantity(product) || null,
+          total_unit: totalUnitByDoseUnit[product.dose_unit] || product.total_unit,
           notes: product.notes,
         })),
       };
@@ -408,7 +428,6 @@ export default function AgronomoPage() {
                     <th>Dose/ha</th>
                     <th>Unidade</th>
                     <th>Quantidade total</th>
-                    <th>Unidade</th>
                     <th>Observações</th>
                     <th className="text-center">Ações</th>
                   </tr>
@@ -433,12 +452,7 @@ export default function AgronomoPage() {
                         </select>
                       </td>
                       <td style={{ minWidth: 140 }}>
-                        <input className="form-control" type="number" step="0.01" value={product.total_quantity} onChange={(e) => updateProduct(index, { total_quantity: e.target.value })} placeholder="0,00" />
-                      </td>
-                      <td style={{ minWidth: 100 }}>
-                        <select className="form-select" value={product.total_unit} onChange={(e) => updateProduct(index, { total_unit: e.target.value })}>
-                          {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-                        </select>
+                        <input className="form-control" type="number" step="0.01" value={calculateTotalQuantity(product)} readOnly placeholder="0,00" />
                       </td>
                       <td style={{ minWidth: 220 }}>
                         <input className="form-control" value={product.notes} onChange={(e) => updateProduct(index, { notes: e.target.value })} placeholder="Observações" />

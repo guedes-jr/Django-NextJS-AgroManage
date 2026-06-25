@@ -829,7 +829,7 @@ export default function PlantacaoDetailPage() {
               desc: "Linha do tempo de todas as atividades realizadas",
               stage: shortcutStages.historico,
               status: "pending" as ShortcutStatus,
-              onClick: () => undefined,
+              onClick: () => router.push(`/home/plantacoes/${id}/historico`),
               wide: true,
             },
             {
