@@ -4,25 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  CalendarDays,
-  ClipboardList,
+  Beaker,
+  Calendar,
+  ClipboardCheck,
   Droplets,
   FileText,
   FlaskConical,
-  HandCoins,
-  History,
   Leaf,
-  Pickaxe,
   Search,
   Sprout,
   Tractor,
+  Users,
   Wheat,
 } from "lucide-react";
-import apiClient from "@/services/api";
+import type { LucideIcon } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Badge } from "@/components/ui/Badge";
 
 type Plantation = {
   id: string;
@@ -30,63 +28,135 @@ type Plantation = {
   crop_name?: string;
   field_name?: string;
   farm_name?: string;
-  planted_area_ha?: string | null;
-  planting_date?: string | null;
+  planting_date?: string;
+  expected_harvest_date?: string | null;
   status_display?: string;
+  planted_area_ha?: string | number | null;
 };
 
-type ApiRecord = Record<string, unknown>;
+type ApiList<T> = T[] | { results?: T[] };
+
+type BaseRecord = {
+  id: string;
+  created_at?: string;
+  updated_at?: string;
+  notes?: string | null;
+};
+
+type LandPreparation = BaseRecord & {
+  date?: string | null;
+  operation_type_display?: string | null;
+  execution_type_display?: string | null;
+  tractor_name?: string | null;
+  hours_worked?: string | number | null;
+  total_price?: string | number | null;
+  operator?: string | null;
+};
+
+type Planting = BaseRecord & {
+  planting_date?: string | null;
+  item_name?: string | null;
+  quantity?: string | number | null;
+  unit?: string | null;
+  total_price?: string | number | null;
+  operator?: string | null;
+};
+
+type Application = BaseRecord & {
+  application_date?: string | null;
+  item_name?: string | null;
+  quantity?: string | number | null;
+  unit?: string | null;
+  dose_per_ha?: string | number | null;
+  total_price?: string | number | null;
+  application_method_display?: string | null;
+  pesticide_type_display?: string | null;
+  target?: string | null;
+  operator?: string | null;
+};
+
+type Irrigation = BaseRecord & {
+  date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  irrigation_system_display?: string | null;
+  pump_name?: string | null;
+  operating_days?: number | null;
+  hours?: string | number | null;
+  liters_used?: string | number | null;
+  energy_cost?: string | number | null;
+  operator?: string | null;
+};
+
+type SoilAnalysis = BaseRecord & {
+  original_name?: string | null;
+  uploaded_by_name?: string | null;
+};
+
+type Recommendation = BaseRecord & {
+  title?: string | null;
+  objective?: string | null;
+  recommendation_date?: string | null;
+  suggested_application_date?: string | null;
+  priority_display?: string | null;
+  status_display?: string | null;
+};
+
+type LaborRecord = BaseRecord & {
+  worker_name?: string | null;
+  activity_type_display?: string | null;
+  activity_date?: string | null;
+  daily_quantity?: string | number | null;
+  total_amount?: string | number | null;
+};
+
+type Harvest = BaseRecord & {
+  harvest_date?: string | null;
+  harvest_type_display?: string | null;
+  yield_kg?: string | number | null;
+  destination_display?: string | null;
+  revenue_amount?: string | number | null;
+  buyer_name?: string | null;
+  buyer_name_display?: string | null;
+};
 
 type HistoryType =
-  | "planting"
-  | "land_preparation"
-  | "fertilization"
-  | "fertigation"
-  | "pesticide"
-  | "irrigation"
-  | "labor"
-  | "agronomist"
-  | "soil"
-  | "harvest";
+  | "cycle"
+  | "preparo"
+  | "plantio"
+  | "adubacao"
+  | "fertirrigacao"
+  | "defensivos"
+  | "irrigacao"
+  | "agronomo"
+  | "mao_obra"
+  | "colheita";
 
 type HistoryEvent = {
   id: string;
   type: HistoryType;
-  title: string;
   date: string;
-  description: string;
-  amount?: string;
-  operator?: string;
-  notes?: string;
+  title: string;
+  subtitle: string;
+  details: string[];
+  amount?: number;
+  notes?: string | null;
 };
 
-const typeMeta: Record<HistoryType, { label: string; color: string; background: string }> = {
-  planting: { label: "Plantio", color: "#166534", background: "#dcfce7" },
-  land_preparation: { label: "Preparo", color: "#92400e", background: "#fef3c7" },
-  fertilization: { label: "Adubação", color: "#047857", background: "#d1fae5" },
-  fertigation: { label: "Fertirrigação", color: "#0369a1", background: "#e0f2fe" },
-  pesticide: { label: "Foliar & defensivos", color: "#6d28d9", background: "#ede9fe" },
-  irrigation: { label: "Irrigação", color: "#0f766e", background: "#ccfbf1" },
-  labor: { label: "Mão de obra", color: "#9a3412", background: "#ffedd5" },
-  agronomist: { label: "Agrônomo", color: "#15803d", background: "#dcfce7" },
-  soil: { label: "Análise de solo", color: "#475569", background: "#f1f5f9" },
-  harvest: { label: "Colheita", color: "#854d0e", background: "#fef9c3" },
+const typeConfig: Record<HistoryType, { label: string; icon: LucideIcon; color: string; bg: string }> = {
+  cycle: { label: "Ciclo", icon: Sprout, color: "oklch(0.48 0.16 145)", bg: "oklch(0.96 0.04 145)" },
+  preparo: { label: "Preparo", icon: Tractor, color: "oklch(0.54 0.13 65)", bg: "oklch(0.96 0.04 75)" },
+  plantio: { label: "Plantio", icon: Leaf, color: "oklch(0.48 0.14 145)", bg: "oklch(0.96 0.04 145)" },
+  adubacao: { label: "Adubação", icon: Beaker, color: "oklch(0.52 0.14 155)", bg: "oklch(0.96 0.04 155)" },
+  fertirrigacao: { label: "Fertirrigação", icon: FlaskConical, color: "oklch(0.5 0.15 220)", bg: "oklch(0.96 0.04 220)" },
+  defensivos: { label: "Defensivos", icon: ClipboardCheck, color: "oklch(0.5 0.16 295)", bg: "oklch(0.96 0.04 295)" },
+  irrigacao: { label: "Irrigação", icon: Droplets, color: "oklch(0.5 0.15 205)", bg: "oklch(0.96 0.04 205)" },
+  agronomo: { label: "Agrônomo", icon: FileText, color: "oklch(0.46 0.13 145)", bg: "oklch(0.96 0.04 145)" },
+  mao_obra: { label: "Mão de Obra", icon: Users, color: "oklch(0.48 0.12 250)", bg: "oklch(0.96 0.04 250)" },
+  colheita: { label: "Colheita", icon: Wheat, color: "oklch(0.56 0.16 82)", bg: "oklch(0.97 0.05 85)" },
 };
 
-const typeIcons: Record<HistoryType, typeof Sprout> = {
-  planting: Sprout,
-  land_preparation: Tractor,
-  fertilization: Leaf,
-  fertigation: Droplets,
-  pesticide: FlaskConical,
-  irrigation: Droplets,
-  labor: HandCoins,
-  agronomist: ClipboardList,
-  soil: FileText,
-  harvest: Wheat,
-};
-
-const extractArray = <T,>(data: unknown): T[] => {
+const extractArray = <T,>(data: ApiList<T> | unknown): T[] => {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === "object" && "results" in data) {
     const results = (data as { results?: unknown }).results;
@@ -95,324 +165,546 @@ const extractArray = <T,>(data: unknown): T[] => {
   return [];
 };
 
-const text = (record: ApiRecord, key: string) => {
-  const value = record[key];
-  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+const parseNumber = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = Number(String(value).replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const money = (value: string) => {
-  const parsed = Number.parseFloat(value || "0");
-  if (!Number.isFinite(parsed) || parsed <= 0) return "";
-  return parsed.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-};
-
-const numberText = (value: string, suffix: string) => {
-  const parsed = Number.parseFloat(value || "0");
-  if (!Number.isFinite(parsed) || parsed <= 0) return "";
-  return `${parsed.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${suffix}`;
-};
-
-const dateText = (value: string) => {
+const formatDate = (value?: string | null) => {
   if (!value) return "-";
-  const [year, month, day] = value.split("-");
-  return year && month && day ? `${day}/${month}/${year}` : value;
+  const dateOnly = value.includes("T") ? value.split("T")[0] : value;
+  const [year, month, day] = dateOnly.split("-");
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
 };
 
-const eventDate = (record: ApiRecord, keys: string[]) => {
-  for (const key of keys) {
-    const value = text(record, key);
-    if (value) return value.slice(0, 10);
+const formatAmount = (value: number) =>
+  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const numberText = (value?: string | number | null, suffix = "") => {
+  const parsed = parseNumber(value);
+  if (!parsed) return "";
+  return `${parsed.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}${suffix}`;
+};
+
+const compact = (values: Array<string | null | undefined | false>) =>
+  values.filter(Boolean) as string[];
+
+function KpiCard({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+  return (
+    <div className="dashboard-card p-3 h-100 border border-border bg-card">
+      <div className="d-flex align-items-center gap-3">
+        <div className="rounded-xl d-flex align-items-center justify-content-center bg-primary/10 text-primary" style={{ width: 42, height: 42 }}>
+          <Icon size={20} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-muted-foreground fw-semibold" style={{ fontSize: "0.72rem" }}>{label}</div>
+          <div className="fw-black text-foreground text-truncate" style={{ fontSize: "1.05rem" }}>{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildEvents(plantation: Plantation, sources: {
+  landPreparations: LandPreparation[];
+  plantings: Planting[];
+  fertilizations: Application[];
+  fertigations: Application[];
+  pesticides: Application[];
+  irrigations: Irrigation[];
+  soilAnalyses: SoilAnalysis[];
+  recommendations: Recommendation[];
+  laborRecords: LaborRecord[];
+  harvests: Harvest[];
+}): HistoryEvent[] {
+  const events: HistoryEvent[] = [];
+
+  if (plantation.planting_date) {
+    events.push({
+      id: `cycle-${plantation.id}`,
+      type: "cycle",
+      date: plantation.planting_date,
+      title: "Ciclo produtivo iniciado",
+      subtitle: plantation.crop_name || plantation.name || "Plantação",
+      details: compact([
+        plantation.field_name ? `Talhão: ${plantation.field_name}` : undefined,
+        plantation.planted_area_ha ? `Área: ${numberText(plantation.planted_area_ha, " ha")}` : undefined,
+        plantation.expected_harvest_date ? `Colheita prevista: ${formatDate(plantation.expected_harvest_date)}` : undefined,
+      ]),
+    });
   }
-  return "";
-};
 
-const makeEvent = (
-  record: ApiRecord,
-  type: HistoryType,
-  title: string,
-  dateKeys: string[],
-  descriptionParts: string[],
-  amount?: string,
-): HistoryEvent => ({
-  id: `${type}-${text(record, "id") || Math.random().toString(36).slice(2)}`,
-  type,
-  title,
-  date: eventDate(record, dateKeys),
-  description: descriptionParts.filter(Boolean).join(" • "),
-  amount,
-  operator: text(record, "operator") || text(record, "created_by_name") || text(record, "uploaded_by_name"),
-  notes: text(record, "notes") || text(record, "objective"),
-});
+  sources.landPreparations.forEach((item) => {
+    const amount = parseNumber(item.total_price);
+    events.push({
+      id: `preparo-${item.id}`,
+      type: "preparo",
+      date: item.date || item.created_at || "",
+      title: item.operation_type_display || "Preparação da terra",
+      subtitle: item.execution_type_display || "Operação de preparo",
+      details: compact([
+        item.tractor_name ? `Trator: ${item.tractor_name}` : undefined,
+        item.operator ? `Operador: ${item.operator}` : undefined,
+        item.hours_worked ? `Horas: ${numberText(item.hours_worked, " h")}` : undefined,
+        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
 
-const fetchList = async (url: string, params: Record<string, string>) => {
-  const response = await apiClient.get(url, { params }).catch(() => ({ data: [] }));
-  return extractArray<ApiRecord>(response.data);
-};
+  sources.plantings.forEach((item) => {
+    const amount = parseNumber(item.total_price);
+    events.push({
+      id: `plantio-${item.id}`,
+      type: "plantio",
+      date: item.planting_date || item.created_at || "",
+      title: item.item_name || "Semente / plantio",
+      subtitle: "Registro de plantio",
+      details: compact([
+        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.operator ? `Operador: ${item.operator}` : undefined,
+        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
+
+  sources.fertilizations.forEach((item) => {
+    const amount = parseNumber(item.total_price);
+    events.push({
+      id: `adubacao-${item.id}`,
+      type: "adubacao",
+      date: item.application_date || item.created_at || "",
+      title: item.item_name || "Adubação de base",
+      subtitle: item.application_method_display || "Aplicação de fertilizante",
+      details: compact([
+        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.dose_per_ha ? `Dose: ${numberText(item.dose_per_ha, "/ha")}` : undefined,
+        item.operator ? `Operador: ${item.operator}` : undefined,
+        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
+
+  sources.fertigations.forEach((item) => {
+    const amount = parseNumber(item.total_price);
+    events.push({
+      id: `fertirrigacao-${item.id}`,
+      type: "fertirrigacao",
+      date: item.application_date || item.created_at || "",
+      title: item.item_name || "Fertirrigação",
+      subtitle: "Aplicação via irrigação",
+      details: compact([
+        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.operator ? `Operador: ${item.operator}` : undefined,
+        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
+
+  sources.pesticides.forEach((item) => {
+    const amount = parseNumber(item.total_price);
+    events.push({
+      id: `defensivos-${item.id}`,
+      type: "defensivos",
+      date: item.application_date || item.created_at || "",
+      title: item.item_name || "Aplicação foliar / defensivo",
+      subtitle: item.pesticide_type_display || "Defensivo agrícola",
+      details: compact([
+        item.target ? `Alvo: ${item.target}` : undefined,
+        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.operator ? `Operador: ${item.operator}` : undefined,
+        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
+
+  sources.irrigations.forEach((item) => {
+    const amount = parseNumber(item.energy_cost);
+    const date = item.start_date || item.date || item.created_at || "";
+    events.push({
+      id: `irrigacao-${item.id}`,
+      type: "irrigacao",
+      date,
+      title: item.irrigation_system_display || "Irrigação",
+      subtitle: item.end_date && item.end_date !== date ? `${formatDate(date)} a ${formatDate(item.end_date)}` : "Manejo de irrigação",
+      details: compact([
+        item.pump_name ? `Bomba: ${item.pump_name}` : undefined,
+        item.operating_days ? `Dias: ${item.operating_days}` : undefined,
+        item.hours ? `Horas: ${numberText(item.hours, " h")}` : undefined,
+        item.liters_used ? `Água: ${numberText(item.liters_used, " L")}` : undefined,
+        amount ? `Energia: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
+
+  sources.soilAnalyses.forEach((item) => {
+    events.push({
+      id: `solo-${item.id}`,
+      type: "agronomo",
+      date: item.created_at || "",
+      title: "Análise de solo anexada",
+      subtitle: item.original_name || "Documento técnico",
+      details: compact([
+        item.uploaded_by_name ? `Enviado por: ${item.uploaded_by_name}` : undefined,
+      ]),
+      notes: item.notes,
+    });
+  });
+
+  sources.recommendations.forEach((item) => {
+    events.push({
+      id: `recomendacao-${item.id}`,
+      type: "agronomo",
+      date: item.recommendation_date || item.created_at || "",
+      title: item.title || "Recomendação técnica",
+      subtitle: item.objective || "Orientação agronômica",
+      details: compact([
+        item.priority_display ? `Prioridade: ${item.priority_display}` : undefined,
+        item.status_display ? `Status: ${item.status_display}` : undefined,
+        item.suggested_application_date ? `Aplicação sugerida: ${formatDate(item.suggested_application_date)}` : undefined,
+      ]),
+      notes: item.notes,
+    });
+  });
+
+  sources.laborRecords.forEach((item) => {
+    const amount = parseNumber(item.total_amount);
+    events.push({
+      id: `mao-obra-${item.id}`,
+      type: "mao_obra",
+      date: item.activity_date || item.created_at || "",
+      title: item.activity_type_display || "Atividade de mão de obra",
+      subtitle: item.worker_name || "Trabalhador",
+      details: compact([
+        item.daily_quantity ? `Diárias: ${numberText(item.daily_quantity)}` : undefined,
+        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+      ]),
+      amount,
+      notes: item.notes,
+    });
+  });
+
+  sources.harvests.forEach((item) => {
+    const revenue = parseNumber(item.revenue_amount);
+    events.push({
+      id: `colheita-${item.id}`,
+      type: "colheita",
+      date: item.harvest_date || item.created_at || "",
+      title: item.harvest_type_display || "Colheita registrada",
+      subtitle: item.destination_display || "Destino da produção",
+      details: compact([
+        item.yield_kg ? `Produção: ${numberText(item.yield_kg, " kg")}` : undefined,
+        item.buyer_name_display || item.buyer_name ? `Comprador: ${item.buyer_name_display || item.buyer_name}` : undefined,
+        revenue ? `Receita: ${formatAmount(revenue)}` : undefined,
+      ]),
+      amount: revenue,
+      notes: item.notes,
+    });
+  });
+
+  return events.sort((a, b) => {
+    const first = new Date(b.date || "0000-01-01").getTime();
+    const second = new Date(a.date || "0000-01-01").getTime();
+    return first - second;
+  });
+}
 
 export default function HistoricoPlantacaoPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [plantation, setPlantation] = useState<Plantation | null>(null);
   const [events, setEvents] = useState<HistoryEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | HistoryType>("all");
+  const [activeType, setActiveType] = useState<HistoryType | "all">("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!id) return;
     let active = true;
 
-    (async () => {
-      try {
-        setLoading(true);
-        const plantationRes = await cropService.get(id);
-        const [
-          plantings,
-          landPreparations,
-          fertilizations,
-          fertigations,
-          pesticides,
-          irrigations,
-          laborRecords,
-          recommendations,
-          soilAnalyses,
-          harvests,
-        ] = await Promise.all([
-          fetchList("/crops/plantings/", { plantation: id }),
-          fetchList("/crops/land-preparations/", { plantation: id }),
-          fetchList("/crops/fertilizations/", { plantation: id }),
-          fetchList("/crops/fertigations/", { plantation: id }),
-          fetchList("/crops/pesticides/", { plantation: id }),
-          fetchList("/crops/irrigations/", { plantation: id }),
-          fetchList("/crops/labor-records/", { plantation: id }),
-          fetchList("/crops/agronomist-recommendations/", { plantation: id }),
-          fetchList("/crops/soil-analyses/", { plantation: id }),
-          fetchList("/crops/harvests/", { planting_cycle: id }),
-        ]);
-
+    Promise.all([
+      cropService.get(id),
+      cropService.listLandPreparations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listFertilizations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listFertigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listPesticideApplications({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listIrrigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listSoilAnalyses({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listAgronomistRecommendations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listLaborRecords({ plantation: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listHarvests({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
+    ])
+      .then(([
+        plantationRes,
+        landRes,
+        plantingRes,
+        fertilizationRes,
+        fertigationRes,
+        pesticideRes,
+        irrigationRes,
+        soilRes,
+        recommendationRes,
+        laborRes,
+        harvestRes,
+      ]) => {
         if (!active) return;
-        setPlantation(plantationRes.data);
-        setEvents([
-          ...plantings.map((item) => makeEvent(
-            item,
-            "planting",
-            text(item, "item_name") || "Plantio registrado",
-            ["planting_date", "created_at"],
-            [numberText(text(item, "quantity"), text(item, "unit")), text(item, "supplier_name")],
-            money(text(item, "total_price")),
-          )),
-          ...landPreparations.map((item) => makeEvent(
-            item,
-            "land_preparation",
-            text(item, "operation_type_display") || "Preparo de terra",
-            ["date", "created_at"],
-            [text(item, "execution_type_display"), text(item, "tractor_name"), numberText(text(item, "hours_worked"), "h")],
-            money(text(item, "total_price")),
-          )),
-          ...fertilizations.map((item) => makeEvent(
-            item,
-            "fertilization",
-            text(item, "item_name") || "Adubação de base",
-            ["application_date", "created_at"],
-            [numberText(text(item, "quantity"), text(item, "unit")), numberText(text(item, "dose_per_ha"), "por ha"), text(item, "application_method_display")],
-            money(text(item, "total_price")),
-          )),
-          ...fertigations.map((item) => makeEvent(
-            item,
-            "fertigation",
-            text(item, "item_name") || "Fertirrigação",
-            ["application_date", "created_at"],
-            [numberText(text(item, "quantity"), text(item, "unit")), numberText(text(item, "syrup_liters"), "L de calda"), numberText(text(item, "application_time_hours"), "h")],
-            money(text(item, "total_price")),
-          )),
-          ...pesticides.map((item) => makeEvent(
-            item,
-            "pesticide",
-            text(item, "item_name") || text(item, "pesticide_type_display") || "Aplicação foliar/defensivo",
-            ["application_date", "created_at"],
-            [text(item, "pesticide_type_display"), text(item, "dose"), numberText(text(item, "quantity"), text(item, "unit")), text(item, "target")],
-            money(text(item, "total_price")),
-          )),
-          ...irrigations.map((item) => makeEvent(
-            item,
-            "irrigation",
-            text(item, "irrigation_system_display") || "Irrigação",
-            ["start_date", "date", "created_at"],
-            [text(item, "pump_name"), numberText(text(item, "hours"), "h"), numberText(text(item, "liters_used"), "L")],
-            money(text(item, "energy_cost")),
-          )),
-          ...laborRecords.map((item) => makeEvent(
-            item,
-            "labor",
-            text(item, "activity_type_display") || "Mão de obra",
-            ["activity_date", "created_at"],
-            [text(item, "worker_name"), numberText(text(item, "daily_quantity"), "diária(s)")],
-            money(text(item, "total_amount")),
-          )),
-          ...recommendations.map((item) => makeEvent(
-            item,
-            "agronomist",
-            text(item, "title") || "Recomendação do agrônomo",
-            ["recommendation_date", "created_at"],
-            [text(item, "priority_display"), text(item, "status_display"), numberText(text(item, "area_ha"), "ha")],
-          )),
-          ...soilAnalyses.map((item) => makeEvent(
-            item,
-            "soil",
-            text(item, "original_name") || "Análise de solo anexada",
-            ["created_at"],
-            [text(item, "uploaded_by_name")],
-          )),
-          ...harvests.map((item) => makeEvent(
-            item,
-            "harvest",
-            text(item, "harvest_type_display") || "Colheita",
-            ["harvest_date", "created_at"],
-            [numberText(text(item, "yield_kg"), "kg"), text(item, "destination_display"), text(item, "buyer_name_display") || text(item, "buyer_name")],
-            money(text(item, "revenue_amount")),
-          )),
-        ]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+        const currentPlantation = plantationRes.data as Plantation;
+        const history = buildEvents(currentPlantation, {
+          landPreparations: extractArray<LandPreparation>(landRes.data),
+          plantings: extractArray<Planting>(plantingRes.data),
+          fertilizations: extractArray<Application>(fertilizationRes.data),
+          fertigations: extractArray<Application>(fertigationRes.data),
+          pesticides: extractArray<Application>(pesticideRes.data),
+          irrigations: extractArray<Irrigation>(irrigationRes.data),
+          soilAnalyses: extractArray<SoilAnalysis>(soilRes.data),
+          recommendations: extractArray<Recommendation>(recommendationRes.data),
+          laborRecords: extractArray<LaborRecord>(laborRes.data),
+          harvests: extractArray<Harvest>(harvestRes.data),
+        });
+        setPlantation(currentPlantation);
+        setEvents(history);
+        setError("");
+      })
+      .catch(() => {
+        if (!active) return;
+        setError("Não foi possível carregar o histórico da plantação.");
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
 
     return () => {
       active = false;
     };
   }, [id]);
 
-  const sortedEvents = useMemo(
-    () => [...events].sort((a, b) => (b.date || "").localeCompare(a.date || "")),
+  const filteredEvents = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return events.filter((event) => {
+      const matchesType = activeType === "all" || event.type === activeType;
+      const text = [event.title, event.subtitle, event.notes, ...event.details].join(" ").toLowerCase();
+      const matchesSearch = !term || text.includes(term);
+      return matchesType && matchesSearch;
+    });
+  }, [activeType, events, search]);
+
+  const eventCounts = useMemo(() => {
+    return events.reduce((acc, event) => {
+      acc[event.type] = (acc[event.type] || 0) + 1;
+      return acc;
+    }, {} as Partial<Record<HistoryType, number>>);
+  }, [events]);
+
+  const totalCost = useMemo(
+    () => events.filter((event) => event.type !== "colheita").reduce((sum, event) => sum + (event.amount || 0), 0),
     [events],
   );
 
-  const filteredEvents = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return sortedEvents.filter((event) => {
-      const matchesType = typeFilter === "all" || event.type === typeFilter;
-      const haystack = `${event.title} ${event.description} ${event.operator || ""} ${event.notes || ""}`.toLowerCase();
-      return matchesType && (!normalizedQuery || haystack.includes(normalizedQuery));
-    });
-  }, [query, sortedEvents, typeFilter]);
-
-  const totalCost = useMemo(
-    () => events.reduce((sum, event) => {
-      if (!event.amount) return sum;
-      const parsed = Number(event.amount.replace(/[^\d,-]/g, "").replace(",", "."));
-      return Number.isFinite(parsed) ? sum + parsed : sum;
-    }, 0),
+  const totalRevenue = useMemo(
+    () => events.filter((event) => event.type === "colheita").reduce((sum, event) => sum + (event.amount || 0), 0),
     [events],
   );
 
   if (loading) {
     return (
       <div className="p-4">
-        <Skeleton height="48px" width="340px" className="mb-4" />
+        <Skeleton height="48px" width="320px" className="mb-4" />
+        <div className="row g-3 mb-4">
+          {[1, 2, 3, 4].map((item) => (
+            <div className="col-12 col-md-3" key={item}>
+              <Skeleton height="78px" />
+            </div>
+          ))}
+        </div>
         <Skeleton height="520px" />
       </div>
     );
   }
 
+  if (error) {
+    return <div className="p-4 text-muted">{error}</div>;
+  }
+
+  if (!plantation) {
+    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+  }
+
   return (
     <div>
-      <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-4">
+      <div className="mb-3 d-flex align-items-center gap-2 text-muted small fw-medium">
+        <span style={{ cursor: "pointer" }} onClick={() => router.push("/home/plantacoes")} className="hover-text-primary">
+          Plantações
+        </span>
+        <span>›</span>
+        <span style={{ cursor: "pointer" }} onClick={() => router.push(`/home/plantacoes/${id}`)} className="hover-text-primary">
+          {plantation.name || plantation.crop_name}
+        </span>
+        <span>›</span>
+        <span className="text-primary fw-semibold">Histórico</span>
+      </div>
+
+      <div className="d-flex align-items-start justify-content-between gap-3 mb-4 flex-wrap">
         <div className="d-flex align-items-center gap-3">
-          <button className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" onClick={() => router.back()} style={{ width: 38, height: 38, borderRadius: 10 }}>
+          <button
+            className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
+            onClick={() => router.push(`/home/plantacoes/${id}`)}
+            style={{ width: 38, height: 38, borderRadius: 10 }}
+          >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="fw-black mb-1 d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-              <History size={28} className="text-success" /> Histórico da plantação
+            <h1 className="fw-black mb-1 text-foreground d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
+              <Calendar size={27} className="text-primary" /> Histórico da Plantação
             </h1>
-            <p className="text-muted mb-0 small">
-              {plantation?.name || plantation?.crop_name || "Plantação"} › {plantation?.field_name || "Talhão"}
+            <p className="text-muted-foreground small mb-0">
+              {plantation.farm_name} › {plantation.field_name} › {plantation.status_display || "Ciclo produtivo"}
             </p>
           </div>
         </div>
-        <Button variant="outline-secondary" onClick={() => router.push(`/home/plantacoes/${id}`)}>
+        <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}`)}>
           Voltar para a plantação
         </Button>
       </div>
 
       <div className="row g-3 mb-4">
-        <div className="col-md-4">
-          <div className="dashboard-card p-3 h-100">
-            <div className="text-muted small">Registros</div>
-            <div className="fw-bold fs-4">{events.length}</div>
-          </div>
+        <div className="col-12 col-sm-6 col-xl-3">
+          <KpiCard label="Eventos registrados" value={String(events.length)} icon={ClipboardCheck} />
         </div>
-        <div className="col-md-4">
-          <div className="dashboard-card p-3 h-100">
-            <div className="text-muted small">Área cadastrada</div>
-            <div className="fw-bold fs-4">{plantation?.planted_area_ha || "-"} ha</div>
-          </div>
+        <div className="col-12 col-sm-6 col-xl-3">
+          <KpiCard label="Investimento operacional" value={formatAmount(totalCost)} icon={Tractor} />
         </div>
-        <div className="col-md-4">
-          <div className="dashboard-card p-3 h-100">
-            <div className="text-muted small">Valores registrados</div>
-            <div className="fw-bold fs-4">{totalCost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
-          </div>
+        <div className="col-12 col-sm-6 col-xl-3">
+          <KpiCard label="Receita de colheita" value={formatAmount(totalRevenue)} icon={Wheat} />
+        </div>
+        <div className="col-12 col-sm-6 col-xl-3">
+          <KpiCard label="Início do ciclo" value={formatDate(plantation.planting_date)} icon={Sprout} />
         </div>
       </div>
 
-      <div className="dashboard-card p-4">
-        <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-4">
+      <div className="dashboard-card p-3 p-md-4 mb-4 border border-border bg-card">
+        <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
           <div>
-            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><CalendarDays size={18} /> Linha do tempo</h6>
-            <p className="text-muted small mb-0">Todas as operações registradas para esta plantação.</p>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Linha do tempo operacional</h2>
+            <p className="text-muted-foreground small mb-0">Registros consolidados das etapas produtivas desta plantação.</p>
           </div>
-          <div className="d-flex gap-2 flex-wrap">
-            <div className="input-group" style={{ width: 260 }}>
-              <span className="input-group-text bg-white"><Search size={16} /></span>
-              <input className="form-control" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar no histórico" />
-            </div>
-            <select className="form-select" style={{ width: 210 }} value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as "all" | HistoryType)}>
-              <option value="all">Todos os tipos</option>
-              {Object.entries(typeMeta).map(([value, meta]) => (
-                <option key={value} value={value}>{meta.label}</option>
-              ))}
-            </select>
+          <div className="position-relative" style={{ width: "min(100%, 320px)" }}>
+            <Search size={16} className="position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)" }} />
+            <input
+              className="form-control bg-background border-border"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar no histórico..."
+              style={{ borderRadius: 12, paddingLeft: 40, minHeight: 42 }}
+            />
           </div>
         </div>
 
+        <div className="d-flex gap-2 flex-wrap mb-4">
+          <button
+            type="button"
+            className={`btn btn-sm ${activeType === "all" ? "btn-primary" : "btn-outline-secondary"}`}
+            style={{ borderRadius: 999, fontWeight: 700 }}
+            onClick={() => setActiveType("all")}
+          >
+            Todos <span className="ms-1 opacity-75">{events.length}</span>
+          </button>
+          {(Object.keys(typeConfig) as HistoryType[]).map((type) => {
+            const config = typeConfig[type];
+            const Icon = config.icon;
+            const count = eventCounts[type] || 0;
+            return (
+              <button
+                key={type}
+                type="button"
+                className={`btn btn-sm d-inline-flex align-items-center gap-1 ${activeType === type ? "btn-primary" : "btn-outline-secondary"}`}
+                style={{ borderRadius: 999, fontWeight: 700 }}
+                onClick={() => setActiveType(type)}
+              >
+                <Icon size={14} /> {config.label} <span className="opacity-75">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {filteredEvents.length === 0 ? (
-          <div className="text-center py-5 text-muted">
-            <Pickaxe size={40} className="mb-2" />
-            <div className="fw-semibold">Nenhum registro encontrado.</div>
+          <div className="text-center py-5 text-muted-foreground">
+            Nenhum evento encontrado para os filtros atuais.
           </div>
         ) : (
-          <div className="d-flex flex-column gap-3">
-            {filteredEvents.map((event) => {
-              const meta = typeMeta[event.type];
-              const Icon = typeIcons[event.type];
-              return (
-                <div key={event.id} className="border rounded p-3 d-flex gap-3 align-items-start">
-                  <div className="d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: 42, height: 42, borderRadius: 10, background: meta.background, color: meta.color }}>
-                    <Icon size={20} />
-                  </div>
-                  <div className="flex-grow-1 min-w-0">
-                    <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-                      <div>
-                        <div className="fw-bold">{event.title}</div>
-                        <div className="text-muted small">{event.description || "Sem detalhes adicionais"}</div>
-                      </div>
-                      <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                        <Badge style={{ background: meta.background, color: meta.color }}>{meta.label}</Badge>
-                        <span className="small text-muted">{dateText(event.date)}</span>
-                      </div>
+          <div className="position-relative">
+            <div
+              className="position-absolute d-none d-md-block"
+              style={{ left: 23, top: 8, bottom: 18, width: 2, background: "var(--border)" }}
+            />
+            <div className="d-flex flex-column gap-3">
+              {filteredEvents.map((event) => {
+                const config = typeConfig[event.type];
+                const Icon = config.icon;
+                return (
+                  <article key={event.id} className="d-flex gap-3 position-relative">
+                    <div
+                      className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 border border-border"
+                      style={{ width: 48, height: 48, color: config.color, background: config.bg, zIndex: 1 }}
+                    >
+                      <Icon size={22} />
                     </div>
-                    {(event.amount || event.operator || event.notes) && (
-                      <div className="d-flex gap-3 flex-wrap mt-2 small">
-                        {event.amount ? <span className="fw-semibold text-success">{event.amount}</span> : null}
-                        {event.operator ? <span className="text-muted">Responsável: {event.operator}</span> : null}
-                        {event.notes ? <span className="text-muted">Obs.: {event.notes}</span> : null}
+                    <div className="dashboard-card p-3 p-md-4 border border-border bg-background flex-grow-1" style={{ borderRadius: 8 }}>
+                      <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-2">
+                        <div>
+                          <div className="d-flex align-items-center gap-2 flex-wrap mb-1">
+                            <span className="badge" style={{ background: config.bg, color: config.color, borderRadius: 999 }}>
+                              {config.label}
+                            </span>
+                            <span className="text-muted-foreground fw-semibold" style={{ fontSize: "0.76rem" }}>
+                              {formatDate(event.date)}
+                            </span>
+                          </div>
+                          <h3 className="fw-bold text-foreground mb-1" style={{ fontSize: "1rem" }}>{event.title}</h3>
+                          <p className="text-muted-foreground small mb-0">{event.subtitle}</p>
+                        </div>
+                        {event.amount ? (
+                          <span className="fw-bold text-foreground" style={{ fontSize: "0.9rem" }}>
+                            {formatAmount(event.amount)}
+                          </span>
+                        ) : null}
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+
+                      {event.details.length > 0 && (
+                        <div className="d-flex flex-wrap gap-2 mt-3">
+                          {event.details.map((detail) => (
+                            <span key={detail} className="px-2 py-1 bg-card border border-border text-muted-foreground fw-semibold" style={{ borderRadius: 8, fontSize: "0.72rem" }}>
+                              {detail}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {event.notes ? (
+                        <div className="mt-3 pt-3 border-top border-border text-muted-foreground small">
+                          {event.notes}
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

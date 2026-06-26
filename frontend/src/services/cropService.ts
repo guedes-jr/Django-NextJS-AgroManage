@@ -26,6 +26,16 @@ export const cropService = {
   indicators: (id: string) =>
     apiClient.get(`/crops/plantations/${id}/indicators/`),
 
+  // ── Plantation History Sources ───────────────────────────────────────────
+  listLandPreparations: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/land-preparations/", { params }),
+
+  listSoilAnalyses: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/soil-analyses/", { params }),
+
+  listAgronomistRecommendations: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/agronomist-recommendations/", { params }),
+
   // ── Plantings ─────────────────────────────────────────────
   listPlantings: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/plantings/", { params }),
