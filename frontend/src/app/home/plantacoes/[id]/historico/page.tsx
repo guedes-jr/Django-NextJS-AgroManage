@@ -2,18 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { jsPDF } from "jspdf";
 import {
   ArrowLeft,
   Beaker,
   Calendar,
   ClipboardCheck,
+  DollarSign,
   Droplets,
   FileText,
   FlaskConical,
   Leaf,
   Search,
+  Send,
   Sprout,
   Tractor,
+  TrendingUp,
   Users,
   Wheat,
 } from "lucide-react";
@@ -190,6 +194,14 @@ const numberText = (value?: string | number | null, suffix = "") => {
 
 const compact = (values: Array<string | null | undefined | false>) =>
   values.filter(Boolean) as string[];
+
+const fileNameText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 function KpiCard({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
   return (
@@ -431,6 +443,7 @@ export default function HistoricoPlantacaoPage() {
   const [events, setEvents] = useState<HistoryEvent[]>([]);
   const [activeType, setActiveType] = useState<HistoryType | "all">("all");
   const [search, setSearch] = useState("");
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -521,6 +534,103 @@ export default function HistoricoPlantacaoPage() {
     [events],
   );
 
+  const profit = totalRevenue - totalCost;
+
+  const buildPlantationPdf = () => {
+    const doc = new jsPDF();
+    const title = plantation?.name || plantation?.crop_name || "Plantação";
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    let y = 18;
+
+    const ensureSpace = (height = 12) => {
+      if (y + height <= pageHeight - margin) return;
+      doc.addPage();
+      y = 18;
+    };
+
+    const line = (label: string, value: string) => {
+      ensureSpace(7);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${label}:`, margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(value || "-", margin + 42, y);
+      y += 7;
+    };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("Ficha da Plantação", margin, y);
+    y += 9;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(title, margin, y);
+    y += 10;
+
+    line("Fazenda", plantation?.farm_name || "-");
+    line("Talhão", plantation?.field_name || "-");
+    line("Status", plantation?.status_display || "-");
+    line("Início do ciclo", formatDate(plantation?.planting_date));
+    line("Colheita prevista", formatDate(plantation?.expected_harvest_date));
+    line("Eventos", String(events.length));
+    line("Investimento", formatAmount(totalCost));
+    line("Receita", formatAmount(totalRevenue));
+    line("Lucro", formatAmount(profit));
+
+    y += 5;
+    ensureSpace(12);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("Linha do tempo", margin, y);
+    y += 8;
+
+    events.forEach((event) => {
+      const config = typeConfig[event.type];
+      const details = event.details.length ? ` | ${event.details.join(" | ")}` : "";
+      const amount = event.amount ? ` | Valor: ${formatAmount(event.amount)}` : "";
+      const notes = event.notes ? ` | Obs.: ${event.notes}` : "";
+      const text = `${formatDate(event.date)} - ${config.label} - ${event.title} - ${event.subtitle}${details}${amount}${notes}`;
+      const wrapped = doc.splitTextToSize(text, pageWidth - margin * 2);
+
+      ensureSpace(wrapped.length * 5 + 4);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 5 + 3;
+    });
+
+    return doc;
+  };
+
+  const handleSendSheet = async () => {
+    if (!plantation || sharing) return;
+
+    try {
+      setSharing(true);
+      const title = plantation.name || plantation.crop_name || "plantacao";
+      const filename = `ficha-plantacao-${fileNameText(title)}.pdf`;
+      const doc = buildPlantationPdf();
+      const blob = doc.output("blob");
+      const file = new File([blob], filename, { type: "application/pdf" });
+      const shareData = {
+        title: "Ficha da Plantação",
+        text: `Ficha da plantação ${title}`,
+        files: [file],
+      };
+
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      doc.save(filename);
+    } finally {
+      setSharing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4">
@@ -577,22 +687,30 @@ export default function HistoricoPlantacaoPage() {
             </p>
           </div>
         </div>
-        <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}`)}>
-          Voltar para a plantação
-        </Button>
+        <div className="d-flex gap-2 flex-wrap">
+          <Button variant="outline-primary" size="sm" onClick={handleSendSheet} disabled={sharing}>
+            <Send size={15} /> {sharing ? "Preparando..." : "Enviar ficha"}
+          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}`)}>
+            Voltar para a plantação
+          </Button>
+        </div>
       </div>
 
       <div className="row g-3 mb-4">
-        <div className="col-12 col-sm-6 col-xl-3">
+        <div className="col-12 col-sm-6 col-xl">
           <KpiCard label="Eventos registrados" value={String(events.length)} icon={ClipboardCheck} />
         </div>
-        <div className="col-12 col-sm-6 col-xl-3">
+        <div className="col-12 col-sm-6 col-xl">
           <KpiCard label="Investimento operacional" value={formatAmount(totalCost)} icon={Tractor} />
         </div>
-        <div className="col-12 col-sm-6 col-xl-3">
+        <div className="col-12 col-sm-6 col-xl">
           <KpiCard label="Receita de colheita" value={formatAmount(totalRevenue)} icon={Wheat} />
         </div>
-        <div className="col-12 col-sm-6 col-xl-3">
+        <div className="col-12 col-sm-6 col-xl">
+          <KpiCard label="Lucro estimado" value={formatAmount(profit)} icon={profit >= 0 ? TrendingUp : DollarSign} />
+        </div>
+        <div className="col-12 col-sm-6 col-xl">
           <KpiCard label="Início do ciclo" value={formatDate(plantation.planting_date)} icon={Sprout} />
         </div>
       </div>
