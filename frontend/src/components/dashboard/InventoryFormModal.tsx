@@ -7,7 +7,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, FlaskConical, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
 import { apiClient } from "@/services/api";
 
-export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "material" | "suplemento" | "semen" | "outro";
+export type InventoryCategory =
+  | "racao"
+  | "nucleo"
+  | "suplemento"
+  | "semente"
+  | "fertilizante"
+  | "defensivo"
+  | "corretivo"
+  | "medicamento"
+  | "vacina"
+  | "material"
+  | "semen"
+  | "outro";
 
 interface InventoryFormModalProps {
   isOpen: boolean;
@@ -23,10 +35,14 @@ const STEPS = [
   { id: "stock", label: "Estoque & Lote", icon: Warehouse },
 ];
 
-const CATEGORY_CONFIG: Record<string, { label: string; unidade: string; color: string }> = {
+const CATEGORY_CONFIG: Record<InventoryCategory, { label: string; unidade: string; color: string }> = {
   racao:       { label: "Ração / Grão",    unidade: "kg",      color: "#f97316" },
   nucleo:      { label: "Núcleo / Premix", unidade: "kg",      color: "#8b5cf6" },
   suplemento:  { label: "Suplemento",      unidade: "kg",      color: "#6366f1" },
+  semente:     { label: "Semente",         unidade: "saco",    color: "#22c55e" },
+  fertilizante:{ label: "Fertilizante / Adubo", unidade: "kg", color: "#84cc16" },
+  defensivo:   { label: "Defensivo Agrícola", unidade: "l",    color: "#0ea5e9" },
+  corretivo:   { label: "Corretivo de Solo", unidade: "kg",    color: "#a16207" },
   medicamento: { label: "Medicamento",     unidade: "unidade", color: "#ef4444" },
   vacina:      { label: "Vacina",          unidade: "dose",    color: "#3b82f6" },
   material:    { label: "Material",        unidade: "unidade", color: "#6b7280" },
@@ -117,6 +133,14 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   const removeRow = (id: number) => rows.length > 1 && setRows(r => r.filter(x => x.id !== id));
   const update = (id: number, field: string, value: any) =>
     setRows(r => r.map(x => x.id === id ? { ...x, [field]: value } : x));
+  const updateCategory = (id: number, nextCategory: InventoryCategory) => {
+    const nextConfig = CATEGORY_CONFIG[nextCategory];
+    setRows(r => r.map(x => x.id === id ? {
+      ...x,
+      categoria: nextCategory,
+      unidade_medida: nextConfig.unidade,
+    } : x));
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -288,7 +312,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                               <div className="login-input-group mb-0">
                                 <label className="login-label fw-semibold text-xs">Categoria <span className="text-danger">*</span></label>
                                 <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
-                                  value={row.categoria} onChange={e => update(row.id as any, "categoria", e.target.value)}>
+                                  value={row.categoria} onChange={e => updateCategory(row.id as any, e.target.value as InventoryCategory)}>
                                   {Object.entries(CATEGORY_CONFIG).map(([v, c]) => (
                                     <option key={v} value={v}>{c.label}</option>
                                   ))}

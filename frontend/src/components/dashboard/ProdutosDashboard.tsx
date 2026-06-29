@@ -16,6 +16,10 @@ import {
   Activity,
   RefreshCw,
   FlaskConical,
+  Sprout,
+  ShieldCheck,
+  Mountain,
+  Trash2,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
@@ -43,6 +47,11 @@ type PaginatedResponse<T> = {
 const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   racao: "racao",
   nucleo: "nucleo",
+  suplemento: "suplemento",
+  semente: "semente",
+  fertilizante: "fertilizante",
+  defensivo: "defensivo",
+  corretivo: "corretivo",
   medicamento: "medicamento",
   vacina: "vacina",
   material: "material",
@@ -52,10 +61,19 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
 const CATEGORY_ICONS: Record<string, ReactNode> = {
   racao: <Wheat size={16} />,
   nucleo: <Box size={16} />,
+  suplemento: <Package size={16} />,
+  semente: <Sprout size={16} />,
+  fertilizante: <LeafIcon />,
+  defensivo: <ShieldCheck size={16} />,
+  corretivo: <Mountain size={16} />,
   medicamento: <Activity size={16} />,
   vacina: <Syringe size={16} />,
   semen: <FlaskConical size={16} />,
 };
+
+function LeafIcon() {
+  return <Sprout size={16} />;
+}
 
 function toNumber(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0;
@@ -78,6 +96,7 @@ export function ProdutosDashboard() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [askMovementModal, setAskMovementModal] = useState<{ open: boolean; item: any }>({ open: false, item: null });
   const [movementModalConfig, setMovementModalConfig] = useState<{ open: boolean; item: any; type: "in" | "out" }>({ open: false, item: null, type: "in" });
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
 
@@ -206,6 +225,24 @@ export function ProdutosDashboard() {
     }
   };
 
+  const handleDeleteItem = async (item: InventoryItem) => {
+    const confirmed = window.confirm(
+      `Deseja realmente remover "${item.nome}" do estoque?\n\nO produto sairá da listagem, mas o histórico de lotes e movimentações será preservado.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(item.id);
+      await apiClient.delete(`/inventory/items/${item.id}/`);
+      await fetchItems(page);
+    } catch (error: any) {
+      console.error("Erro ao remover produto:", error?.response?.data || error);
+      alert(error?.response?.data?.detail || "Não foi possível remover o produto.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
@@ -295,6 +332,10 @@ export function ProdutosDashboard() {
           {[
             { key: "racao", title: "Ração / Grãos", desc: "Milho, soja, farelo...", color: "oklch(0.7 0.15 85)" },
             { key: "nucleo", title: "Núcleo / Premix", desc: "Núcleo, suplementos...", color: "oklch(0.65 0.16 230)" },
+            { key: "semente", title: "Sementes", desc: "Milho, soja, sorgo...", color: "oklch(0.62 0.16 145)" },
+            { key: "fertilizante", title: "Fertilizantes", desc: "Adubos e formulações...", color: "oklch(0.68 0.16 120)" },
+            { key: "defensivo", title: "Defensivos", desc: "Herbicidas, inseticidas...", color: "oklch(0.62 0.14 220)" },
+            { key: "corretivo", title: "Corretivos", desc: "Calcário, gesso agrícola...", color: "oklch(0.55 0.12 70)" },
             { key: "medicamento", title: "Medicamentos", desc: "Antibióticos, vitaminas...", color: "oklch(0.7 0.18 25)" },
             { key: "vacina", title: "Vacinas", desc: "Vacinas, injetáveis...", color: "oklch(0.7 0.22 290)" },
             { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
@@ -372,6 +413,11 @@ export function ProdutosDashboard() {
               <option value="todas">Todas as categorias</option>
               <option value="racao">Ração / Grãos</option>
               <option value="nucleo">Núcleo / Premix</option>
+              <option value="suplemento">Suplemento</option>
+              <option value="semente">Semente</option>
+              <option value="fertilizante">Fertilizante / Adubo</option>
+              <option value="defensivo">Defensivo Agrícola</option>
+              <option value="corretivo">Corretivo de Solo</option>
               <option value="medicamento">Medicamento</option>
               <option value="vacina">Vacina</option>
               <option value="semen">Sêmen</option>
@@ -408,12 +454,13 @@ export function ProdutosDashboard() {
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">UNIDADE</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">ESTOQUE MÍNIMO</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-5 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-5 text-muted-foreground">
                       Nenhum produto encontrado.
                     </td>
                   </tr>
@@ -433,6 +480,18 @@ export function ProdutosDashboard() {
                           <Badge variant={baixo ? "warning" : "success"} className="text-xs">
                             {baixo ? "Baixo" : "Normal"}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-end">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
+                            onClick={() => handleDeleteItem(item)}
+                            disabled={deletingId === item.id}
+                            title="Remover produto"
+                          >
+                            <Trash2 size={14} />
+                            {deletingId === item.id ? "Removendo..." : "Remover"}
+                          </button>
                         </td>
                       </tr>
                     );
@@ -546,4 +605,3 @@ export function ProdutosDashboard() {
     </div>
   );
 }
-

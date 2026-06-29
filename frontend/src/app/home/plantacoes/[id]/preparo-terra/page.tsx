@@ -39,6 +39,11 @@ interface Member {
 
 type OperationType = "calagem" | "aracao" | "gradagem" | "subsolagem" | "nivelamento" | "rocagem" | "outro";
 
+type OperationDetails = Record<OperationType, {
+  hoursWorked: string;
+  hourlyRate: string;
+}>;
+
 const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }> = {
   calagem: { label: "Calagem", icon: FileSpreadsheet },
   aracao: { label: "Aração", icon: Tractor },
@@ -49,6 +54,16 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
   outro: { label: "Outro", icon: MoreHorizontal },
 };
 
+const createEmptyOperationDetails = (): OperationDetails => ({
+  calagem: { hoursWorked: "", hourlyRate: "" },
+  aracao: { hoursWorked: "", hourlyRate: "" },
+  gradagem: { hoursWorked: "", hourlyRate: "" },
+  subsolagem: { hoursWorked: "", hourlyRate: "" },
+  nivelamento: { hoursWorked: "", hourlyRate: "" },
+  rocagem: { hoursWorked: "", hourlyRate: "" },
+  outro: { hoursWorked: "", hourlyRate: "" },
+});
+
 export default function PreparoTerraPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -57,8 +72,7 @@ export default function PreparoTerraPage() {
 
   // Form states
   const [selectedOperation, setSelectedOperation] = useState<OperationType>("aracao");
-  const [hoursWorked, setHoursWorked] = useState<string>("");
-  const [hourlyRate, setHourlyRate] = useState<string>("");
+  const [operationDetails, setOperationDetails] = useState<OperationDetails>(() => createEmptyOperationDetails());
   const [selectedOperator, setSelectedOperator] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   
@@ -72,6 +86,18 @@ export default function PreparoTerraPage() {
   // Drawer form states
   const [drawerForm, setDrawerForm] = useState({ name: "" });
   const [savingOperator, setSavingOperator] = useState(false);
+
+  const selectedDetails = operationDetails[selectedOperation];
+
+  const updateSelectedOperationDetails = (patch: Partial<OperationDetails[OperationType]>) => {
+    setOperationDetails((prev) => ({
+      ...prev,
+      [selectedOperation]: {
+        ...prev[selectedOperation],
+        ...patch,
+      },
+    }));
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -129,8 +155,8 @@ export default function PreparoTerraPage() {
         operation_type: selectedOperation,
         execution_type: "own",
         tractor: null,
-        hours_worked: hoursWorked ? parseFloat(hoursWorked) : null,
-        hourly_rate: hourlyRate ? parseFloat(hourlyRate) : null,
+        hours_worked: selectedDetails.hoursWorked ? parseFloat(selectedDetails.hoursWorked) : null,
+        hourly_rate: selectedDetails.hourlyRate ? parseFloat(selectedDetails.hourlyRate) : null,
         fuel_liters: null,
         fuel_price: null,
         operator: selectedOperator,
@@ -143,9 +169,10 @@ export default function PreparoTerraPage() {
         router.push(`/home/plantacoes/${id}`);
       } else {
         alert("Lançamento salvo com sucesso!");
-        // Reset some form values
-        setHoursWorked("");
-        setHourlyRate("");
+        setOperationDetails((prev) => ({
+          ...prev,
+          [selectedOperation]: { hoursWorked: "", hourlyRate: "" },
+        }));
         setNotes("");
       }
     } catch (err) {
@@ -328,8 +355,8 @@ export default function PreparoTerraPage() {
                           step="0.1"
                           className="form-control"
                           placeholder="Ex.: 8,5"
-                          value={hoursWorked}
-                          onChange={(e) => setHoursWorked(e.target.value)}
+                          value={selectedDetails.hoursWorked}
+                          onChange={(e) => updateSelectedOperationDetails({ hoursWorked: e.target.value })}
                           style={{ borderRight: "none", borderRadius: "10px 0 0 10px", height: 40 }}
                         />
                         <span className="input-group-text bg-white text-muted-foreground small" style={{ borderLeft: "none", borderRadius: "0 10px 10px 0", fontSize: '0.78rem' }}>
@@ -349,8 +376,8 @@ export default function PreparoTerraPage() {
                           step="0.01"
                           className="form-control"
                           placeholder="180,00"
-                          value={hourlyRate}
-                          onChange={(e) => setHourlyRate(e.target.value)}
+                          value={selectedDetails.hourlyRate}
+                          onChange={(e) => updateSelectedOperationDetails({ hourlyRate: e.target.value })}
                           style={{ borderLeft: "none", borderRadius: "0 10px 10px 0", height: 40 }}
                         />
                       </div>

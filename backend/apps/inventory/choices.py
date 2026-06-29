@@ -8,6 +8,10 @@ class CategoriaItem(models.TextChoices):
     RACAO = "racao", "Ração"
     NUCLEO = "nucleo", "Núcleo / Premix"
     SUPLEMENTO = "suplemento", "Suplemento"
+    SEMENTE = "semente", "Semente"
+    FERTILIZANTE = "fertilizante", "Fertilizante / Adubo"
+    DEFENSIVO = "defensivo", "Defensivo Agrícola"
+    CORRETIVO = "corretivo", "Corretivo de Solo"
     MEDICAMENTO = "medicamento", "Medicamento"
     VACINA = "vacina", "Vacina"
     MATERIAL = "material", "Material"
@@ -85,4 +89,3 @@ class TipoSemen(models.TextChoices):
     CONVENCIONAL = "convencional", "Convencional"
     SEXADO_MACHO = "sexado_macho", "Sexado Macho"
     SEXADO_FEMEA = "sexado_femea", "Sexado Fêmea"
-

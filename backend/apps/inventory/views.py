@@ -72,6 +72,10 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         
         serializer.save(organization=organization)
 
+    def perform_destroy(self, instance):
+        instance.ativo = False
+        instance.save(update_fields=["ativo", "updated_at"])
+
     @action(detail=False, methods=["post"], url_path="bulk_create")
     def bulk_create(self, request):
         """Create multiple items in a single request."""

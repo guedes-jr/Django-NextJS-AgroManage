@@ -23,12 +23,17 @@ import {
   Phone,
   Lock,
   User,
-  RefreshCw
+  RefreshCw,
+  Sun,
+  Moon,
+  Contrast
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { THEME_LABELS, Theme } from "@/lib/theme";
 import "@/components/dashboard/dashboard.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -80,9 +85,77 @@ interface Member {
 
 type Tab = "organization" | "members" | "subscription" | "security" | "preferences" | "system";
 
+interface CurrentUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  theme?: Theme;
+  email_notifications?: boolean;
+  stock_alerts?: boolean;
+  default_unit?: string;
+  min_stock_alert?: number;
+}
+
+type UserPreferences = {
+  theme: Theme;
+  email_notifications: boolean;
+  stock_alerts: boolean;
+  default_unit: string;
+  min_stock_alert: number;
+};
+
+const themeOptions: Array<{
+  value: Theme;
+  icon: typeof Sun;
+  description: string;
+}> = [
+  {
+    value: "light",
+    icon: Sun,
+    description: "Visual atual, claro e limpo para uso geral.",
+  },
+  {
+    value: "dark",
+    icon: Moon,
+    description: "Interface escura para reduzir brilho em ambientes internos.",
+  },
+  {
+    value: "contrast",
+    icon: Contrast,
+    description: "Cores mais fortes para leitura em campo e telas difíceis.",
+  },
+];
+
+const getStoredCurrentUser = (): CurrentUser | null => {
+  if (typeof window === "undefined") return null;
+
+  const userStr = localStorage.getItem("user");
+  if (!userStr) return null;
+
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
+  }
+};
+
+const getInitialPreferences = (): UserPreferences => {
+  const storedUser = getStoredCurrentUser();
+
+  return {
+    theme: storedUser?.theme || "light",
+    email_notifications: storedUser?.email_notifications ?? true,
+    stock_alerts: storedUser?.stock_alerts ?? true,
+    default_unit: storedUser?.default_unit || "kg",
+    min_stock_alert: storedUser?.min_stock_alert ?? 10,
+  };
+};
+
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("organization");
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => getStoredCurrentUser());
   const isAdmin = currentUser?.role === "owner" || currentUser?.role === "admin";
   const [updatingProject, setUpdatingProject] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
@@ -148,12 +221,7 @@ export default function SettingsPage() {
   });
   const [savingPassword, setSavingPassword] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [preferences, setPreferences] = useState({
-    email_notifications: true,
-    stock_alerts: true,
-    default_unit: 'kg',
-    min_stock_alert: 10
-  });
+  const [preferences, setPreferences] = useState<UserPreferences>(() => getInitialPreferences());
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [invoices] = useState([
     { id: '1', date: '2024-04-15', amount: 199.00, status: 'paid', description: 'Plano Pro - Abril 2024' },
@@ -267,6 +335,17 @@ export default function SettingsPage() {
         } catch (subErr) {
           console.error("Error fetching subscription data:", subErr);
         }
+      } else if (activeTab === "preferences") {
+        const res = await apiClient.get<UserPreferences>("/auth/preferences/");
+        const nextPreferences = {
+          theme: res.data.theme || theme,
+          email_notifications: res.data.email_notifications ?? true,
+          stock_alerts: res.data.stock_alerts ?? true,
+          default_unit: res.data.default_unit || "kg",
+          min_stock_alert: res.data.min_stock_alert ?? 10,
+        };
+        setPreferences(nextPreferences);
+        setTheme(nextPreferences.theme);
       }
     } catch (err: any) {
       console.error(err);
@@ -279,17 +358,6 @@ export default function SettingsPage() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const userStr = localStorage.getItem("user");
-    if (userStr) {
-      try {
-        setCurrentUser(JSON.parse(userStr));
-      } catch (e) {
-        console.error("Error parsing user from localStorage:", e);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     fetchData();
@@ -667,7 +735,16 @@ export default function SettingsPage() {
     setSavingPreferences(true);
     setError(null);
     try {
-      await apiClient.patch("/auth/preferences/", preferences);
+      const res = await apiClient.patch<UserPreferences>("/auth/preferences/", preferences);
+      const nextPreferences = res.data;
+      setPreferences(nextPreferences);
+      setTheme(nextPreferences.theme);
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const updatedUser = { ...JSON.parse(userStr), ...nextPreferences };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        setCurrentUser(updatedUser);
+      }
       setSuccess("Preferências salvas!");
     } catch {
       setError("Erro ao salvar preferências.");
@@ -725,7 +802,7 @@ export default function SettingsPage() {
       <div className="dashboard-card overflow-hidden">
         <div className="row g-0">
           {/* Sidebar Tabs */}
-          <div className="col-12 col-md-3 border-end" style={{ background: "oklch(0.99 0 0)" }}>
+          <div className="col-12 col-md-3 border-end border-border" style={{ background: "var(--muted)" }}>
             <div className="p-3 d-flex flex-column gap-1">
               {tabs.map((tab) => (
                 <button
@@ -1100,6 +1177,50 @@ export default function SettingsPage() {
                     <div className="section-header mb-5">
                       <h2 className="fw-bold h5 mb-1">Preferências do Sistema</h2>
                       <p className="small text-muted-foreground">Configure como o sistema se comporta</p>
+                    </div>
+
+                    <div className="dashboard-card p-4 border-dashed mb-4">
+                      <div className="d-flex align-items-center gap-3 mb-3">
+                        <div className="icon-box bg-primary/10 text-primary rounded-xl p-2">
+                          <Settings size={20} />
+                        </div>
+                        <div>
+                          <h4 className="fw-bold small mb-1">Tema da Interface</h4>
+                          <p className="extra-small text-muted-foreground mb-0">Escolha a aparência do sistema nesta conta</p>
+                        </div>
+                      </div>
+
+                      <div className="row g-3">
+                        {themeOptions.map((option) => {
+                          const Icon = option.icon;
+                          const selected = preferences.theme === option.value;
+
+                          return (
+                            <div className="col-12 col-lg-4" key={option.value}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreferences(prev => ({ ...prev, theme: option.value }));
+                                  setTheme(option.value);
+                                }}
+                                className={`theme-option-btn w-100 h-100 text-start ${selected ? "active" : ""}`}
+                                aria-pressed={selected}
+                              >
+                                <div className="d-flex align-items-center justify-content-between gap-3 mb-3">
+                                  <div className="d-flex align-items-center gap-2">
+                                    <span className="theme-option-icon">
+                                      <Icon size={18} />
+                                    </span>
+                                    <span className="fw-bold small">{THEME_LABELS[option.value]}</span>
+                                  </div>
+                                  <span className="theme-option-check" />
+                                </div>
+                                <p className="extra-small text-muted-foreground mb-0">{option.description}</p>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="dashboard-card p-4 border-dashed mb-4">
@@ -1879,13 +2000,13 @@ export default function SettingsPage() {
           background: transparent;
         }
         .settings-tab-btn:hover {
-          background: oklch(0.96 0.01 145);
+          background: var(--card);
           color: var(--primary);
         }
         .settings-tab-btn.active {
-          background: white;
+          background: var(--card);
           color: var(--primary);
-          box-shadow: var(--shadow-sm);
+          box-shadow: var(--shadow-soft);
         }
         .form-control-custom {
           width: 100%;
@@ -1922,7 +2043,7 @@ export default function SettingsPage() {
           width: 36px;
           height: 36px;
           background: var(--primary);
-          color: white;
+          color: var(--primary-foreground);
           border-radius: 10px;
           display: flex;
           align-items: center;
@@ -1946,7 +2067,7 @@ export default function SettingsPage() {
           transition: all 0.2s;
         }
         .btn-icon-danger:hover {
-          background: oklch(0.95 0.05 25);
+          background: color-mix(in srgb, var(--destructive), transparent 88%);
         }
         .btn-icon-warning {
           background: transparent;
@@ -1957,7 +2078,7 @@ export default function SettingsPage() {
           transition: all 0.2s;
         }
         .btn-icon-warning:hover {
-          background: oklch(0.95 0.05 40);
+          background: color-mix(in srgb, var(--warning), transparent 86%);
         }
         .btn-icon-success {
           background: transparent;
@@ -1968,7 +2089,7 @@ export default function SettingsPage() {
           transition: all 0.2s;
         }
         .btn-icon-success:hover {
-          background: oklch(0.9 0.1 145);
+          background: color-mix(in srgb, var(--success), transparent 88%);
         }
         .logo-preview-container {
           width: 80px;
@@ -1984,7 +2105,7 @@ export default function SettingsPage() {
         .logo-placeholder {
           width: 80px;
           height: 80px;
-          background: oklch(0.96 0.01 145);
+          background: var(--muted);
           border: 1px dashed var(--border);
         }
         .logo-loading-overlay {
@@ -2013,7 +2134,9 @@ export default function SettingsPage() {
           backdrop-filter: blur(4px);
         }
         .modal-content {
-          background: white;
+          background: var(--card);
+          color: var(--foreground);
+          border: 1px solid var(--border);
           border-radius: 1rem;
           padding: 1.5rem;
           width: 100%;
@@ -2034,7 +2157,7 @@ export default function SettingsPage() {
           transition: all 0.2s;
         }
         .btn-icon-muted:hover {
-          background: oklch(0.96 0.01 145);
+          background: var(--muted);
           color: var(--foreground);
         }
       `}</style>

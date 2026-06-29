@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { isTheme } from "@/lib/theme";
 
 type View = "login" | "register" | "forgot";
 
@@ -35,6 +37,7 @@ const titles: Record<View, { title: string; subtitle: string }> = {
 export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { setTheme } = useTheme();
   const [view, setView] = useState<View>("login");
   const [showPwd, setShowPwd] = useState(false);
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
@@ -66,6 +69,9 @@ export default function LoginPage() {
         localStorage.setItem("access_token", data.access);
         localStorage.setItem("refresh_token", data.refresh);
         localStorage.setItem("user", JSON.stringify(data.user));
+        if (isTheme(data.user?.theme)) {
+          setTheme(data.user.theme);
+        }
         
         // Aguarda 100ms para garantir sincronização do localStorage
         // e que o interceptador tenha tempo de pegar o token

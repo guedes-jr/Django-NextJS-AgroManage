@@ -16,6 +16,7 @@ urlpatterns = [
     re_path(r"^logout/?$", views.logout_view, name="auth_logout"),
     re_path(r"^token/refresh/?$", views.refresh_token_view, name="auth_token_refresh"),
     re_path(r"^me/?$", views.me_view, name="auth_me"),
+    re_path(r"^preferences/?$", views.preferences_view, name="auth_preferences"),
     re_path(r"^change-password/?$", views.change_password_view, name="auth_change_password"),
     re_path(r"^force-change-password/?$", views.force_change_password_view, name="auth_force_change_password"),
     re_path(r"^members/?$", views.members_view, name="auth_members"),

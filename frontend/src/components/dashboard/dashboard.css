@@ -187,7 +187,7 @@
 
 .dashboard-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-elegant);
 }
 
 .topbar-premium {
@@ -217,7 +217,7 @@
 }
 
 .search-input-wrapper:focus-within {
-  background: white;
+  background: var(--card);
   border-color: var(--primary);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary), transparent 92%);
 }
@@ -253,7 +253,7 @@
 /* Button & Settings Styles */
 .btn-primary-elegant {
   background: var(--primary);
-  color: white;
+  color: var(--primary-foreground);
   border: none;
   border-radius: 12px;
   font-weight: 700;
@@ -275,7 +275,7 @@
 }
 
 .btn-secondary-elegant {
-  background: white;
+  background: var(--card);
   color: var(--foreground);
   border: 1.5px solid var(--border);
   border-radius: 12px;
@@ -284,7 +284,7 @@
 }
 
 .btn-secondary-elegant:hover {
-  background: oklch(0.99 0 0);
+  background: var(--muted);
   border-color: var(--muted-foreground);
 }
 
@@ -293,3 +293,49 @@
   border: none;
 }
 
+.theme-option-btn {
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 12px;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.theme-option-btn:hover {
+  border-color: var(--primary);
+  background: var(--muted);
+  transform: translateY(-1px);
+}
+
+.theme-option-btn.active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary), transparent 90%);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary), transparent 90%);
+}
+
+.theme-option-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary), transparent 88%);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.theme-option-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: var(--card);
+  flex-shrink: 0;
+}
+
+.theme-option-btn.active .theme-option-check {
+  border-color: var(--primary);
+  background: radial-gradient(circle at center, var(--primary) 45%, transparent 48%);
+}

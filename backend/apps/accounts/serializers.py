@@ -44,6 +44,11 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "phone",
             "avatar",
+            "theme",
+            "email_notifications",
+            "stock_alerts",
+            "default_unit",
+            "min_stock_alert",
             "is_active",
             "force_password_change",
             "created_at",
@@ -91,6 +96,24 @@ class ChangePasswordSerializer(serializers.Serializer):
         if data.get("new_password") != data.get("new_password_confirm"):
             raise serializers.ValidationError({"new_password_confirm": "As senhas não conferem."})
         return data
+
+
+class UserPreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "theme",
+            "email_notifications",
+            "stock_alerts",
+            "default_unit",
+            "min_stock_alert",
+        ]
+
+    def validate_default_unit(self, value):
+        allowed_units = {"kg", "ton", "head", "liters"}
+        if value not in allowed_units:
+            raise serializers.ValidationError("Unidade padrão inválida.")
+        return value
 
 class OrganizationMemberSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)

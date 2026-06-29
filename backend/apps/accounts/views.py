@@ -18,6 +18,7 @@ from .serializers import (
     UserSerializer,
     UserCreateSerializer,
     ChangePasswordSerializer,
+    UserPreferencesSerializer,
     OrganizationMemberSerializer,
     CreateMemberSerializer,
 )
@@ -310,6 +311,19 @@ def change_password_view(request):
     request.user.force_password_change = False
     request.user.save()
     return Response({"detail": "Senha alterada com sucesso."})
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def preferences_view(request):
+    """Get or update current user's interface and system preferences."""
+    if request.method == "GET":
+        return Response(UserPreferencesSerializer(request.user).data)
+
+    serializer = UserPreferencesSerializer(request.user, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

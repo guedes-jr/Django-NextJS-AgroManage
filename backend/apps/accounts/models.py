@@ -31,6 +31,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         OPERATOR = "operator", "Operator"
         VIEWER = "viewer", "Viewer"
 
+    class Theme(models.TextChoices):
+        LIGHT = "light", "Padrão"
+        DARK = "dark", "Escuro"
+        CONTRAST = "contrast", "Alto contraste"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
     full_name = models.CharField(max_length=255)
@@ -44,6 +49,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    theme = models.CharField(max_length=20, choices=Theme.choices, default=Theme.LIGHT)
+    email_notifications = models.BooleanField(default=True)
+    stock_alerts = models.BooleanField(default=True)
+    default_unit = models.CharField(max_length=20, default="kg")
+    min_stock_alert = models.PositiveIntegerField(default=10)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     force_password_change = models.BooleanField(default=False)
