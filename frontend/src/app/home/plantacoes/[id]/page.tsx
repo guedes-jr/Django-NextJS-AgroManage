@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, Percent, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 
 type PlantationDetail = Plantation & PlantationDashboard;
 type PlantingOperation = {
@@ -53,6 +54,27 @@ type IrrigationPump = {
   power_cv: string | number;
   power_kw: string | number;
   flow_rate_l_per_h: string | number;
+};
+type LandPreparationOperation = {
+  id: string;
+  date?: string | null;
+  operation_type_display?: string | null;
+  hours_worked?: string | number | null;
+  total_price?: string | number | null;
+  total_amount?: string | number | null;
+};
+type LaborOperation = {
+  id: string;
+  activity_date?: string | null;
+  activity_type_display?: string | null;
+  worker?: { name?: string | null } | null;
+  worker_name?: string | null;
+  total_amount?: string | number | null;
+};
+type HarvestOperation = {
+  id: string;
+  yield_kg?: string | number | null;
+  revenue_amount?: string | number | null;
 };
 type InventoryItem = {
   id: string;
@@ -163,7 +185,7 @@ const shortcutStages = {
   irrigacao: { image: "/images/crops/irrigation.png", color: "oklch(0.62 0.17 190)" },
   agronomo: { image: "/images/crops/agronomist.png", color: "oklch(0.54 0.14 145)" },
   maoObra: { image: "/images/crops/labor.png", color: "oklch(0.54 0.14 145)" },
-  historico: { image: "/images/crops/applications.png", color: "oklch(0.58 0.16 145)" },
+  relatorio: { image: "/images/crops/applications.png", color: "oklch(0.58 0.16 145)" },
   colheita: { image: "/images/crops/harvest.png", color: "oklch(0.66 0.16 82)" },
 };
 
@@ -197,21 +219,14 @@ const getCultureVisual = (cropName?: string, plantationName?: string) => {
 };
 
 function MetricCard({ icon, label, value, variant = "info" }: { icon: React.ReactNode; label: string; value: string; variant?: "info" | "success" | "warning" | "danger" }) {
-  const colorMap = {
-    info: "oklch(0.6 0.16 240)", success: "oklch(0.58 0.16 145)", warning: "oklch(0.7 0.18 85)", danger: "oklch(0.65 0.19 25)",
-  };
-  const color = colorMap[variant];
-
   return (
     <div className="dashboard-card p-4 h-100">
       <div className="d-flex align-items-center gap-3">
         <div
-          className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+          className={`rounded-xl d-flex align-items-center justify-content-center flex-shrink-0 bg-${variant}-subtle text-${variant}`}
           style={{
             width: 44,
             height: 44,
-            background: `color-mix(in srgb, ${color}, transparent 88%)`,
-            color,
           }}
         >
           {icon}
@@ -230,26 +245,26 @@ type ShortcutStatus = "completed" | "in_progress" | "pending" | "running";
 const shortcutStatusConfig: Record<ShortcutStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   completed: {
     label: "Concluído",
-    color: "oklch(0.48 0.15 145)",
-    bg: "oklch(0.96 0.035 145)",
+    color: "var(--bs-success)",
+    bg: "var(--bs-success-bg-subtle)",
     icon: <CheckCircle2 size={15} />,
   },
   in_progress: {
     label: "Em andamento",
-    color: "oklch(0.67 0.17 70)",
-    bg: "oklch(0.97 0.04 78)",
+    color: "var(--bs-warning)",
+    bg: "var(--bs-warning-bg-subtle)",
     icon: <CircleDashed size={15} />,
   },
   pending: {
     label: "Pendente",
-    color: "oklch(0.55 0.16 245)",
-    bg: "oklch(0.96 0.035 245)",
+    color: "var(--bs-secondary)",
+    bg: "var(--bs-secondary-bg-subtle)",
     icon: <Clock size={15} />,
   },
   running: {
     label: "Em funcionamento",
-    color: "oklch(0.55 0.16 220)",
-    bg: "oklch(0.96 0.035 220)",
+    color: "var(--bs-primary)",
+    bg: "var(--bs-primary-bg-subtle)",
     icon: <Waves size={15} />,
   },
 };
@@ -269,8 +284,8 @@ function ShortcutCard({ number, image, label, desc, status, onClick }: { number:
           className="position-relative d-flex align-items-center justify-content-center w-100"
           style={{
             height: 90,
-            background: "#fff",
-            borderBottom: "1px solid color-mix(in srgb, var(--border), transparent 45%)",
+            background: "var(--bs-body-bg)",
+            borderBottom: "1px solid var(--border)",
           }}
         >
           <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 25vw" style={{ objectFit: "contain", padding: 8 }} />
@@ -286,7 +301,7 @@ function ShortcutCard({ number, image, label, desc, status, onClick }: { number:
               style={{
                 color: statusConfig.color,
                 background: statusConfig.bg,
-                border: `1px solid color-mix(in srgb, ${statusConfig.color}, transparent 78%)`,
+                border: `1px solid color-mix(in srgb, ${statusConfig.color}, transparent 50%)`,
                 borderRadius: 999,
                 padding: "6px 8px",
                 fontSize: "0.68rem",
@@ -296,14 +311,12 @@ function ShortcutCard({ number, image, label, desc, status, onClick }: { number:
               {statusConfig.label}
             </span>
             <span
-              className="d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              className="d-inline-flex align-items-center justify-content-center flex-shrink-0 bg-body text-primary"
               style={{
                 width: 32,
                 height: 32,
                 borderRadius: 999,
-                color: "var(--primary)",
                 border: "1px solid var(--border)",
-                background: "white",
               }}
             >
               <ArrowRight size={17} />
@@ -367,6 +380,10 @@ export default function PlantacaoDetailPage() {
   const [pumpForm, setPumpForm] = useState({ name: "", power_cv: "", flow_rate_l_per_h: "" });
   const [savingPump, setSavingPump] = useState(false);
 
+  const [landPreparations, setLandPreparations] = useState<LandPreparationOperation[]>([]);
+  const [laborRecords, setLaborRecords] = useState<LaborOperation[]>([]);
+  const [harvests, setHarvests] = useState<HarvestOperation[]>([]);
+
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -390,7 +407,7 @@ export default function PlantacaoDetailPage() {
           population: merged.population || "",
           spacing: merged.spacing || "",
         });
-        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes] = await Promise.all([
+        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes] = await Promise.all([
           cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertilizations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
@@ -398,6 +415,9 @@ export default function PlantacaoDetailPage() {
           cropService.listIrrigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           apiClient.get("/inventory/items/all_items/").catch(() => ({ data: [] })),
           cropService.listIrrigationPumps().catch(() => ({ data: { results: [] } })),
+          cropService.listLandPreparations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+          cropService.listLaborRecords({ plantation: id }).catch(() => ({ data: { results: [] } })),
+          cropService.listHarvests({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
         ]);
         setPlantings(Array.isArray(plantingsRes.data?.results) ? plantingsRes.data.results : []);
         setFertilizations(Array.isArray(fertsRes.data?.results) ? fertsRes.data.results : []);
@@ -406,10 +426,29 @@ export default function PlantacaoDetailPage() {
         setIrrigations(Array.isArray(irrigsRes.data?.results) ? irrigsRes.data.results : []);
         setInventoryItems(Array.isArray(itemsRes.data) ? itemsRes.data : []);
         setIrrigationPumps(Array.isArray(pumpsRes.data?.results) ? pumpsRes.data.results : []);
+        setLandPreparations(Array.isArray(landPrepRes.data?.results) ? landPrepRes.data.results : []);
+        setLaborRecords(Array.isArray(laborRes.data?.results) ? laborRes.data.results : []);
+        setHarvests(Array.isArray(harvestRes.data?.results) ? harvestRes.data.results : []);
       } catch { console.error("Failed to load plantation"); }
       finally { setLoading(false); }
     })();
   }, [id]);
+
+  useEffect(() => {
+    if (!showPlantio && !showAdubacao && !showFertirrigacao && !showDefensivo) return;
+    let active = true;
+
+    apiClient.get("/inventory/items/all_items/")
+      .then((itemsRes) => {
+        if (!active) return;
+        setInventoryItems(Array.isArray(itemsRes.data) ? itemsRes.data : []);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [showAdubacao, showDefensivo, showFertirrigacao, showPlantio]);
 
   const handleDelete = async () => {
     if (!plantation || !confirm("Excluir esta plantação permanentemente?")) return;
@@ -704,6 +743,37 @@ export default function PlantacaoDetailPage() {
 
   const cultureVisual = getCultureVisual(plantation.crop_name, plantation.name);
 
+  const harvestedKg = harvests.reduce((acc, h) => acc + Number(h.yield_kg || 0), 0);
+  const harvestRevenue = harvests.reduce((acc, h) => acc + Number(h.revenue_amount || 0), 0);
+  const soldKg = harvests.reduce((acc, h) => acc + (Number(h.revenue_amount || 0) > 0 ? Number(h.yield_kg || 0) : 0), 0);
+
+  const investmentTotal = parseFloat(plantation.investment_total || "0");
+  const estimatedProductionKg = parseFloat(plantation.estimated_production_kg || "0");
+  const plantedAreaHa = parseFloat(String(plantation.planted_area_ha || "0"));
+  const realProfit = harvestRevenue - investmentTotal;
+  const realRevenuePerHa = plantedAreaHa > 0 ? harvestRevenue / plantedAreaHa : null;
+
+  const custoPorKg = harvestedKg > 0 ? investmentTotal / harvestedKg : null;
+  const vendaPorKg = soldKg > 0 ? harvestRevenue / soldKg : null;
+  const lucroPorKg = harvestedKg > 0 ? realProfit / harvestedKg : null;
+
+  const costData = [
+    { name: "Sementes", value: plantings.reduce((acc, p) => acc + Number(p.total_price || 0), 0), fill: "var(--bs-success)" },
+    { name: "Fertilizantes", value: fertilizations.reduce((acc, p) => acc + Number(p.total_price || 0), 0) + fertigations.reduce((acc, p) => acc + Number(p.total_price || 0), 0), fill: "var(--bs-primary)" },
+    { name: "Defensivos", value: pesticides.reduce((acc, p) => acc + Number(p.total_price || 0), 0), fill: "var(--bs-danger)" },
+    { name: "Irrigação", value: irrigations.reduce((acc, p) => acc + Number(p.energy_cost || 0), 0), fill: "var(--bs-info)" },
+    { name: "Preparo de Terra", value: landPreparations.reduce((acc, p) => acc + Number(p.total_price || p.total_amount || 0), 0), fill: "var(--bs-warning)" },
+    { name: "Mão de Obra", value: laborRecords.reduce((acc, p) => acc + Number(p.total_amount || 0), 0), fill: "var(--bs-secondary)" },
+  ].filter(item => item.value > 0);
+
+  const seedItems = inventoryItems.filter((item) => item.categoria === "semente" || (!item.especie_animal && item.categoria === "outro"));
+  const nutritionItems = inventoryItems.filter((item) =>
+    ["fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") || (!item.especie_animal && item.categoria !== "defensivo")
+  );
+  const fertilizerItems = nutritionItems;
+  const fertigationItems = nutritionItems;
+  const pesticideItems = inventoryItems.filter((item) => item.categoria === "defensivo" || (!item.especie_animal && item.categoria === "outro"));
+
   return (
     <div>
       {/* Header */}
@@ -825,9 +895,9 @@ export default function PlantacaoDetailPage() {
             },
             {
               number: 10,
-              label: "Histórico",
-              desc: "Linha do tempo de todas as atividades realizadas",
-              stage: shortcutStages.historico,
+              label: "Relatório",
+              desc: "Gerar PDF completo ou resumo da produção",
+              stage: shortcutStages.relatorio,
               status: "pending" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/historico`),
               wide: true,
@@ -875,26 +945,16 @@ export default function PlantacaoDetailPage() {
       {/* Second row — financial KPIs */}
       <div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Receita Estimada" value={money(plantation.estimated_revenue)} variant="success" />
-        </div>
-        <div className="col-md-3 col-6">
-          <MetricCard icon={<Target size={14} />} label="Lucro Real" value={money(plantation.real_profit)} variant={plantation.real_profit && parseFloat(plantation.real_profit) >= 0 ? "success" : "danger"} />
-        </div>
-        <div className="col-md-3 col-6">
-          <MetricCard icon={<Percent size={14} />} label="ROI Estimado" value={plantation.estimated_roi ? `${fmt(plantation.estimated_roi)}%` : "-"} variant={plantation.estimated_roi && parseFloat(plantation.estimated_roi) >= 0 ? "success" : "danger"} />
+          <MetricCard icon={<Target size={14} />} label="Lucro Real" value={money(realProfit)} variant={realProfit >= 0 ? "success" : "danger"} />
         </div>
         <div className="col-md-3 col-6">
           <MetricCard icon={<DollarSign size={14} />} label="Custo por ha" value={money(plantation.cost_per_ha)} variant="warning" />
         </div>
-      </div>
-
-      {/* Third row — per-hectare KPIs */}
-      <div className="row g-4 mb-4">
-        <div className="col-md-6 col-12">
-          <MetricCard icon={<TrendingUp size={14} />} label="Receita por ha" value={money(plantation.estimated_revenue_per_ha)} variant="success" />
+        <div className="col-md-3 col-6">
+          <MetricCard icon={<TrendingUp size={14} />} label="Receita por ha" value={realRevenuePerHa !== null ? money(realRevenuePerHa) : "-"} variant="success" />
         </div>
-        <div className="col-md-6 col-12">
-          <MetricCard icon={<TrendingDown size={14} />} label="Lucro por ha" value={money(plantation.estimated_profit_per_ha)} variant={plantation.estimated_profit_per_ha && parseFloat(plantation.estimated_profit_per_ha) >= 0 ? "success" : "danger"} />
+        <div className="col-md-3 col-6">
+          <MetricCard icon={<TrendingDown size={14} />} label="Lucro por kg" value={lucroPorKg !== null ? money(lucroPorKg) : "-"} variant={lucroPorKg !== null && lucroPorKg >= 0 ? "success" : "danger"} />
         </div>
       </div>
 
@@ -940,10 +1000,8 @@ export default function PlantacaoDetailPage() {
               <tbody>
                 <tr><td className="text-muted small" style={{ width: "40%" }}>Investimento Total</td><td className="fw-medium">{money(plantation.investment_total)}</td></tr>
                 <tr><td className="text-muted small">Custo por Hectare</td><td className="fw-medium">{money(plantation.cost_per_ha)}</td></tr>
-                <tr><td className="text-muted small">Receita Estimada</td><td className="fw-medium text-success">{money(plantation.estimated_revenue)}</td></tr>
-                <tr><td className="text-muted small">Receita por Hectare</td><td className="fw-medium">{money(plantation.estimated_revenue_per_ha)}</td></tr>
-                <tr><td className="text-muted small">Lucro Real</td><td className={`fw-medium ${plantation.real_profit && parseFloat(plantation.real_profit) >= 0 ? "text-success" : "text-danger"}`}>{money(plantation.real_profit)}</td></tr>
-                <tr><td className="text-muted small">ROI</td><td className={`fw-medium ${plantation.estimated_roi && parseFloat(plantation.estimated_roi) >= 0 ? "text-success" : "text-danger"}`}>{plantation.estimated_roi ? `${fmt(plantation.estimated_roi)}%` : "-"}</td></tr>
+                <tr><td className="text-muted small">Receita por Hectare</td><td className="fw-medium">{realRevenuePerHa !== null ? money(realRevenuePerHa) : "-"}</td></tr>
+                <tr><td className="text-muted small">Lucro Real</td><td className={`fw-medium ${realProfit >= 0 ? "text-success" : "text-danger"}`}>{money(realProfit)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -955,9 +1013,12 @@ export default function PlantacaoDetailPage() {
             <h6 className="fw-bold mb-3"><Warehouse size={16} className="me-1" /> Resumo de Produção</h6>
             <table className="table table-sm table-borderless mb-0">
               <tbody>
-                <tr><td className="text-muted small" style={{ width: "40%" }}>Produção Estimada</td><td className="fw-medium">{plantation.estimated_production_kg ? `${fmt(plantation.estimated_production_kg, 0)} kg` : "-"}</td></tr>
-                <tr><td className="text-muted small">Sacas Estimadas</td><td className="fw-medium">{plantation.estimated_bags ? `${fmt(plantation.estimated_bags, 0)} sacas` : "-"}</td></tr>
+                <tr><td className="text-muted small" style={{ width: "40%" }}>Quantidade produzida</td><td className="fw-medium">{harvestedKg > 0 ? `${fmt(harvestedKg, 0)} kg` : "-"}</td></tr>
+                <tr><td className="text-muted small">Quantidade vendida</td><td className="fw-medium">{soldKg > 0 ? `${fmt(soldKg, 0)} kg` : "-"}</td></tr>
                 <tr><td className="text-muted small">Área Plantada</td><td className="fw-medium">{plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"}</td></tr>
+                <tr><td className="text-muted small">Custo por kg</td><td className="fw-medium">{custoPorKg !== null ? money(custoPorKg) : "-"}</td></tr>
+                <tr><td className="text-muted small">Venda por kg</td><td className="fw-medium">{vendaPorKg !== null ? money(vendaPorKg) : "-"}</td></tr>
+                <tr><td className="text-muted small">Lucro por kg</td><td className={`fw-medium ${lucroPorKg !== null && lucroPorKg >= 0 ? "text-success" : lucroPorKg !== null ? "text-danger" : ""}`}>{lucroPorKg !== null ? money(lucroPorKg) : "-"}</td></tr>
               </tbody>
             </table>
           </div>
@@ -971,6 +1032,59 @@ export default function PlantacaoDetailPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Charts Row */}
+      <div className="row g-4 mb-4 mt-0">
+        <div className="col-md-6">
+          <div className="dashboard-card p-4 h-100">
+            <h6 className="fw-bold mb-3">Composição de Custos</h6>
+            {costData.length > 0 ? (
+              <div style={{ height: 250 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={costData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={80} paddingAngle={5}>
+                      {costData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                    </Pie>
+                    <RechartsTooltip formatter={(value) => money(Array.isArray(value) ? value[0] : value ?? 0)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-muted small">Dados insuficientes para o gráfico.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="col-md-6">
+          <div className="dashboard-card p-4 h-100">
+            <h6 className="fw-bold mb-3">Progresso de Colheita</h6>
+            <div className="mb-3">
+              <div className="d-flex justify-content-between small mb-1">
+                <span className="text-muted">Produção (kg)</span>
+                <span className="fw-medium">{fmt(harvestedKg, 0)} / {fmt(estimatedProductionKg, 0)} kg</span>
+              </div>
+              <div className="progress" style={{ height: 10 }}>
+                <div className="progress-bar bg-success" style={{ width: `${Math.min((harvestedKg / (estimatedProductionKg || 1)) * 100, 100)}%` }} />
+              </div>
+            </div>
+            <div className="mb-3">
+              <div className="d-flex justify-content-between small mb-1">
+                <span className="text-muted">Receita Real (R$)</span>
+                <span className="fw-medium">{money(harvestRevenue)}</span>
+              </div>
+              <div className="progress" style={{ height: 10 }}>
+                <div className="progress-bar bg-primary" style={{ width: harvestRevenue > 0 ? "100%" : "0%" }} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Button variant="outline-success" size="sm" className="w-100" onClick={() => router.push(`/home/plantacoes/${id}/colheita`)}>
+                Detalhes da Colheita
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Plantio ──────────────────────────────────────────────────── */}
@@ -1127,6 +1241,60 @@ export default function PlantacaoDetailPage() {
         )}
       </div>
 
+      {/* ── Preparo de Terra ─────────────────────────────────────────── */}
+      <div className="dashboard-card p-4 mt-3">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="fw-bold mb-0"> Preparo de Terra</h6>
+          <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/preparo-terra`)}>Ver Todos</Button>
+        </div>
+        {landPreparations.length === 0 ? (
+          <p className="text-muted small mb-0">Nenhum preparo registrado.</p>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-sm table-borderless mb-0">
+              <thead><tr className="text-muted small"><th>Data</th><th>Operação</th><th>Horas/Qtd</th><th>Custo Total</th></tr></thead>
+              <tbody>
+                {landPreparations.slice(0, 5).map((p) => (
+                  <tr key={p.id}>
+                    <td className="fw-medium">{p.date ? new Date(p.date).toLocaleDateString("pt-BR") : "-"}</td>
+                    <td>{p.operation_type_display || "-"}</td>
+                    <td>{p.hours_worked ? `${fmt(p.hours_worked)} h` : "-"}</td>
+                    <td>{p.total_price || p.total_amount ? money(p.total_price || p.total_amount) : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Mão de Obra ──────────────────────────────────────────────── */}
+      <div className="dashboard-card p-4 mt-3 mb-4">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="fw-bold mb-0"> Mão de Obra</h6>
+          <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/mao-obra`)}>Ver Todos</Button>
+        </div>
+        {laborRecords.length === 0 ? (
+          <p className="text-muted small mb-0">Nenhuma mão de obra registrada.</p>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-sm table-borderless mb-0">
+              <thead><tr className="text-muted small"><th>Data</th><th>Trabalhador</th><th>Atividade</th><th>Valor Total</th></tr></thead>
+              <tbody>
+                {laborRecords.slice(0, 5).map((l) => (
+                  <tr key={l.id}>
+                    <td className="fw-medium">{l.activity_date ? new Date(l.activity_date).toLocaleDateString("pt-BR") : "-"}</td>
+                    <td>{l.worker_name || l.worker?.name || "-"}</td>
+                    <td>{l.activity_type_display || "-"}</td>
+                    <td>{l.total_amount ? money(l.total_amount) : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Modal: Novo Plantio */}
       <Modal isOpen={showPlantio} onClose={() => setShowPlantio(false)} title="Registrar Plantio"
         footer={
@@ -1159,7 +1327,7 @@ export default function PlantacaoDetailPage() {
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handlePlantioLineItemChange(index, e.target.value)}>
                         <option value="">Selecione uma semente do estoque...</option>
-                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                        {seedItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
                       </select>
@@ -1186,8 +1354,8 @@ export default function PlantacaoDetailPage() {
               </tbody>
             </table>
           </div>
-          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
-            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          {seedItems.length === 0 && (
+            <small className="text-muted">Nenhuma semente cadastrada no estoque.</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {plantioLines.filter((line) => line.item).length}</span>
@@ -1238,7 +1406,7 @@ export default function PlantacaoDetailPage() {
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handleAdubacaoLineItemChange(index, e.target.value)}>
                         <option value="">Selecione um fertilizante do estoque...</option>
-                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                        {fertilizerItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
                       </select>
@@ -1265,8 +1433,8 @@ export default function PlantacaoDetailPage() {
               </tbody>
             </table>
           </div>
-          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
-            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          {fertilizerItems.length === 0 && (
+            <small className="text-muted">Nenhum insumo compatível com adubação cadastrado no estoque.</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {adubacaoLines.filter((line) => line.item).length}</span>
@@ -1315,7 +1483,7 @@ export default function PlantacaoDetailPage() {
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handleFertirrigacaoLineItemChange(index, e.target.value)}>
                         <option value="">Selecione um insumo do estoque...</option>
-                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                        {fertigationItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
                       </select>
@@ -1342,8 +1510,8 @@ export default function PlantacaoDetailPage() {
               </tbody>
             </table>
           </div>
-          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
-            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          {fertigationItems.length === 0 && (
+            <small className="text-muted">Nenhum insumo compatível com fertirrigação cadastrado no estoque.</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {fertirrigacaoLines.filter((line) => line.item).length}</span>
@@ -1393,7 +1561,7 @@ export default function PlantacaoDetailPage() {
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handleDefensivoLineItemChange(index, e.target.value)}>
                         <option value="">Selecione um insumo...</option>
-                        {inventoryItems.filter((i) => !i.especie_animal).map((i) => (
+                        {pesticideItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
                       </select>
@@ -1425,8 +1593,8 @@ export default function PlantacaoDetailPage() {
               </tbody>
             </table>
           </div>
-          {inventoryItems.filter((i) => !i.especie_animal).length === 0 && (
-            <small className="text-muted">Nenhum insumo de agricultura cadastrado no estoque.</small>
+          {pesticideItems.length === 0 && (
+            <small className="text-muted">Nenhum defensivo cadastrado no estoque.</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {defensivoLines.filter((line) => line.item).length}</span>

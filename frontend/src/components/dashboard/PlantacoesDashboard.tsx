@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Droplets, ClipboardList, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
@@ -26,7 +26,7 @@ const statusLabels: Record<string, string> = {
   management: "Manejo", harvesting: "Colhendo", finished: "Concluído", cancelled: "Cancelado",
 };
 
-type FieldOption = { id: string; name: string; farm_name: string };
+type FieldOption = { id: string; name: string; farm_name: string; area_ha?: string | number | null };
 type FarmOption = { id: string; name: string; city?: string; state?: string };
 type InventorySeedOption = {
   id: string;
@@ -534,10 +534,12 @@ export default function PlantacoesDashboard() {
     return { title: "V4 - Vegetativo", days: `${days || 1} dias` };
   };
 
-  const getNextActivity = (plantation: Plantation, index: number) => {
-    if (plantation.status === "harvesting") return { title: "Colheita", date: plantation.expected_harvest_date };
-    const activities = ["Fertirrigação", "Aplicação", "Irrigação", "Adubação"];
-    return { title: activities[index % activities.length], date: plantation.expected_harvest_date || plantation.planting_date };
+  const getNextActivity = (plantation: Plantation) => {
+    if (plantation.status === "planned") return { title: "Início do plantio", date: plantation.planting_date };
+    if (plantation.status === "harvesting") return { title: "Colheita em andamento", date: plantation.expected_harvest_date };
+    if (plantation.status === "finished") return { title: "Ciclo concluído", date: plantation.actual_harvest_date };
+    if (plantation.status === "cancelled") return { title: "Ciclo cancelado", date: plantation.actual_harvest_date || plantation.expected_harvest_date };
+    return { title: "Colheita prevista", date: plantation.expected_harvest_date };
   };
 
   const cultureCards = useMemo(() => {
@@ -575,7 +577,20 @@ export default function PlantacoesDashboard() {
   };
 
   const areaPlanted = dashboardData?.total_area_ha || plantations.reduce((total, plantation) => total + parseNumber(plantation.planted_area_ha), 0);
-  const totalArea = parseNumber(areaPlanted) ? parseNumber(areaPlanted) / 0.78 : 0;
+  const totalArea = fields.reduce((total, field) => total + parseNumber(field.area_ha), 0);
+  const missingAreaCount = plantations.filter((plantation) => !parseNumber(plantation.planted_area_ha)).length;
+  const missingFieldCount = fields.length === 0 ? 1 : 0;
+  const realAlerts = [
+    ...(dashboardData?.upcoming_harvests
+      ? [{ icon: <AlertTriangle size={24} />, title: "Colheita próxima", value: `${dashboardData.upcoming_harvests} plantação${dashboardData.upcoming_harvests === 1 ? "" : "es"}`, color: "oklch(0.62 0.17 32)", tint: "oklch(0.98 0.025 48)" }]
+      : []),
+    ...(missingAreaCount
+      ? [{ icon: <Ruler size={24} />, title: "Área não informada", value: `${missingAreaCount} plantação${missingAreaCount === 1 ? "" : "es"}`, color: "oklch(0.72 0.18 78)", tint: "oklch(0.98 0.025 82)" }]
+      : []),
+    ...(missingFieldCount
+      ? [{ icon: <MapPin size={24} />, title: "Nenhum talhão cadastrado", value: "Cadastre um talhão para iniciar", color: "oklch(0.55 0.15 288)", tint: "oklch(0.97 0.025 292)" }]
+      : []),
+  ];
   const selectedField = fields.find((field) => field.id === form.field);
   const formVisual = getCropVisual(form.crop_name || form.name);
   const formHarvestYear = getHarvestYear(form.planting_date);
@@ -607,27 +622,19 @@ export default function PlantacoesDashboard() {
             <AlertTriangle size={17} style={{ color: "oklch(0.72 0.18 78)" }} />
             <h2 className="fw-bold mb-0" style={{ fontSize: "1rem" }}>Alertas</h2>
           </div>
-          <button type="button" className="btn btn-sm border-0 d-inline-flex align-items-center gap-1 fw-semibold text-primary" style={{ fontSize: "0.75rem" }}>
-            Ver todos os alertas <ChevronRight size={14} />
-          </button>
+          <span className="text-muted-foreground fw-semibold" style={{ fontSize: "0.75rem" }}>{realAlerts.length} alerta{realAlerts.length === 1 ? "" : "s"}</span>
         </div>
-        <div className="row g-3">
-          <div className="col-12 col-md-6 col-xl">
-            <AlertCard icon={<AlertTriangle size={24} />} title="Fertirrigação pendente" value={`${Math.max(1, Math.min(2, dashboardData?.total_active ?? (plantations.length || 1)))} plantações`} color="oklch(0.72 0.18 78)" tint="oklch(0.98 0.025 82)" />
+        {realAlerts.length === 0 ? (
+          <div className="text-muted-foreground small">Nenhum alerta real para as plantações cadastradas.</div>
+        ) : (
+          <div className="row g-3">
+            {realAlerts.map((alert) => (
+              <div key={alert.title} className="col-12 col-md-6 col-xl">
+                <AlertCard icon={alert.icon} title={alert.title} value={alert.value} color={alert.color} tint={alert.tint} />
+              </div>
+            ))}
           </div>
-          <div className="col-12 col-md-6 col-xl">
-            <AlertCard icon={<Droplets size={24} />} title="Irrigação recomendada" value={`${Math.max(1, Math.min(3, plantations.length || 1))} plantações`} color="oklch(0.62 0.16 215)" tint="oklch(0.97 0.025 220)" />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <AlertCard icon={<Calendar size={24} />} title="Aplicações agendadas" value={`${Math.max(1, plantations.length || 1)} para hoje`} color="oklch(0.54 0.13 150)" tint="oklch(0.97 0.025 150)" />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <AlertCard icon={<ClipboardList size={24} />} title="Análises de solo vencendo" value={`${fields.length || 1} talhão${fields.length === 1 ? "" : "s"}`} color="oklch(0.55 0.15 288)" tint="oklch(0.97 0.025 292)" />
-          </div>
-          <div className="col-12 col-md-6 col-xl">
-            <AlertCard icon={<AlertTriangle size={24} />} title="Colheita próxima" value={`${dashboardData?.upcoming_harvests ?? 0} plantações`} color="oklch(0.62 0.17 32)" tint="oklch(0.98 0.025 48)" />
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="row g-3 mb-3">
@@ -740,10 +747,10 @@ export default function PlantacoesDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {plantations.map((plantation, index) => {
+                  {plantations.map((plantation) => {
                     const visual = getCropVisual(plantation.crop_name);
                     const phase = getPlantationPhase(plantation);
-                    const nextActivity = getNextActivity(plantation, index);
+                    const nextActivity = getNextActivity(plantation);
 
                     return (
                       <tr key={plantation.id} style={{ borderBottom: "1px solid var(--border)", cursor: "pointer" }} onClick={() => router.push(`/home/plantacoes/${plantation.id}`)}>

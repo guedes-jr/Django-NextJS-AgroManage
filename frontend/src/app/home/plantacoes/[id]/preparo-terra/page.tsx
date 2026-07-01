@@ -11,10 +11,8 @@ import {
   Scissors, 
   AlignJustify, 
   MoreHorizontal,
-  Plus, 
   Save, 
-  Check, 
-  X
+  Check
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import apiClient from "@/services/api";
@@ -79,13 +77,8 @@ export default function PreparoTerraPage() {
   // Data lists
   const [operators, setOperators] = useState<Member[]>([]);
 
-  // Drawer / Submitting states
-  const [showDrawer, setShowDrawer] = useState(false);
+  // Submitting states
   const [saving, setSaving] = useState(false);
-  
-  // Drawer form states
-  const [drawerForm, setDrawerForm] = useState({ name: "" });
-  const [savingOperator, setSavingOperator] = useState(false);
 
   const selectedDetails = operationDetails[selectedOperation];
 
@@ -118,31 +111,6 @@ export default function PreparoTerraPage() {
       }
     })();
   }, [id]);
-
-  const handleSaveOperator = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const name = drawerForm.name.trim();
-    if (!name) return;
-
-    try {
-      setSavingOperator(true);
-      const newOperator: Member = {
-        id: `local-${Date.now()}`,
-        full_name: name,
-        email: "",
-        role: "operador",
-      };
-      setOperators((prev) => [...prev, newOperator]);
-      setSelectedOperator(name);
-      setDrawerForm({ name: "" });
-      setShowDrawer(false);
-    } catch (err) {
-      console.error("Erro ao cadastrar operador", err);
-      alert("Não foi possível cadastrar o operador.");
-    } finally {
-      setSavingOperator(false);
-    }
-  };
 
   const handleSubmit = async (conclude: boolean) => {
     if (saving) return;
@@ -201,7 +169,7 @@ export default function PreparoTerraPage() {
     <div className="position-relative overflow-hidden" style={{ minHeight: "100vh" }}>
       {/* Main Layout Grid */}
       <div className="row g-4">
-        <div className={showDrawer ? "col-lg-8 col-12 transition-all" : "col-12 transition-all"}>
+        <div className="col-12 transition-all">
           
           {/* Breadcrumb */}
           <div className="mb-3 d-flex align-items-center gap-2 text-muted small fw-medium">
@@ -279,30 +247,19 @@ export default function PreparoTerraPage() {
                 {/* Operador */}
                 <div className="mb-4">
                   <label className="form-label fw-bold text-foreground mb-2">Operador</label>
-                  <div className="d-flex gap-2">
-                    <select
-                      className="form-select"
-                      style={{ borderRadius: 10, height: 44 }}
-                      value={selectedOperator}
-                      onChange={(e) => setSelectedOperator(e.target.value)}
-                    >
-                      <option value="">Selecione o operador</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.full_name || op.email}>
-                          {op.full_name || op.email}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setShowDrawer(true)}
-                      className="btn btn-outline-primary d-flex align-items-center justify-content-center"
-                      style={{ width: 44, height: 44, borderRadius: 10, borderStyle: "dashed" }}
-                      title="Adicionar operador"
-                    >
-                      <Plus size={20} />
-                    </button>
-                  </div>
+                  <input
+                    className="form-control"
+                    list="preparo-operadores"
+                    placeholder="Selecione ou digite o nome do operador"
+                    style={{ borderRadius: 10, height: 44 }}
+                    value={selectedOperator}
+                    onChange={(e) => setSelectedOperator(e.target.value)}
+                  />
+                  <datalist id="preparo-operadores">
+                    {operators.map((op) => (
+                      <option key={op.id} value={op.full_name || op.email} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
@@ -418,72 +375,6 @@ export default function PreparoTerraPage() {
             </div>
           </div>
         </div>
-
-        {/* Right Drawer: Cadastrar Operador */}
-        {showDrawer && (
-          <div className="col-lg-4 col-12">
-            <div 
-              className="dashboard-card p-4 border border-primary/20 sticky-top"
-              style={{ 
-                borderRadius: 16, 
-                boxShadow: "0 12px 32px rgba(0,0,0,0.06)", 
-                top: 24,
-                zIndex: 10
-              }}
-            >
-              {/* Drawer Header */}
-              <div className="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
-                <h5 className="fw-bold text-foreground mb-0 d-flex align-items-center gap-2">
-                  <Plus size={20} className="text-primary" /> Adicionar operador
-                </h5>
-                <button
-                  type="button"
-                  className="btn btn-link p-1 text-muted-foreground hover-text-foreground transition-colors"
-                  onClick={() => setShowDrawer(false)}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Drawer Form */}
-              <form onSubmit={handleSaveOperator} className="row g-3">
-                <div className="col-12">
-                  <label className="form-label small fw-medium text-foreground">Nome do operador *</label>
-                  <input
-                    type="text"
-                    required
-                    className="form-control"
-                    placeholder="Ex.: João Silva"
-                    value={drawerForm.name}
-                    onChange={(e) => setDrawerForm({ ...drawerForm, name: e.target.value })}
-                    style={{ borderRadius: 10, height: 40 }}
-                  />
-                </div>
-
-                {/* Drawer Actions */}
-                <div className="col-12 d-flex gap-2 mt-4 border-top pt-3">
-                  <Button
-                    type="button"
-                    variant="outline-secondary"
-                    className="flex-grow-1"
-                    onClick={() => setShowDrawer(false)}
-                    style={{ borderRadius: 10 }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-grow-1"
-                    disabled={savingOperator}
-                    style={{ borderRadius: 10 }}
-                  >
-                    {savingOperator ? "Salvando..." : "Salvar"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
