@@ -220,8 +220,8 @@ export function FeedConsumptionDashboard({
               onClick={() => setActiveCategory(cat.id)}
               className={`px-4 py-2 rounded-xl fw-bold d-flex align-items-center gap-2 transition-all border-0 ${
                 activeCategory === cat.id 
-                  ? "bg-white text-primary shadow-sm" 
-                  : "bg-transparent text-muted-foreground hover-bg-white/50"
+                  ? "bg-card text-primary shadow-sm" 
+                  : "bg-transparent text-muted-foreground hover-bg-muted"
               }`}
               style={{ fontSize: '0.9rem' }}
             >
@@ -240,14 +240,14 @@ export function FeedConsumptionDashboard({
         <div className="col-12 col-xl-9">
           {showForm && (
             <div className="dashboard-card p-4 mb-4 border animate-fade-in shadow-sm">
-              <h5 className="fw-bold mb-4 text-dark">Novo Lançamento de Consumo</h5>
+              <h5 className="fw-bold mb-4 text-foreground">Novo Lançamento de Consumo</h5>
               <form onSubmit={handleSave}>
                 <div className="row g-3 mb-4">
                   {/* Linha 1 */}
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-dark">Selecionar Lote</label>
+                    <label className="small fw-bold mb-1 text-foreground">Selecionar Lote</label>
                     <div className="input-group">
-                      <span className="input-group-text bg-white border-end-0 text-muted"><Users size={16} /></span>
+                      <span className="input-group-text bg-card border-end-0 text-muted"><Users size={16} /></span>
                       <select 
                         className="form-select border-start-0 ps-0" 
                         required 
@@ -263,10 +263,10 @@ export function FeedConsumptionDashboard({
                   </div>
                   
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-dark">Período do Consumo</label>
+                    <label className="small fw-bold mb-1 text-foreground">Período do Consumo</label>
                     <div className="d-flex align-items-center gap-2">
                       <div className="input-group input-group-sm">
-                        <span className="input-group-text bg-white border-end-0 text-muted" style={{fontSize: '0.7rem'}}>DE</span>
+                        <span className="input-group-text bg-card border-end-0 text-muted" style={{fontSize: '0.7rem'}}>DE</span>
                         <input 
                           type="date" 
                           className="form-control border-start-0 ps-1 text-muted" 
@@ -276,7 +276,7 @@ export function FeedConsumptionDashboard({
                         />
                       </div>
                       <div className="input-group input-group-sm">
-                        <span className="input-group-text bg-white border-end-0 text-muted" style={{fontSize: '0.7rem'}}>ATÉ</span>
+                        <span className="input-group-text bg-card border-end-0 text-muted" style={{fontSize: '0.7rem'}}>ATÉ</span>
                         <input 
                           type="date" 
                           className="form-control border-start-0 ps-1 text-muted" 
@@ -289,9 +289,9 @@ export function FeedConsumptionDashboard({
                   </div>
 
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-dark">Tipo de Ração</label>
+                    <label className="small fw-bold mb-1 text-foreground">Tipo de Ração</label>
                     <div className="input-group">
-                      <span className="input-group-text bg-white border-end-0 text-muted"><Scale size={16} /></span>
+                      <span className="input-group-text bg-card border-end-0 text-muted"><Scale size={16} /></span>
                       <select 
                         className="form-select border-start-0 ps-0" 
                         required
@@ -309,7 +309,7 @@ export function FeedConsumptionDashboard({
                   </div>
 
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-dark">Forma de Registro</label>
+                    <label className="small fw-bold mb-1 text-foreground">Forma de Registro</label>
                     <select 
                       className="form-select"
                       value={formData.tipo_registro}
@@ -325,17 +325,17 @@ export function FeedConsumptionDashboard({
                 <div className="row g-3 mb-4">
                   {/* Linha 2 */}
                   <div className="col-12 col-md-4">
-                    <label className="small fw-bold mb-1 text-dark">Quantidade Consumida (total)</label>
+                    <label className="small fw-bold mb-1 text-foreground">Quantidade Consumida (total)</label>
                     <div className="input-group">
                       <input 
                         type="number" 
                         step="0.01" 
-                        className="form-control fw-bold text-dark border-end-0" 
+                        className="form-control fw-bold text-foreground border-end-0" 
                         required
                         value={formData.quantidade}
                         onChange={e => setFormData({...formData, quantidade: Number(e.target.value)})}
                       />
-                      <span className="input-group-text bg-white fw-bold text-muted border-start-0">kg</span>
+                      <span className="input-group-text bg-card fw-bold text-muted border-start-0">kg</span>
                     </div>
                     <div className="small text-success mt-1 fw-medium" style={{fontSize: '0.75rem'}}>
                       <Info size={12} className="me-1" /> Período de 7 dias
@@ -343,31 +343,31 @@ export function FeedConsumptionDashboard({
                   </div>
 
                   <div className="col-12 col-md-4">
-                    <label className="small fw-bold mb-1 text-dark">Custo por kg (R$)</label>
+                    <label className="small fw-bold mb-1 text-foreground">Custo por kg (R$)</label>
                     <div className="input-group">
-                      <span className="input-group-text bg-light text-muted fw-bold">R$</span>
+                      <span className="input-group-text bg-muted/20 text-muted fw-bold">R$</span>
                       <input 
                         type="text" 
-                        className="form-control bg-light text-muted fw-bold" 
+                        className="form-control bg-muted/20 text-muted fw-bold" 
                         value="2,85"
                         readOnly
                       />
-                      <span className="input-group-text bg-light text-muted"><Lock size={14} /></span>
+                      <span className="input-group-text bg-muted/20 text-muted"><Lock size={14} /></span>
                     </div>
                     <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>Valor obtido automaticamente do estoque.</div>
                   </div>
 
                   <div className="col-12 col-md-4">
-                    <label className="small fw-bold mb-1 text-dark">Custo Total (R$)</label>
+                    <label className="small fw-bold mb-1 text-foreground">Custo Total (R$)</label>
                     <div className="input-group">
-                      <span className="input-group-text bg-light text-muted fw-bold">R$</span>
+                      <span className="input-group-text bg-muted/20 text-muted fw-bold">R$</span>
                       <input 
                         type="text" 
-                        className="form-control bg-light text-muted fw-bold" 
+                        className="form-control bg-muted/20 text-muted fw-bold" 
                         value="598,50"
                         readOnly
                       />
-                      <span className="input-group-text bg-light text-muted"><Lock size={14} /></span>
+                      <span className="input-group-text bg-muted/20 text-muted"><Lock size={14} /></span>
                     </div>
                     <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>Calculado automaticamente pelo sistema.</div>
                   </div>
@@ -387,34 +387,34 @@ export function FeedConsumptionDashboard({
 
           {/* History Table */}
           <div className="dashboard-card p-4 border shadow-sm">
-            <h5 className="fw-bold mb-4 text-dark">Histórico de Consumo</h5>
+            <h5 className="fw-bold mb-4 text-foreground">Histórico de Consumo</h5>
             
             <div className="row g-2 mb-4">
               <div className="col-12 col-md-3">
                 <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Período</label>
-                <select className="form-select form-select-sm text-dark bg-white">
+                <select className="form-select form-select-sm text-foreground bg-card">
                   <option>Últimos 30 dias</option>
                 </select>
               </div>
               <div className="col-12 col-md-3">
                 <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Tipo de Registro</label>
-                <select className="form-select form-select-sm text-dark bg-white">
+                <select className="form-select form-select-sm text-foreground bg-card">
                   <option>Todos</option>
                 </select>
               </div>
               <div className="col-12 col-md-3">
                 <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Tipo de Ração</label>
-                <select className="form-select form-select-sm text-dark bg-white">
+                <select className="form-select form-select-sm text-foreground bg-card">
                   <option>Todos</option>
                 </select>
               </div>
               <div className="col-12 col-md-3">
                 <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Categoria</label>
                 <div className="d-flex gap-2">
-                  <select className="form-select form-select-sm text-dark bg-white flex-grow-1">
+                  <select className="form-select form-select-sm text-foreground bg-card flex-grow-1">
                     <option>Todos</option>
                   </select>
-                  <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 bg-white flex-shrink-0 px-3">
+                  <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 bg-card flex-shrink-0 px-3">
                     <Filter size={14} /> Filtros
                   </button>
                 </div>
@@ -423,7 +423,7 @@ export function FeedConsumptionDashboard({
 
             <div className="table-responsive">
               <table className="table table-hover align-middle">
-                <thead className="bg-white">
+                <thead className="bg-card">
                   <tr>
                     <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Data Inicial</th>
                     <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Data Final</th>
@@ -442,19 +442,19 @@ export function FeedConsumptionDashboard({
                 <tbody>
                   {stats?.latest_entries.map((entry: any) => (
                     <tr key={entry.id}>
-                      <td className="fw-medium text-dark">{new Date(entry.data_inicio).toLocaleDateString('pt-BR')}</td>
-                      <td className="fw-medium text-dark">{new Date(entry.data_fim).toLocaleDateString('pt-BR')}</td>
+                      <td className="fw-medium text-foreground">{new Date(entry.data_inicio).toLocaleDateString('pt-BR')}</td>
+                      <td className="fw-medium text-foreground">{new Date(entry.data_fim).toLocaleDateString('pt-BR')}</td>
                       <td>
                         <span className="badge bg-success/20 text-success rounded-pill px-2 py-1">Lote</span>
                       </td>
-                      <td className="fw-bold text-dark">{entry.lote_codigo}</td>
-                      <td className="text-dark small">Setor 02 - Baia 03</td>
-                      <td className="fw-medium text-dark small">{entry.item_nome}</td>
-                      <td className="text-dark small">{entry.quantidade.toLocaleString()}</td>
-                      <td className="text-dark small">{Number(entry.custo_unitario).toFixed(2)}</td>
-                      <td className="text-dark small">{Number(entry.custo_total).toFixed(2)}</td>
-                      <td className="text-dark small">Total no Período</td>
-                      <td className="text-dark small">Administrador</td>
+                      <td className="fw-bold text-foreground">{entry.lote_codigo}</td>
+                      <td className="text-foreground small">Setor 02 - Baia 03</td>
+                      <td className="fw-medium text-foreground small">{entry.item_nome}</td>
+                      <td className="text-foreground small">{entry.quantidade.toLocaleString()}</td>
+                      <td className="text-foreground small">{Number(entry.custo_unitario).toFixed(2)}</td>
+                      <td className="text-foreground small">{Number(entry.custo_total).toFixed(2)}</td>
+                      <td className="text-foreground small">Total no Período</td>
+                      <td className="text-foreground small">Administrador</td>
                       <td className="text-end">
                         <button className="btn btn-link text-danger p-0 ms-2"><Trash2 size={16} /></button>
                       </td>
@@ -476,30 +476,36 @@ export function FeedConsumptionDashboard({
           
           {/* Dicas Importantes */}
           <div className="row g-3 mt-4">
-            <h5 className="fw-bold mb-2 text-dark">Dicas importantes</h5>
+            <h5 className="fw-bold mb-2 text-foreground">Dicas importantes</h5>
             <div className="col-12 col-md-4">
-              <div className="p-3 bg-light rounded-3 d-flex gap-3">
-                <Calendar size={20} className="text-success mt-1" />
+              <div className="p-3 rounded-3 d-flex gap-3 h-100 border border-border shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0" style={{ width: 36, height: 36, background: "color-mix(in srgb, var(--primary), transparent 88%)", color: "var(--primary)" }}>
+                  <Calendar size={18} />
+                </div>
                 <div>
-                  <div className="fw-bold small text-dark">Registre o consumo por período</div>
+                  <div className="fw-bold small text-foreground">Registre o consumo por período</div>
                   <div className="small text-muted" style={{fontSize: '0.75rem'}}>Você pode lançar o consumo diário, semanal ou mensal.</div>
                 </div>
               </div>
             </div>
             <div className="col-12 col-md-4">
-              <div className="p-3 bg-light rounded-3 d-flex gap-3">
-                <Lock size={20} className="text-success mt-1" />
+              <div className="p-3 rounded-3 d-flex gap-3 h-100 border border-border shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0" style={{ width: 36, height: 36, background: "color-mix(in srgb, var(--primary), transparent 88%)", color: "var(--primary)" }}>
+                  <Lock size={18} />
+                </div>
                 <div>
-                  <div className="fw-bold small text-dark">Custo automático</div>
+                  <div className="fw-bold small text-foreground">Custo automático</div>
                   <div className="small text-muted" style={{fontSize: '0.75rem'}}>O custo por kg é obtido do estoque e não pode ser alterado.</div>
                 </div>
               </div>
             </div>
             <div className="col-12 col-md-4">
-              <div className="p-3 bg-light rounded-3 d-flex gap-3">
-                <TrendingDown size={20} className="text-success mt-1" />
+              <div className="p-3 rounded-3 d-flex gap-3 h-100 border border-border shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0" style={{ width: 36, height: 36, background: "color-mix(in srgb, var(--primary), transparent 88%)", color: "var(--primary)" }}>
+                  <TrendingDown size={18} />
+                </div>
                 <div>
-                  <div className="fw-bold small text-dark">Acompanhe os resultados</div>
+                  <div className="fw-bold small text-foreground">Acompanhe os resultados</div>
                   <div className="small text-muted" style={{fontSize: '0.75rem'}}>Consumos regulares ajudam a melhorar o desempenho dos animais.</div>
                 </div>
               </div>
@@ -511,33 +517,33 @@ export function FeedConsumptionDashboard({
         <div className="col-12 col-xl-3">
           {/* Resumo do Período */}
           <div className="dashboard-card p-4 mb-4 shadow-sm border">
-            <h6 className="fw-bold mb-1 text-dark">Resumo do Período</h6>
+            <h6 className="fw-bold mb-1 text-foreground">Resumo do Período</h6>
             <div className="small text-muted mb-4" style={{fontSize: '0.75rem'}}>26/05/2025 até 01/06/2025</div>
             
             <div className="row g-3">
               <div className="col-12 col-sm-6">
-                <div className="p-3 rounded-2 bg-light">
+                <div className="p-3 rounded-2 bg-muted/20">
                   <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Total Consumido</div>
-                  <div className="h5 fw-black mb-1 text-dark">{stats?.total_qty.toLocaleString()} kg</div>
+                  <div className="h5 fw-black mb-1 text-foreground">{stats?.total_qty.toLocaleString()} kg</div>
                   <div className="small text-muted" style={{fontSize: '0.7rem'}}>~ 30,00 kg/dia (média)</div>
                 </div>
               </div>
               <div className="col-12 col-sm-6">
-                <div className="p-3 rounded-2 bg-light h-100">
+                <div className="p-3 rounded-2 bg-muted/20 h-100">
                   <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Custo Total</div>
-                  <div className="h5 fw-black mb-0 text-dark">R$ {stats?.total_cost.toLocaleString()}</div>
+                  <div className="h5 fw-black mb-0 text-foreground">R$ {stats?.total_cost.toLocaleString()}</div>
                 </div>
               </div>
               <div className="col-12 col-sm-6">
-                <div className="p-3 rounded-2 bg-light border border-light-subtle">
+                <div className="p-3 rounded-2 bg-muted/20 border border-light-subtle">
                   <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Custo Médio por kg</div>
-                  <div className="h6 fw-bold mb-0 text-dark">R$ {stats?.avg_cost_kg.toFixed(2)}</div>
+                  <div className="h6 fw-bold mb-0 text-foreground">R$ {stats?.avg_cost_kg.toFixed(2)}</div>
                 </div>
               </div>
               <div className="col-12 col-sm-6">
-                <div className="p-3 rounded-2 bg-light border border-light-subtle">
+                <div className="p-3 rounded-2 bg-muted/20 border border-light-subtle">
                   <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Consumo por Animal (média)</div>
-                  <div className="h6 fw-bold mb-0 text-dark">1,75 kg/animal</div>
+                  <div className="h6 fw-bold mb-0 text-foreground">1,75 kg/animal</div>
                 </div>
               </div>
             </div>
@@ -545,7 +551,7 @@ export function FeedConsumptionDashboard({
 
           {/* Consumo por Tipo de Ração */}
           <div className="dashboard-card p-4 mb-4 shadow-sm border">
-            <h6 className="fw-bold mb-1 text-dark">Consumo por Tipo de Ração</h6>
+            <h6 className="fw-bold mb-1 text-foreground">Consumo por Tipo de Ração</h6>
             <div className="small text-muted mb-4" style={{fontSize: '0.75rem'}}>(Últimos 30 dias)</div>
             
             <div className="d-flex align-items-center mb-3">
@@ -576,7 +582,7 @@ export function FeedConsumptionDashboard({
                       <div className="rounded-circle" style={{ width: 8, height: 8, background: COLORS[index % COLORS.length] }} />
                       <span className="small text-muted" style={{fontSize: '0.75rem'}}>{item.name}</span>
                     </div>
-                    <span className="small fw-semibold text-dark" style={{fontSize: '0.75rem'}}>{item.value} kg</span>
+                    <span className="small fw-semibold text-foreground" style={{fontSize: '0.75rem'}}>{item.value} kg</span>
                   </div>
                 ))}
               </div>
@@ -585,7 +591,7 @@ export function FeedConsumptionDashboard({
 
           {/* Últimos Lançamentos */}
           <div className="dashboard-card p-4 shadow-sm border">
-            <h6 className="fw-bold mb-3 text-dark">Últimos Lançamentos</h6>
+            <h6 className="fw-bold mb-3 text-foreground">Últimos Lançamentos</h6>
             
             <div className="d-flex flex-column gap-3">
               {stats?.latest_entries.map((entry: any) => (
@@ -595,8 +601,8 @@ export function FeedConsumptionDashboard({
                   </div>
                   <div className="flex-grow-1">
                     <div className="d-flex justify-content-between align-items-center">
-                      <div className="fw-bold small text-dark" style={{fontSize: '0.8rem'}}>{entry.lote_codigo} - {entry.item_nome}</div>
-                      <div className="fw-bold small text-dark" style={{fontSize: '0.8rem'}}>{entry.quantidade} kg</div>
+                      <div className="fw-bold small text-foreground" style={{fontSize: '0.8rem'}}>{entry.lote_codigo} - {entry.item_nome}</div>
+                      <div className="fw-bold small text-foreground" style={{fontSize: '0.8rem'}}>{entry.quantidade} kg</div>
                     </div>
                     <div className="d-flex justify-content-between align-items-center mt-1">
                       <div className="small text-muted" style={{fontSize: '0.7rem'}}>{new Date(entry.data_inicio).toLocaleDateString('pt-BR')} a {new Date(entry.data_fim).toLocaleDateString('pt-BR')}</div>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="Adubação de base">
+  <defs>
+    <linearGradient id="fert-bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fff5"/>
+      <stop offset="1" stop-color="#eef7e6"/>
+    </linearGradient>
+    <linearGradient id="bag" x1="126" x2="217" y1="50" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f2d6a4"/>
+      <stop offset="1" stop-color="#c98f4a"/>
+    </linearGradient>
+    <filter id="fert-shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#365314" flood-opacity=".16"/>
+    </filter>
+  </defs>
+  <rect width="360" height="220" rx="28" fill="url(#fert-bg)"/>
+  <ellipse cx="180" cy="178" rx="124" ry="16" fill="#14532d" opacity=".11"/>
+  <g filter="url(#fert-shadow)">
+    <path d="M132 54h78l17 125H114z" fill="url(#bag)"/>
+    <path d="M126 48h91v22h-91z" fill="#9a5f2d"/>
+    <path d="M136 73h72l9 94H126z" fill="#e7bd78" opacity=".55"/>
+    <path d="M152 135c21-19 48-18 70 1-6 24-61 28-70-1z" fill="#6b3f1d"/>
+    <path d="M188 126c-1-27 10-47 35-59 7 25-10 48-35 59z" fill="#22c55e"/>
+    <path d="M184 126c-22-12-31-30-27-53 22 4 35 25 27 53z" fill="#16a34a"/>
+    <path d="M186 132c2-24 1-44-4-59" stroke="#166534" stroke-width="6" stroke-linecap="round"/>
+    <path d="M72 160c22-20 48-24 78-11 0 25-58 33-78 11z" fill="#5b3518"/>
+    <path d="M222 159c30-16 56-14 78 7-15 25-66 21-78-7z" fill="#eab308"/>
+    <circle cx="246" cy="151" r="6" fill="#facc15"/>
+    <circle cx="264" cy="148" r="6" fill="#facc15"/>
+    <circle cx="282" cy="154" r="6" fill="#facc15"/>
+    <circle cx="236" cy="167" r="6" fill="#facc15"/>
+    <circle cx="255" cy="166" r="6" fill="#facc15"/>
+    <circle cx="274" cy="170" r="6" fill="#facc15"/>
+    <circle cx="293" cy="171" r="6" fill="#facc15"/>
+  </g>
+</svg>

@@ -30,7 +30,9 @@ import {
   RefreshCw,
   Truck,
   Bell,
-  ArrowDownLeft
+  ArrowDownLeft,
+  Leaf,
+  Sprout
 } from "lucide-react";
 import {
   AreaChart,
@@ -52,6 +54,103 @@ import { Badge } from "@/components/ui/Badge";
 import "@/app/home/estoque/estoque.css";
 
 const COLORS = ["oklch(0.65 0.15 145)", "oklch(0.55 0.16 230)", "oklch(0.78 0.15 85)", "oklch(0.7 0.18 290)", "oklch(0.8 0.05 240)"];
+const OUT_MOVEMENT_TYPES = new Set(["saida", "consumo", "venda", "perda", "vencimento"]);
+
+function getDestinationBadgeConfig(destination?: string | null) {
+  const normalized = (destination || "").toLowerCase();
+
+  if (normalized.includes("plant")) {
+    return {
+      label: destination || "Plantio",
+      icon: Leaf,
+      background: "oklch(0.94 0.05 145)",
+      color: "oklch(0.42 0.14 145)",
+      border: "oklch(0.86 0.07 145)",
+    };
+  }
+
+  if (normalized.includes("suí") || normalized.includes("sui")) {
+    return {
+      label: destination || "Suínos",
+      icon: Activity,
+      background: "oklch(0.95 0.04 315)",
+      color: "oklch(0.48 0.14 315)",
+      border: "oklch(0.88 0.06 315)",
+    };
+  }
+
+  if (normalized.includes("bovin")) {
+    return {
+      label: destination || "Bovinos",
+      icon: Box,
+      background: "oklch(0.95 0.04 235)",
+      color: "oklch(0.45 0.14 235)",
+      border: "oklch(0.87 0.06 235)",
+    };
+  }
+
+  if (normalized.includes("avic")) {
+    return {
+      label: destination || "Avicultura",
+      icon: Activity,
+      background: "oklch(0.96 0.05 85)",
+      color: "oklch(0.48 0.12 75)",
+      border: "oklch(0.88 0.07 85)",
+    };
+  }
+
+  if (normalized.includes("almox") || normalized.includes("depósito") || normalized.includes("deposito")) {
+    return {
+      label: destination || "Almoxarifado",
+      icon: Warehouse,
+      background: "oklch(0.95 0.02 250)",
+      color: "oklch(0.42 0.06 250)",
+      border: "oklch(0.87 0.03 250)",
+    };
+  }
+
+  if (normalized.includes("ração") || normalized.includes("racao")) {
+    return {
+      label: destination || "Produção de ração",
+      icon: Wheat,
+      background: "oklch(0.96 0.05 95)",
+      color: "oklch(0.46 0.12 85)",
+      border: "oklch(0.88 0.07 95)",
+    };
+  }
+
+  return {
+    label: destination || "-",
+    icon: Sprout,
+    background: "oklch(0.96 0.01 250)",
+    color: "oklch(0.42 0.04 250)",
+    border: "oklch(0.88 0.02 250)",
+  };
+}
+
+function DestinationBadge({ destination }: { destination?: string | null }) {
+  if (!destination) return <span className="small text-muted-foreground">-</span>;
+  const config = getDestinationBadgeConfig(destination);
+  const Icon = config.icon;
+
+  return (
+    <span
+      className="d-inline-flex align-items-center gap-2 fw-bold"
+      style={{
+        background: config.background,
+        color: config.color,
+        border: `1px solid ${config.border}`,
+        borderRadius: "8px",
+        padding: "0.42rem 0.7rem",
+        fontSize: "0.78rem",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Icon size={15} strokeWidth={2.4} />
+      {config.label}
+    </span>
+  );
+}
 
 export function InventoryDashboard() {
   const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory }>({ open: false });
@@ -73,6 +172,8 @@ export function InventoryDashboard() {
     quantidade: string;
     custo_total?: string | null;
     data_movimentacao: string;
+    item_nome?: string;
+    destino?: string | null;
     observacao?: string | null;
   }[]>([]);
   const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
@@ -98,6 +199,14 @@ export function InventoryDashboard() {
     { value: "entrada", label: "Apenas Entradas" },
     { value: "saida", label: "Apenas Saídas" },
   ];
+
+  const recentDestinations = useMemo(() => {
+    const names = recentMovements
+      .filter((movement) => OUT_MOVEMENT_TYPES.has(movement.tipo) && movement.destino)
+      .map((movement) => movement.destino as string);
+
+    return Array.from(new Set(names)).slice(0, 4);
+  }, [recentMovements]);
 
   const loadStats = async () => {
     try {
@@ -492,6 +601,7 @@ export function InventoryDashboard() {
                     <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
                     <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
                     <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">DESTINO</th>
                     <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">VALOR</th>
                     <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">DATA/HORA</th>
                   </tr>
@@ -499,7 +609,7 @@ export function InventoryDashboard() {
                 <tbody>
                   {recentMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-4 text-muted-foreground">Nenhuma movimentação encontrada</td>
+                      <td colSpan={6} className="text-center py-4 text-muted-foreground">Nenhuma movimentação encontrada</td>
                     </tr>
                   ) : (
                     recentMovements.map((move, i) => (
@@ -518,7 +628,7 @@ export function InventoryDashboard() {
                         </td>
                         <td className="px-4 py-3 small fw-bold text-foreground">
                           <div className="d-flex align-items-center gap-2">
-                            {move.item?.nome}
+                            {move.item_nome || move.item?.nome}
                             {(move.observacao && (move.observacao.includes("produção de") || move.observacao.includes("Entrada por produção"))) && (
                               <span 
                                 className="badge rounded-pill" 
@@ -536,6 +646,9 @@ export function InventoryDashboard() {
                           </div>
                         </td>
                         <td className="px-4 py-3 small fw-bold">{move.quantidade}</td>
+                        <td className="px-4 py-3">
+                          {OUT_MOVEMENT_TYPES.has(move.tipo) ? <DestinationBadge destination={move.destino} /> : <span className="small text-muted-foreground">-</span>}
+                        </td>
                         <td className="px-4 py-3 small text-muted-foreground">
                           {move.custo_total ? `R$ ${parseFloat(move.custo_total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
                         </td>
@@ -546,6 +659,16 @@ export function InventoryDashboard() {
                 </tbody>
               </table>
             </div>
+            {recentDestinations.length > 0 && (
+              <div className="px-4 pt-3 pb-2 border-top border-border">
+                <div className="small fw-bold text-foreground mb-2">Destinos dos produtos</div>
+                <div className="d-flex flex-wrap gap-2">
+                  {recentDestinations.map((destination) => (
+                    <DestinationBadge key={destination} destination={destination} />
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="p-3 bg-muted/10 border-top border-border text-center">
               <button className="btn btn-sm btn-link text-muted-foreground small text-decoration-none fw-bold">Ver todas as movimentações</button>
             </div>

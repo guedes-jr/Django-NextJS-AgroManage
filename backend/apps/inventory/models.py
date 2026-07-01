@@ -283,6 +283,7 @@ class MovimentacaoEstoque(BaseModel):
         blank=True,
         related_name="movimentacoes_estoque",
     )
+    destino = models.CharField(max_length=100, blank=True, default="")
     observacao = models.TextField(blank=True)
 
     class Meta(BaseModel.Meta):
@@ -488,4 +489,3 @@ class ConsumoRacao(BaseModel):
 
     def __str__(self) -> str:
         return f"Consumo {self.lote_animal.batch_code} - {self.item_estoque.nome}"
-

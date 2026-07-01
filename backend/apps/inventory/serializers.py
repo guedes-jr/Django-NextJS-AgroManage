@@ -273,12 +273,15 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
             "tipo", "tipo_display", "quantidade",
             "data_movimentacao",
             "responsavel", "responsavel_nome",
-            "observacao", "created_at",
+            "destino", "observacao", "created_at",
             # Write-only batch fields
             "custo_unitario", "fornecedor", "numero_lote",
             "data_validade", "data_fabricacao", "local_armazenamento", "nota_fiscal",
         ]
         read_only_fields = ["id", "data_movimentacao", "created_at"]
+
+    def validate_destino(self, value):
+        return (value or "").strip()
 
 
 class AlertaEstoqueSerializer(serializers.ModelSerializer):
@@ -398,4 +401,3 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
     def get_usuario_nome(self, obj):
         if not obj.usuario: return None
         return obj.usuario.full_name or obj.usuario.email
-

@@ -1,7 +1,7 @@
 /* Redesigned Tab Bar (Species Switcher) */
 .species-tab-container {
   display: flex;
-  background: white;
+  background: var(--card);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
@@ -12,7 +12,7 @@
   flex: 1;
   padding: 1rem 2rem;
   border: none;
-  background: white;
+  background: var(--card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,7 +34,8 @@
 
 /* Registration Style Cards */
 .reg-card {
-  background: white;
+  background: var(--card);
+  color: var(--foreground);
   border-radius: 16px;
   border: 1px solid var(--border);
   padding: 1.5rem;
@@ -63,6 +64,7 @@
   font-size: 1.25rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
+  color: var(--foreground);
 }
 
 .reg-feature-list {
@@ -90,7 +92,7 @@
   padding: 0.65rem;
   border-radius: 8px;
   border: 1.5px solid var(--border);
-  background: white;
+  background: var(--card);
   font-weight: 600;
   color: var(--muted-foreground);
   transition: all 0.2s ease;
@@ -103,7 +105,8 @@
 
 /* Summary KPI Cards */
 .summary-card {
-  background: white;
+  background: var(--card);
+  color: var(--foreground);
   border-radius: 12px;
   border: 1px solid var(--border);
   height: 100%;
@@ -146,7 +149,8 @@
 
 /* Quick Action Buttons */
 .quick-action-btn {
-  background: white;
+  background: var(--card);
+  color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem 1.25rem;

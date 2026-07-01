@@ -13,10 +13,12 @@ export type InventoryCategory =
   | "suplemento"
   | "semente"
   | "fertilizante"
+  | "foliar"
   | "defensivo"
   | "corretivo"
   | "medicamento"
   | "vacina"
+  | "medicamento_vacina"
   | "material"
   | "semen"
   | "outro";
@@ -37,14 +39,16 @@ const STEPS = [
 
 const CATEGORY_CONFIG: Record<InventoryCategory, { label: string; unidade: string; color: string }> = {
   racao:       { label: "Ração / Grão",    unidade: "kg",      color: "#f97316" },
-  nucleo:      { label: "Núcleo / Premix", unidade: "kg",      color: "#8b5cf6" },
-  suplemento:  { label: "Suplemento",      unidade: "kg",      color: "#6366f1" },
-  semente:     { label: "Semente",         unidade: "saco",    color: "#22c55e" },
-  fertilizante:{ label: "Fertilizante / Adubo", unidade: "kg", color: "#84cc16" },
+  nucleo:      { label: "Suplementos",     unidade: "kg",      color: "#8b5cf6" },
+  suplemento:  { label: "Suplemento Animal", unidade: "kg",    color: "#6366f1" },
+  semente:     { label: "Sementes",        unidade: "saco",    color: "#22c55e" },
+  fertilizante:{ label: "Adubos",          unidade: "kg",      color: "#84cc16" },
+  foliar:      { label: "Foliares",        unidade: "l",       color: "#16a34a" },
   defensivo:   { label: "Defensivo Agrícola", unidade: "l",    color: "#0ea5e9" },
   corretivo:   { label: "Corretivo de Solo", unidade: "kg",    color: "#a16207" },
   medicamento: { label: "Medicamento",     unidade: "unidade", color: "#ef4444" },
   vacina:      { label: "Vacina",          unidade: "dose",    color: "#3b82f6" },
+  medicamento_vacina: { label: "Medicamentos e Vacinas", unidade: "unidade", color: "#ef4444" },
   material:    { label: "Material",        unidade: "unidade", color: "#6b7280" },
   semen:       { label: "Sêmen / Doses",   unidade: "dose",    color: "#ec4899" },
   outro:       { label: "Outro",           unidade: "unidade", color: "#14b8a6" },
@@ -171,9 +175,13 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   };
 
   const cfg = category ? CATEGORY_CONFIG[category] : null;
-  const isMed = (cat: string) => cat === "medicamento";
+  const categoryEntries = Object.entries(CATEGORY_CONFIG).filter(([value]) => {
+    if (!["medicamento", "vacina"].includes(value)) return true;
+    return rows.some((row) => row.categoria === value);
+  });
+  const isMed = (cat: string) => cat === "medicamento" || cat === "medicamento_vacina";
   const isVac = (cat: string) => cat === "vacina";
-  const isMedOrVac = (cat: string) => cat === "medicamento" || cat === "vacina";
+  const isMedOrVac = (cat: string) => cat === "medicamento" || cat === "vacina" || cat === "medicamento_vacina";
   const isFeed = (cat: string) => ["racao", "nucleo", "suplemento"].includes(cat);
   const isSemen = (cat: string) => cat === "semen";
   const isLastStep = currentStep === STEPS.length - 1;
@@ -313,7 +321,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 <label className="login-label fw-semibold text-xs">Categoria <span className="text-danger">*</span></label>
                                 <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
                                   value={row.categoria} onChange={e => updateCategory(row.id as any, e.target.value as InventoryCategory)}>
-                                  {Object.entries(CATEGORY_CONFIG).map(([v, c]) => (
+                                  {categoryEntries.map(([v, c]) => (
                                     <option key={v} value={v}>{c.label}</option>
                                   ))}
                                 </select>

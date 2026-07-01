@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ShoppingCart, TrendingDown, Utensils, AlertTriangle, Save, Calendar, Package, Info, Plus, ChevronDown, List, CreditCard, User } from "lucide-react";
+import { X, ShoppingCart, TrendingDown, Utensils, AlertTriangle, Save, Calendar, Package, Info, Plus, ChevronDown, List, CreditCard, User, MapPin } from "lucide-react";
 import { apiClient } from "@/services/api";
 
-export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "material" | "suplemento" | "outro";
+export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "medicamento_vacina" | "material" | "suplemento" | "semente" | "fertilizante" | "foliar" | "outro";
 
 interface InventoryItem {
   id: string;
@@ -37,10 +37,14 @@ interface MovimentacaoFormModalProps {
 
 const CATEGORY_LABELS: Record<string, string> = {
   racao: "Ração / Grãos",
-  nucleo: "Núcleo / Premix",
+  nucleo: "Suplementos",
   medicamento: "Medicamento",
   vacina: "Vacina",
+  medicamento_vacina: "Medicamentos e Vacinas",
   material: "Material",
+  semente: "Sementes",
+  fertilizante: "Adubos",
+  foliar: "Foliares",
 };
 
 const inputStyle = {
@@ -54,6 +58,16 @@ const inputStyle = {
 } as const;
 
 const labelStyle = "form-label small fw-bold text-muted-foreground mb-1 d-block";
+const DESTINATION_OPTIONS = [
+  "Suínos",
+  "Bovinos",
+  "Avicultura",
+  "Plantio",
+  "Almoxarifado",
+  "Produção de ração",
+  "Pecuária",
+  "Outro",
+];
 
 export function MovimentacaoFormModalWithHeader({ 
   isOpen, 
@@ -68,6 +82,7 @@ export function MovimentacaoFormModalWithHeader({
   const [itemId, setItemId] = useState<string>("");
   const [loteId, setLoteId] = useState<string>("");
   const [quantidade, setQuantidade] = useState("");
+  const [destino, setDestino] = useState("");
   const [observacao, setObservacao] = useState("");
   const [error, setError] = useState("");
 
@@ -91,6 +106,7 @@ export function MovimentacaoFormModalWithHeader({
         setItemId(initialData.item?.id || initialData.item || "");
         setLoteId(initialData.lote?.id || initialData.lote || "");
         setQuantidade(initialData.quantidade);
+        setDestino(initialData.destino || "");
         setObservacao(initialData.observacao || "");
         
         // Batch fields (if available)
@@ -107,6 +123,7 @@ export function MovimentacaoFormModalWithHeader({
         setItemId("");
         setLoteId("");
         setQuantidade("");
+        setDestino("");
         setObservacao("");
         setNumeroLote("");
         setDataValidade("");
@@ -170,6 +187,10 @@ export function MovimentacaoFormModalWithHeader({
       setError("Informe uma quantidade válida");
       return;
     }
+    if (direction === "out" && !destino.trim()) {
+      setError("Informe o destino da saída");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -179,6 +200,7 @@ export function MovimentacaoFormModalWithHeader({
         item: itemId,
         tipo,
         quantidade: parseFloat(quantidade),
+        destino: direction === "out" ? destino.trim() : "",
         observacao,
       };
 
@@ -527,6 +549,29 @@ export function MovimentacaoFormModalWithHeader({
                         </div>
                       </div>
                     </motion.div>
+                  )}
+
+                  {direction === "out" && (
+                    <div className="mb-3">
+                      <label className={labelStyle}>Destino</label>
+                      <div className="position-relative">
+                        <input
+                          type="text"
+                          list="movement-stock-destinations"
+                          style={{ ...inputStyle, paddingRight: "2.5rem" }}
+                          placeholder="Ex: Suínos, Plantio, Almoxarifado..."
+                          value={destino}
+                          onChange={(e) => setDestino(e.target.value)}
+                          required
+                        />
+                        <MapPin size={16} className="position-absolute text-muted-foreground" style={{ right: '12px', top: '14px', pointerEvents: 'none' }} />
+                        <datalist id="movement-stock-destinations">
+                          {DESTINATION_OPTIONS.map((option) => (
+                            <option key={option} value={option} />
+                          ))}
+                        </datalist>
+                      </div>
+                    </div>
                   )}
                 </motion.div>
               </AnimatePresence>

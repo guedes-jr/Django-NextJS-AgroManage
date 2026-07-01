@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   X, Save, Calendar, Package, AlertTriangle, 
   ArrowDownRight, CreditCard, ShoppingCart, 
-  Utensils, Trash2, Plus
+  Utensils, Trash2, Plus, MapPin
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 
@@ -50,6 +50,16 @@ const inputStyle = {
 } as const;
 
 const labelStyle = "form-label small fw-bold text-dark mb-1 d-block";
+const DESTINATION_OPTIONS = [
+  "Suínos",
+  "Bovinos",
+  "Avicultura",
+  "Plantio",
+  "Almoxarifado",
+  "Produção de ração",
+  "Pecuária",
+  "Outro",
+];
 
 export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: initialType }: QuickMovementModalProps) {
   const [loading, setLoading] = useState(false);
@@ -57,6 +67,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
   const [subType, setSubType] = useState<string>("");
   
   const [quantidade, setQuantidade] = useState("");
+  const [destino, setDestino] = useState("");
   const [observacao, setObservacao] = useState("");
   const [error, setError] = useState("");
 
@@ -85,6 +96,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       setSuggestions([]);
       setError("");
       setQuantidade("");
+      setDestino("");
       setObservacao("");
       setNumeroLote("");
       setDataValidade("");
@@ -154,6 +166,10 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       setError("Informe uma quantidade válida.");
       return;
     }
+    if (mainType === "out" && !destino.trim()) {
+      setError("Informe o destino da saída.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -167,6 +183,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
 
       if (mainType === "out") {
         if (loteId) payload.lote = loteId;
+        payload.destino = destino.trim();
       } else {
         // Para entradas, sempre tentamos enviar numero_lote para o backend criar/vincular o lote
         payload.numero_lote = numeroLote || `LOTE-${new Date().getTime().toString().slice(-6)}`;
@@ -397,6 +414,29 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                         <option key={f.id} value={f.id}>{f.nome}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+              )}
+
+              {mainType === "out" && (
+                <div className="mb-4">
+                  <label className={labelStyle}>Destino</label>
+                  <div className="position-relative">
+                    <input
+                      type="text"
+                      list="quick-stock-destinations"
+                      style={{ ...inputStyle, paddingRight: "2.75rem" }}
+                      placeholder="Ex: Suínos, Plantio, Almoxarifado..."
+                      value={destino}
+                      onChange={(e) => setDestino(e.target.value)}
+                      required
+                    />
+                    <MapPin size={18} className="position-absolute end-0 top-0 mt-3 me-3 text-muted" />
+                    <datalist id="quick-stock-destinations">
+                      {DESTINATION_OPTIONS.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
               )}

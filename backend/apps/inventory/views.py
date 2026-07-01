@@ -760,6 +760,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                             tipo=TipoMovimentacao.CONSUMO,
                             quantidade=qtde_deste_lote,
                             responsavel=request.user,
+                            destino="Produção de ração",
                             observacao=f"Consumo para produção de {formula.nome}"
                         )
                     )
@@ -877,6 +878,7 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
                         tipo=TipoMovimentacao.CONSUMO,
                         quantidade=qtde_abater,
                         responsavel=user,
+                        destino=serializer.validated_data.get("lote_animal").species.name,
                         observacao=f"Consumo de Ração: Lote Animal {serializer.validated_data.get('lote_animal').batch_code}"
                     )
                 )

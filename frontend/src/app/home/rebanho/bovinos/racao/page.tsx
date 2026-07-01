@@ -52,7 +52,7 @@ export default function BovinosRacaoPage() {
         </div>
         
         <div className="d-flex gap-3 align-items-center">
-          <button className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
+          <button className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-foreground bg-card border-light-subtle">
             <History size={16} /> Histórico de Consumo
           </button>
           <button 
@@ -74,7 +74,7 @@ export default function BovinosRacaoPage() {
               className={`nav-link d-flex align-items-center gap-2 py-3 px-4 fw-semibold border-0 border-bottom border-3 rounded-0 ${
                 activeTab === tab.id 
                   ? "active text-success border-success bg-transparent" 
-                  : "text-muted border-transparent hover-bg-light"
+                  : "text-muted border-transparent hover-bg-muted"
               }`}
               style={{ fontSize: '0.9rem', marginBottom: '-1px' }}
             >
@@ -101,7 +101,6 @@ export default function BovinosRacaoPage() {
     </div>
   );
 }
-
 
 
 

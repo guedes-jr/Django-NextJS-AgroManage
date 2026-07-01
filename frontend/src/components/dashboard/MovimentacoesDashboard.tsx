@@ -24,7 +24,9 @@ import {
   Layers,
   ArrowUpRight,
   ArrowDownRight,
-  Clock
+  Clock,
+  Leaf,
+  Sprout
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -55,9 +57,108 @@ type Movimentacao = {
   quantidade: string;
   data_movimentacao: string;
   responsavel_nome: string;
+  destino?: string;
   observacao: string;
   lote?: { id: string; numero_lote: string };
 };
+
+const OUT_MOVEMENT_TYPES = new Set(["saida", "consumo", "venda", "perda", "vencimento"]);
+
+function getDestinationBadgeConfig(destination?: string | null) {
+  const normalized = (destination || "").toLowerCase();
+
+  if (normalized.includes("plant")) {
+    return {
+      label: destination || "Plantio",
+      icon: Leaf,
+      background: "oklch(0.94 0.05 145)",
+      color: "oklch(0.42 0.14 145)",
+      border: "oklch(0.86 0.07 145)",
+    };
+  }
+
+  if (normalized.includes("suí") || normalized.includes("sui")) {
+    return {
+      label: destination || "Suínos",
+      icon: Activity,
+      background: "oklch(0.95 0.04 315)",
+      color: "oklch(0.48 0.14 315)",
+      border: "oklch(0.88 0.06 315)",
+    };
+  }
+
+  if (normalized.includes("bovin")) {
+    return {
+      label: destination || "Bovinos",
+      icon: Box,
+      background: "oklch(0.95 0.04 235)",
+      color: "oklch(0.45 0.14 235)",
+      border: "oklch(0.87 0.06 235)",
+    };
+  }
+
+  if (normalized.includes("avic")) {
+    return {
+      label: destination || "Avicultura",
+      icon: Activity,
+      background: "oklch(0.96 0.05 85)",
+      color: "oklch(0.48 0.12 75)",
+      border: "oklch(0.88 0.07 85)",
+    };
+  }
+
+  if (normalized.includes("almox") || normalized.includes("depósito") || normalized.includes("deposito")) {
+    return {
+      label: destination || "Almoxarifado",
+      icon: Layers,
+      background: "oklch(0.95 0.02 250)",
+      color: "oklch(0.42 0.06 250)",
+      border: "oklch(0.87 0.03 250)",
+    };
+  }
+
+  if (normalized.includes("ração") || normalized.includes("racao")) {
+    return {
+      label: destination || "Produção de ração",
+      icon: Wheat,
+      background: "oklch(0.96 0.05 95)",
+      color: "oklch(0.46 0.12 85)",
+      border: "oklch(0.88 0.07 95)",
+    };
+  }
+
+  return {
+    label: destination || "-",
+    icon: Sprout,
+    background: "oklch(0.96 0.01 250)",
+    color: "oklch(0.42 0.04 250)",
+    border: "oklch(0.88 0.02 250)",
+  };
+}
+
+function DestinationBadge({ destination }: { destination?: string | null }) {
+  if (!destination) return <span className="small text-muted-foreground">-</span>;
+  const config = getDestinationBadgeConfig(destination);
+  const Icon = config.icon;
+
+  return (
+    <span
+      className="d-inline-flex align-items-center gap-2 fw-bold"
+      style={{
+        background: config.background,
+        color: config.color,
+        border: `1px solid ${config.border}`,
+        borderRadius: "8px",
+        padding: "0.42rem 0.7rem",
+        fontSize: "0.78rem",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Icon size={15} strokeWidth={2.4} />
+      {config.label}
+    </span>
+  );
+}
 
 const TIPO_COLORS: Record<string, { color: string; label: string }> = {
   compra: { color: "text-emerald-600", label: "Compra" },
@@ -394,13 +495,14 @@ export function MovimentacoesDashboard() {
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DESTINO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DATA</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
                     </tr>
                   </thead>
                   <tbody>
                     {movements.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
+                      <tr><td colSpan={7} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
                     ) : (
                       movements.map(m => (
                         <tr key={m.id} className="border-bottom border-border/50">
@@ -442,6 +544,9 @@ export function MovimentacoesDashboard() {
                             </div>
                           </td>
                           <td className="px-3 py-3 fw-black">{parseFloat(m.quantidade).toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-3">
+                            {OUT_MOVEMENT_TYPES.has(m.tipo) ? <DestinationBadge destination={m.destino} /> : <span className="small text-muted-foreground">-</span>}
+                          </td>
                           <td className="px-3 py-3 text-muted-foreground small">
                             <div className="d-flex align-items-center gap-1">
                               <Clock size={12} />

@@ -176,9 +176,9 @@ const calculateLineTotal = (quantity: string, unitPrice: string) => {
 
 const shortcutStages = {
   estrutura: { image: "/images/crops/sector-structure.png", color: "oklch(0.62 0.12 70)" },
-  preparo: { image: "/images/crops/land-preparation.png", color: "oklch(0.7 0.18 85)" },
-  plantio: { image: "/images/crops/seed.png", color: "oklch(0.66 0.16 70)" },
-  adubacao: { image: "/images/crops/base-fertilization.png", color: "oklch(0.62 0.17 145)" },
+  preparo: { image: "/images/crops/land-preparation.svg", color: "oklch(0.7 0.18 85)" },
+  plantio: { image: "/images/crops/seed.svg", color: "oklch(0.66 0.16 70)" },
+  adubacao: { image: "/images/crops/base-fertilization.svg", color: "oklch(0.62 0.17 145)" },
   fertirrigacao: { image: "/images/crops/fertigation.png", color: "oklch(0.6 0.16 220)" },
   foliarDefensivos: { image: "/images/crops/foliar-fertilization.png", color: "oklch(0.58 0.16 145)" },
   defensivos: { image: "/images/crops/pesticides.png", color: "oklch(0.65 0.18 290)" },
@@ -283,12 +283,12 @@ function ShortcutCard({ number, image, label, desc, status, onClick }: { number:
         <div
           className="position-relative d-flex align-items-center justify-content-center w-100"
           style={{
-            height: 90,
-            background: "var(--bs-body-bg)",
+            height: 104,
+            background: "linear-gradient(180deg, var(--bs-body-bg) 0%, color-mix(in srgb, var(--bs-body-bg), var(--primary) 4%) 100%)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 25vw" style={{ objectFit: "contain", padding: 8 }} />
+          <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 25vw" style={{ objectFit: "contain", padding: 4 }} />
         </div>
         <div className="d-flex flex-column flex-grow-1 p-2">
           <div className="min-w-0 flex-grow-1">
@@ -768,7 +768,7 @@ export default function PlantacaoDetailPage() {
 
   const seedItems = inventoryItems.filter((item) => item.categoria === "semente" || (!item.especie_animal && item.categoria === "outro"));
   const nutritionItems = inventoryItems.filter((item) =>
-    ["fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") || (!item.especie_animal && item.categoria !== "defensivo")
+    ["fertilizante", "foliar", "corretivo", "material", "outro"].includes(item.categoria || "") || (!item.especie_animal && item.categoria !== "defensivo")
   );
   const fertilizerItems = nutritionItems;
   const fertigationItems = nutritionItems;
@@ -1085,214 +1085,6 @@ export default function PlantacaoDetailPage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ── Plantio ──────────────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-4">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"><Sprout size={16} className="me-1" /> Plantio</h6>
-          <Button variant="agro" size="sm" onClick={() => setShowPlantio(true)}>Registrar Plantio</Button>
-        </div>
-        {plantings.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhum plantio registrado ainda.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead>
-                <tr className="text-muted small">
-                  <th>Data</th>
-                  <th>Insumo</th>
-                  <th>Quantidade</th>
-                  <th>Valor Total</th>
-                  <th>Operador</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plantings.map((p) => (
-                  <tr key={p.id}>
-                    <td className="fw-medium">{p.planting_date ? new Date(p.planting_date).toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{p.item_name || "-"}</td>
-                    <td>{p.quantity ? `${fmt(p.quantity)} ${p.unit || ""}` : "-"}</td>
-                    <td>{p.total_price ? money(p.total_price) : "-"}</td>
-                    <td>{p.operator || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Adubação ─────────────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-3">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"> Adubação</h6>
-          <Button variant="agro" size="sm" onClick={() => setShowAdubacao(true)}>Registrar</Button>
-        </div>
-        {fertilizations.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhuma adubação registrada.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Data</th><th>Insumo</th><th>Quantidade</th><th>Valor</th><th>Operador</th></tr></thead>
-              <tbody>
-                {fertilizations.map((p) => (
-                  <tr key={p.id}>
-                    <td className="fw-medium">{p.application_date ? new Date(p.application_date).toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{p.item_name || "-"}</td>
-                    <td>{p.quantity ? `${fmt(p.quantity)} ${p.unit || ""}` : "-"}</td>
-                    <td>{p.total_price ? money(p.total_price) : "-"}</td>
-                    <td>{p.operator || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Fertirrigação ────────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-3">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"> Fertirrigação</h6>
-          <Button variant="agro" size="sm" onClick={() => setShowFertirrigacao(true)}>Registrar</Button>
-        </div>
-        {fertigations.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhuma fertirrigação registrada.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Data</th><th>Insumo</th><th>Quantidade</th><th>Valor</th><th>Operador</th></tr></thead>
-              <tbody>
-                {fertigations.map((p) => (
-                  <tr key={p.id}>
-                    <td className="fw-medium">{p.application_date ? new Date(p.application_date).toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{p.item_name || "-"}</td>
-                    <td>{p.quantity ? `${fmt(p.quantity)} ${p.unit || ""}` : "-"}</td>
-                    <td>{p.total_price ? money(p.total_price) : "-"}</td>
-                    <td>{p.operator || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Defensivos ──────────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-3">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"> Defensivos</h6>
-          <Button variant="agro" size="sm" onClick={() => setShowDefensivo(true)}>Registrar</Button>
-        </div>
-        {pesticides.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhum defensivo registrado.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Data</th><th>Insumo</th><th>Tipo</th><th>Quantidade</th><th>Valor</th></tr></thead>
-              <tbody>
-                {pesticides.map((p) => (
-                  <tr key={p.id}>
-                    <td className="fw-medium">{p.application_date ? new Date(p.application_date).toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{p.item_name || "-"}</td>
-                    <td>{p.pesticide_type_display || "-"}</td>
-                    <td>{p.quantity ? `${fmt(p.quantity)} ${p.unit || ""}` : "-"}</td>
-                    <td>{p.total_price ? money(p.total_price) : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Irrigação ─────────────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-3">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"> Irrigação</h6>
-          <Button variant="agro" size="sm" onClick={() => setShowIrrigacao(true)}>Registrar</Button>
-        </div>
-        {irrigations.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhuma irrigação registrada.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Período</th><th>Sistema</th><th>Bomba</th><th>Dias</th><th>Horas Totais</th><th>Água</th><th>Energia</th><th>Custo</th></tr></thead>
-              <tbody>
-                {irrigations.map((irr) => (
-                  <tr key={irr.id}>
-                    <td className="fw-medium">
-                      {(irr.start_date || irr.date) ? new Date(`${irr.start_date || irr.date}T12:00:00`).toLocaleDateString("pt-BR") : "-"}
-                      {irr.end_date && irr.end_date !== (irr.start_date || irr.date) ? ` a ${new Date(`${irr.end_date}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}
-                    </td>
-                    <td>{irr.irrigation_system_display || "-"}</td>
-                    <td>{irr.pump_name || "-"}</td>
-                    <td>{irr.operating_days ?? "-"}</td>
-                    <td>{irr.hours ? `${fmt(irr.hours)} h` : "-"}</td>
-                    <td>{irr.liters_used ? `${fmt(irr.liters_used, 0)} L` : "-"}</td>
-                    <td>{irr.energy_kwh ? `${fmt(irr.energy_kwh)} kWh` : "-"}</td>
-                    <td>{irr.energy_cost ? money(irr.energy_cost) : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Preparo de Terra ─────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-3">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"> Preparo de Terra</h6>
-          <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/preparo-terra`)}>Ver Todos</Button>
-        </div>
-        {landPreparations.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhum preparo registrado.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Data</th><th>Operação</th><th>Horas/Qtd</th><th>Custo Total</th></tr></thead>
-              <tbody>
-                {landPreparations.slice(0, 5).map((p) => (
-                  <tr key={p.id}>
-                    <td className="fw-medium">{p.date ? new Date(p.date).toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{p.operation_type_display || "-"}</td>
-                    <td>{p.hours_worked ? `${fmt(p.hours_worked)} h` : "-"}</td>
-                    <td>{p.total_price || p.total_amount ? money(p.total_price || p.total_amount) : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Mão de Obra ──────────────────────────────────────────────── */}
-      <div className="dashboard-card p-4 mt-3 mb-4">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0"> Mão de Obra</h6>
-          <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/mao-obra`)}>Ver Todos</Button>
-        </div>
-        {laborRecords.length === 0 ? (
-          <p className="text-muted small mb-0">Nenhuma mão de obra registrada.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-sm table-borderless mb-0">
-              <thead><tr className="text-muted small"><th>Data</th><th>Trabalhador</th><th>Atividade</th><th>Valor Total</th></tr></thead>
-              <tbody>
-                {laborRecords.slice(0, 5).map((l) => (
-                  <tr key={l.id}>
-                    <td className="fw-medium">{l.activity_date ? new Date(l.activity_date).toLocaleDateString("pt-BR") : "-"}</td>
-                    <td>{l.worker_name || l.worker?.name || "-"}</td>
-                    <td>{l.activity_type_display || "-"}</td>
-                    <td>{l.total_amount ? money(l.total_amount) : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {/* Modal: Novo Plantio */}

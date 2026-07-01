@@ -19,7 +19,7 @@ from decimal import Decimal
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _dar_baixa_vacina(vaccine_item, user, quantidade: Decimal = Decimal("1"),
-                       observacao: str = "") -> None:
+                       observacao: str = "", destino: str = "Pecuária") -> None:
     """Dá baixa de 1 dose (ou quantidade informada) do item de vacina no estoque."""
     from apps.inventory.choices import TipoMovimentacao
     from apps.inventory.services import registrar_movimentacao
@@ -36,6 +36,7 @@ def _dar_baixa_vacina(vaccine_item, user, quantidade: Decimal = Decimal("1"),
         tipo=TipoMovimentacao.CONSUMO,
         quantidade=quantidade,
         responsavel=user,
+        destino=destino,
         observacao=observacao or "Consumo por vacinação",
     )
 

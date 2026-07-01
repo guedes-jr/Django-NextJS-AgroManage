@@ -50,10 +50,12 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   suplemento: "suplemento",
   semente: "semente",
   fertilizante: "fertilizante",
+  foliar: "foliar",
   defensivo: "defensivo",
   corretivo: "corretivo",
   medicamento: "medicamento",
   vacina: "vacina",
+  medicamento_vacina: "medicamento_vacina",
   material: "material",
   semen: "semen",
 };
@@ -64,10 +66,12 @@ const CATEGORY_ICONS: Record<string, ReactNode> = {
   suplemento: <Package size={16} />,
   semente: <Sprout size={16} />,
   fertilizante: <LeafIcon />,
+  foliar: <Sprout size={16} />,
   defensivo: <ShieldCheck size={16} />,
   corretivo: <Mountain size={16} />,
   medicamento: <Activity size={16} />,
   vacina: <Syringe size={16} />,
+  medicamento_vacina: <Syringe size={16} />,
   semen: <FlaskConical size={16} />,
 };
 
@@ -246,7 +250,10 @@ export function ProdutosDashboard() {
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === "todas" || item.categoria === categoryFilter;
+      const matchesCategory =
+        categoryFilter === "todas" ||
+        item.categoria === categoryFilter ||
+        (categoryFilter === "medicamento_vacina" && ["medicamento", "vacina", "medicamento_vacina"].includes(item.categoria));
       const estoqueAtual = toNumber(item.estoque_atual);
       const estoqueMinimo = toNumber(item.estoque_minimo);
       const isBaixo = estoqueAtual <= estoqueMinimo;
@@ -331,13 +338,13 @@ export function ProdutosDashboard() {
           </div>
           {[
             { key: "racao", title: "Ração / Grãos", desc: "Milho, soja, farelo...", color: "oklch(0.7 0.15 85)" },
-            { key: "nucleo", title: "Núcleo / Premix", desc: "Núcleo, suplementos...", color: "oklch(0.65 0.16 230)" },
+            { key: "nucleo", title: "Suplementos", desc: "Núcleos, premix e suplementos...", color: "oklch(0.65 0.16 230)" },
+            { key: "medicamento_vacina", title: "Medicamentos e Vacinas", desc: "Produtos sanitários e preventivos...", color: "oklch(0.7 0.18 25)" },
+            { key: "fertilizante", title: "Adubos", desc: "NPK, ureia e formulações...", color: "oklch(0.68 0.16 120)" },
+            { key: "foliar", title: "Foliares", desc: "Adubação e nutrição foliar...", color: "oklch(0.62 0.15 145)" },
             { key: "semente", title: "Sementes", desc: "Milho, soja, sorgo...", color: "oklch(0.62 0.16 145)" },
-            { key: "fertilizante", title: "Fertilizantes", desc: "Adubos e formulações...", color: "oklch(0.68 0.16 120)" },
             { key: "defensivo", title: "Defensivos", desc: "Herbicidas, inseticidas...", color: "oklch(0.62 0.14 220)" },
             { key: "corretivo", title: "Corretivos", desc: "Calcário, gesso agrícola...", color: "oklch(0.55 0.12 70)" },
-            { key: "medicamento", title: "Medicamentos", desc: "Antibióticos, vitaminas...", color: "oklch(0.7 0.18 25)" },
-            { key: "vacina", title: "Vacinas", desc: "Vacinas, injetáveis...", color: "oklch(0.7 0.22 290)" },
             { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
             { key: "material", title: "Outros Materiais", desc: "Materiais e equipamentos...", color: "oklch(0.6 0.05 240)" },
           ].map((cat) => (
@@ -412,14 +419,14 @@ export function ProdutosDashboard() {
             <select className="form-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               <option value="todas">Todas as categorias</option>
               <option value="racao">Ração / Grãos</option>
-              <option value="nucleo">Núcleo / Premix</option>
-              <option value="suplemento">Suplemento</option>
-              <option value="semente">Semente</option>
-              <option value="fertilizante">Fertilizante / Adubo</option>
+              <option value="nucleo">Suplementos</option>
+              <option value="suplemento">Suplemento Animal</option>
+              <option value="medicamento_vacina">Medicamentos e Vacinas</option>
+              <option value="fertilizante">Adubos</option>
+              <option value="foliar">Foliares</option>
+              <option value="semente">Sementes</option>
               <option value="defensivo">Defensivo Agrícola</option>
               <option value="corretivo">Corretivo de Solo</option>
-              <option value="medicamento">Medicamento</option>
-              <option value="vacina">Vacina</option>
               <option value="semen">Sêmen</option>
               <option value="material">Material</option>
             </select>

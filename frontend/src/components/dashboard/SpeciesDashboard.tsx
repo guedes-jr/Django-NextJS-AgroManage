@@ -319,19 +319,19 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                 { 
                   title: species === 'suinos' ? 'Matrizes' : 'Fêmeas', 
                   desc: 'Cadastre fêmeas para reprodução.',
-                  icon: <div className="reg-card-icon" style={{ background: '#fef2f2' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐷' : '🐄'}</span></div>,
+                  icon: <div className="reg-card-icon" style={{ background: 'oklch(0.68 0.18 27 / 0.14)' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐷' : '🐄'}</span></div>,
                   features: ['Controle de ciclo reprodutivo', 'Histórico de partos', 'Desempenho reprodutivo']
                 },
                 { 
                   title: species === 'suinos' ? 'Reprodutores' : 'Machos', 
                   desc: 'Cadastre machos para reprodução.',
-                  icon: <div className="reg-card-icon" style={{ background: '#eff6ff' }}><span style={{ fontSize: '1.75rem' }}>♂️</span></div>,
+                  icon: <div className="reg-card-icon" style={{ background: 'oklch(0.62 0.16 230 / 0.14)' }}><span style={{ fontSize: '1.75rem' }}>♂️</span></div>,
                   features: ['Controle de cobertura', 'Avaliação de desempenho', 'Histórico reprodutivo']
                 },
                 { 
                   title: species === 'suinos' ? 'Lotes em Terminação' : 'Novos Lotes', 
                   desc: 'Cadastre lotes de animais adquiridos.',
-                  icon: <div className="reg-card-icon" style={{ background: '#fff7ed' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐖' : '📦'}</span></div>,
+                  icon: <div className="reg-card-icon" style={{ background: 'oklch(0.78 0.15 85 / 0.16)' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐖' : '📦'}</span></div>,
                   features: ['Controle de crescimento', 'Conversão alimentar', 'Desempenho do lote']
                 }
               ].map((card, i) => (
@@ -441,8 +441,8 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                       height: '46px',
                       borderRadius: '2rem',
                       border: '1px solid var(--border)', 
-                      backgroundColor: '#ffffff',
-                      color: '#000000' 
+                      backgroundColor: 'var(--card)',
+                      color: 'var(--foreground)'
                     }}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}

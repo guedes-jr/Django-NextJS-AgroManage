@@ -48,6 +48,7 @@ def _create_stock_movement(instance, request, description):
         tipo=TipoMovimentacao.CONSUMO,
         quantidade=amount,
         responsavel=user,
+        destino="Plantio",
         observacao=description,
     )
 
