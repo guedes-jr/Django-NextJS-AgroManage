@@ -214,23 +214,15 @@ fi
 echo "[DEPLOY] Gerando build do Next.js..."
 npm run build
 
-echo "[DEPLOY] Reiniciando serviços..."
+echo "[DEPLOY] Reiniciando frontend e nginx..."
 require_sudo_access
 
 run_sudo systemctl daemon-reload
-run_sudo systemctl restart "$BACKEND_SERVICE"
 run_sudo systemctl restart "$FRONTEND_SERVICE"
 run_sudo systemctl reload nginx
 
 echo "[DEPLOY] Aguardando serviços subirem..."
 sleep 5
-
-echo "[DEPLOY] Verificando status do backend..."
-if ! run_sudo systemctl is-active --quiet "$BACKEND_SERVICE"; then
-  echo "[ERRO] Backend não subiu corretamente."
-  run_sudo systemctl status "$BACKEND_SERVICE" --no-pager
-  exit 1
-fi
 
 echo "[DEPLOY] Verificando status do frontend..."
 if ! run_sudo systemctl is-active --quiet "$FRONTEND_SERVICE"; then
@@ -262,3 +254,6 @@ echo "http://191.252.218.62/login"
 echo ""
 echo "Admin:"
 echo "http://191.252.218.62/admin/"
+echo ""
+echo "[DEPLOY] Reiniciando backend por último para não encerrar o processo de atualização antes da conclusão..."
+run_sudo systemctl restart "$BACKEND_SERVICE"
