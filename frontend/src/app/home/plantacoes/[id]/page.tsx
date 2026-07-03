@@ -366,6 +366,9 @@ export default function PlantacaoDetailPage() {
   const [showDefensivo, setShowDefensivo] = useState(false);
   const [defensivoForm, setDefensivoForm] = useState({ application_date: "", operator: "", notes: "" });
   const [defensivoLines, setDefensivoLines] = useState<ApplicationLine[]>([{ ...emptyDefensivoLine }]);
+  const [defensivoEquipments, setDefensivoEquipments] = useState<{ equipment: string; quantity: string; unit_price: string; total_price: string }[]>(
+    [{ equipment: "", quantity: "", unit_price: "", total_price: "" }]
+  );
   const [savingDefensivo, setSavingDefensivo] = useState(false);
 
   const [irrigations, setIrrigations] = useState<IrrigationOperation[]>([]);
@@ -617,6 +620,7 @@ export default function PlantacaoDetailPage() {
   const handleCreateDefensivo = async () => {
     const validLines = defensivoLines.filter((line) => line.item && line.quantity);
     if (!plantation || validLines.length === 0) return;
+    const validEquipments = defensivoEquipments.filter((eq) => eq.equipment);
     try {
       setSavingDefensivo(true);
       await Promise.all(validLines.map((line) => cropService.createPesticideApplication({
@@ -630,10 +634,17 @@ export default function PlantacaoDetailPage() {
         application_date: defensivoForm.application_date,
         operator: defensivoForm.operator,
         notes: defensivoForm.notes,
+        equipments: validEquipments.map((eq) => ({
+          equipment: eq.equipment,
+          quantity: eq.quantity ? parseFloat(eq.quantity) : null,
+          unit_price: eq.unit_price ? parseFloat(eq.unit_price) : null,
+          total_price: eq.total_price ? parseFloat(eq.total_price) : null,
+        })),
       })));
       setShowDefensivo(false);
       setDefensivoForm({ application_date: "", operator: "", notes: "" });
       setDefensivoLines([{ ...emptyDefensivoLine }]);
+      setDefensivoEquipments([{ equipment: "", quantity: "", unit_price: "", total_price: "" }]);
       const { data: r } = await cropService.listPesticideApplications({ plantation: plantation.id });
       setPesticides(Array.isArray(r?.results) ? r.results : []);
     } catch { console.error("Failed to create pesticide application"); }
@@ -1421,6 +1432,92 @@ export default function PlantacaoDetailPage() {
             <textarea className="form-control" rows={2} maxLength={300} value={defensivoForm.notes} onChange={(e) => setDefensivoForm({ ...defensivoForm, notes: e.target.value })} placeholder="Ex.: Condições climáticas, pragas alvo, recomendações..." />
             <div className="text-end text-muted small">{defensivoForm.notes.length}/300</div>
           </div>
+
+          {/* Equipamentos Utilizados */}
+          <div className="border rounded-3 overflow-hidden" style={{ borderColor: "var(--border)" }}>
+            <div className="d-flex align-items-center justify-content-between px-3 py-2" style={{ background: "rgba(16, 185, 129, 0.06)", borderBottom: "1px solid var(--border)" }}>
+              <strong className="small text-success d-flex align-items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+                Equipamentos Utilizados
+              </strong>
+              <Button variant="outline-success" size="sm" onClick={() => setDefensivoEquipments((prev) => [...prev, { equipment: "", quantity: "", unit_price: "", total_price: "" }])}>
+                + Adicionar equipamento
+              </Button>
+            </div>
+            <div className="table-responsive">
+              <table className="table align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th>Equipamento</th>
+                    <th style={{ minWidth: 160 }}>Quantidade utilizada</th>
+                    <th style={{ minWidth: 160 }}>Valor Unitário (R$)</th>
+                    <th style={{ minWidth: 160 }}>Valor Total (R$)</th>
+                    <th className="text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {defensivoEquipments.map((eq, index) => (
+                    <tr key={index}>
+                      <td style={{ minWidth: 240 }}>
+                        <select className="form-select" value={eq.equipment}
+                          onChange={(e) => setDefensivoEquipments((prev) => prev.map((item, i) => i !== index ? item : { ...item, equipment: e.target.value }))}>
+                          <option value="">Selecione o equipamento...</option>
+                          <option value="pulverizador_costal">Pulverizador costal</option>
+                          <option value="pulverizador_costal_motorizado">Pulverizador costal motorizado</option>
+                          <option value="pulverizador_tratorizado">Pulverizador tratorizado</option>
+                          <option value="autopropelido">Autopropelido</option>
+                          <option value="drone">Drone</option>
+                          <option value="aviao_agricola">Avião agrícola</option>
+                          <option value="barra_pulverizacao">Barra de pulverização</option>
+                          <option value="outro">Outro</option>
+                        </select>
+                      </td>
+                      <td>
+                        <input className="form-control" type="number" step="0.01" placeholder="0" value={eq.quantity}
+                          onChange={(e) => {
+                            const qty = e.target.value;
+                            setDefensivoEquipments((prev) => prev.map((item, i) => {
+                              if (i !== index) return item;
+                              const total = qty && item.unit_price ? String(parseFloat(qty) * parseFloat(item.unit_price)) : "";
+                              return { ...item, quantity: qty, total_price: total };
+                            }));
+                          }} />
+                      </td>
+                      <td>
+                        <div className="input-group">
+                          <span className="input-group-text small">R$</span>
+                          <input className="form-control" type="number" step="0.01" placeholder="0,00" value={eq.unit_price}
+                            onChange={(e) => {
+                              const price = e.target.value;
+                              setDefensivoEquipments((prev) => prev.map((item, i) => {
+                                if (i !== index) return item;
+                                const total = price && item.quantity ? String(parseFloat(price) * parseFloat(item.quantity)) : "";
+                                return { ...item, unit_price: price, total_price: total };
+                              }));
+                            }} />
+                        </div>
+                      </td>
+                      <td>
+                        <div className="form-control bg-success-subtle fw-semibold text-success">
+                          {eq.total_price ? money(eq.total_price) : <span className="text-muted">R$ 0,00</span>}
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        <Button variant="outline-danger" size="sm"
+                          onClick={() => setDefensivoEquipments((prev) => prev.length === 1 ? [{ equipment: "", quantity: "", unit_price: "", total_price: "" }] : prev.filter((_, i) => i !== index))}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="d-flex justify-content-end align-items-center px-3 py-2 border-top" style={{ background: "rgba(16, 185, 129, 0.04)" }}>
+              <span className="text-muted small me-3">Custo da aplicação (soma dos equipamentos):</span>
+              <strong className="text-success">{money(defensivoEquipments.reduce((sum, eq) => sum + Number(eq.total_price || 0), 0))}</strong>
+            </div>
+          </div>
         </div>
       </Modal>
 
@@ -1575,6 +1672,7 @@ export default function PlantacaoDetailPage() {
             <input className="form-control" type="date" value={editForm.actual_harvest_date}
               onChange={(e) => setEditForm({ ...editForm, actual_harvest_date: e.target.value })} />
           </div>
+        </div>
         </div>
       </Modal>
     </div>

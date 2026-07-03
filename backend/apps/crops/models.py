@@ -319,6 +319,25 @@ class PesticideApplication(BaseModel):
         return f"{self.plantation} — {self.item} ({self.pesticide_type}) @ {self.application_date}"
 
 
+class PesticideApplicationEquipment(BaseModel):
+    """Equipment used during a pesticide application."""
+
+    application = models.ForeignKey(
+        PesticideApplication, on_delete=models.CASCADE, related_name="equipments"
+    )
+    equipment = models.CharField(max_length=150)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Pesticide Application Equipment"
+        verbose_name_plural = "Pesticide Application Equipments"
+
+    def __str__(self) -> str:
+        return f"{self.equipment} - {self.application}"
+
+
 class IrrigationPump(BaseModel):
     """Reusable irrigation pump registered by the producer."""
 

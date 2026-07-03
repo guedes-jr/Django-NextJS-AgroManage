@@ -12,7 +12,8 @@ import {
   AlignJustify, 
   MoreHorizontal,
   Save, 
-  Check
+  Check,
+  Sprout
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import apiClient from "@/services/api";
@@ -35,7 +36,7 @@ interface Member {
   role: string;
 }
 
-type OperationType = "calagem" | "aracao" | "gradagem" | "subsolagem" | "nivelamento" | "rocagem" | "outro";
+type OperationType = "calagem" | "aracao" | "gradagem" | "subsolagem" | "nivelamento" | "rocagem" | "plantio" | "outro";
 
 type OperationDetails = Record<OperationType, {
   hoursWorked: string;
@@ -49,6 +50,7 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
   subsolagem: { label: "Subsolagem", icon: Layers },
   nivelamento: { label: "Nivelamento", icon: AlignJustify },
   rocagem: { label: "Roçagem", icon: Scissors },
+  plantio: { label: "Plantio", icon: Sprout },
   outro: { label: "Outro", icon: MoreHorizontal },
 };
 
@@ -59,6 +61,7 @@ const createEmptyOperationDetails = (): OperationDetails => ({
   subsolagem: { hoursWorked: "", hourlyRate: "" },
   nivelamento: { hoursWorked: "", hourlyRate: "" },
   rocagem: { hoursWorked: "", hourlyRate: "" },
+  plantio: { hoursWorked: "", hourlyRate: "" },
   outro: { hoursWorked: "", hourlyRate: "" },
 });
 

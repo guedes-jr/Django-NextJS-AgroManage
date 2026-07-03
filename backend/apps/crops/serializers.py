@@ -10,6 +10,7 @@ from .models import (
     Fertilization,
     Fertigation,
     PesticideApplication,
+    PesticideApplicationEquipment,
     Irrigation,
     IrrigationPump,
     SoilAnalysis,
@@ -156,10 +157,17 @@ class FertigationSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
+class PesticideApplicationEquipmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PesticideApplicationEquipment
+        fields = ["id", "equipment", "quantity", "unit_price", "total_price"]
+
+
 class PesticideApplicationSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="item.nome", read_only=True)
     supplier_name = serializers.CharField(source="supplier.nome", read_only=True)
     pesticide_type_display = serializers.CharField(source="get_pesticide_type_display", read_only=True)
+    equipments = PesticideApplicationEquipmentSerializer(many=True, required=False)
 
     class Meta:
         model = PesticideApplication
@@ -173,9 +181,26 @@ class PesticideApplicationSerializer(serializers.ModelSerializer):
             "area_applied_ha", "application_date",
             "operator", "target", "equipment",
             "withholding_days", "notes",
+            "equipments",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def create(self, validated_data):
+        equipments_data = validated_data.pop("equipments", [])
+        application = super().create(validated_data)
+        for eq in equipments_data:
+            PesticideApplicationEquipment.objects.create(application=application, **eq)
+        return application
+
+    def update(self, instance, validated_data):
+        equipments_data = validated_data.pop("equipments", None)
+        instance = super().update(instance, validated_data)
+        if equipments_data is not None:
+            instance.equipments.all().delete()
+            for eq in equipments_data:
+                PesticideApplicationEquipment.objects.create(application=instance, **eq)
+        return instance
 
 
 class IrrigationSerializer(serializers.ModelSerializer):
