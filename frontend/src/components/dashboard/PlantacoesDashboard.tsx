@@ -829,7 +829,7 @@ export default function PlantacoesDashboard() {
           </div>
         }
       >
-        <div className="p-4" style={{ background: "var(--background)" }}>
+        <div className="p-4 p-md-5" style={{ background: "var(--background)" }}>
           {formError && (
             <div className="alert alert-danger small mb-4">
               {formError}
@@ -1080,7 +1080,7 @@ export default function PlantacoesDashboard() {
           </div>
         }
       >
-        <div className="p-4" style={{ background: "var(--background)" }}>
+        <div className="p-4 p-md-5" style={{ background: "var(--background)" }}>
           {farms.length === 0 && (
             <div className="alert alert-warning small mb-4">
               Cadastre uma propriedade antes de criar talhões.

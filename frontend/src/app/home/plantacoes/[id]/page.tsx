@@ -497,8 +497,24 @@ export default function PlantacaoDetailPage() {
   ) => lines.map((line, lineIndex) => {
     if (lineIndex !== index) return line;
     const next = { ...line, ...patch };
-    if ("quantity" in patch || "unit_price" in patch) {
-      next.total_price = calculateLineTotal(next.quantity, next.unit_price);
+    if ("quantity" in patch || "unit_price" in patch || "unit" in patch || "item" in patch) {
+      const q = parseFloat(next.quantity || "0");
+      const p = parseFloat(next.unit_price || "0");
+      let multiplier = 1;
+
+      const item = inventoryItems.find((i) => i.id === next.item);
+      if (item) {
+        const invUnit = (item.unidade_medida || "").toLowerCase();
+        const selUnit = (next.unit || "").toLowerCase();
+        if (invUnit === "l" && selUnit === "ml") multiplier = 0.001;
+        else if (invUnit === "ml" && selUnit === "l") multiplier = 1000;
+        else if (invUnit === "kg" && selUnit === "g") multiplier = 0.001;
+        else if (invUnit === "g" && selUnit === "kg") multiplier = 1000;
+        else if (invUnit === "tonelada" && selUnit === "kg") multiplier = 0.001;
+        else if (invUnit === "kg" && selUnit === "tonelada") multiplier = 1000;
+      }
+
+      next.total_price = (q && p) ? String(q * p * multiplier) : "";
     }
     return next;
   });
@@ -1096,7 +1112,7 @@ export default function PlantacaoDetailPage() {
           </div>
         }
       >
-        <div className="d-flex flex-column gap-3">
+        <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
             <strong className="small text-success">Sementes utilizadas no plantio</strong>
             <Button variant="outline-success" size="sm" onClick={() => setPlantioLines((prev) => [...prev, { ...emptyPlantioLine }])}>+ Adicionar</Button>
@@ -1175,7 +1191,7 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showAdubacao} onClose={() => setShowAdubacao(false)} title="Registrar Adubação"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowAdubacao(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingAdubacao}>Salvar rascunho</Button><Button onClick={handleCreateAdubacao} disabled={savingAdubacao}>{savingAdubacao ? "Salvando..." : "Salvar adubação"}</Button></div>}
       >
-        <div className="d-flex flex-column gap-3">
+        <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
             <strong className="small text-success">Fertilizantes utilizados na aplicação</strong>
             <Button variant="outline-success" size="sm" onClick={() => setAdubacaoLines((prev) => [...prev, { ...emptyAdubacaoLine }])}>+ Adicionar</Button>
@@ -1252,7 +1268,7 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showFertirrigacao} onClose={() => setShowFertirrigacao(false)} title="Registrar Fertirrigação"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowFertirrigacao(false)}>Cancelar</Button><Button onClick={handleCreateFertirrigacao} disabled={savingFertirrigacao}>{savingFertirrigacao ? "Salvando..." : "Salvar"}</Button></div>}
       >
-        <div className="d-flex flex-column gap-3">
+        <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
             <strong className="small text-success">Insumos utilizados na fertirrigação</strong>
             <Button variant="outline-success" size="sm" onClick={() => setFertirrigacaoLines((prev) => [...prev, { ...emptyFertirrigacaoLine }])}>+ Adicionar</Button>
@@ -1329,7 +1345,7 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showDefensivo} onClose={() => setShowDefensivo(false)} title="Registrar Defensivo"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowDefensivo(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingDefensivo}>Salvar rascunho</Button><Button onClick={handleCreateDefensivo} disabled={savingDefensivo}>{savingDefensivo ? "Salvando..." : "Salvar aplicação"}</Button></div>}
       >
-        <div className="d-flex flex-column gap-3">
+        <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
             <strong className="small text-success">Defensivos da aplicação</strong>
             <Button variant="outline-success" size="sm" onClick={() => setDefensivoLines((prev) => [...prev, { ...emptyDefensivoLine }])}>+ Adicionar</Button>
@@ -1412,8 +1428,9 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showIrrigacao} onClose={() => setShowIrrigacao(false)} title="Registrar Irrigação"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowIrrigacao(false)}>Cancelar</Button><Button onClick={handleCreateIrrigacao} disabled={savingIrrigacao}>{savingIrrigacao ? "Salvando..." : "Salvar irrigação"}</Button></div>}
       >
-        <div className="row g-3">
-          <div className="col-6">
+        <div className="p-4 p-md-5">
+          <div className="row g-3">
+            <div className="col-6">
             <label className="form-label small fw-medium">Data inicial *</label>
             <input className="form-control" type="date" value={irrigacaoForm.start_date} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, start_date: e.target.value, end_date: irrigacaoForm.end_date || e.target.value })} />
           </div>
@@ -1467,13 +1484,15 @@ export default function PlantacaoDetailPage() {
             </div>
           </div>
         </div>
+        </div>
       </Modal>
 
       <Modal isOpen={showPumpModal} onClose={() => setShowPumpModal(false)} title="Cadastrar Bomba"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowPumpModal(false)}>Cancelar</Button><Button onClick={handleCreatePump} disabled={savingPump}>{savingPump ? "Salvando..." : "Salvar bomba"}</Button></div>}
       >
-        <div className="row g-3">
-          <div className="col-12">
+        <div className="p-4 p-md-5">
+          <div className="row g-3">
+            <div className="col-12">
             <label className="form-label small fw-medium">Nome da bomba *</label>
             <input className="form-control" value={pumpForm.name} onChange={(e) => setPumpForm({ ...pumpForm, name: e.target.value })} placeholder="Ex.: Bomba poço 01" />
           </div>
@@ -1490,6 +1509,7 @@ export default function PlantacaoDetailPage() {
             <input className="form-control" type="number" step="0.01" value={pumpForm.flow_rate_l_per_h} onChange={(e) => setPumpForm({ ...pumpForm, flow_rate_l_per_h: e.target.value })} />
           </div>
         </div>
+        </div>
       </Modal>
 
       {/* Edit Modal */}
@@ -1501,8 +1521,9 @@ export default function PlantacaoDetailPage() {
           </div>
         }
       >
-        <div className="row g-3">
-          <div className="col-12">
+        <div className="p-4 p-md-5">
+          <div className="row g-3">
+            <div className="col-12">
             <label className="form-label small fw-medium">Nome</label>
             <input className="form-control" value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
