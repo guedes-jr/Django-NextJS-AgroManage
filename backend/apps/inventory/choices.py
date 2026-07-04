@@ -8,7 +8,7 @@ class CategoriaItem(models.TextChoices):
     RACAO = "racao", "Ração"
     NUCLEO = "nucleo", "Suplementos"
     SUPLEMENTO = "suplemento", "Suplemento Animal"
-    SEMENTE = "semente", "Sementes"
+    SEMENTE = "semente", "Sementes/mudas"
     FERTILIZANTE = "fertilizante", "Adubos"
     FOLIAR = "foliar", "Foliares"
     DEFENSIVO = "defensivo", "Defensivo Agrícola"

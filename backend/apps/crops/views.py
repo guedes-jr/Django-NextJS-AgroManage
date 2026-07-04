@@ -50,6 +50,7 @@ from .services import (
     create_fertigation, create_pesticide_application,
     create_irrigation, create_land_preparation,
     create_labor_record, create_harvest,
+    update_harvest, delete_harvest,
 )
 from .selectors import (
     get_plantation_dashboard,
@@ -148,11 +149,17 @@ class HarvestViewSet(viewsets.ModelViewSet):
             harvest_type = self.request.query_params.get("harvest_type")
             if harvest_type:
                 qs = qs.filter(harvest_type=harvest_type)
-            return qs
+            return qs.order_by("-harvest_date", "-created_at")
         return qs.none()
 
     def perform_create(self, serializer):
         create_harvest(serializer, self.request)
+
+    def perform_update(self, serializer):
+        update_harvest(serializer, self.request)
+
+    def perform_destroy(self, instance):
+        delete_harvest(instance)
 
 
 class HarvestBuyerViewSet(viewsets.ModelViewSet):
@@ -336,7 +343,7 @@ class AgronomistRecommendationViewSet(viewsets.ModelViewSet):
             status = self.request.query_params.get("status")
             if status:
                 qs = qs.filter(status=status)
-            return qs
+            return qs.order_by("suggested_application_date", "-created_at")
         return AgronomistRecommendation.objects.none()
 
 

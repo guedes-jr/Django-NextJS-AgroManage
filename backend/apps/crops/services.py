@@ -232,3 +232,65 @@ def create_harvest(serializer, request):
         )
 
     return harvest
+
+
+def _sync_harvest_transaction(harvest, request=None):
+    """Keep the financial revenue aligned with a harvest sale."""
+    from apps.finance.models import FinancialCategory, Transaction
+
+    reference = f"HARVEST-{harvest.id}"
+    transaction_qs = Transaction.objects.filter(reference=reference)
+
+    if harvest.destination != harvest.Destination.SALE or harvest.revenue_amount <= 0:
+        transaction_qs.delete()
+        return
+
+    plantation = harvest.planting_cycle
+    category, _ = FinancialCategory.objects.get_or_create(
+        organization=plantation.organization,
+        name="Colheita",
+        category_type="revenue",
+    )
+    created_by = None
+    if request and request.user.is_authenticated:
+        created_by = request.user
+
+    defaults = {
+        "organization": plantation.organization,
+        "farm": plantation.farm,
+        "category": category,
+        "description": f"Colheita: {plantation} — {harvest.buyer_name or harvest.buyer or 'Venda'}",
+        "amount": harvest.revenue_amount,
+        "due_date": harvest.harvest_date,
+        "status": "paid",
+        "planting_cycle": plantation,
+    }
+    if created_by:
+        defaults["created_by"] = created_by
+
+    transaction_obj = transaction_qs.order_by("created_at").first()
+    transaction_qs.exclude(id=getattr(transaction_obj, "id", None)).delete()
+
+    if transaction_obj:
+        for field, value in defaults.items():
+            setattr(transaction_obj, field, value)
+        transaction_obj.save()
+    else:
+        Transaction.objects.create(reference=reference, **defaults)
+
+
+@transaction.atomic
+def update_harvest(serializer, request):
+    """Update a harvest and synchronize its revenue transaction."""
+    harvest = serializer.save()
+    _sync_harvest_transaction(harvest, request)
+    return harvest
+
+
+@transaction.atomic
+def delete_harvest(harvest):
+    """Delete a harvest and its generated revenue transaction."""
+    from apps.finance.models import Transaction
+
+    Transaction.objects.filter(reference=f"HARVEST-{harvest.id}").delete()
+    harvest.delete()

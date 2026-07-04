@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus, ClipboardList } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -76,6 +76,24 @@ type HarvestOperation = {
   yield_kg?: string | number | null;
   revenue_amount?: string | number | null;
 };
+type AgronomistRecommendationProduct = {
+  item_name?: string | null;
+  dose_per_ha?: string | number | null;
+  dose_unit?: string | null;
+  total_quantity?: string | number | null;
+  total_unit?: string | null;
+};
+type AgronomistRecommendation = {
+  id: string;
+  title: string;
+  objective?: string | null;
+  suggested_application_date?: string | null;
+  priority: "low" | "medium" | "high";
+  priority_display?: string | null;
+  status: "pending" | "in_progress" | "completed";
+  status_display?: string | null;
+  products?: AgronomistRecommendationProduct[];
+};
 type InventoryItem = {
   id: string;
   nome: string;
@@ -113,6 +131,12 @@ const statusOptions = [
   { value: "finished", label: "Finalizada" },
   { value: "cancelled", label: "Cancelada" },
 ];
+
+const recommendationStatusVariant = (status: AgronomistRecommendation["status"]) => {
+  if (status === "completed") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
+  if (status === "in_progress") return { background: "#dbeafe", color: "#1d4ed8", border: "1px solid #93c5fd" };
+  return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
+};
 
 const emptyAdubacaoLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
 const emptyPlantioLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
@@ -386,6 +410,8 @@ export default function PlantacaoDetailPage() {
   const [landPreparations, setLandPreparations] = useState<LandPreparationOperation[]>([]);
   const [laborRecords, setLaborRecords] = useState<LaborOperation[]>([]);
   const [harvests, setHarvests] = useState<HarvestOperation[]>([]);
+  const [agronomistRecommendations, setAgronomistRecommendations] = useState<AgronomistRecommendation[]>([]);
+  const [completingRecommendationId, setCompletingRecommendationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -410,7 +436,7 @@ export default function PlantacaoDetailPage() {
           population: merged.population || "",
           spacing: merged.spacing || "",
         });
-        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes] = await Promise.all([
+        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes, recommendationRes] = await Promise.all([
           cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertilizations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
@@ -421,6 +447,7 @@ export default function PlantacaoDetailPage() {
           cropService.listLandPreparations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listLaborRecords({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listHarvests({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
+          cropService.listAgronomistRecommendations({ plantation: id }).catch(() => ({ data: { results: [] } })),
         ]);
         setPlantings(Array.isArray(plantingsRes.data?.results) ? plantingsRes.data.results : []);
         setFertilizations(Array.isArray(fertsRes.data?.results) ? fertsRes.data.results : []);
@@ -432,6 +459,7 @@ export default function PlantacaoDetailPage() {
         setLandPreparations(Array.isArray(landPrepRes.data?.results) ? landPrepRes.data.results : []);
         setLaborRecords(Array.isArray(laborRes.data?.results) ? laborRes.data.results : []);
         setHarvests(Array.isArray(harvestRes.data?.results) ? harvestRes.data.results : []);
+        setAgronomistRecommendations(Array.isArray(recommendationRes.data?.results) ? recommendationRes.data.results : []);
       } catch { console.error("Failed to load plantation"); }
       finally { setLoading(false); }
     })();
@@ -485,6 +513,19 @@ export default function PlantacaoDetailPage() {
       setPlantation({ ...detailRes2.data, ...dashRes2.data });
     } catch { console.error("Failed to update"); }
     finally { setSaving(false); }
+  };
+
+  const handleCompleteRecommendation = async (recommendationId: string) => {
+    try {
+      setCompletingRecommendationId(recommendationId);
+      const response = await apiClient.patch(`/crops/agronomist-recommendations/${recommendationId}/`, { status: "completed" });
+      const updated = response.data as AgronomistRecommendation;
+      setAgronomistRecommendations((prev) => prev.map((rec) => rec.id === recommendationId ? updated : rec));
+    } catch {
+      console.error("Failed to complete agronomist recommendation");
+    } finally {
+      setCompletingRecommendationId(null);
+    }
   };
 
   const getStockPrice = async (itemId: string) => {
@@ -751,6 +792,11 @@ export default function PlantacaoDetailPage() {
     return `R$ ${fmt(v)}`;
   };
 
+  const formatDate = (value?: string | null) => {
+    if (!value) return "-";
+    return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
+  };
+
   if (loading) {
     return (
       <div className="p-4">
@@ -800,6 +846,7 @@ export default function PlantacaoDetailPage() {
   const fertilizerItems = nutritionItems;
   const fertigationItems = nutritionItems;
   const pesticideItems = inventoryItems.filter((item) => item.categoria === "defensivo" || (!item.especie_animal && item.categoria === "outro"));
+  const activeAgronomistAlerts = agronomistRecommendations.filter((recommendation) => recommendation.status !== "completed");
 
   return (
     <div>
@@ -828,6 +875,72 @@ export default function PlantacaoDetailPage() {
           </Button>
         </div>
       </div>
+
+      {activeAgronomistAlerts.length > 0 && (
+        <div className="dashboard-card p-4 mb-4 border-warning" style={{ background: "color-mix(in srgb, var(--bs-warning), transparent 92%)" }}>
+          <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
+            <div className="d-flex align-items-start gap-3">
+              <div
+                className="d-flex align-items-center justify-content-center flex-shrink-0"
+                style={{ width: 42, height: 42, borderRadius: 10, background: "var(--bs-warning)", color: "white" }}
+              >
+                <ClipboardList size={22} />
+              </div>
+              <div>
+                <h2 className="fw-black mb-1" style={{ fontSize: "1.05rem" }}>
+                  Alertas do agrônomo
+                </h2>
+                <p className="text-muted-foreground small mb-0">
+                  Recomendações pendentes para este setor. Marque como feito depois de executar e lançar o procedimento.
+                </p>
+              </div>
+            </div>
+            <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/agronomo`)}>
+              Ver área do agrônomo
+            </Button>
+          </div>
+
+          <div className="d-flex flex-column gap-3">
+            {activeAgronomistAlerts.map((recommendation) => (
+              <div key={recommendation.id} className="bg-white border rounded p-3">
+                <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="d-flex align-items-center gap-2 flex-wrap mb-2">
+                      <Badge style={recommendationStatusVariant(recommendation.status)}>{recommendation.status_display || "Pendente"}</Badge>
+                      <span className="small text-muted-foreground">Aplicação: {formatDate(recommendation.suggested_application_date)}</span>
+                      <span className="small text-muted-foreground">Prioridade: {recommendation.priority_display || recommendation.priority}</span>
+                    </div>
+                    <div className="fw-bold text-foreground">{recommendation.title}</div>
+                    {recommendation.objective && (
+                      <div className="small text-muted-foreground mt-1">{recommendation.objective}</div>
+                    )}
+                    {!!recommendation.products?.length && (
+                      <div className="d-flex flex-wrap gap-2 mt-2">
+                        {recommendation.products.map((product, productIndex) => (
+                          <span key={`${recommendation.id}-${productIndex}`} className="badge bg-success-subtle text-success border border-success-subtle">
+                            {product.item_name || "Produto"}
+                            {product.dose_per_ha ? ` - ${fmt(product.dose_per_ha)} ${product.dose_unit || ""}` : ""}
+                            {product.total_quantity ? ` | Total: ${fmt(product.total_quantity)} ${product.total_unit || ""}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="agro"
+                    size="sm"
+                    disabled={completingRecommendationId === recommendation.id}
+                    onClick={() => handleCompleteRecommendation(recommendation.id)}
+                  >
+                    <CheckCircle2 size={16} />
+                    {completingRecommendationId === recommendation.id ? "Concluindo..." : "Marcar como feito"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Shortcuts */}
       <div className="mb-4">
@@ -868,8 +981,8 @@ export default function PlantacaoDetailPage() {
             },
             {
               number: 4,
-              label: "Semente",
-              desc: "Híbrido, quantidade, sacas e custo",
+              label: "Sementes/mudas",
+              desc: "Híbrido, mudas, quantidade, sacas e custo",
               stage: shortcutStages.plantio,
               status: "in_progress" as ShortcutStatus,
               onClick: () => setShowPlantio(true),

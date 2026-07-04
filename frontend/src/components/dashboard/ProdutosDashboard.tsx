@@ -342,7 +342,7 @@ export function ProdutosDashboard() {
             { key: "medicamento_vacina", title: "Medicamentos e Vacinas", desc: "Produtos sanitários e preventivos...", color: "oklch(0.7 0.18 25)" },
             { key: "fertilizante", title: "Adubos", desc: "NPK, ureia e formulações...", color: "oklch(0.68 0.16 120)" },
             { key: "foliar", title: "Foliares", desc: "Adubação e nutrição foliar...", color: "oklch(0.62 0.15 145)" },
-            { key: "semente", title: "Sementes", desc: "Milho, soja, sorgo...", color: "oklch(0.62 0.16 145)" },
+            { key: "semente", title: "Sementes/mudas", desc: "Milho, soja, sorgo, mudas...", color: "oklch(0.62 0.16 145)" },
             { key: "defensivo", title: "Defensivos", desc: "Herbicidas, inseticidas...", color: "oklch(0.62 0.14 220)" },
             { key: "corretivo", title: "Corretivos", desc: "Calcário, gesso agrícola...", color: "oklch(0.55 0.12 70)" },
             { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
@@ -424,7 +424,7 @@ export function ProdutosDashboard() {
               <option value="medicamento_vacina">Medicamentos e Vacinas</option>
               <option value="fertilizante">Adubos</option>
               <option value="foliar">Foliares</option>
-              <option value="semente">Sementes</option>
+              <option value="semente">Sementes/mudas</option>
               <option value="defensivo">Defensivo Agrícola</option>
               <option value="corretivo">Corretivo de Solo</option>
               <option value="semen">Sêmen</option>

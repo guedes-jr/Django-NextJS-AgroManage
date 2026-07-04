@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, FlaskConical, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
+import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
 import { apiClient } from "@/services/api";
 
 export type InventoryCategory =
@@ -33,7 +33,6 @@ interface InventoryFormModalProps {
 
 const STEPS = [
   { id: "basic", label: "Identificação", icon: Package },
-  { id: "tech", label: "Dados Técnicos", icon: FlaskConical },
   { id: "stock", label: "Estoque & Lote", icon: Warehouse },
 ];
 
@@ -41,7 +40,7 @@ const CATEGORY_CONFIG: Record<InventoryCategory, { label: string; unidade: strin
   racao:       { label: "Ração / Grão",    unidade: "kg",      color: "#f97316" },
   nucleo:      { label: "Suplementos",     unidade: "kg",      color: "#8b5cf6" },
   suplemento:  { label: "Suplemento Animal", unidade: "kg",    color: "#6366f1" },
-  semente:     { label: "Sementes",        unidade: "saco",    color: "#22c55e" },
+  semente:     { label: "Sementes/mudas",  unidade: "saco",    color: "#22c55e" },
   fertilizante:{ label: "Adubos",          unidade: "kg",      color: "#84cc16" },
   foliar:      { label: "Foliares",        unidade: "l",       color: "#16a34a" },
   defensivo:   { label: "Defensivo Agrícola", unidade: "l",    color: "#0ea5e9" },
@@ -59,11 +58,6 @@ const ESPECIES = ["bovino", "suino", "ave", "ovino", "caprino", "equino", "multi
 const ESPECIES_LABELS: Record<string, string> = {
   bovino: "Bovino", suino: "Suíno", ave: "Ave", ovino: "Ovino",
   caprino: "Caprino", equino: "Equino", multiplo: "Múltiplas espécies", outro: "Outro",
-};
-const VIAS = ["oral", "injetavel", "topica", "subcutanea", "intramuscular", "intravenosa", "outra"];
-const VIAS_LABELS: Record<string, string> = {
-  oral: "Oral", injetavel: "Injetável", topica: "Tópica",
-  subcutanea: "Subcutânea", intramuscular: "Intramuscular", intravenosa: "Intravenosa", outra: "Outra",
 };
 const LOCAIS = [
   { value: "deposito", label: "Depósito Geral" },
@@ -179,11 +173,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
     if (!["medicamento", "vacina"].includes(value)) return true;
     return rows.some((row) => row.categoria === value);
   });
-  const isMed = (cat: string) => cat === "medicamento" || cat === "medicamento_vacina";
-  const isVac = (cat: string) => cat === "vacina";
-  const isMedOrVac = (cat: string) => cat === "medicamento" || cat === "vacina" || cat === "medicamento_vacina";
-  const isFeed = (cat: string) => ["racao", "nucleo", "suplemento"].includes(cat);
-  const isSemen = (cat: string) => cat === "semen";
   const isLastStep = currentStep === STEPS.length - 1;
 
   return (
@@ -360,117 +349,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                     )}
 
                     {currentStep === 1 && (
-                      <div className="animate-in fade-in slide-in-from-right-2">
-                        <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
-                          <FlaskConical size={14} className="me-1" /> Detalhes Técnicos e Especificações
-                        </p>
-                        
-                        {!isMedOrVac(row.categoria) && !isFeed(row.categoria) && !isSemen(row.categoria) && (
-                          <div className="p-5 text-center bg-muted/5 rounded-2xl border border-dashed">
-                            <Package size={32} className="text-muted mb-3 opacity-20" />
-                            <div className="text-muted-foreground small fw-bold">Nenhum campo técnico adicional para esta categoria.</div>
-                            <div className="text-muted-foreground text-xs">Você pode prosseguir para a próxima etapa.</div>
-                          </div>
-                        )}
-
-                        {isSemen(row.categoria) && (
-                          <div className="row g-4 animate-in fade-in slide-in-from-right-2">
-                            <div className="col-12 col-md-6">
-                              <div className="login-input-group mb-0">
-                                <label className="login-label fw-semibold text-xs">Classificação do Sêmen <span className="text-danger">*</span></label>
-                                <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
-                                  value={row.tipo_semen || "convencional"} onChange={e => update(row.id as any, "tipo_semen", e.target.value)}>
-                                  <option value="convencional">Convencional</option>
-                                  <option value="sexado_macho">Sexado Macho</option>
-                                  <option value="sexado_femea">Sexado Fêmea</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {isMedOrVac(row.categoria) && (
-                          <div className="row g-4">
-                            <div className="col-12 col-md-6">
-                              <InputField label="Princípio Ativo">
-                                <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                  placeholder="Ex: Oxitetraciclina..." value={row.principio_ativo}
-                                  onChange={e => update(row.id as any, "principio_ativo", e.target.value)} />
-                              </InputField>
-                            </div>
-                            <div className="col-12 col-md-3">
-                              <InputField label="Concentração">
-                                <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                  placeholder="Ex: 200mg/mL" value={row.concentracao}
-                                  onChange={e => update(row.id as any, "concentracao", e.target.value)} />
-                              </InputField>
-                            </div>
-                            <div className="col-12 col-md-3">
-                              <div className="login-input-group mb-0">
-                                <label className="login-label fw-semibold text-xs">Via de Aplicação</label>
-                                <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
-                                  value={row.via_aplicacao} onChange={e => update(row.id as any, "via_aplicacao", e.target.value)}>
-                                  <option value="">Selecione...</option>
-                                  {VIAS.map(v => <option key={v} value={v}>{VIAS_LABELS[v]}</option>)}
-                                </select>
-                              </div>
-                            </div>
-
-                            {isMed(row.categoria) && (
-                              <>
-                                <div className="col-12 col-md-3">
-                                  <InputField label="Carência (dias)">
-                                    <input type="number" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                      placeholder="0" value={row.carencia_dias}
-                                      onChange={e => update(row.id as any, "carencia_dias", e.target.value)} />
-                                  </InputField>
-                                </div>
-                                <div className="col-12 col-md-3 d-flex align-items-center mt-md-4">
-                                  <label className="d-flex align-items-center gap-2 cursor-pointer p-2 rounded-xl border w-100 hover-bg-muted transition-all">
-                                    <input type="checkbox" className="form-check-input mt-0" checked={row.exige_receituario}
-                                      onChange={e => update(row.id as any, "exige_receituario", e.target.checked)} />
-                                    <span className="small fw-bold">Exige Receituário</span>
-                                  </label>
-                                </div>
-                              </>
-                            )}
-                            {isMedOrVac(row.categoria) && (
-                              <>
-                                <div className="col-12 col-md-3">
-                                  <InputField label={isVac(row.categoria) ? "Doses/Embalagem" : "Volume Embalagem (ml)"}>
-                                    <input type="number" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                      placeholder="Ex: 50" value={isVac(row.categoria) ? row.doses_por_embalagem : row.volume_por_dose}
-                                      onChange={e => update(row.id as any, isVac(row.categoria) ? "doses_por_embalagem" : "volume_por_dose", e.target.value)} />
-                                  </InputField>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {isFeed(row.categoria) && (
-                          <div className="row g-4">
-                            <div className="col-12 col-md-8">
-                              <div className="login-input-group mb-0">
-                                <label className="login-label fw-semibold text-xs">Composição / Garantias</label>
-                                <textarea className="login-input bg-transparent text-foreground rounded-xl" rows={3} style={{ paddingLeft: "1rem", height: "auto" }}
-                                  placeholder="Proteína bruta, energia, fibra..." value={row.composicao}
-                                  onChange={e => update(row.id as any, "composicao", e.target.value)} />
-                              </div>
-                            </div>
-                            <div className="col-12 col-md-4">
-                              <InputField label="Peso da Embalagem (kg)">
-                                <input type="number" step="0.01" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                  placeholder="0.00" value={row.peso_embalagem}
-                                  onChange={e => update(row.id as any, "peso_embalagem", e.target.value)} />
-                              </InputField>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {currentStep === 2 && (
                       <div className="animate-in fade-in slide-in-from-right-2">
                         <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
                           <Warehouse size={14} className="me-1" /> Entrada Inicial de Estoque

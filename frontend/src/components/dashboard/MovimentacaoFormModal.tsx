@@ -42,7 +42,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   vacina: "Vacina",
   medicamento_vacina: "Medicamentos e Vacinas",
   material: "Material",
-  semente: "Sementes",
+  semente: "Sementes/mudas",
   fertilizante: "Adubos",
   foliar: "Foliares",
 };

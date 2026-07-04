@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.crops.models import Field, Harvest, HarvestBuyer, PlantingCycle
 from apps.farms.models import Farm
-from apps.finance.models import Transaction
+from apps.finance.models import FinancialCategory, Transaction
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -187,3 +187,82 @@ class HarvestAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("unit_price", response.data["error"]["detail"])
 
+    def test_update_sale_harvest_updates_financial_transaction(self):
+        harvest = Harvest.objects.create(
+            planting_cycle=self.plantation,
+            harvest_type=Harvest.HarvestType.PARTIAL,
+            harvest_date=date.today(),
+            yield_kg=Decimal("1000.00"),
+            destination=Harvest.Destination.SALE,
+            buyer=self.buyer,
+            unit_price=Decimal("1.00"),
+            created_by=self.user,
+        )
+        category = FinancialCategory.objects.create(
+            organization=self.org,
+            name="Colheita",
+            category_type="revenue",
+        )
+        Transaction.objects.create(
+            organization=self.org,
+            farm=self.farm,
+            category=category,
+            description="Colheita antiga",
+            amount=Decimal("1000.00"),
+            due_date=date.today(),
+            status="paid",
+            planting_cycle=self.plantation,
+            reference=f"HARVEST-{harvest.id}",
+            created_by=self.user,
+        )
+
+        response = self.client.patch(
+            reverse("crops-harvests-detail", args=[harvest.id]),
+            {
+                "yield_kg": "2000.00",
+                "unit_price": "1.50",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(response.data["revenue_amount"]), Decimal("3000.00"))
+
+        transaction = Transaction.objects.get(reference=f"HARVEST-{harvest.id}")
+        self.assertEqual(transaction.amount, Decimal("3000.00"))
+        self.assertIn("CEASA", transaction.description)
+
+    def test_delete_harvest_removes_financial_transaction(self):
+        harvest = Harvest.objects.create(
+            planting_cycle=self.plantation,
+            harvest_type=Harvest.HarvestType.PARTIAL,
+            harvest_date=date.today(),
+            yield_kg=Decimal("1000.00"),
+            destination=Harvest.Destination.SALE,
+            buyer=self.buyer,
+            unit_price=Decimal("1.00"),
+            created_by=self.user,
+        )
+        category = FinancialCategory.objects.create(
+            organization=self.org,
+            name="Colheita",
+            category_type="revenue",
+        )
+        Transaction.objects.create(
+            organization=self.org,
+            farm=self.farm,
+            category=category,
+            description="Colheita",
+            amount=Decimal("1000.00"),
+            due_date=date.today(),
+            status="paid",
+            planting_cycle=self.plantation,
+            reference=f"HARVEST-{harvest.id}",
+            created_by=self.user,
+        )
+
+        response = self.client.delete(reverse("crops-harvests-detail", args=[harvest.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Harvest.objects.filter(id=harvest.id).exists())
+        self.assertFalse(Transaction.objects.filter(reference=f"HARVEST-{harvest.id}").exists())

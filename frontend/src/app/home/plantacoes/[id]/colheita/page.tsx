@@ -121,6 +121,8 @@ export default function ColheitaPage() {
   const [savingBuyer, setSavingBuyer] = useState(false);
   const [showBuyerForm, setShowBuyerForm] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [editingHarvestId, setEditingHarvestId] = useState<string | null>(null);
+  const [deletingHarvestId, setDeletingHarvestId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState<HarvestForm>({
@@ -176,8 +178,9 @@ export default function ColheitaPage() {
   const currentRevenue = form.destination === "sale" ? quantity * unitPrice : 0;
 
   const summary = useMemo(() => {
-    const accumulatedQuantity = harvests.reduce((sum, harvest) => sum + decimalValue(harvest.yield_kg), 0);
-    const accumulatedRevenue = harvests.reduce((sum, harvest) => sum + decimalValue(harvest.revenue_amount), 0);
+    const baseHarvests = editingHarvestId ? harvests.filter((harvest) => harvest.id !== editingHarvestId) : harvests;
+    const accumulatedQuantity = baseHarvests.reduce((sum, harvest) => sum + decimalValue(harvest.yield_kg), 0);
+    const accumulatedRevenue = baseHarvests.reduce((sum, harvest) => sum + decimalValue(harvest.revenue_amount), 0);
     const projectedQuantity = accumulatedQuantity + quantity;
     const projectedRevenue = accumulatedRevenue + currentRevenue;
     const averagePrice = projectedQuantity > 0 ? projectedRevenue / projectedQuantity : 0;
@@ -189,7 +192,7 @@ export default function ColheitaPage() {
       projectedRevenue,
       averagePrice,
     };
-  }, [currentRevenue, harvests, quantity]);
+  }, [currentRevenue, editingHarvestId, harvests, quantity]);
 
   const visibleHarvests = showAllHistory ? harvests : harvests.slice(0, 3);
 
@@ -199,6 +202,19 @@ export default function ColheitaPage() {
 
   const updateBuyerForm = (patch: Partial<BuyerForm>) => {
     setBuyerForm((current) => ({ ...current, ...patch }));
+  };
+
+  const resetForm = () => {
+    setEditingHarvestId(null);
+    setForm({
+      harvest_type: "partial",
+      harvest_date: today(),
+      yield_kg: "",
+      destination: "sale",
+      buyer: form.buyer,
+      unit_price: "",
+      notes: "",
+    });
   };
 
   const validateForm = () => {
@@ -255,7 +271,7 @@ export default function ColheitaPage() {
     try {
       setSaving(true);
       setError("");
-      await cropService.createHarvest({
+      const payload = {
         planting_cycle: id,
         harvest_type: form.harvest_type,
         harvest_date: form.harvest_date,
@@ -264,21 +280,51 @@ export default function ColheitaPage() {
         buyer: form.destination === "sale" ? form.buyer : null,
         unit_price: form.destination === "sale" ? unitPrice : null,
         notes: form.notes.trim(),
-      });
+      };
+
+      if (editingHarvestId) {
+        await cropService.updateHarvest(editingHarvestId, payload);
+      } else {
+        await cropService.createHarvest(payload);
+      }
+
       await refreshHarvests();
-      setForm({
-        harvest_type: "partial",
-        harvest_date: today(),
-        yield_kg: "",
-        destination: "sale",
-        buyer: form.buyer,
-        unit_price: "",
-        notes: "",
-      });
+      resetForm();
     } catch {
       setError("Erro ao salvar a colheita. Verifique os dados e tente novamente.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditHarvest = (harvest: Harvest) => {
+    setEditingHarvestId(harvest.id);
+    setError("");
+    setForm({
+      harvest_type: harvest.harvest_type,
+      harvest_date: harvest.harvest_date,
+      yield_kg: String(harvest.yield_kg ?? ""),
+      destination: harvest.destination as HarvestForm["destination"],
+      buyer: harvest.buyer || "",
+      unit_price: harvest.unit_price ? String(harvest.unit_price) : "",
+      notes: harvest.notes || "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteHarvest = async (harvest: Harvest) => {
+    if (!window.confirm("Remover esta colheita do histórico?")) return;
+
+    try {
+      setDeletingHarvestId(harvest.id);
+      setError("");
+      await cropService.deleteHarvest(harvest.id);
+      if (editingHarvestId === harvest.id) resetForm();
+      await refreshHarvests();
+    } catch {
+      setError("Não foi possível remover a colheita. Tente novamente.");
+    } finally {
+      setDeletingHarvestId(null);
     }
   };
 
@@ -369,7 +415,7 @@ export default function ColheitaPage() {
 
       <div className="dashboard-card p-4 mb-3">
         <h2 className="fw-black text-foreground mb-4" style={{ fontSize: "1.2rem" }}>
-          Registrar colheita
+          {editingHarvestId ? "Editar colheita" : "Registrar colheita"}
         </h2>
 
         <div className="row g-4 mb-4">
@@ -613,10 +659,21 @@ export default function ColheitaPage() {
                     <td>{harvest.buyer_name_display || harvest.buyer_name || "-"}</td>
                     <td>
                       <div className="d-flex justify-content-end gap-2">
-                        <button type="button" className="btn btn-outline-secondary btn-sm" disabled title="Edição com sincronização financeira será adicionada depois">
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={() => handleEditHarvest(harvest)}
+                          title="Editar colheita"
+                        >
                           <Edit3 size={15} />
                         </button>
-                        <button type="button" className="btn btn-outline-danger btn-sm" disabled title="Exclusão com sincronização financeira será adicionada depois">
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger btn-sm"
+                          disabled={deletingHarvestId === harvest.id}
+                          onClick={() => handleDeleteHarvest(harvest)}
+                          title="Remover colheita"
+                        >
                           <Trash2 size={15} />
                         </button>
                       </div>
@@ -643,10 +700,10 @@ export default function ColheitaPage() {
           <button
             type="button"
             className="btn btn-outline-secondary px-5"
-            onClick={() => router.push(`/home/plantacoes/${id}`)}
+            onClick={() => (editingHarvestId ? resetForm() : router.push(`/home/plantacoes/${id}`))}
             style={{ height: 48, borderRadius: 10, fontWeight: 800 }}
           >
-            Cancelar
+            {editingHarvestId ? "Cancelar edição" : "Cancelar"}
           </button>
           <button
             type="button"
@@ -656,7 +713,7 @@ export default function ColheitaPage() {
             style={{ height: 48, borderRadius: 10, fontWeight: 800, minWidth: 190 }}
           >
             <Save size={18} />
-            {saving ? "Salvando..." : "Salvar colheita"}
+            {saving ? "Salvando..." : editingHarvestId ? "Atualizar colheita" : "Salvar colheita"}
           </button>
         </div>
       </div>

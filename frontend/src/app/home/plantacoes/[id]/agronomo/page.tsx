@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  CheckCircle2,
   ClipboardList,
   Download,
   Eye,
   FileText,
   FlaskConical,
-  MoreVertical,
   Plus,
   Save,
   Trash2,
@@ -33,6 +33,8 @@ type Plantation = {
 type InventoryItem = {
   id: string;
   nome: string;
+  categoria?: string;
+  categoria_display?: string;
   especie_animal?: string;
   unidade_medida?: string;
   estoque_atual?: string;
@@ -48,6 +50,8 @@ type SoilAnalysis = {
 
 type RecommendationProduct = {
   item: string;
+  item_search: string;
+  category: string;
   item_name?: string;
   dose_per_ha: string;
   dose_unit: string;
@@ -72,6 +76,8 @@ type Recommendation = {
 
 const emptyProduct: RecommendationProduct = {
   item: "",
+  item_search: "",
+  category: "",
   dose_per_ha: "",
   dose_unit: "l_ha",
   total_quantity: "",
@@ -97,6 +103,18 @@ const doseUnitOptions = [
   { value: "kg_ha", label: "kg/ha" },
   { value: "g_ha", label: "g/ha" },
 ];
+
+const agriculturalCategoryOptions = [
+  { value: "semente", label: "Sementes/mudas" },
+  { value: "fertilizante", label: "Adubos" },
+  { value: "foliar", label: "Foliares" },
+  { value: "corretivo", label: "Corretivo de Solo" },
+  { value: "defensivo", label: "Defensivo Agrícola" },
+  { value: "material", label: "Material" },
+  { value: "outro", label: "Outro" },
+];
+
+const agriculturalCategoryValues = agriculturalCategoryOptions.map((category) => category.value);
 
 const statusVariant = (status: Recommendation["status"]) => {
   if (status === "completed") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
@@ -139,6 +157,7 @@ export default function AgronomoPage() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [completingRecommendationId, setCompletingRecommendationId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     objective: "",
@@ -149,13 +168,17 @@ export default function AgronomoPage() {
   });
   const [products, setProducts] = useState<RecommendationProduct[]>([{ ...emptyProduct }]);
 
-  const agriculturalItems = useMemo(
-    () => inventoryItems.filter((item) => !item.especie_animal),
-    [inventoryItems],
-  );
+  const agriculturalItems = useMemo(() => {
+    const items = inventoryItems.filter((item) => agriculturalCategoryValues.includes(item.categoria || ""));
+    return items.length > 0 ? items : inventoryItems;
+  }, [inventoryItems]);
   const recommendationAreaHa = useMemo(
     () => parseDecimal(plantation?.planted_area_ha),
     [plantation?.planted_area_ha],
+  );
+  const activeRecommendations = useMemo(
+    () => recommendations.filter((recommendation) => recommendation.status !== "completed"),
+    [recommendations],
   );
 
   const calculateTotalQuantity = (product: RecommendationProduct) => {
@@ -194,6 +217,45 @@ export default function AgronomoPage() {
     }));
   };
 
+  const getProductSuggestions = (product: RecommendationProduct) => {
+    const search = product.item_search.trim().toLowerCase();
+    return agriculturalItems
+      .filter((item) => !product.category || item.categoria === product.category)
+      .filter((item) => {
+        if (!search) return true;
+        const text = `${item.nome} ${item.categoria_display || item.categoria || ""}`.toLowerCase();
+        return text.includes(search);
+      })
+      .slice(0, 8);
+  };
+
+  const selectProductItem = (index: number, item: InventoryItem) => {
+    const doseUnit = item.unidade_medida === "kg" ? "kg_ha" : item.unidade_medida === "g" ? "g_ha" : item.unidade_medida === "ml" ? "ml_ha" : "l_ha";
+    updateProduct(index, {
+      item: item.id,
+      item_search: item.nome,
+      category: item.categoria || "",
+      dose_unit: doseUnit,
+      total_unit: totalUnitByDoseUnit[doseUnit] || item.unidade_medida || "",
+    });
+  };
+
+  const handleProductSearchChange = (index: number, value: string) => {
+    const normalized = value.trim().toLowerCase();
+    const currentProduct = products[index];
+    const matchingItem = agriculturalItems.find((item) => {
+      const sameCategory = !currentProduct.category || item.categoria === currentProduct.category;
+      return sameCategory && item.nome.trim().toLowerCase() === normalized;
+    });
+
+    if (matchingItem) {
+      selectProductItem(index, matchingItem);
+      return;
+    }
+
+    updateProduct(index, { item_search: value, item: "" });
+  };
+
   const handleUpload = async (file: File | null) => {
     if (!file || !id) return;
     try {
@@ -213,6 +275,11 @@ export default function AgronomoPage() {
 
   const handleSaveRecommendation = async () => {
     if (!id || !form.title.trim()) return;
+    const unresolvedProduct = products.find((product) => product.item_search.trim() && !product.item);
+    if (unresolvedProduct) {
+      alert("Selecione o produto pela sugestão exibida antes de salvar.");
+      return;
+    }
     const validProducts = products.filter((product) => product.item);
     try {
       setSaving(true);
@@ -249,6 +316,20 @@ export default function AgronomoPage() {
       alert("Não foi possível salvar a recomendação.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCompleteRecommendation = async (recommendationId: string) => {
+    try {
+      setCompletingRecommendationId(recommendationId);
+      const response = await apiClient.patch(`/crops/agronomist-recommendations/${recommendationId}/`, { status: "completed" });
+      const updated = response.data as Recommendation;
+      setRecommendations((prev) => prev.map((recommendation) => recommendation.id === recommendationId ? updated : recommendation));
+    } catch (error) {
+      console.error("Erro ao concluir recomendação", error);
+      alert("Não foi possível marcar a recomendação como feita.");
+    } finally {
+      setCompletingRecommendationId(null);
     }
   };
 
@@ -344,29 +425,37 @@ export default function AgronomoPage() {
           <div className="dashboard-card p-4 h-100">
             <div className="d-flex align-items-center justify-content-between gap-2 mb-4">
               <div>
-                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Recomendações do agrônomo</h6>
-                <p className="text-muted small mb-0">Histórico técnico desta cultura.</p>
+                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Recomendações ativas</h6>
+                <p className="text-muted small mb-0">Orientações pendentes ou em execução nesta cultura.</p>
               </div>
               <Button variant="agro" size="sm" onClick={() => document.getElementById("nova-recomendacao")?.scrollIntoView({ behavior: "smooth" })}>
                 <Plus size={16} /> Nova recomendação
               </Button>
             </div>
 
-            {recommendations.length === 0 ? (
-              <p className="text-muted small mb-0">Nenhuma recomendação registrada.</p>
+            {activeRecommendations.length === 0 ? (
+              <p className="text-muted small mb-0">Nenhuma recomendação ativa.</p>
             ) : (
               <div className="d-flex flex-column gap-3">
-                {recommendations.slice(0, 5).map((recommendation, index) => (
+                {activeRecommendations.slice(0, 5).map((recommendation, index) => (
                   <div key={recommendation.id} className="border rounded p-3">
                     <div className="d-flex align-items-start justify-content-between gap-2">
                       <div className="d-flex align-items-center gap-3 flex-wrap">
-                        <Badge style={{ background: "#047857", color: "#fff" }}>#{String(recommendations.length - index).padStart(2, "0")}</Badge>
+                        <Badge style={{ background: "#047857", color: "#fff" }}>#{String(activeRecommendations.length - index).padStart(2, "0")}</Badge>
                         <span className="small">{formatDate(recommendation.recommendation_date)}</span>
                         <span className="small">Aplicação sugerida: {formatDate(recommendation.suggested_application_date)}</span>
                       </div>
                       <div className="d-flex align-items-center gap-2">
                         <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
-                        <MoreVertical size={16} className="text-muted" />
+                        <Button
+                          variant="outline-success"
+                          size="sm"
+                          disabled={completingRecommendationId === recommendation.id}
+                          onClick={() => handleCompleteRecommendation(recommendation.id)}
+                        >
+                          <CheckCircle2 size={15} />
+                          {completingRecommendationId === recommendation.id ? "Concluindo..." : "Feito"}
+                        </Button>
                       </div>
                     </div>
                     <div className="fw-bold mt-2">{recommendation.title}</div>
@@ -424,6 +513,7 @@ export default function AgronomoPage() {
               <table className="table align-middle mb-0">
                 <thead className="table-light">
                   <tr>
+                    <th>Categoria</th>
                     <th>Produto</th>
                     <th>Dose/ha</th>
                     <th>Unidade</th>
@@ -435,13 +525,52 @@ export default function AgronomoPage() {
                 <tbody>
                   {products.map((product, index) => (
                     <tr key={index}>
-                      <td style={{ minWidth: 240 }}>
-                        <select className="form-select" value={product.item} onChange={(e) => updateProduct(index, { item: e.target.value })}>
-                          <option value="">Selecione o produto</option>
-                          {agriculturalItems.map((item) => (
-                            <option key={item.id} value={item.id}>{item.nome}</option>
+                      <td style={{ minWidth: 180 }}>
+                        <select
+                          className="form-select"
+                          value={product.category}
+                          onChange={(e) => updateProduct(index, { category: e.target.value, item: "", item_search: "" })}
+                        >
+                          <option value="">Todas</option>
+                          {agriculturalCategoryOptions.map((category) => (
+                            <option key={category.value} value={category.value}>{category.label}</option>
                           ))}
                         </select>
+                      </td>
+                      <td style={{ minWidth: 280 }}>
+                        <div className="position-relative">
+                          <input
+                            className="form-control"
+                            value={product.item_search}
+                            onChange={(e) => handleProductSearchChange(index, e.target.value)}
+                            placeholder="Digite para buscar o produto"
+                            list={`agronomo-produtos-${index}`}
+                          />
+                          <datalist id={`agronomo-produtos-${index}`}>
+                            {getProductSuggestions(product).map((item) => (
+                              <option key={item.id} value={item.nome}>
+                                {item.categoria_display || item.categoria || "Sem categoria"}
+                              </option>
+                            ))}
+                          </datalist>
+                          <div className="d-flex flex-wrap gap-2 mt-2">
+                            {getProductSuggestions(product).map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                className={`btn btn-sm ${product.item === item.id ? "btn-success" : "btn-outline-secondary"}`}
+                                onClick={() => selectProductItem(index, item)}
+                                style={{ borderRadius: 999, fontWeight: 700 }}
+                              >
+                                {item.nome}
+                                <span className="ms-1 text-nowrap">({item.categoria_display || item.categoria || "Sem categoria"})</span>
+                              </button>
+                            ))}
+                            {getProductSuggestions(product).length === 0 && (
+                              <span className="text-muted small">Nenhum produto encontrado para esta busca.</span>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td style={{ minWidth: 120 }}>
                         <input className="form-control" type="number" step="0.01" value={product.dose_per_ha} onChange={(e) => updateProduct(index, { dose_per_ha: e.target.value })} placeholder="0,00" />
