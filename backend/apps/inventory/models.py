@@ -41,6 +41,7 @@ class ItemEstoque(BaseModel):
     )
     nome = models.CharField(max_length=150)
     categoria = models.CharField(max_length=30, choices=CategoriaItem.choices)
+    categorias = models.JSONField(default=list, blank=True)
     unidade_medida = models.CharField(max_length=20, choices=UnidadeMedida.choices)
 
     # -- Informações gerais ---------------------------------------------------
@@ -118,6 +119,23 @@ class ItemEstoque(BaseModel):
             total=models.Sum("quantidade_atual")
         )["total"]
         return result or Decimal("0")
+
+    @property
+    def custo_medio(self) -> "Decimal":
+        """Custo médio ponderado dos lotes ativos com saldo."""
+        from decimal import Decimal
+
+        lotes = self.lotes.filter(ativo=True, quantidade_atual__gt=0)
+        total_quantidade = Decimal("0")
+        total_custo = Decimal("0")
+        for lote in lotes:
+            quantidade = lote.quantidade_atual or Decimal("0")
+            custo = lote.custo_unitario or Decimal("0")
+            total_quantidade += quantidade
+            total_custo += quantidade * custo
+        if total_quantidade <= 0:
+            return Decimal("0")
+        return total_custo / total_quantidade
 
     @property
     def estoque_baixo(self) -> bool:

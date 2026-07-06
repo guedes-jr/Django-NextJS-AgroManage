@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, TrendingUp, TrendingDown, Target, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus, ClipboardList } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, Target, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus, ClipboardList } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -792,6 +792,11 @@ export default function PlantacaoDetailPage() {
     return `R$ ${fmt(v)}`;
   };
 
+  const percent = (v: number | null | undefined) => {
+    if (v === null || v === undefined || Number.isNaN(v)) return "-";
+    return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  };
+
   const formatDate = (value?: string | null) => {
     if (!value) return "-";
     return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
@@ -822,9 +827,8 @@ export default function PlantacaoDetailPage() {
 
   const investmentTotal = parseFloat(plantation.investment_total || "0");
   const estimatedProductionKg = parseFloat(plantation.estimated_production_kg || "0");
-  const plantedAreaHa = parseFloat(String(plantation.planted_area_ha || "0"));
   const realProfit = harvestRevenue - investmentTotal;
-  const realRevenuePerHa = plantedAreaHa > 0 ? harvestRevenue / plantedAreaHa : null;
+  const roi = investmentTotal > 0 ? (realProfit / investmentTotal) * 100 : null;
 
   const custoPorKg = harvestedKg > 0 ? investmentTotal / harvestedKg : null;
   const vendaPorKg = soldKg > 0 ? harvestRevenue / soldKg : null;
@@ -1085,16 +1089,16 @@ export default function PlantacaoDetailPage() {
       {/* Second row — financial KPIs */}
       <div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Target size={14} />} label="Lucro Real" value={money(realProfit)} variant={realProfit >= 0 ? "success" : "danger"} />
+          <MetricCard icon={<DollarSign size={14} />} label="Investimento Total" value={money(investmentTotal)} variant="danger" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Custo por ha" value={money(plantation.cost_per_ha)} variant="warning" />
+          <MetricCard icon={<DollarSign size={14} />} label="Receita Bruta" value={money(harvestRevenue)} variant="success" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<TrendingUp size={14} />} label="Receita por ha" value={realRevenuePerHa !== null ? money(realRevenuePerHa) : "-"} variant="success" />
+          <MetricCard icon={<Target size={14} />} label="Lucro" value={money(realProfit)} variant={realProfit >= 0 ? "success" : "danger"} />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<TrendingDown size={14} />} label="Lucro por kg" value={lucroPorKg !== null ? money(lucroPorKg) : "-"} variant={lucroPorKg !== null && lucroPorKg >= 0 ? "success" : "danger"} />
+          <MetricCard icon={<Target size={14} />} label="ROI" value={percent(roi)} variant={roi !== null && roi >= 0 ? "success" : "danger"} />
         </div>
       </div>
 
@@ -1138,10 +1142,10 @@ export default function PlantacaoDetailPage() {
             <h6 className="fw-bold mb-3"><DollarSign size={16} className="me-1" /> Resumo Financeiro</h6>
             <table className="table table-sm table-borderless mb-0">
               <tbody>
-                <tr><td className="text-muted small" style={{ width: "40%" }}>Investimento Total</td><td className="fw-medium">{money(plantation.investment_total)}</td></tr>
-                <tr><td className="text-muted small">Custo por Hectare</td><td className="fw-medium">{money(plantation.cost_per_ha)}</td></tr>
-                <tr><td className="text-muted small">Receita por Hectare</td><td className="fw-medium">{realRevenuePerHa !== null ? money(realRevenuePerHa) : "-"}</td></tr>
-                <tr><td className="text-muted small">Lucro Real</td><td className={`fw-medium ${realProfit >= 0 ? "text-success" : "text-danger"}`}>{money(realProfit)}</td></tr>
+                <tr><td className="text-muted small" style={{ width: "40%" }}>Investimento Total</td><td className="fw-medium">{money(investmentTotal)}</td></tr>
+                <tr><td className="text-muted small">Receita Bruta</td><td className="fw-medium">{money(harvestRevenue)}</td></tr>
+                <tr><td className="text-muted small">Lucro</td><td className={`fw-medium ${realProfit >= 0 ? "text-success" : "text-danger"}`}>{money(realProfit)}</td></tr>
+                <tr><td className="text-muted small">Retorno sobre investimento (ROI)</td><td className={`fw-medium ${roi !== null && roi >= 0 ? "text-success" : roi !== null ? "text-danger" : ""}`}>{percent(roi)}</td></tr>
               </tbody>
             </table>
           </div>

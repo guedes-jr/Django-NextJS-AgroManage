@@ -23,6 +23,12 @@ export type InventoryCategory =
   | "semen"
   | "outro";
 
+type CustomCategory = {
+  id: string;
+  label: string;
+  unidade: string;
+};
+
 interface InventoryFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -73,6 +79,9 @@ function emptyRow(category?: InventoryCategory) {
   return {
     id: Date.now() + Math.random(),
     nome: "", categoria: category || "outro",
+    categorias: (category ? [category] : ["outro"]) as InventoryCategory[],
+    categoria_personalizada: "",
+    categoria_personalizada_id: "",
     unidade_medida: cfg?.unidade || "unidade",
     descricao: "", fabricante: "", especie_animal: "",
     tipo_semen: "convencional",
@@ -90,6 +99,8 @@ function emptyRow(category?: InventoryCategory) {
     composicao: "", indicacao_uso: "", modo_uso: "", peso_embalagem: "",
   };
 }
+
+type InventoryRow = ReturnType<typeof emptyRow>;
 
 function InputField({ label, required, icon: Icon, children }: any) {
   return (
@@ -110,6 +121,11 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   const [loading, setLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
+  const [categoryDialogRowId, setCategoryDialogRowId] = useState<number | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryUnit, setNewCategoryUnit] = useState("unidade");
+  const isEditing = Boolean(initialData?.item_id);
 
   useEffect(() => {
     if (isOpen) {
@@ -136,8 +152,65 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
     setRows(r => r.map(x => x.id === id ? {
       ...x,
       categoria: nextCategory,
+      categorias: [nextCategory],
+      categoria_personalizada: "",
+      categoria_personalizada_id: "",
       unidade_medida: nextConfig.unidade,
     } : x));
+  };
+
+  const updateCustomCategory = (id: number, customCategory: CustomCategory) => {
+    setRows(r => r.map(x => x.id === id ? {
+      ...x,
+      categoria: "outro",
+      categorias: x.categorias.includes("outro") ? x.categorias : [...x.categorias, "outro" as InventoryCategory],
+      categoria_personalizada: customCategory.label,
+      categoria_personalizada_id: customCategory.id,
+      unidade_medida: customCategory.unidade,
+    } : x));
+  };
+
+  const updateCategories = (id: number, selectedCategories: InventoryCategory[]) => {
+    const categories: InventoryCategory[] = selectedCategories.length > 0 ? selectedCategories : ["outro"];
+    const primaryCategory = categories[0];
+    const nextConfig = CATEGORY_CONFIG[primaryCategory];
+    setRows(r => r.map(x => x.id === id ? {
+      ...x,
+      categoria: primaryCategory,
+      categorias: categories,
+      categoria_personalizada: categories.includes("outro") ? x.categoria_personalizada : "",
+      categoria_personalizada_id: categories.includes("outro") ? x.categoria_personalizada_id : "",
+      unidade_medida: x.unidade_medida || nextConfig.unidade,
+    } : x));
+  };
+
+  const categorySelectValue = (row: InventoryRow) => row.categorias || [row.categoria || "outro"];
+
+  const openCategoryDialog = (rowId: number) => {
+    setCategoryDialogRowId(rowId);
+    setNewCategoryName("");
+    setNewCategoryUnit("unidade");
+  };
+
+  const closeCategoryDialog = () => {
+    setCategoryDialogRowId(null);
+    setNewCategoryName("");
+    setNewCategoryUnit("unidade");
+  };
+
+  const handleCreateCategory = () => {
+    const label = newCategoryName.trim();
+    if (!label || categoryDialogRowId === null) return;
+
+    const customCategory: CustomCategory = {
+      id: `${Date.now()}-${label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`,
+      label,
+      unidade: newCategoryUnit,
+    };
+
+    setCustomCategories((current) => [...current, customCategory]);
+    updateCustomCategory(categoryDialogRowId, customCategory);
+    closeCategoryDialog();
   };
 
   const fetchSuppliers = async () => {
@@ -157,10 +230,16 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const payload = rows.map(row => ({
-        ...row,
-        fornecedor: row.fornecedor || null
-      }));
+      const payload = rows.map(row => {
+        const categoriaPersonalizada = row.categoria_personalizada;
+        return {
+          ...row,
+          categoria_personalizada: undefined,
+          categoria_personalizada_id: undefined,
+          descricao: row.descricao || (categoriaPersonalizada ? `Categoria personalizada: ${categoriaPersonalizada}` : row.descricao),
+          fornecedor: row.fornecedor || null
+        };
+      });
       await onSave(payload);
       onClose();
     } finally {
@@ -171,16 +250,17 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   const cfg = category ? CATEGORY_CONFIG[category] : null;
   const categoryEntries = Object.entries(CATEGORY_CONFIG).filter(([value]) => {
     if (!["medicamento", "vacina"].includes(value)) return true;
-    return rows.some((row) => row.categoria === value);
+    return rows.some((row) => row.categoria === value || row.categorias.includes(value as InventoryCategory));
   });
   const isLastStep = currentStep === STEPS.length - 1;
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={cfg ? `Cadastrar — ${cfg.label}` : "Cadastrar Item de Estoque"}
-      description="Preencha os dados seguindo as etapas de cadastro."
+      title={isEditing ? "Editar produto" : cfg ? `Cadastrar — ${cfg.label}` : "Cadastrar Item de Estoque"}
+      description={isEditing ? "Atualize os dados do produto cadastrado." : "Preencha os dados seguindo as etapas de cadastro."}
       maxWidth="max-w-6xl"
       footer={
         <div className="d-flex align-items-center justify-content-between w-100 p-3 bg-muted/5">
@@ -201,7 +281,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
               </Button>
             ) : (
               <Button onClick={handleSubmit} disabled={loading} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl shadow-lg">
-                {loading ? "Salvando..." : "Finalizar Cadastro"}
+                {loading ? "Salvando..." : isEditing ? "Salvar alterações" : "Finalizar Cadastro"}
               </Button>
             )}
           </div>
@@ -308,12 +388,60 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                             <div className="col-12 col-md-3">
                               <div className="login-input-group mb-0">
                                 <label className="login-label fw-semibold text-xs">Categoria <span className="text-danger">*</span></label>
-                                <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
-                                  value={row.categoria} onChange={e => updateCategory(row.id as any, e.target.value as InventoryCategory)}>
-                                  {categoryEntries.map(([v, c]) => (
-                                    <option key={v} value={v}>{c.label}</option>
+                                <div className="d-flex gap-2">
+                                  <select
+                                    multiple
+                                    className="login-input bg-transparent text-foreground rounded-xl"
+                                    style={{ paddingLeft: "1rem", minHeight: 92 }}
+                                    value={categorySelectValue(row)}
+                                    onChange={e => {
+                                      const selectedCategories = Array.from(e.target.selectedOptions)
+                                        .map((option) => option.value)
+                                        .filter((value) => !value.startsWith("custom:")) as InventoryCategory[];
+                                      const selectedCustom = Array.from(e.target.selectedOptions)
+                                        .map((option) => option.value)
+                                        .find((value) => value.startsWith("custom:"));
+                                      updateCategories(row.id, selectedCategories);
+                                      if (selectedCustom) {
+                                        const customCategory = customCategories.find((item) => item.id === selectedCustom.replace("custom:", ""));
+                                        if (customCategory) updateCustomCategory(row.id, customCategory);
+                                      }
+                                    }}
+                                  >
+                                    {categoryEntries.map(([v, c]) => (
+                                      <option key={v} value={v}>{c.label}</option>
+                                    ))}
+                                    {customCategories.length > 0 && (
+                                      <optgroup label="Categorias cadastradas">
+                                        {customCategories.map((item) => (
+                                          <option key={item.id} value={`custom:${item.id}`}>{item.label}</option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-primary d-flex align-items-center justify-content-center"
+                                    title="Cadastrar nova categoria"
+                                    aria-label="Cadastrar nova categoria"
+                                    onClick={() => openCategoryDialog(row.id)}
+                                    style={{ width: 46, height: 46, borderRadius: 12, flex: "0 0 46px" }}
+                                  >
+                                    <Plus size={18} />
+                                  </button>
+                                </div>
+                                <div className="d-flex flex-wrap gap-1 mt-2">
+                                  {categorySelectValue(row).map((value) => (
+                                    <span key={value} className="badge bg-primary/10 text-primary border border-primary/10">
+                                      {CATEGORY_CONFIG[value as InventoryCategory]?.label || value}
+                                    </span>
                                   ))}
-                                </select>
+                                  {row.categoria_personalizada && (
+                                    <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                                      {row.categoria_personalizada}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
@@ -424,7 +552,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
             </AnimatePresence>
           </div>
 
-          {currentStep === 0 && (
+          {currentStep === 0 && !isEditing && (
             <button
               className="w-100 py-4 mt-2 rounded-2xl dashboard-card border-border d-flex align-items-center justify-content-center gap-2 hover-bg-muted transition-all text-primary fw-black shadow-sm"
               onClick={addRow}
@@ -436,5 +564,50 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
         </div>
       </div>
     </Modal>
+
+    <Modal
+      isOpen={categoryDialogRowId !== null}
+      onClose={closeCategoryDialog}
+      title="Cadastrar nova categoria"
+      description="Crie uma opção personalizada para usar no cadastro deste item."
+      maxWidth="max-w-md"
+      footer={
+        <div className="d-flex justify-content-end gap-2 w-100">
+          <Button variant="outline-secondary" onClick={closeCategoryDialog}>Cancelar</Button>
+          <Button onClick={handleCreateCategory} disabled={!newCategoryName.trim()}>
+            <Plus size={16} />
+            Cadastrar
+          </Button>
+        </div>
+      }
+    >
+      <div className="p-4">
+        <div className="login-input-group mb-3">
+          <label className="login-label fw-semibold">Nome da categoria <span className="text-danger">*</span></label>
+          <input
+            className="login-input bg-transparent text-foreground"
+            value={newCategoryName}
+            onChange={(event) => setNewCategoryName(event.target.value)}
+            placeholder="Ex: Inoculantes, Peças, Combustíveis..."
+            style={{ paddingLeft: "1rem" }}
+          />
+        </div>
+        <div className="login-input-group mb-0">
+          <label className="login-label fw-semibold">Unidade padrão</label>
+          <select
+            className="login-input bg-transparent text-foreground rounded-xl"
+            value={newCategoryUnit}
+            onChange={(event) => setNewCategoryUnit(event.target.value)}
+            style={{ paddingLeft: "1rem" }}
+          >
+            {UNIDADES.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
+          </select>
+        </div>
+        <p className="text-muted-foreground small mb-0 mt-3">
+          A categoria personalizada será usada nesta tela e salva tecnicamente como Outro.
+        </p>
+      </div>
+    </Modal>
+    </>
   );
 }

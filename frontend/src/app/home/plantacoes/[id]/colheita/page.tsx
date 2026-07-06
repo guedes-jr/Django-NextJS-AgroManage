@@ -87,10 +87,32 @@ const extractArray = <T,>(data: unknown): T[] => {
   return [];
 };
 
-const decimalValue = (value?: string | null) => {
-  if (!value) return 0;
-  const normalized = String(value).replace(/\./g, "").replace(",", ".");
-  const parsed = Number.parseFloat(normalized);
+const decimalValue = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+
+  const rawValue = value.trim();
+  if (!rawValue) return 0;
+
+  const valueWithoutSpaces = rawValue.replace(/\s/g, "");
+  const lastComma = valueWithoutSpaces.lastIndexOf(",");
+  const lastDot = valueWithoutSpaces.lastIndexOf(".");
+  let normalized = valueWithoutSpaces;
+
+  if (lastComma !== -1 && lastDot !== -1) {
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    const thousandSeparator = decimalSeparator === "," ? "." : ",";
+    normalized = valueWithoutSpaces.replaceAll(thousandSeparator, "").replace(decimalSeparator, ".");
+  } else if (lastComma !== -1) {
+    normalized = valueWithoutSpaces.replace(/\./g, "").replace(",", ".");
+  } else if (lastDot !== -1) {
+    const dotParts = valueWithoutSpaces.split(".");
+    const decimalDigits = dotParts.at(-1)?.length ?? 0;
+    const looksLikeThousandSeparator = dotParts.length > 2 || decimalDigits === 3;
+    normalized = looksLikeThousandSeparator ? valueWithoutSpaces.replace(/\./g, "") : valueWithoutSpaces;
+  }
+
+  const parsed = Number.parseFloat(normalized.replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 };
 

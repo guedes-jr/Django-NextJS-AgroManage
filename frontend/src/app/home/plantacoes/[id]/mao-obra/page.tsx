@@ -32,6 +32,18 @@ type LaborWorker = {
   phone?: string;
 };
 
+type LaborRecord = {
+  id: string;
+  activity_type: string;
+  activity_type_display?: string;
+  worker_name?: string;
+  activity_date: string;
+  daily_quantity: string | number;
+  daily_rate: string | number;
+  total_amount: string | number;
+  notes?: string;
+};
+
 type LaborForm = {
   activity_type: string;
   worker: string;
@@ -96,6 +108,7 @@ export default function MaoObraPage() {
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
   const [workers, setWorkers] = useState<LaborWorker[]>([]);
+  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingWorker, setSavingWorker] = useState(false);
@@ -128,12 +141,14 @@ export default function MaoObraPage() {
     Promise.all([
       cropService.get(id),
       cropService.listLaborWorkers({ is_active: true }),
+      cropService.listLaborRecords({ plantation: id }),
     ])
-      .then(([plantationRes, workersRes]) => {
+      .then(([plantationRes, workersRes, recordsRes]) => {
         if (!active) return;
         setError("");
         setPlantation(plantationRes.data);
         setWorkers(extractArray<LaborWorker>(workersRes.data));
+        setLaborRecords(extractArray<LaborRecord>(recordsRes.data));
       })
       .catch(() => {
         if (!active) return;
@@ -227,7 +242,17 @@ export default function MaoObraPage() {
         daily_rate: decimalValue(form.daily_rate),
         notes: form.notes.trim(),
       });
-      router.push(`/home/plantacoes/${id}`);
+      const response = await cropService.listLaborRecords({ plantation: id });
+      setLaborRecords(extractArray<LaborRecord>(response.data));
+      setForm({
+        activity_type: form.activity_type,
+        worker: form.worker,
+        payment_method: "daily",
+        activity_date: today(),
+        daily_quantity: "1",
+        daily_rate: "",
+        notes: "",
+      });
     } catch {
       setError("Erro ao salvar o lançamento. Verifique os dados e tente novamente.");
     } finally {
@@ -492,6 +517,48 @@ export default function MaoObraPage() {
               value={currency(total)}
             />
           </div>
+        </div>
+      </div>
+
+      <div className="dashboard-card p-4 mb-4">
+        <h3 className="fw-black text-foreground mb-3" style={{ fontSize: "1.05rem" }}>
+          Histórico de mão de obra
+        </h3>
+        <div className="table-responsive">
+          <table className="table align-middle mb-0">
+            <thead className="table-light">
+              <tr>
+                <th>Data</th>
+                <th>Atividade</th>
+                <th>Trabalhador</th>
+                <th>Diárias</th>
+                <th>Valor diária</th>
+                <th>Total</th>
+                <th>Observações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {laborRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center text-muted-foreground py-4">
+                    Nenhum lançamento de mão de obra registrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                laborRecords.map((record) => (
+                  <tr key={record.id}>
+                    <td>{formatDate(record.activity_date)}</td>
+                    <td>{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "-"}</td>
+                    <td>{record.worker_name || "-"}</td>
+                    <td>{decimalValue(String(record.daily_quantity)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>{currency(decimalValue(String(record.daily_rate)))}</td>
+                    <td className="fw-bold">{currency(decimalValue(String(record.total_amount)))}</td>
+                    <td className="text-muted-foreground small">{record.notes || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

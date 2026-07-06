@@ -12,7 +12,7 @@ from .models import (
     FormulaRacao, FormulaIngrediente, ProducaoRacao, ConsumoRacao
 )
 
-from .choices import TipoContratoFornecedor
+from .choices import CategoriaItem, TipoContratoFornecedor
 
 
 # ---------------------------------------------------------------------------
@@ -133,13 +133,22 @@ class FornecedorSerializer(serializers.ModelSerializer):
 
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
+    categorias = serializers.ListField(
+        child=serializers.ChoiceField(choices=CategoriaItem.choices),
+        required=False,
+        allow_empty=False,
+    )
     estoque_atual = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
+    )
+    custo_medio = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
     )
     estoque_baixo = serializers.BooleanField(read_only=True)
     categoria_display = serializers.CharField(
         source="get_categoria_display", read_only=True
     )
+    categorias_display = serializers.SerializerMethodField()
     unidade_display = serializers.CharField(
         source="get_unidade_medida_display", read_only=True
     )
@@ -163,6 +172,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
         fields = [
             # Identification
             "id", "organization", "nome", "categoria", "categoria_display",
+            "categorias", "categorias_display",
             "unidade_medida", "unidade_display",
             # General
             "descricao", "fabricante", "especie_animal",
@@ -178,7 +188,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             # Technical — feed/supplement
             "composicao", "indicacao_uso", "modo_uso", "peso_embalagem",
             # Read-only computed
-            "estoque_atual", "estoque_baixo",
+            "estoque_atual", "custo_medio", "estoque_baixo",
             # Timestamps
             "created_at", "updated_at",
             # Write-only batch fields
@@ -186,6 +196,20 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "fornecedor", "nota_fiscal", "observacao_lote",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_categorias_display(self, obj):
+        labels = dict(CategoriaItem.choices)
+        categorias = obj.categorias or ([obj.categoria] if obj.categoria else [])
+        return [labels.get(categoria, categoria) for categoria in categorias]
+
+    def validate(self, attrs):
+        categorias = attrs.get("categorias")
+        categoria = attrs.get("categoria")
+        if categorias:
+            attrs["categoria"] = categorias[0]
+        elif categoria:
+            attrs["categorias"] = [categoria]
+        return attrs
 
     def create(self, validated_data):
         # Extract batch fields before saving the item

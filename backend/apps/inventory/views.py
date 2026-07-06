@@ -151,7 +151,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
         if categoria:
-            items = items.filter(categoria=categoria)
+            items = items.filter(Q(categoria=categoria) | Q(categorias__contains=[categoria]))
         if especie_animal:
             items = items.filter(especie_animal=especie_animal)
 

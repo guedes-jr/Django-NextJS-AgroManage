@@ -386,7 +386,7 @@ class LandPreparationViewSet(viewsets.ModelViewSet):
             plantation_id = self.request.query_params.get("plantation")
             if plantation_id:
                 qs = qs.filter(plantation_id=plantation_id)
-            return qs
+            return qs.order_by("-date", "-created_at")
         return LandPreparation.objects.none()
 
     def perform_create(self, serializer):
@@ -428,7 +428,7 @@ class LaborRecordViewSet(viewsets.ModelViewSet):
             worker_id = self.request.query_params.get("worker")
             if worker_id:
                 qs = qs.filter(worker_id=worker_id)
-            return qs
+            return qs.order_by("-activity_date", "-created_at")
         return LaborRecord.objects.none()
 
     def perform_create(self, serializer):

@@ -180,6 +180,10 @@ export default function AgronomoPage() {
     () => recommendations.filter((recommendation) => recommendation.status !== "completed"),
     [recommendations],
   );
+  const completedRecommendations = useMemo(
+    () => recommendations.filter((recommendation) => recommendation.status === "completed"),
+    [recommendations],
+  );
 
   const calculateTotalQuantity = (product: RecommendationProduct) => {
     const dose = parseDecimal(product.dose_per_ha);
@@ -466,6 +470,45 @@ export default function AgronomoPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-12">
+          <div className="dashboard-card p-4">
+            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Histórico de recomendações concluídas</h6>
+            <p className="text-muted small mb-4">Orientações já executadas nesta cultura.</p>
+
+            {completedRecommendations.length === 0 ? (
+              <p className="text-muted small mb-0">Nenhuma recomendação concluída ainda.</p>
+            ) : (
+              <div className="table-responsive">
+                <table className="table align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Recomendação</th>
+                      <th>Aplicação sugerida</th>
+                      <th>Produtos</th>
+                      <th>Prioridade</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {completedRecommendations.map((recommendation) => (
+                      <tr key={recommendation.id}>
+                        <td>
+                          <div className="fw-bold">{recommendation.title}</div>
+                          {recommendation.objective ? <div className="text-muted small">{recommendation.objective}</div> : null}
+                        </td>
+                        <td>{formatDate(recommendation.suggested_application_date)}</td>
+                        <td>{recommendation.products?.length || 0} item{(recommendation.products?.length || 0) === 1 ? "" : "s"}</td>
+                        <td>{recommendation.priority_display || recommendation.priority}</td>
+                        <td><Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || "Concluída"}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

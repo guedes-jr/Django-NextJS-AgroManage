@@ -36,6 +36,18 @@ interface Member {
   role: string;
 }
 
+type LandPreparationRecord = {
+  id: string;
+  date?: string | null;
+  operation_type?: OperationType;
+  operation_type_display?: string | null;
+  operator?: string | null;
+  hours_worked?: string | number | null;
+  hourly_rate?: string | number | null;
+  total_price?: string | number | null;
+  notes?: string | null;
+};
+
 type OperationType = "calagem" | "aracao" | "gradagem" | "subsolagem" | "nivelamento" | "rocagem" | "plantio" | "outro";
 
 type OperationDetails = Record<OperationType, {
@@ -45,7 +57,7 @@ type OperationDetails = Record<OperationType, {
 
 const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }> = {
   calagem: { label: "Calagem", icon: FileSpreadsheet },
-  aracao: { label: "Aração", icon: Tractor },
+  aracao: { label: "Serviços Mecanizados", icon: Tractor },
   gradagem: { label: "Gradagem", icon: Grid },
   subsolagem: { label: "Subsolagem", icon: Layers },
   nivelamento: { label: "Nivelamento", icon: AlignJustify },
@@ -65,6 +77,35 @@ const createEmptyOperationDetails = (): OperationDetails => ({
   outro: { hoursWorked: "", hourlyRate: "" },
 });
 
+const extractArray = <T,>(data: unknown): T[] => {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object" && "results" in data) {
+    const results = (data as { results?: unknown }).results;
+    return Array.isArray(results) ? (results as T[]) : [];
+  }
+  return [];
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+};
+
+const numberText = (value?: string | number | null, decimals = 2) => {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed)
+    ? parsed.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : "-";
+};
+
+const money = (value?: string | number | null) =>
+  Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
+
 export default function PreparoTerraPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -79,6 +120,7 @@ export default function PreparoTerraPage() {
   
   // Data lists
   const [operators, setOperators] = useState<Member[]>([]);
+  const [history, setHistory] = useState<LandPreparationRecord[]>([]);
 
   // Submitting states
   const [saving, setSaving] = useState(false);
@@ -100,13 +142,15 @@ export default function PreparoTerraPage() {
     (async () => {
       try {
         setLoading(true);
-        const [platRes, membersRes] = await Promise.all([
+        const [platRes, membersRes, historyRes] = await Promise.all([
           cropService.get(id),
           apiClient.get<Member[]>("/auth/members/").catch(() => ({ data: [] })),
+          cropService.listLandPreparations({ plantation: id }).catch(() => ({ data: { results: [] } })),
         ]);
         
         setPlantation(platRes.data);
         setOperators(Array.isArray(membersRes.data) ? membersRes.data : []);
+        setHistory(extractArray<LandPreparationRecord>(historyRes.data));
       } catch (err) {
         console.error("Erro ao carregar dados de preparação de terra", err);
       } finally {
@@ -139,6 +183,8 @@ export default function PreparoTerraPage() {
       if (conclude) {
         router.push(`/home/plantacoes/${id}`);
       } else {
+        const response = await cropService.listLandPreparations({ plantation: id });
+        setHistory(extractArray<LandPreparationRecord>(response.data));
         alert("Lançamento salvo com sucesso!");
         setOperationDetails((prev) => ({
           ...prev,
@@ -375,6 +421,48 @@ export default function PreparoTerraPage() {
                   {saving ? "Salvando..." : "Salvar e concluir"}
                 </Button>
               </div>
+            </div>
+          </div>
+
+          <div className="dashboard-card p-4 mb-4">
+            <h2 className="fw-black text-foreground mb-3" style={{ fontSize: "1.05rem" }}>
+              Histórico de preparação da terra
+            </h2>
+            <div className="table-responsive">
+              <table className="table align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th>Data</th>
+                    <th>Operação</th>
+                    <th>Operador</th>
+                    <th>Horas</th>
+                    <th>Valor/hora</th>
+                    <th>Total</th>
+                    <th>Observações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center text-muted-foreground py-4">
+                        Nenhuma preparação registrada ainda.
+                      </td>
+                    </tr>
+                  ) : (
+                    history.map((record) => (
+                      <tr key={record.id}>
+                        <td>{formatDate(record.date)}</td>
+                        <td>{record.operation_type_display || (record.operation_type ? operationConfig[record.operation_type]?.label : "-")}</td>
+                        <td>{record.operator || "-"}</td>
+                        <td>{numberText(record.hours_worked)} h</td>
+                        <td>{money(record.hourly_rate)}</td>
+                        <td className="fw-bold">{money(record.total_price)}</td>
+                        <td className="text-muted-foreground small">{record.notes || "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

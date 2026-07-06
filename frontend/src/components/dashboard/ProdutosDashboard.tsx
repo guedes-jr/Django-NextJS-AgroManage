@@ -19,6 +19,7 @@ import {
   Sprout,
   ShieldCheck,
   Mountain,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
@@ -32,10 +33,20 @@ type InventoryItem = {
   nome: string;
   categoria: string;
   categoria_display: string;
+  categorias?: string[];
+  categorias_display?: string[];
   unidade_medida: string;
   estoque_atual: string;
   estoque_minimo: string;
+  custo_medio?: string;
   ativo: boolean;
+};
+
+type ProductModalInitialData = Partial<InventoryItem> & {
+  item_id?: string;
+  ultimo_custo?: string | number;
+  fabricante?: string;
+  especie_animal?: string;
 };
 
 type PaginatedResponse<T> = {
@@ -85,6 +96,14 @@ function toNumber(value: string | number | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function money(value: string | number | null | undefined): string {
+  return toNumber(value).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
+}
+
 export function ProdutosDashboard() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +113,7 @@ export function ProdutosDashboard() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory; initialData?: any }>({ open: false });
+  const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory; initialData?: ProductModalInitialData }>({ open: false });
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -186,11 +205,13 @@ export function ProdutosDashboard() {
       initialData: {
         nome: produto.name,
         categoria: produto.categoria,
+        categorias: produto.categorias || [produto.categoria],
         unidade_medida: produto.unidade_medida,
         fabricante: produto.fabricante,
         especie_animal: produto.especie_animal,
         item_id: produto.id,
-        ultimo_custo: produto.ultimo_custo
+        ultimo_custo: produto.custo_medio || produto.ultimo_custo,
+        custo_medio: produto.custo_medio,
       }
     });
   };
@@ -203,6 +224,7 @@ export function ProdutosDashboard() {
     const payload = newItems.map((row) => ({
       nome: row.nome,
       categoria: row.categoria,
+      categorias: row.categorias || [row.categoria],
       unidade_medida: row.unidade_medida,
       fabricante: row.fabricante || "",
       especie_animal: row.especie_animal || "",
@@ -218,6 +240,30 @@ export function ProdutosDashboard() {
       peso_embalagem: row.peso_embalagem ? parseFloat(row.peso_embalagem) : undefined,
       volume_por_dose: row.volume_por_dose ? parseFloat(row.volume_por_dose) : undefined,
     }));
+
+    const editingItemId = newItems[0]?.item_id;
+    if (editingItemId) {
+      const itemPayload = {
+        nome: payload[0].nome,
+        categoria: payload[0].categoria,
+        categorias: payload[0].categorias,
+        unidade_medida: payload[0].unidade_medida,
+        fabricante: payload[0].fabricante,
+        especie_animal: payload[0].especie_animal,
+        composicao: payload[0].composicao,
+        estoque_minimo: payload[0].estoque_minimo,
+        carencia_dias: payload[0].carencia_dias,
+        temperatura_minima: payload[0].temperatura_minima,
+        temperatura_maxima: payload[0].temperatura_maxima,
+        doses_por_embalagem: payload[0].doses_por_embalagem,
+        peso_embalagem: payload[0].peso_embalagem,
+        volume_por_dose: payload[0].volume_por_dose,
+      };
+      await apiClient.patch(`/inventory/items/${editingItemId}/`, itemPayload);
+      await fetchItems(page);
+      return;
+    }
+
     const { data: createdItems } = await apiClient.post("/inventory/items/bulk_create/", payload);
     await fetchItems(1);
 
@@ -247,13 +293,29 @@ export function ProdutosDashboard() {
     }
   };
 
+  const handleEditItem = (item: InventoryItem) => {
+    setModalConfig({
+      open: true,
+      category: CATEGORY_MODAL_MAP[item.categoria] || "outro",
+      initialData: {
+        ...item,
+        item_id: item.id,
+        ultimo_custo: item.custo_medio || 0,
+      },
+    });
+  };
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory =
         categoryFilter === "todas" ||
         item.categoria === categoryFilter ||
-        (categoryFilter === "medicamento_vacina" && ["medicamento", "vacina", "medicamento_vacina"].includes(item.categoria));
+        item.categorias?.includes(categoryFilter) ||
+        (categoryFilter === "medicamento_vacina" &&
+          ["medicamento", "vacina", "medicamento_vacina"].some((categoria) =>
+            item.categoria === categoria || item.categorias?.includes(categoria)
+          ));
       const estoqueAtual = toNumber(item.estoque_atual);
       const estoqueMinimo = toNumber(item.estoque_minimo);
       const isBaixo = estoqueAtual <= estoqueMinimo;
@@ -404,7 +466,7 @@ export function ProdutosDashboard() {
                       </div>
                       <div>
                         <div className="fw-bold text-foreground small">{p.name}</div>
-                        <div className="text-xs text-muted-foreground">{p.categoria_display} • {p.unidade_medida}</div>
+                        <div className="text-xs text-muted-foreground">{p.categorias_display?.join(", ") || p.categoria_display} • {p.unidade_medida}</div>
                       </div>
                     </div>
                     <div className="badge bg-primary/10 text-primary text-xs rounded-pill px-2 py-1">
@@ -459,6 +521,7 @@ export function ProdutosDashboard() {
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CATEGORIA</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">ESTOQUE ATUAL</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">UNIDADE</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">VALOR MÉDIO</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">ESTOQUE MÍNIMO</th>
                   <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
                   <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
@@ -467,7 +530,7 @@ export function ProdutosDashboard() {
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-5 text-muted-foreground">
+                    <td colSpan={8} className="text-center py-5 text-muted-foreground">
                       Nenhum produto encontrado.
                     </td>
                   </tr>
@@ -478,10 +541,15 @@ export function ProdutosDashboard() {
                       <tr key={item.id} className="border-bottom border-border">
                         <td className="px-4 py-3 fw-semibold">{item.nome}</td>
                         <td className="px-3 py-3">
-                          <Badge variant="default" className="text-xs">{item.categoria_display}</Badge>
+                          <div className="d-flex flex-wrap gap-1">
+                            {(item.categorias_display?.length ? item.categorias_display : [item.categoria_display]).map((label) => (
+                              <Badge key={label} variant="default" className="text-xs">{label}</Badge>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-3 py-3">{toNumber(item.estoque_atual).toFixed(2)}</td>
                         <td className="px-3 py-3">{item.unidade_medida}</td>
+                        <td className="px-3 py-3 fw-semibold">{money(item.custo_medio)}</td>
                         <td className="px-3 py-3">{toNumber(item.estoque_minimo).toFixed(2)}</td>
                         <td className="px-3 py-3">
                           <Badge variant={baixo ? "warning" : "success"} className="text-xs">
@@ -489,16 +557,27 @@ export function ProdutosDashboard() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-end">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
-                            onClick={() => handleDeleteItem(item)}
-                            disabled={deletingId === item.id}
-                            title="Remover produto"
-                          >
-                            <Trash2 size={14} />
-                            {deletingId === item.id ? "Removendo..." : "Remover"}
-                          </button>
+                          <div className="d-inline-flex align-items-center justify-content-end gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                              onClick={() => handleEditItem(item)}
+                              title="Editar produto"
+                            >
+                              <Pencil size={14} />
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
+                              onClick={() => handleDeleteItem(item)}
+                              disabled={deletingId === item.id}
+                              title="Remover produto"
+                            >
+                              <Trash2 size={14} />
+                              {deletingId === item.id ? "Removendo..." : "Remover"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
