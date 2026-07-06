@@ -7,6 +7,7 @@ import {
   Calendar,
   CalendarDays,
   DollarSign,
+  History,
   Plus,
   Save,
   UserRound,
@@ -518,6 +519,39 @@ export default function MaoObraPage() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="dashboard-card p-4 mb-4">
+        <div className="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
+          <div>
+            <h3 className="fw-black text-foreground mb-1" style={{ fontSize: "1.05rem" }}>
+              <History size={18} className="me-2" /> Histórico recente
+            </h3>
+            <p className="text-muted-foreground small mb-0">Últimos registros de mão de obra e custos desta plantação.</p>
+          </div>
+          <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => router.push(`/home/plantacoes/${id}/historico`)}>
+            Ver relatório completo
+          </button>
+        </div>
+
+        {laborRecords.length === 0 ? (
+          <p className="text-muted-foreground small mb-0">Nenhum lançamento recente de mão de obra.</p>
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            {laborRecords.slice(0, 4).map((record) => (
+              <div key={record.id} className="border rounded p-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                <div>
+                  <div className="fw-semibold">{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "Atividade"}</div>
+                  <div className="text-muted-foreground small">{formatDate(record.activity_date)} • {record.worker_name || "Trabalhador"}</div>
+                </div>
+                <div className="text-end">
+                  <div className="fw-bold">{currency(decimalValue(String(record.total_amount)))}</div>
+                  <div className="text-muted-foreground small">{decimalValue(String(record.daily_quantity)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} diária(s)</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="dashboard-card p-4 mb-4">

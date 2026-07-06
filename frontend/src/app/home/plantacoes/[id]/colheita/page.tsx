@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BarChart3,
   DollarSign,
+  History,
   Edit3,
   FileText,
   Info,
@@ -640,6 +641,39 @@ export default function ColheitaPage() {
           <Info size={16} />
           Os valores acumulados consideram todas as colheitas já registradas nesta cultura.
         </div>
+      </div>
+
+      <div className="dashboard-card p-4 mb-3">
+        <div className="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
+          <div>
+            <h3 className="fw-black text-foreground mb-1" style={{ fontSize: "1rem" }}>
+              <History size={18} className="me-2" /> Histórico recente
+            </h3>
+            <p className="text-muted-foreground small mb-0">Últimas colheitas registradas nesta cultura.</p>
+          </div>
+          <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowAllHistory((current) => !current)}>
+            {showAllHistory ? "Ocultar" : "Ver todas"}
+          </button>
+        </div>
+
+        {harvests.length === 0 ? (
+          <p className="text-muted-foreground small mb-0">Nenhuma colheita recente registrada.</p>
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            {harvests.slice(0, 4).map((harvest) => (
+              <div key={harvest.id} className="border rounded p-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                <div>
+                  <div className="fw-semibold">{harvest.harvest_type_display || (harvest.harvest_type === "total" ? "Total" : "Parcial")}</div>
+                  <div className="text-muted-foreground small">{dateText(harvest.harvest_date)} • {harvest.buyer_name_display || harvest.buyer_name || "Destino não informado"}</div>
+                </div>
+                <div className="text-end">
+                  <div className="fw-bold">{numberText(decimalValue(harvest.yield_kg), " kg")}</div>
+                  <div className="text-muted-foreground small">{money(decimalValue(harvest.revenue_amount))}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="dashboard-card p-4 mb-3">

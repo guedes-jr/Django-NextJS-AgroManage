@@ -106,6 +106,14 @@ const money = (value?: string | number | null) =>
     minimumFractionDigits: 2,
   });
 
+const normalizeOperationLabel = (value?: string | null) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return "-";
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "aracao" || normalized === "aração") return "Serviços Mecanizados";
+  return trimmed;
+};
+
 export default function PreparoTerraPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -452,7 +460,7 @@ export default function PreparoTerraPage() {
                     history.map((record) => (
                       <tr key={record.id}>
                         <td>{formatDate(record.date)}</td>
-                        <td>{record.operation_type_display || (record.operation_type ? operationConfig[record.operation_type]?.label : "-")}</td>
+                        <td>{normalizeOperationLabel(record.operation_type_display || (record.operation_type ? operationConfig[record.operation_type]?.label : "-"))}</td>
                         <td>{record.operator || "-"}</td>
                         <td>{numberText(record.hours_worked)} h</td>
                         <td>{money(record.hourly_rate)}</td>

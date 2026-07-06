@@ -10,6 +10,7 @@ import {
   Eye,
   FileText,
   FlaskConical,
+  History,
   Plus,
   Save,
   Trash2,
@@ -184,6 +185,15 @@ export default function AgronomoPage() {
     () => recommendations.filter((recommendation) => recommendation.status === "completed"),
     [recommendations],
   );
+  const recentRecommendations = useMemo(() => {
+    return [...recommendations]
+      .sort((a, b) => {
+        const dateA = new Date(a.recommendation_date || "1970-01-01").getTime();
+        const dateB = new Date(b.recommendation_date || "1970-01-01").getTime();
+        return dateB - dateA;
+      })
+      .slice(0, 4);
+  }, [recommendations]);
 
   const calculateTotalQuantity = (product: RecommendationProduct) => {
     const dose = parseDecimal(product.dose_per_ha);
@@ -468,6 +478,38 @@ export default function AgronomoPage() {
                       <span>Área: {recommendation.area_ha || plantation.planted_area_ha || "-"} ha</span>
                       <span>Prioridade: {recommendation.priority_display || recommendation.priority}</span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-12">
+          <div className="dashboard-card p-4 mb-4">
+            <div className="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
+              <div>
+                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><History size={18} /> Histórico recente</h6>
+                <p className="text-muted small mb-0">Últimas recomendações registradas para esta plantação.</p>
+              </div>
+              <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/historico`)}>
+                Ver relatório completo
+              </Button>
+            </div>
+
+            {recentRecommendations.length === 0 ? (
+              <p className="text-muted small mb-0">Nenhum registro recente de recomendação.</p>
+            ) : (
+              <div className="d-flex flex-column gap-2">
+                {recentRecommendations.map((recommendation) => (
+                  <div key={recommendation.id} className="border rounded p-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                    <div>
+                      <div className="fw-semibold">{recommendation.title}</div>
+                      <div className="text-muted small">
+                        {formatDate(recommendation.recommendation_date)} • {recommendation.status_display || recommendation.status}
+                      </div>
+                    </div>
+                    <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
                   </div>
                 ))}
               </div>

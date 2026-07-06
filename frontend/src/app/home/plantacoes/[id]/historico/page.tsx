@@ -130,6 +130,14 @@ const numberText = (value?: string | number | null, suffix = "") => {
 const fileNameText = (value: string) =>
   value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+const normalizeOperationLabel = (value?: string | null) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return "-";
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "aracao" || normalized === "aração") return "Serviços Mecanizados";
+  return trimmed;
+};
+
 function buildEvents(plantation: Plantation, sources: {
   landPreparations: LandPreparation[];
   plantings: Planting[];
@@ -165,7 +173,7 @@ function buildEvents(plantation: Plantation, sources: {
       id: `preparo-${item.id}`,
       type: "preparo",
       date: item.date || item.created_at || "",
-      title: item.operation_type_display || "Preparação da terra",
+      title: normalizeOperationLabel(item.operation_type_display) || "Preparação da terra",
       subtitle: item.execution_type_display || "Operação de preparo",
       details: compact([
         item.tractor_name ? `Trator: ${item.tractor_name}` : undefined,
