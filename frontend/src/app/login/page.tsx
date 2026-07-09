@@ -204,10 +204,10 @@ export default function LoginPage() {
 
             <div className="view-transition" key={view}>
               <div className="text-center mb-5">
-                <h2 className="fw-bold text-dark mb-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
+                <h2 className="fw-bold text-foreground mb-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
                   {titles[view].title}
                 </h2>
-                <p className="text-muted fs-6">{titles[view].subtitle}</p>
+                <p className="text-muted-foreground fs-6">{titles[view].subtitle}</p>
               </div>
 
               {error && (
@@ -309,7 +309,7 @@ export default function LoginPage() {
 
               {view === "login" && (
                 <div className="d-flex justify-content-between align-items-center">
-                  <label className="d-flex align-items-center gap-2 text-muted small cursor-pointer mb-0">
+                  <label className="d-flex align-items-center gap-2 text-muted-foreground small cursor-pointer mb-0">
                     <input type="checkbox" className="form-check-input rounded-1" id="remember" style={{ width: '18px', height: '18px' }} />
                     Lembrar meus dados
                   </label>

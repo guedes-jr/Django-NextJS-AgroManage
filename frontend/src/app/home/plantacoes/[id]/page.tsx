@@ -980,7 +980,7 @@ export default function PlantacaoDetailPage() {
               desc: "Produtos, doses, quantidades e custo",
               stage: shortcutStages.adubacao,
               status: "completed" as ShortcutStatus,
-              onClick: () => setShowAdubacao(true),
+              onClick: () => router.push(`/home/plantacoes/${id}/adubacao`),
               wide: false,
             },
             {
@@ -989,7 +989,7 @@ export default function PlantacaoDetailPage() {
               desc: "Híbrido, mudas, quantidade, sacas e custo",
               stage: shortcutStages.plantio,
               status: "in_progress" as ShortcutStatus,
-              onClick: () => setShowPlantio(true),
+              onClick: () => router.push(`/home/plantacoes/${id}/sementes`),
               wide: false,
             },
             {
@@ -998,7 +998,7 @@ export default function PlantacaoDetailPage() {
               desc: "Adubos via fertirrigação, doses, volume e custo",
               stage: shortcutStages.fertirrigacao,
               status: "in_progress" as ShortcutStatus,
-              onClick: () => setShowFertirrigacao(true),
+              onClick: () => router.push(`/home/plantacoes/${id}/fertirrigacao`),
               wide: false,
             },
             {
@@ -1007,7 +1007,7 @@ export default function PlantacaoDetailPage() {
               desc: "Produtos, doses, volume e custo",
               stage: shortcutStages.foliarDefensivos,
               status: "pending" as ShortcutStatus,
-              onClick: () => setShowDefensivo(true),
+              onClick: () => router.push(`/home/plantacoes/${id}/defensivos`),
               wide: false,
             },
             {
@@ -1016,7 +1016,7 @@ export default function PlantacaoDetailPage() {
               desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
               stage: shortcutStages.irrigacao,
               status: "running" as ShortcutStatus,
-              onClick: () => setShowIrrigacao(true),
+              onClick: () => router.push(`/home/plantacoes/${id}/irrigacao`),
               wide: false,
             },
             {

@@ -83,11 +83,25 @@ const currency = (value: number) =>
     minimumFractionDigits: 2,
   });
 
-const decimalValue = (value: string) => {
-  const normalized = value.replace(/\./g, "").replace(",", ".");
+const decimalValue = (value: string | number | null | undefined) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (!value) return 0;
+
+  const trimmed = String(value).trim();
+  const hasComma = trimmed.includes(",");
+  const hasDot = trimmed.includes(".");
+  const normalized = hasComma
+    ? trimmed.replace(/\./g, "").replace(",", ".")
+    : hasDot && /^\d{1,3}(\.\d{3})+$/.test(trimmed)
+      ? trimmed.replace(/\./g, "")
+      : trimmed;
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+
+const recordDailyQuantity = (record: LaborRecord) => decimalValue(record.daily_quantity);
+const recordDailyRate = (record: LaborRecord) => decimalValue(record.daily_rate);
+const recordTotal = (record: LaborRecord) => recordDailyQuantity(record) * recordDailyRate(record);
 
 const formatDate = (value: string) => {
   if (!value) return "-";
@@ -545,8 +559,10 @@ export default function MaoObraPage() {
                   <div className="text-muted-foreground small">{formatDate(record.activity_date)} • {record.worker_name || "Trabalhador"}</div>
                 </div>
                 <div className="text-end">
-                  <div className="fw-bold">{currency(decimalValue(String(record.total_amount)))}</div>
-                  <div className="text-muted-foreground small">{decimalValue(String(record.daily_quantity)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} diária(s)</div>
+                  <div className="fw-bold">{currency(recordTotal(record))}</div>
+                  <div className="text-muted-foreground small">
+                    {recordDailyQuantity(record).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} diária(s)
+                  </div>
                 </div>
               </div>
             ))}
@@ -584,9 +600,9 @@ export default function MaoObraPage() {
                     <td>{formatDate(record.activity_date)}</td>
                     <td>{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "-"}</td>
                     <td>{record.worker_name || "-"}</td>
-                    <td>{decimalValue(String(record.daily_quantity)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td>{currency(decimalValue(String(record.daily_rate)))}</td>
-                    <td className="fw-bold">{currency(decimalValue(String(record.total_amount)))}</td>
+                    <td>{recordDailyQuantity(record).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>{currency(recordDailyRate(record))}</td>
+                    <td className="fw-bold">{currency(recordTotal(record))}</td>
                     <td className="text-muted-foreground small">{record.notes || "-"}</td>
                   </tr>
                 ))
