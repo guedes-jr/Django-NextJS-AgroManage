@@ -69,7 +69,7 @@ type ReportEvent = {
 
 const moduleConfig: Record<ReportType, { label: string; description: string; icon: LucideIcon; color: string; bg: string; unit: string }> = {
   estrutura: { label: "Estrutura do setor", description: "Informações da área, talhão, cultura e ciclo produtivo.", icon: Sprout, color: "#059669", bg: "#ecfdf5", unit: "itens" },
-  preparo: { label: "Preparação da terra", description: "Atividades de preparo do solo realizadas.", icon: Tractor, color: "#ea580c", bg: "#fff7ed", unit: "eventos" },
+  preparo: { label: "Serviços mecanizados", description: "Atividades mecanizadas realizadas no talhão.", icon: Tractor, color: "#ea580c", bg: "#fff7ed", unit: "eventos" },
   plantio: { label: "Plantio", description: "Sementes, operações de plantio, quantidades e custos.", icon: Leaf, color: "#16a34a", bg: "#f0fdf4", unit: "eventos" },
   irrigacao: { label: "Irrigação", description: "Manejo de água, bombas, horas, volume e energia.", icon: Droplets, color: "#0284c7", bg: "#eff6ff", unit: "eventos" },
   adubacao: { label: "Adubação", description: "Adubações de base, cobertura, foliar e fertirrigação.", icon: Beaker, color: "#7c3aed", bg: "#f5f3ff", unit: "eventos" },
@@ -134,7 +134,7 @@ const normalizeOperationLabel = (value?: string | null) => {
   const trimmed = value?.trim();
   if (!trimmed) return "-";
   const normalized = trimmed.toLowerCase();
-  if (normalized === "aracao" || normalized === "aração") return "Serviços Mecanizados";
+  if (normalized === "aracao" || normalized === "aração") return "Colheita";
   return trimmed;
 };
 
@@ -173,7 +173,7 @@ function buildEvents(plantation: Plantation, sources: {
       id: `preparo-${item.id}`,
       type: "preparo",
       date: item.date || item.created_at || "",
-      title: normalizeOperationLabel(item.operation_type_display) || "Preparação da terra",
+      title: normalizeOperationLabel(item.operation_type_display) || "Serviços mecanizados",
       subtitle: item.execution_type_display || "Operação de preparo",
       details: compact([
         item.tractor_name ? `Trator: ${item.tractor_name}` : undefined,

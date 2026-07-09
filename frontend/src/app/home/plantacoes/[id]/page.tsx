@@ -967,8 +967,8 @@ export default function PlantacaoDetailPage() {
             },
             {
               number: 2,
-              label: "Preparação da Terra",
-              desc: "Calagem, aração, gradagem e mais",
+              label: "Serviços Mecanizados",
+              desc: "Calagem, colheita, gradagem e mais",
               stage: shortcutStages.preparo,
               status: "completed" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/preparo-terra`),

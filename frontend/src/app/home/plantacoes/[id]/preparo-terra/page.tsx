@@ -57,7 +57,7 @@ type OperationDetails = Record<OperationType, {
 
 const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }> = {
   calagem: { label: "Calagem", icon: FileSpreadsheet },
-  aracao: { label: "Serviços Mecanizados", icon: Tractor },
+  aracao: { label: "Colheita", icon: Tractor },
   gradagem: { label: "Gradagem", icon: Grid },
   subsolagem: { label: "Subsolagem", icon: Layers },
   nivelamento: { label: "Nivelamento", icon: AlignJustify },
@@ -110,7 +110,7 @@ const normalizeOperationLabel = (value?: string | null) => {
   const trimmed = value?.trim();
   if (!trimmed) return "-";
   const normalized = trimmed.toLowerCase();
-  if (normalized === "aracao" || normalized === "aração") return "Serviços Mecanizados";
+  if (normalized === "aracao" || normalized === "aração") return "Colheita";
   return trimmed;
 };
 
@@ -236,7 +236,7 @@ export default function PreparoTerraPage() {
             <span>›</span>
             <span>{plantation.field_name || "Talhão"}</span>
             <span>›</span>
-            <span className="text-primary fw-semibold">Preparação da Terra</span>
+            <span className="text-primary fw-semibold">Serviços Mecanizados</span>
           </div>
 
           {/* Page Header */}
@@ -250,9 +250,9 @@ export default function PreparoTerraPage() {
             </button>
             <div>
               <h1 className="fw-black mb-1 text-foreground d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-                <Tractor size={28} className="text-primary" /> Preparação da Terra
+                <Tractor size={28} className="text-primary" /> Serviços Mecanizados
               </h1>
-              <p className="text-muted-foreground small mb-0">Registre as informações da operação realizada no talhão.</p>
+              <p className="text-muted-foreground small mb-0">Registre as informações dos serviços mecanizados realizados no talhão.</p>
             </div>
           </div>
 
@@ -434,7 +434,7 @@ export default function PreparoTerraPage() {
 
           <div className="dashboard-card p-4 mb-4">
             <h2 className="fw-black text-foreground mb-3" style={{ fontSize: "1.05rem" }}>
-              Histórico de preparação da terra
+              Histórico de serviços mecanizados
             </h2>
             <div className="table-responsive">
               <table className="table align-middle mb-0">
@@ -453,7 +453,7 @@ export default function PreparoTerraPage() {
                   {history.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center text-muted-foreground py-4">
-                        Nenhuma preparação registrada ainda.
+                        Nenhum serviço mecanizado registrado ainda.
                       </td>
                     </tr>
                   ) : (
