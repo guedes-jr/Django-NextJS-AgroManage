@@ -575,8 +575,8 @@ export default function MaoObraPage() {
           Histórico de mão de obra
         </h3>
         <div className="table-responsive">
-          <table className="table align-middle mb-0">
-            <thead className="table-light">
+          <table className="table table-hover align-middle mb-0 agro-table">
+            <thead>
               <tr>
                 <th>Data</th>
                 <th>Atividade</th>

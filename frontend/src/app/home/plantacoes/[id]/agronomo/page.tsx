@@ -526,8 +526,8 @@ export default function AgronomoPage() {
               <p className="text-muted small mb-0">Nenhuma recomendação concluída ainda.</p>
             ) : (
               <div className="table-responsive">
-                <table className="table align-middle mb-0">
-                  <thead className="table-light">
+                <table className="table table-hover align-middle mb-0 agro-table">
+                  <thead>
                     <tr>
                       <th>Recomendação</th>
                       <th>Aplicação sugerida</th>
@@ -595,8 +595,8 @@ export default function AgronomoPage() {
 
             <h6 className="fw-bold text-success mb-3">Produtos recomendados</h6>
             <div className="table-responsive mb-3">
-              <table className="table align-middle mb-0">
-                <thead className="table-light">
+              <table className="table table-hover align-middle mb-0 agro-table">
+                <thead>
                   <tr>
                     <th>Categoria</th>
                     <th>Produto</th>

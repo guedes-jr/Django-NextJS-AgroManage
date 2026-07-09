@@ -1108,7 +1108,7 @@ export default function PlantacaoDetailPage() {
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><Sprout size={16} className="me-1" /> Dados da Cultura</h6>
-            <table className="table table-sm table-borderless mb-0">
+            <table className="table table-sm mb-0 agro-table">
               <tbody>
                 <tr><td className="text-muted small" style={{ width: "40%" }}>Cultura</td><td className="fw-medium">{plantation.crop_name}</td></tr>
                 <tr><td className="text-muted small">Tipo</td><td className="fw-medium">{plantation.crop_type_display || "-"}</td></tr>
@@ -1125,7 +1125,7 @@ export default function PlantacaoDetailPage() {
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><Calendar size={16} className="me-1" /> Datas</h6>
-            <table className="table table-sm table-borderless mb-0">
+            <table className="table table-sm mb-0 agro-table">
               <tbody>
                 <tr><td className="text-muted small" style={{ width: "40%" }}>Plantio</td><td className="fw-medium">{plantation.planting_date ? new Date(plantation.planting_date).toLocaleDateString("pt-BR") : "-"}</td></tr>
                 <tr><td className="text-muted small">Previsão de Colheita</td><td className="fw-medium">{plantation.expected_harvest_date ? new Date(plantation.expected_harvest_date).toLocaleDateString("pt-BR") : "-"}</td></tr>
@@ -1140,7 +1140,7 @@ export default function PlantacaoDetailPage() {
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><DollarSign size={16} className="me-1" /> Resumo Financeiro</h6>
-            <table className="table table-sm table-borderless mb-0">
+            <table className="table table-sm mb-0 agro-table">
               <tbody>
                 <tr><td className="text-muted small" style={{ width: "40%" }}>Investimento Total</td><td className="fw-medium">{money(investmentTotal)}</td></tr>
                 <tr><td className="text-muted small">Receita Bruta</td><td className="fw-medium">{money(harvestRevenue)}</td></tr>
@@ -1155,7 +1155,7 @@ export default function PlantacaoDetailPage() {
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><Warehouse size={16} className="me-1" /> Resumo de Produção</h6>
-            <table className="table table-sm table-borderless mb-0">
+            <table className="table table-sm mb-0 agro-table">
               <tbody>
                 <tr><td className="text-muted small" style={{ width: "40%" }}>Quantidade produzida</td><td className="fw-medium">{harvestedKg > 0 ? `${fmt(harvestedKg, 0)} kg` : "-"}</td></tr>
                 <tr><td className="text-muted small">Quantidade vendida</td><td className="fw-medium">{soldKg > 0 ? `${fmt(soldKg, 0)} kg` : "-"}</td></tr>
@@ -1246,8 +1246,8 @@ export default function PlantacaoDetailPage() {
             <Button variant="outline-success" size="sm" onClick={() => setPlantioLines((prev) => [...prev, { ...emptyPlantioLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
-            <table className="table align-middle mb-0">
-              <thead className="table-light">
+            <table className="table table-hover align-middle mb-0 agro-table">
+              <thead>
                 <tr>
                   <th>Semente (Insumo)</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
@@ -1325,8 +1325,8 @@ export default function PlantacaoDetailPage() {
             <Button variant="outline-success" size="sm" onClick={() => setAdubacaoLines((prev) => [...prev, { ...emptyAdubacaoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
-            <table className="table align-middle mb-0">
-              <thead className="table-light">
+            <table className="table table-hover align-middle mb-0 agro-table">
+              <thead>
                 <tr>
                   <th>Fertilizante (Insumo)</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
@@ -1402,8 +1402,8 @@ export default function PlantacaoDetailPage() {
             <Button variant="outline-success" size="sm" onClick={() => setFertirrigacaoLines((prev) => [...prev, { ...emptyFertirrigacaoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
-            <table className="table align-middle mb-0">
-              <thead className="table-light">
+            <table className="table table-hover align-middle mb-0 agro-table">
+              <thead>
                 <tr>
                   <th>Insumo</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
@@ -1479,8 +1479,8 @@ export default function PlantacaoDetailPage() {
             <Button variant="outline-success" size="sm" onClick={() => setDefensivoLines((prev) => [...prev, { ...emptyDefensivoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
-            <table className="table align-middle mb-0">
-              <thead className="table-light">
+            <table className="table table-hover align-middle mb-0 agro-table">
+              <thead>
                 <tr>
                   <th>Insumo</th>
                   <th style={{ minWidth: 160 }}>Tipo</th>
@@ -1562,8 +1562,8 @@ export default function PlantacaoDetailPage() {
               </Button>
             </div>
             <div className="table-responsive">
-              <table className="table align-middle mb-0">
-                <thead className="table-light">
+              <table className="table table-hover align-middle mb-0 agro-table">
+                <thead>
                   <tr>
                     <th>Equipamento</th>
                     <th style={{ minWidth: 160 }}>Quantidade utilizada</th>

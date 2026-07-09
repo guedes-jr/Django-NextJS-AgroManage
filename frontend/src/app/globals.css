@@ -233,6 +233,70 @@ body {
   box-shadow: var(--shadow-soft);
 }
 
+.agro-table {
+  --bs-table-bg: var(--card);
+  --bs-table-color: var(--foreground);
+  --bs-table-border-color: var(--border);
+  --bs-table-striped-bg: color-mix(in srgb, var(--muted), transparent 55%);
+  --bs-table-hover-bg: color-mix(in srgb, var(--muted), transparent 45%);
+  --bs-table-hover-color: var(--foreground);
+  color: var(--foreground);
+}
+
+.agro-table thead tr,
+.agro-table thead {
+  background: var(--muted) !important;
+  border-bottom: 2px solid var(--border);
+}
+
+.agro-table th {
+  color: var(--muted-foreground) !important;
+  border: 0 !important;
+  padding-top: 0.9rem !important;
+  padding-bottom: 0.9rem !important;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.agro-table td {
+  color: var(--foreground);
+  border-color: var(--border);
+  background: transparent !important;
+  vertical-align: middle;
+}
+
+.agro-table .text-muted {
+  color: var(--muted-foreground) !important;
+}
+
+.agro-table tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.agro-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.agro-table .form-control,
+.agro-table .form-select,
+.agro-table .input-group-text {
+  background-color: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+.agro-table .bg-light,
+.agro-table .bg-white {
+  background-color: var(--muted) !important;
+}
+
+.agro-table .bg-success-subtle {
+  background-color: color-mix(in srgb, var(--success), transparent 88%) !important;
+}
+
 
 /* Tab Switcher Styles */
 .auth-tabs {

@@ -681,7 +681,7 @@ export default function ColheitaPage() {
           Histórico de colheitas
         </h3>
         <div className="table-responsive">
-          <table className="table align-middle mb-0">
+          <table className="table table-hover align-middle mb-0 agro-table">
             <thead>
               <tr>
                 <th>Data</th>
