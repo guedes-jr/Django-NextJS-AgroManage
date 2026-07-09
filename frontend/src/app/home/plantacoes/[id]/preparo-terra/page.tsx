@@ -92,15 +92,32 @@ const formatDate = (value?: string | null) => {
   return `${day}/${month}/${year}`;
 };
 
+const numericValue = (value?: string | number | null) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  const trimmed = String(value).trim();
+  if (!trimmed) return 0;
+
+  const hasComma = trimmed.includes(",");
+  const hasDot = trimmed.includes(".");
+  const normalized = hasComma
+    ? trimmed.replace(/\./g, "").replace(",", ".")
+    : hasDot && /^\d{1,3}(\.\d{3}){2,}$/.test(trimmed)
+      ? trimmed.replace(/\./g, "")
+      : trimmed;
+  const parsed = Number.parseFloat(normalized.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const numberText = (value?: string | number | null, decimals = 2) => {
-  const parsed = Number(value || 0);
+  const parsed = numericValue(value);
   return Number.isFinite(parsed)
     ? parsed.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     : "-";
 };
 
 const money = (value?: string | number | null) =>
-  Number(value || 0).toLocaleString("pt-BR", {
+  numericValue(value).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
@@ -178,8 +195,8 @@ export default function PreparoTerraPage() {
         operation_type: selectedOperation,
         execution_type: "own",
         tractor: null,
-        hours_worked: selectedDetails.hoursWorked ? parseFloat(selectedDetails.hoursWorked) : null,
-        hourly_rate: selectedDetails.hourlyRate ? parseFloat(selectedDetails.hourlyRate) : null,
+        hours_worked: selectedDetails.hoursWorked ? numericValue(selectedDetails.hoursWorked) : null,
+        hourly_rate: selectedDetails.hourlyRate ? numericValue(selectedDetails.hourlyRate) : null,
         fuel_liters: null,
         fuel_price: null,
         operator: selectedOperator,

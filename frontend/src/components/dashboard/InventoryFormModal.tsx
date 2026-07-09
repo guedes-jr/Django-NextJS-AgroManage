@@ -14,6 +14,7 @@ export type InventoryCategory =
   | "semente"
   | "fertilizante"
   | "foliar"
+  | "fertirrigacao"
   | "defensivo"
   | "corretivo"
   | "medicamento"
@@ -48,8 +49,9 @@ const CATEGORY_CONFIG: Record<InventoryCategory, { label: string; unidade: strin
   suplemento:  { label: "Suplemento Animal", unidade: "kg",    color: "#6366f1" },
   semente:     { label: "Sementes/mudas",  unidade: "saco",    color: "#22c55e" },
   fertilizante:{ label: "Adubos",          unidade: "kg",      color: "#84cc16" },
-  foliar:      { label: "Foliares",        unidade: "l",       color: "#16a34a" },
-  defensivo:   { label: "Defensivo Agrícola", unidade: "l",    color: "#0ea5e9" },
+  foliar:      { label: "Foliares / Defensivos", unidade: "l", color: "#0ea5e9" },
+  fertirrigacao:{ label: "Fertirrigação",   unidade: "l",       color: "#06b6d4" },
+  defensivo:   { label: "Foliares / Defensivos", unidade: "l", color: "#0ea5e9" },
   corretivo:   { label: "Corretivo de Solo", unidade: "kg",    color: "#a16207" },
   medicamento: { label: "Medicamento",     unidade: "unidade", color: "#ef4444" },
   vacina:      { label: "Vacina",          unidade: "dose",    color: "#3b82f6" },
@@ -249,6 +251,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
 
   const cfg = category ? CATEGORY_CONFIG[category] : null;
   const categoryEntries = Object.entries(CATEGORY_CONFIG).filter(([value]) => {
+    if (value === "foliar") return rows.some((row) => row.categoria === value || row.categorias.includes(value as InventoryCategory));
     if (!["medicamento", "vacina"].includes(value)) return true;
     return rows.some((row) => row.categoria === value || row.categorias.includes(value as InventoryCategory));
   });

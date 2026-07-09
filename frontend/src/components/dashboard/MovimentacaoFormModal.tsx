@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, ShoppingCart, TrendingDown, Utensils, AlertTriangle, Save, Calendar, Package, Info, Plus, ChevronDown, List, CreditCard, User, MapPin } from "lucide-react";
 import { apiClient } from "@/services/api";
 
-export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "medicamento_vacina" | "material" | "suplemento" | "semente" | "fertilizante" | "foliar" | "outro";
+export type InventoryCategory = "racao" | "nucleo" | "medicamento" | "vacina" | "medicamento_vacina" | "material" | "suplemento" | "semente" | "fertilizante" | "fertirrigacao" | "defensivo" | "foliar" | "outro";
 
 interface InventoryItem {
   id: string;
@@ -44,7 +44,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   material: "Material",
   semente: "Sementes/mudas",
   fertilizante: "Adubos",
-  foliar: "Foliares",
+  fertirrigacao: "Fertirrigação",
+  defensivo: "Foliares / Defensivos",
+  foliar: "Foliares / Defensivos",
 };
 
 const inputStyle = {

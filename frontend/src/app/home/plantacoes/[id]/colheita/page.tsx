@@ -108,8 +108,7 @@ const decimalValue = (value?: string | number | null) => {
     normalized = valueWithoutSpaces.replace(/\./g, "").replace(",", ".");
   } else if (lastDot !== -1) {
     const dotParts = valueWithoutSpaces.split(".");
-    const decimalDigits = dotParts.at(-1)?.length ?? 0;
-    const looksLikeThousandSeparator = dotParts.length > 2 || decimalDigits === 3;
+    const looksLikeThousandSeparator = dotParts.length > 2;
     normalized = looksLikeThousandSeparator ? valueWithoutSpaces.replace(/\./g, "") : valueWithoutSpaces;
   }
 

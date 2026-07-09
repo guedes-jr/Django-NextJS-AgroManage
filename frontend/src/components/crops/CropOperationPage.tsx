@@ -142,15 +142,15 @@ const configByKind = {
     icon: Droplets,
   },
   defensivos: {
-    title: "Foliar e defensivos",
-    subtitle: "Registre defensivos, tipo de produto, equipamentos e custo.",
-    itemTitle: "Defensivos da aplicação",
-    itemColumn: "Defensivo",
-    itemPlaceholder: "Selecione um defensivo do estoque...",
-    emptyMessage: "Nenhum defensivo cadastrado no estoque.",
+    title: "Foliares / Defensivos",
+    subtitle: "Registre foliares, defensivos, tipo de produto, equipamentos e custo.",
+    itemTitle: "Foliares e defensivos da aplicação",
+    itemColumn: "Produto",
+    itemPlaceholder: "Selecione um foliar ou defensivo do estoque...",
+    emptyMessage: "Nenhum foliar ou defensivo cadastrado no estoque.",
     totalLabel: "Valor total da aplicação",
     dateLabel: "Data",
-    historyTitle: "Histórico de foliar e defensivos",
+    historyTitle: "Histórico de foliares / defensivos",
     icon: ShieldCheck,
   },
   irrigacao: {
@@ -184,21 +184,38 @@ const formatDate = (value?: string | null) => {
   return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
 };
 
+const numericValue = (value?: string | number | null) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  const trimmed = String(value).trim();
+  if (!trimmed) return 0;
+
+  const hasComma = trimmed.includes(",");
+  const hasDot = trimmed.includes(".");
+  const normalized = hasComma
+    ? trimmed.replace(/\./g, "").replace(",", ".")
+    : hasDot && /^\d{1,3}(\.\d{3}){2,}$/.test(trimmed)
+      ? trimmed.replace(/\./g, "")
+      : trimmed;
+  const parsed = Number.parseFloat(normalized.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const fmt = (value?: string | number | null, decimals = 2) => {
   if (value === null || value === undefined || value === "") return "-";
-  const number = typeof value === "number" ? value : Number(value);
+  const number = numericValue(value);
   if (!Number.isFinite(number)) return "-";
   return number.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
 
 const money = (value?: string | number | null) => {
   if (value === null || value === undefined || value === "") return "R$ 0,00";
-  const number = typeof value === "number" ? value : Number(value);
+  const number = numericValue(value);
   if (!Number.isFinite(number)) return "R$ 0,00";
   return number.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 };
 
-const cvToKw = (cv: string | number) => Number(cv || 0) * 0.7355;
+const cvToKw = (cv: string | number) => numericValue(cv) * 0.7355;
 
 const calculateInclusiveDays = (startDate: string, endDate: string) => {
   if (!startDate) return 1;
@@ -209,8 +226,8 @@ const calculateInclusiveDays = (startDate: string, endDate: string) => {
 };
 
 const calculateLineTotal = (quantity: string, unitPrice: string) => {
-  const q = Number(quantity || 0);
-  const p = Number(unitPrice || 0);
+  const q = numericValue(quantity);
+  const p = numericValue(unitPrice);
   return q && p ? String(q * p) : "";
 };
 
@@ -298,25 +315,34 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       return inventoryItems.filter((item) => item.categoria === "semente" || (!item.especie_animal && item.categoria === "outro"));
     }
     if (kind === "defensivos") {
-      return inventoryItems.filter((item) => item.categoria === "defensivo" || (!item.especie_animal && item.categoria === "outro"));
+      return inventoryItems.filter((item) =>
+        ["defensivo", "foliar"].includes(item.categoria || "") ||
+        (!item.especie_animal && item.categoria === "outro")
+      );
+    }
+    if (kind === "fertirrigacao") {
+      return inventoryItems.filter((item) =>
+        ["fertirrigacao", "fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
+        (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar")
+      );
     }
     return inventoryItems.filter((item) =>
-      ["fertilizante", "foliar", "corretivo", "material", "outro"].includes(item.categoria || "") ||
-      (!item.especie_animal && item.categoria !== "defensivo")
+      ["fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
+      (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar" && item.categoria !== "fertirrigacao")
     );
   }, [inventoryItems, kind]);
 
   const selectedPump = pumps.find((pump) => pump.id === irrigationForm.pump_equipment);
   const irrigationDays = calculateInclusiveDays(irrigationForm.start_date, irrigationForm.end_date);
-  const irrigationHoursTotal = Number(irrigationForm.hours_per_day || 0) * irrigationDays;
-  const irrigationEnergyKwh = Number(selectedPump?.power_kw || 0) * irrigationHoursTotal;
-  const irrigationEnergyCost = irrigationEnergyKwh * Number(irrigationForm.kwh_value || 0);
-  const irrigationWaterLiters = Number(selectedPump?.flow_rate_l_per_h || 0) * irrigationHoursTotal;
+  const irrigationHoursTotal = numericValue(irrigationForm.hours_per_day) * irrigationDays;
+  const irrigationEnergyKwh = numericValue(selectedPump?.power_kw) * irrigationHoursTotal;
+  const irrigationEnergyCost = irrigationEnergyKwh * numericValue(irrigationForm.kwh_value);
+  const irrigationWaterLiters = numericValue(selectedPump?.flow_rate_l_per_h) * irrigationHoursTotal;
 
   const getStockPrice = async (itemId: string) => {
     const { data: lots } = await apiClient.get<{ custo_unitário: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
-    const activeLot = lots.find((lot) => lot.custo_unitário && Number(lot.custo_unitário) > 0);
-    return activeLot?.custo_unitário ? String(Number(activeLot.custo_unitário)) : "";
+    const activeLot = lots.find((lot) => numericValue(lot.custo_unitário) > 0);
+    return activeLot?.custo_unitário ? String(numericValue(activeLot.custo_unitário)) : "";
   };
 
   const updateLine = (index: number, patch: Partial<ApplicationLine>) => {
@@ -324,8 +350,8 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       if (lineIndex !== index) return line;
       const next = { ...line, ...patch };
       if ("quantity" in patch || "unit_price" in patch || "unit" in patch || "item" in patch) {
-        const q = Number(next.quantity || 0);
-        const p = Number(next.unit_price || 0);
+        const q = numericValue(next.quantity);
+        const p = numericValue(next.unit_price);
         let multiplier = 1;
         const item = inventoryItems.find((inventoryItem) => inventoryItem.id === next.item);
         if (item) {
@@ -392,9 +418,9 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
           application_date: form.date,
           equipments: validEquipments.map((equipment) => ({
             equipment: equipment.equipment,
-            quantity: equipment.quantity ? Number(equipment.quantity) : null,
-            unit_price: equipment.unit_price ? Number(equipment.unit_price) : null,
-            total_price: equipment.total_price ? Number(equipment.total_price) : null,
+            quantity: equipment.quantity ? numericValue(equipment.quantity) : null,
+            unit_price: equipment.unit_price ? numericValue(equipment.unit_price) : null,
+            total_price: equipment.total_price ? numericValue(equipment.total_price) : null,
           })),
         });
       }));
@@ -690,7 +716,7 @@ function ApplicationForm({
 
       <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2 flex-wrap gap-2">
         <span className="fw-medium">Total de itens: {lines.filter((line) => line.item).length}</span>
-        <strong className="text-success">{config.totalLabel as string}: {money(lines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
+        <strong className="text-success">{config.totalLabel as string}: {money(lines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
       </div>
 
       <div className="row g-3">
@@ -737,13 +763,13 @@ function ApplicationForm({
                     <td>
                       <input className="form-control" type="number" step="0.01" value={equipment.quantity} onChange={(event) => {
                         const quantity = event.target.value;
-                        setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, quantity, total_price: quantity && item.unit_price ? String(Number(quantity) * Number(item.unit_price)) : "" }));
+                        setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, quantity, total_price: quantity && item.unit_price ? String(numericValue(quantity) * numericValue(item.unit_price)) : "" }));
                       }} />
                     </td>
                     <td>
                       <input className="form-control" type="number" step="0.01" value={equipment.unit_price} onChange={(event) => {
                         const unitPrice = event.target.value;
-                        setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, unit_price: unitPrice, total_price: unitPrice && item.quantity ? String(Number(unitPrice) * Number(item.quantity)) : "" }));
+                        setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, unit_price: unitPrice, total_price: unitPrice && item.quantity ? String(numericValue(unitPrice) * numericValue(item.quantity)) : "" }));
                       }} />
                     </td>
                     <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(equipment.total_price)}</div></td>

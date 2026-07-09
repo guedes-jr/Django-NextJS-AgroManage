@@ -61,7 +61,7 @@ const CATEGORY_MODAL_MAP: Record<string, InventoryCategory> = {
   suplemento: "suplemento",
   semente: "semente",
   fertilizante: "fertilizante",
-  foliar: "foliar",
+  fertirrigacao: "fertirrigacao",
   defensivo: "defensivo",
   corretivo: "corretivo",
   medicamento: "medicamento",
@@ -77,7 +77,7 @@ const CATEGORY_ICONS: Record<string, ReactNode> = {
   suplemento: <Package size={16} />,
   semente: <Sprout size={16} />,
   fertilizante: <LeafIcon />,
-  foliar: <Sprout size={16} />,
+  fertirrigacao: <FlaskConical size={16} />,
   defensivo: <ShieldCheck size={16} />,
   corretivo: <Mountain size={16} />,
   medicamento: <Activity size={16} />,
@@ -312,6 +312,10 @@ export function ProdutosDashboard() {
         categoryFilter === "todas" ||
         item.categoria === categoryFilter ||
         item.categorias?.includes(categoryFilter) ||
+        (categoryFilter === "defensivo" &&
+          ["defensivo", "foliar"].some((categoria) =>
+            item.categoria === categoria || item.categorias?.includes(categoria)
+          )) ||
         (categoryFilter === "medicamento_vacina" &&
           ["medicamento", "vacina", "medicamento_vacina"].some((categoria) =>
             item.categoria === categoria || item.categorias?.includes(categoria)
@@ -403,9 +407,9 @@ export function ProdutosDashboard() {
             { key: "nucleo", title: "Suplementos", desc: "Núcleos, premix e suplementos...", color: "oklch(0.65 0.16 230)" },
             { key: "medicamento_vacina", title: "Medicamentos e Vacinas", desc: "Produtos sanitários e preventivos...", color: "oklch(0.7 0.18 25)" },
             { key: "fertilizante", title: "Adubos", desc: "NPK, ureia e formulações...", color: "oklch(0.68 0.16 120)" },
-            { key: "foliar", title: "Foliares", desc: "Adubação e nutrição foliar...", color: "oklch(0.62 0.15 145)" },
+            { key: "fertirrigacao", title: "Fertirrigação", desc: "Soluções e produtos via irrigação...", color: "oklch(0.62 0.14 205)" },
             { key: "semente", title: "Sementes/mudas", desc: "Milho, soja, sorgo, mudas...", color: "oklch(0.62 0.16 145)" },
-            { key: "defensivo", title: "Defensivos", desc: "Herbicidas, inseticidas...", color: "oklch(0.62 0.14 220)" },
+            { key: "defensivo", title: "Foliares / Defensivos", desc: "Foliares, herbicidas, inseticidas...", color: "oklch(0.62 0.14 220)" },
             { key: "corretivo", title: "Corretivos", desc: "Calcário, gesso agrícola...", color: "oklch(0.55 0.12 70)" },
             { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
             { key: "material", title: "Outros Materiais", desc: "Materiais e equipamentos...", color: "oklch(0.6 0.05 240)" },
@@ -485,9 +489,9 @@ export function ProdutosDashboard() {
               <option value="suplemento">Suplemento Animal</option>
               <option value="medicamento_vacina">Medicamentos e Vacinas</option>
               <option value="fertilizante">Adubos</option>
-              <option value="foliar">Foliares</option>
+              <option value="fertirrigacao">Fertirrigação</option>
               <option value="semente">Sementes/mudas</option>
-              <option value="defensivo">Defensivo Agrícola</option>
+              <option value="defensivo">Foliares / Defensivos</option>
               <option value="corretivo">Corretivo de Solo</option>
               <option value="semen">Sêmen</option>
               <option value="material">Material</option>

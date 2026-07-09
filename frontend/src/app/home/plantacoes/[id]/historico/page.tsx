@@ -52,7 +52,7 @@ type Application = BaseRecord & { application_date?: string | null; item_name?: 
 type Irrigation = BaseRecord & { date?: string | null; start_date?: string | null; end_date?: string | null; irrigation_system_display?: string | null; pump_name?: string | null; operating_days?: number | null; hours?: string | number | null; liters_used?: string | number | null; energy_cost?: string | number | null; operator?: string | null };
 type SoilAnalysis = BaseRecord & { original_name?: string | null; uploaded_by_name?: string | null };
 type Recommendation = BaseRecord & { title?: string | null; objective?: string | null; recommendation_date?: string | null; suggested_application_date?: string | null; priority_display?: string | null; status_display?: string | null };
-type LaborRecord = BaseRecord & { worker_name?: string | null; activity_type_display?: string | null; activity_date?: string | null; daily_quantity?: string | number | null; total_amount?: string | number | null };
+type LaborRecord = BaseRecord & { worker_name?: string | null; activity_type_display?: string | null; activity_date?: string | null; daily_quantity?: string | number | null; daily_rate?: string | number | null; total_amount?: string | number | null };
 type Harvest = BaseRecord & { harvest_date?: string | null; harvest_type_display?: string | null; yield_kg?: string | number | null; destination_display?: string | null; revenue_amount?: string | number | null; buyer_name?: string | null; buyer_name_display?: string | null };
 
 type ReportType = "estrutura" | "preparo" | "plantio" | "irrigacao" | "adubacao" | "defensivos" | "mao_obra" | "colheita" | "agronomo" | "anexos";
@@ -72,8 +72,8 @@ const moduleConfig: Record<ReportType, { label: string; description: string; ico
   preparo: { label: "Serviços mecanizados", description: "Atividades mecanizadas realizadas no talhão.", icon: Tractor, color: "#ea580c", bg: "#fff7ed", unit: "eventos" },
   plantio: { label: "Plantio", description: "Sementes, operações de plantio, quantidades e custos.", icon: Leaf, color: "#16a34a", bg: "#f0fdf4", unit: "eventos" },
   irrigacao: { label: "Irrigação", description: "Manejo de água, bombas, horas, volume e energia.", icon: Droplets, color: "#0284c7", bg: "#eff6ff", unit: "eventos" },
-  adubacao: { label: "Adubação", description: "Adubações de base, cobertura, foliar e fertirrigação.", icon: Beaker, color: "#7c3aed", bg: "#f5f3ff", unit: "eventos" },
-  defensivos: { label: "Defensivos", description: "Controle de pragas, doenças e aplicações relacionadas.", icon: ClipboardCheck, color: "#dc2626", bg: "#fef2f2", unit: "eventos" },
+  adubacao: { label: "Adubação", description: "Adubações de base, cobertura e nutrição.", icon: Beaker, color: "#7c3aed", bg: "#f5f3ff", unit: "eventos" },
+  defensivos: { label: "Foliares / Defensivos", description: "Aplicações foliares, controle de pragas, doenças e aplicações relacionadas.", icon: ClipboardCheck, color: "#dc2626", bg: "#fef2f2", unit: "eventos" },
   mao_obra: { label: "Mão de obra", description: "Registros de diárias, atividades e custos de pessoal.", icon: Users, color: "#7c3aed", bg: "#faf5ff", unit: "registros" },
   colheita: { label: "Colheita", description: "Produção, destino, compradores e receita realizada.", icon: Wheat, color: "#d97706", bg: "#fffbeb", unit: "eventos" },
   agronomo: { label: "Agrônomo", description: "Recomendações técnicas e orientações registradas.", icon: FileText, color: "#059669", bg: "#ecfdf5", unit: "registros" },
@@ -94,8 +94,16 @@ const extractArray = <T,>(data: ApiList<T> | unknown): T[] => {
 const parseNumber = (value?: string | number | null) => {
   if (value === null || value === undefined || value === "") return 0;
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const normalized = value.includes(",") ? value.replace(/\./g, "").replace(",", ".") : value;
-  const parsed = Number(normalized);
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const hasComma = trimmed.includes(",");
+  const hasDot = trimmed.includes(".");
+  const normalized = hasComma
+    ? trimmed.replace(/\./g, "").replace(",", ".")
+    : hasDot && /^\d{1,3}(\.\d{3}){2,}$/.test(trimmed)
+      ? trimmed.replace(/\./g, "")
+      : trimmed;
+  const parsed = Number.parseFloat(normalized.replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
@@ -229,8 +237,8 @@ function buildEvents(plantation: Plantation, sources: {
       id: `defensivos-${item.id}`,
       type: "defensivos",
       date: item.application_date || item.created_at || "",
-      title: item.item_name || "Aplicação de defensivo",
-      subtitle: item.pesticide_type_display || "Defensivo agrícola",
+      title: item.item_name || "Aplicação foliar / defensivo",
+      subtitle: item.pesticide_type_display || "Foliar / defensivo",
       details: compact([
         item.target ? `Alvo: ${item.target}` : undefined,
         item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
@@ -280,7 +288,8 @@ function buildEvents(plantation: Plantation, sources: {
   });
 
   sources.laborRecords.forEach((item) => {
-    const amount = parseNumber(item.total_amount);
+    const calculatedAmount = parseNumber(item.daily_quantity) * parseNumber(item.daily_rate);
+    const amount = calculatedAmount > 0 ? calculatedAmount : parseNumber(item.total_amount);
     events.push({
       id: `mao-obra-${item.id}`,
       type: "mao_obra",
@@ -421,7 +430,7 @@ export default function RelatorioPlantacaoPage() {
   }, [periodEvents]);
 
   const totals = useMemo(() => {
-    const investment = parseNumber(plantation?.investment_total) || selectedEvents.filter((event) => event.type !== "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
+    const investment = selectedEvents.filter((event) => event.type !== "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
     const revenue = selectedEvents.filter((event) => event.type === "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
     const harvestedKg = selectedEvents
       .filter((event) => event.type === "colheita")
@@ -443,7 +452,7 @@ export default function RelatorioPlantacaoPage() {
       salePerKg: soldKg > 0 ? revenue / soldKg : 0,
       profitPerKg: harvestedKg > 0 ? (revenue - investment) / harvestedKg : 0,
     };
-  }, [plantation?.investment_total, plantation?.planted_area_ha, selectedEvents]);
+  }, [plantation?.planted_area_ha, selectedEvents]);
 
   const selectedModuleCount = orderedModules.filter((type) => selectedModules[type]).length;
   const totalRecords = orderedModules.reduce((sum, type) => sum + (selectedModules[type] ? moduleCounts[type] || 0 : 0), 0);

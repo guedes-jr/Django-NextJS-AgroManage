@@ -108,14 +108,14 @@ const doseUnitOptions = [
 const agriculturalCategoryOptions = [
   { value: "semente", label: "Sementes/mudas" },
   { value: "fertilizante", label: "Adubos" },
-  { value: "foliar", label: "Foliares" },
+  { value: "fertirrigacao", label: "Fertirrigação" },
   { value: "corretivo", label: "Corretivo de Solo" },
-  { value: "defensivo", label: "Defensivo Agrícola" },
+  { value: "defensivo", label: "Foliares / Defensivos" },
   { value: "material", label: "Material" },
   { value: "outro", label: "Outro" },
 ];
 
-const agriculturalCategoryValues = agriculturalCategoryOptions.map((category) => category.value);
+const agriculturalCategoryValues = [...agriculturalCategoryOptions.map((category) => category.value), "foliar"];
 
 const statusVariant = (status: Recommendation["status"]) => {
   if (status === "completed") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
@@ -234,7 +234,11 @@ export default function AgronomoPage() {
   const getProductSuggestions = (product: RecommendationProduct) => {
     const search = product.item_search.trim().toLowerCase();
     return agriculturalItems
-      .filter((item) => !product.category || item.categoria === product.category)
+      .filter((item) =>
+        !product.category ||
+        item.categoria === product.category ||
+        (product.category === "defensivo" && item.categoria === "foliar")
+      )
       .filter((item) => {
         if (!search) return true;
         const text = `${item.nome} ${item.categoria_display || item.categoria || ""}`.toLowerCase();
@@ -258,7 +262,10 @@ export default function AgronomoPage() {
     const normalized = value.trim().toLowerCase();
     const currentProduct = products[index];
     const matchingItem = agriculturalItems.find((item) => {
-      const sameCategory = !currentProduct.category || item.categoria === currentProduct.category;
+      const sameCategory =
+        !currentProduct.category ||
+        item.categoria === currentProduct.category ||
+        (currentProduct.category === "defensivo" && item.categoria === "foliar");
       return sameCategory && item.nome.trim().toLowerCase() === normalized;
     });
 

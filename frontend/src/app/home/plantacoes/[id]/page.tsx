@@ -69,6 +69,8 @@ type LaborOperation = {
   activity_type_display?: string | null;
   worker?: { name?: string | null } | null;
   worker_name?: string | null;
+  daily_quantity?: string | number | null;
+  daily_rate?: string | number | null;
   total_amount?: string | number | null;
 };
 type HarvestOperation = {
@@ -179,8 +181,25 @@ const irrigationSystemOptions = [
   { value: "other", label: "Outro" },
 ];
 
+const numericValue = (value: string | number | null | undefined) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  const trimmed = String(value).trim();
+  if (!trimmed) return 0;
+
+  const hasComma = trimmed.includes(",");
+  const hasDot = trimmed.includes(".");
+  const normalized = hasComma
+    ? trimmed.replace(/\./g, "").replace(",", ".")
+    : hasDot && /^\d{1,3}(\.\d{3}){2,}$/.test(trimmed)
+      ? trimmed.replace(/\./g, "")
+      : trimmed;
+  const parsed = Number.parseFloat(normalized.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const cvToKw = (cv: string | number) => {
-  const value = Number(cv || 0);
+  const value = numericValue(cv);
   return value ? value * 0.7355 : 0;
 };
 
@@ -193,8 +212,8 @@ const calculateInclusiveDays = (startDate: string, endDate: string) => {
 };
 
 const calculateLineTotal = (quantity: string, unitPrice: string) => {
-  const q = parseFloat(quantity || "0");
-  const p = parseFloat(unitPrice || "0");
+  const q = numericValue(quantity);
+  const p = numericValue(unitPrice);
   return q && p ? String(q * p) : "";
 };
 
@@ -530,8 +549,8 @@ export default function PlantacaoDetailPage() {
 
   const getStockPrice = async (itemId: string) => {
     const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
-    const activeLot = lots.find((l) => l.custo_unitario && parseFloat(l.custo_unitario) > 0);
-    return activeLot?.custo_unitario ? String(parseFloat(activeLot.custo_unitario)) : "";
+    const activeLot = lots.find((l) => numericValue(l.custo_unitario) > 0);
+    return activeLot?.custo_unitario ? String(numericValue(activeLot.custo_unitario)) : "";
   };
 
   const updateApplicationLine = (
@@ -542,8 +561,8 @@ export default function PlantacaoDetailPage() {
     if (lineIndex !== index) return line;
     const next = { ...line, ...patch };
     if ("quantity" in patch || "unit_price" in patch || "unit" in patch || "item" in patch) {
-      const q = parseFloat(next.quantity || "0");
-      const p = parseFloat(next.unit_price || "0");
+      const q = numericValue(next.quantity);
+      const p = numericValue(next.unit_price);
       let multiplier = 1;
 
       const item = inventoryItems.find((i) => i.id === next.item);
@@ -677,9 +696,9 @@ export default function PlantacaoDetailPage() {
         notes: defensivoForm.notes,
         equipments: validEquipments.map((eq) => ({
           equipment: eq.equipment,
-          quantity: eq.quantity ? parseFloat(eq.quantity) : null,
-          unit_price: eq.unit_price ? parseFloat(eq.unit_price) : null,
-          total_price: eq.total_price ? parseFloat(eq.total_price) : null,
+          quantity: eq.quantity ? numericValue(eq.quantity) : null,
+          unit_price: eq.unit_price ? numericValue(eq.unit_price) : null,
+          total_price: eq.total_price ? numericValue(eq.total_price) : null,
         })),
       })));
       setShowDefensivo(false);
@@ -694,10 +713,10 @@ export default function PlantacaoDetailPage() {
 
   const selectedIrrigationPump = irrigationPumps.find((pump) => pump.id === irrigacaoForm.pump_equipment);
   const irrigationDays = calculateInclusiveDays(irrigacaoForm.start_date, irrigacaoForm.end_date);
-  const irrigationHoursTotal = Number(irrigacaoForm.hours_per_day || 0) * irrigationDays;
-  const irrigationEnergyKwh = Number(selectedIrrigationPump?.power_kw || 0) * irrigationHoursTotal;
-  const irrigationEnergyCost = irrigationEnergyKwh * Number(irrigacaoForm.kwh_value || 0);
-  const irrigationWaterLiters = Number(selectedIrrigationPump?.flow_rate_l_per_h || 0) * irrigationHoursTotal;
+  const irrigationHoursTotal = numericValue(irrigacaoForm.hours_per_day) * irrigationDays;
+  const irrigationEnergyKwh = numericValue(selectedIrrigationPump?.power_kw) * irrigationHoursTotal;
+  const irrigationEnergyCost = irrigationEnergyKwh * numericValue(irrigacaoForm.kwh_value);
+  const irrigationWaterLiters = numericValue(selectedIrrigationPump?.flow_rate_l_per_h) * irrigationHoursTotal;
 
   const handleCreatePump = async () => {
     if (!pumpForm.name || !pumpForm.power_cv || !pumpForm.flow_rate_l_per_h) return;
@@ -782,8 +801,8 @@ export default function PlantacaoDetailPage() {
 
   const fmt = (v: string | number | null | undefined, decimals = 2) => {
     if (v === null || v === undefined || v === "") return "-";
-    const n = typeof v === "number" ? v : parseFloat(String(v));
-    if (isNaN(n)) return "-";
+    const n = numericValue(v);
+    if (!Number.isFinite(n)) return "-";
     return n.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
@@ -821,12 +840,27 @@ export default function PlantacaoDetailPage() {
 
   const cultureVisual = getCultureVisual(plantation.crop_name, plantation.name);
 
-  const harvestedKg = harvests.reduce((acc, h) => acc + Number(h.yield_kg || 0), 0);
-  const harvestRevenue = harvests.reduce((acc, h) => acc + Number(h.revenue_amount || 0), 0);
-  const soldKg = harvests.reduce((acc, h) => acc + (Number(h.revenue_amount || 0) > 0 ? Number(h.yield_kg || 0) : 0), 0);
+  const sumTotalPrice = (records: Array<{ total_price?: string | number | null }>) =>
+    records.reduce((acc, record) => acc + numericValue(record.total_price), 0);
+  const laborRecordTotal = (record: LaborOperation) => {
+    const calculatedTotal = numericValue(record.daily_quantity) * numericValue(record.daily_rate);
+    return calculatedTotal > 0 ? calculatedTotal : numericValue(record.total_amount);
+  };
 
-  const investmentTotal = parseFloat(plantation.investment_total || "0");
-  const estimatedProductionKg = parseFloat(plantation.estimated_production_kg || "0");
+  const harvestedKg = harvests.reduce((acc, h) => acc + numericValue(h.yield_kg), 0);
+  const harvestRevenue = harvests.reduce((acc, h) => acc + numericValue(h.revenue_amount), 0);
+  const soldKg = harvests.reduce((acc, h) => acc + (numericValue(h.revenue_amount) > 0 ? numericValue(h.yield_kg) : 0), 0);
+
+  const seedCost = sumTotalPrice(plantings);
+  const fertilizationCost = sumTotalPrice(fertilizations);
+  const fertigationCost = sumTotalPrice(fertigations);
+  const pesticideCost = sumTotalPrice(pesticides);
+  const irrigationCost = irrigations.reduce((acc, record) => acc + numericValue(record.energy_cost), 0);
+  const landPreparationCost = landPreparations.reduce((acc, record) => acc + numericValue(record.total_price ?? record.total_amount), 0);
+  const laborCost = laborRecords.reduce((acc, record) => acc + laborRecordTotal(record), 0);
+
+  const investmentTotal = seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost;
+  const estimatedProductionKg = numericValue(plantation.estimated_production_kg);
   const realProfit = harvestRevenue - investmentTotal;
   const roi = investmentTotal > 0 ? (realProfit / investmentTotal) * 100 : null;
 
@@ -835,21 +869,28 @@ export default function PlantacaoDetailPage() {
   const lucroPorKg = harvestedKg > 0 ? realProfit / harvestedKg : null;
 
   const costData = [
-    { name: "Sementes", value: plantings.reduce((acc, p) => acc + Number(p.total_price || 0), 0), fill: "var(--bs-success)" },
-    { name: "Fertilizantes", value: fertilizations.reduce((acc, p) => acc + Number(p.total_price || 0), 0) + fertigations.reduce((acc, p) => acc + Number(p.total_price || 0), 0), fill: "var(--bs-primary)" },
-    { name: "Defensivos", value: pesticides.reduce((acc, p) => acc + Number(p.total_price || 0), 0), fill: "var(--bs-danger)" },
-    { name: "Irrigação", value: irrigations.reduce((acc, p) => acc + Number(p.energy_cost || 0), 0), fill: "var(--bs-info)" },
-    { name: "Preparo de Terra", value: landPreparations.reduce((acc, p) => acc + Number(p.total_price || p.total_amount || 0), 0), fill: "var(--bs-warning)" },
-    { name: "Mão de Obra", value: laborRecords.reduce((acc, p) => acc + Number(p.total_amount || 0), 0), fill: "var(--bs-secondary)" },
+    { name: "Sementes", value: seedCost, fill: "var(--bs-success)" },
+    { name: "Fertilizantes", value: fertilizationCost + fertigationCost, fill: "var(--bs-primary)" },
+    { name: "Foliares / Defensivos", value: pesticideCost, fill: "var(--bs-danger)" },
+    { name: "Irrigação", value: irrigationCost, fill: "var(--bs-info)" },
+    { name: "Serviços Mecanizados", value: landPreparationCost, fill: "var(--bs-warning)" },
+    { name: "Mão de Obra", value: laborCost, fill: "var(--bs-secondary)" },
   ].filter(item => item.value > 0);
 
   const seedItems = inventoryItems.filter((item) => item.categoria === "semente" || (!item.especie_animal && item.categoria === "outro"));
   const nutritionItems = inventoryItems.filter((item) =>
-    ["fertilizante", "foliar", "corretivo", "material", "outro"].includes(item.categoria || "") || (!item.especie_animal && item.categoria !== "defensivo")
+    ["fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
+    (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar" && item.categoria !== "fertirrigacao")
   );
   const fertilizerItems = nutritionItems;
-  const fertigationItems = nutritionItems;
-  const pesticideItems = inventoryItems.filter((item) => item.categoria === "defensivo" || (!item.especie_animal && item.categoria === "outro"));
+  const fertigationItems = inventoryItems.filter((item) =>
+    ["fertirrigacao", "fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
+    (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar")
+  );
+  const pesticideItems = inventoryItems.filter((item) =>
+    ["defensivo", "foliar"].includes(item.categoria || "") ||
+    (!item.especie_animal && item.categoria === "outro")
+  );
   const activeAgronomistAlerts = agronomistRecommendations.filter((recommendation) => recommendation.status !== "completed");
 
   return (
@@ -1003,7 +1044,7 @@ export default function PlantacaoDetailPage() {
             },
             {
               number: 6,
-              label: "Foliar & Defensivos",
+              label: "Foliares / Defensivos",
               desc: "Produtos, doses, volume e custo",
               stage: shortcutStages.foliarDefensivos,
               status: "pending" as ShortcutStatus,
@@ -1079,7 +1120,7 @@ export default function PlantacaoDetailPage() {
           <MetricCard icon={<Clock size={14} />} label="Dias Restantes" value={plantation.days_remaining != null ? `${plantation.days_remaining} dias` : "-"} variant="warning" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Investimento" value={money(plantation.investment_total)} variant="danger" />
+          <MetricCard icon={<DollarSign size={14} />} label="Investimento" value={money(investmentTotal)} variant="danger" />
         </div>
         <div className="col-md-3 col-6">
           <MetricCard icon={<Ruler size={14} />} label="Área Plantada" value={plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"} variant="info" />
@@ -1295,7 +1336,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {plantioLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total das sementes: {money(plantioLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
+            <strong className="text-success">Valor total das sementes: {money(plantioLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data do Plantio</label>
@@ -1374,7 +1415,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {adubacaoLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total da adubação: {money(adubacaoLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
+            <strong className="text-success">Valor total da adubação: {money(adubacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1451,7 +1492,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {fertirrigacaoLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total da fertirrigação: {money(fertirrigacaoLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
+            <strong className="text-success">Valor total da fertirrigação: {money(fertirrigacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1469,20 +1510,20 @@ export default function PlantacaoDetailPage() {
         </div>
       </Modal>
 
-      {/* Modal: Novo Defensivo */}
-      <Modal isOpen={showDefensivo} onClose={() => setShowDefensivo(false)} title="Registrar Defensivo"
+      {/* Modal: Novo Foliar / Defensivo */}
+      <Modal isOpen={showDefensivo} onClose={() => setShowDefensivo(false)} title="Registrar Foliar / Defensivo"
         footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowDefensivo(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingDefensivo}>Salvar rascunho</Button><Button onClick={handleCreateDefensivo} disabled={savingDefensivo}>{savingDefensivo ? "Salvando..." : "Salvar aplicação"}</Button></div>}
       >
         <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
-            <strong className="small text-success">Defensivos da aplicação</strong>
+            <strong className="small text-success">Foliares e defensivos da aplicação</strong>
             <Button variant="outline-success" size="sm" onClick={() => setDefensivoLines((prev) => [...prev, { ...emptyDefensivoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0 agro-table">
               <thead>
                 <tr>
-                  <th>Insumo</th>
+                  <th>Produto</th>
                   <th style={{ minWidth: 160 }}>Tipo</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
                   <th style={{ minWidth: 120 }}>Unidade</th>
@@ -1496,7 +1537,7 @@ export default function PlantacaoDetailPage() {
                   <tr key={index}>
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handleDefensivoLineItemChange(index, e.target.value)}>
-                        <option value="">Selecione um insumo...</option>
+                        <option value="">Selecione um foliar ou defensivo...</option>
                         {pesticideItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
@@ -1530,11 +1571,11 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
           {pesticideItems.length === 0 && (
-            <small className="text-muted">Nenhum defensivo cadastrado no estoque.</small>
+            <small className="text-muted">Nenhum foliar ou defensivo cadastrado no estoque.</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {defensivoLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total da aplicação: {money(defensivoLines.reduce((sum, line) => sum + Number(line.total_price || 0), 0))}</strong>
+            <strong className="text-success">Valor total da aplicação: {money(defensivoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1595,7 +1636,7 @@ export default function PlantacaoDetailPage() {
                             const qty = e.target.value;
                             setDefensivoEquipments((prev) => prev.map((item, i) => {
                               if (i !== index) return item;
-                              const total = qty && item.unit_price ? String(parseFloat(qty) * parseFloat(item.unit_price)) : "";
+                              const total = qty && item.unit_price ? String(numericValue(qty) * numericValue(item.unit_price)) : "";
                               return { ...item, quantity: qty, total_price: total };
                             }));
                           }} />
@@ -1608,7 +1649,7 @@ export default function PlantacaoDetailPage() {
                               const price = e.target.value;
                               setDefensivoEquipments((prev) => prev.map((item, i) => {
                                 if (i !== index) return item;
-                                const total = price && item.quantity ? String(parseFloat(price) * parseFloat(item.quantity)) : "";
+                                const total = price && item.quantity ? String(numericValue(price) * numericValue(item.quantity)) : "";
                                 return { ...item, unit_price: price, total_price: total };
                               }));
                             }} />
@@ -1632,7 +1673,7 @@ export default function PlantacaoDetailPage() {
             </div>
             <div className="d-flex justify-content-end align-items-center px-3 py-2 border-top" style={{ background: "rgba(16, 185, 129, 0.04)" }}>
               <span className="text-muted small me-3">Custo da aplicação (soma dos equipamentos):</span>
-              <strong className="text-success">{money(defensivoEquipments.reduce((sum, eq) => sum + Number(eq.total_price || 0), 0))}</strong>
+              <strong className="text-success">{money(defensivoEquipments.reduce((sum, eq) => sum + numericValue(eq.total_price), 0))}</strong>
             </div>
           </div>
         </div>
