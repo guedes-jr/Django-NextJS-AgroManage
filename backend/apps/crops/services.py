@@ -32,6 +32,50 @@ def update_plantation(serializer, request):
 # ── Shared helpers for operation services ─────────────────────────────────
 
 
+def _ensure_stock_lot_and_prices(instance):
+    """Attach an available stock lot and derive missing prices from its cost."""
+    if not getattr(instance, "item_id", None):
+        return instance
+
+    lot = getattr(instance, "lot", None)
+    lot_changed = False
+    unit_price_changed = False
+    total_price_changed = False
+    if not lot:
+        lot = (
+            instance.item.lotes.filter(ativo=True, quantidade_atual__gt=0, custo_unitario__gt=0)
+            .order_by("data_validade", "created_at")
+            .first()
+            or instance.item.lotes.filter(ativo=True, quantidade_atual__gt=0)
+            .order_by("data_validade", "created_at")
+            .first()
+        )
+        if lot:
+            instance.lot = lot
+            lot_changed = True
+
+    if lot and (not instance.unit_price or instance.unit_price <= 0):
+        instance.unit_price = lot.custo_unitario or Decimal("0")
+        unit_price_changed = True
+
+    if instance.unit_price and instance.unit_price > 0 and (
+        not instance.total_price or instance.total_price <= 0
+    ):
+        instance.total_price = (instance.quantity * instance.unit_price).quantize(Decimal("0.01"))
+        total_price_changed = True
+
+    update_fields = []
+    if lot_changed:
+        update_fields.append("lot")
+    if unit_price_changed:
+        update_fields.append("unit_price")
+    if total_price_changed:
+        update_fields.append("total_price")
+    if update_fields:
+        instance.save(update_fields=list(dict.fromkeys(update_fields + ["updated_at"])))
+    return instance
+
+
 def _create_stock_movement(instance, request, description):
     """Create a stock outflow movement (CONSUMO) for any crop operation."""
     from apps.inventory.choices import TipoMovimentacao
@@ -88,6 +132,7 @@ def _create_financial_transaction(instance, request, category_name, reference_pr
 
 def _process_operation(instance, request, category_name, reference_prefix):
     """Shared: create stock movement + financial transaction for an operation."""
+    instance = _ensure_stock_lot_and_prices(instance)
     item_nome = instance.item.nome if hasattr(instance.item, "nome") else str(instance.item)
     date_str = str(getattr(instance, "application_date", None) or getattr(instance, "planting_date", ""))
     desc = f"{category_name}: {instance.plantation} — {item_nome} ({date_str})"

@@ -59,10 +59,25 @@ type Movimentacao = {
   responsavel_nome: string;
   destino?: string;
   observacao: string;
+  custo_unitario_movimento?: string | number | null;
+  custo_total?: string | number | null;
   lote?: { id: string; numero_lote: string };
 };
 
 const OUT_MOVEMENT_TYPES = new Set(["saida", "consumo", "venda", "perda", "vencimento"]);
+
+function numericValue(value: string | number | null | undefined) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  const trimmed = String(value).trim();
+  const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function money(value: string | number | null | undefined) {
+  return numericValue(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
 function getDestinationBadgeConfig(destination?: string | null) {
   const normalized = (destination || "").toLowerCase();
@@ -495,6 +510,7 @@ export function MovimentacoesDashboard() {
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">VALOR</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DESTINO</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DATA</th>
                       <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
@@ -502,7 +518,7 @@ export function MovimentacoesDashboard() {
                   </thead>
                   <tbody>
                     {movements.length === 0 ? (
-                      <tr><td colSpan={7} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
+                      <tr><td colSpan={8} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
                     ) : (
                       movements.map(m => (
                         <tr key={m.id} className="border-bottom border-border/50">
@@ -544,6 +560,10 @@ export function MovimentacoesDashboard() {
                             </div>
                           </td>
                           <td className="px-3 py-3 fw-black">{parseFloat(m.quantidade).toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-3">
+                            <div className="fw-bold text-foreground">{money(m.custo_total)}</div>
+                            <div className="small text-muted-foreground">{money(m.custo_unitario_movimento)} / un.</div>
+                          </td>
                           <td className="px-3 py-3">
                             {OUT_MOVEMENT_TYPES.has(m.tipo) ? <DestinationBadge destination={m.destino} /> : <span className="small text-muted-foreground">-</span>}
                           </td>

@@ -266,6 +266,8 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     item_nome = serializers.CharField(source="item.nome", read_only=True)
     tipo_display = serializers.CharField(source="get_tipo_display", read_only=True)
     responsavel_nome = serializers.SerializerMethodField()
+    custo_unitario_movimento = serializers.SerializerMethodField()
+    custo_total = serializers.SerializerMethodField()
 
     def get_responsavel_nome(self, obj):
         try:
@@ -276,6 +278,21 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
             return obj.responsavel.email or "Usuário"
         except Exception:
             return "Usuário"
+
+    def get_custo_unitario_movimento(self, obj):
+        return str(self._movement_unit_cost(obj))
+
+    def _movement_unit_cost(self, obj):
+        if obj.lote and obj.lote.custo_unitario is not None:
+            return obj.lote.custo_unitario
+        average_cost = obj.item.custo_medio
+        if average_cost:
+            return average_cost
+        last_lot = obj.item.lotes.filter(custo_unitario__gt=0).order_by("-created_at").first()
+        return last_lot.custo_unitario if last_lot else average_cost
+
+    def get_custo_total(self, obj):
+        return str(obj.quantidade * self._movement_unit_cost(obj))
 
     # Write-only fields for creating a new batch during purchase
     custo_unitario = serializers.DecimalField(
@@ -297,7 +314,9 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
             "tipo", "tipo_display", "quantidade",
             "data_movimentacao",
             "responsavel", "responsavel_nome",
-            "destino", "observacao", "created_at",
+            "destino", "observacao",
+            "custo_unitario_movimento", "custo_total",
+            "created_at",
             # Write-only batch fields
             "custo_unitario", "fornecedor", "numero_lote",
             "data_validade", "data_fabricacao", "local_armazenamento", "nota_fiscal",

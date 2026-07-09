@@ -30,6 +30,7 @@ type InventoryItem = {
 
 type ApplicationLine = {
   item: string;
+  lot: string;
   pesticide_type?: string;
   quantity: string;
   unit: string;
@@ -163,6 +164,7 @@ const configByKind = {
 
 const emptyLine = (kind: OperationKind): ApplicationLine => ({
   item: "",
+  lot: "",
   pesticide_type: kind === "defensivos" ? "insecticide" : undefined,
   quantity: "",
   unit: "",
@@ -339,10 +341,15 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
   const irrigationEnergyCost = irrigationEnergyKwh * numericValue(irrigationForm.kwh_value);
   const irrigationWaterLiters = numericValue(selectedPump?.flow_rate_l_per_h) * irrigationHoursTotal;
 
-  const getStockPrice = async (itemId: string) => {
-    const { data: lots } = await apiClient.get<{ custo_unitário: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
-    const activeLot = lots.find((lot) => numericValue(lot.custo_unitário) > 0);
-    return activeLot?.custo_unitário ? String(numericValue(activeLot.custo_unitário)) : "";
+  const getStockLot = async (itemId: string) => {
+    const { data: lots } = await apiClient.get<{ id: string; custo_unitario?: string | null; custo_unitário?: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
+    const availableLots = lots.filter((lot) => numericValue(lot.quantidade_atual) > 0);
+    const lotCost = (lot: { custo_unitario?: string | null; custo_unitário?: string | null }) => lot.custo_unitario ?? lot.custo_unitário;
+    const activeLot = availableLots.find((lot) => numericValue(lotCost(lot)) > 0) || availableLots[0];
+    return {
+      lot: activeLot?.id || "",
+      unitPrice: activeLot ? String(numericValue(lotCost(activeLot))) : "",
+    };
   };
 
   const updateLine = (index: number, patch: Partial<ApplicationLine>) => {
@@ -373,14 +380,14 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
   const handleItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((item) => item.id === itemId);
     if (!selectedItem) {
-      updateLine(index, { item: "", unit: "", unit_price: "", total_price: "" });
+      updateLine(index, { item: "", lot: "", unit: "", unit_price: "", total_price: "" });
       return;
     }
     try {
-      const unitPrice = await getStockPrice(itemId);
-      updateLine(index, { item: itemId, unit: selectedItem.unidade_medida || "", unit_price: unitPrice });
+      const { lot, unitPrice } = await getStockLot(itemId);
+      updateLine(index, { item: itemId, lot, unit: selectedItem.unidade_medida || "", unit_price: unitPrice });
     } catch {
-      updateLine(index, { item: itemId, unit: selectedItem.unidade_medida || "" });
+      updateLine(index, { item: itemId, lot: "", unit: selectedItem.unidade_medida || "" });
     }
   };
 
@@ -394,6 +401,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
         const basePayload = {
           plantation: plantation.id,
           item: line.item,
+          lot: line.lot || null,
           quantity: line.quantity,
           unit: line.unit,
           unit_price: line.unit_price || null,

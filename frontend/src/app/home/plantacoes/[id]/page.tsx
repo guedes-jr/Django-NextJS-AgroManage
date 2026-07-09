@@ -107,6 +107,7 @@ type InventoryItem = {
 };
 type ApplicationLine = {
   item: string;
+  lot: string;
   pesticide_type?: string;
   quantity: string;
   unit: string;
@@ -140,11 +141,12 @@ const recommendationStatusVariant = (status: AgronomistRecommendation["status"])
   return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
 };
 
-const emptyAdubacaoLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
-const emptyPlantioLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
-const emptyFertirrigacaoLine: ApplicationLine = { item: "", quantity: "", unit: "", unit_price: "", total_price: "" };
+const emptyAdubacaoLine: ApplicationLine = { item: "", lot: "", quantity: "", unit: "", unit_price: "", total_price: "" };
+const emptyPlantioLine: ApplicationLine = { item: "", lot: "", quantity: "", unit: "", unit_price: "", total_price: "" };
+const emptyFertirrigacaoLine: ApplicationLine = { item: "", lot: "", quantity: "", unit: "", unit_price: "", total_price: "" };
 const emptyDefensivoLine: ApplicationLine = {
   item: "",
+  lot: "",
   pesticide_type: "insecticide",
   quantity: "",
   unit: "",
@@ -218,7 +220,7 @@ const calculateLineTotal = (quantity: string, unitPrice: string) => {
 };
 
 const shortcutStages = {
-  estrutura: { image: "/images/crops/sector-structure.png", color: "oklch(0.62 0.12 70)" },
+  estrutura: { image: "/images/crops/sector-structure-photo.png", color: "oklch(0.62 0.12 70)" },
   preparo: { image: "/images/crops/land-preparation.svg", color: "oklch(0.7 0.18 85)" },
   plantio: { image: "/images/crops/seed.svg", color: "oklch(0.66 0.16 70)" },
   adubacao: { image: "/images/crops/base-fertilization.svg", color: "oklch(0.62 0.17 145)" },
@@ -312,7 +314,23 @@ const shortcutStatusConfig: Record<ShortcutStatus, { label: string; color: strin
   },
 };
 
-function ShortcutCard({ number, image, label, desc, status, onClick }: { number: number; image: string; label: string; desc: string; status: ShortcutStatus; onClick: () => void }) {
+function ShortcutCard({
+  number,
+  image,
+  label,
+  desc,
+  status,
+  onClick,
+  featuredImage = false,
+}: {
+  number: number;
+  image: string;
+  label: string;
+  desc: string;
+  status: ShortcutStatus;
+  onClick: () => void;
+  featuredImage?: boolean;
+}) {
   const statusConfig = shortcutStatusConfig[status];
 
   return (
@@ -320,18 +338,38 @@ function ShortcutCard({ number, image, label, desc, status, onClick }: { number:
       type="button"
       className="dashboard-card p-0 w-100 h-100 text-start border-0 overflow-hidden"
       onClick={onClick}
-      style={{ cursor: "pointer", borderRadius: 12, minHeight: 214 }}
+      style={{ cursor: "pointer", borderRadius: 12, minHeight: featuredImage ? 256 : 214 }}
     >
       <div className="d-flex flex-column h-100">
         <div
           className="position-relative d-flex align-items-center justify-content-center w-100"
           style={{
-            height: 104,
-            background: "linear-gradient(180deg, var(--bs-body-bg) 0%, color-mix(in srgb, var(--bs-body-bg), var(--primary) 4%) 100%)",
+            height: featuredImage ? 152 : 104,
+            background: featuredImage
+              ? "oklch(0.18 0.04 150)"
+              : "linear-gradient(180deg, var(--bs-body-bg) 0%, color-mix(in srgb, var(--bs-body-bg), var(--primary) 4%) 100%)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 25vw" style={{ objectFit: "contain", padding: 4 }} />
+          <Image
+            src={image}
+            alt=""
+            fill
+            sizes="(max-width: 768px) 100vw, 25vw"
+            priority={featuredImage}
+            style={{
+              objectFit: featuredImage ? "cover" : "contain",
+              padding: featuredImage ? 0 : 4,
+            }}
+          />
+          {featuredImage && (
+            <div
+              className="position-absolute top-0 start-0 w-100 h-100"
+              style={{
+                background: "linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.3) 100%)",
+              }}
+            />
+          )}
         </div>
         <div className="d-flex flex-column flex-grow-1 p-2">
           <div className="min-w-0 flex-grow-1">
@@ -547,10 +585,15 @@ export default function PlantacaoDetailPage() {
     }
   };
 
-  const getStockPrice = async (itemId: string) => {
-    const { data: lots } = await apiClient.get<{ custo_unitario: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
-    const activeLot = lots.find((l) => numericValue(l.custo_unitario) > 0);
-    return activeLot?.custo_unitario ? String(numericValue(activeLot.custo_unitario)) : "";
+  const getStockLot = async (itemId: string) => {
+    const { data: lots } = await apiClient.get<{ id: string; custo_unitario?: string | null; custo_unitário?: string | null; quantidade_atual: string }[]>(`/inventory/items/${itemId}/lots/`);
+    const availableLots = lots.filter((l) => numericValue(l.quantidade_atual) > 0);
+    const lotCost = (lot: { custo_unitario?: string | null; custo_unitário?: string | null }) => lot.custo_unitario ?? lot.custo_unitário;
+    const activeLot = availableLots.find((l) => numericValue(lotCost(l)) > 0) || availableLots[0];
+    return {
+      lot: activeLot?.id || "",
+      unitPrice: activeLot ? String(numericValue(lotCost(activeLot))) : "",
+    };
   };
 
   const updateApplicationLine = (
@@ -585,15 +628,15 @@ export default function PlantacaoDetailPage() {
   const handleAdubacaoLineItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((i) => i.id === itemId);
     if (!selectedItem) {
-      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
+      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: "", lot: "", unit: "", unit_price: "", total_price: "" }));
       return;
     }
     const newUnit = selectedItem.unidade_medida || "";
     try {
-      const unitPrice = await getStockPrice(itemId);
-      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
+      const { lot, unitPrice } = await getStockLot(itemId);
+      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot, unit: newUnit, unit_price: unitPrice }));
     } catch {
-      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
+      setAdubacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot: "", unit: newUnit }));
     }
   };
 
@@ -605,6 +648,7 @@ export default function PlantacaoDetailPage() {
       await Promise.all(validLines.map((line) => cropService.createFertilization({
         plantation: plantation.id,
         item: line.item,
+        lot: line.lot || null,
         quantity: line.quantity,
         unit: line.unit,
         unit_price: line.unit_price || null,
@@ -625,15 +669,15 @@ export default function PlantacaoDetailPage() {
   const handleFertirrigacaoLineItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((i) => i.id === itemId);
     if (!selectedItem) {
-      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
+      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: "", lot: "", unit: "", unit_price: "", total_price: "" }));
       return;
     }
     const newUnit = selectedItem.unidade_medida || "";
     try {
-      const unitPrice = await getStockPrice(itemId);
-      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
+      const { lot, unitPrice } = await getStockLot(itemId);
+      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot, unit: newUnit, unit_price: unitPrice }));
     } catch {
-      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
+      setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot: "", unit: newUnit }));
     }
   };
 
@@ -645,6 +689,7 @@ export default function PlantacaoDetailPage() {
       await Promise.all(validLines.map((line) => cropService.createFertigation({
         plantation: plantation.id,
         item: line.item,
+        lot: line.lot || null,
         quantity: line.quantity,
         unit: line.unit,
         unit_price: line.unit_price || null,
@@ -665,15 +710,15 @@ export default function PlantacaoDetailPage() {
   const handleDefensivoLineItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((i) => i.id === itemId);
     if (!selectedItem) {
-      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
+      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: "", lot: "", unit: "", unit_price: "", total_price: "" }));
       return;
     }
     const newUnit = selectedItem.unidade_medida || "";
     try {
-      const unitPrice = await getStockPrice(itemId);
-      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
+      const { lot, unitPrice } = await getStockLot(itemId);
+      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot, unit: newUnit, unit_price: unitPrice }));
     } catch {
-      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
+      setDefensivoLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot: "", unit: newUnit }));
     }
   };
 
@@ -686,6 +731,7 @@ export default function PlantacaoDetailPage() {
       await Promise.all(validLines.map((line) => cropService.createPesticideApplication({
         plantation: plantation.id,
         item: line.item,
+        lot: line.lot || null,
         pesticide_type: line.pesticide_type || "other",
         quantity: line.quantity,
         unit: line.unit,
@@ -760,15 +806,15 @@ export default function PlantacaoDetailPage() {
   const handlePlantioLineItemChange = async (index: number, itemId: string) => {
     const selectedItem = inventoryItems.find((i) => i.id === itemId);
     if (!selectedItem) {
-      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: "", unit: "", unit_price: "", total_price: "" }));
+      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: "", lot: "", unit: "", unit_price: "", total_price: "" }));
       return;
     }
     const newUnit = selectedItem.unidade_medida || "";
     try {
-      const unitPrice = await getStockPrice(itemId);
-      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit, unit_price: unitPrice }));
+      const { lot, unitPrice } = await getStockLot(itemId);
+      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot, unit: newUnit, unit_price: unitPrice }));
     } catch {
-      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: itemId, unit: newUnit }));
+      setPlantioLines((prev) => updateApplicationLine(prev, index, { item: itemId, lot: "", unit: newUnit }));
     }
   };
 
@@ -780,6 +826,7 @@ export default function PlantacaoDetailPage() {
       await Promise.all(validLines.map((line) => cropService.createPlanting({
         plantation: plantation.id,
         item: line.item,
+        lot: line.lot || null,
         quantity: line.quantity,
         unit: line.unit,
         unit_price: line.unit_price || null,
@@ -1005,6 +1052,7 @@ export default function PlantacaoDetailPage() {
               status: "completed" as ShortcutStatus,
               onClick: () => undefined,
               wide: false,
+              featuredImage: true,
             },
             {
               number: 2,
@@ -1105,6 +1153,7 @@ export default function PlantacaoDetailPage() {
                 desc={shortcut.desc}
                 status={shortcut.status}
                 onClick={shortcut.onClick}
+                featuredImage={shortcut.featuredImage}
               />
             </div>
           ))}
