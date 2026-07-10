@@ -64,6 +64,9 @@ export const cropService = {
   createPesticideApplication: (data: Record<string, unknown>) =>
     apiClient.post("/crops/pesticides/", data),
 
+  bulkCreatePesticideApplications: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/pesticides/bulk-create/", data),
+
   // ── Irrigations ────────────────────────────────────────
   listIrrigations: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/irrigations/", { params }),

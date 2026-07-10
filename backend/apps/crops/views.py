@@ -1,7 +1,8 @@
 """
 ViewSets for the crops app.
 """
-from rest_framework import viewsets, permissions, serializers
+from django.db import transaction
+from rest_framework import viewsets, permissions, serializers, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
@@ -256,6 +257,28 @@ class PesticideApplicationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         create_pesticide_application(serializer, self.request)
+
+    @action(detail=False, methods=["post"], url_path="bulk-create")
+    def bulk_create(self, request):
+        applications = request.data.get("applications") if isinstance(request.data, dict) else request.data
+        if not isinstance(applications, list) or not applications:
+            raise serializers.ValidationError({"applications": "Informe ao menos uma aplicação."})
+
+        serializers_to_save = []
+        for index, application_data in enumerate(applications, start=1):
+            serializer = self.get_serializer(data=application_data)
+            try:
+                serializer.is_valid(raise_exception=True)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError({f"aplicacao_{index}": exc.detail})
+            serializers_to_save.append(serializer)
+
+        created = []
+        with transaction.atomic():
+            for serializer in serializers_to_save:
+                created.append(create_pesticide_application(serializer, request))
+
+        return Response(self.get_serializer(created, many=True).data, status=status.HTTP_201_CREATED)
 
 
 class IrrigationViewSet(viewsets.ModelViewSet):

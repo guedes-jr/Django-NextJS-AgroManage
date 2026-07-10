@@ -219,12 +219,38 @@ const calculateLineTotal = (quantity: string, unitPrice: string) => {
   return q && p ? String(q * p) : "";
 };
 
+const stringifyApiError = (value: unknown): string => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(stringifyApiError).filter(Boolean).join("; ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => {
+        const message = stringifyApiError(entry);
+        return message ? `${key}: ${message}` : "";
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  return String(value);
+};
+
+const getErrorMessage = (error: unknown) => {
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response;
+    const apiMessage = stringifyApiError(response?.data);
+    if (apiMessage) return apiMessage;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Erro ao salvar o lançamento. Verifique os dados informados.";
+};
+
 const shortcutStages = {
-  estrutura: { image: "/images/crops/sector-structure-photo.png", color: "oklch(0.62 0.12 70)" },
-  preparo: { image: "/images/crops/land-preparation.svg", color: "oklch(0.7 0.18 85)" },
-  plantio: { image: "/images/crops/seed.svg", color: "oklch(0.66 0.16 70)" },
-  adubacao: { image: "/images/crops/base-fertilization.svg", color: "oklch(0.62 0.17 145)" },
-  fertirrigacao: { image: "/images/crops/fertigation.png", color: "oklch(0.6 0.16 220)" },
+  estrutura: { image: "/images/crops/sector-structure-wide.png", color: "oklch(0.62 0.12 70)" },
+  preparo: { image: "/images/crops/mechanized-services-wide.png", color: "oklch(0.7 0.18 85)" },
+  plantio: { image: "/images/crops/seeds-seedlings-wide.png", color: "oklch(0.66 0.16 70)" },
+  adubacao: { image: "/images/crops/base-fertilization-wide.png", color: "oklch(0.62 0.17 145)" },
+  fertirrigacao: { image: "/images/crops/fertigation-wide.png", color: "oklch(0.6 0.16 220)" },
   foliarDefensivos: { image: "/images/crops/foliar-fertilization.png", color: "oklch(0.58 0.16 145)" },
   defensivos: { image: "/images/crops/pesticides.png", color: "oklch(0.65 0.18 290)" },
   irrigacao: { image: "/images/crops/irrigation.png", color: "oklch(0.62 0.17 190)" },
@@ -725,35 +751,40 @@ export default function PlantacaoDetailPage() {
   const handleCreateDefensivo = async () => {
     const validLines = defensivoLines.filter((line) => line.item && line.quantity);
     if (!plantation || validLines.length === 0) return;
-    const validEquipments = defensivoEquipments.filter((eq) => eq.equipment);
+    const validEquipments = defensivoEquipments.filter((eq) => eq.equipment.trim());
     try {
       setSavingDefensivo(true);
-      await Promise.all(validLines.map((line) => cropService.createPesticideApplication({
-        plantation: plantation.id,
-        item: line.item,
-        lot: line.lot || null,
-        pesticide_type: line.pesticide_type || "other",
-        quantity: line.quantity,
-        unit: line.unit,
-        unit_price: line.unit_price || null,
-        total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
-        application_date: defensivoForm.application_date,
-        operator: defensivoForm.operator,
-        notes: defensivoForm.notes,
-        equipments: validEquipments.map((eq) => ({
-          equipment: eq.equipment,
-          quantity: eq.quantity ? numericValue(eq.quantity) : null,
-          unit_price: eq.unit_price ? numericValue(eq.unit_price) : null,
-          total_price: eq.total_price ? numericValue(eq.total_price) : null,
+      await cropService.bulkCreatePesticideApplications({
+        applications: validLines.map((line) => ({
+          plantation: plantation.id,
+          item: line.item,
+          lot: line.lot || null,
+          pesticide_type: line.pesticide_type || "other",
+          quantity: line.quantity,
+          unit: line.unit,
+          unit_price: line.unit_price || null,
+          total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+          application_date: defensivoForm.application_date,
+          operator: defensivoForm.operator,
+          notes: defensivoForm.notes,
+          equipments: validEquipments.map((eq) => ({
+            equipment: eq.equipment.trim(),
+            quantity: eq.quantity ? numericValue(eq.quantity) : null,
+            unit_price: eq.unit_price ? numericValue(eq.unit_price) : null,
+            total_price: eq.total_price ? numericValue(eq.total_price) : null,
+          })),
         })),
-      })));
+      });
       setShowDefensivo(false);
       setDefensivoForm({ application_date: "", operator: "", notes: "" });
       setDefensivoLines([{ ...emptyDefensivoLine }]);
       setDefensivoEquipments([{ equipment: "", quantity: "", unit_price: "", total_price: "" }]);
       const { data: r } = await cropService.listPesticideApplications({ plantation: plantation.id });
       setPesticides(Array.isArray(r?.results) ? r.results : []);
-    } catch { console.error("Failed to create pesticide application"); }
+    } catch (error) {
+      console.error("Failed to create pesticide application", error);
+      alert(getErrorMessage(error));
+    }
     finally { setSavingDefensivo(false); }
   };
 
@@ -1062,6 +1093,7 @@ export default function PlantacaoDetailPage() {
               status: "completed" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/preparo-terra`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 3,
@@ -1071,6 +1103,7 @@ export default function PlantacaoDetailPage() {
               status: "completed" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/adubacao`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 4,
@@ -1080,6 +1113,7 @@ export default function PlantacaoDetailPage() {
               status: "in_progress" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/sementes`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 5,
@@ -1089,6 +1123,7 @@ export default function PlantacaoDetailPage() {
               status: "in_progress" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/fertirrigacao`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 6,

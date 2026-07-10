@@ -233,6 +233,32 @@ const calculateLineTotal = (quantity: string, unitPrice: string) => {
   return q && p ? String(q * p) : "";
 };
 
+const stringifyApiError = (value: unknown): string => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(stringifyApiError).filter(Boolean).join("; ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => {
+        const message = stringifyApiError(entry);
+        return message ? `${key}: ${message}` : "";
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  return String(value);
+};
+
+const getErrorMessage = (error: unknown) => {
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response;
+    const apiMessage = stringifyApiError(response?.data);
+    if (apiMessage) return apiMessage;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Erro ao salvar o lançamento. Verifique os dados informados.";
+};
+
 export function CropOperationPage({ kind }: { kind: OperationKind }) {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -397,41 +423,57 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
 
     try {
       setSaving(true);
-      await Promise.all(validLines.map((line) => {
-        const basePayload = {
-          plantation: plantation.id,
-          item: line.item,
-          lot: line.lot || null,
-          quantity: line.quantity,
-          unit: line.unit,
-          unit_price: line.unit_price || null,
-          total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
-          operator: form.operator,
-          notes: form.notes,
-        };
-
-        if (kind === "plantio") {
-          return cropService.createPlanting({ ...basePayload, planting_date: form.date });
-        }
-        if (kind === "adubacao") {
-          return cropService.createFertilization({ ...basePayload, application_date: form.date });
-        }
-        if (kind === "fertirrigacao") {
-          return cropService.createFertigation({ ...basePayload, application_date: form.date });
-        }
-        const validEquipments = equipments.filter((equipment) => equipment.equipment);
-        return cropService.createPesticideApplication({
-          ...basePayload,
-          pesticide_type: line.pesticide_type || "other",
-          application_date: form.date,
-          equipments: validEquipments.map((equipment) => ({
-            equipment: equipment.equipment,
-            quantity: equipment.quantity ? numericValue(equipment.quantity) : null,
-            unit_price: equipment.unit_price ? numericValue(equipment.unit_price) : null,
-            total_price: equipment.total_price ? numericValue(equipment.total_price) : null,
+      if (kind === "defensivos") {
+        const validEquipments = equipments.filter((equipment) => equipment.equipment.trim());
+        await cropService.bulkCreatePesticideApplications({
+          applications: validLines.map((line) => ({
+            plantation: plantation.id,
+            item: line.item,
+            lot: line.lot || null,
+            quantity: line.quantity,
+            unit: line.unit,
+            unit_price: line.unit_price || null,
+            total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+            operator: form.operator,
+            notes: form.notes,
+            pesticide_type: line.pesticide_type || "other",
+            application_date: form.date,
+            equipments: validEquipments.map((equipment) => ({
+              equipment: equipment.equipment.trim(),
+              quantity: equipment.quantity ? numericValue(equipment.quantity) : null,
+              unit_price: equipment.unit_price ? numericValue(equipment.unit_price) : null,
+              total_price: equipment.total_price ? numericValue(equipment.total_price) : null,
+            })),
           })),
         });
-      }));
+      } else {
+        for (const line of validLines) {
+          const basePayload = {
+            plantation: plantation.id,
+            item: line.item,
+            lot: line.lot || null,
+            quantity: line.quantity,
+            unit: line.unit,
+            unit_price: line.unit_price || null,
+            total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+            operator: form.operator,
+            notes: form.notes,
+          };
+
+          if (kind === "plantio") {
+            await cropService.createPlanting({ ...basePayload, planting_date: form.date });
+            continue;
+          }
+          if (kind === "adubacao") {
+            await cropService.createFertilization({ ...basePayload, application_date: form.date });
+            continue;
+          }
+          if (kind === "fertirrigacao") {
+            await cropService.createFertigation({ ...basePayload, application_date: form.date });
+            continue;
+          }
+        }
+      }
 
       if (conclude) {
         router.push(`/home/plantacoes/${id}`);
@@ -444,7 +486,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       setEquipments([{ equipment: "", quantity: "", unit_price: "", total_price: "" }]);
     } catch (error) {
       console.error("Erro ao salvar lançamento", error);
-      alert("Erro ao salvar o lançamento. Verifique os dados informados.");
+      alert(getErrorMessage(error));
     } finally {
       setSaving(false);
     }

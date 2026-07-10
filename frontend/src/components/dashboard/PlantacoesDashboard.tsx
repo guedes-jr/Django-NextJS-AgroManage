@@ -6,25 +6,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
 import { cropService } from "@/services/cropService";
-import type { Plantation, PlantationStatus } from "@/types";
+import type { Plantation } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { Badge } from "@/components/ui/Badge";
-
-const statusColors: Record<PlantationStatus, string> = {
-  planned: "#6b7280",
-  planting: "#f59e0b",
-  growing: "#10b981",
-  management: "#3b82f6",
-  harvesting: "#8b5cf6",
-  finished: "#059669",
-  cancelled: "#ef4444",
-};
-
-const statusLabels: Record<string, string> = {
-  planned: "Planejado", planting: "Plantando", growing: "Crescendo",
-  management: "Manejo", harvesting: "Colhendo", finished: "Concluído", cancelled: "Cancelado",
-};
 
 type FieldOption = { id: string; name: string; farm_name: string; area_ha?: string | number | null };
 type FarmOption = { id: string; name: string; city?: string; state?: string };
@@ -522,18 +506,6 @@ export default function PlantacoesDashboard() {
     return matched?.visual || { image: "/images/crops/cultures/soybean.png", icon: <Sprout size={18} />, color: "oklch(0.58 0.16 145)" };
   };
 
-  const getPlantationPhase = (plantation: Plantation) => {
-    const days = plantation.days_in_cultivation ?? 0;
-    if (plantation.status === "planned") return { title: "Planejada", days: "Aguardando plantio" };
-    if (plantation.status === "planting") return { title: "V1 - Implantação", days: `${days || 1} dias` };
-    if (plantation.status === "harvesting") return { title: "R6 - Colheita", days: `${days || 1} dias` };
-    if (plantation.status === "finished") return { title: "Finalizada", days: plantation.actual_harvest_date ? formatDate(plantation.actual_harvest_date) : "Ciclo encerrado" };
-    if (days > 80) return { title: "R6 - Vagem cheia", days: `${days} dias` };
-    if (days > 55) return { title: "R3 - Floração", days: `${days} dias` };
-    if (days > 35) return { title: "V6 - Vegetativo", days: `${days} dias` };
-    return { title: "V4 - Vegetativo", days: `${days || 1} dias` };
-  };
-
   const getNextActivity = (plantation: Plantation) => {
     if (plantation.status === "planned") return { title: "Início do plantio", date: plantation.planting_date };
     if (plantation.status === "harvesting") return { title: "Colheita em andamento", date: plantation.expected_harvest_date };
@@ -732,7 +704,7 @@ export default function PlantacoesDashboard() {
         ) : (
           <>
             <div className="table-responsive">
-              <table className="table mb-0 align-middle text-nowrap" style={{ minWidth: 980 }}>
+              <table className="table mb-0 align-middle text-nowrap" style={{ minWidth: 760 }}>
                 <thead>
                   <tr className="text-muted-foreground" style={{ fontSize: "0.68rem", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "oklch(0.99 0.005 140)" }}>
                     <th className="border-0 ps-4 py-2 fw-bold">Plantação / Cultura</th>
@@ -740,8 +712,6 @@ export default function PlantacoesDashboard() {
                     <th className="border-0 py-2 fw-bold">Área (ha)</th>
                     <th className="border-0 py-2 fw-bold">Pés / Plantas</th>
                     <th className="border-0 py-2 fw-bold">Variedade</th>
-                    <th className="border-0 py-2 fw-bold">Fase Atual</th>
-                    <th className="border-0 py-2 fw-bold">Situação</th>
                     <th className="border-0 py-2 fw-bold">Próxima Atividade</th>
                     <th className="border-0 py-2 pe-4 fw-bold text-end">Ações</th>
                   </tr>
@@ -749,7 +719,6 @@ export default function PlantacoesDashboard() {
                 <tbody>
                   {plantations.map((plantation) => {
                     const visual = getCropVisual(plantation.crop_name);
-                    const phase = getPlantationPhase(plantation);
                     const nextActivity = getNextActivity(plantation);
 
                     return (
@@ -773,18 +742,6 @@ export default function PlantacoesDashboard() {
                           <div className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>plantas</div>
                         </td>
                         <td className="text-muted-foreground fw-semibold" style={{ fontSize: "0.78rem" }}>{plantation.variety || "-"}</td>
-                        <td>
-                          <div className="d-inline-flex flex-column px-3 py-1" style={{ background: "oklch(0.96 0.025 150)", borderRadius: 7, minWidth: 120 }}>
-                            <span className="fw-bold" style={{ color: "oklch(0.42 0.14 145)", fontSize: "0.72rem" }}>{phase.title}</span>
-                            <span className="text-muted-foreground" style={{ fontSize: "0.64rem" }}>{phase.days}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <Badge style={{ background: "oklch(0.96 0.025 150)", color: "oklch(0.42 0.14 145)", fontSize: "0.68rem", fontWeight: 700, padding: "4px 9px", borderRadius: 7 }}>
-                            <span className="d-inline-block me-2 rounded-circle" style={{ width: 6, height: 6, background: statusColors[plantation.status] || "oklch(0.5 0.12 145)" }} />
-                            {plantation.status_display || statusLabels[plantation.status] || "Em andamento"}
-                          </Badge>
-                        </td>
                         <td style={{ fontSize: "0.74rem" }}>
                           <div className="fw-bold text-foreground">{nextActivity.title}</div>
                           <div className="text-muted-foreground">{formatDate(nextActivity.date)}</div>
