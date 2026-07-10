@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
 import { cropService } from "@/services/cropService";
-import type { Plantation } from "@/types";
+import type { Plantation, PlantationStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 
