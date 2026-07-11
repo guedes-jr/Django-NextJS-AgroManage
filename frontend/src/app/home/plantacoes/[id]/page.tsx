@@ -251,13 +251,13 @@ const shortcutStages = {
   plantio: { image: "/images/crops/seeds-seedlings-wide.png", color: "oklch(0.66 0.16 70)" },
   adubacao: { image: "/images/crops/base-fertilization-wide.png", color: "oklch(0.62 0.17 145)" },
   fertirrigacao: { image: "/images/crops/fertigation-wide.png", color: "oklch(0.6 0.16 220)" },
-  foliarDefensivos: { image: "/images/crops/foliar-fertilization.png", color: "oklch(0.58 0.16 145)" },
+  foliarDefensivos: { image: "/images/crops/foliar-defensives-wide.png", color: "oklch(0.58 0.16 145)" },
   defensivos: { image: "/images/crops/pesticides.png", color: "oklch(0.65 0.18 290)" },
-  irrigacao: { image: "/images/crops/irrigation.png", color: "oklch(0.62 0.17 190)" },
-  agronomo: { image: "/images/crops/agronomist.png", color: "oklch(0.54 0.14 145)" },
-  maoObra: { image: "/images/crops/labor.png", color: "oklch(0.54 0.14 145)" },
-  relatorio: { image: "/images/crops/applications.png", color: "oklch(0.58 0.16 145)" },
-  colheita: { image: "/images/crops/harvest.png", color: "oklch(0.66 0.16 82)" },
+  irrigacao: { image: "/images/crops/irrigation-wide.png", color: "oklch(0.62 0.17 190)" },
+  agronomo: { image: "/images/crops/agronomist-wide.png", color: "oklch(0.54 0.14 145)" },
+  maoObra: { image: "/images/crops/labor-wide.png", color: "oklch(0.54 0.14 145)" },
+  relatorio: { image: "/images/crops/reports-wide.png", color: "oklch(0.58 0.16 145)" },
+  colheita: { image: "/images/crops/harvest-wide.png", color: "oklch(0.66 0.16 82)" },
 };
 
 const cultureVisuals: Record<string, { image: string; color: string }> = {
@@ -1133,6 +1133,7 @@ export default function PlantacaoDetailPage() {
               status: "pending" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/defensivos`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 7,
@@ -1142,6 +1143,7 @@ export default function PlantacaoDetailPage() {
               status: "running" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/irrigacao`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 8,
@@ -1151,6 +1153,7 @@ export default function PlantacaoDetailPage() {
               status: "in_progress" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/agronomo`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 9,
@@ -1160,6 +1163,7 @@ export default function PlantacaoDetailPage() {
               status: "pending" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/mao-obra`),
               wide: false,
+              featuredImage: true,
             },
             {
               number: 10,
@@ -1169,6 +1173,7 @@ export default function PlantacaoDetailPage() {
               status: "pending" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/historico`),
               wide: true,
+              featuredImage: true,
             },
             {
               number: 11,
@@ -1178,6 +1183,7 @@ export default function PlantacaoDetailPage() {
               status: "pending" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/colheita`),
               wide: true,
+              featuredImage: true,
             },
           ].map((shortcut) => (
             <div key={shortcut.number} className="col-12 col-sm-6 col-lg-4 col-xl-3">
