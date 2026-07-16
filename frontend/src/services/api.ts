@@ -38,7 +38,7 @@ apiClient.interceptors.request.use(
     let access: string | null = null;
 
     if (typeof window !== "undefined") {
-      access = localStorage.getItem("access_token");
+      access = localStorage.getItem("support_access_token") || localStorage.getItem("access_token");
 
       const isPublicRoute = 
         config.url?.includes("/auth/login") || 
@@ -76,7 +76,7 @@ apiClient.interceptors.request.use(
           config.url = `${url}/`;
         }
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
 
@@ -102,6 +102,12 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (localStorage.getItem("support_access_token")) {
+        localStorage.removeItem("support_access_token");
+        localStorage.removeItem("support_context");
+        window.location.href = "/platform/organizations";
+        return Promise.reject(error);
+      }
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           pendingQueue.push({ resolve, reject });

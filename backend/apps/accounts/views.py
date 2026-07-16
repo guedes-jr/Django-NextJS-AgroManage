@@ -11,8 +11,6 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.organizations.models import Organization
 
-User = get_user_model()
-
 from .serializers import (
     LoginSerializer,
     UserSerializer,
@@ -22,6 +20,9 @@ from .serializers import (
     OrganizationMemberSerializer,
     CreateMemberSerializer,
 )
+from .tokens import issue_tokens_for_user
+
+User = get_user_model()
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -152,9 +153,14 @@ def login_view(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     user = serializer.validated_data["user"]
+    from apps.platform_admin.operational import active_maintenance_window
+    from common.authentication import is_active_platform_staff
+    window = active_maintenance_window()
+    if window and not is_active_platform_staff(user):
+        return Response({"detail": window.message, "code": "maintenance_mode"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     _ensure_user_organization(user)
 
-    refresh = RefreshToken.for_user(user)
+    refresh = issue_tokens_for_user(user)
 
     return Response(
         {
@@ -179,7 +185,7 @@ def register_view(request):
     user = serializer.save()
     _ensure_user_organization(user)
 
-    refresh = RefreshToken.for_user(user)
+    refresh = issue_tokens_for_user(user)
 
     return Response(
         {
@@ -236,9 +242,6 @@ def refresh_token_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
-
-from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.parsers import MultiPartParser, FormParser
 
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
@@ -356,19 +359,15 @@ def force_change_password_view(request):
     return Response({"detail": "Senha atualizada com sucesso."})
 
 
-class UserViewSet(viewsets.ModelViewSet):
-    """User CRUD (admin only)."""
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only tenant user directory; mutations use the member endpoints."""
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_serializer_class(self):
-        if self.action == "create":
-            return UserCreateSerializer
-        return UserSerializer
-
     def get_queryset(self):
-        if not self.request.user.is_staff:
+        organization = getattr(self.request.user, "organization", None)
+        if not organization:
             return User.objects.filter(id=self.request.user.id)
-        return User.objects.all()
+        return User.objects.filter(organization=organization)

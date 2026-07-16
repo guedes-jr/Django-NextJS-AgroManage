@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { SupportAccessBanner } from "@/components/platform/SupportAccessBanner";
+import { ClientAnnouncementBanner } from "@/components/platform/ClientAnnouncementBanner";
 
 export default function HomeLayout({
   children,
@@ -24,6 +26,8 @@ export default function HomeLayout({
       )}
 
       <div className="flex-grow-1 d-flex flex-column" style={{ background: "var(--background)", minWidth: 0 }}>
+        <SupportAccessBanner />
+        <ClientAnnouncementBanner />
         <TopBar onMenuClick={() => setIsSidebarOpen(true)} />
         <main className="flex-grow-1 p-3 p-lg-5 overflow-auto">
           {children}

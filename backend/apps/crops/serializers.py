@@ -333,10 +333,15 @@ class AgronomistRecommendationSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         plantation = attrs.get("plantation") or getattr(self.instance, "plantation", None)
+        products = attrs.get("products", [])
         request = self.context.get("request")
         organization = getattr(getattr(request, "user", None), "organization", None)
-        if plantation and organization and plantation.organization_id != organization.id:
+        if not organization:
+            raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+        if plantation and plantation.organization_id != organization.id:
             raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+        if any(product["item"].organization_id != organization.id for product in products):
+            raise serializers.ValidationError({"products": "Um ou mais produtos pertencem a outra organização."})
         return attrs
 
     def create(self, validated_data):

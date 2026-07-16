@@ -1,0 +1,28 @@
+services:
+  sandbox-executor:
+    build:
+      context: .
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    mem_limit: 320m
+    cpus: 0.50
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=10001,gid=10001,mode=0700
+    volumes:
+      - sandbox-socket:/run/agromanage-sandbox
+    environment:
+      SANDBOX_AUTH_TOKEN: ${SANDBOX_AUTH_TOKEN:?configure um token aleatorio com pelo menos 32 caracteres}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; raise SystemExit(0 if os.path.exists('/run/agromanage-sandbox/executor.sock') else 1)"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+
+volumes:
+  sandbox-socket:

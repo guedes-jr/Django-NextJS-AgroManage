@@ -1,0 +1,10 @@
+- Detalhar os objetivos geral e específicos na introdução
+- Adicionar objetivos no resumo também
+- Aumentar o resumo pra ficar entre 350 a 500 palavras
+- Ajustar estrutura
+    - 4 CAPÍTULO IV: CAMINHOS METODOLÓGICO DA PESQUISA
+        - ABORDAGEM DA P ESQUISA
+        - CARACTERIZAÇÃO DO LOCAL DA PESQUISA
+        - INSTRUMENTOS DE COLETA DE DADOS E AMOSTRA
+        - ATORES DA PESQUISA
+    - 5. CAPÍTULO V: ANÁLISE E DISCUSSÃO DOS RESULTADOS

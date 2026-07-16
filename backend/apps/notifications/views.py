@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from common.permissions import IsOrganizationAdmin
 from .models import Notification, NotificationPreference, NotificationTemplate
 from .serializers import (
     NotificationSerializer, 
@@ -46,7 +47,7 @@ def mark_all_read_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsOrganizationAdmin])
 def create_notification_view(request):
     """Cria uma notificação (para uso interno)"""
     serializer = NotificationCreateSerializer(data=request.data)
@@ -54,7 +55,10 @@ def create_notification_view(request):
     
     from apps.accounts.models import User
     try:
-        user = User.objects.get(id=serializer.validated_data["user_id"])
+        user = User.objects.get(
+            id=serializer.validated_data["user_id"],
+            organization=request.user.organization,
+        )
     except User.DoesNotExist:
         return Response({"detail": "Usuário não encontrado"}, status=status.HTTP_404_NOT_FOUND)
     

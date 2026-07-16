@@ -2,8 +2,6 @@
 Serializers for the inventory app.
 """
 import re
-import uuid
-from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -12,7 +10,7 @@ from .models import (
     FormulaRacao, FormulaIngrediente, ProducaoRacao, ConsumoRacao
 )
 
-from .choices import CategoriaItem, TipoContratoFornecedor
+from .choices import CategoriaItem
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +207,10 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             attrs["categoria"] = categorias[0]
         elif categoria:
             attrs["categorias"] = [categoria]
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        fornecedor = attrs.get("fornecedor")
+        if fornecedor and (not organization or fornecedor.organization_id != organization.id):
+            raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
         return attrs
 
     def create(self, validated_data):
@@ -256,6 +258,16 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        item = attrs.get("item", getattr(self.instance, "item", None))
+        fornecedor = attrs.get("fornecedor", getattr(self.instance, "fornecedor", None))
+        if not organization or not item or item.organization_id != organization.id:
+            raise serializers.ValidationError({"item": "Item não pertence à sua organização."})
+        if fornecedor and fornecedor.organization_id != organization.id:
+            raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
+        return attrs
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +338,19 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     def validate_destino(self, value):
         return (value or "").strip()
 
+    def validate(self, attrs):
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        item = attrs.get("item", getattr(self.instance, "item", None))
+        lote = attrs.get("lote", getattr(self.instance, "lote", None))
+        fornecedor = attrs.get("fornecedor")
+        if not organization or not item or item.organization_id != organization.id:
+            raise serializers.ValidationError({"item": "Item não pertence à sua organização."})
+        if lote and (lote.item_id != item.id or lote.item.organization_id != organization.id):
+            raise serializers.ValidationError({"lote": "Lote não pertence ao item e à organização informados."})
+        if fornecedor and fornecedor.organization_id != organization.id:
+            raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
+        return attrs
+
 
 class AlertaEstoqueSerializer(serializers.ModelSerializer):
     item_nome = serializers.ReadOnlyField(source="item.nome")
@@ -368,6 +393,19 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
             "id", "nome", "descricao", "especie_animal", "especie_animal_display",
             "item_final", "item_final_nome", "ativa", "ingredientes",
         ]
+
+    def validate(self, attrs):
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        item_final = attrs.get("item_final", getattr(self.instance, "item_final", None))
+        ingredientes = attrs.get("ingredientes", [])
+        if not organization:
+            raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+        if item_final and item_final.organization_id != organization.id:
+            raise serializers.ValidationError({"item_final": "Item final não pertence à sua organização."})
+        foreign_items = [item["item"].id for item in ingredientes if item["item"].organization_id != organization.id]
+        if foreign_items:
+            raise serializers.ValidationError({"ingredientes": "Um ou mais ingredientes pertencem a outra organização."})
+        return attrs
 
     def create(self, validated_data):
         ingredientes_data = validated_data.pop('ingredientes', [])
@@ -441,6 +479,17 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "custo_unitario", "custo_total", "usuario", "created_at"]
 
+    def validate(self, attrs):
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        item = attrs.get("item_estoque", getattr(self.instance, "item_estoque", None))
+        batch = attrs.get("lote_animal", getattr(self.instance, "lote_animal", None))
+        if not organization or not item or item.organization_id != organization.id:
+            raise serializers.ValidationError({"item_estoque": "Item não pertence à sua organização."})
+        if not batch or batch.farm.organization_id != organization.id:
+            raise serializers.ValidationError({"lote_animal": "Lote animal não pertence à sua organização."})
+        return attrs
+
     def get_usuario_nome(self, obj):
-        if not obj.usuario: return None
+        if not obj.usuario:
+            return None
         return obj.usuario.full_name or obj.usuario.email

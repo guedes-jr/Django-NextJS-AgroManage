@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento, HeatRecord, LitterMedication
 from collections import Counter
@@ -11,6 +10,23 @@ CATEGORY_TO_PHASE = {
     'Terminação': 'engorda',
     'Engorda': 'engorda',
 }
+
+
+def validate_tenant_relations(serializer, attrs, relation_names):
+    request = serializer.context.get("request")
+    organization = getattr(getattr(request, "user", None), "organization", None)
+    if not organization:
+        raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+    for name in relation_names:
+        value = attrs.get(name, getattr(serializer.instance, name, None))
+        if not value:
+            continue
+        related_organization_id = getattr(value, "organization_id", None)
+        if related_organization_id is None and getattr(value, "farm", None):
+            related_organization_id = value.farm.organization_id
+        if related_organization_id != organization.id:
+            raise serializers.ValidationError({name: "O objeto informado pertence a outra organização."})
+    return organization
 
 class AnimalBatchListSerializer(serializers.ListSerializer):
     """Custom ListSerializer to detect duplicates within the bulk request."""
@@ -190,7 +206,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             try:
                 from decimal import Decimal
                 return Decimal(value)
-            except:
+            except (ValueError, TypeError, ArithmeticError):
                 raise serializers.ValidationError("Valor de compra deve ser um número válido.")
         return value
     
@@ -202,7 +218,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             try:
                 from decimal import Decimal
                 return Decimal(value)
-            except:
+            except (ValueError, TypeError, ArithmeticError):
                 raise serializers.ValidationError("Peso médio deve ser um número válido.")
         return value
 
@@ -474,6 +490,10 @@ class AnimalSerializer(serializers.ModelSerializer):
         from .views import build_reproductive_cycles
         return build_reproductive_cycles(obj)
 
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("batch", "sire_ref", "dam_ref"))
+        return attrs
+
     def create(self, validated_data):
         species_code = validated_data.pop('species_code_input', None)
         breed_name = validated_data.pop('breed_name_input', None)
@@ -600,6 +620,10 @@ class IncubationSerializer(serializers.ModelSerializer):
             'eggs_incubated', 'eggs_hatched', 'status', 'notes'
         ]
 
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm", "batch"))
+        return attrs
+
 
 class VaccinationRecordSerializer(serializers.ModelSerializer):
     vaccine_item_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
@@ -617,10 +641,22 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
             return value
         from apps.inventory.models import ItemEstoque
         try:
-            item = ItemEstoque.objects.get(id=value, categoria='vacina')
+            organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+            ItemEstoque.objects.get(id=value, categoria='vacina', organization=organization)
         except ItemEstoque.DoesNotExist:
             raise serializers.ValidationError("Vacina não encontrada no estoque.")
         return value
+
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm", "animal", "batch"))
+        animal = attrs.get("animal", getattr(self.instance, "animal", None))
+        batch = attrs.get("batch", getattr(self.instance, "batch", None))
+        farm = attrs.get("farm", getattr(self.instance, "farm", None))
+        if animal and farm and animal.farm_id != farm.id:
+            raise serializers.ValidationError({"animal": "O animal não pertence à propriedade informada."})
+        if batch and farm and batch.farm_id != farm.id:
+            raise serializers.ValidationError({"batch": "O lote não pertence à propriedade informada."})
+        return attrs
 
     def create(self, validated_data):
         vaccine_item_id = validated_data.pop('vaccine_item_id', None)
@@ -640,6 +676,10 @@ class WeightRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = WeightRecord
         fields = '__all__'
+
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm", "animal", "batch"))
+        return attrs
 
 
 class SymptomSerializer(serializers.ModelSerializer):
@@ -681,6 +721,14 @@ class ClinicalRecordSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at']
 
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm", "animal", "batch"))
+        farm = attrs.get("farm", getattr(self.instance, "farm", None))
+        animal = attrs.get("animal", getattr(self.instance, "animal", None))
+        if farm and animal and animal.farm_id != farm.id:
+            raise serializers.ValidationError({"animal": "O animal não pertence à propriedade informada."})
+        return attrs
+
 class MedicationSerializer(serializers.ModelSerializer):
     days_to_expiry = serializers.SerializerMethodField()
     
@@ -695,6 +743,10 @@ class MedicationSerializer(serializers.ModelSerializer):
     
     def get_days_to_expiry(self, obj):
         return obj.days_to_expiry
+
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm",))
+        return attrs
 
 class AlertSerializer(serializers.ModelSerializer):
     class Meta:
@@ -723,6 +775,14 @@ class HealthRecordSerializer(serializers.ModelSerializer):
             'description', 'application_date',
             'veterinary', 'cost', 'notes'
         ]
+
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm", "animal"))
+        farm = attrs.get("farm", getattr(self.instance, "farm", None))
+        animal = attrs.get("animal", getattr(self.instance, "animal", None))
+        if farm and animal and animal.farm_id != farm.id:
+            raise serializers.ValidationError({"animal": "O animal não pertence à propriedade informada."})
+        return attrs
 
 
 class HeatRecordSerializer(serializers.ModelSerializer):

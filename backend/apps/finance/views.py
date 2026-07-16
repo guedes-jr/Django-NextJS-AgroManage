@@ -1,7 +1,7 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, Q
+from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
@@ -12,10 +12,11 @@ from .serializers import (
     BankAccountSerializer,
     TransactionSerializer
 )
+from common.permissions import OrganizationRolePermission
 
 class FinancialCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = FinancialCategorySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         return FinancialCategory.objects.filter(organization=self.request.user.organization)
@@ -25,7 +26,7 @@ class FinancialCategoryViewSet(viewsets.ModelViewSet):
 
 class BankAccountViewSet(viewsets.ModelViewSet):
     serializer_class = BankAccountSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         return BankAccount.objects.filter(organization=self.request.user.organization)
@@ -35,7 +36,10 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
 class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
 
     def get_queryset(self):
         qs = Transaction.objects.filter(organization=self.request.user.organization).select_related('category', 'bank_account')
@@ -61,8 +65,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     def stats(self, request):
         organization = request.user.organization
         now = timezone.now()
-        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
+
         transactions = Transaction.objects.filter(organization=organization)
         
         # Basic stats

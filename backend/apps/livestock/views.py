@@ -1180,7 +1180,13 @@ class AnimalViewSet(viewsets.ModelViewSet):
             sire_id = request.data.get('sire_id')
             if sire_id:
                 try:
-                    sire_animal = Animal.objects.get(pk=sire_id)
+                    sire_animal = Animal.objects.get(
+                        pk=sire_id,
+                        farm__organization=request.user.organization,
+                        species=animal.species,
+                        gender=Animal.Gender.MALE,
+                        status=AnimalBatch.Status.ACTIVE,
+                    )
                     mating.sire = sire_animal
                     mating.save(update_fields=['sire'])
                 except Animal.DoesNotExist:
@@ -1261,7 +1267,11 @@ class AnimalViewSet(viewsets.ModelViewSet):
         if vaccine_item_id:
             from apps.inventory.models import ItemEstoque
             try:
-                vaccine_item = ItemEstoque.objects.get(id=vaccine_item_id, categoria='vacina')
+                vaccine_item = ItemEstoque.objects.get(
+                    id=vaccine_item_id,
+                    categoria='vacina',
+                    organization=request.user.organization,
+                )
                 if not vaccine_name:
                     vaccine_name = vaccine_item.nome
             except ItemEstoque.DoesNotExist:

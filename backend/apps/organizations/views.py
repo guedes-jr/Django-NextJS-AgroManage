@@ -7,12 +7,13 @@ import os
 import subprocess
 from django.conf import settings
 from django.utils import timezone
-from .models import Organization, OrganizationAddress, OrganizationContact
+from .models import OrganizationAddress, OrganizationContact
 from .serializers import (
     OrganizationSerializer, 
     OrganizationAddressSerializer, 
     OrganizationContactSerializer
 )
+from common.permissions import IsPlatformAdmin
 
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
@@ -45,16 +46,9 @@ def my_organization_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsPlatformAdmin])
 def update_project_view(request):
     """Trigger the update_project command in the background."""
-    # Permission check: Only Owners or Admins of the organization can trigger project update
-    if request.user.role not in ["owner", "admin"]:
-        return Response(
-            {"detail": "Apenas administradores podem atualizar o projeto."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
     command = getattr(settings, "UPDATE_PROJECT_COMMAND", "/home/deploy/bin/update_project")
 
     # Determine log folder and file path
@@ -116,16 +110,9 @@ def update_project_view(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsPlatformAdmin])
 def update_logs_view(request):
     """Retrieve the current update logs, calculate progress, and check status."""
-    # Permission check: Only Owners or Admins of the organization can view project update logs
-    if request.user.role not in ["owner", "admin"]:
-        return Response(
-            {"detail": "Apenas administradores podem visualizar os logs de atualização."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
     # Determine log folder
     logs_dir = settings.BASE_DIR.parent / "logs"
     if not logs_dir.exists():

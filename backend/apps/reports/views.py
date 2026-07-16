@@ -9,17 +9,39 @@ from decimal import Decimal
 
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.db.models.functions import Coalesce, TruncMonth
+from django.utils import timezone
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.farms.models import Farm
-from apps.livestock.models import AnimalBatch, Species
+from apps.livestock.models import AnimalBatch
 from apps.crops.models import Field, PlantingCycle
 from apps.inventory.models import ItemEstoque, LoteEstoque
 from apps.finance.models import Transaction, FinancialCategory
 from apps.tasks.models import Task
+from common.permissions import OrganizationRolePermission
+from .models import (
+    GeneratedReport,
+    ReportConfig,
+    ReportFormat,
+    ReportSchedule,
+    ReportStatus,
+    ReportType,
+    ReportWidget,
+)
+from .serializers import (
+    GeneratedReportCreateSerializer,
+    GeneratedReportSerializer,
+    ReportConfigCreateSerializer,
+    ReportConfigSerializer,
+    ReportScheduleCreateSerializer,
+    ReportScheduleSerializer,
+    ReportWidgetSerializer,
+)
+from .services import FinancialReportService, LivestockReportService, StockReportService
 
 
 def _org(request):
@@ -210,35 +232,13 @@ def dashboard_summary(request):
 
 # === Report Management Views ===
 
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
-from .models import (
-    ReportConfig,
-    ReportSchedule,
-    GeneratedReport,
-    ReportWidget,
-    ReportType,
-    ReportFormat,
-    ReportStatus,
-)
-from .serializers import (
-    ReportConfigSerializer,
-    ReportConfigCreateSerializer,
-    ReportScheduleSerializer,
-    ReportScheduleCreateSerializer,
-    GeneratedReportSerializer,
-    GeneratedReportCreateSerializer,
-    ReportWidgetSerializer,
-    ReportListOptionsSerializer,
-    DashboardKPISerializer,
-)
-
 
 class ReportConfigViewSet(viewsets.ModelViewSet):
     serializer_class = ReportConfigSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -276,7 +276,10 @@ class ReportConfigViewSet(viewsets.ModelViewSet):
 
 class ReportScheduleViewSet(viewsets.ModelViewSet):
     serializer_class = ReportScheduleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -301,7 +304,11 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
 
 class GeneratedReportViewSet(viewsets.ModelViewSet):
     serializer_class = GeneratedReportSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
+    operator_owner_field = "generated_by_id"
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -321,9 +328,22 @@ class GeneratedReportViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         org = getattr(request.user, "organization", None)
+        if not org:
+            return Response({"detail": "Organização não encontrada"}, status=status.HTTP_404_NOT_FOUND)
+        report_config = None
+        report_config_id = serializer.validated_data.get("report_config")
+        if report_config_id:
+            try:
+                report_config = ReportConfig.objects.get(pk=report_config_id, organization=org)
+            except ReportConfig.DoesNotExist:
+                return Response(
+                    {"report_config": "Configuração de relatório inválida para esta organização."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         report = GeneratedReport.objects.create(
             organization=org,
+            report_config=report_config,
             name=serializer.validated_data["name"],
             report_type=serializer.validated_data["report_type"],
             filters=serializer.validated_data.get("filters", {}),
@@ -384,8 +404,6 @@ class ReportWidgetViewSet(viewsets.ModelViewSet):
 
 
 # === Report Data Endpoints ===
-
-from .services import StockReportService, FinancialReportService, LivestockReportService
 
 
 @api_view(["GET"])

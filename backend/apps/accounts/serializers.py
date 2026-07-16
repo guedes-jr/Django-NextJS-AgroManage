@@ -2,6 +2,7 @@
 Accounts app serializers — auth, user, profile.
 """
 from rest_framework import serializers
+from common.authentication import is_active_platform_staff
 from .models import User
 
 
@@ -24,6 +25,15 @@ class LoginSerializer(serializers.Serializer):
 
             if not user.is_active:
                 raise serializers.ValidationError("Usuário inativo.")
+
+            if (
+                user.organization
+                and not user.organization.is_active
+                and not is_active_platform_staff(user)
+            ):
+                raise serializers.ValidationError(
+                    "Organização suspensa. Entre em contato com o suporte."
+                )
 
             data["user"] = user
         else:

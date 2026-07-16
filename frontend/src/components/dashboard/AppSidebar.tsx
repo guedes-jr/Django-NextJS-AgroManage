@@ -10,7 +10,6 @@ import {
   Beef,
   Wallet,
   Package,
-  Users,
   Settings,
   ChevronDown,
   ChevronUp,
@@ -87,7 +86,15 @@ const menuItems: MenuItem[] = [
       { title: "Exames", href: "/home/clinico/exames" },
     ]
   },
-  { title: "Plantações", href: "/home/plantacoes", icon: Wheat },
+  {
+    title: "Plantações",
+    href: "/home/plantacoes",
+    icon: Wheat,
+    children: [
+      { title: "Plantações", href: "/home/plantacoes" },
+      { title: "Estrutura da Fazenda", href: "/home/estrutura" },
+    ],
+  },
   { title: "Financeiro", href: "/home/financeiro", icon: Wallet },
   { 
     title: "Estoque", 
@@ -122,8 +129,14 @@ interface AppSidebarProps {
 
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname();
-  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(() =>
+    menuItems.filter((item) => item.children?.some((child) => pathname.startsWith(child.href))).map((item) => item.title)
+  );
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(() =>
+    menuItems.flatMap((item) => item.children || [])
+      .filter((child) => child.subItems?.some((sub) => pathname.startsWith(sub.href)))
+      .map((child) => child.href)
+  );
 
   const isActive = (href: string) =>
     href === "/home" ? pathname === href : pathname.startsWith(href);
@@ -134,27 +147,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       onClose();
     }
 
-    // Automatically expand parent menu if a child is active
-    const activeParent = menuItems.find(item =>
-      item.children?.some(child =>
-        pathname.startsWith(child.href)
-      )
-    );
-    if (activeParent && !expandedMenus.includes(activeParent.title)) {
-      setExpandedMenus(prev => [...prev, activeParent.title]);
-    }
-
-    // Automatically expand species group if a sub-item is active
-    menuItems.forEach(item => {
-      item.children?.forEach(child => {
-        if (child.subItems?.some(sub => pathname.startsWith(sub.href))) {
-          if (!expandedGroups.includes(child.href)) {
-            setExpandedGroups(prev => [...prev, child.href]);
-          }
-        }
-      });
-    });
-  }, [pathname]);
+  }, [pathname, onClose]);
 
   const toggleExpand = (title: string) => {
     setExpandedMenus(prev =>

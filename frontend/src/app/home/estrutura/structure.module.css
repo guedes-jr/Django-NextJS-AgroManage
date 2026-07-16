@@ -1,0 +1,31 @@
+.page { min-height: 100%; background: var(--background); }
+.hero { margin: -1.5rem -1.5rem 0; padding: 22px 28px; background: linear-gradient(120deg, #075e2c, #063f22); color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.hero h1 { margin: 0; font-size: clamp(1.45rem, 2.4vw, 2rem); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; }
+.hero p { margin: 3px 0 0; opacity: .86; }
+.heroIcon { width: 54px; height: 54px; border: 1px solid rgba(255,255,255,.35); border-radius: 14px; display: grid; place-items: center; }
+.content { padding: 22px 0 40px; display: flex; flex-direction: column; }
+.info { display: flex; align-items: flex-start; gap: 12px; color: var(--foreground); font-size: .9rem; }
+.info svg { color: #087333; flex: none; margin-top: 2px; }
+.sectionTitle { margin: 0 0 14px; color: #087333; font-size: 1rem; font-weight: 800; text-transform: uppercase; }
+.categoryGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.categoryCard { padding: 0; text-align: left; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); color: var(--foreground); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.categoryCard:hover, .categoryCard.selected { transform: translateY(-2px); border-color: #199653; box-shadow: 0 9px 24px rgba(0, 80, 35, .1); }
+.categoryMain { min-height: 145px; padding: 18px; display: flex; gap: 16px; align-items: center; }
+.categoryIcon { width: 66px; height: 66px; border-radius: 16px; background: #ecf8f0; color: #087333; display: grid; place-items: center; flex: none; }
+.categoryMain h3 { color: #087333; font-size: .96rem; text-transform: uppercase; font-weight: 800; margin: 0 0 8px; }
+.categoryMain p { color: var(--muted-foreground); font-size: .82rem; line-height: 1.45; margin: 0; }
+.categoryFooter { background: color-mix(in srgb, var(--muted) 70%, transparent); border-top: 1px solid var(--border); padding: 11px 14px; display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; }
+.categoryFooter span { display: flex; align-items: center; gap: 7px; }.categoryFooter strong { color: #087333; }
+.search { border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; background: var(--card); }
+.search input { border: 0; outline: 0; background: transparent; color: var(--foreground); min-width: 220px; }
+.tableCard { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.tableCard th { background: var(--muted); color: var(--muted-foreground); font-size: .75rem; text-transform: uppercase; padding: 13px 16px; white-space: nowrap; }
+.tableCard td { padding: 13px 16px; color: var(--foreground); }
+.summaryGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.summaryCard { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 17px; display: flex; gap: 13px; align-items: center; }
+.summaryIcon { width: 45px; height: 45px; border: 1px solid #83c89f; border-radius: 12px; color: #087333; display: grid; place-items: center; flex: none; }
+.summaryCard span, .summaryCard small { display: block; color: var(--muted-foreground); font-size: .72rem; }.summaryCard strong { display: block; color: #087333; font-size: 1.08rem; margin: 2px 0; }
+.modalBackdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.48); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 20px; }
+.modalCard { width: min(820px, 100%); max-height: calc(100vh - 40px); overflow: auto; border-radius: 14px; background: var(--card); color: var(--foreground); box-shadow: 0 24px 70px rgba(0,0,0,.25); }
+@media (max-width: 1050px) { .categoryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .hero { margin: -1rem -1rem 0; padding: 18px; align-items: stretch; flex-direction: column; }.categoryGrid, .summaryGrid { grid-template-columns: 1fr; }.categoryMain { min-height: 0; }.search, .search input { width: 100%; }.content { padding-top: 18px; } }

@@ -3,6 +3,7 @@ Django settings base for AgroManage.
 Split by environment: base → dev/prod/test.
 """
 
+from datetime import timedelta
 from pathlib import Path
 import environ
 
@@ -60,6 +61,8 @@ LOCAL_APPS = [
     "apps.tasks",
     "apps.audit",
     "apps.notifications",
+    "apps.platform_admin",
+    "apps.billing",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -150,7 +153,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "common.authentication.ActiveOrganizationJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -169,8 +172,6 @@ REST_FRAMEWORK = {
 # ---------------------------------------------------------------------------
 # JWT
 # ---------------------------------------------------------------------------
-from datetime import timedelta
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=2),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -249,3 +250,9 @@ UPDATE_PROJECT_COMMAND = env("UPDATE_PROJECT_COMMAND", default="/var/www/agroman
 UPDATE_TIMEOUT_SECONDS = env("UPDATE_TIMEOUT_SECONDS", default="600")
 DEPLOY_USER = env("DEPLOY_USER", default="deploy")
 DEPLOY_PASSWORD = env("DEPLOY_PASSWORD", default="")
+
+# Isolated developer sandbox. Disabled until the external container is validated.
+SANDBOX_EXECUTOR_ENABLED = env.bool("SANDBOX_EXECUTOR_ENABLED", default=False)
+SANDBOX_EXECUTOR_SOCKET = env("SANDBOX_EXECUTOR_SOCKET", default="/run/agromanage-sandbox/executor.sock")
+SANDBOX_EXECUTOR_TOKEN = env("SANDBOX_EXECUTOR_TOKEN", default="")
+SANDBOX_EXECUTOR_TIMEOUT = env.int("SANDBOX_EXECUTOR_TIMEOUT", default=7)

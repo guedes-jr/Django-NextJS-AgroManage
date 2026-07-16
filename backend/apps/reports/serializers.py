@@ -9,8 +9,6 @@ from .models import (
     ReportWidget,
     ReportType,
     ReportFormat,
-    ReportStatus,
-    FrequencyType
 )
 
 
@@ -27,7 +25,7 @@ class ReportConfigSerializer(serializers.ModelSerializer):
             "include_charts", "is_public", "allowed_roles",
             "created_by", "created_by_name", "created_at", "updated_at"
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at"]
 
 
 class ReportConfigCreateSerializer(serializers.ModelSerializer):
@@ -59,7 +57,13 @@ class ReportScheduleSerializer(serializers.ModelSerializer):
             "last_run", "next_run", "created_by", "created_by_name",
             "created_at", "updated_at"
         ]
-        read_only_fields = ["id", "last_run", "next_run", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_by", "last_run", "next_run", "created_at", "updated_at"]
+
+    def validate_report_config(self, value):
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        if not organization or value.organization_id != organization.id:
+            raise serializers.ValidationError("A configuração de relatório pertence a outra organização.")
+        return value
 
 
 class ReportScheduleCreateSerializer(serializers.ModelSerializer):
@@ -70,6 +74,12 @@ class ReportScheduleCreateSerializer(serializers.ModelSerializer):
             "frequency", "schedule_time", "schedule_day",
             "filters", "send_email", "email_recipients"
         ]
+
+    def validate_report_config(self, value):
+        organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+        if not organization or value.organization_id != organization.id:
+            raise serializers.ValidationError("A configuração de relatório pertence a outra organização.")
+        return value
     
     def create(self, validated_data):
         validated_data["organization"] = self.context["request"].user.organization

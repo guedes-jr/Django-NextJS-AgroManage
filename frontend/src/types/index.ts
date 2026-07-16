@@ -86,6 +86,122 @@ export interface Sector {
   is_active: boolean;
 }
 
+export type FarmStructureCategory =
+  | "corral"
+  | "pigsty"
+  | "poultry_house"
+  | "warehouse"
+  | "irrigation"
+  | "water_reservoir"
+  | "facility"
+  | "fence"
+  | "other";
+
+export interface FarmStructure {
+  id: string;
+  farm: string;
+  farm_name: string;
+  category: FarmStructureCategory;
+  category_label: string;
+  name: string;
+  description: string;
+  built_area_m2: string | null;
+  length_m: string | null;
+  width_m: string | null;
+  quantity: number;
+  acquisition_value: string;
+  current_value: string;
+  acquisition_date: string | null;
+  is_active: boolean;
+  notes: string;
+  latitude: string | null;
+  longitude: string | null;
+  items: FarmStructureItem[];
+  items_value: string;
+  created_by: string | null;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FarmStructureItem {
+  id: string;
+  structure: string;
+  name: string;
+  quantity: string;
+  unit: string;
+  value: string;
+}
+
+export interface FarmStructureSummaryCategory {
+  category: FarmStructureCategory;
+  label: string;
+  records: number;
+  items: number;
+  acquisition_value: string;
+  current_value: string;
+}
+
+export interface FarmStructureSummary {
+  total_records: number;
+  total_items: number;
+  acquisition_value: string;
+  current_value: string;
+  depreciation_value: string;
+  categories: FarmStructureSummaryCategory[];
+}
+
+export type FarmAssetType = "tractor" | "harvester" | "planter" | "sprayer" | "truck" | "pickup" | "car" | "motorcycle" | "other";
+
+export interface FarmAssetImplement {
+  id: string;
+  asset: string;
+  name: string;
+  brand_model: string;
+  quantity: number;
+  manufacture_year: number | null;
+  acquisition_value: string;
+}
+
+export interface FarmAsset {
+  id: string;
+  farm: string;
+  farm_name: string;
+  asset_type: FarmAssetType;
+  asset_type_label: string;
+  brand: string;
+  model: string;
+  manufacture_year: number | null;
+  fuel: string;
+  traction: string;
+  current_hours: string | null;
+  power: string;
+  tank_capacity_l: string | null;
+  serial_number: string;
+  transmission: string;
+  acquisition_date: string | null;
+  acquisition_value: string;
+  current_value: string;
+  description: string;
+  latitude: string | null;
+  longitude: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_by_name: string;
+  implements: FarmAssetImplement[];
+  implements_value: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FarmAssetSummary {
+  total_assets: number;
+  acquisition_value: string;
+  current_value: string;
+  implements_value: string;
+  total_invested: string;
+}
+
 // ─── Livestock ───────────────────────────────────────────────────────────────
 
 export interface Species {

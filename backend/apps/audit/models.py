@@ -27,6 +27,13 @@ class AuditLog(BaseModel):
         null=True,
         related_name="audit_logs",
     )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="client_audit_logs",
+    )
     action = models.CharField(max_length=20, choices=Action.choices)
     model_name = models.CharField(max_length=100, blank=True)
     object_id = models.CharField(max_length=100, blank=True)

@@ -1,3 +1,11 @@
-from django.contrib import admin  # noqa: F401
+from django.contrib import admin
 
-# Register 'farms' models with the Django admin here.
+from .models import Farm, FarmAsset, FarmAssetImplement, FarmStructure, FarmStructureItem, Sector
+
+
+admin.site.register(Farm)
+admin.site.register(Sector)
+admin.site.register(FarmStructure)
+admin.site.register(FarmStructureItem)
+admin.site.register(FarmAsset)
+admin.site.register(FarmAssetImplement)

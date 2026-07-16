@@ -1,0 +1,25 @@
+.platform-root { min-height: 100vh; background: #f4f7fb; color: #172033; }
+.platform-sidebar { width: 264px; min-height: 100vh; position: fixed; inset: 0 auto 0 0; background: #111827; color: #fff; padding: 24px 18px; z-index: 30; }
+.platform-brand { display: flex; align-items: center; gap: 12px; padding: 4px 8px 28px; }
+.platform-brand-mark { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg,#22c55e,#15803d); }
+.platform-nav { display: flex; flex-direction: column; gap: 6px; }
+.platform-nav a { color: #9ca3af; text-decoration: none; display: flex; gap: 12px; align-items: center; padding: 11px 12px; border-radius: 10px; font-weight: 600; }
+.platform-nav a:hover,.platform-nav a.active { color:#fff; background:#1f2937; }
+.platform-main { margin-left: 264px; min-height: 100vh; }
+.platform-topbar { height: 72px; display:flex; align-items:center; justify-content:space-between; padding:0 32px; background:#fff; border-bottom:1px solid #e5e7eb; position:sticky; top:0; z-index:20; }
+.platform-content { padding: 32px; max-width: 1500px; margin: 0 auto; }
+.platform-card { background:#fff; border:1px solid #e6eaf0; border-radius:16px; box-shadow:0 8px 24px rgba(15,23,42,.04); }
+.platform-metric { padding:22px; min-height:138px; }
+.platform-icon { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; background:#ecfdf3; color:#15803d; }
+.platform-label { color:#687386; font-size:.82rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.platform-value { font-size:2rem; font-weight:800; letter-spacing:-.04em; }
+.platform-status { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border-radius:999px; font-size:.75rem; font-weight:700; }
+.platform-status.active { color:#166534; background:#dcfce7; }
+.platform-status.suspended { color:#991b1b; background:#fee2e2; }
+.platform-login { min-height:100vh; display:grid; grid-template-columns:1.1fr .9fr; background:#111827; }
+.platform-login-hero { padding:64px; color:white; display:flex; flex-direction:column; justify-content:space-between; background:radial-gradient(circle at 20% 10%,rgba(34,197,94,.32),transparent 36%),#111827; }
+.platform-login-form { background:#f8fafc; display:grid; place-items:center; padding:32px; }
+.platform-login-card { width:min(430px,100%); background:white; padding:38px; border-radius:20px; box-shadow:0 25px 70px rgba(0,0,0,.18); }
+.platform-table th { color:#687386; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+.platform-table td,.platform-table th { padding:14px 16px; vertical-align:middle; border-color:#edf0f4; }
+@media (max-width: 900px) { .platform-sidebar { width:76px; padding:22px 10px; } .platform-sidebar .nav-label,.platform-brand-copy { display:none; } .platform-main { margin-left:76px; } .platform-content { padding:20px; } .platform-topbar { padding:0 20px; } .platform-login { grid-template-columns:1fr; } .platform-login-hero { display:none; } }

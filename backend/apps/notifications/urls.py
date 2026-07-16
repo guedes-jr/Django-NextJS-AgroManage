@@ -8,8 +8,8 @@ router.register(r"preferences", views.NotificationPreferenceViewSet, basename="n
 router.register(r"templates", views.NotificationTemplateViewSet, basename="notification-templates")
 
 urlpatterns = [
-    path("", include(router.urls)),
     path("unread-count/", views.unread_count_view, name="unread-count"),
     path("mark-all-read/", views.mark_all_read_view, name="mark-all-read"),
     path("create/", views.create_notification_view, name="create-notification"),
+    path("", include(router.urls)),
 ]

@@ -3,22 +3,34 @@ ViewSets for the inventory app.
 """
 from decimal import Decimal
 from django.db import models, transaction
-from django.db.models import Sum, Count, Q
-from django.utils.dateparse import parse_date
+from django.db.models import Sum, Q
 from rest_framework import viewsets, status, exceptions, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.utils.text import slugify
 from apps.organizations.models import Organization
+from common.permissions import OrganizationRolePermission
 
-from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque, Fornecedor, AlertaEstoque
+from .models import (
+    AlertaEstoque,
+    ConsumoRacao,
+    FormulaRacao,
+    Fornecedor,
+    ItemEstoque,
+    LoteEstoque,
+    MovimentacaoEstoque,
+    ProducaoRacao,
+)
 from .serializers import (
     ItemEstoqueSerializer,
     LoteEstoqueSerializer,
     MovimentacaoEstoqueSerializer,
     FornecedorSerializer,
     AlertaEstoqueSerializer,
+    ConsumoRacaoSerializer,
+    FormulaRacaoSerializer,
+    ProducaoRacaoSerializer,
 )
 from .choices import (
     CategoriaItem, UnidadeMedida, EspecieAnimal, TipoMovimentacao, TipoContratoFornecedor
@@ -99,11 +111,15 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
     def choices(self, request):
         """Return all TextChoices used by the front-end forms."""
         return Response({
-            "categorias": [{"value": v, "label": l} for v, l in CategoriaItem.choices],
-            "unidades": [{"value": v, "label": l} for v, l in UnidadeMedida.choices],
-            "especies": [{"value": v, "label": l} for v, l in EspecieAnimal.choices],
-            "tipos_movimentacao": [{"value": v, "label": l} for v, l in TipoMovimentacao.choices],
-            "tipos_contrato": [{"value": v, "label": l} for v, l in TipoContratoFornecedor.choices],
+            "categorias": [{"value": value, "label": label} for value, label in CategoriaItem.choices],
+            "unidades": [{"value": value, "label": label} for value, label in UnidadeMedida.choices],
+            "especies": [{"value": value, "label": label} for value, label in EspecieAnimal.choices],
+            "tipos_movimentacao": [
+                {"value": value, "label": label} for value, label in TipoMovimentacao.choices
+            ],
+            "tipos_contrato": [
+                {"value": value, "label": label} for value, label in TipoContratoFornecedor.choices
+            ],
         })
 
     @action(detail=False, methods=["get"], url_path="stats")
@@ -230,6 +246,10 @@ class LoteEstoqueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        organization = getattr(self.request.user, "organization", None)
+        if not self.request.user.is_authenticated or not organization:
+            return qs.none()
+        qs = qs.filter(item__organization=organization)
         item_id = self.request.query_params.get("item")
         if item_id:
             qs = qs.filter(item_id=item_id)
@@ -244,6 +264,11 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         .order_by("-data_movimentacao")
     )
     serializer_class = MovimentacaoEstoqueSerializer
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
+    operator_owner_field = "responsavel_id"
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -661,10 +686,6 @@ class AlertaEstoqueViewSet(viewsets.ModelViewSet):
 # Fórmulas e Produção
 # ---------------------------------------------------------------------------
 
-from .models import FormulaRacao, ProducaoRacao, FormulaIngrediente, ConsumoRacao
-from .serializers import FormulaRacaoSerializer, ProducaoRacaoSerializer, ConsumoRacaoSerializer
-
-
 class FormulaRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = FormulaRacaoSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -691,7 +712,11 @@ class FormulaRacaoViewSet(viewsets.ModelViewSet):
 
 class ProducaoRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ProducaoRacaoSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
+    operator_owner_field = "responsavel_id"
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
@@ -812,7 +837,11 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
 
 class ConsumoRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ConsumoRacaoSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"owner", "admin", "manager", "operator"}
+    delete_roles = {"owner", "admin"}
+    operator_edits_own_only = True
+    operator_owner_field = "usuario_id"
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
@@ -885,8 +914,8 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
                 qtde_restante -= qtde_abater
             
             # Save updates
-            for l in lotes_para_atualizar:
-                l.save(update_fields=["quantidade_atual", "updated_at"])
+            for lote_atualizado in lotes_para_atualizar:
+                lote_atualizado.save(update_fields=["quantidade_atual", "updated_at"])
                 
             MovimentacaoEstoque.objects.bulk_create(movimentacoes)
             

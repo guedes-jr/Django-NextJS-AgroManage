@@ -15,6 +15,7 @@ from drf_spectacular.views import (
 # API v1 routes
 # ---------------------------------------------------------------------------
 api_v1_patterns = [
+    path("platform/", include("apps.platform_admin.urls")),
     path("auth/", include("apps.accounts.urls")),
     path("organizations/", include("apps.organizations.urls")),
     path("farms/", include("apps.farms.urls")),
