@@ -5,6 +5,9 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
 from django.test import TestCase
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APIClient
 
 from apps.organizations.models import Organization
 from apps.platform_admin.models import PlatformStaffProfile
@@ -33,6 +36,32 @@ class CreatePlatformStaffCommandTestCase(TestCase):
             PlatformStaffProfile.Role.OWNER,
         )
         self.assertIn("Membro da plataforma criado", output.getvalue())
+
+    @patch.dict(os.environ, {"TEST_PLATFORM_PASSWORD": "StrongPassword-8472"})
+    def test_created_staff_logs_in_with_email_and_password(self):
+        call_command(
+            "create_platform_staff",
+            email="Joao.Admin@agro.com",
+            name="João Guedes",
+            password_env="TEST_PLATFORM_PASSWORD",
+        )
+        client = APIClient()
+
+        login = client.post(
+            reverse("auth_login"),
+            {"email": "joao.admin@agro.com", "password": "StrongPassword-8472"},
+            format="json",
+        )
+
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+        self.assertIn("access", login.data)
+        user = User.objects.get(email__iexact="joao.admin@agro.com")
+        self.assertIsNone(user.organization)
+
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        identity = client.get(reverse("platform-me"))
+        self.assertEqual(identity.status_code, status.HTTP_200_OK)
+        self.assertEqual(identity.data["email"].lower(), "joao.admin@agro.com")
 
     @patch.dict(os.environ, {"TEST_PLATFORM_PASSWORD": "StrongPassword-8472"})
     def test_rejects_customer_account(self):

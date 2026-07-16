@@ -125,6 +125,11 @@ def create_member_view(request):
 
 def _ensure_user_organization(user):
     """Auto-provision an organization for users without tenant binding."""
+    from common.authentication import is_active_platform_staff
+
+    if is_active_platform_staff(user):
+        return None
+
     if getattr(user, "organization", None):
         return user.organization
 

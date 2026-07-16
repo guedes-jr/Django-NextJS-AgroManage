@@ -11,13 +11,12 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        email = data.get("email")
+        email = User.objects.normalize_email((data.get("email") or "").strip())
         password = data.get("password")
 
         if email and password:
-            try:
-                user = User.objects.get(email=email)
-            except User.DoesNotExist:
+            user = User.objects.filter(email__iexact=email).first()
+            if not user:
                 raise serializers.ValidationError("Credenciais inválidas.")
 
             if not user.check_password(password):
@@ -36,6 +35,7 @@ class LoginSerializer(serializers.Serializer):
                 )
 
             data["user"] = user
+            data["email"] = user.email
         else:
             raise serializers.ValidationError("Email e senha são obrigatórios.")
 
