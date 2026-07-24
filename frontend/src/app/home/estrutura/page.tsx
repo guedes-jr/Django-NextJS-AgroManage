@@ -6,8 +6,8 @@ import type { FormEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
-  Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse, Waves,
-  PanelsTopLeft, Tractor,
+  Info, LocateFixed, MapPin, Pencil, PiggyBank, Plus, Search, Trash2,
+  Warehouse, Waves, PanelsTopLeft, Tractor, Undo2, X,
 } from "lucide-react";
 
 import { apiClient } from "@/services/api";
@@ -126,9 +126,26 @@ export default function FarmStructurePage() {
     return matchesCategory && (!term || `${item.name} ${item.description}`.toLocaleLowerCase("pt-BR").includes(term));
   }), [items, search, selectedCategory]);
 
+  const lastRegisteredLocation = useMemo(() => {
+    const item = items.find((structure) => structure.latitude && structure.longitude);
+    if (item) return { latitude: item.latitude!, longitude: item.longitude!, label: item.name };
+
+    const farm = farms.find((candidate) => candidate.id === farmId);
+    if (farm?.latitude && farm.longitude) {
+      return { latitude: farm.latitude, longitude: farm.longitude, label: farm.name };
+    }
+    return null;
+  }, [farmId, farms, items]);
+
   const openCreate = (category: FarmStructureCategory = "corral") => {
     setEditing(null);
-    setForm({ ...emptyForm, farm: farmId, category });
+    setForm({
+      ...emptyForm,
+      farm: farmId,
+      category,
+      latitude: lastRegisteredLocation?.latitude || null,
+      longitude: lastRegisteredLocation?.longitude || null,
+    });
     setStructureItem(emptyItem);
     setShowForm(true);
   };
@@ -274,8 +291,14 @@ export default function FarmStructurePage() {
           <div className="col-md-3"><label className="form-label">Valor unitário atual</label><input required min={0} step="0.01" type="number" className="form-control" value={form.current_value} onChange={(e) => setForm({ ...form, current_value: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">Aquisição</label><input type="date" className="form-control" value={form.acquisition_date || ""} onChange={(e) => setForm({ ...form, acquisition_date: e.target.value || null })} /></div>
           <div className="col-12"><label className="form-label">Observações</label><textarea className="form-control" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <div className="col-md-6"><label className="form-label">Latitude (opcional)</label><input type="number" step="0.0000001" className="form-control" value={form.latitude || ""} onChange={(e) => setForm({ ...form, latitude: e.target.value || null })} /></div>
-          <div className="col-md-6"><label className="form-label">Longitude (opcional)</label><input type="number" step="0.0000001" className="form-control" value={form.longitude || ""} onChange={(e) => setForm({ ...form, longitude: e.target.value || null })} /></div>
+          <div className="col-12">
+            <LocationPicker
+              latitude={form.latitude}
+              longitude={form.longitude}
+              lastLocation={lastRegisteredLocation}
+              onChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))}
+            />
+          </div>
         </div><div className="border-top p-3 d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</button></div></form>
         <div className="border-top p-4"><div className="d-flex justify-content-between align-items-center mb-3"><h3 className="h6 fw-bold text-success mb-0">Itens e materiais utilizados</h3>{!editing && <span className="small text-muted">Salve a estrutura para adicionar itens.</span>}</div>
           {editing && <><form className="row g-2 align-items-end" onSubmit={addStructureItem}><div className="col-md-4"><label className="form-label">Item</label><input required className="form-control" value={structureItem.name} onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Quantidade</label><input required type="number" min="0.01" step="0.01" className="form-control" value={structureItem.quantity} onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Unidade</label><input required className="form-control" value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Valor total</label><input required type="number" min="0" step="0.01" className="form-control" value={structureItem.value} onChange={(e) => setStructureItem({ ...structureItem, value: e.target.value })} /></div><div className="col-md-2"><button className="btn btn-outline-success w-100"><Plus size={16} /> Adicionar</button></div></form>
@@ -288,4 +311,108 @@ export default function FarmStructurePage() {
 
 function SummaryCard({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string; detail: string }) {
   return <div className={styles.summaryCard}><div className={styles.summaryIcon}><Icon size={25} /></div><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></div>;
+}
+
+function LocationPicker({
+  latitude,
+  longitude,
+  lastLocation,
+  onChange,
+}: {
+  latitude?: string | null;
+  longitude?: string | null;
+  lastLocation: { latitude: string; longitude: string; label: string } | null;
+  onChange: (latitude: string | null, longitude: string | null) => void;
+}) {
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const hasLocation = Boolean(latitude && longitude);
+  const numericLatitude = Number(latitude);
+  const numericLongitude = Number(longitude);
+  const mapUrl = hasLocation
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${numericLongitude - 0.008}%2C${numericLatitude - 0.005}%2C${numericLongitude + 0.008}%2C${numericLatitude + 0.005}&layer=mapnik&marker=${numericLatitude}%2C${numericLongitude}`
+    : "";
+
+  const useCurrentLocation = () => {
+    setLocationError("");
+    if (!navigator.geolocation) {
+      setLocationError("Este navegador não oferece acesso à localização.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        onChange(coords.latitude.toFixed(7), coords.longitude.toFixed(7));
+        setLocating(false);
+      },
+      (error) => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? "Permita o acesso à localização no navegador para usar esta opção."
+          : "Não foi possível obter sua localização. Tente novamente em um local com melhor sinal.";
+        setLocationError(message);
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+    );
+  };
+
+  return (
+    <div>
+      <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-2">
+        <div>
+          <label className="form-label fw-semibold mb-0">Localização da estrutura</label>
+          <div className="small text-muted">Use sua posição atual ou reaproveite a última localização desta fazenda.</div>
+        </div>
+        {hasLocation && (
+          <button type="button" className="btn btn-sm btn-link text-danger text-decoration-none" onClick={() => onChange(null, null)}>
+            <X size={15} /> Remover localização
+          </button>
+        )}
+      </div>
+
+      <div className="border rounded-3 overflow-hidden bg-body-tertiary">
+        {hasLocation ? (
+          <iframe
+            key={`${latitude}-${longitude}`}
+            title="Mapa da localização da estrutura"
+            src={mapUrl}
+            width="100%"
+            height="230"
+            loading="lazy"
+            style={{ border: 0, display: "block" }}
+          />
+        ) : (
+          <div className="d-flex flex-column align-items-center justify-content-center text-center text-muted p-4" style={{ minHeight: 180 }}>
+            <MapPin size={34} className="mb-2 text-success" />
+            <strong className="text-body">Nenhuma localização selecionada</strong>
+            <span className="small">Escolha uma das opções abaixo para posicionar a estrutura no mapa.</span>
+          </div>
+        )}
+
+        <div className="d-flex flex-wrap align-items-center gap-2 p-3 border-top bg-body">
+          <button type="button" className="btn btn-success btn-sm d-inline-flex align-items-center gap-2" onClick={useCurrentLocation} disabled={locating}>
+            {locating ? <span className="spinner-border spinner-border-sm" /> : <LocateFixed size={16} />}
+            {locating ? "Localizando..." : "Usar minha localização"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+            disabled={!lastLocation}
+            onClick={() => lastLocation && onChange(lastLocation.latitude, lastLocation.longitude)}
+            title={lastLocation ? `Última localização: ${lastLocation.label}` : "Ainda não há localização cadastrada nesta fazenda"}
+          >
+            <Undo2 size={16} /> Usar última cadastrada
+          </button>
+          {hasLocation && (
+            <span className="small text-muted ms-auto d-inline-flex align-items-center gap-1">
+              <MapPin size={14} /> Localização definida
+            </span>
+          )}
+        </div>
+      </div>
+      {locationError && <div className="text-danger small mt-2">{locationError}</div>}
+      <div className="form-text">O mapa é apenas uma prévia; a localização exata é armazenada com o cadastro.</div>
+    </div>
+  );
 }

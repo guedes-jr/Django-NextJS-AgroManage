@@ -38,9 +38,10 @@ const roleConfig: Record<string, { label: string; color: string; bg: string }> =
 
 interface TopBarProps {
   onMenuClick?: () => void;
+  isMenuOpen?: boolean;
 }
 
-export function TopBar({ onMenuClick }: TopBarProps) {
+export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -79,8 +80,12 @@ export function TopBar({ onMenuClick }: TopBarProps) {
     >
       <div className="d-flex align-items-center gap-2">
         <button 
+          type="button"
           className="btn btn-link p-0 d-lg-none text-foreground" 
           onClick={onMenuClick}
+          aria-label="Abrir menu de navegação"
+          aria-controls="dashboard-sidebar"
+          aria-expanded={isMenuOpen}
         >
           <Menu size={24} />
         </button>

@@ -18,7 +18,6 @@ import {
   Link,
   Send,
   Settings,
-  Sprout,
   Tractor,
   Users,
   Wheat,
@@ -55,7 +54,7 @@ type Recommendation = BaseRecord & { title?: string | null; objective?: string |
 type LaborRecord = BaseRecord & { worker_name?: string | null; activity_type_display?: string | null; activity_date?: string | null; daily_quantity?: string | number | null; daily_rate?: string | number | null; total_amount?: string | number | null };
 type Harvest = BaseRecord & { harvest_date?: string | null; harvest_type_display?: string | null; yield_kg?: string | number | null; destination_display?: string | null; revenue_amount?: string | number | null; buyer_name?: string | null; buyer_name_display?: string | null };
 
-type ReportType = "estrutura" | "preparo" | "plantio" | "irrigacao" | "adubacao" | "defensivos" | "mao_obra" | "colheita" | "agronomo" | "anexos";
+type ReportType = "preparo" | "plantio" | "irrigacao" | "adubacao" | "defensivos" | "mao_obra" | "colheita" | "agronomo" | "anexos";
 type ReportEvent = {
   id: string;
   type: ReportType;
@@ -68,7 +67,6 @@ type ReportEvent = {
 };
 
 const moduleConfig: Record<ReportType, { label: string; description: string; icon: LucideIcon; color: string; bg: string; unit: string }> = {
-  estrutura: { label: "Estrutura do setor", description: "Informações da área, talhão, cultura e ciclo produtivo.", icon: Sprout, color: "#059669", bg: "#ecfdf5", unit: "itens" },
   preparo: { label: "Serviços mecanizados", description: "Atividades mecanizadas realizadas no talhão.", icon: Tractor, color: "#ea580c", bg: "#fff7ed", unit: "eventos" },
   plantio: { label: "Plantio", description: "Sementes, operações de plantio, quantidades e custos.", icon: Leaf, color: "#16a34a", bg: "#f0fdf4", unit: "eventos" },
   irrigacao: { label: "Irrigação", description: "Manejo de água, bombas, horas, volume e energia.", icon: Droplets, color: "#0284c7", bg: "#eff6ff", unit: "eventos" },
@@ -159,21 +157,6 @@ function buildEvents(plantation: Plantation, sources: {
   harvests: Harvest[];
 }): ReportEvent[] {
   const events: ReportEvent[] = [];
-
-  events.push({
-    id: `estrutura-${plantation.id}`,
-    type: "estrutura",
-    date: plantation.planting_date || "",
-    title: plantation.name || plantation.crop_name || "Produção agrícola",
-    subtitle: `${plantation.farm_name || "Fazenda"} / ${plantation.field_name || "Talhão"}`,
-    details: compact([
-      plantation.crop_name ? `Cultura: ${plantation.crop_name}` : undefined,
-      plantation.planted_area_ha ? `Área: ${numberText(plantation.planted_area_ha, " ha")}` : undefined,
-      plantation.status_display ? `Status: ${plantation.status_display}` : undefined,
-      plantation.planting_date ? `Plantio: ${formatDate(plantation.planting_date)}` : undefined,
-      plantation.expected_harvest_date ? `Colheita prevista: ${formatDate(plantation.expected_harvest_date)}` : undefined,
-    ]),
-  });
 
   sources.landPreparations.forEach((item) => {
     const amount = parseNumber(item.total_price || item.total_amount);

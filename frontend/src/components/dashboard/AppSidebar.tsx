@@ -166,7 +166,10 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   };
 
   return (
-    <div className={`dashboard-sidebar d-flex flex-column text-white ${isOpen ? "show" : ""}`}>
+    <div
+      id="dashboard-sidebar"
+      className={`dashboard-sidebar d-flex flex-column text-white ${isOpen ? "show" : ""}`}
+    >
       <div className="p-4 mb-4 d-flex align-items-center justify-content-between">
         <div className="d-flex align-items-center gap-3">
           <div 
@@ -186,8 +189,10 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
         </div>
 
         <button 
+          type="button"
           className="btn btn-link p-0 d-lg-none text-white/60 hover-text-white transition-colors" 
           onClick={onClose}
+          aria-label="Fechar menu de navegação"
         >
           <X size={24} />
         </button>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, Target, CheckCircle2, ArrowRight, CircleDashed, Waves, Plus, ClipboardList } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, Target, CheckCircle2, ArrowRight, Plus, ClipboardList } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -311,41 +311,11 @@ function MetricCard({ icon, label, value, variant = "info" }: { icon: React.Reac
   );
 }
 
-type ShortcutStatus = "completed" | "in_progress" | "pending" | "running";
-
-const shortcutStatusConfig: Record<ShortcutStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  completed: {
-    label: "Concluído",
-    color: "var(--bs-success)",
-    bg: "var(--bs-success-bg-subtle)",
-    icon: <CheckCircle2 size={15} />,
-  },
-  in_progress: {
-    label: "Em andamento",
-    color: "var(--bs-warning)",
-    bg: "var(--bs-warning-bg-subtle)",
-    icon: <CircleDashed size={15} />,
-  },
-  pending: {
-    label: "Pendente",
-    color: "var(--bs-secondary)",
-    bg: "var(--bs-secondary-bg-subtle)",
-    icon: <Clock size={15} />,
-  },
-  running: {
-    label: "Em funcionamento",
-    color: "var(--bs-primary)",
-    bg: "var(--bs-primary-bg-subtle)",
-    icon: <Waves size={15} />,
-  },
-};
-
 function ShortcutCard({
   number,
   image,
   label,
   desc,
-  status,
   onClick,
   featuredImage = false,
 }: {
@@ -353,12 +323,9 @@ function ShortcutCard({
   image: string;
   label: string;
   desc: string;
-  status: ShortcutStatus;
   onClick: () => void;
   featuredImage?: boolean;
 }) {
-  const statusConfig = shortcutStatusConfig[status];
-
   return (
     <button
       type="button"
@@ -402,21 +369,7 @@ function ShortcutCard({
             <div className="fw-black text-foreground mb-1" style={{ fontSize: "0.9rem" }}>{number}. {label}</div>
             <div className="text-muted-foreground" style={{ fontSize: "0.76rem", lineHeight: 1.3 }}>{desc}</div>
           </div>
-          <div className="d-flex align-items-center justify-content-between gap-2 mt-2">
-            <span
-              className="d-inline-flex align-items-center gap-2 fw-bold"
-              style={{
-                color: statusConfig.color,
-                background: statusConfig.bg,
-                border: `1px solid color-mix(in srgb, ${statusConfig.color}, transparent 50%)`,
-                borderRadius: 999,
-                padding: "6px 8px",
-                fontSize: "0.68rem",
-              }}
-            >
-              {statusConfig.icon}
-              {statusConfig.label}
-            </span>
+          <div className="d-flex align-items-center justify-content-end mt-2">
             <span
               className="d-inline-flex align-items-center justify-content-center flex-shrink-0 bg-body text-primary"
               style={{
@@ -1077,112 +1030,82 @@ export default function PlantacaoDetailPage() {
           {[
             {
               number: 1,
-              label: "Estrutura do Setor",
-              desc: "Talhões, áreas, equipes, equipamentos e insumos",
-              stage: shortcutStages.estrutura,
-              status: "completed" as ShortcutStatus,
-              onClick: () => undefined,
-              wide: false,
+              label: "Serviços Mecanizados",
+              desc: "Calagem, colheita, gradagem e mais",
+              stage: shortcutStages.preparo,
+              onClick: () => router.push(`/home/plantacoes/${id}/preparo-terra`),
               featuredImage: true,
             },
             {
               number: 2,
-              label: "Serviços Mecanizados",
-              desc: "Calagem, colheita, gradagem e mais",
-              stage: shortcutStages.preparo,
-              status: "completed" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/preparo-terra`),
-              wide: false,
+              label: "Adubação de Base",
+              desc: "Produtos, doses, quantidades e custo",
+              stage: shortcutStages.adubacao,
+              onClick: () => router.push(`/home/plantacoes/${id}/adubacao`),
               featuredImage: true,
             },
             {
               number: 3,
-              label: "Adubação de Base",
-              desc: "Produtos, doses, quantidades e custo",
-              stage: shortcutStages.adubacao,
-              status: "completed" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/adubacao`),
-              wide: false,
+              label: "Sementes/mudas",
+              desc: "Híbrido, mudas, quantidade, sacas e custo",
+              stage: shortcutStages.plantio,
+              onClick: () => router.push(`/home/plantacoes/${id}/sementes`),
               featuredImage: true,
             },
             {
               number: 4,
-              label: "Sementes/mudas",
-              desc: "Híbrido, mudas, quantidade, sacas e custo",
-              stage: shortcutStages.plantio,
-              status: "in_progress" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/sementes`),
-              wide: false,
+              label: "Fertirrigação",
+              desc: "Adubos via fertirrigação, doses, volume e custo",
+              stage: shortcutStages.fertirrigacao,
+              onClick: () => router.push(`/home/plantacoes/${id}/fertirrigacao`),
               featuredImage: true,
             },
             {
               number: 5,
-              label: "Fertirrigação",
-              desc: "Adubos via fertirrigação, doses, volume e custo",
-              stage: shortcutStages.fertirrigacao,
-              status: "in_progress" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/fertirrigacao`),
-              wide: false,
+              label: "Foliares / Defensivos",
+              desc: "Produtos, doses, volume e custo",
+              stage: shortcutStages.foliarDefensivos,
+              onClick: () => router.push(`/home/plantacoes/${id}/defensivos`),
               featuredImage: true,
             },
             {
               number: 6,
-              label: "Foliares / Defensivos",
-              desc: "Produtos, doses, volume e custo",
-              stage: shortcutStages.foliarDefensivos,
-              status: "pending" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/defensivos`),
-              wide: false,
+              label: "Irrigação",
+              desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
+              stage: shortcutStages.irrigacao,
+              onClick: () => router.push(`/home/plantacoes/${id}/irrigacao`),
               featuredImage: true,
             },
             {
               number: 7,
-              label: "Irrigação",
-              desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
-              stage: shortcutStages.irrigacao,
-              status: "running" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/irrigacao`),
-              wide: false,
+              label: "Área do Agrônomo",
+              desc: "Recomendações, programações e acompanhamentos",
+              stage: shortcutStages.agronomo,
+              onClick: () => router.push(`/home/plantacoes/${id}/agronomo`),
               featuredImage: true,
             },
             {
               number: 8,
-              label: "Área do Agrônomo",
-              desc: "Recomendações, programações e acompanhamentos",
-              stage: shortcutStages.agronomo,
-              status: "in_progress" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/agronomo`),
-              wide: false,
+              label: "Mão de Obra",
+              desc: "Atividades, horas trabalhadas e custos",
+              stage: shortcutStages.maoObra,
+              onClick: () => router.push(`/home/plantacoes/${id}/mao-obra`),
               featuredImage: true,
             },
             {
               number: 9,
-              label: "Mão de Obra",
-              desc: "Atividades, horas trabalhadas e custos",
-              stage: shortcutStages.maoObra,
-              status: "pending" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/mao-obra`),
-              wide: false,
+              label: "Relatório",
+              desc: "Gerar PDF completo ou resumo da produção",
+              stage: shortcutStages.relatorio,
+              onClick: () => router.push(`/home/plantacoes/${id}/historico`),
               featuredImage: true,
             },
             {
               number: 10,
-              label: "Relatório",
-              desc: "Gerar PDF completo ou resumo da produção",
-              stage: shortcutStages.relatorio,
-              status: "pending" as ShortcutStatus,
-              onClick: () => router.push(`/home/plantacoes/${id}/historico`),
-              wide: true,
-              featuredImage: true,
-            },
-            {
-              number: 11,
               label: "Colheita",
               desc: "Produção, sacas, umidade e valor",
               stage: shortcutStages.colheita,
-              status: "pending" as ShortcutStatus,
               onClick: () => router.push(`/home/plantacoes/${id}/colheita`),
-              wide: true,
               featuredImage: true,
             },
           ].map((shortcut) => (
@@ -1192,7 +1115,6 @@ export default function PlantacaoDetailPage() {
                 image={shortcut.stage.image}
                 label={shortcut.label}
                 desc={shortcut.desc}
-                status={shortcut.status}
                 onClick={shortcut.onClick}
                 featuredImage={shortcut.featuredImage}
               />
