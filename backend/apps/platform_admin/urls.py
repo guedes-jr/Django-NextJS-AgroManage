@@ -6,6 +6,8 @@ from . import views
 router = DefaultRouter()
 router.register("organizations", views.PlatformOrganizationViewSet, basename="platform-organization")
 router.register("users", views.PlatformUserViewSet, basename="platform-user")
+router.register("team", views.PlatformTeamViewSet, basename="platform-team")
+router.register("audit-logs", views.PlatformAuditLogViewSet, basename="platform-audit-log")
 router.register("plans", views.PlatformPlanViewSet, basename="platform-plan")
 router.register("features", views.PlatformFeatureViewSet, basename="platform-feature")
 router.register("subscriptions", views.PlatformSubscriptionViewSet, basename="platform-subscription")

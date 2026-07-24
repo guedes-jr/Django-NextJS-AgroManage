@@ -26,6 +26,13 @@ import type {
   SandboxExecutionResult,
   SandboxStatus,
   SandboxExecutionPage,
+  OrganizationFormPayload,
+  PlatformTeamMember,
+  PlatformTeamMemberPayload,
+  PlatformTeamPage,
+  PlatformAuditLogPage,
+  PlatformSupportAccess,
+  PlatformSupportAccessPage,
 } from "@/types/platform";
 
 const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
@@ -135,6 +142,17 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformOrganization>(`platform/organizations/${id}/`);
     return data;
   },
+  async createOrganization(payload: OrganizationFormPayload) {
+    const { data } = await platformApi.post<PlatformOrganization>("platform/organizations/", payload);
+    return data;
+  },
+  async updateOrganization(id: string, payload: OrganizationFormPayload) {
+    const { data } = await platformApi.patch<PlatformOrganization>(`platform/organizations/${id}/`, payload);
+    return data;
+  },
+  async archiveOrganization(id: string) {
+    await platformApi.post(`platform/organizations/${id}/archive/`);
+  },
   async suspendOrganization(id: string) {
     await platformApi.post(`platform/organizations/${id}/suspend/`);
   },
@@ -144,6 +162,46 @@ export const platformService = {
   async users(params?: Record<string, string | number | boolean>) {
     const { data } = await platformApi.get<PlatformUserPage>("platform/users/", { params });
     return data;
+  },
+  async team(params?: Record<string, string | number | boolean>) {
+    const { data } = await platformApi.get<PlatformTeamPage>("platform/team/", { params });
+    return data;
+  },
+  async createTeamMember(payload: PlatformTeamMemberPayload) {
+    const { data } = await platformApi.post<PlatformTeamMember>("platform/team/", payload);
+    return data;
+  },
+  async updateTeamMember(id: string, payload: Partial<PlatformTeamMemberPayload>) {
+    const { data } = await platformApi.patch<PlatformTeamMember>(`platform/team/${id}/`, payload);
+    return data;
+  },
+  async blockTeamMember(id: string) {
+    await platformApi.post(`platform/team/${id}/block/`);
+  },
+  async activateTeamMember(id: string) {
+    await platformApi.post(`platform/team/${id}/activate/`);
+  },
+  async revokeTeamMemberSessions(id: string) {
+    await platformApi.post(`platform/team/${id}/revoke-sessions/`);
+  },
+  async auditLogs(params?: Record<string, string | number>) {
+    const { data } = await platformApi.get<PlatformAuditLogPage>("platform/audit-logs/", { params });
+    return data;
+  },
+  async auditOptions() {
+    const { data } = await platformApi.get<{ actions: string[] }>("platform/audit-logs/options/");
+    return data;
+  },
+  async exportAuditLogs(params?: Record<string, string | number>) {
+    const { data } = await platformApi.get<Blob>("platform/audit-logs/export/", { params, responseType: "blob" });
+    const url = URL.createObjectURL(data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `auditoria-plataforma-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   },
   async user(id: string) {
     const { data } = await platformApi.get<PlatformUser>(`platform/users/${id}/`);
@@ -194,9 +252,20 @@ export const platformService = {
   async recordInvoicePayment(id:string, amount:string, paymentMethod:string) {
     await platformApi.post(`platform/invoices/${id}/record-payment/`, {amount, payment_method:paymentMethod});
   },
-  async createSupportAccess(organizationId:string, justification:string) {
-    const {data}=await platformApi.post<{access:string;grant:{id:string;organization_name:string;expires_at:string}}>("platform/support-access/",{organization_id:organizationId,justification,duration_minutes:30});
+  async supportAccesses(params?: Record<string, string | number>) {
+    const { data } = await platformApi.get<PlatformSupportAccessPage>("platform/support-access/", { params });
     return data;
+  },
+  async createSupportAccess(payload: { organization_id: string; ticket_reference: string; justification: string; duration_minutes: number }) {
+    const {data}=await platformApi.post<{access:string;grant:PlatformSupportAccess}>("platform/support-access/", payload);
+    return data;
+  },
+  async openSupportAccess(id: string) {
+    const { data } = await platformApi.post<{ access: string; grant: PlatformSupportAccess }>(`platform/support-access/${id}/open/`);
+    return data;
+  },
+  async revokeSupportAccess(id: string) {
+    await platformApi.post(`platform/support-access/${id}/revoke/`);
   },
   async operationsHealth(){ const {data}=await platformApi.get<PlatformHealth>("platform/operations/health/"); return data; },
   async taskRuns(params?:Record<string,string|number>){const {data}=await platformApi.get<PlatformTaskRunPage>("platform/task-runs/",{params});return data;},

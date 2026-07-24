@@ -1,5 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
+import csv
+import json
 import hashlib
 import time
 
@@ -9,6 +11,7 @@ from django.db import connection
 from django.conf import settings
 from django.db.migrations.executor import MigrationExecutor
 from django.db import DatabaseError
+from django.http import HttpResponse
 from django.db.models import Count, F, Q
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -22,12 +25,16 @@ from celery import current_app
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, Subscription
 from apps.billing.services import create_manual_invoice, record_manual_payment
-from common.permissions import IsPlatformAdmin, IsPlatformDeveloper, IsPlatformStaff, IsPlatformSupport
+from common.permissions import IsPlatformAdmin, IsPlatformAuditor, IsPlatformDeveloper, IsPlatformStaff, IsPlatformSupport
 
 from .serializers import (
     PlatformOrganizationDetailSerializer,
     PlatformOrganizationListSerializer,
+    PlatformOrganizationWriteSerializer,
     PlatformStaffSerializer,
+    PlatformTeamMemberSerializer,
+    PlatformTeamMemberWriteSerializer,
+    PlatformAuditLogSerializer,
     PlatformUserSerializer,
     ChangeSubscriptionPlanSerializer,
     FeatureSerializer,
@@ -51,7 +58,7 @@ from .serializers import (
     SandboxExecutionSerializer,
 )
 from .services import record_platform_action
-from .models import BackgroundTaskRun, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
+from .models import BackgroundTaskRun, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 from .operational import RETRYABLE_TASKS
 from .sql_console import UnsafeQuery, execute_readonly_query, explain_readonly_query, redact_query_for_history
 from .approved_queries import available_queries, run_approved_query
@@ -205,7 +212,7 @@ def operations_health(request):
         "checks": checks,
     })
 
-class PlatformOrganizationViewSet(viewsets.ReadOnlyModelViewSet):
+class PlatformOrganizationViewSet(viewsets.ModelViewSet):
     """Global organization management restricted to platform staff."""
 
     permission_classes = [IsPlatformStaff]
@@ -213,9 +220,10 @@ class PlatformOrganizationViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ("name", "plan", "is_active", "created_at", "updated_at")
     ordering = ("-created_at",)
     filterset_fields = ("plan", "is_active")
+    http_method_names = ("get", "post", "patch", "head", "options")
 
     def get_queryset(self):
-        return Organization.objects.annotate(
+        return Organization.objects.select_related("subscription__plan").annotate(
             users_count=Count("members", distinct=True),
             active_users_count=Count(
                 "members",
@@ -229,14 +237,82 @@ class PlatformOrganizationViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     def get_serializer_class(self):
+        if self.action in {"create", "partial_update"}:
+            return PlatformOrganizationWriteSerializer
         if self.action == "retrieve":
             return PlatformOrganizationDetailSerializer
         return PlatformOrganizationListSerializer
 
     def get_permissions(self):
-        if self.action in {"activate", "suspend"}:
+        if self.action in {"create", "partial_update", "activate", "suspend", "archive"}:
             return [IsPlatformAdmin()]
         return super().get_permissions()
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plan = Plan.objects.get(pk=serializer.validated_data.pop("plan_id"))
+        billing_cycle = serializer.validated_data.pop("billing_cycle")
+        legacy_codes = {choice[0] for choice in Organization.Plan.choices}
+        organization = serializer.save(
+            plan=plan.code if plan.code in legacy_codes else Organization.Plan.FREE,
+        )
+        subscription, _ = Subscription.objects.get_or_create(
+            organization=organization,
+            defaults={
+                "plan": plan,
+                "status": Subscription.Status.ACTIVE,
+                "billing_cycle": billing_cycle,
+                "started_at": timezone.now(),
+            },
+        )
+        if subscription.plan_id != plan.id or subscription.billing_cycle != billing_cycle:
+            subscription.plan = plan
+            subscription.billing_cycle = billing_cycle
+            subscription.save(update_fields=("plan", "billing_cycle", "updated_at"))
+        record_platform_action(
+            request=request,
+            action="organization.created",
+            organization=organization,
+            object_type="Organization",
+            object_id=organization.id,
+            description="Organização criada pela equipe da plataforma.",
+            extra_data={"plan": plan.code, "billing_cycle": billing_cycle},
+        )
+        result = self.get_queryset().get(pk=organization.pk)
+        return Response(PlatformOrganizationDetailSerializer(result).data, status=status.HTTP_201_CREATED)
+
+    @transaction.atomic
+    def partial_update(self, request, *args, **kwargs):
+        organization = self.get_object()
+        serializer = self.get_serializer(organization, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        plan_id = serializer.validated_data.pop("plan_id", None)
+        billing_cycle = serializer.validated_data.pop("billing_cycle", None)
+        organization = serializer.save()
+        subscription = getattr(organization, "subscription", None)
+        if plan_id:
+            plan = Plan.objects.get(pk=plan_id)
+            if subscription:
+                subscription.plan = plan
+            legacy_codes = {choice[0] for choice in Organization.Plan.choices}
+            organization.plan = plan.code if plan.code in legacy_codes else Organization.Plan.FREE
+            organization.save(update_fields=("plan", "updated_at"))
+        if subscription and billing_cycle:
+            subscription.billing_cycle = billing_cycle
+        if subscription and (plan_id or billing_cycle):
+            subscription.save(update_fields=("plan", "billing_cycle", "updated_at"))
+        record_platform_action(
+            request=request,
+            action="organization.updated",
+            organization=organization,
+            object_type="Organization",
+            object_id=organization.id,
+            description="Cadastro da organização atualizado.",
+        )
+        result = self.get_queryset().get(pk=organization.pk)
+        return Response(PlatformOrganizationDetailSerializer(result).data)
 
     @action(detail=True, methods=["post"])
     def suspend(self, request, pk=None):
@@ -279,6 +355,26 @@ class PlatformOrganizationViewSet(viewsets.ReadOnlyModelViewSet):
             description="Organização reativada pela equipe da plataforma.",
         )
         return Response({"detail": "Organização ativada com sucesso."})
+
+    @action(detail=True, methods=["post"])
+    def archive(self, request, pk=None):
+        organization = self.get_object()
+        if not organization.is_active:
+            return Response({"detail": "A organização já está arquivada."}, status=status.HTTP_400_BAD_REQUEST)
+        organization.is_active = False
+        organization.save(update_fields=("is_active", "updated_at"))
+        User.objects.filter(organization=organization, is_active=True).update(
+            session_version=F("session_version") + 1,
+        )
+        record_platform_action(
+            request=request,
+            action="organization.archived",
+            organization=organization,
+            object_type="Organization",
+            object_id=organization.id,
+            description="Organização arquivada sem exclusão dos dados.",
+        )
+        return Response({"detail": "Organização arquivada com sucesso."})
 
 
 class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -365,6 +461,261 @@ class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
             description="Usuário reativado pela equipe da plataforma.",
         )
         return Response({"detail": "Usuário ativado com sucesso."})
+
+
+class PlatformTeamViewSet(viewsets.ModelViewSet):
+    """Manage the internal platform team without exposing customer accounts."""
+
+    permission_classes = [IsPlatformAdmin]
+    http_method_names = ("get", "post", "patch", "head", "options")
+    lookup_field = "user_id"
+    search_fields = ("user__full_name", "user__email")
+    filterset_fields = ("role", "is_active", "mfa_required")
+    ordering_fields = ("created_at", "updated_at", "role", "user__full_name")
+    ordering = ("user__full_name",)
+
+    def get_queryset(self):
+        return PlatformStaffProfile.objects.select_related("user")
+
+    def get_serializer_class(self):
+        if self.action in {"create", "partial_update"}:
+            return PlatformTeamMemberWriteSerializer
+        return PlatformTeamMemberSerializer
+
+    def _is_requester_owner(self):
+        return self.request.user.platform_staff_profile.role == PlatformStaffProfile.Role.OWNER
+
+    def _validate_owner_change(self, *, profile=None, new_role=None, blocking=False):
+        affects_owner = profile and profile.role == PlatformStaffProfile.Role.OWNER
+        assigning_owner = new_role == PlatformStaffProfile.Role.OWNER
+        if (affects_owner or assigning_owner) and not self._is_requester_owner():
+            return Response(
+                {"detail": "Somente um proprietário pode gerenciar outro proprietário."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        removing_owner = affects_owner and (blocking or (new_role and new_role != PlatformStaffProfile.Role.OWNER))
+        if removing_owner:
+            other_active_owners = PlatformStaffProfile.objects.filter(
+                role=PlatformStaffProfile.Role.OWNER,
+                is_active=True,
+                user__is_active=True,
+            ).exclude(pk=profile.pk)
+            if not other_active_owners.exists():
+                return Response(
+                    {"detail": "Não é possível remover ou bloquear o último proprietário ativo."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        return None
+
+    @staticmethod
+    def _revoke_sessions(user):
+        for token in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=token)
+        User.objects.filter(pk=user.pk).update(session_version=F("session_version") + 1)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        owner_error = self._validate_owner_change(new_role=serializer.validated_data["role"])
+        if owner_error:
+            return owner_error
+        password = serializer.validated_data.pop("initial_password")
+        user = User.objects.create_user(
+            email=serializer.validated_data["email"],
+            password=password,
+            full_name=serializer.validated_data["full_name"],
+            is_staff=True,
+            is_active=True,
+            force_password_change=True,
+        )
+        profile = PlatformStaffProfile.objects.create(
+            user=user,
+            role=serializer.validated_data["role"],
+            is_active=True,
+            mfa_required=serializer.validated_data["mfa_required"],
+        )
+        record_platform_action(
+            request=request,
+            action="platform_team.created",
+            object_type="PlatformStaffProfile",
+            object_id=profile.id,
+            description=f"Membro interno {user.email} cadastrado.",
+            extra_data={"role": profile.role, "mfa_required": profile.mfa_required},
+        )
+        return Response(PlatformTeamMemberSerializer(profile).data, status=status.HTTP_201_CREATED)
+
+    @transaction.atomic
+    def partial_update(self, request, *args, **kwargs):
+        profile = self.get_object()
+        serializer = self.get_serializer(
+            data=request.data,
+            partial=True,
+            context={
+                "request": request,
+                "is_update": True,
+                "current_user_id": profile.user_id,
+            },
+        )
+        serializer.is_valid(raise_exception=True)
+        new_role = serializer.validated_data.get("role", profile.role)
+        owner_error = self._validate_owner_change(profile=profile, new_role=new_role)
+        if owner_error:
+            return owner_error
+        if profile.user_id == request.user.id and new_role != profile.role:
+            return Response({"detail": "Você não pode alterar o próprio papel."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = profile.user
+        user.email = serializer.validated_data.get("email", user.email)
+        user.full_name = serializer.validated_data.get("full_name", user.full_name)
+        password = serializer.validated_data.get("initial_password")
+        update_fields = ["email", "full_name", "updated_at"]
+        if password:
+            user.set_password(password)
+            user.force_password_change = True
+            update_fields.extend(("password", "force_password_change"))
+        user.save(update_fields=update_fields)
+        profile.role = new_role
+        profile.mfa_required = serializer.validated_data.get("mfa_required", profile.mfa_required)
+        profile.save(update_fields=("role", "mfa_required", "updated_at"))
+        if password:
+            self._revoke_sessions(user)
+        record_platform_action(
+            request=request,
+            action="platform_team.updated",
+            object_type="PlatformStaffProfile",
+            object_id=profile.id,
+            description=f"Membro interno {user.email} atualizado.",
+            extra_data={"role": profile.role, "mfa_required": profile.mfa_required},
+        )
+        return Response(PlatformTeamMemberSerializer(profile).data)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def block(self, request, user_id=None):
+        profile = self.get_object()
+        if profile.user_id == request.user.id:
+            return Response({"detail": "Você não pode bloquear a própria conta."}, status=status.HTTP_400_BAD_REQUEST)
+        owner_error = self._validate_owner_change(profile=profile, blocking=True)
+        if owner_error:
+            return owner_error
+        if not profile.is_active:
+            return Response({"detail": "O membro já está bloqueado."}, status=status.HTTP_400_BAD_REQUEST)
+        profile.is_active = False
+        profile.save(update_fields=("is_active", "updated_at"))
+        profile.user.is_active = False
+        profile.user.save(update_fields=("is_active", "updated_at"))
+        self._revoke_sessions(profile.user)
+        record_platform_action(
+            request=request, action="platform_team.blocked",
+            object_type="PlatformStaffProfile", object_id=profile.id,
+            description=f"Membro interno {profile.user.email} bloqueado.",
+        )
+        return Response({"detail": "Membro bloqueado com sucesso."})
+
+    @action(detail=True, methods=["post"])
+    def activate(self, request, user_id=None):
+        profile = self.get_object()
+        owner_error = self._validate_owner_change(profile=profile, new_role=profile.role)
+        if owner_error:
+            return owner_error
+        profile.is_active = True
+        profile.save(update_fields=("is_active", "updated_at"))
+        profile.user.is_active = True
+        profile.user.save(update_fields=("is_active", "updated_at"))
+        record_platform_action(
+            request=request, action="platform_team.activated",
+            object_type="PlatformStaffProfile", object_id=profile.id,
+            description=f"Membro interno {profile.user.email} reativado.",
+        )
+        return Response({"detail": "Membro reativado com sucesso."})
+
+    @action(detail=True, methods=["post"], url_path="revoke-sessions")
+    def revoke_sessions(self, request, user_id=None):
+        profile = self.get_object()
+        self._revoke_sessions(profile.user)
+        record_platform_action(
+            request=request, action="platform_team.sessions_revoked",
+            object_type="PlatformStaffProfile", object_id=profile.id,
+            description=f"Sessões de {profile.user.email} encerradas.",
+        )
+        return Response({"detail": "Sessões encerradas com sucesso."})
+
+
+class PlatformAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Immutable, filterable history of actions performed in the backoffice."""
+
+    serializer_class = PlatformAuditLogSerializer
+    permission_classes = [IsPlatformAuditor]
+    search_fields = (
+        "action", "description", "object_type", "object_id",
+        "actor__full_name", "actor__email", "organization__name",
+        "ip_address", "request_id",
+    )
+    ordering_fields = ("created_at", "action", "actor__full_name", "organization__name")
+    ordering = ("-created_at",)
+    filterset_fields = ("action", "actor", "organization", "object_type")
+    http_method_names = ("get", "head", "options")
+
+    def get_queryset(self):
+        queryset = PlatformAuditLog.objects.select_related("actor", "organization")
+        created_after = self.request.query_params.get("created_after")
+        created_before = self.request.query_params.get("created_before")
+        if created_after:
+            queryset = queryset.filter(created_at__date__gte=created_after)
+        if created_before:
+            queryset = queryset.filter(created_at__date__lte=created_before)
+        return queryset
+
+    @action(detail=False, methods=["get"], url_path="options")
+    def filter_options(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        return Response({
+            "actions": list(
+                queryset.order_by("action").values_list("action", flat=True).distinct()
+            ),
+        })
+
+    @staticmethod
+    def _csv_value(value):
+        text = "" if value is None else str(value)
+        if text.startswith(("=", "+", "-", "@", "\t", "\r")):
+            return f"'{text}"
+        return text
+
+    @action(detail=False, methods=["get"])
+    def export(self, request):
+        queryset = self.filter_queryset(self.get_queryset()).order_by("-created_at")[:10_000]
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="auditoria-plataforma.csv"'
+        response.write("\ufeff")
+        writer = csv.writer(response)
+        writer.writerow([
+            "Data", "Ação", "Ator", "E-mail", "Organização", "Descrição",
+            "Tipo do objeto", "ID do objeto", "IP", "Request ID", "Dados adicionais",
+        ])
+        for log in queryset:
+            writer.writerow([
+                self._csv_value(timezone.localtime(log.created_at).isoformat()),
+                self._csv_value(log.action),
+                self._csv_value(log.actor.full_name if log.actor else ""),
+                self._csv_value(log.actor.email if log.actor else ""),
+                self._csv_value(log.organization.name if log.organization else ""),
+                self._csv_value(log.description),
+                self._csv_value(log.object_type),
+                self._csv_value(log.object_id),
+                self._csv_value(log.ip_address),
+                self._csv_value(log.request_id),
+                self._csv_value(json.dumps(log.extra_data, ensure_ascii=False, default=str)),
+            ])
+        record_platform_action(
+            request=request,
+            action="audit.exported",
+            object_type="PlatformAuditLog",
+            description="Relatório de auditoria exportado em CSV.",
+            extra_data={"limit": 10_000},
+        )
+        return response
 
 
 class PlatformPlanViewSet(viewsets.ModelViewSet):
@@ -545,12 +896,23 @@ class PlatformSupportAccessViewSet(viewsets.ModelViewSet):
     serializer_class = SupportAccessGrantSerializer
     permission_classes = [IsPlatformSupport]
     ordering = ("-created_at",)
+    search_fields = ("ticket_reference", "justification", "operator__full_name", "organization__name")
+    filterset_fields = ("organization", "operator")
+    ordering_fields = ("created_at", "expires_at", "last_used_at")
     http_method_names = ("get", "post", "head", "options")
 
     def get_queryset(self):
         qs = SupportAccessGrant.objects.select_related("operator", "organization")
         if self.request.user.platform_staff_profile.role == "platform_support":
             qs = qs.filter(operator=self.request.user)
+        access_status = self.request.query_params.get("status")
+        now = timezone.now()
+        if access_status == "active":
+            qs = qs.filter(revoked_at__isnull=True, expires_at__gt=now)
+        elif access_status == "revoked":
+            qs = qs.filter(revoked_at__isnull=False)
+        elif access_status == "expired":
+            qs = qs.filter(revoked_at__isnull=True, expires_at__lte=now)
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -564,20 +926,48 @@ class PlatformSupportAccessViewSet(viewsets.ModelViewSet):
         grant = SupportAccessGrant.objects.create(
             operator=request.user,
             organization=organization,
+            ticket_reference=serializer.validated_data["ticket_reference"],
             justification=serializer.validated_data["justification"],
             expires_at=timezone.now() + timedelta(minutes=duration),
         )
-        token = AccessToken.for_user(request.user)
-        token["session_version"] = request.user.session_version
-        token["support_grant_id"] = str(grant.id)
-        token.set_exp(lifetime=timedelta(minutes=duration))
+        token = self._issue_access_token(request.user, grant, timedelta(minutes=duration))
         record_platform_action(
             request=request, action="support_access.created", organization=organization,
             object_type="SupportAccessGrant", object_id=grant.id,
             description="Acesso assistido somente leitura iniciado.",
-            extra_data={"justification": grant.justification, "expires_at": grant.expires_at.isoformat()},
+            extra_data={"ticket_reference": grant.ticket_reference, "justification": grant.justification, "expires_at": grant.expires_at.isoformat()},
         )
         return Response({"grant": SupportAccessGrantSerializer(grant).data, "access": str(token)}, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _issue_access_token(user, grant, lifetime):
+        token = AccessToken.for_user(user)
+        token["session_version"] = user.session_version
+        token["support_grant_id"] = str(grant.id)
+        token.set_exp(lifetime=lifetime)
+        return token
+
+    @action(detail=True, methods=["post"], url_path="open")
+    def open_access(self, request, pk=None):
+        grant = self.get_object()
+        if grant.operator_id != request.user.id:
+            return Response(
+                {"detail": "Somente o responsável pelo acesso pode abri-lo."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not grant.is_valid:
+            return Response(
+                {"detail": "O acesso está expirado ou foi revogado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        lifetime = grant.expires_at - timezone.now()
+        token = self._issue_access_token(request.user, grant, lifetime)
+        record_platform_action(
+            request=request, action="support_access.opened", organization=grant.organization,
+            object_type="SupportAccessGrant", object_id=grant.id,
+            description="Acesso assistido existente reaberto.",
+        )
+        return Response({"grant": SupportAccessGrantSerializer(grant).data, "access": str(token)})
 
     @action(detail=True, methods=["post"])
     def revoke(self, request, pk=None):

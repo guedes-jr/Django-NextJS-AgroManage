@@ -71,6 +71,7 @@ class SupportAccessGrant(BaseModel):
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.CASCADE, related_name="support_access_grants"
     )
+    ticket_reference = models.CharField(max_length=100, blank=True, db_index=True)
     justification = models.TextField()
     expires_at = models.DateTimeField(db_index=True)
     revoked_at = models.DateTimeField(null=True, blank=True)

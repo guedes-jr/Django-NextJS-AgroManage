@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Building2, LayoutDashboard, LogOut, Settings, ShieldCheck, Tags, Terminal, Users, WalletCards } from "lucide-react";
+import { Activity, Building2, Eye, LayoutDashboard, LogOut, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards } from "lucide-react";
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
@@ -61,6 +61,21 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
             const active = item.href === "/platform" ? pathname === item.href : pathname.startsWith(item.href);
             return <Link key={item.href} href={item.href} className={active ? "active" : ""}><item.icon size={19} /><span className="nav-label">{item.label}</span></Link>;
           })}
+          {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
+            <Link href="/platform/team" className={pathname.startsWith("/platform/team") ? "active" : ""}>
+              <UserCog size={19} /><span className="nav-label">Equipe interna</span>
+            </Link>
+          )}
+          {["platform_owner", "platform_admin", "platform_auditor"].includes(staff?.role || "") && (
+            <Link href="/platform/audit" className={pathname.startsWith("/platform/audit") ? "active" : ""}>
+              <ScrollText size={19} /><span className="nav-label">Auditoria</span>
+            </Link>
+          )}
+          {["platform_owner", "platform_admin", "platform_support"].includes(staff?.role || "") && (
+            <Link href="/platform/support-access" className={pathname.startsWith("/platform/support-access") ? "active" : ""}>
+              <Eye size={19} /><span className="nav-label">Acesso assistido</span>
+            </Link>
+          )}
           {staff?.role === "platform_developer" && (
             <Link href="/platform/operations/queries" className={pathname.startsWith("/platform/operations/queries") ? "active" : ""}>
               <Terminal size={19} /><span className="nav-label">Consultas aprovadas</span>

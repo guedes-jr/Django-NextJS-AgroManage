@@ -2,10 +2,13 @@ from decimal import Decimal
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.text import slugify
 
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, PlanEntitlement, Subscription
-from .models import BackgroundTaskRun, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
+from .models import BackgroundTaskRun, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 
 User = get_user_model()
 
@@ -28,9 +31,71 @@ class PlatformStaffSerializer(serializers.ModelSerializer):
         )
 
 
+class PlatformTeamMemberSerializer(PlatformStaffSerializer):
+    is_active = serializers.BooleanField(read_only=True)
+    last_login = serializers.DateTimeField(source="user.last_login", read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    class Meta(PlatformStaffSerializer.Meta):
+        fields = PlatformStaffSerializer.Meta.fields + (
+            "is_active",
+            "last_login",
+            "created_at",
+            "updated_at",
+        )
+
+
+class PlatformTeamMemberWriteSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    full_name = serializers.CharField(max_length=255)
+    role = serializers.ChoiceField(choices=PlatformStaffProfile.Role.choices)
+    mfa_required = serializers.BooleanField(default=True)
+    initial_password = serializers.CharField(write_only=True, min_length=8, required=False)
+
+    def validate_email(self, value):
+        email = User.objects.normalize_email(value)
+        queryset = User.objects.filter(email=email)
+        current_user_id = self.context.get("current_user_id")
+        if current_user_id:
+            queryset = queryset.exclude(pk=current_user_id)
+        if queryset.exists():
+            raise serializers.ValidationError("Já existe uma conta com este e-mail.")
+        return email
+
+    def validate_initial_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+        return value
+
+    def validate(self, attrs):
+        if not self.context.get("is_update") and not attrs.get("initial_password"):
+            raise serializers.ValidationError({"initial_password": "Informe uma senha inicial."})
+        return attrs
+
+
+class PlatformAuditLogSerializer(serializers.ModelSerializer):
+    actor_name = serializers.CharField(source="actor.full_name", read_only=True)
+    actor_email = serializers.CharField(source="actor.email", read_only=True)
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
+
+    class Meta:
+        model = PlatformAuditLog
+        fields = (
+            "id", "actor", "actor_name", "actor_email", "organization",
+            "organization_name", "action", "object_type", "object_id",
+            "description", "ip_address", "user_agent", "request_id",
+            "extra_data", "created_at",
+        )
+        read_only_fields = fields
+
+
 class PlatformOrganizationListSerializer(serializers.ModelSerializer):
     users_count = serializers.IntegerField(read_only=True)
     farms_count = serializers.IntegerField(read_only=True)
+    subscription_plan_id = serializers.UUIDField(source="subscription.plan_id", read_only=True, allow_null=True)
+    billing_cycle = serializers.CharField(source="subscription.billing_cycle", read_only=True, allow_null=True)
 
     class Meta:
         model = Organization
@@ -45,6 +110,8 @@ class PlatformOrganizationListSerializer(serializers.ModelSerializer):
             "phone",
             "users_count",
             "farms_count",
+            "subscription_plan_id",
+            "billing_cycle",
             "created_at",
             "updated_at",
         )
@@ -64,6 +131,48 @@ class PlatformOrganizationDetailSerializer(PlatformOrganizationListSerializer):
             "inventory_items_count",
             "address",
         )
+
+
+class PlatformOrganizationWriteSerializer(serializers.ModelSerializer):
+    plan_id = serializers.UUIDField(write_only=True)
+    billing_cycle = serializers.ChoiceField(
+        choices=Subscription.BillingCycle.choices,
+        default=Subscription.BillingCycle.MONTHLY,
+        write_only=True,
+    )
+
+    class Meta:
+        model = Organization
+        fields = (
+            "name", "slug", "document", "email", "phone", "address",
+            "plan_id", "billing_cycle",
+        )
+        extra_kwargs = {
+            "slug": {"required": False, "allow_blank": True},
+            "document": {"required": False, "allow_blank": True},
+            "email": {"required": False, "allow_blank": True},
+            "phone": {"required": False, "allow_blank": True},
+            "address": {"required": False, "allow_blank": True},
+        }
+
+    def validate_plan_id(self, value):
+        if not Plan.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Plano ativo não encontrado.")
+        return value
+
+    def validate_slug(self, value):
+        return slugify(value) if value else value
+
+    def validate(self, attrs):
+        if not attrs.get("slug") and not self.instance:
+            base = slugify(attrs.get("name", ""))[:90] or "organizacao"
+            candidate = base
+            suffix = 2
+            while Organization.objects.filter(slug=candidate).exists():
+                candidate = f"{base[:90 - len(str(suffix))]}-{suffix}"
+                suffix += 1
+            attrs["slug"] = candidate
+        return attrs
 
 
 class PlatformUserSerializer(serializers.ModelSerializer):
@@ -192,11 +301,12 @@ class SupportAccessGrantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SupportAccessGrant
-        fields = ("id", "operator", "operator_name", "organization", "organization_name", "justification", "expires_at", "revoked_at", "last_used_at", "is_valid", "created_at")
+        fields = ("id", "operator", "operator_name", "organization", "organization_name", "ticket_reference", "justification", "expires_at", "revoked_at", "last_used_at", "is_valid", "created_at")
 
 
 class CreateSupportAccessSerializer(serializers.Serializer):
     organization_id = serializers.UUIDField()
+    ticket_reference = serializers.CharField(min_length=3, max_length=100, required=False, allow_blank=True, default="")
     justification = serializers.CharField(min_length=10, max_length=1000)
     duration_minutes = serializers.IntegerField(min_value=5, max_value=60, default=30)
 

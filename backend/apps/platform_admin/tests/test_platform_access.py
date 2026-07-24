@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.organizations.models import Organization
+from apps.billing.models import Plan, Subscription
 from apps.platform_admin.models import PlatformAuditLog, PlatformStaffProfile
 
 User = get_user_model()
@@ -130,3 +131,89 @@ class PlatformAccessAPITestCase(APITestCase):
 
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         self.assertEqual(suspend_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_platform_admin_creates_organization_with_selected_subscription(self):
+        plan = Plan.objects.get(code="pro")
+        self.client.force_authenticate(user=self.platform_admin)
+
+        response = self.client.post(
+            reverse("platform-organization-list"),
+            {
+                "name": "Nova Organização",
+                "document": "12.345.678/0001-90",
+                "email": "contato@nova.test",
+                "phone": "(11) 99999-0000",
+                "address": "Rua Principal, 100",
+                "plan_id": str(plan.id),
+                "billing_cycle": Subscription.BillingCycle.YEARLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        organization = Organization.objects.get(name="Nova Organização")
+        self.assertEqual(organization.slug, "nova-organizacao")
+        self.assertEqual(organization.subscription.plan, plan)
+        self.assertEqual(organization.subscription.billing_cycle, Subscription.BillingCycle.YEARLY)
+        self.assertTrue(PlatformAuditLog.objects.filter(action="organization.created", organization=organization).exists())
+
+    def test_platform_admin_updates_organization_and_plan(self):
+        plan = Plan.objects.get(code="starter")
+        self.client.force_authenticate(user=self.platform_admin)
+
+        response = self.client.patch(
+            reverse("platform-organization-detail", args=[self.org_a.id]),
+            {
+                "name": "Organização Atualizada",
+                "email": "novo@email.test",
+                "plan_id": str(plan.id),
+                "billing_cycle": Subscription.BillingCycle.MONTHLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.org_a.refresh_from_db()
+        self.assertEqual(self.org_a.name, "Organização Atualizada")
+        self.assertEqual(self.org_a.email, "novo@email.test")
+        self.assertEqual(self.org_a.subscription.plan, plan)
+        self.assertTrue(PlatformAuditLog.objects.filter(action="organization.updated", organization=self.org_a).exists())
+
+    def test_archive_preserves_organization_and_revokes_member_sessions(self):
+        self.client.force_authenticate(user=self.platform_admin)
+
+        response = self.client.post(
+            reverse("platform-organization-archive", args=[self.org_a.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.org_a.refresh_from_db()
+        self.customer_owner.refresh_from_db()
+        self.assertFalse(self.org_a.is_active)
+        self.assertEqual(self.customer_owner.session_version, 1)
+        self.assertTrue(Organization.objects.filter(pk=self.org_a.id).exists())
+        self.assertTrue(PlatformAuditLog.objects.filter(action="organization.archived", organization=self.org_a).exists())
+
+    def test_support_cannot_create_or_edit_organization(self):
+        support = User.objects.create_user(
+            email="support-write@example.com",
+            password="password123",
+            full_name="Platform Support",
+        )
+        PlatformStaffProfile.objects.create(user=support, role=PlatformStaffProfile.Role.SUPPORT)
+        plan = Plan.objects.get(code="free")
+        self.client.force_authenticate(user=support)
+
+        create_response = self.client.post(
+            reverse("platform-organization-list"),
+            {"name": "Bloqueada", "plan_id": str(plan.id)},
+            format="json",
+        )
+        update_response = self.client.patch(
+            reverse("platform-organization-detail", args=[self.org_a.id]),
+            {"name": "Tentativa", "plan_id": str(plan.id)},
+            format="json",
+        )
+
+        self.assertEqual(create_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(update_response.status_code, status.HTTP_403_FORBIDDEN)

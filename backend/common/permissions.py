@@ -80,6 +80,15 @@ class IsPlatformDeveloper(IsPlatformStaff):
         }
 
 
+class IsPlatformAuditor(IsPlatformStaff):
+    message = "Acesso restrito à auditoria da plataforma."
+
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.platform_staff_profile.role in {
+            "platform_owner", "platform_admin", "platform_auditor"
+        }
+
+
 class OrganizationRolePermission(BasePermission):
     """Role matrix for tenant endpoints, configurable per view."""
 

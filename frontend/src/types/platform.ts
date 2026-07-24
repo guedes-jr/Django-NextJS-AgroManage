@@ -17,6 +17,60 @@ export interface PlatformStaff {
   mfa_required: boolean;
 }
 
+export interface PlatformTeamMember extends PlatformStaff {
+  is_active: boolean;
+  last_login: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PlatformTeamPage = PaginatedResponse<PlatformTeamMember>;
+
+export interface PlatformTeamMemberPayload {
+  email: string;
+  full_name: string;
+  role: PlatformRole;
+  mfa_required: boolean;
+  initial_password?: string;
+}
+
+export interface PlatformAuditLog {
+  id: string;
+  actor: string | null;
+  actor_name: string;
+  actor_email: string;
+  organization: string | null;
+  organization_name: string;
+  action: string;
+  object_type: string;
+  object_id: string;
+  description: string;
+  ip_address: string | null;
+  user_agent: string;
+  request_id: string;
+  extra_data: Record<string, unknown>;
+  created_at: string;
+}
+
+export type PlatformAuditLogPage = PaginatedResponse<PlatformAuditLog>;
+
+export interface PlatformSupportAccess {
+  id: string;
+  operator: string;
+  operator_name: string;
+  organization: string;
+  organization_name: string;
+  ticket_reference: string;
+  justification: string;
+  expires_at: string;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  is_valid: boolean;
+  created_at: string;
+}
+
+export type PlatformSupportAccessPage = PaginatedResponse<PlatformSupportAccess>;
+
 export interface PlatformDashboard {
   organizations: {
     total: number;
@@ -50,11 +104,24 @@ export interface PlatformOrganization {
   planting_cycles_count?: number;
   inventory_items_count?: number;
   address?: string;
+  subscription_plan_id?: string | null;
+  billing_cycle?: "monthly" | "yearly" | "custom";
   created_at: string;
   updated_at: string;
 }
 
 export type PlatformOrganizationPage = PaginatedResponse<PlatformOrganization>;
+
+export interface OrganizationFormPayload {
+  name: string;
+  slug: string;
+  document: string;
+  email: string;
+  phone: string;
+  address: string;
+  plan_id: string;
+  billing_cycle: "monthly" | "yearly" | "custom";
+}
 
 export interface PlatformUser {
   id: string;
