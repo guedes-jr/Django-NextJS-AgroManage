@@ -17,6 +17,7 @@ import {
   HeartPulse,
   X,
   Wheat,
+  Warehouse,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -92,7 +93,15 @@ const menuItems: MenuItem[] = [
     icon: Wheat,
     children: [
       { title: "Plantações", href: "/home/plantacoes" },
-      { title: "Estrutura da Fazenda", href: "/home/estrutura" },
+    ],
+  },
+  {
+    title: "Estrutura da Fazenda",
+    href: "/home/estrutura",
+    icon: Warehouse,
+    children: [
+      { title: "Estruturas", href: "/home/estrutura" },
+      { title: "Máquinas e veículos", href: "/home/estrutura/maquinas" },
     ],
   },
   { title: "Financeiro", href: "/home/financeiro", icon: Wallet },

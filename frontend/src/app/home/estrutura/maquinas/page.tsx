@@ -8,7 +8,8 @@ import { ArrowLeft, CalendarDays, ClipboardList, DollarSign, Pencil, Plus, Searc
 
 import { apiClient } from "@/services/api";
 import { farmAssetService, type FarmAssetImplementPayload, type FarmAssetPayload } from "@/services/farmAssetService";
-import type { Farm, FarmAsset, FarmAssetSummary, FarmAssetType } from "@/types";
+import type { Farm, FarmAsset, FarmAssetImplement, FarmAssetSummary, FarmAssetType } from "@/types";
+import { LocationPicker } from "@/components/farm/LocationPicker";
 
 import styles from "./machines.module.css";
 
@@ -83,10 +84,36 @@ export default function FarmMachineryPage() {
     if (selected) setSelected(list.data.results.find((asset) => asset.id === selected.id) || null);
   };
 
-  const filtered = useMemo(() => {
+  const reportRows = useMemo(() => assets.flatMap((asset) => [
+    {
+      key: `asset-${asset.id}`,
+      kind: "asset" as const,
+      asset,
+      implement: null,
+      searchable: `${asset.asset_type_label} ${asset.brand} ${asset.model} ${asset.serial_number}`,
+    },
+    ...asset.implements.map((item) => ({
+      key: `implement-${item.id}`,
+      kind: "implement" as const,
+      asset,
+      implement: item,
+      searchable: `implemento ${item.name} ${item.brand_model} ${asset.brand} ${asset.model}`,
+    })),
+  ]), [assets]);
+
+  const filteredReportRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
-    return assets.filter((asset) => !term || `${asset.asset_type_label} ${asset.brand} ${asset.model} ${asset.serial_number}`.toLocaleLowerCase("pt-BR").includes(term));
-  }, [assets, search]);
+    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase("pt-BR").includes(term));
+  }, [reportRows, search]);
+
+  const lastRegisteredLocation = useMemo(() => {
+    const asset = assets.find((item) => item.latitude && item.longitude);
+    if (asset) return { latitude: asset.latitude!, longitude: asset.longitude!, label: `${asset.brand} ${asset.model}` };
+
+    const farm = farms.find((item) => item.id === farmId);
+    if (farm?.latitude && farm.longitude) return { latitude: farm.latitude, longitude: farm.longitude, label: farm.name };
+    return null;
+  }, [assets, farmId, farms]);
 
   const resetForm = () => { setEditing(null); setSelected(null); setForm({ ...emptyAsset, farm: farmId }); setImplement(emptyImplement); };
   const editAsset = (asset: FarmAsset) => {
@@ -147,8 +174,13 @@ export default function FarmMachineryPage() {
         <Field label="Valor pago"><input required type="number" min="0" step="0.01" className="form-control" value={form.acquisition_value} onChange={(e) => setForm({ ...form, acquisition_value: e.target.value })} /></Field>
         <Field label="Valor atual"><input required type="number" min="0" step="0.01" className="form-control" value={form.current_value} onChange={(e) => setForm({ ...form, current_value: e.target.value })} /></Field>
         <div className="col-md-6"><label className="form-label">Descrição / observações</label><textarea rows={3} className="form-control" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-        <Field label="Latitude"><input type="number" step="0.0000001" className="form-control" value={form.latitude || ""} onChange={(e) => setForm({ ...form, latitude: e.target.value || null })} /></Field>
-        <Field label="Longitude"><input type="number" step="0.0000001" className="form-control" value={form.longitude || ""} onChange={(e) => setForm({ ...form, longitude: e.target.value || null })} /></Field>
+        <div className="col-12"><LocationPicker
+          latitude={form.latitude}
+          longitude={form.longitude}
+          lastLocation={lastRegisteredLocation}
+          subjectLabel="máquina ou veículo"
+          onChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))}
+        /></div>
       </div><div className="d-flex justify-content-end gap-2 mt-4"><button type="button" className="btn btn-outline-secondary" onClick={resetForm}>Limpar</button><button className="btn btn-success px-4" disabled={saving || !farmId}>{saving ? "Salvando..." : "Salvar dados"}</button></div></form></section>
 
       <section className={styles.panel}><div className="d-flex justify-content-between align-items-center"><h2>2. Implementos vinculados</h2>{!selected && <span className="text-muted small">Salve ou selecione uma máquina primeiro.</span>}</div>
@@ -158,8 +190,35 @@ export default function FarmMachineryPage() {
 
       <section className={styles.summary}><Summary icon={ClipboardList} label="Máquinas e veículos" value={String(summary?.total_assets || 0)} /><Summary icon={Wrench} label="Valor em implementos" value={money(summary?.implements_value || 0)} /><Summary icon={DollarSign} label="Valor total investido" value={money(summary?.total_invested || 0)} /><Summary icon={CalendarDays} label="Valor atual dos bens" value={money(summary?.current_value || 0)} /></section>
 
-      <section className={styles.panel}><div className="d-flex flex-wrap justify-content-between align-items-center gap-3"><div><h2 className="mb-1">3. Relatório de máquinas agrícolas e veículos</h2><p className="text-muted small mb-0">Todos os itens cadastrados na fazenda selecionada.</p></div><div className={styles.search}><Search size={17} /><input placeholder="Buscar tipo, marca, modelo ou chassi" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div>
-        <div className="table-responsive mt-3"><table className="table align-middle"><thead><tr><th>Tipo</th><th>Marca / Modelo</th><th>Ano</th><th>Combustível</th><th>Horas</th><th>Implementos</th><th>Valor pago</th><th>Valor atual</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={9} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr> : filtered.length ? filtered.map((asset) => <tr key={asset.id}><td>{asset.asset_type_label}</td><td><strong>{asset.brand} {asset.model}</strong><div className="text-muted small">{asset.serial_number || "Sem chassi/série"}</div></td><td>{asset.manufacture_year || "—"}</td><td>{asset.fuel || "—"}</td><td>{asset.current_hours || "—"}</td><td>{asset.implements.length}</td><td>{money(Number(asset.acquisition_value) + Number(asset.implements_value))}</td><td className="text-success fw-semibold">{money(asset.current_value)}</td><td className="text-end"><button className="btn btn-sm btn-outline-secondary me-2" onClick={() => editAsset(asset)}><Pencil size={15} /></button>{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void removeAsset(asset)}><Trash2 size={15} /></button>}</td></tr>) : <tr><td colSpan={9} className="text-center text-muted py-5">Nenhuma máquina ou veículo cadastrado.</td></tr>}</tbody></table></div>
+      <section className={styles.panel}><div className="d-flex flex-wrap justify-content-between align-items-center gap-3"><div><h2 className="mb-1">3. Relatório completo de máquinas, veículos e implementos</h2><p className="text-muted small mb-0">Relação consolidada de todos os bens agrícolas da fazenda selecionada.</p></div><div className={styles.search}><Search size={17} /><input placeholder="Buscar item, marca, modelo ou chassi" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div>
+        <div className="table-responsive mt-3">
+          <table className="table align-middle">
+            <thead><tr><th>Categoria</th><th>Item</th><th>Vinculado a</th><th>Ano</th><th>Identificação</th><th>Quantidade</th><th>Valor pago</th><th>Valor atual</th><th /></tr></thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={9} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
+              ) : filteredReportRows.length ? (
+                filteredReportRows.map((row) => row.kind === "asset"
+                  ? <AssetReportRow key={row.key} asset={row.asset} canDelete={canDelete} onEdit={editAsset} onRemove={removeAsset} />
+                  : <ImplementReportRow key={row.key} asset={row.asset} implement={row.implement!} canDelete={canDelete} onRemoved={refresh} />
+                )
+              ) : (
+                <tr><td colSpan={9} className="text-center text-muted py-5">Nenhuma máquina, veículo ou implemento cadastrado.</td></tr>
+              )}
+            </tbody>
+            {!!assets.length && (
+              <tfoot>
+                <tr className={styles.reportTotal}>
+                  <td colSpan={5}>Total geral</td>
+                  <td>{(summary?.total_assets || 0) + assets.reduce((total, asset) => total + asset.implements.reduce((sum, item) => sum + item.quantity, 0), 0)} itens</td>
+                  <td>{money(summary?.total_invested || 0)}</td>
+                  <td>{money(summary?.current_value || 0)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
       </section>
     </main>
   </div>;
@@ -167,3 +226,41 @@ export default function FarmMachineryPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="col-md-3"><label className="form-label">{label}</label>{children}</div>; }
 function Summary({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) { return <div><Icon size={24} /><span>{label}</span><strong>{value}</strong></div>; }
+
+function AssetReportRow({ asset, canDelete, onEdit, onRemove }: {
+  asset: FarmAsset;
+  canDelete: boolean;
+  onEdit: (asset: FarmAsset) => void;
+  onRemove: (asset: FarmAsset) => Promise<void>;
+}) {
+  return <tr>
+    <td><span className="badge bg-success-subtle text-success border border-success-subtle">{asset.asset_type_label}</span></td>
+    <td><strong>{asset.brand} {asset.model}</strong></td>
+    <td>Bem principal</td>
+    <td>{asset.manufacture_year || "—"}</td>
+    <td><span className="small">{asset.serial_number || "Sem chassi/série"}</span></td>
+    <td>1</td>
+    <td>{money(asset.acquisition_value)}</td>
+    <td className="text-success fw-semibold">{money(asset.current_value)}</td>
+    <td className="text-end"><button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(asset)} title="Editar"><Pencil size={15} /></button>{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(asset)} title="Excluir"><Trash2 size={15} /></button>}</td>
+  </tr>;
+}
+
+function ImplementReportRow({ asset, implement, canDelete, onRemoved }: {
+  asset: FarmAsset;
+  implement: FarmAssetImplement;
+  canDelete: boolean;
+  onRemoved: () => Promise<void>;
+}) {
+  return <tr className={styles.implementRow}>
+    <td><span className="badge bg-secondary-subtle text-secondary border">Implemento</span></td>
+    <td><strong>{implement.name}</strong>{implement.brand_model && <div className="text-muted small">{implement.brand_model}</div>}</td>
+    <td>{asset.brand} {asset.model}</td>
+    <td>{implement.manufacture_year || "—"}</td>
+    <td>—</td>
+    <td>{implement.quantity}</td>
+    <td>{money(Number(implement.acquisition_value) * implement.quantity)}</td>
+    <td>—</td>
+    <td className="text-end">{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void farmAssetService.removeImplement(implement.id).then(onRemoved)} title="Excluir implemento"><Trash2 size={15} /></button>}</td>
+  </tr>;
+}

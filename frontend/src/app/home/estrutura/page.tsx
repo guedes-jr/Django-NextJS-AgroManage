@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
-  Info, LocateFixed, MapPin, Pencil, PiggyBank, Plus, Search, Trash2,
-  Warehouse, Waves, PanelsTopLeft, Tractor, Undo2, X,
+  ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
+  Waves, PanelsTopLeft,
 } from "lucide-react";
 
 import { apiClient } from "@/services/api";
 import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
-import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureSummary } from "@/types";
+import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
+import { LocationPicker } from "@/components/farm/LocationPicker";
 
 import styles from "./structure.module.css";
 
@@ -49,7 +49,6 @@ const money = (value: string | number) => Number(value || 0).toLocaleString("pt-
 });
 
 export default function FarmStructurePage() {
-  const router = useRouter();
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [items, setItems] = useState<FarmStructure[]>([]);
@@ -120,11 +119,29 @@ export default function FarmStructurePage() {
     (summary?.categories || []).map((category) => [category.category, category]),
   ), [summary]);
 
-  const filteredItems = useMemo(() => items.filter((item) => {
-    const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
+  const reportRows = useMemo(() => items
+    .filter((structure) => selectedCategory === "all" || structure.category === selectedCategory)
+    .flatMap((structure) => [
+      {
+        key: `structure-${structure.id}`,
+        kind: "structure" as const,
+        structure,
+        material: null,
+        searchable: `${structure.name} ${structure.description} ${structure.category_label}`,
+      },
+      ...structure.items.map((material) => ({
+        key: `material-${material.id}`,
+        kind: "material" as const,
+        structure,
+        material,
+        searchable: `${material.name} ${material.unit} ${structure.name} ${structure.category_label}`,
+      })),
+    ]), [items, selectedCategory]);
+
+  const filteredReportRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
-    return matchesCategory && (!term || `${item.name} ${item.description}`.toLocaleLowerCase("pt-BR").includes(term));
-  }), [items, search, selectedCategory]);
+    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase("pt-BR").includes(term));
+  }, [reportRows, search]);
 
   const lastRegisteredLocation = useMemo(() => {
     const item = items.find((structure) => structure.latitude && structure.longitude);
@@ -217,7 +234,7 @@ export default function FarmStructurePage() {
       </header>
 
       <div className={styles.content}>
-        <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div className={`${styles.infoBar} d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3`}>
           <div className={styles.info}><Info size={21} /><span><strong>Organize a estrutura da fazenda por categorias.</strong><br />Cada item fica vinculado à propriedade selecionada.</span></div>
           <select className="form-select" style={{ maxWidth: 320 }} value={farmId} onChange={(event) => { setLoading(true); setFarmId(event.target.value); }}>
             {farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}
@@ -227,20 +244,19 @@ export default function FarmStructurePage() {
         {error && <div className="alert alert-danger py-2">{error}</div>}
         {!farms.length && !loading && <div className="alert alert-warning">Cadastre uma fazenda antes de adicionar estruturas.</div>}
 
-        <section>
+        <section className={styles.categorySection}>
           <h2 className={styles.sectionTitle}>Categorias da estrutura</h2>
           <div className={styles.categoryGrid}>
-            <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas e veículos</h3><p>Tratores, colheitadeiras, implementos e veículos utilizados na fazenda.</p></div></div>
-              <div className={styles.categoryFooter}><span><ClipboardList size={16} /> Cadastro detalhado</span><strong>Acessar</strong></div>
-            </button>
             {categories.map(({ value, label, description, icon: Icon }) => {
               const data = categorySummary.get(value);
               return (
                 <button key={value} className={`${styles.categoryCard} ${selectedCategory === value ? styles.selected : ""}`}
                   onClick={() => setSelectedCategory(selectedCategory === value ? "all" : value)}>
                   <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
-                  <div className={styles.categoryFooter}><span><ClipboardList size={16} /> {data?.items || 0} itens</span><strong>{money(data?.current_value || 0)}</strong></div>
+                  <div className={styles.categoryFooter}>
+                    <span><ClipboardList size={16} /> {data?.items || 0} itens cadastrados</span>
+                    <strong>{money(data?.current_value || 0)} <ChevronRight size={16} /></strong>
+                  </div>
                 </button>
               );
             })}
@@ -249,22 +265,23 @@ export default function FarmStructurePage() {
 
         <section className="mt-4" style={{ order: 4 }}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-            <h2 className={`${styles.sectionTitle} mb-0`}>Itens cadastrados</h2>
-            <div className={styles.search}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar estrutura" /></div>
+            <div>
+              <h2 className={`${styles.sectionTitle} mb-1`}>Relatório completo das estruturas e itens</h2>
+              <p className="text-muted small mb-0">Todas as estruturas e todos os materiais utilizados na fazenda selecionada.</p>
+            </div>
+            <div className={styles.search}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar estrutura ou item" /></div>
           </div>
           <div className={styles.tableCard}>
             <div className="table-responsive"><table className="table align-middle mb-0">
-              <thead><tr><th>Estrutura</th><th>Categoria</th><th>Área</th><th>Itens utilizados</th><th>Quantidade</th><th>Valor pago</th><th>Valor atual</th><th className="text-end">Ações</th></tr></thead>
+              <thead><tr><th>Tipo</th><th>Estrutura / Item</th><th>Vinculado a</th><th>Área / Unidade</th><th>Quantidade</th><th>Valor pago</th><th>Valor atual</th><th className="text-end">Ações</th></tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={8} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
-                  : filteredItems.length ? filteredItems.map((item) => <tr key={item.id}>
-                    <td><strong>{item.name}</strong>{item.description && <div className="text-muted small">{item.description}</div>}</td>
-                    <td>{item.category_label}</td><td>{item.built_area_m2 ? `${item.built_area_m2} m²` : "—"}</td><td>{item.items.length} ({money(item.items_value)})</td><td>{item.quantity}</td>
-                    <td>{money(Number(item.acquisition_value) * item.quantity + Number(item.items_value))}</td><td className="text-success fw-semibold">{money(Number(item.current_value) * item.quantity)}</td>
-                    <td className="text-end"><button className="btn btn-sm btn-outline-secondary me-2" onClick={() => openEdit(item)} title="Editar"><Pencil size={15} /></button>
-                      {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void remove(item)} title="Excluir"><Trash2 size={15} /></button>}</td>
-                  </tr>) : <tr><td colSpan={8} className="text-center text-muted py-5">Nenhuma estrutura encontrada.</td></tr>}
+                  : filteredReportRows.length ? filteredReportRows.map((row) => row.kind === "structure"
+                    ? <StructureReportRow key={row.key} structure={row.structure} canDelete={canDelete} onEdit={openEdit} onRemove={remove} />
+                    : <MaterialReportRow key={row.key} structure={row.structure} material={row.material!} canDelete={canDelete} onRemoved={() => loadStructures(farmId)} />
+                  ) : <tr><td colSpan={8} className="text-center text-muted py-5">Nenhuma estrutura ou item encontrado.</td></tr>}
               </tbody>
+              {!!items.length && <tfoot><tr className={styles.reportTotal}><td colSpan={4}>Total geral da fazenda</td><td>{reportRows.length} registros</td><td>{money(summary?.acquisition_value || 0)}</td><td>{money(summary?.current_value || 0)}</td><td /></tr></tfoot>}
             </table></div>
           </div>
         </section>
@@ -313,106 +330,38 @@ function SummaryCard({ icon: Icon, label, value, detail }: { icon: LucideIcon; l
   return <div className={styles.summaryCard}><div className={styles.summaryIcon}><Icon size={25} /></div><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></div>;
 }
 
-function LocationPicker({
-  latitude,
-  longitude,
-  lastLocation,
-  onChange,
-}: {
-  latitude?: string | null;
-  longitude?: string | null;
-  lastLocation: { latitude: string; longitude: string; label: string } | null;
-  onChange: (latitude: string | null, longitude: string | null) => void;
+function StructureReportRow({ structure, canDelete, onEdit, onRemove }: {
+  structure: FarmStructure;
+  canDelete: boolean;
+  onEdit: (structure: FarmStructure) => void;
+  onRemove: (structure: FarmStructure) => Promise<void>;
 }) {
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState("");
-  const hasLocation = Boolean(latitude && longitude);
-  const numericLatitude = Number(latitude);
-  const numericLongitude = Number(longitude);
-  const mapUrl = hasLocation
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${numericLongitude - 0.008}%2C${numericLatitude - 0.005}%2C${numericLongitude + 0.008}%2C${numericLatitude + 0.005}&layer=mapnik&marker=${numericLatitude}%2C${numericLongitude}`
-    : "";
+  return <tr>
+    <td><span className="badge bg-success-subtle text-success border border-success-subtle">{structure.category_label}</span></td>
+    <td><strong>{structure.name}</strong>{structure.description && <div className="text-muted small">{structure.description}</div>}</td>
+    <td>Estrutura principal</td>
+    <td>{structure.built_area_m2 ? `${structure.built_area_m2} m²` : "—"}</td>
+    <td>{structure.quantity}</td>
+    <td>{money(Number(structure.acquisition_value) * structure.quantity)}</td>
+    <td className="text-success fw-semibold">{money(Number(structure.current_value) * structure.quantity)}</td>
+    <td className="text-end"><button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title="Editar"><Pencil size={15} /></button>{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title="Excluir"><Trash2 size={15} /></button>}</td>
+  </tr>;
+}
 
-  const useCurrentLocation = () => {
-    setLocationError("");
-    if (!navigator.geolocation) {
-      setLocationError("Este navegador não oferece acesso à localização.");
-      return;
-    }
-
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        onChange(coords.latitude.toFixed(7), coords.longitude.toFixed(7));
-        setLocating(false);
-      },
-      (error) => {
-        const message = error.code === error.PERMISSION_DENIED
-          ? "Permita o acesso à localização no navegador para usar esta opção."
-          : "Não foi possível obter sua localização. Tente novamente em um local com melhor sinal.";
-        setLocationError(message);
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
-    );
-  };
-
-  return (
-    <div>
-      <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-2">
-        <div>
-          <label className="form-label fw-semibold mb-0">Localização da estrutura</label>
-          <div className="small text-muted">Use sua posição atual ou reaproveite a última localização desta fazenda.</div>
-        </div>
-        {hasLocation && (
-          <button type="button" className="btn btn-sm btn-link text-danger text-decoration-none" onClick={() => onChange(null, null)}>
-            <X size={15} /> Remover localização
-          </button>
-        )}
-      </div>
-
-      <div className="border rounded-3 overflow-hidden bg-body-tertiary">
-        {hasLocation ? (
-          <iframe
-            key={`${latitude}-${longitude}`}
-            title="Mapa da localização da estrutura"
-            src={mapUrl}
-            width="100%"
-            height="230"
-            loading="lazy"
-            style={{ border: 0, display: "block" }}
-          />
-        ) : (
-          <div className="d-flex flex-column align-items-center justify-content-center text-center text-muted p-4" style={{ minHeight: 180 }}>
-            <MapPin size={34} className="mb-2 text-success" />
-            <strong className="text-body">Nenhuma localização selecionada</strong>
-            <span className="small">Escolha uma das opções abaixo para posicionar a estrutura no mapa.</span>
-          </div>
-        )}
-
-        <div className="d-flex flex-wrap align-items-center gap-2 p-3 border-top bg-body">
-          <button type="button" className="btn btn-success btn-sm d-inline-flex align-items-center gap-2" onClick={useCurrentLocation} disabled={locating}>
-            {locating ? <span className="spinner-border spinner-border-sm" /> : <LocateFixed size={16} />}
-            {locating ? "Localizando..." : "Usar minha localização"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
-            disabled={!lastLocation}
-            onClick={() => lastLocation && onChange(lastLocation.latitude, lastLocation.longitude)}
-            title={lastLocation ? `Última localização: ${lastLocation.label}` : "Ainda não há localização cadastrada nesta fazenda"}
-          >
-            <Undo2 size={16} /> Usar última cadastrada
-          </button>
-          {hasLocation && (
-            <span className="small text-muted ms-auto d-inline-flex align-items-center gap-1">
-              <MapPin size={14} /> Localização definida
-            </span>
-          )}
-        </div>
-      </div>
-      {locationError && <div className="text-danger small mt-2">{locationError}</div>}
-      <div className="form-text">O mapa é apenas uma prévia; a localização exata é armazenada com o cadastro.</div>
-    </div>
-  );
+function MaterialReportRow({ structure, material, canDelete, onRemoved }: {
+  structure: FarmStructure;
+  material: FarmStructureItem;
+  canDelete: boolean;
+  onRemoved: () => Promise<void>;
+}) {
+  return <tr className={styles.materialRow}>
+    <td><span className="badge bg-secondary-subtle text-secondary border">Item utilizado</span></td>
+    <td><strong>{material.name}</strong></td>
+    <td>{structure.name} <div className="text-muted small">{structure.category_label}</div></td>
+    <td>{material.unit}</td>
+    <td>{material.quantity}</td>
+    <td>{money(material.value)}</td>
+    <td>—</td>
+    <td className="text-end">{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title="Excluir item"><Trash2 size={15} /></button>}</td>
+  </tr>;
 }
