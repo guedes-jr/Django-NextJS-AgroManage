@@ -6,8 +6,9 @@ import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft,
+  Waves, PanelsTopLeft, Sprout, Tractor, X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { apiClient } from "@/services/api";
 import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
@@ -36,6 +37,18 @@ const categories: Array<{
   { value: "other", label: "Outros", description: "Outras estruturas não enquadradas nas categorias anteriores.", icon: Ellipsis },
 ];
 
+const categoryDefaults: Record<FarmStructureCategory, { name: string; materials: string[] }> = {
+  corral: { name: "Novo curral", materials: ["Mourão de concreto", "Tábuas", "Porteira", "Bebedouro", "Cocho"] },
+  pigsty: { name: "Novo chiqueiro", materials: ["Piso de concreto", "Parede de alvenaria", "Cobertura", "Bebedouro", "Comedouro"] },
+  poultry_house: { name: "Novo galinheiro", materials: ["Tela galvanizada", "Cobertura", "Poleiro", "Bebedouro", "Comedouro"] },
+  warehouse: { name: "Novo depósito ou armazém", materials: ["Piso de concreto", "Estrutura metálica", "Cobertura", "Portão", "Prateleira"] },
+  irrigation: { name: "Novo sistema de irrigação", materials: ["Tubulação", "Bomba d'água", "Aspersor", "Filtro", "Registro"] },
+  water_reservoir: { name: "Novo reservatório", materials: ["Reservatório", "Tubulação", "Bomba d'água", "Boia", "Registro"] },
+  facility: { name: "Nova instalação", materials: ["Alvenaria", "Cobertura", "Instalação elétrica", "Porta", "Janela"] },
+  fence: { name: "Nova cerca ou divisão", materials: ["Mourão", "Arame", "Grampo", "Porteira", "Esticador"] },
+  other: { name: "Nova estrutura", materials: ["Material de construção", "Mão de obra", "Equipamento"] },
+};
+
 const emptyForm: FarmStructurePayload = {
   farm: "", category: "corral", name: "", description: "", quantity: 1,
   built_area_m2: null, length_m: null, width_m: null,
@@ -49,6 +62,7 @@ const money = (value: string | number) => Number(value || 0).toLocaleString("pt-
 });
 
 export default function FarmStructurePage() {
+  const router = useRouter();
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [items, setItems] = useState<FarmStructure[]>([]);
@@ -155,16 +169,23 @@ export default function FarmStructurePage() {
   }, [farmId, farms, items]);
 
   const openCreate = (category: FarmStructureCategory = "corral") => {
+    const defaults = categoryDefaults[category];
     setEditing(null);
     setForm({
       ...emptyForm,
       farm: farmId,
       category,
+      name: defaults.name,
       latitude: lastRegisteredLocation?.latitude || null,
       longitude: lastRegisteredLocation?.longitude || null,
     });
     setStructureItem(emptyItem);
     setShowForm(true);
+  };
+
+  const selectCategory = (category: FarmStructureCategory) => {
+    setSelectedCategory(category);
+    openCreate(category);
   };
 
   const openEdit = (item: FarmStructure) => {
@@ -245,17 +266,35 @@ export default function FarmStructurePage() {
         {!farms.length && !loading && <div className="alert alert-warning">Cadastre uma fazenda antes de adicionar estruturas.</div>}
 
         <section className={styles.categorySection}>
-          <h2 className={styles.sectionTitle}>Categorias da estrutura</h2>
+          <div className={styles.categoryHeading}>
+            <div>
+              <h2 className={styles.sectionTitle}>1. Escolha a categoria da estrutura</h2>
+              <p>Selecione uma opção para acessar o cadastro correspondente.</p>
+            </div>
+            {selectedCategory !== "all" && (
+              <button className={styles.clearFilter} onClick={() => setSelectedCategory("all")}>
+                <X size={15} /> Exibir todas
+              </button>
+            )}
+          </div>
           <div className={styles.categoryGrid}>
+            <button className={styles.categoryCard} onClick={() => router.push("/home/plantacoes")}>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Sprout size={34} /></div><div><h3>Plantação</h3><p>Talhões, culturas, safras e atividades agrícolas.</p></div></div>
+              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+            </button>
+            <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas")}>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas</h3><p>Máquinas, implementos e veículos da propriedade.</p></div></div>
+              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+            </button>
             {categories.map(({ value, label, description, icon: Icon }) => {
               const data = categorySummary.get(value);
               return (
                 <button key={value} className={`${styles.categoryCard} ${selectedCategory === value ? styles.selected : ""}`}
-                  onClick={() => setSelectedCategory(selectedCategory === value ? "all" : value)}>
+                  onClick={() => selectCategory(value)}>
                   <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
                   <div className={styles.categoryFooter}>
                     <span><ClipboardList size={16} /> {data?.items || 0} itens cadastrados</span>
-                    <strong>{money(data?.current_value || 0)} <ChevronRight size={16} /></strong>
+                    <strong>Cadastrar <ChevronRight size={16} /></strong>
                   </div>
                 </button>
               );
@@ -295,7 +334,7 @@ export default function FarmStructurePage() {
       </div>
 
       {showForm && <div className={styles.modalBackdrop} onMouseDown={() => setShowForm(false)}><div className={styles.modalCard} onMouseDown={(event) => event.stopPropagation()}>
-        <div className="d-flex justify-content-between align-items-center border-bottom p-4"><div><h2 className="h4 fw-bold mb-1">{editing ? "Editar estrutura" : "Nova estrutura"}</h2><p className="text-muted small mb-0">Informe os dados patrimoniais da estrutura.</p></div><button className="btn-close" onClick={() => setShowForm(false)} /></div>
+        <div className="d-flex justify-content-between align-items-center border-bottom p-4"><div><h2 className="h4 fw-bold mb-1">{editing ? "Editar estrutura" : `Cadastrar ${categories.find((category) => category.value === form.category)?.label || "estrutura"}`}</h2><p className="text-muted small mb-0">Informe dimensões, valores, localização e materiais utilizados.</p></div><button className="btn-close" onClick={() => setShowForm(false)} /></div>
         <form onSubmit={submit}><div className="p-4 row g-3">
           <div className="col-md-7"><label className="form-label">Nome</label><input required className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="col-md-5"><label className="form-label">Categoria</label><select className="form-select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as FarmStructureCategory })}>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></div>
@@ -318,7 +357,7 @@ export default function FarmStructurePage() {
           </div>
         </div><div className="border-top p-3 d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</button></div></form>
         <div className="border-top p-4"><div className="d-flex justify-content-between align-items-center mb-3"><h3 className="h6 fw-bold text-success mb-0">Itens e materiais utilizados</h3>{!editing && <span className="small text-muted">Salve a estrutura para adicionar itens.</span>}</div>
-          {editing && <><form className="row g-2 align-items-end" onSubmit={addStructureItem}><div className="col-md-4"><label className="form-label">Item</label><input required className="form-control" value={structureItem.name} onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Quantidade</label><input required type="number" min="0.01" step="0.01" className="form-control" value={structureItem.quantity} onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Unidade</label><input required className="form-control" value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Valor total</label><input required type="number" min="0" step="0.01" className="form-control" value={structureItem.value} onChange={(e) => setStructureItem({ ...structureItem, value: e.target.value })} /></div><div className="col-md-2"><button className="btn btn-outline-success w-100"><Plus size={16} /> Adicionar</button></div></form>
+          {editing && <><form className="row g-2 align-items-end" onSubmit={addStructureItem}><div className="col-md-4"><label className="form-label">Item</label><input required list={`materials-${form.category}`} className="form-control" value={structureItem.name} onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })} /><datalist id={`materials-${form.category}`}>{categoryDefaults[form.category].materials.map((material) => <option key={material} value={material} />)}</datalist></div><div className="col-md-2"><label className="form-label">Quantidade</label><input required type="number" min="0.01" step="0.01" className="form-control" value={structureItem.quantity} onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Unidade</label><select required className="form-select" value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })}><option value="un">un</option><option value="m">m</option><option value="m²">m²</option><option value="m³">m³</option><option value="kg">kg</option><option value="L">L</option><option value="serviço">serviço</option></select></div><div className="col-md-2"><label className="form-label">Valor total</label><input required type="number" min="0" step="0.01" className="form-control" value={structureItem.value} onChange={(e) => setStructureItem({ ...structureItem, value: e.target.value })} /></div><div className="col-md-2"><button className="btn btn-outline-success w-100"><Plus size={16} /> Adicionar</button></div></form>
           <div className="table-responsive mt-3"><table className="table table-sm"><thead><tr><th>Item</th><th>Quantidade</th><th>Valor</th><th /></tr></thead><tbody>{editing.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.quantity} {item.unit}</td><td>{money(item.value)}</td><td className="text-end">{canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(item.id).then(() => loadStructures(farmId))}><Trash2 size={14} /></button>}</td></tr>)}</tbody></table></div></>}
         </div>
       </div></div>}
