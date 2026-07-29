@@ -22,6 +22,7 @@ from .models import (
     LandPreparation,
     LaborWorker,
     LaborRecord,
+    SectorStructureItem,
 )
 
 
@@ -101,6 +102,39 @@ class PlantingCycleDetailSerializer(serializers.ModelSerializer):
         if not obj.responsible_user:
             return None
         return obj.responsible_user.full_name or obj.responsible_user.email
+
+
+class SectorStructureItemSerializer(serializers.ModelSerializer):
+    group_display = serializers.CharField(source="get_group_display", read_only=True)
+    farm_structure_name = serializers.CharField(source="farm_structure.name", read_only=True)
+
+    class Meta:
+        model = SectorStructureItem
+        fields = [
+            "id", "plantation", "farm_structure", "farm_structure_name",
+            "group", "group_display", "item_type", "specification",
+            "quantity", "unit", "unit_value", "total_value", "notes",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "group_display", "farm_structure_name", "total_value", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        plantation = attrs.get("plantation") or getattr(self.instance, "plantation", None)
+        structure = attrs.get("farm_structure", getattr(self.instance, "farm_structure", None))
+        request = self.context.get("request")
+        organization = getattr(getattr(request, "user", None), "organization", None)
+        if not organization or not plantation or plantation.organization_id != organization.id:
+            raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+        if structure and (
+            structure.farm.organization_id != organization.id
+            or plantation.farm_id != structure.farm_id
+        ):
+            raise serializers.ValidationError({"farm_structure": "A estrutura deve pertencer à mesma fazenda da plantação."})
+        if attrs.get("quantity", getattr(self.instance, "quantity", 0)) <= 0:
+            raise serializers.ValidationError({"quantity": "A quantidade deve ser maior que zero."})
+        if attrs.get("unit_value", getattr(self.instance, "unit_value", 0)) < 0:
+            raise serializers.ValidationError({"unit_value": "O valor unitário não pode ser negativo."})
+        return attrs
 
 
 class PlantingSerializer(serializers.ModelSerializer):

@@ -14,6 +14,7 @@ from .models import (
     AgronomistRecommendationProduct,
     Harvest,
     HarvestBuyer,
+    SectorStructureItem,
 )
 
 
@@ -29,6 +30,13 @@ class PlantingCycleAdmin(admin.ModelAdmin):
     list_display = ["crop_name", "field", "planting_date", "status"]
     list_filter = ["status", "crop_type"]
     search_fields = ["crop_name", "name", "field__name"]
+
+
+@admin.register(SectorStructureItem)
+class SectorStructureItemAdmin(admin.ModelAdmin):
+    list_display = ["plantation", "group", "item_type", "quantity", "unit", "total_value"]
+    list_filter = ["group"]
+    search_fields = ["item_type", "specification", "plantation__name"]
 
 
 @admin.register(Planting)

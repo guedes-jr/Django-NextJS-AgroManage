@@ -20,6 +20,7 @@ router.register(r"tractors", views.TractorViewSet, basename="crops-tractors")
 router.register(r"land-preparations", views.LandPreparationViewSet, basename="crops-land-preparations")
 router.register(r"labor-workers", views.LaborWorkerViewSet, basename="crops-labor-workers")
 router.register(r"labor-records", views.LaborRecordViewSet, basename="crops-labor-records")
+router.register(r"sector-structure-items", views.SectorStructureItemViewSet, basename="crops-sector-structure-items")
 
 urlpatterns = [
     path("dashboard/", views.CropsDashboardView.as_view(), name="crops-dashboard"),

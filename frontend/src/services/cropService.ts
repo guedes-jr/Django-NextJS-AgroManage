@@ -26,6 +26,15 @@ export const cropService = {
   indicators: (id: string) =>
     apiClient.get(`/crops/plantations/${id}/indicators/`),
 
+  listSectorStructureItems: (plantation: string) =>
+    apiClient.get("/crops/sector-structure-items/", { params: { plantation, page_size: 200 } }),
+
+  createSectorStructureItem: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/sector-structure-items/", data),
+
+  deleteSectorStructureItem: (id: string) =>
+    apiClient.delete(`/crops/sector-structure-items/${id}/`),
+
   // ── Plantation History Sources ───────────────────────────────────────────
   listLandPreparations: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/land-preparations/", { params }),

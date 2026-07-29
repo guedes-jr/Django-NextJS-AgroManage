@@ -96,6 +96,7 @@ type AgronomistRecommendation = {
   status_display?: string | null;
   products?: AgronomistRecommendationProduct[];
 };
+type SectorStructureCost = { id: string; total_value?: string | number | null };
 type InventoryItem = {
   id: string;
   nome: string;
@@ -446,6 +447,7 @@ export default function PlantacaoDetailPage() {
   const [landPreparations, setLandPreparations] = useState<LandPreparationOperation[]>([]);
   const [laborRecords, setLaborRecords] = useState<LaborOperation[]>([]);
   const [harvests, setHarvests] = useState<HarvestOperation[]>([]);
+  const [sectorStructureItems, setSectorStructureItems] = useState<SectorStructureCost[]>([]);
   const [agronomistRecommendations, setAgronomistRecommendations] = useState<AgronomistRecommendation[]>([]);
   const [completingRecommendationId, setCompletingRecommendationId] = useState<string | null>(null);
 
@@ -472,7 +474,7 @@ export default function PlantacaoDetailPage() {
           population: merged.population || "",
           spacing: merged.spacing || "",
         });
-        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes, recommendationRes] = await Promise.all([
+        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes, recommendationRes, structureRes] = await Promise.all([
           cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertilizations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
@@ -484,6 +486,7 @@ export default function PlantacaoDetailPage() {
           cropService.listLaborRecords({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listHarvests({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
           cropService.listAgronomistRecommendations({ plantation: id }).catch(() => ({ data: { results: [] } })),
+          cropService.listSectorStructureItems(id).catch(() => ({ data: { results: [] } })),
         ]);
         setPlantings(Array.isArray(plantingsRes.data?.results) ? plantingsRes.data.results : []);
         setFertilizations(Array.isArray(fertsRes.data?.results) ? fertsRes.data.results : []);
@@ -496,6 +499,7 @@ export default function PlantacaoDetailPage() {
         setLaborRecords(Array.isArray(laborRes.data?.results) ? laborRes.data.results : []);
         setHarvests(Array.isArray(harvestRes.data?.results) ? harvestRes.data.results : []);
         setAgronomistRecommendations(Array.isArray(recommendationRes.data?.results) ? recommendationRes.data.results : []);
+        setSectorStructureItems(Array.isArray(structureRes.data?.results) ? structureRes.data.results : []);
       } catch { console.error("Failed to load plantation"); }
       finally { setLoading(false); }
     })();
@@ -889,8 +893,9 @@ export default function PlantacaoDetailPage() {
   const irrigationCost = irrigations.reduce((acc, record) => acc + numericValue(record.energy_cost), 0);
   const landPreparationCost = landPreparations.reduce((acc, record) => acc + numericValue(record.total_price ?? record.total_amount), 0);
   const laborCost = laborRecords.reduce((acc, record) => acc + laborRecordTotal(record), 0);
+  const structureCost = sectorStructureItems.reduce((acc, record) => acc + numericValue(record.total_value), 0);
 
-  const investmentTotal = seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost;
+  const investmentTotal = structureCost + seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost;
   const estimatedProductionKg = numericValue(plantation.estimated_production_kg);
   const realProfit = harvestRevenue - investmentTotal;
   const roi = investmentTotal > 0 ? (realProfit / investmentTotal) * 100 : null;
@@ -900,6 +905,7 @@ export default function PlantacaoDetailPage() {
   const lucroPorKg = harvestedKg > 0 ? realProfit / harvestedKg : null;
 
   const costData = [
+    { name: "Estrutura do setor", value: structureCost, fill: "oklch(0.55 0.14 145)" },
     { name: "Sementes", value: seedCost, fill: "var(--bs-success)" },
     { name: "Fertilizantes", value: fertilizationCost + fertigationCost, fill: "var(--bs-primary)" },
     { name: "Foliares / Defensivos", value: pesticideCost, fill: "var(--bs-danger)" },
@@ -1030,6 +1036,14 @@ export default function PlantacaoDetailPage() {
           {[
             {
               number: 1,
+              label: "Estrutura do Setor",
+              desc: "Irrigação, sustentação, cercas e instalações",
+              stage: shortcutStages.estrutura,
+              onClick: () => router.push(`/home/plantacoes/${id}/estrutura`),
+              featuredImage: true,
+            },
+            {
+              number: 2,
               label: "Serviços Mecanizados",
               desc: "Calagem, colheita, gradagem e mais",
               stage: shortcutStages.preparo,
@@ -1037,7 +1051,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 2,
+              number: 3,
               label: "Adubação de Base",
               desc: "Produtos, doses, quantidades e custo",
               stage: shortcutStages.adubacao,
@@ -1045,7 +1059,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 3,
+              number: 4,
               label: "Sementes/mudas",
               desc: "Híbrido, mudas, quantidade, sacas e custo",
               stage: shortcutStages.plantio,
@@ -1053,7 +1067,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 4,
+              number: 5,
               label: "Fertirrigação",
               desc: "Adubos via fertirrigação, doses, volume e custo",
               stage: shortcutStages.fertirrigacao,
@@ -1061,7 +1075,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 5,
+              number: 6,
               label: "Foliares / Defensivos",
               desc: "Produtos, doses, volume e custo",
               stage: shortcutStages.foliarDefensivos,
@@ -1069,7 +1083,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 6,
+              number: 7,
               label: "Irrigação",
               desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
               stage: shortcutStages.irrigacao,
@@ -1077,7 +1091,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 7,
+              number: 8,
               label: "Área do Agrônomo",
               desc: "Recomendações, programações e acompanhamentos",
               stage: shortcutStages.agronomo,
@@ -1085,7 +1099,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 8,
+              number: 9,
               label: "Mão de Obra",
               desc: "Atividades, horas trabalhadas e custos",
               stage: shortcutStages.maoObra,
@@ -1093,7 +1107,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 9,
+              number: 10,
               label: "Relatório",
               desc: "Gerar PDF completo ou resumo da produção",
               stage: shortcutStages.relatorio,
@@ -1101,7 +1115,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 10,
+              number: 11,
               label: "Colheita",
               desc: "Produção, sacas, umidade e valor",
               stage: shortcutStages.colheita,

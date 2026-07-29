@@ -39,6 +39,7 @@ const money = (value: string | number) => Number(value || 0).toLocaleString("pt-
 
 export default function FarmMachineryPage() {
   const router = useRouter();
+  const [vehicleMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("grupo") === "veiculos");
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [assets, setAssets] = useState<FarmAsset[]>([]);
@@ -62,11 +63,11 @@ export default function FarmMachineryPage() {
     apiClient.get<PaginatedFarms>("/farms/", { params: { page_size: 100 } }).then(({ data }) => {
       if (!active) return;
       const list = data.results || [];
-      setFarms(list); setFarmId(list[0]?.id || ""); setForm((value) => ({ ...value, farm: list[0]?.id || "" }));
+      setFarms(list); setFarmId(list[0]?.id || ""); setForm((value) => ({ ...value, farm: list[0]?.id || "", asset_type: vehicleMode ? "pickup" : value.asset_type }));
       if (!list.length) setLoading(false);
     }).catch(() => { if (active) { setError("Não foi possível carregar as fazendas."); setLoading(false); } });
     return () => { active = false; };
-  }, []);
+  }, [vehicleMode]);
 
   useEffect(() => {
     if (!farmId) return;
@@ -115,7 +116,7 @@ export default function FarmMachineryPage() {
     return null;
   }, [assets, farmId, farms]);
 
-  const resetForm = () => { setEditing(null); setSelected(null); setForm({ ...emptyAsset, farm: farmId }); setImplement(emptyImplement); };
+  const resetForm = () => { setEditing(null); setSelected(null); setForm({ ...emptyAsset, farm: farmId, asset_type: vehicleMode ? "pickup" : "tractor" }); setImplement(emptyImplement); };
   const editAsset = (asset: FarmAsset) => {
     setEditing(asset); setSelected(asset); setImplement({ ...emptyImplement, asset: asset.id });
     setForm({
@@ -153,7 +154,7 @@ export default function FarmMachineryPage() {
   };
 
   return <div className={styles.page}>
-    <header className={styles.hero}><div className="d-flex gap-3 align-items-center"><button className="btn btn-link text-white p-0" onClick={() => router.push("/home/estrutura")}><ArrowLeft size={28} /></button><Tractor size={38} /><div><h1>Máquinas agrícolas e veículos</h1><p>Cadastre máquinas, implementos e veículos utilizados na fazenda</p></div></div><button className="btn btn-light fw-semibold" onClick={resetForm}><Plus size={17} /> Novo cadastro</button></header>
+    <header className={styles.hero}><div className="d-flex gap-3 align-items-center"><button className="btn btn-link text-white p-0" onClick={() => router.push("/home/estrutura")}><ArrowLeft size={28} /></button><Tractor size={38} /><div><h1>{vehicleMode ? "Veículos da fazenda" : "Máquinas agrícolas e implementos"}</h1><p>{vehicleMode ? "Cadastre caminhões, caminhonetes, automóveis e motocicletas" : "Cadastre máquinas e implementos utilizados na fazenda"}</p></div></div><button className="btn btn-light fw-semibold" onClick={resetForm}><Plus size={17} /> Novo cadastro</button></header>
     <main className={styles.content}>
       <div className="d-flex justify-content-end mb-3"><select className="form-select" style={{ maxWidth: 320 }} value={farmId} onChange={(e) => { setLoading(true); setFarmId(e.target.value); setForm({ ...emptyAsset, farm: e.target.value }); }}>
         {farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}</select></div>

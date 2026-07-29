@@ -6,7 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft, Sprout, Tractor, X,
+  Waves, PanelsTopLeft, Sprout, Tractor, X, Car,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -284,6 +284,10 @@ export default function FarmStructurePage() {
             </button>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas")}>
               <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas</h3><p>Máquinas, implementos e veículos da propriedade.</p></div></div>
+              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+            </button>
+            <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas?grupo=veiculos")}>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Car size={34} /></div><div><h3>Veículos</h3><p>Caminhões, caminhonetes, automóveis e motocicletas.</p></div></div>
               <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
             </button>
             {categories.map(({ value, label, description, icon: Icon }) => {

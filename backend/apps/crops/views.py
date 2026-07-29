@@ -25,6 +25,7 @@ from .models import (
     LandPreparation,
     LaborWorker,
     LaborRecord,
+    SectorStructureItem,
 )
 from .serializers import (
     FieldSerializer,
@@ -44,6 +45,7 @@ from .serializers import (
     LandPreparationSerializer,
     LaborWorkerSerializer,
     LaborRecordSerializer,
+    SectorStructureItemSerializer,
 )
 from .services import (
     create_plantation, update_plantation,
@@ -128,6 +130,23 @@ class PlantingCycleViewSet(viewsets.ModelViewSet):
         plantation = self.get_object()
         data = get_plantation_indicators(plantation)
         return Response(data)
+
+
+class SectorStructureItemViewSet(viewsets.ModelViewSet):
+    serializer_class = SectorStructureItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        organization = getattr(self.request.user, "organization", None)
+        if not organization:
+            return SectorStructureItem.objects.none()
+        queryset = SectorStructureItem.objects.filter(
+            plantation__organization=organization
+        ).select_related("plantation", "farm_structure")
+        plantation_id = self.request.query_params.get("plantation")
+        if plantation_id:
+            queryset = queryset.filter(plantation_id=plantation_id)
+        return queryset.order_by("group", "item_type")
 
 
 class HarvestViewSet(viewsets.ModelViewSet):

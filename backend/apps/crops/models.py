@@ -145,8 +145,52 @@ class PlantingCycle(BaseModel):
     @property
     def investment_total(self) -> Decimal:
         """Sum of all financial transactions linked to this plantation."""
-        total = self.finance_transactions.aggregate(total=models.Sum("amount"))["total"]
-        return total or Decimal("0")
+        financial_total = self.finance_transactions.aggregate(total=models.Sum("amount"))["total"] or Decimal("0")
+        structure_total = self.sector_structure_items.aggregate(total=models.Sum("total_value"))["total"] or Decimal("0")
+        return financial_total + structure_total
+
+
+class SectorStructureItem(BaseModel):
+    """A farm structure or component allocated to a plantation sector."""
+
+    class Group(models.TextChoices):
+        IRRIGATION = "irrigation", "Irrigação"
+        SUPPORT = "support", "Estrutura de sustentação"
+        FENCE = "fence", "Cercas e divisões"
+        STORAGE = "storage", "Depósitos e armazenagem"
+        WATER = "water", "Reservatórios e água"
+        ELECTRICAL = "electrical", "Instalações elétricas"
+        MACHINE = "machine", "Máquinas e implementos"
+        VEHICLE = "vehicle", "Veículos"
+        OTHER = "other", "Outros"
+
+    plantation = models.ForeignKey(
+        PlantingCycle, on_delete=models.CASCADE, related_name="sector_structure_items"
+    )
+    farm_structure = models.ForeignKey(
+        "farms.FarmStructure", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sector_allocations",
+    )
+    group = models.CharField(max_length=30, choices=Group.choices, default=Group.OTHER)
+    item_type = models.CharField(max_length=150)
+    specification = models.CharField(max_length=255, blank=True)
+    quantity = models.DecimalField(max_digits=14, decimal_places=2, default=1)
+    unit = models.CharField(max_length=20, default="un")
+    unit_value = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    total_value = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Estrutura utilizada no setor"
+        verbose_name_plural = "Estruturas utilizadas nos setores"
+        indexes = [models.Index(fields=["plantation", "group"])]
+
+    def save(self, *args, **kwargs):
+        self.total_value = (self.quantity * self.unit_value).quantize(Decimal("0.01"))
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.plantation} — {self.get_group_display()} — {self.item_type}"
 
 
 class Planting(BaseModel):
