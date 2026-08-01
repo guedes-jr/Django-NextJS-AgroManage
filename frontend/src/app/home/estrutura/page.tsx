@@ -6,7 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft, Sprout, Tractor, X, Car,
+  Waves, PanelsTopLeft, Sprout, Tractor, X, Car, BarChart3, ListChecks, MapPinned,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -232,6 +232,15 @@ export default function FarmStructurePage() {
     } catch { setError("Não foi possível adicionar o item utilizado."); }
   };
 
+  const removeStructureItem = async (itemId: string) => {
+    await farmStructureService.removeItem(itemId);
+    const list = await farmStructureService.list(farmId);
+    setItems(list.data.results);
+    setEditing((current) => current ? list.data.results.find((item) => item.id === current.id) || current : null);
+    const totals = await farmStructureService.summary(farmId);
+    setSummary(totals.data);
+  };
+
   const remove = async (item: FarmStructure) => {
     if (!confirm(`Excluir a estrutura “${item.name}”?`)) return;
     try {
@@ -298,7 +307,7 @@ export default function FarmStructurePage() {
                   <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
                   <div className={styles.categoryFooter}>
                     <span><ClipboardList size={16} /> {data?.items || 0} itens cadastrados</span>
-                    <strong>Cadastrar <ChevronRight size={16} /></strong>
+                    <strong>{money(data?.acquisition_value || 0)} <ChevronRight size={16} /></strong>
                   </div>
                 </button>
               );
@@ -306,7 +315,7 @@ export default function FarmStructurePage() {
           </div>
         </section>
 
-        <section className="mt-4" style={{ order: 4 }}>
+        <section id="structure-report" className="mt-4" style={{ order: 4 }}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
             <div>
               <h2 className={`${styles.sectionTitle} mb-1`}>Relatório completo das estruturas e itens</h2>
@@ -335,35 +344,43 @@ export default function FarmStructurePage() {
           <SummaryCard icon={Droplets} label="Depreciação acumulada" value={money(summary?.depreciation_value || 0)} detail="Até o momento" />
           <SummaryCard icon={Warehouse} label="Valor líquido atual" value={money(summary?.current_value || 0)} detail="Estrutura atual" />
         </div></section>
+
+        <section className={styles.quickActions} style={{ order: 3 }}>
+          <h2 className={styles.sectionTitle}>Ações rápidas</h2>
+          <div>
+            <button onClick={() => openCreate()} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
+            <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>Ver todos os itens</strong><small>Lista consolidada</small></span></button>
+            <button onClick={() => router.push("/home/relatorios")}><BarChart3 size={20} /><span><strong>Relatórios</strong><small>Análises da fazenda</small></span></button>
+          </div>
+        </section>
       </div>
 
       {showForm && <div className={styles.modalBackdrop} onMouseDown={() => setShowForm(false)}><div className={styles.modalCard} onMouseDown={(event) => event.stopPropagation()}>
         <div className="d-flex justify-content-between align-items-center border-bottom p-4"><div><h2 className="h4 fw-bold mb-1">{editing ? "Editar estrutura" : `Cadastrar ${categories.find((category) => category.value === form.category)?.label || "estrutura"}`}</h2><p className="text-muted small mb-0">Informe dimensões, valores, localização e materiais utilizados.</p></div><button className="btn-close" onClick={() => setShowForm(false)} /></div>
-        <form onSubmit={submit}><div className="p-4 row g-3">
+        <form onSubmit={submit}><div className={`${styles.identityFields} p-4 row g-3`}>
           <div className="col-md-7"><label className="form-label">Nome</label><input required className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="col-md-5"><label className="form-label">Categoria</label><select className="form-select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as FarmStructureCategory })}>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></div>
           <div className="col-12"><label className="form-label">Descrição</label><textarea className="form-control" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-          <div className="col-md-4"><label className="form-label">Área construída (m²)</label><input type="number" min={0} step="0.01" className="form-control" value={form.built_area_m2 || ""} onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })} /></div>
-          <div className="col-md-4"><label className="form-label">Comprimento (m)</label><input type="number" min={0} step="0.01" className="form-control" value={form.length_m || ""} onChange={(e) => setForm({ ...form, length_m: e.target.value || null })} /></div>
-          <div className="col-md-4"><label className="form-label">Largura (m)</label><input type="number" min={0} step="0.01" className="form-control" value={form.width_m || ""} onChange={(e) => setForm({ ...form, width_m: e.target.value || null })} /></div>
           <div className="col-md-3"><label className="form-label">Quantidade</label><input required min={1} type="number" className="form-control" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></div>
           <div className="col-md-3"><label className="form-label">Valor unitário pago</label><input required min={0} step="0.01" type="number" className="form-control" value={form.acquisition_value} onChange={(e) => setForm({ ...form, acquisition_value: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">Valor unitário atual</label><input required min={0} step="0.01" type="number" className="form-control" value={form.current_value} onChange={(e) => setForm({ ...form, current_value: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">Aquisição</label><input type="date" className="form-control" value={form.acquisition_date || ""} onChange={(e) => setForm({ ...form, acquisition_date: e.target.value || null })} /></div>
           <div className="col-12"><label className="form-label">Observações</label><textarea className="form-control" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <div className="col-12">
-            <LocationPicker
-              latitude={form.latitude}
-              longitude={form.longitude}
-              lastLocation={lastRegisteredLocation}
-              onChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))}
-            />
-          </div>
-        </div><div className="border-top p-3 d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</button></div></form>
-        <div className="border-top p-4"><div className="d-flex justify-content-between align-items-center mb-3"><h3 className="h6 fw-bold text-success mb-0">Itens e materiais utilizados</h3>{!editing && <span className="small text-muted">Salve a estrutura para adicionar itens.</span>}</div>
+        </div><div className="border-top p-3 d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? "Salvando..." : editing ? "Atualizar dados" : "Salvar e adicionar itens"}</button></div></form>
+        <div className={`${styles.flowGrid} ${form.category === "irrigation" ? styles.irrigationFlow : ""}`}>
+        <section className={`${styles.stepCard} ${styles.dimensionsStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 3 : 1}</span><h3>Dimensões</h3></div><form onSubmit={submit}><div className="row g-3">
+          <div className="col-12"><label className="form-label">Área construída (m²)</label><input type="number" min={0} step="0.01" className="form-control" value={form.built_area_m2 || ""} onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })} /></div>
+          <div className="col-12"><label className="form-label">Comprimento (m)</label><input type="number" min={0} step="0.01" className="form-control" value={form.length_m || ""} onChange={(e) => setForm({ ...form, length_m: e.target.value || null })} /></div>
+          <div className="col-12"><label className="form-label">Largura (m)</label><input type="number" min={0} step="0.01" className="form-control" value={form.width_m || ""} onChange={(e) => setForm({ ...form, width_m: e.target.value || null })} /></div>
+          <div className="col-12"><button className="btn btn-success w-100" disabled={saving}>{editing ? "Salvar dimensões" : "Salvar estrutura"}</button></div>
+        </div></form></section>
+        <section className={`${styles.stepCard} ${styles.itemsStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 1 : 2}</span><h3>Itens utilizados</h3></div>{!editing && <p className="small text-muted">Salve os dados iniciais da estrutura para liberar a inclusão de itens.</p>}
           {editing && <><form className="row g-2 align-items-end" onSubmit={addStructureItem}><div className="col-md-4"><label className="form-label">Item</label><input required list={`materials-${form.category}`} className="form-control" value={structureItem.name} onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })} /><datalist id={`materials-${form.category}`}>{categoryDefaults[form.category].materials.map((material) => <option key={material} value={material} />)}</datalist></div><div className="col-md-2"><label className="form-label">Quantidade</label><input required type="number" min="0.01" step="0.01" className="form-control" value={structureItem.quantity} onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Unidade</label><select required className="form-select" value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })}><option value="un">un</option><option value="m">m</option><option value="m²">m²</option><option value="m³">m³</option><option value="kg">kg</option><option value="L">L</option><option value="serviço">serviço</option></select></div><div className="col-md-2"><label className="form-label">Valor total</label><input required type="number" min="0" step="0.01" className="form-control" value={structureItem.value} onChange={(e) => setStructureItem({ ...structureItem, value: e.target.value })} /></div><div className="col-md-2"><button className="btn btn-outline-success w-100"><Plus size={16} /> Adicionar</button></div></form>
-          <div className="table-responsive mt-3"><table className="table table-sm"><thead><tr><th>Item</th><th>Quantidade</th><th>Valor</th><th /></tr></thead><tbody>{editing.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.quantity} {item.unit}</td><td>{money(item.value)}</td><td className="text-end">{canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(item.id).then(() => loadStructures(farmId))}><Trash2 size={14} /></button>}</td></tr>)}</tbody></table></div></>}
+          <div className="table-responsive mt-3"><table className="table table-sm"><thead><tr><th>Item</th><th>Quantidade</th><th>Valor</th><th /></tr></thead><tbody>{editing.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.quantity} {item.unit}</td><td>{money(item.value)}</td><td className="text-end">{canDelete && <button type="button" className="btn btn-sm text-danger" onClick={() => void removeStructureItem(item.id)}><Trash2 size={14} /></button>}</td></tr>)}</tbody></table></div></>}
+        </section>
+        <section className={`${styles.stepCard} ${styles.locationStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 2 : 3}</span><h3>Localização <small>(opcional)</small></h3></div><form onSubmit={submit}><LocationPicker latitude={form.latitude} longitude={form.longitude} lastLocation={lastRegisteredLocation} onChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))} /><button className="btn btn-success w-100 mt-3" disabled={saving}>{editing ? "Salvar localização" : "Salvar estrutura"}</button></form></section>
         </div>
+        {editing && <div className={styles.successBar}><span><MapPinned size={24} /></span><div><strong>Estrutura salva</strong><small>Os dados e itens cadastrados já estão disponíveis para uso na fazenda.</small></div><button className="btn btn-success" onClick={() => setShowForm(false)}>Concluir</button></div>}
       </div></div>}
     </div>
   );
