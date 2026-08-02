@@ -234,6 +234,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     plan_code = serializers.CharField(source="plan.code", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     billing_cycle_display = serializers.CharField(source="get_billing_cycle_display", read_only=True)
+    has_active_discount = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Subscription
@@ -241,13 +242,44 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "id", "organization", "organization_name", "plan", "plan_name", "plan_code",
             "status", "status_display", "billing_cycle", "billing_cycle_display",
             "started_at", "trial_ends_at", "current_period_ends_at", "cancel_at_period_end",
-            "cancelled_at", "custom_limits", "notes", "created_at", "updated_at",
+            "cancelled_at", "custom_limits", "notes", "discount_type", "discount_value",
+            "discount_starts_at", "discount_ends_at", "has_active_discount",
+            "created_at", "updated_at",
         )
 
 
 class ChangeSubscriptionPlanSerializer(serializers.Serializer):
     plan_id = serializers.UUIDField()
     billing_cycle = serializers.ChoiceField(choices=Subscription.BillingCycle.choices, required=False)
+
+
+class SubscriptionDiscountSerializer(serializers.Serializer):
+    discount_type = serializers.ChoiceField(
+        choices=Subscription.DiscountType.choices,
+        required=False,
+        allow_blank=True,
+    )
+    discount_value = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        default=Decimal("0"),
+    )
+    discount_starts_at = serializers.DateTimeField(required=False, allow_null=True)
+    discount_ends_at = serializers.DateTimeField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        discount_type = attrs.get("discount_type", "")
+        value = attrs.get("discount_value", Decimal("0"))
+        if value > 0 and not discount_type:
+            raise serializers.ValidationError({"discount_type": "Informe o tipo do desconto."})
+        if discount_type == Subscription.DiscountType.PERCENTAGE and value > 100:
+            raise serializers.ValidationError({"discount_value": "O desconto percentual não pode exceder 100%."})
+        starts_at = attrs.get("discount_starts_at")
+        ends_at = attrs.get("discount_ends_at")
+        if starts_at and ends_at and ends_at <= starts_at:
+            raise serializers.ValidationError({"discount_ends_at": "O término deve ser posterior ao início."})
+        return attrs
 
 
 class InvoiceSerializer(serializers.ModelSerializer):

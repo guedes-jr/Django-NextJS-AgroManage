@@ -24,6 +24,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
     contacts = OrganizationContactSerializer(many=True, read_only=True)
     farms_count = serializers.SerializerMethodField()
     storage_used = serializers.SerializerMethodField()
+    subscription = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -31,7 +32,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'document', 'plan', 'plan_display',
             'is_active', 'logo', 'address', 'phone', 'email',
             'addresses', 'contacts', 'farms_count', 'storage_used',
-            'created_at', 'updated_at'
+            'subscription', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'slug', 'plan', 'is_active', 'created_at', 'updated_at']
 
@@ -41,3 +42,18 @@ class OrganizationSerializer(serializers.ModelSerializer):
     def get_storage_used(self, obj):
         return 0
 
+    def get_subscription(self, obj):
+        subscription = getattr(obj, "subscription", None)
+        if not subscription:
+            return None
+        return {
+            "plan_name": subscription.plan.name,
+            "plan_code": subscription.plan.code,
+            "status": subscription.status,
+            "billing_cycle": subscription.billing_cycle,
+            "current_period_ends_at": subscription.current_period_ends_at,
+            "discount_type": subscription.discount_type,
+            "discount_value": subscription.discount_value,
+            "discount_ends_at": subscription.discount_ends_at,
+            "has_active_discount": subscription.has_active_discount,
+        }

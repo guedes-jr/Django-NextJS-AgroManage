@@ -3,7 +3,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.billing.models import Plan, Subscription
+from apps.billing.models import Invoice, Plan, Subscription
+from apps.billing.services import create_manual_invoice
 from apps.organizations.models import Organization
 from apps.platform_admin.models import PlatformAuditLog, PlatformStaffProfile
 
@@ -95,3 +96,38 @@ class PlatformBillingAPITestCase(APITestCase):
 
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         self.assertEqual(create_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_platform_admin_applies_permanent_percentage_discount(self):
+        subscription = self.organization.subscription
+        self.client.force_authenticate(user=self.platform_admin)
+
+        response = self.client.post(
+            reverse("platform-subscription-set-discount", args=[subscription.id]),
+            {"discount_type": "percentage", "discount_value": "15.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subscription.refresh_from_db()
+        self.assertTrue(subscription.has_active_discount)
+        self.assertEqual(str(subscription.discount_value), "15.00")
+        self.assertTrue(
+            PlatformAuditLog.objects.filter(action="subscription.discount_updated").exists()
+        )
+
+    def test_active_discount_is_applied_to_manual_invoice(self):
+        subscription = self.organization.subscription
+        subscription.discount_type = Subscription.DiscountType.FIXED_AMOUNT
+        subscription.discount_value = "20.00"
+        subscription.save(update_fields=["discount_type", "discount_value", "updated_at"])
+
+        invoice = create_manual_invoice(
+            organization=self.organization,
+            due_date="2026-12-01",
+            description="Mensalidade",
+            amount="100.00",
+        )
+
+        self.assertIsInstance(invoice, Invoice)
+        self.assertEqual(str(invoice.discount_total), "20.00")
+        self.assertEqual(str(invoice.total), "80.00")

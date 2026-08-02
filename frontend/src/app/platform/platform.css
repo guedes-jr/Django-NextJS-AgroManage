@@ -1,3 +1,15 @@
+.platform-theme {
+  min-height: 100vh;
+  color: #172033;
+  color-scheme: light;
+  --bs-body-color: #212529;
+  --bs-body-bg: #fff;
+  --bs-secondary-color: rgba(33, 37, 41, .75);
+  --bs-tertiary-color: rgba(33, 37, 41, .5);
+  --bs-border-color: #dee2e6;
+  --bs-form-control-bg: #fff;
+}
+
 .platform-root { min-height: 100vh; background: #f4f7fb; color: #172033; }
 .platform-sidebar { width: 264px; min-height: 100vh; position: fixed; inset: 0 auto 0 0; background: #111827; color: #fff; padding: 24px 18px; z-index: 30; }
 .platform-brand { display: flex; align-items: center; gap: 12px; padding: 4px 8px 28px; }
@@ -19,7 +31,11 @@
 .platform-login { min-height:100vh; display:grid; grid-template-columns:1.1fr .9fr; background:#111827; }
 .platform-login-hero { padding:64px; color:white; display:flex; flex-direction:column; justify-content:space-between; background:radial-gradient(circle at 20% 10%,rgba(34,197,94,.32),transparent 36%),#111827; }
 .platform-login-form { background:#f8fafc; display:grid; place-items:center; padding:32px; }
-.platform-login-card { width:min(430px,100%); background:white; padding:38px; border-radius:20px; box-shadow:0 25px 70px rgba(0,0,0,.18); }
+.platform-login-card { width:min(430px,100%); background:white; color:#172033; padding:38px; border-radius:20px; box-shadow:0 25px 70px rgba(0,0,0,.18); }
+.platform-theme .form-control,
+.platform-theme .form-select,
+.platform-theme .input-group-text { background-color:#fff; color:#212529; }
+.platform-theme .form-control::placeholder { color:#6c757d; opacity:1; }
 .platform-table th { color:#687386; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
 .platform-table td,.platform-table th { padding:14px 16px; vertical-align:middle; border-color:#edf0f4; }
 @media (max-width: 900px) { .platform-sidebar { width:76px; padding:22px 10px; } .platform-sidebar .nav-label,.platform-brand-copy { display:none; } .platform-main { margin-left:76px; } .platform-content { padding:20px; } .platform-topbar { padding:0 20px; } .platform-login { grid-template-columns:1fr; } .platform-login-hero { display:none; } }

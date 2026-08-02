@@ -238,6 +238,15 @@ export const platformService = {
       billing_cycle: billingCycle,
     });
   },
+  async setSubscriptionDiscount(id: string, payload: {
+    discount_type: "percentage" | "fixed_amount" | "";
+    discount_value: string;
+    discount_starts_at: string | null;
+    discount_ends_at: string | null;
+  }) {
+    const { data } = await platformApi.post(`platform/subscriptions/${id}/discount/`, payload);
+    return data;
+  },
   async financeDashboard() {
     const { data } = await platformApi.get<PlatformFinanceDashboard>("platform/finance/dashboard/");
     return data;

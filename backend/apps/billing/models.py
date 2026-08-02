@@ -1,5 +1,8 @@
 from common.models import BaseModel
+from decimal import Decimal
+
 from django.db import models
+from django.utils import timezone
 
 
 class Plan(BaseModel):
@@ -65,6 +68,10 @@ class Subscription(BaseModel):
         YEARLY = "yearly", "Anual"
         CUSTOM = "custom", "Personalizado"
 
+    class DiscountType(models.TextChoices):
+        PERCENTAGE = "percentage", "Percentual"
+        FIXED_AMOUNT = "fixed_amount", "Valor fixo"
+
     organization = models.OneToOneField(
         "organizations.Organization",
         on_delete=models.CASCADE,
@@ -84,12 +91,40 @@ class Subscription(BaseModel):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     custom_limits = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
+    discount_type = models.CharField(
+        max_length=20,
+        choices=DiscountType.choices,
+        blank=True,
+    )
+    discount_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_starts_at = models.DateTimeField(null=True, blank=True)
+    discount_ends_at = models.DateTimeField(null=True, blank=True)
 
     class Meta(BaseModel.Meta):
         ordering = ("-created_at",)
 
     def __str__(self):
         return f"{self.organization} — {self.plan}"
+
+    @property
+    def has_active_discount(self):
+        if not self.discount_type or Decimal(self.discount_value) <= 0:
+            return False
+        now = timezone.now()
+        if self.discount_starts_at and self.discount_starts_at > now:
+            return False
+        return not self.discount_ends_at or self.discount_ends_at > now
+
+    def calculate_discount(self, amount):
+        amount = Decimal(amount)
+        if not self.has_active_discount:
+            return Decimal("0.00")
+        discount_value = Decimal(self.discount_value)
+        if self.discount_type == self.DiscountType.PERCENTAGE:
+            discount = amount * discount_value / Decimal("100")
+        else:
+            discount = discount_value
+        return min(discount, amount).quantize(Decimal("0.01"))
 
 
 class Invoice(BaseModel):

@@ -37,6 +37,7 @@ from .serializers import (
     PlatformAuditLogSerializer,
     PlatformUserSerializer,
     ChangeSubscriptionPlanSerializer,
+    SubscriptionDiscountSerializer,
     FeatureSerializer,
     PlanSerializer,
     SubscriptionSerializer,
@@ -782,7 +783,7 @@ class PlatformSubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
         return Subscription.objects.select_related("organization", "plan")
 
     def get_permissions(self):
-        if self.action == "change_plan":
+        if self.action in {"change_plan", "set_discount"}:
             return [IsPlatformAdmin()]
         return super().get_permissions()
 
@@ -816,6 +817,46 @@ class PlatformSubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
             object_id=subscription.id,
             description=f"Plano alterado de {previous_plan.name} para {plan.name}.",
             extra_data={"previous_plan": previous_plan.code, "new_plan": plan.code},
+        )
+        return Response(SubscriptionSerializer(subscription).data)
+
+    @action(detail=True, methods=["post"], url_path="discount")
+    @transaction.atomic
+    def set_discount(self, request, pk=None):
+        subscription = self.get_object()
+        serializer = SubscriptionDiscountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        previous = {
+            "type": subscription.discount_type,
+            "value": str(subscription.discount_value),
+            "starts_at": subscription.discount_starts_at,
+            "ends_at": subscription.discount_ends_at,
+        }
+        subscription.discount_type = data.get("discount_type", "")
+        subscription.discount_value = data.get("discount_value", Decimal("0"))
+        subscription.discount_starts_at = data.get("discount_starts_at")
+        subscription.discount_ends_at = data.get("discount_ends_at")
+        subscription.save(update_fields=[
+            "discount_type", "discount_value", "discount_starts_at",
+            "discount_ends_at", "updated_at",
+        ])
+        record_platform_action(
+            request=request,
+            action="subscription.discount_updated",
+            organization=subscription.organization,
+            object_type="Subscription",
+            object_id=subscription.id,
+            description="Desconto da assinatura atualizado.",
+            extra_data={
+                "previous": previous,
+                "current": {
+                    "type": subscription.discount_type,
+                    "value": str(subscription.discount_value),
+                    "starts_at": subscription.discount_starts_at,
+                    "ends_at": subscription.discount_ends_at,
+                },
+            },
         )
         return Response(SubscriptionSerializer(subscription).data)
 

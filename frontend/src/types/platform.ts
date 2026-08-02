@@ -176,6 +176,11 @@ export interface PlatformSubscription {
   billing_cycle_display: string;
   started_at: string;
   current_period_ends_at: string | null;
+  discount_type: "percentage" | "fixed_amount" | "";
+  discount_value: string;
+  discount_starts_at: string | null;
+  discount_ends_at: string | null;
+  has_active_discount: boolean;
 }
 
 export type PlatformSubscriptionPage = PaginatedResponse<PlatformSubscription>;

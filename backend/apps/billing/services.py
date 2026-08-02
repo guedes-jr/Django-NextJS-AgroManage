@@ -10,6 +10,9 @@ from .models import Invoice, InvoiceItem, Payment, PaymentAttempt
 @transaction.atomic
 def create_manual_invoice(*, organization, due_date, description, amount, notes=""):
     subscription = organization.subscription
+    amount = Decimal(amount)
+    discount_total = subscription.calculate_discount(amount)
+    total = amount - discount_total
     number = f"AG-{timezone.now():%Y%m%d}-{uuid4().hex[:8].upper()}"
     invoice = Invoice.objects.create(
         number=number,
@@ -17,7 +20,8 @@ def create_manual_invoice(*, organization, due_date, description, amount, notes=
         subscription=subscription,
         status=Invoice.Status.OPEN,
         subtotal=amount,
-        total=amount,
+        discount_total=discount_total,
+        total=total,
         issued_at=timezone.now(),
         due_date=due_date,
         notes=notes,

@@ -20,6 +20,20 @@ import {
   Warehouse,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import apiClient from "@/services/api";
+
+interface SidebarOrganization {
+  name: string;
+  subscription: null | {
+    plan_name: string;
+    status: string;
+    current_period_ends_at: string | null;
+    discount_type: "percentage" | "fixed_amount" | "";
+    discount_value: string;
+    discount_ends_at: string | null;
+    has_active_discount: boolean;
+  };
+}
 
 interface SubItem {
   title: string;
@@ -146,6 +160,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       .filter((child) => child.subItems?.some((sub) => pathname.startsWith(sub.href)))
       .map((child) => child.href)
   );
+  const [organization, setOrganization] = useState<SidebarOrganization | null>(null);
 
   const isActive = (href: string) =>
     href === "/home" ? pathname === href : pathname.startsWith(href);
@@ -157,6 +172,14 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
     }
 
   }, [pathname, onClose]);
+
+  useEffect(() => {
+    let active = true;
+    apiClient.get<SidebarOrganization>("/organizations/me/")
+      .then(({ data }) => { if (active) setOrganization(data); })
+      .catch(() => { /* Sidebar keeps a neutral fallback when billing is unavailable. */ });
+    return () => { active = false; };
+  }, []);
 
   const toggleExpand = (title: string) => {
     setExpandedMenus(prev =>
@@ -192,7 +215,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
               Gestão Agro
             </div>
             <div className="text-white/40" style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Fazenda São João
+              {organization?.name || "Minha organização"}
             </div>
           </div>
         </div>
@@ -313,11 +336,21 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                 <div className="badge-icon-yellow">
                     <span className="small fw-bold text-dark">★</span>
                 </div>
-                <div className="fw-bold small text-white">Plano Premium</div>
+                <div className="fw-bold small text-white">Plano {organization?.subscription?.plan_name || "não informado"}</div>
             </div>
             <div className="text-white/50 fw-medium" style={{ fontSize: '0.7rem' }}>
-                Válido até 20/08/2025
+                {organization?.subscription?.current_period_ends_at
+                  ? `Válido até ${new Date(organization.subscription.current_period_ends_at).toLocaleDateString("pt-BR")}`
+                  : organization?.subscription?.status === "active" ? "Assinatura ativa" : "Consulte sua assinatura"}
             </div>
+            {organization?.subscription?.has_active_discount && <div className="text-warning fw-bold mt-1" style={{ fontSize: '0.7rem' }}>
+              {organization.subscription.discount_type === "percentage"
+                ? `${Number(organization.subscription.discount_value).toLocaleString("pt-BR")}% de desconto`
+                : `${Number(organization.subscription.discount_value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de desconto`}
+              {organization.subscription.discount_ends_at
+                ? ` até ${new Date(organization.subscription.discount_ends_at).toLocaleDateString("pt-BR")}`
+                : " permanente"}
+            </div>}
         </div>
 
         <nav className="nav flex-column gap-1">
