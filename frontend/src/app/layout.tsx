@@ -6,8 +6,17 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://agromanage.com"),
   title: "AgroManage",
   description: "Sistema de Gestão Agrícola",
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "AgroManage",
+    title: "AgroManage | Gestão rural em um só lugar",
+    description: "Fazendas, produção, rebanhos, estoque e finanças em uma única plataforma.",
+    images: [{ url: "/farm-hero.jpg", width: 1200, height: 630 }],
+  },
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

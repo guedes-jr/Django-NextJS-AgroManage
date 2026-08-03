@@ -54,6 +54,15 @@ export interface PlatformAuditLog {
 
 export type PlatformAuditLogPage = PaginatedResponse<PlatformAuditLog>;
 
+export interface PlatformDemoRequest {
+  id: string; name: string; email: string; phone: string;
+  organization_name: string; operation_profile: string; message: string;
+  status: "pending" | "approved" | "rejected"; status_display: string;
+  decided_by: string | null; decided_by_name: string; decided_at: string | null;
+  decision_notes: string; created_at: string; updated_at: string;
+}
+export type PlatformDemoRequestPage = PaginatedResponse<PlatformDemoRequest>;
+
 export interface PlatformSupportAccess {
   id: string;
   operator: string;

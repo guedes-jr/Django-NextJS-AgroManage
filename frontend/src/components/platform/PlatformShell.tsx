@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Building2, Eye, LayoutDashboard, LogOut, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards } from "lucide-react";
+import { Activity, Building2, ClipboardList, Eye, LayoutDashboard, LogOut, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards } from "lucide-react";
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
@@ -11,6 +11,7 @@ import type { PlatformStaff } from "@/types/platform";
 const navigation = [
   { href: "/platform", label: "Visão geral", icon: LayoutDashboard },
   { href: "/platform/organizations", label: "Organizações", icon: Building2 },
+  { href: "/platform/demo-requests", label: "Demonstrações", icon: ClipboardList },
   { href: "/platform/users", label: "Usuários", icon: Users },
   { href: "/platform/plans", label: "Planos e assinaturas", icon: Tags },
   { href: "/platform/finance", label: "Financeiro SaaS", icon: WalletCards },

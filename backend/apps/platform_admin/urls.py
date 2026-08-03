@@ -8,6 +8,7 @@ router.register("organizations", views.PlatformOrganizationViewSet, basename="pl
 router.register("users", views.PlatformUserViewSet, basename="platform-user")
 router.register("team", views.PlatformTeamViewSet, basename="platform-team")
 router.register("audit-logs", views.PlatformAuditLogViewSet, basename="platform-audit-log")
+router.register("demo-requests", views.PlatformDemoRequestViewSet, basename="platform-demo-request")
 router.register("plans", views.PlatformPlanViewSet, basename="platform-plan")
 router.register("features", views.PlatformFeatureViewSet, basename="platform-feature")
 router.register("subscriptions", views.PlatformSubscriptionViewSet, basename="platform-subscription")

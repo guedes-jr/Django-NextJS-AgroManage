@@ -8,7 +8,7 @@ from django.utils.text import slugify
 
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, PlanEntitlement, Subscription
-from .models import BackgroundTaskRun, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
+from .models import BackgroundTaskRun, DemoRequest, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 
 User = get_user_model()
 
@@ -89,6 +89,34 @@ class PlatformAuditLogSerializer(serializers.ModelSerializer):
             "extra_data", "created_at",
         )
         read_only_fields = fields
+
+
+class PublicDemoRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DemoRequest
+        fields = ("id", "name", "email", "phone", "organization_name", "operation_profile", "message", "status", "created_at")
+        read_only_fields = ("id", "status", "created_at")
+        extra_kwargs = {
+            "name": {"min_length": 2},
+            "phone": {"min_length": 8},
+            "organization_name": {"min_length": 2},
+            "operation_profile": {"min_length": 2},
+            "message": {"min_length": 10, "max_length": 3000},
+        }
+
+
+class DemoRequestSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    decided_by_name = serializers.CharField(source="decided_by.full_name", read_only=True)
+
+    class Meta:
+        model = DemoRequest
+        fields = ("id", "name", "email", "phone", "organization_name", "operation_profile", "message", "status", "status_display", "decided_by", "decided_by_name", "decided_at", "decision_notes", "created_at", "updated_at")
+        read_only_fields = fields
+
+
+class DemoRequestDecisionSerializer(serializers.Serializer):
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
 
 
 class PlatformOrganizationListSerializer(serializers.ModelSerializer):

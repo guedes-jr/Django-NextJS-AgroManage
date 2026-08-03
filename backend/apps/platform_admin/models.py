@@ -64,6 +64,38 @@ class PlatformAuditLog(BaseModel):
         return f"[{self.action}] {self.object_type}#{self.object_id}"
 
 
+class DemoRequest(BaseModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pendente"
+        APPROVED = "approved", "Aprovada"
+        REJECTED = "rejected", "Rejeitada"
+
+    name = models.CharField(max_length=150)
+    email = models.EmailField(db_index=True)
+    phone = models.CharField(max_length=30)
+    organization_name = models.CharField(max_length=180)
+    operation_profile = models.CharField(max_length=80)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="decided_demo_requests",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_notes = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.organization_name} — {self.get_status_display()}"
+
+
 class SupportAccessGrant(BaseModel):
     operator = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="support_access_grants"

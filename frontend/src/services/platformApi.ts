@@ -31,6 +31,8 @@ import type {
   PlatformTeamMemberPayload,
   PlatformTeamPage,
   PlatformAuditLogPage,
+  PlatformDemoRequest,
+  PlatformDemoRequestPage,
   PlatformSupportAccess,
   PlatformSupportAccessPage,
 } from "@/types/platform";
@@ -186,6 +188,14 @@ export const platformService = {
   },
   async auditLogs(params?: Record<string, string | number>) {
     const { data } = await platformApi.get<PlatformAuditLogPage>("platform/audit-logs/", { params });
+    return data;
+  },
+  async demoRequests(params?: Record<string, string | number>) {
+    const { data } = await platformApi.get<PlatformDemoRequestPage>("platform/demo-requests/", { params });
+    return data;
+  },
+  async decideDemoRequest(id: string, decision: "approve" | "reject", notes = "") {
+    const { data } = await platformApi.post<PlatformDemoRequest>(`platform/demo-requests/${id}/${decision}/`, { notes });
     return data;
   },
   async auditOptions() {

@@ -15,9 +15,10 @@ from django.http import HttpResponse
 from django.db.models import Count, F, Q
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import AccessToken
 from celery import current_app
@@ -35,6 +36,9 @@ from .serializers import (
     PlatformTeamMemberSerializer,
     PlatformTeamMemberWriteSerializer,
     PlatformAuditLogSerializer,
+    PublicDemoRequestSerializer,
+    DemoRequestSerializer,
+    DemoRequestDecisionSerializer,
     PlatformUserSerializer,
     ChangeSubscriptionPlanSerializer,
     SubscriptionDiscountSerializer,
@@ -59,13 +63,36 @@ from .serializers import (
     SandboxExecutionSerializer,
 )
 from .services import record_platform_action
-from .models import BackgroundTaskRun, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
+from .models import BackgroundTaskRun, DemoRequest, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 from .operational import RETRYABLE_TASKS
 from .sql_console import UnsafeQuery, execute_readonly_query, explain_readonly_query, redact_query_for_history
 from .approved_queries import available_queries, run_approved_query
 from .sandbox_client import SandboxClient, SandboxUnavailable
 
 User = get_user_model()
+
+
+class DemoRequestThrottle(SimpleRateThrottle):
+    scope = "demo_request"
+    rate = "5/hour"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+@api_view(["POST"])
+@permission_classes([])
+@throttle_classes([DemoRequestThrottle])
+def public_demo_request(request):
+    serializer = PublicDemoRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else request.META.get("REMOTE_ADDR")
+    demo_request = serializer.save(
+        ip_address=ip_address or None,
+        user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
+    )
+    return Response(PublicDemoRequestSerializer(demo_request).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
@@ -376,6 +403,57 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
             description="Organização arquivada sem exclusão dos dados.",
         )
         return Response({"detail": "Organização arquivada com sucesso."})
+
+
+class PlatformDemoRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = DemoRequestSerializer
+    permission_classes = [IsPlatformStaff]
+    search_fields = ("name", "email", "phone", "organization_name", "message")
+    filterset_fields = ("status", "operation_profile")
+    ordering_fields = ("created_at", "updated_at", "organization_name", "status")
+    ordering = ("-created_at",)
+
+    def get_queryset(self):
+        return DemoRequest.objects.select_related("decided_by")
+
+    def get_permissions(self):
+        if self.action in {"approve", "reject"}:
+            return [IsPlatformAdmin()]
+        return super().get_permissions()
+
+    def _decide(self, request, decision):
+        demo_request = self.get_object()
+        if demo_request.status != DemoRequest.Status.PENDING:
+            return Response(
+                {"detail": "Esta solicitação já foi analisada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = DemoRequestDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        demo_request.status = decision
+        demo_request.decided_by = request.user
+        demo_request.decided_at = timezone.now()
+        demo_request.decision_notes = serializer.validated_data.get("notes", "")
+        demo_request.save(update_fields=("status", "decided_by", "decided_at", "decision_notes", "updated_at"))
+        record_platform_action(
+            request=request,
+            action=f"demo_request.{decision}",
+            object_type="DemoRequest",
+            object_id=demo_request.id,
+            description=f"Solicitação de demonstração {demo_request.get_status_display().lower()}.",
+            extra_data={"email": demo_request.email, "organization": demo_request.organization_name},
+        )
+        return Response(DemoRequestSerializer(demo_request).data)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def approve(self, request, pk=None):
+        return self._decide(request, DemoRequest.Status.APPROVED)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def reject(self, request, pk=None):
+        return self._decide(request, DemoRequest.Status.REJECTED)
 
 
 class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):

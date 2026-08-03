@@ -1,0 +1,4 @@
+import type { Metadata } from "next";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+export const metadata:Metadata={title:"Privacidade | AgroManage"};
+export default function PrivacidadePage(){return <MarketingPage eyebrow="Legal" title="Política de privacidade" description="Como o AgroManage trata e protege informações da sua organização."><section className="legal-content marketing-container"><h2>Dados tratados</h2><p>Tratamos dados cadastrais, operacionais e técnicos necessários para autenticação, funcionamento, suporte e segurança da plataforma.</p><h2>Finalidade</h2><p>As informações são utilizadas para fornecer o serviço contratado, proteger contas, atender solicitações e melhorar a experiência de uso.</p><h2>Segurança e direitos</h2><p>Aplicamos controles de acesso e isolamento por organização. Solicitações relacionadas aos direitos dos titulares podem ser encaminhadas pelo canal de contato.</p></section></MarketingPage>}
