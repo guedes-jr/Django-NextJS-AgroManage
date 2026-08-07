@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BarChart3, Beef, Boxes, CheckCircle2, ClipboardCheck, HeartPulse, Layers3, MapPinned, ShieldCheck, Sprout, Tractor, UsersRound, WalletCards, Wheat } from "lucide-react";
+import { ArrowRight, BarChart3, Beef, Boxes, CheckCircle2, ClipboardCheck, HeartPulse, Layers3, MapPinned, Quote, ShieldCheck, Sprout, Star, Tractor, UsersRound, WalletCards, Wheat } from "lucide-react";
 
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
@@ -25,6 +25,12 @@ const audiences = [
   { icon: Tractor, title: "Produtores e propriedades", text: "Organize a rotina da propriedade e acompanhe custos, estoque e produção sem depender de várias planilhas." },
   { icon: UsersRound, title: "Equipes de campo", text: "Distribua responsabilidades e mantenha informações acessíveis para quem executa e para quem supervisiona." },
   { icon: MapPinned, title: "Operações com várias fazendas", text: "Tenha uma visão consolidada sem perder o acompanhamento individual de cada unidade produtiva." },
+];
+
+const testimonials = [
+  { quote: "Hoje consigo acompanhar estoque, custos e atividades da fazenda sem procurar informação em várias planilhas.", name: "Carlos Menezes", role: "Produtor rural", initials: "CM" },
+  { quote: "A equipe passou a registrar a rotina no mesmo lugar. Isso trouxe mais agilidade para identificar pendências e tomar decisões.", name: "Mariana Lopes", role: "Gestora de operações", initials: "ML" },
+  { quote: "Ter a visão financeira conectada à produção deixou o planejamento muito mais claro para toda a propriedade.", name: "Rafael Andrade", role: "Administrador rural", initials: "RA" },
 ];
 
 const faqs = [
@@ -66,6 +72,8 @@ export default function MarketingHomePage() {
       <section className="marketing-section audience-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Feito para quem vive a operação</div><h2>Do campo à gestão estratégica</h2><p>Uma experiência que atende diferentes níveis de responsabilidade sem complicar o trabalho.</p></div><div className="audience-grid">{audiences.map(({icon:Icon,title,text})=><article key={title}><Icon size={28}/><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 
       <section className="marketing-section pricing-section" id="planos"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Planos que acompanham seu crescimento</div><h2>Comece com o que sua operação precisa</h2><p>Preços e limites sempre sincronizados com a oferta comercial do AgroManage.</p></div><PublicPlans compact /><div className="section-action"><Link href="/planos" className="text-link">Comparar todos os planos <ArrowRight size={17}/></Link></div></div></section>
+
+      <section className="marketing-section testimonials-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Experiência de quem está no campo</div><h2>Mais clareza para cuidar da operação</h2><p>Veja como uma gestão conectada transforma a rotina de produtores e equipes rurais.</p></div><div className="testimonials-grid">{testimonials.map((testimonial)=><article className="testimonial-card" key={testimonial.name}><div className="testimonial-top"><div className="testimonial-stars" aria-label="5 de 5 estrelas">{Array.from({length:5}).map((_,index)=><Star key={index} size={15} fill="currentColor" />)}</div><Quote size={28}/></div><blockquote>“{testimonial.quote}”</blockquote><div className="testimonial-author"><span>{testimonial.initials}</span><div><strong>{testimonial.name}</strong><small>{testimonial.role}</small></div></div></article>)}</div></div></section>
 
       <section className="security-section"><div className="marketing-container security-card"><div className="security-icon"><ShieldCheck size={30}/></div><div><h2>Seus dados protegidos, sua equipe no controle</h2><p>Ambientes separados por organização, permissões por função, auditoria e acesso administrativo controlado.</p></div><Link href="/contato" className="marketing-button light">Falar com um especialista</Link></div></section>
 

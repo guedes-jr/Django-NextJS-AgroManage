@@ -4,9 +4,10 @@ import sys
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import connection, transaction
 
 from apps.platform_admin.models import PlatformStaffProfile
 
@@ -46,7 +47,7 @@ class Command(BaseCommand):
                 f"Defina {options['password_env']} ou execute o comando em um terminal interativo."
             )
 
-        user = User.objects.filter(email=email).first()
+        user = User.objects.filter(email__iexact=email).first()
         if user and user.organization_id:
             raise CommandError(
                 "O usuário informado pertence a uma organização cliente. "
@@ -91,10 +92,16 @@ class Command(BaseCommand):
             },
         )
 
+        user.refresh_from_db()
+        if not user.check_password(password):
+            raise CommandError("A senha gravada não pôde ser validada.")
+
         operation = "criado" if created and profile_created else "atualizado"
+        database_name = connection.settings_dict.get("NAME") or "não identificado"
         self.stdout.write(
             self.style.SUCCESS(
                 f"Membro da plataforma {operation}: {user.email} ({profile.role}). "
-                "MFA permanece obrigatório para o painel da plataforma."
+                "MFA permanece obrigatório para o painel da plataforma. "
+                f"Settings: {settings.SETTINGS_MODULE}; banco: {database_name}."
             )
         )

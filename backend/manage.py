@@ -2,9 +2,16 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+from pathlib import Path
 
 
 def main():
+    # Load environment selection before applying the development fallback.
+    # Otherwise management commands ignore DJANGO_SETTINGS_MODULE from .env
+    # and may silently operate on the development database in production.
+    import environ
+
+    environ.Env.read_env(Path(__file__).resolve().parent / ".env")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
     try:
         from django.core.management import execute_from_command_line

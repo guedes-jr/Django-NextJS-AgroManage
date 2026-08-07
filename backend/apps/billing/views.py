@@ -1,4 +1,3 @@
-from django.views.decorators.cache import cache_page
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -7,7 +6,6 @@ from .models import Plan
 from .serializers import PublicPlanSerializer
 
 
-@cache_page(60 * 5)
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_plans(request):

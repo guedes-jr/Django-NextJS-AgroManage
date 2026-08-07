@@ -46,7 +46,13 @@ export function PublicPlans({ compact = false, showBillingToggle = false }: { co
   if (loading) return <div className="marketing-loading"><LoaderCircle className="spin" size={24} /> Carregando planos</div>;
   if (!plans.length) return <div className="marketing-empty">Fale com nossa equipe para conhecer os planos disponíveis.</div>;
 
-  const visible = compact ? plans.slice(0, 3) : plans;
+  const landingPlanCodes = ["essencial", "profissional", "gestao-plus"];
+  const landingPlans = landingPlanCodes
+    .map((code) => plans.find((plan) => plan.code === code))
+    .filter((plan): plan is PublicPlan => Boolean(plan));
+  const visible = compact
+    ? (landingPlans.length === landingPlanCodes.length ? landingPlans : plans.slice(0, 3))
+    : plans;
   return <>{showBillingToggle && <div className="billing-toggle" aria-label="Ciclo de cobrança">
     <button className={billing === "monthly" ? "active" : ""} onClick={() => setBilling("monthly")}>Mensal</button>
     <button className={billing === "yearly" ? "active" : ""} onClick={() => setBilling("yearly")}>Anual</button>

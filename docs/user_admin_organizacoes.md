@@ -13,6 +13,10 @@ export PLATFORM_STAFF_PASSWORD
 unset PLATFORM_STAFF_PASSWORD
 ```
 
+O `backend/manage.py` carrega `backend/.env` antes de selecionar as settings. Em
+produção, confira na mensagem final se aparecem `config.settings.prod` e o banco
+esperado antes de testar o acesso.
+
 ou 
 
 ```sh

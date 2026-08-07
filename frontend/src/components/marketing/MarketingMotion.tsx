@@ -10,6 +10,7 @@ const revealSelector = [
   ".results-grid > div",
   ".audience-grid article",
   ".pricing-card",
+  ".testimonial-card",
   ".security-card",
   ".faq-grid > div",
   ".final-cta-card",

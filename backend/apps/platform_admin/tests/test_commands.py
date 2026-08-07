@@ -63,6 +63,27 @@ class CreatePlatformStaffCommandTestCase(TestCase):
         self.assertEqual(identity.status_code, status.HTTP_200_OK)
         self.assertEqual(identity.data["email"].lower(), "joao.admin@agro.com")
 
+    @patch.dict(os.environ, {"TEST_PLATFORM_PASSWORD": "AnotherStrongPassword-8472"})
+    def test_updates_existing_staff_email_case_insensitively(self):
+        existing = User.objects.create_user(
+            email="Joao.Admin@agro.com",
+            password="StrongPassword-8472",
+            full_name="Nome antigo",
+        )
+        PlatformStaffProfile.objects.create(user=existing)
+
+        call_command(
+            "create_platform_staff",
+            email="joao.admin@agro.com",
+            name="João Guedes",
+            password_env="TEST_PLATFORM_PASSWORD",
+        )
+
+        self.assertEqual(User.objects.filter(email__iexact="joao.admin@agro.com").count(), 1)
+        existing.refresh_from_db()
+        self.assertEqual(existing.full_name, "João Guedes")
+        self.assertTrue(existing.check_password("AnotherStrongPassword-8472"))
+
     @patch.dict(os.environ, {"TEST_PLATFORM_PASSWORD": "StrongPassword-8472"})
     def test_rejects_customer_account(self):
         organization = Organization.objects.create(name="Cliente", slug="cliente")
