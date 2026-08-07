@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://agromanage.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return ["", "/recursos", "/planos", "/contato", "/termos", "/privacidade"].map((path) => ({
+  return ["", "/recursos", "/planos", "/contato", "/calculadora", "/demo", "/conteudos", "/conteudos/organizar-custos-rurais", "/conteudos/controle-de-estoque-na-fazenda", "/conteudos/indicadores-de-gestao-rural", "/gestao-pecuaria", "/gestao-agricola", "/controle-de-estoque-rural", "/software-financeiro-rural", "/gestao-multifazendas", "/termos", "/privacidade"].map((path) => ({
     url: `${siteUrl}${path}`,
     lastModified: new Date(),
     changeFrequency: path === "" ? "weekly" as const : "monthly" as const,

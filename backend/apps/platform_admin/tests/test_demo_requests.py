@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -30,7 +33,7 @@ class DemoRequestAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         request = DemoRequest.objects.get(email=self.payload["email"])
-        self.assertEqual(request.status, DemoRequest.Status.PENDING)
+        self.assertEqual(request.status, DemoRequest.Status.NEW)
         self.assertNotIn("ip_address", response.data)
 
     def test_platform_admin_approves_and_audits_request(self):
@@ -63,3 +66,46 @@ class DemoRequestAPITestCase(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_moves_lead_through_pipeline_and_schedules_demo(self):
+        demo_request = DemoRequest.objects.create(**self.payload)
+        self.client.force_authenticate(user=self.admin)
+        pipeline = self.client.patch(
+            reverse("platform-demo-request-update-pipeline", args=[demo_request.id]),
+            {"status": "contacted", "estimated_value": "1499.00", "internal_notes": "Contato produtivo."},
+            format="json",
+        )
+        self.assertEqual(pipeline.status_code, status.HTTP_200_OK)
+        appointment = self.client.post(
+            reverse("platform-demo-request-schedule", args=[demo_request.id]),
+            {"starts_at": (timezone.now() + timedelta(days=2)).isoformat(), "duration_minutes": 45, "meeting_url": "https://meet.example.com/demo"},
+            format="json",
+        )
+        self.assertEqual(appointment.status_code, status.HTTP_201_CREATED)
+        demo_request.refresh_from_db()
+        self.assertEqual(demo_request.status, DemoRequest.Status.SCHEDULED)
+        self.assertEqual(demo_request.appointments.count(), 1)
+        self.assertGreaterEqual(demo_request.activities.count(), 2)
+
+    def test_public_marketing_event_is_available_in_commercial_dashboard(self):
+        event = self.client.post(
+            reverse("public-marketing-event"),
+            {"event_name": "page_view", "session_id": "session-1", "path": "/gestao-pecuaria", "variant": "control", "utm_source": "google"},
+            format="json",
+        )
+        self.assertEqual(event.status_code, status.HTTP_201_CREATED)
+        self.client.force_authenticate(user=self.admin)
+        dashboard = self.client.get(reverse("platform-commercial-dashboard"))
+        self.assertEqual(dashboard.status_code, status.HTTP_200_OK)
+        self.assertEqual(dashboard.data["summary"]["page_views"], 1)
+
+    def test_visitor_can_choose_an_available_demo_slot(self):
+        availability = self.client.get(reverse("public-demo-availability"))
+        self.assertEqual(availability.status_code, status.HTTP_200_OK)
+        self.assertTrue(availability.data["slots"])
+        payload = {**self.payload, "email": "scheduled@example.com", "preferred_demo_at": availability.data["slots"][0]}
+        response = self.client.post(reverse("public-demo-request"), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        lead = DemoRequest.objects.get(email="scheduled@example.com")
+        self.assertEqual(lead.status, DemoRequest.Status.SCHEDULED)
+        self.assertEqual(lead.appointments.count(), 1)

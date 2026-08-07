@@ -148,6 +148,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@agromanage.com")
+DEMO_REQUEST_NOTIFICATION_EMAILS = env.list(
+    "DEMO_REQUEST_NOTIFICATION_EMAILS",
+    default=["contato@agromanage.com"],
+)
+
 # ---------------------------------------------------------------------------
 # Django REST Framework
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ from django.utils.text import slugify
 
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, PlanEntitlement, Subscription
-from .models import BackgroundTaskRun, DemoRequest, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
+from .models import BackgroundTaskRun, DemoAppointment, DemoRequest, DemoRequestActivity, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, MarketingEvent, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 
 User = get_user_model()
 
@@ -92,9 +92,17 @@ class PlatformAuditLogSerializer(serializers.ModelSerializer):
 
 
 class PublicDemoRequestSerializer(serializers.ModelSerializer):
+    def validate_preferred_demo_at(self, value):
+        from django.utils import timezone
+        if value and value <= timezone.now():
+            raise serializers.ValidationError("Escolha uma data futura.")
+        if value and DemoAppointment.objects.filter(starts_at=value, status=DemoAppointment.Status.SCHEDULED).exists():
+            raise serializers.ValidationError("Este horário acabou de ser reservado. Escolha outro.")
+        return value
+
     class Meta:
         model = DemoRequest
-        fields = ("id", "name", "email", "phone", "organization_name", "operation_profile", "message", "status", "created_at")
+        fields = ("id", "name", "email", "phone", "organization_name", "operation_profile", "message", "selected_plan", "preferred_demo_at", "landing_path", "utm_source", "utm_medium", "utm_campaign", "ab_variant", "status", "created_at")
         read_only_fields = ("id", "status", "created_at")
         extra_kwargs = {
             "name": {"min_length": 2},
@@ -108,11 +116,80 @@ class PublicDemoRequestSerializer(serializers.ModelSerializer):
 class DemoRequestSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     decided_by_name = serializers.CharField(source="decided_by.full_name", read_only=True)
+    assigned_to_name = serializers.CharField(source="assigned_to.full_name", read_only=True)
+    appointments = serializers.SerializerMethodField()
+    activities = serializers.SerializerMethodField()
+
+    def get_appointments(self, obj):
+        return DemoAppointmentSerializer(obj.appointments.all(), many=True).data
+
+    def get_activities(self, obj):
+        return DemoRequestActivitySerializer(obj.activities.all()[:50], many=True).data
 
     class Meta:
         model = DemoRequest
-        fields = ("id", "name", "email", "phone", "organization_name", "operation_profile", "message", "status", "status_display", "decided_by", "decided_by_name", "decided_at", "decision_notes", "created_at", "updated_at")
+        fields = ("id", "name", "email", "phone", "organization_name", "operation_profile", "message", "selected_plan", "preferred_demo_at", "landing_path", "utm_source", "utm_medium", "utm_campaign", "ab_variant", "status", "status_display", "assigned_to", "assigned_to_name", "next_action_at", "estimated_value", "internal_notes", "loss_reason", "converted_at", "decided_by", "decided_by_name", "decided_at", "decision_notes", "appointments", "activities", "created_at", "updated_at")
         read_only_fields = fields
+
+
+class DemoAppointmentSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
+    google_calendar_url = serializers.SerializerMethodField()
+    outlook_calendar_url = serializers.SerializerMethodField()
+
+    def _calendar_values(self, obj):
+        from datetime import timedelta
+        from django.utils import timezone
+        start = timezone.localtime(obj.starts_at)
+        end = start + timedelta(minutes=obj.duration_minutes)
+        title = f"Demonstração AgroManage — {obj.demo_request.organization_name}"
+        return start, end, title
+
+    def get_google_calendar_url(self, obj):
+        from datetime import timezone as datetime_timezone
+        from urllib.parse import urlencode
+        start, end, title = self._calendar_values(obj)
+        return "https://calendar.google.com/calendar/render?" + urlencode({"action":"TEMPLATE","text":title,"dates":f"{start.astimezone(datetime_timezone.utc).strftime('%Y%m%dT%H%M%SZ')}/{end.astimezone(datetime_timezone.utc).strftime('%Y%m%dT%H%M%SZ')}","details":obj.notes,"location":obj.meeting_url})
+
+    def get_outlook_calendar_url(self, obj):
+        from urllib.parse import urlencode
+        start, end, title = self._calendar_values(obj)
+        return "https://outlook.office.com/calendar/0/deeplink/compose?" + urlencode({"subject":title,"startdt":start.isoformat(),"enddt":end.isoformat(),"body":obj.notes,"location":obj.meeting_url})
+
+    class Meta:
+        model = DemoAppointment
+        fields = ("id", "starts_at", "duration_minutes", "timezone", "meeting_url", "status", "status_display", "notes", "google_calendar_url", "outlook_calendar_url", "created_by", "created_by_name", "created_at", "updated_at")
+        read_only_fields = ("id", "created_by", "created_by_name", "created_at", "updated_at")
+
+
+class DemoRequestActivitySerializer(serializers.ModelSerializer):
+    actor_name = serializers.CharField(source="actor.full_name", read_only=True)
+
+    class Meta:
+        model = DemoRequestActivity
+        fields = ("id", "actor", "actor_name", "action", "description", "metadata", "created_at")
+        read_only_fields = fields
+
+
+class DemoRequestPipelineSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=DemoRequest.Status.choices)
+    assigned_to = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(platform_staff_profile__is_active=True), required=False, allow_null=True)
+    next_action_at = serializers.DateTimeField(required=False, allow_null=True)
+    estimated_value = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, min_value=0)
+    internal_notes = serializers.CharField(required=False, allow_blank=True, max_length=5000)
+    loss_reason = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+    def validate(self, attrs):
+        if attrs.get("status") == DemoRequest.Status.LOST and not attrs.get("loss_reason"):
+            raise serializers.ValidationError({"loss_reason": "Informe o motivo da perda."})
+        return attrs
+
+
+class MarketingEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MarketingEvent
+        fields = ("event_name", "session_id", "path", "variant", "utm_source", "utm_medium", "utm_campaign", "value", "metadata")
 
 
 class DemoRequestDecisionSerializer(serializers.Serializer):

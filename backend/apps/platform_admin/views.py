@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time as datetime_time, timedelta
 from decimal import Decimal
 import csv
 import json
@@ -6,13 +6,14 @@ import hashlib
 import time
 
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db import connection
 from django.conf import settings
 from django.db.migrations.executor import MigrationExecutor
 from django.db import DatabaseError
 from django.http import HttpResponse
-from django.db.models import Count, F, Q
+from django.db.models import Avg, Count, F, Q, Sum
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
@@ -39,6 +40,9 @@ from .serializers import (
     PublicDemoRequestSerializer,
     DemoRequestSerializer,
     DemoRequestDecisionSerializer,
+    DemoAppointmentSerializer,
+    DemoRequestPipelineSerializer,
+    MarketingEventSerializer,
     PlatformUserSerializer,
     ChangeSubscriptionPlanSerializer,
     SubscriptionDiscountSerializer,
@@ -63,7 +67,7 @@ from .serializers import (
     SandboxExecutionSerializer,
 )
 from .services import record_platform_action
-from .models import BackgroundTaskRun, DemoRequest, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
+from .models import BackgroundTaskRun, DemoAppointment, DemoRequest, DemoRequestActivity, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, MarketingEvent, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 from .operational import RETRYABLE_TASKS
 from .sql_console import UnsafeQuery, execute_readonly_query, explain_readonly_query, redact_query_for_history
 from .approved_queries import available_queries, run_approved_query
@@ -75,6 +79,14 @@ User = get_user_model()
 class DemoRequestThrottle(SimpleRateThrottle):
     scope = "demo_request"
     rate = "5/hour"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+class MarketingEventThrottle(SimpleRateThrottle):
+    scope = "marketing_event"
+    rate = "120/hour"
 
     def get_cache_key(self, request, view):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
@@ -92,7 +104,116 @@ def public_demo_request(request):
         ip_address=ip_address or None,
         user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
     )
+    DemoRequestActivity.objects.create(
+        demo_request=demo_request,
+        action="lead.created",
+        description="Solicitação recebida pela landing page.",
+        metadata={"source": demo_request.utm_source, "campaign": demo_request.utm_campaign},
+    )
+    if demo_request.preferred_demo_at:
+        DemoAppointment.objects.create(
+            demo_request=demo_request,
+            starts_at=demo_request.preferred_demo_at,
+            duration_minutes=45,
+            timezone="America/Recife",
+            created_by=None,
+            notes="Horário escolhido no formulário público.",
+        )
+        demo_request.status = DemoRequest.Status.SCHEDULED
+        demo_request.next_action_at = demo_request.preferred_demo_at
+        demo_request.save(update_fields=("status", "next_action_at", "updated_at"))
+        DemoRequestActivity.objects.create(
+            demo_request=demo_request,
+            action="lead.self_scheduled",
+            description=f"Demonstração solicitada para {demo_request.preferred_demo_at.isoformat()}.",
+        )
+    recipients = getattr(settings, "DEMO_REQUEST_NOTIFICATION_EMAILS", [])
+    if recipients:
+        send_mail(
+            subject=f"Nova demonstração — {demo_request.organization_name}",
+            message=(
+                f"Nome: {demo_request.name}\nE-mail: {demo_request.email}\n"
+                f"Telefone: {demo_request.phone}\nPerfil: {demo_request.operation_profile}\n"
+                f"Plano: {demo_request.selected_plan or 'Não informado'}\n\n{demo_request.message}"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=recipients,
+            fail_silently=True,
+        )
+    send_mail(
+        subject="Recebemos sua solicitação — AgroManage",
+        message=(
+            f"Olá, {demo_request.name}!\n\nRecebemos sua solicitação de demonstração para "
+            f"{demo_request.organization_name}. Nossa equipe analisará o cenário informado e entrará "
+            "em contato."
+            + (f"\n\nHorário solicitado: {timezone.localtime(demo_request.preferred_demo_at).strftime('%d/%m/%Y às %H:%M')}." if demo_request.preferred_demo_at else "")
+            + "\n\nEnquanto isso, você pode conhecer os recursos e planos em nosso site.\n\nEquipe AgroManage"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[demo_request.email],
+        fail_silently=True,
+    )
     return Response(PublicDemoRequestSerializer(demo_request).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([])
+@throttle_classes([MarketingEventThrottle])
+def public_marketing_event(request):
+    serializer = MarketingEventSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    event = serializer.save()
+    return Response({"id": event.id}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([])
+def public_demo_availability(request):
+    now = timezone.localtime()
+    occupied = set(DemoAppointment.objects.filter(
+        status=DemoAppointment.Status.SCHEDULED,
+        starts_at__gte=now,
+        starts_at__lte=now + timedelta(days=21),
+    ).values_list("starts_at", flat=True))
+    slots = []
+    for offset in range(1, 15):
+        day = (now + timedelta(days=offset)).date()
+        if day.weekday() >= 5:
+            continue
+        for hour in (9, 10, 11, 14, 15, 16):
+            candidate = timezone.make_aware(datetime.combine(day, datetime_time(hour=hour)), timezone.get_current_timezone())
+            if candidate not in occupied:
+                slots.append(candidate.isoformat())
+    return Response({"timezone": str(timezone.get_current_timezone()), "slots": slots[:30]})
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformStaff])
+def commercial_dashboard(request):
+    leads = DemoRequest.objects.all()
+    events = MarketingEvent.objects.all()
+    status_counts = {row["status"]: row["total"] for row in leads.values("status").annotate(total=Count("id"))}
+    source_counts = list(leads.values("utm_source").annotate(total=Count("id")).order_by("-total")[:10])
+    total_leads = leads.count()
+    won = status_counts.get(DemoRequest.Status.WON, 0)
+    scheduled = status_counts.get(DemoRequest.Status.SCHEDULED, 0)
+    page_views = events.filter(event_name="page_view").count()
+    return Response({
+        "summary": {
+            "total_leads": total_leads,
+            "open_leads": leads.exclude(status__in=(DemoRequest.Status.WON, DemoRequest.Status.LOST)).count(),
+            "scheduled": scheduled,
+            "won": won,
+            "estimated_pipeline": leads.exclude(status=DemoRequest.Status.LOST).aggregate(value=Sum("estimated_value"))["value"] or 0,
+            "conversion_rate": round((won / total_leads * 100), 2) if total_leads else 0,
+            "page_views": page_views,
+            "lead_conversion_rate": round((total_leads / page_views * 100), 2) if page_views else 0,
+        },
+        "by_status": status_counts,
+        "by_source": source_counts,
+        "events": list(events.values("event_name").annotate(total=Count("id")).order_by("-total")),
+        "web_vitals": list(events.filter(event_name__startswith="web_vital.").values("event_name").annotate(average=Avg("value"), samples=Count("id"))),
+    })
 
 
 @api_view(["GET"])
@@ -414,16 +535,16 @@ class PlatformDemoRequestViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ("-created_at",)
 
     def get_queryset(self):
-        return DemoRequest.objects.select_related("decided_by")
+        return DemoRequest.objects.select_related("decided_by", "assigned_to").prefetch_related("appointments", "activities__actor")
 
     def get_permissions(self):
-        if self.action in {"approve", "reject"}:
+        if self.action in {"approve", "reject", "update_pipeline", "schedule"}:
             return [IsPlatformAdmin()]
         return super().get_permissions()
 
     def _decide(self, request, decision):
         demo_request = self.get_object()
-        if demo_request.status != DemoRequest.Status.PENDING:
+        if demo_request.status not in {DemoRequest.Status.NEW, DemoRequest.Status.PENDING}:
             return Response(
                 {"detail": "Esta solicitação já foi analisada."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -444,6 +565,56 @@ class PlatformDemoRequestViewSet(viewsets.ReadOnlyModelViewSet):
             extra_data={"email": demo_request.email, "organization": demo_request.organization_name},
         )
         return Response(DemoRequestSerializer(demo_request).data)
+
+    @action(detail=True, methods=["patch"], url_path="pipeline")
+    @transaction.atomic
+    def update_pipeline(self, request, pk=None):
+        demo_request = self.get_object()
+        serializer = DemoRequestPipelineSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        previous_status = demo_request.status
+        for field, value in serializer.validated_data.items():
+            setattr(demo_request, field, value)
+        if demo_request.status == DemoRequest.Status.WON and not demo_request.converted_at:
+            demo_request.converted_at = timezone.now()
+        elif demo_request.status != DemoRequest.Status.WON:
+            demo_request.converted_at = None
+        demo_request.save()
+        DemoRequestActivity.objects.create(
+            demo_request=demo_request, actor=request.user, action="lead.pipeline_updated",
+            description=f"Etapa alterada de {previous_status} para {demo_request.status}.",
+            metadata={"previous_status": previous_status, "status": demo_request.status},
+        )
+        return Response(DemoRequestSerializer(demo_request, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def schedule(self, request, pk=None):
+        demo_request = self.get_object()
+        serializer = DemoAppointmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        appointment = serializer.save(demo_request=demo_request, created_by=request.user)
+        demo_request.status = DemoRequest.Status.SCHEDULED
+        demo_request.next_action_at = appointment.starts_at
+        demo_request.save(update_fields=("status", "next_action_at", "updated_at"))
+        DemoRequestActivity.objects.create(
+            demo_request=demo_request, actor=request.user, action="lead.demo_scheduled",
+            description=f"Demonstração agendada para {appointment.starts_at.isoformat()}.",
+            metadata={"appointment_id": str(appointment.id)},
+        )
+        send_mail(
+            subject="Demonstração AgroManage agendada",
+            message=(
+                f"Olá, {demo_request.name}!\n\nSua demonstração foi agendada para "
+                f"{timezone.localtime(appointment.starts_at).strftime('%d/%m/%Y às %H:%M')}.\n"
+                f"Duração prevista: {appointment.duration_minutes} minutos.\n"
+                f"Link: {appointment.meeting_url or 'Será enviado pela equipe.'}\n\nEquipe AgroManage"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[demo_request.email],
+            fail_silently=True,
+        )
+        return Response(DemoAppointmentSerializer(appointment).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     @transaction.atomic

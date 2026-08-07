@@ -66,9 +66,16 @@ class PlatformAuditLog(BaseModel):
 
 class DemoRequest(BaseModel):
     class Status(models.TextChoices):
-        PENDING = "pending", "Pendente"
-        APPROVED = "approved", "Aprovada"
-        REJECTED = "rejected", "Rejeitada"
+        NEW = "new", "Novo"
+        CONTACTED = "contacted", "Contato realizado"
+        SCHEDULED = "scheduled", "Demonstração agendada"
+        PROPOSAL = "proposal", "Proposta enviada"
+        NEGOTIATION = "negotiation", "Em negociação"
+        WON = "won", "Convertido"
+        LOST = "lost", "Perdido"
+        PENDING = "pending", "Pendente (legado)"
+        APPROVED = "approved", "Aprovada (legado)"
+        REJECTED = "rejected", "Rejeitada (legado)"
 
     name = models.CharField(max_length=150)
     email = models.EmailField(db_index=True)
@@ -76,7 +83,23 @@ class DemoRequest(BaseModel):
     organization_name = models.CharField(max_length=180)
     operation_profile = models.CharField(max_length=80)
     message = models.TextField()
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    selected_plan = models.CharField(max_length=80, blank=True)
+    landing_path = models.CharField(max_length=255, blank=True)
+    utm_source = models.CharField(max_length=120, blank=True)
+    utm_medium = models.CharField(max_length=120, blank=True)
+    utm_campaign = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="assigned_demo_requests",
+    )
+    next_action_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    preferred_demo_at = models.DateTimeField(null=True, blank=True)
+    estimated_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    internal_notes = models.TextField(blank=True)
+    loss_reason = models.CharField(max_length=255, blank=True)
+    converted_at = models.DateTimeField(null=True, blank=True)
+    ab_variant = models.CharField(max_length=40, blank=True)
     decided_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -94,6 +117,46 @@ class DemoRequest(BaseModel):
 
     def __str__(self):
         return f"{self.organization_name} — {self.get_status_display()}"
+
+
+class DemoAppointment(BaseModel):
+    class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "Agendada"
+        COMPLETED = "completed", "Realizada"
+        CANCELLED = "cancelled", "Cancelada"
+        NO_SHOW = "no_show", "Não compareceu"
+
+    demo_request = models.ForeignKey(DemoRequest, on_delete=models.CASCADE, related_name="appointments")
+    starts_at = models.DateTimeField(db_index=True)
+    duration_minutes = models.PositiveSmallIntegerField(default=45)
+    timezone = models.CharField(max_length=60, default="America/Recife")
+    meeting_url = models.URLField(blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="created_demo_appointments")
+
+    class Meta(BaseModel.Meta):
+        ordering = ("starts_at",)
+
+
+class DemoRequestActivity(BaseModel):
+    demo_request = models.ForeignKey(DemoRequest, on_delete=models.CASCADE, related_name="activities")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    action = models.CharField(max_length=60, db_index=True)
+    description = models.CharField(max_length=500)
+    metadata = models.JSONField(default=dict, blank=True)
+
+
+class MarketingEvent(BaseModel):
+    event_name = models.CharField(max_length=80, db_index=True)
+    session_id = models.CharField(max_length=80, blank=True, db_index=True)
+    path = models.CharField(max_length=255, blank=True, db_index=True)
+    variant = models.CharField(max_length=40, blank=True)
+    utm_source = models.CharField(max_length=120, blank=True)
+    utm_medium = models.CharField(max_length=120, blank=True)
+    utm_campaign = models.CharField(max_length=120, blank=True)
+    value = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
 
 
 class SupportAccessGrant(BaseModel):

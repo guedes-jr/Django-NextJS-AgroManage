@@ -35,6 +35,7 @@ import type {
   PlatformDemoRequestPage,
   PlatformSupportAccess,
   PlatformSupportAccessPage,
+  CommercialDashboard,
 } from "@/types/platform";
 
 const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
@@ -196,6 +197,18 @@ export const platformService = {
   },
   async decideDemoRequest(id: string, decision: "approve" | "reject", notes = "") {
     const { data } = await platformApi.post<PlatformDemoRequest>(`platform/demo-requests/${id}/${decision}/`, { notes });
+    return data;
+  },
+  async commercialDashboard() {
+    const { data } = await platformApi.get<CommercialDashboard>("platform/commercial/dashboard/");
+    return data;
+  },
+  async updateDemoPipeline(id: string, payload: Record<string, unknown>) {
+    const { data } = await platformApi.patch<PlatformDemoRequest>(`platform/demo-requests/${id}/pipeline/`, payload);
+    return data;
+  },
+  async scheduleDemo(id: string, payload: Record<string, unknown>) {
+    const { data } = await platformApi.post(`platform/demo-requests/${id}/schedule/`, payload);
     return data;
   },
   async auditOptions() {

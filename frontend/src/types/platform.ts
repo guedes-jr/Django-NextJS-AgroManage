@@ -57,11 +57,20 @@ export type PlatformAuditLogPage = PaginatedResponse<PlatformAuditLog>;
 export interface PlatformDemoRequest {
   id: string; name: string; email: string; phone: string;
   organization_name: string; operation_profile: string; message: string;
-  status: "pending" | "approved" | "rejected"; status_display: string;
+  selected_plan: string; landing_path: string; utm_source: string; utm_medium: string; utm_campaign: string;
+  ab_variant: string;
+  status: "new" | "contacted" | "scheduled" | "proposal" | "negotiation" | "won" | "lost" | "pending" | "approved" | "rejected"; status_display: string;
+  assigned_to: string | null; assigned_to_name: string; next_action_at: string | null;
+  estimated_value: string; internal_notes: string; loss_reason: string; converted_at: string | null;
+  appointments: PlatformDemoAppointment[]; activities: PlatformDemoActivity[];
   decided_by: string | null; decided_by_name: string; decided_at: string | null;
   decision_notes: string; created_at: string; updated_at: string;
 }
 export type PlatformDemoRequestPage = PaginatedResponse<PlatformDemoRequest>;
+
+export interface PlatformDemoAppointment { id:string; starts_at:string; duration_minutes:number; timezone:string; meeting_url:string; status:string; status_display:string; notes:string; google_calendar_url:string; outlook_calendar_url:string; created_by_name:string; }
+export interface PlatformDemoActivity { id:string; actor_name:string; action:string; description:string; metadata:Record<string,unknown>; created_at:string; }
+export interface CommercialDashboard { summary:{total_leads:number;open_leads:number;scheduled:number;won:number;estimated_pipeline:string;conversion_rate:number;page_views:number;lead_conversion_rate:number};by_status:Record<string,number>;by_source:Array<{utm_source:string;total:number}>;events:Array<{event_name:string;total:number}>;web_vitals:Array<{event_name:string;average:number;samples:number}>; }
 
 export interface PlatformSupportAccess {
   id: string;

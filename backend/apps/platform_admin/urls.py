@@ -27,6 +27,7 @@ urlpatterns = [
     path("me/", views.platform_me, name="platform-me"),
     path("client-state/", views.client_state, name="platform-client-state"),
     path("dashboard/", views.dashboard_summary, name="platform-dashboard"),
+    path("commercial/dashboard/", views.commercial_dashboard, name="platform-commercial-dashboard"),
     path("finance/dashboard/", views.finance_dashboard, name="platform-finance-dashboard"),
     path("operations/health/", views.operations_health, name="platform-operations-health"),
     path("operations/sql/execute/", views.execute_sql_query, name="platform-sql-execute"),

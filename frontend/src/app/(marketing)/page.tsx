@@ -33,6 +33,12 @@ const testimonials = [
   { quote: "Ter a visão financeira conectada à produção deixou o planejamento muito mais claro para toda a propriedade.", name: "Rafael Andrade", role: "Administrador rural", initials: "RA" },
 ];
 
+const productViews = [
+  { image:"/images/crops/financial-summary.png", title:"Financeiro conectado à produção", text:"Acompanhe custos e resultados no contexto de cada atividade." },
+  { image:"/images/crops/reports-wide.png", title:"Relatórios para decidir", text:"Transforme os registros da operação em uma visão clara e acionável." },
+  { image:"/images/crops/sector-structure-wide.png", title:"Estrutura da propriedade", text:"Organize áreas, setores e recursos da fazenda em um só ambiente." },
+];
+
 const faqs = [
   ["Preciso instalar algum programa?", "Não. O AgroManage é acessado pelo navegador e funciona em computadores, tablets e celulares conectados à internet."],
   ["Consigo cadastrar mais de uma fazenda?", "Sim. A quantidade disponível depende do plano contratado e pode acompanhar o crescimento da operação."],
@@ -43,6 +49,7 @@ const faqs = [
 
 export default function MarketingHomePage() {
   return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({"@context":"https://schema.org","@type":"SoftwareApplication",name:"AgroManage",applicationCategory:"BusinessApplication",operatingSystem:"Web",description:"Plataforma de gestão rural para fazendas, produção, rebanhos, estoque e finanças.",offers:{"@type":"Offer",price:"79.90",priceCurrency:"BRL"}})}} />
     <MarketingHeader />
     <main>
       <section className="marketing-hero">
@@ -68,6 +75,8 @@ export default function MarketingHomePage() {
       <section className="workflow-section"><div className="marketing-container"><div className="section-heading left"><div className="eyebrow">Do cadastro à decisão</div><h2>Uma rotina simples para manter a gestão em dia</h2><p>O AgroManage acompanha o fluxo real da operação, transformando registros cotidianos em visão gerencial.</p></div><div className="workflow-grid"><article><span>01</span><div className="workflow-icon"><Layers3 size={23}/></div><h3>Configure sua operação</h3><p>Cadastre organização, fazendas, equipe, estruturas, rebanhos e áreas produtivas.</p></article><article><span>02</span><div className="workflow-icon"><ClipboardCheck size={23}/></div><h3>Registre o que acontece</h3><p>Centralize movimentações, manejos, custos, tarefas, compras e atividades de campo.</p></article><article><span>03</span><div className="workflow-icon"><BarChart3 size={23}/></div><h3>Acompanhe e decida</h3><p>Use indicadores e relatórios para identificar desvios, oportunidades e prioridades.</p></article></div></div></section>
 
       <section className="results-section"><div className="marketing-container results-grid"><div><div className="eyebrow light">Operação conectada</div><h2>Menos planilhas. Mais rastreabilidade.</h2><p>O AgroManage reúne o histórico operacional e financeiro da propriedade para reduzir retrabalho, antecipar riscos e melhorar margens.</p><Link href="/recursos" className="text-link">Veja tudo que você pode gerenciar <ArrowRight size={17}/></Link></div><div className="results-list"><div><strong>01</strong><span><b>Centralize</b> dados de toda a fazenda</span></div><div><strong>02</strong><span><b>Acompanhe</b> custos e produtividade</span></div><div><strong>03</strong><span><b>Decida</b> com indicadores confiáveis</span></div></div></div></section>
+
+      <section className="marketing-section product-tour"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Veja o AgroManage por dentro</div><h2>Da rotina do campo à visão gerencial</h2><p>Telas do produto que conectam operação, estrutura e resultado.</p></div><div className="product-tour-grid">{productViews.map((view)=><article key={view.title}><div className="product-shot"><Image src={view.image} alt={view.title} fill sizes="(max-width: 900px) 100vw, 33vw"/></div><h3>{view.title}</h3><p>{view.text}</p></article>)}</div></div></section>
 
       <section className="marketing-section audience-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Feito para quem vive a operação</div><h2>Do campo à gestão estratégica</h2><p>Uma experiência que atende diferentes níveis de responsabilidade sem complicar o trabalho.</p></div><div className="audience-grid">{audiences.map(({icon:Icon,title,text})=><article key={title}><Icon size={28}/><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 

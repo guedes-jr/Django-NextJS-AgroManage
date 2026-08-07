@@ -8,6 +8,7 @@ const revealSelector = [
   ".feature-card",
   ".workflow-grid article",
   ".results-grid > div",
+  ".product-tour-grid article",
   ".audience-grid article",
   ".pricing-card",
   ".testimonial-card",

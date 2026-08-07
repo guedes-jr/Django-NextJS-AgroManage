@@ -73,8 +73,8 @@ export function PublicPlans({ compact = false, showBillingToggle = false }: { co
           <li><Check size={16} /> Estoque, financeiro e relatórios</li>
           {plan.trial_days > 0 && <li><Check size={16} /> {plan.trial_days} dias para testar</li>}
         </ul>
-        <Link href="/contato" className={featured ? "marketing-button primary" : "marketing-button secondary"}>Quero este plano</Link>
+        <Link href={`/contato?plano=${plan.code}`} className={featured ? "marketing-button primary" : "marketing-button secondary"}>Quero este plano</Link>
       </article>;
     })}
-  </div></>;
+  </div>{showBillingToggle&&<div className="plan-comparison"><h2>Compare os principais limites</h2><div className="table-responsive"><table><thead><tr><th>Plano</th><th>Usuários</th><th>Fazendas</th><th>Armazenamento</th><th>Relatórios/mês</th><th>Teste</th></tr></thead><tbody>{plans.filter(plan=>landingPlanCodes.includes(plan.code)).map(plan=><tr key={plan.id}><th>{plan.name}</th><td>{plan.max_users||"Ilimitado"}</td><td>{plan.max_farms||"Ilimitado"}</td><td>{plan.max_storage_mb?`${Math.round(plan.max_storage_mb/1024)} GB`:"Ilimitado"}</td><td>{plan.max_reports_per_month||"Ilimitado"}</td><td>{plan.trial_days?`${plan.trial_days} dias`:"Sob consulta"}</td></tr>)}</tbody></table></div></div>}</>;
 }

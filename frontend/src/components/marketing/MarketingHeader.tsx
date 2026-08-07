@@ -3,10 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function MarketingHeader() {
   const [open, setOpen] = useState(false);
+  const [ctaLabel,setCtaLabel]=useState("Solicitar demonstração");
+  useEffect(()=>{const timer=window.setTimeout(()=>{if(localStorage.getItem("agromanage_lp_variant")==="cta_clarity")setCtaLabel("Ver aplicado à minha fazenda");},0);return()=>window.clearTimeout(timer);},[]);
   return <header className="marketing-header">
     <div className="marketing-container header-inner">
       <Link href="/" className="marketing-brand" aria-label="AgroManage - início">
@@ -19,9 +21,10 @@ export function MarketingHeader() {
       <nav className={open ? "marketing-nav open" : "marketing-nav"}>
         <Link href="/recursos" onClick={() => setOpen(false)}>Recursos</Link>
         <Link href="/planos" onClick={() => setOpen(false)}>Planos</Link>
+        <Link href="/conteudos" onClick={() => setOpen(false)}>Conteúdos</Link>
         <Link href="/contato" onClick={() => setOpen(false)}>Contato</Link>
         <Link href="/login" className="nav-login" onClick={() => setOpen(false)}>Entrar</Link>
-        <Link href="/contato" className="marketing-button primary small" onClick={() => setOpen(false)}>Solicitar demonstração</Link>
+        <Link href="/contato" className="marketing-button primary small" onClick={() => setOpen(false)}>{ctaLabel}</Link>
       </nav>
     </div>
   </header>;
