@@ -299,7 +299,11 @@ class MaternidadeView(BasePhaseView):
         mortalidade_pct = round((total_dead_birth / total_born_lactating * 100), 1) if total_born_lactating else 0
 
         alerts = []
-        pendentes_desmame = lactating_qs.filter(birth_date__lte=now - datetime.timedelta(days=21)).count()
+        pendentes_desmame = sum(
+            1
+            for birth in lactating_qs
+            if birth.birth_date + datetime.timedelta(days=birth.expected_weaning_days) <= now
+        )
         if pendentes_desmame > 0:
             alerts.append({"type": "warning", "icon": "🔄", "text": f"{pendentes_desmame} leitegada{'s' if pendentes_desmame > 1 else ''} pronta{'s' if pendentes_desmame > 1 else ''} para desmame.", "time": "Hoje"})
 
@@ -309,7 +313,7 @@ class MaternidadeView(BasePhaseView):
 
         ai_suggestions = []
         if pendentes_desmame > 0:
-            ai_suggestions.append({"text": f"{pendentes_desmame} leitegada{'s' if pendentes_desmame > 1 else ''} com 21+ dias — considerar desmame para liberar matriz."})
+            ai_suggestions.append({"text": f"{pendentes_desmame} leitegada{'s' if pendentes_desmame > 1 else ''} na data prevista de desmame — considerar avanço para a creche."})
         if mortalidade_pct > 10:
             ai_suggestions.append({"text": f"Mortalidade ao nascer de {mortalidade_pct}% — revisar manejo de matrizes no parto."})
 
@@ -317,13 +321,15 @@ class MaternidadeView(BasePhaseView):
         rows = []
         for b in paged:
             idade = (now - b.birth_date).days if b.birth_date else None
-            previsao_desmame = (b.birth_date + datetime.timedelta(days=21)).isoformat() if b.birth_date else None
+            previsao_desmame = (
+                b.birth_date + datetime.timedelta(days=b.expected_weaning_days)
+            ).isoformat() if b.birth_date else None
             
             vivos_calculado = b.live_born - b.mortality
             if hasattr(b, 'litter') and b.litter.weaning_date:
                 status = "Desmamado"
                 vivos_atual = b.litter.weaned_quantity or max(vivos_calculado, 0)
-            elif idade is not None and idade >= 21:
+            elif idade is not None and idade >= b.expected_weaning_days:
                 status = "Pronto p/ Desmame"
                 vivos_atual = max(vivos_calculado, 0)
             else:
@@ -342,6 +348,7 @@ class MaternidadeView(BasePhaseView):
                 "idade": idade,
                 "status": status,
                 "previsao_desmame": previsao_desmame,
+                "dias_para_desmame": b.expected_weaning_days,
                 "vivos_atual": vivos_atual,
             })
 
@@ -731,6 +738,10 @@ def build_animal_history(animal):
                 "total_born": b.total_born,
                 "mortality": b.mortality,
                 "avg_weight_kg": float(b.avg_weight_kg) if b.avg_weight_kg else None,
+                "expected_weaning_days": b.expected_weaning_days,
+                "expected_weaning_date": (
+                    b.birth_date + datetime.timedelta(days=b.expected_weaning_days)
+                ).isoformat() if b.birth_date else None,
                 "notes": b.notes,
                 "litter": litter_info,
             }
@@ -808,7 +819,33 @@ def build_animal_history(animal):
             }
         })
 
-    # 8. Histórico Genérico (Descartes, Perdas, etc)
+    # 8. Histórico de cios
+    # HeatRecord é a fonte canônica. O HistoricoEvento criado no cadastro é
+    # apenas descritivo e usa outro formato, portanto não deve ser usado para
+    # montar as datas da ficha técnica.
+    heat_records = {
+        heat.heat_number: heat
+        for heat in animal.heat_records.all().order_by('heat_number')
+    }
+    first_heat = heat_records.get(1)
+    if first_heat:
+        second_heat = heat_records.get(2)
+        third_heat = heat_records.get(3)
+        events.append({
+            "type": "registro_cio",
+            "date": first_heat.heat_date.isoformat(),
+            "title": "Registro de Cio",
+            "subtitle": first_heat.notes or "Previsões reprodutivas calculadas automaticamente.",
+            "status": "Real",
+            "details": {
+                "cio1": first_heat.heat_date.isoformat(),
+                "cio2_previsto": second_heat.heat_date.isoformat() if second_heat else None,
+                "cio3_previsto": third_heat.heat_date.isoformat() if third_heat else None,
+                "notes": first_heat.notes,
+            }
+        })
+
+    # 9. Histórico Genérico (Descartes, Perdas, etc)
     for he in animal.historicos.all():
         events.append({
             "type": "historico_evento",
@@ -1558,6 +1595,10 @@ class BirthViewSet(viewsets.ModelViewSet):
                 'mummified': birth.mummified,
                 'total_born': birth.total_born,
                 'avg_weight_kg': str(birth.avg_weight_kg) if birth.avg_weight_kg else None,
+                'expected_weaning_days': birth.expected_weaning_days,
+                'expected_weaning_date': str(
+                    birth.birth_date + datetime.timedelta(days=birth.expected_weaning_days)
+                ),
             }
         )
 

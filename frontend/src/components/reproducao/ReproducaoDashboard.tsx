@@ -1,13 +1,14 @@
 "use client";
  
 import { useState, useEffect } from "react";
-import { Plus, Loader2, X } from "lucide-react";
+import { Activity, AlertTriangle, BellRing, CalendarDays, CheckCircle2, ChevronRight, Grid2X2, List, Loader2, Plus, Sparkles, Syringe, X } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import "./reproducao.css";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
 import { ReproducaoKpiCards, KpiCard } from "./ReproducaoKpiCards";
-import { ReproducaoAlerts, AlertItem, AiSuggestion } from "./ReproducaoAlerts";
+import { AlertItem, AiSuggestion } from "./ReproducaoAlerts";
 import { DesempenhoChart } from "./DesempenhoChart";
 import {
   ReproducaoTabContent,
@@ -25,11 +26,15 @@ import { HistoryTimeline, TimelineEvent } from "@/components/ui/HistoryTimeline"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface FlowStep {
+  id?: string;
   icon: string;
   label: string;
   count: number;
   color: string;
   borderColor: string;
+  image?: string;
+  summary?: string;
+  accent?: string;
 }
 
 export interface TabConfig {
@@ -100,90 +105,77 @@ function DashboardTabContent({
   config: ReproducaoConfig;
   onTabChange: (id: string) => void;
 }) {
+  const [compactView, setCompactView] = useState(false);
+  const upcomingEvents = [
+    { icon: "🔄", title: "Coberturas previstas", detail: `${config.kpis[1]?.value ?? 0} matrizes aguardando`, tone: "blue" },
+    { icon: "🤰", title: "Gestação em acompanhamento", detail: `${config.kpis[2]?.value ?? 0} matrizes gestantes`, tone: "amber" },
+    { icon: "🍼", title: "Partos e desmames", detail: "Confira os próximos prazos", tone: "green" },
+  ];
+  const dailyActivities = [
+    { text: "Verificar matrizes em cio", sector: "Marrãs" },
+    { text: "Acompanhar matrizes próximas ao parto", sector: "Gestação" },
+    { text: "Revisar leitões e desmames programados", sector: "Maternidade" },
+    { text: "Conferir lotes na creche", sector: "Creche" },
+  ];
+
   return (
-    <div>
+    <div className="repro-overview">
       <ReproducaoKpiCards kpis={config.kpis} />
 
-      <div className="dashboard-card overflow-hidden p-4 mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
-        <div className="d-flex align-items-center justify-content-between mb-4">
+      <section className="repro-phase-section">
+        <div className="repro-section-heading">
           <div>
-            <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.25rem', color: 'var(--foreground)' }}>
-              Fluxo Produtivo
-            </h3>
-            <p className="text-muted-foreground small mb-0 fw-medium">
-              Distribuição atual de animais por fase
-            </p>
+            <h2>Fases do ciclo produtivo</h2>
+            <p>Toque em uma fase para gerenciar e acompanhar os animais.</p>
+          </div>
+          <div className="repro-view-toggle" aria-label="Visualização dos cards">
+            <button className={!compactView ? "active" : ""} onClick={() => setCompactView(false)} aria-label="Cards grandes"><Grid2X2 size={17}/></button>
+            <button className={compactView ? "active" : ""} onClick={() => setCompactView(true)} aria-label="Lista compacta"><List size={17}/></button>
           </div>
         </div>
-        <div className="repro-flow">
-          {config.flowSteps.map((step, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center" }}>
-              <button
-                className="repro-flow-step"
-                style={{ border: "none", background: "none", cursor: "pointer" }}
-                onClick={() => onTabChange(config.tabs[i + 1]?.id ?? config.tabs[1]?.id)}
-                title={`Ver aba ${step.label}`}
-              >
-                <div
-                  className="repro-flow-circle"
-                  style={{
-                    background: step.color,
-                    borderColor: step.borderColor,
-                  }}
-                >
-                  {step.icon}
+        <div className={`repro-phase-grid ${compactView ? "is-compact" : ""}`}>
+          {config.flowSteps.map((step, index) => {
+            const targetId = step.id ?? config.tabs[index]?.id ?? "dashboard";
+            return <button key={`${targetId}-${step.label}`} className="repro-phase-card" onClick={() => onTabChange(targetId)} style={{ "--phase-accent": step.accent ?? step.borderColor, "--phase-soft": step.color } as React.CSSProperties}>
+              <div className="repro-phase-photo">
+                {step.image ? <Image src={step.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 25vw" /> : <span className="repro-phase-placeholder">{step.icon}</span>}
+                <span className="repro-phase-icon" aria-hidden="true">{step.icon}</span>
+              </div>
+              <div className="repro-phase-body">
+                <div className="repro-phase-copy">
+                  <h3>{step.label}</h3>
+                  <strong>{step.count.toLocaleString("pt-BR")} <span>{step.count === 1 ? "registro" : "registros"}</span></strong>
+                  <p><i />{step.summary ?? "Acessar registros da fase"}</p>
                 </div>
-                <div className="repro-flow-count">{step.count}</div>
-                <div className="repro-flow-label">{step.label}</div>
-              </button>
-              {i < config.flowSteps.length - 1 && (
-                <span className="repro-flow-arrow">›</span>
-              )}
-            </div>
-          ))}
+                <span className="repro-phase-enter">Entrar <ChevronRight size={17}/></span>
+              </div>
+            </button>;
+          })}
         </div>
-      </div>
+      </section>
 
-      <DesempenhoChart category="reprodutivo" />
-
-      <div className="dashboard-card overflow-hidden mb-5 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
-        <div className="d-flex align-items-center justify-content-between p-4 pb-0">
-          <div>
-            <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.25rem', color: 'var(--foreground)' }}>
-              <span>📋</span> Atividades Recentes
-            </h3>
-            <p className="text-muted-foreground small mb-0 fw-medium">
-              Últimas movimentações registradas no sistema
-            </p>
+      <section className="repro-insight-grid">
+        <article className="repro-insight-card">
+          <header><span><CalendarDays size={19}/> Próximos eventos</span><button>Ver todos</button></header>
+          <div className="repro-event-list">
+            {upcomingEvents.map(event => <div className={`repro-event-row ${event.tone}`} key={event.title}><b>{event.icon}</b><div><strong>{event.title}</strong><span>{event.detail}</span></div><ChevronRight size={16}/></div>)}
           </div>
-          <span className="badge bg-light text-muted rounded-pill" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
-            {config.activities.length} registros
-          </span>
-        </div>
-        <div className="p-4">
-          {config.activities.length === 0 ? (
-            <div className="text-center py-4 text-muted small">Nenhuma atividade recente</div>
-          ) : (
-            <div className="repro-activity-list">
-              {config.activities.map((act, i) => (
-                <div key={i} className="repro-activity-item">
-                  <div className={`repro-activity-dot repro-activity-dot-${act.type}`} />
-                  <div className="repro-activity-content">
-                    <span className="repro-activity-icon">{act.icon}</span>
-                    <span className="repro-activity-text">{act.text}</span>
-                  </div>
-                  <span className="repro-activity-time">{act.time}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+        </article>
+        <article className="repro-insight-card">
+          <header><span><Activity size={19}/> Atividades de hoje</span><button>Ver todas</button></header>
+          <div className="repro-task-list">{dailyActivities.map(task => <div className="repro-task-row" key={task.text}><CheckCircle2 size={18}/><div><strong>{task.text}</strong><span>Setor de {task.sector}</span></div><em>Pendente</em></div>)}</div>
+        </article>
+        <article className="repro-insight-card repro-alert-card">
+          <header><span><BellRing size={19}/> Alertas do sistema <i>{config.alerts.length + config.aiSuggestions.length}</i></span><button>Ver todos</button></header>
+          <div className="repro-system-alerts">
+            {config.alerts.slice(0, 3).map((alert, index) => <div className={`repro-system-alert ${alert.type === "danger" ? "danger" : "warning"}`} key={`${alert.text}-${index}`}><AlertTriangle size={20}/><div><strong>{alert.text}</strong><span>{alert.time || "Requer atenção"}</span></div><ChevronRight size={17}/></div>)}
+            {config.alerts.length === 0 && <div className="repro-all-clear"><Sparkles size={23}/><div><strong>Tudo sob controle</strong><span>Nenhum alerta crítico neste momento.</span></div></div>}
+            {config.aiSuggestions.slice(0, 1).map((item, index) => <div className="repro-system-alert vaccine" key={index}><Syringe size={20}/><div><strong>{item.text}</strong><span>Sugestão do sistema</span></div><ChevronRight size={17}/></div>)}
+          </div>
+        </article>
+      </section>
 
-      <ReproducaoAlerts
-        alerts={config.alerts}
-        aiSuggestions={config.aiSuggestions}
-      />
+      <div className="repro-chart-wrap"><DesempenhoChart category="reprodutivo" /></div>
     </div>
   );
 }
@@ -897,7 +889,11 @@ export function ReproducaoDashboard({
           }
         });
         break;
-      case 'birth':
+      case 'birth': {
+        const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
+          value: String(v.id),
+          label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+        }));
         setActionModal({
             open: true,
             title: rows.length > 1 ? `Confirmar Parto em Lote (${rows.length})` : "Confirmar Parto",
@@ -929,6 +925,44 @@ export function ReproducaoDashboard({
                 label: "Hora de Término do Parto",
                 type: "time",
                 required: false,
+              },
+              {
+                name: "expected_weaning_days",
+                label: "Previsão de Desmame (dias)",
+                type: "number",
+                required: true,
+                initialValue: 21,
+                min: 1,
+                max: 90,
+              },
+              {
+                name: "schedule_reproductive_vaccine",
+                label: "Agendar vac. reprod.?",
+                type: "select",
+                options: [
+                  { value: "no", label: "Não agendar" },
+                  { value: "yes", label: "Agendar aviso" },
+                ],
+                initialValue: "no",
+                required: true,
+              },
+              {
+                name: "reproductive_vaccine_item",
+                label: "Vacina reprodutiva",
+                type: "select",
+                options: reproductiveVaccineOpts,
+                required: true,
+                showIf: (values) => values.schedule_reproductive_vaccine === "yes",
+              },
+              {
+                name: "reproductive_vaccine_days",
+                label: "Avisar após (dias)",
+                type: "number",
+                required: true,
+                initialValue: 70,
+                min: 1,
+                max: 365,
+                showIf: (values) => values.schedule_reproductive_vaccine === "yes",
               },
               { 
                 name: "live_born", 
@@ -974,6 +1008,13 @@ export function ReproducaoDashboard({
                     stillborn: parseInt(data.stillborn) || 0,
                     mummified: parseInt(data.mummified) || 0,
                     avg_weight_kg: data.avg_weight_kg ? parseFloat(data.avg_weight_kg) : null,
+                    expected_weaning_days: parseInt(data.expected_weaning_days) || 21,
+                    reproductive_vaccine_item: data.schedule_reproductive_vaccine === "yes"
+                      ? data.reproductive_vaccine_item
+                      : null,
+                    reproductive_vaccine_days: data.schedule_reproductive_vaccine === "yes"
+                      ? parseInt(data.reproductive_vaccine_days)
+                      : null,
                     notes: data.notes || ""
                   });
 
@@ -995,7 +1036,18 @@ export function ReproducaoDashboard({
                 } else if (rows.length === 1) {
                   await performBirth(rows[0]);
                 } else {
-                  await createBirth(data);
+                  const birthData = { ...data };
+                  delete birthData.schedule_reproductive_vaccine;
+                  await createBirth({
+                    ...birthData,
+                    expected_weaning_days: parseInt(data.expected_weaning_days) || 21,
+                    reproductive_vaccine_item: data.schedule_reproductive_vaccine === "yes"
+                      ? data.reproductive_vaccine_item
+                      : null,
+                    reproductive_vaccine_days: data.schedule_reproductive_vaccine === "yes"
+                      ? parseInt(data.reproductive_vaccine_days)
+                      : null,
+                  });
                 }
                 onSuccess?.();
                 setActionModal(prev => ({ ...prev, open: false }));
@@ -1005,6 +1057,7 @@ export function ReproducaoDashboard({
             }
           });
           break;
+      }
       case 'wean': {
         const weanOptions = (rows.length > 0 ? rows : (config.tabs.find(t => t.id === 'maternidade')?.rows || [])).map(r => ({
           value: String(r.id), // Birth ID
@@ -1161,6 +1214,10 @@ export function ReproducaoDashboard({
             label: `${s.nome} [${classif}] (Estoque: ${s.estoque_atual || 0} doses)`,
           };
         });
+        const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
+          value: String(v.id),
+          label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+        }));
         setActionModal({
           open: true,
           title: rows.length > 1 ? `💖 Registrar Cobertura em Lote (${rows.length})` : "💖 Registrar Cobertura da Marrã",
@@ -1232,6 +1289,31 @@ export function ReproducaoDashboard({
               placeholder: "Ex: Raça, lote do cachaço externo, etc.",
               showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
+            {
+              name: "apply_reproductive_vaccine",
+              label: "Vac. reprod.?",
+              type: "select",
+              options: [
+                { value: "no", label: "Não aplicar" },
+                { value: "yes", label: "Aplicar agora" },
+              ],
+              initialValue: "no",
+              required: true,
+            },
+            {
+              name: "reproductive_vaccine_item_id",
+              label: "Vacina reprodutiva",
+              type: "select",
+              options: reproductiveVaccineOpts,
+              required: true,
+              showIf: (vals) => vals.apply_reproductive_vaccine === "yes",
+            },
+            {
+              name: "reproductive_vaccine_dosage_ml",
+              label: "Dose (ml)",
+              type: "number",
+              showIf: (vals) => vals.apply_reproductive_vaccine === "yes",
+            },
             { name: "notes", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
@@ -1265,6 +1347,16 @@ export function ReproducaoDashboard({
 
             // 1. Register the coverages
             await Promise.all(animalIds.map(animalId => registerMating(String(animalId), payload)));
+
+            if (data.apply_reproductive_vaccine === "yes" && data.reproductive_vaccine_item_id) {
+              await Promise.all(animalIds.map(animalId => registerVaccination(String(animalId), {
+                vaccine_item_id: Number(data.reproductive_vaccine_item_id),
+                application_date: data.mating_date,
+                dose_type: "unica",
+                dosage_ml: data.reproductive_vaccine_dosage_ml ? Number(data.reproductive_vaccine_dosage_ml) : undefined,
+                notes: "Vacina reprodutiva aplicada durante o registro da cobertura.",
+              })));
+            }
 
             // 2. Perform inventory consumption if semen is used
             if (data.material_origin === "semen" && data.semen_item_id) {
@@ -1458,6 +1550,10 @@ export function ReproducaoDashboard({
           label: `${s.nome} [${classif}] (Estoque: ${s.estoque_atual || 0} doses)`,
         };
       });
+      const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
+        value: String(v.id),
+        label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+      }));
       return [
         {
           name: "matriz",
@@ -1520,6 +1616,31 @@ export function ReproducaoDashboard({
           placeholder: "Ex: Raça, lote do cachaço externo, etc.",
           showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
         },
+        {
+          name: "apply_reproductive_vaccine",
+          label: "Vac. reprod.?",
+          type: "select",
+          options: [
+            { value: "no", label: "Não aplicar" },
+            { value: "yes", label: "Aplicar agora" },
+          ],
+          initialValue: "no",
+          required: true,
+        },
+        {
+          name: "reproductive_vaccine_item_id",
+          label: "Vacina reprodutiva",
+          type: "select",
+          options: reproductiveVaccineOpts,
+          required: true,
+          showIf: (vals: Record<string, string>) => vals.apply_reproductive_vaccine === "yes",
+        },
+        {
+          name: "reproductive_vaccine_dosage_ml",
+          label: "Dose (ml)",
+          type: "number",
+          showIf: (vals: Record<string, string>) => vals.apply_reproductive_vaccine === "yes",
+        },
       ];
     }
     return (currentTab?.primaryActionModalFields as ModalField[]) || [];
@@ -1548,13 +1669,23 @@ export function ReproducaoDashboard({
 
       // 1. Save using createMating
       const female_id = data.matriz || data.id || data.female_identifier || "";
-      await createMating({
+      const mating = await createMating({
         female_identifier: female_id,
         mating_date: data.data_cobertura || data.mating_date,
         mating_type: mating_type,
         sire_info: computedSireInfo,
         ...(material_origin !== "semen" && data.sire_id && !isSireText ? { sire_id: Number(data.sire_id) } : {}),
       });
+
+      if (data.apply_reproductive_vaccine === "yes" && data.reproductive_vaccine_item_id) {
+        await registerVaccination(mating.female, {
+          vaccine_item_id: Number(data.reproductive_vaccine_item_id),
+          application_date: data.data_cobertura || data.mating_date,
+          dose_type: "unica",
+          dosage_ml: data.reproductive_vaccine_dosage_ml ? Number(data.reproductive_vaccine_dosage_ml) : undefined,
+          notes: "Vacina reprodutiva aplicada durante o registro da cobertura.",
+        });
+      }
 
       // 2. Perform inventory consumption if semen is used
       if (mating_type === "ai" && material_origin === "semen" && semen_item_id) {
@@ -1628,8 +1759,8 @@ export function ReproducaoDashboard({
         )}
       </div>
 
-      {/* ─── Tabs ─── */}
-      <ul className="nav nav-tabs mb-4 border-0 w-100 flex-nowrap overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: 'none' }}>
+      {/* As abas internas aparecem somente depois que o produtor entra em uma fase. */}
+      {activeTab !== "dashboard" && <ul className="nav nav-tabs mb-4 border-0 w-100 flex-nowrap overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: 'none' }}>
         {allTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -1658,7 +1789,7 @@ export function ReproducaoDashboard({
             </li>
           );
         })}
-      </ul>
+      </ul>}
 
       {/* ─── Tab content ─── */}
       <div>

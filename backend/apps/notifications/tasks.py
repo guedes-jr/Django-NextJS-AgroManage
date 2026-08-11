@@ -118,6 +118,15 @@ def check_stock_levels_notifications():
 
 
 @shared_task
+def check_reproductive_vaccine_notifications():
+    """Gera avisos das vacinas reprodutivas que chegaram à data programada."""
+    from .services import NotificationService
+
+    created = NotificationService.create_due_reproductive_vaccine_notifications()
+    return f"Criadas {created} notificações de vacina reprodutiva"
+
+
+@shared_task
 def cleanup_old_notifications(days: int = 30):
     """
     Remove notificações antigas (lidas) após X dias.

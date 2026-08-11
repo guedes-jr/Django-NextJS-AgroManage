@@ -597,8 +597,45 @@ class BirthSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'pregnancy', 'female', 'female_identifier', 'birth_date',
             'birth_time_start', 'birth_time_end', 'birth_order',
-            'live_born', 'stillborn', 'mummified', 'total_born', 'avg_weight_kg', 'notes', 'batch'
+            'live_born', 'stillborn', 'mummified', 'total_born', 'avg_weight_kg',
+            'expected_weaning_days', 'reproductive_vaccine_item',
+            'reproductive_vaccine_days', 'reproductive_vaccine_due_date',
+            'notes', 'batch'
         ]
+        read_only_fields = ['reproductive_vaccine_due_date']
+
+    def validate_expected_weaning_days(self, value):
+        if not 1 <= value <= 90:
+            raise serializers.ValidationError("Informe uma previsão entre 1 e 90 dias.")
+        return value
+
+    def validate(self, attrs):
+        item = attrs.get('reproductive_vaccine_item')
+        days = attrs.get('reproductive_vaccine_days')
+        if bool(item) != bool(days):
+            raise serializers.ValidationError({
+                'reproductive_vaccine_days': 'Selecione a vacina e informe os dias para o aviso.'
+            })
+        if days is not None and not 1 <= days <= 365:
+            raise serializers.ValidationError({
+                'reproductive_vaccine_days': 'Informe um prazo entre 1 e 365 dias.'
+            })
+        request = self.context.get('request')
+        if item and request and item.organization_id != request.user.organization_id:
+            raise serializers.ValidationError({'reproductive_vaccine_item': 'Vacina inválida.'})
+        if item and item.categoria != 'vacina':
+            raise serializers.ValidationError({'reproductive_vaccine_item': 'O item selecionado não é uma vacina.'})
+        return attrs
+
+    def create(self, validated_data):
+        import datetime
+
+        days = validated_data.get('reproductive_vaccine_days')
+        if days:
+            validated_data['reproductive_vaccine_due_date'] = (
+                validated_data['birth_date'] + datetime.timedelta(days=days)
+            )
+        return super().create(validated_data)
 
 
 class LitterSerializer(serializers.ModelSerializer):

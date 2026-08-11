@@ -23,23 +23,23 @@ const trendBadge: Record<string, { bg: string; text: string; symbol: string }> =
 
 export function ReproducaoKpiCards({ kpis }: ReproducaoKpiCardsProps) {
   return (
-    <div className="row g-3 mb-5">
+    <div className="repro-kpi-grid">
       {kpis.map((k, i) => {
         const trend = trendBadge[k.trend ?? "neutral"];
         return (
-          <div key={i} className="col-12 col-sm-6 col-lg">
-            <div className="dashboard-card p-3 border border-border bg-background shadow-sm h-100">
-              <div className="d-flex align-items-center gap-3 mb-3">
+          <div key={i} className="repro-kpi-item">
+            <div className="repro-kpi-card">
+              <div className="d-flex align-items-center gap-3">
                 <div
-                  className="p-2 rounded-lg d-flex align-items-center justify-content-center"
-                  style={{ background: k.color, color: k.color.replace('0.95', '0.45').replace('0.96', '0.5'), width: 40, height: 40 }}
+                  className="repro-kpi-icon"
+                  style={{ background: k.color, color: k.color.replace('0.95', '0.45').replace('0.96', '0.5') }}
                 >
-                  <span style={{ fontSize: '1.1rem' }}>{k.icon}</span>
+                  <span>{k.icon}</span>
                 </div>
                 <div className="flex-grow-1">
-                  <div className="h4 fw-black mb-0">{k.value}</div>
-                  <div className="text-muted-foreground small fw-semibold">{k.label}</div>
-                  {k.sub && <div className="text-muted-foreground" style={{ fontSize: '0.7rem' }}>{k.sub}</div>}
+                  <div className="repro-kpi-value">{k.value}</div>
+                  <div className="repro-kpi-label">{k.label}</div>
+                  {k.sub && <div className="repro-kpi-sub">{k.sub}</div>}
                 </div>
                 {k.trend && (
                   <span

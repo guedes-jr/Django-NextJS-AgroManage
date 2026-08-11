@@ -150,3 +150,42 @@ class NotificationService:
         }
 
         return type_mapping.get(notification_type, True)
+
+    @staticmethod
+    def create_due_reproductive_vaccine_notifications(organization=None):
+        """Cria, uma única vez, os avisos de vacinas reprodutivas vencidas."""
+        from django.db import transaction
+        from apps.livestock.models import Birth
+
+        due = Birth.objects.filter(
+            reproductive_vaccine_due_date__lte=timezone.now().date(),
+            reproductive_vaccine_notification_sent=False,
+            reproductive_vaccine_item__isnull=False,
+        ).select_related('female__farm__organization', 'reproductive_vaccine_item')
+        if organization is not None:
+            due = due.filter(female__farm__organization=organization)
+
+        created = 0
+        for birth_id in due.values_list('id', flat=True):
+            with transaction.atomic():
+                birth = Birth.objects.select_for_update().select_related(
+                    'female__farm__organization', 'reproductive_vaccine_item'
+                ).get(id=birth_id)
+                if birth.reproductive_vaccine_notification_sent:
+                    continue
+                NotificationService.create_for_organization(
+                    organization=birth.female.farm.organization,
+                    title=f"Vacina reprodutiva — {birth.female.identifier}",
+                    message=(
+                        f"Aplicar {birth.reproductive_vaccine_item.nome} na matriz "
+                        f"{birth.female.identifier}. Agendada para "
+                        f"{birth.reproductive_vaccine_due_date.strftime('%d/%m/%Y')}."
+                    ),
+                    notif_type=NotificationType.ANIMAL,
+                    priority=NotificationPriority.HIGH,
+                    link="/home/rebanho/suinos/reproducao?tab=maternidade",
+                )
+                birth.reproductive_vaccine_notification_sent = True
+                birth.save(update_fields=['reproductive_vaccine_notification_sent'])
+                created += 1
+        return created
