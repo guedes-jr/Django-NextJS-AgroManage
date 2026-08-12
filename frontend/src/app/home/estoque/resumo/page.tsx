@@ -1,7 +1,7 @@
 "use client";
 
-import { InventoryDashboard } from "@/components/dashboard/InventoryDashboard";
+import { InventoryHome } from "@/components/inventory/InventoryHome";
 
 export default function InventorySummaryPage() {
-  return <InventoryDashboard />;
+  return <InventoryHome />;
 }
