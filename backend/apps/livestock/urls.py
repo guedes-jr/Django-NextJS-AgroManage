@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AnimalBatchViewSet, AnimalViewSet, MatingViewSet,
     PregnancyViewSet, BirthViewSet, LitterViewSet,
-    ReproductionDashboardView, IncubationViewSet,
+    ReproductionDashboardView, SpeciesSummaryView, IncubationViewSet,
     MarrasView, MatrizesView, GestacoesView, MaternidadeView,
     CrecheView, CrescimentoView, EngordaView,
     VaccinationRecordViewSet, WeightRecordViewSet,
@@ -31,6 +31,7 @@ router.register(r'health/records', HealthRecordViewSet, basename='healthrecord')
 urlpatterns = [
     # Custom dashboard endpoint
     path('dashboard/reproduction/', ReproductionDashboardView.as_view(), name='reproduction_dashboard'),
+    path('dashboard/species-summary/', SpeciesSummaryView.as_view(), name='species_summary'),
     
     # Phase-specific endpoints
     path('marras/', MarrasView.as_view(), name='marras'),

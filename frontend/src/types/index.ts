@@ -112,6 +112,10 @@ export interface FarmStructure {
   acquisition_value: string;
   current_value: string;
   acquisition_date: string | null;
+  last_maintenance_date: string | null;
+  next_maintenance_date: string | null;
+  maintenance_notes: string;
+  maintenance_status: "not_scheduled" | "overdue" | "due_soon" | "scheduled";
   is_active: boolean;
   notes: string;
   latitude: string | null;

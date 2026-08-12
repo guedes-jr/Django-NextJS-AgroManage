@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  Activity,
   Building2,
+  CalendarCheck2,
   ChartNoAxesCombined,
   CircleAlert,
   CircleCheck,
   Clock3,
+  DollarSign,
   Layers3,
+  ReceiptText,
   ShieldCheck,
   Sparkles,
   UserRoundCheck,
@@ -30,6 +35,10 @@ const PLAN_COLORS = ["#16803c", "#2f9e57", "#63b77c", "#a4d4af", "#dcecdf"];
 
 function percentage(value: number, total: number) {
   return total > 0 ? Math.round((value / total) * 100) : 0;
+}
+
+function money(value: string | number) {
+  return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function DashboardSkeleton() {
@@ -103,6 +112,13 @@ export default function PlatformDashboardPage() {
     },
   ];
 
+  const businessMetrics = [
+    { label: "MRR estimado", value: money(data.finance.mrr), note: `${data.finance.active_subscriptions} assinaturas ativas`, icon: DollarSign, tone: "green" },
+    { label: "Pipeline comercial", value: money(data.commercial.pipeline_value), note: `${data.commercial.open_leads} leads em andamento`, icon: ChartNoAxesCombined, tone: "blue" },
+    { label: "Demos agendadas", value: data.commercial.scheduled_demos, note: `${data.commercial.won_leads} leads já convertidos`, icon: CalendarCheck2, tone: "purple" },
+    { label: "Valores em aberto", value: money(data.finance.outstanding), note: `${data.finance.overdue_invoices} faturas vencidas de ${data.finance.open_invoices} abertas`, icon: ReceiptText, tone: data.finance.overdue_invoices ? "orange" : "green" },
+  ];
+
   const pendingItems = [
     {
       label: "Organizações suspensas",
@@ -117,6 +133,20 @@ export default function PlatformDashboardPage() {
       detail: data.users.without_organization ? "Contas aguardando vínculo ou análise" : "Todos os usuários estão vinculados",
       href: "/platform/users",
       status: data.users.without_organization ? "attention" : "ok",
+    },
+    {
+      label: "Faturas vencidas",
+      value: data.finance.overdue_invoices,
+      detail: data.finance.overdue_invoices ? `${money(data.finance.outstanding)} requer acompanhamento financeiro` : "Nenhuma fatura vencida",
+      href: "/platform/finance",
+      status: data.finance.overdue_invoices ? "attention" : "ok",
+    },
+    {
+      label: "Leads em andamento",
+      value: data.commercial.open_leads,
+      detail: data.commercial.open_leads ? "Acompanhar próximas ações do funil comercial" : "Nenhum lead aguardando ação",
+      href: "/platform/demo-requests",
+      status: data.commercial.open_leads ? "attention" : "ok",
     },
   ];
 
@@ -141,6 +171,17 @@ export default function PlatformDashboardPage() {
                 <strong>{typeof metric.value === "number" ? metric.value.toLocaleString("pt-BR") : metric.value}</strong>
                 <small>{metric.note}</small>
               </div>
+            </article>
+          </div>
+        ))}
+      </section>
+
+      <section className="row g-3 platform-dashboard-metrics" aria-label="Indicadores comerciais e financeiros">
+        {businessMetrics.map((metric) => (
+          <div className="col-sm-6 col-xl-3" key={metric.label}>
+            <article className={`platform-overview-card compact tone-${metric.tone}`}>
+              <div className="platform-overview-icon"><metric.icon size={23} /></div>
+              <div className="platform-overview-content"><span>{metric.label}</span><strong>{typeof metric.value === "number" ? metric.value.toLocaleString("pt-BR") : metric.value}</strong><small>{metric.note}</small></div>
             </article>
           </div>
         ))}
@@ -194,6 +235,24 @@ export default function PlatformDashboardPage() {
             </div>
           </div>
         </article>
+      </section>
+
+      <section className="platform-dashboard-panel platform-segments-panel">
+        <header className="platform-panel-heading"><div><span className="platform-panel-kicker">Resultados por segmento</span><h2>Desempenho das carteiras por plano</h2></div><Link href="/platform/plans" className="platform-inline-action">Gerenciar planos <ArrowRight size={15}/></Link></header>
+        {data.segments.length ? <div className="platform-segments-grid">{data.segments.map((segment,index)=>{
+          const organizationRate=percentage(segment.active_organizations,segment.organizations);
+          const userRate=percentage(segment.active_users,segment.users);
+          return <article className="platform-segment-card" key={segment.code} style={{"--segment-color":PLAN_COLORS[index%PLAN_COLORS.length]} as CSSProperties}>
+            <header><div><i/><span>{segment.name}</span></div><strong>{money(segment.mrr)}<small> MRR</small></strong></header>
+            <div className="platform-segment-stats"><div><strong>{segment.organizations}</strong><span>clientes</span></div><div><strong>{segment.users}</strong><span>usuários</span></div><div><strong>{segment.farms}</strong><span>fazendas</span></div><div><strong>{segment.active_subscriptions}</strong><span>assinaturas</span></div></div>
+            <div className="platform-segment-health"><div><span>Clientes ativos</span><b>{organizationRate}%</b></div><div className="platform-health-track"><span style={{width:`${organizationRate}%`,background:"var(--segment-color)"}}/></div><div><span>Adoção de usuários</span><b>{userRate}%</b></div><div className="platform-health-track"><span style={{width:`${userRate}%`,background:"var(--segment-color)"}}/></div></div>
+            {!!segment.trialing_subscriptions&&<small className="platform-segment-trial">{segment.trialing_subscriptions} em período de teste</small>}
+          </article>})}</div>:<div className="platform-panel-empty">Nenhuma carteira comercial disponível.</div>}
+      </section>
+
+      <section className="platform-dashboard-panel platform-activities-panel">
+        <header className="platform-panel-heading"><div><span className="platform-panel-kicker">Operação da plataforma</span><h2>Atividades recentes</h2></div><Link href="/platform/audit" className="platform-inline-action">Ver auditoria <ArrowRight size={15}/></Link></header>
+        {data.recent_activities.length?<div className="platform-activity-grid">{data.recent_activities.map((item)=><article key={item.id}><span className="platform-activity-icon"><Activity size={18}/></span><div><strong>{item.description}</strong><span>{item.organization_name} · {item.actor_name}</span><small>{new Date(item.created_at).toLocaleString("pt-BR")}</small></div></article>)}</div>:<div className="platform-panel-empty">Nenhuma atividade administrativa registrada.</div>}
       </section>
 
       <section className="platform-bottom-grid">

@@ -1,25 +1,25 @@
 "use client";
 
 import "./dashboard.css";
-import { useState, useEffect } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Sprout,
-  LayoutDashboard,
-  Beef,
-  Wallet,
-  Package,
-  Settings,
-  ChevronDown,
-  ChevronUp,
   BarChart3,
-  HeartPulse,
-  X,
+  Bird,
+  CircleDollarSign,
+  Icon,
+  LayoutDashboard,
+  PackageOpen,
+  Settings,
+  Sprout,
+  Stethoscope,
+  UsersRound,
   Wheat,
-  Warehouse,
+  X,
+  type LucideProps,
 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { barn, cowHead, pigHead } from "@lucide/lab";
 import apiClient from "@/services/api";
 
 interface SidebarOrganization {
@@ -35,115 +35,65 @@ interface SidebarOrganization {
   };
 }
 
-interface SubItem {
+type SidebarIcon = ComponentType<LucideProps>;
+
+interface SidebarItem {
   title: string;
   href: string;
+  icon: SidebarIcon;
 }
 
-interface ChildGroup {
-  title: string;
-  href: string;
-  badge?: string;
-  subItems?: SubItem[];
+interface SidebarSection {
+  label: string;
+  items: SidebarItem[];
 }
 
-interface MenuItem {
-  title: string;
-  href: string;
-  icon: any; /* eslint-disable-line */ 
-  children?: ChildGroup[];
-}
+const PigIcon: SidebarIcon = (props) => <Icon iconNode={pigHead} {...props} />;
+const CowIcon: SidebarIcon = (props) => <Icon iconNode={cowHead} {...props} />;
+const BarnIcon: SidebarIcon = (props) => <Icon iconNode={barn} {...props} />;
 
-const menuItems: MenuItem[] = [
-  { title: "Dashboard", href: "/home", icon: LayoutDashboard },
-  { 
-    title: "Rebanho", 
-    href: "/home/rebanho", 
-    icon: Beef,
-    children: [
-      { 
-        title: "Suínos", 
-        href: "/home/rebanho/suinos",
-        subItems: [
-          { title: "Cadastro", href: "/home/rebanho/suinos/cadastro" },
-          { title: "Ração", href: "/home/rebanho/suinos/racao" },
-          { title: "Reprodução", href: "/home/rebanho/suinos/reproducao" },
-        ]
-      },
-      { 
-        title: "Aves", 
-        href: "/home/rebanho/aves",
-        subItems: [
-          { title: "Cadastro", href: "/home/rebanho/aves/cadastro" },
-          { title: "Ração", href: "/home/rebanho/aves/racao" },
-          { title: "Reprodução", href: "/home/rebanho/aves/reproducao" },
-        ]
-      },
-      { 
-        title: "Bovinos", 
-        href: "/home/rebanho/bovinos",
-        subItems: [
-          { title: "Cadastro", href: "/home/rebanho/bovinos/cadastro" },
-          { title: "Ração", href: "/home/rebanho/bovinos/racao" },
-          { title: "Reprodução", href: "/home/rebanho/bovinos/reproducao" },
-        ]
-      },
-    ]
-  },
+const sidebarSections: SidebarSection[] = [
   {
-    title: "Clínico/Veterinário",
-    href: "/home/clinico",
-    icon: HeartPulse,
-    children: [
-      { title: "Consultas", href: "/home/clinico/consultas" },
-      { title: "Vacinação", href: "/home/clinico/vacinacao" },
-      { title: "Medicamentos", href: "/home/clinico/medicamentos" },
-      { title: "Exames", href: "/home/clinico/exames" },
-    ]
-  },
-  {
-    title: "Plantações",
-    href: "/home/plantacoes",
-    icon: Wheat,
-    children: [
-      { title: "Plantações", href: "/home/plantacoes" },
+    label: "Operação",
+    items: [
+      { title: "Dashboard", href: "/home", icon: LayoutDashboard },
+      { title: "Plantações", href: "/home/plantacoes", icon: Wheat },
     ],
   },
   {
-    title: "Estrutura da Fazenda",
-    href: "/home/estrutura",
-    icon: Warehouse,
-    children: [
-      { title: "Estruturas", href: "/home/estrutura" },
-      { title: "Máquinas e veículos", href: "/home/estrutura/maquinas" },
+    label: "Rebanhos",
+    items: [
+      { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon },
+      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon },
+      { title: "Aves", href: "/home/rebanho/aves", icon: Bird },
+      { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope },
     ],
   },
-  { title: "Financeiro", href: "/home/financeiro", icon: Wallet },
-  { 
-    title: "Estoque", 
-    href: "/home/estoque", 
-    icon: Package,
-    children: [
-      { title: "Resumo", href: "/home/estoque/resumo" },
-      { title: "Produtos", href: "/home/estoque/produtos" },
-      { title: "Movimentações", href: "/home/estoque/movimentacoes" },
-      { title: "Fornecedores", href: "/home/estoque/fornecedores" },
-      { title: "Alertas", href: "/home/estoque/alertas" },
-    ]
+  {
+    label: "Gestão",
+    items: [
+      { title: "Estoque", href: "/home/estoque/resumo", icon: PackageOpen },
+      { title: "Financeiro", href: "/home/financeiro", icon: CircleDollarSign },
+      { title: "Estrutura da fazenda", href: "/home/estrutura", icon: BarnIcon },
+      { title: "Relatórios", href: "/home/relatorios", icon: BarChart3 },
+    ],
   },
-  { 
-    title: "Relatórios", 
-    href: "/home/relatorios", 
-    icon: BarChart3,
-    children: [
-      { title: "Geral", href: "/home/relatorios/geral" },
-      { title: "Estoque", href: "/home/relatorios/estoque" },
-      { title: "Financeiro", href: "/home/relatorios/financeiro" },
-      { title: "Rebanho", href: "/home/relatorios/rebanho" },
-    ]
+  {
+    label: "Administração",
+    items: [
+      { title: "Equipe e usuários", href: "/home/usuarios", icon: UsersRound },
+    ],
   },
 ];
 
+const subscriptionStatus: Record<string, string> = {
+  active: "Assinatura ativa",
+  trialing: "Período de avaliação",
+  past_due: "Pagamento pendente",
+  suspended: "Assinatura suspensa",
+  canceled: "Assinatura cancelada",
+  cancelled: "Assinatura cancelada",
+};
 
 interface AppSidebarProps {
   isOpen?: boolean;
@@ -152,218 +102,124 @@ interface AppSidebarProps {
 
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname();
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(() =>
-    menuItems.filter((item) => item.children?.some((child) => pathname.startsWith(child.href))).map((item) => item.title)
-  );
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(() =>
-    menuItems.flatMap((item) => item.children || [])
-      .filter((child) => child.subItems?.some((sub) => pathname.startsWith(sub.href)))
-      .map((child) => child.href)
-  );
   const [organization, setOrganization] = useState<SidebarOrganization | null>(null);
 
-  const isActive = (href: string) =>
-    href === "/home" ? pathname === href : pathname.startsWith(href);
+  const isActive = (href: string) => {
+    if (href === "/home") return pathname === href;
+    if (href === "/home/estoque/resumo") return pathname.startsWith("/home/estoque");
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   useEffect(() => {
-    // Close sidebar on mobile when route changes
-    if (window.innerWidth < 992 && onClose) {
-      onClose();
-    }
-
+    if (window.innerWidth < 992 && onClose) onClose();
   }, [pathname, onClose]);
 
   useEffect(() => {
     let active = true;
-    apiClient.get<SidebarOrganization>("/organizations/me/")
-      .then(({ data }) => { if (active) setOrganization(data); })
-      .catch(() => { /* Sidebar keeps a neutral fallback when billing is unavailable. */ });
-    return () => { active = false; };
+    apiClient
+      .get<SidebarOrganization>("/organizations/me/")
+      .then(({ data }) => {
+        if (active) setOrganization(data);
+      })
+      .catch(() => {
+        // The menu remains usable when organization or billing data is unavailable.
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const toggleExpand = (title: string) => {
-    setExpandedMenus(prev =>
-      prev.includes(title)
-        ? [] // If clicking the same open one, close it
-        : [title] // Opening a new one closes all others
-    );
-  };
-
-  const toggleGroup = (href: string) => {
-    setExpandedGroups(prev =>
-      prev.includes(href)
-        ? prev.filter(g => g !== href)
-        : [...prev, href]
-    );
-  };
+  const plan = organization?.subscription;
+  const planStatus = plan?.current_period_ends_at
+    ? `Válido até ${new Date(plan.current_period_ends_at).toLocaleDateString("pt-BR")}`
+    : plan?.status
+      ? subscriptionStatus[plan.status] || "Consulte sua assinatura"
+      : "Consulte sua assinatura";
 
   return (
-    <div
+    <aside
       id="dashboard-sidebar"
-      className={`dashboard-sidebar d-flex flex-column text-white ${isOpen ? "show" : ""}`}
+      className={`dashboard-sidebar text-white ${isOpen ? "show" : ""}`}
+      aria-label="Menu principal"
     >
-      <div className="p-4 mb-4 d-flex align-items-center justify-content-between">
-        <div className="d-flex align-items-center gap-3">
-          <div 
-            className="rounded-xl d-flex align-items-center justify-content-center shadow-sm"
-            style={{ width: 42, height: 42, background: 'rgba(255, 255, 255, 0.1)' }}
-          >
-            <Sprout size={24} className="text-white" />
-          </div>
-          <div>
-            <div className="fw-black fs-5 lh-1 mb-1 text-white" style={{ letterSpacing: '-0.02em' }}>
-              Gestão Agro
-            </div>
-            <div className="text-white/40" style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {organization?.name || "Minha organização"}
-            </div>
-          </div>
+      <header className="sidebar-brand">
+        <div className="sidebar-brand-mark" aria-hidden="true">
+          <Sprout size={27} strokeWidth={2.1} />
         </div>
-
-        <button 
+        <div className="sidebar-brand-copy">
+          <strong>Gestão Agro</strong>
+          <span title={organization?.name}>{organization?.name || "Minha organização"}</span>
+        </div>
+        <button
           type="button"
-          className="btn btn-link p-0 d-lg-none text-white/60 hover-text-white transition-colors" 
+          className="sidebar-close d-lg-none"
           onClick={onClose}
           aria-label="Fechar menu de navegação"
         >
-          <X size={24} />
+          <X size={22} />
         </button>
-      </div>
+      </header>
 
-      <div className="flex-grow-1 sidebar-nav-container">
-        <div className="px-4 mb-3 text-uppercase text-white/30 small fw-bold" style={{ fontSize: '0.65rem', letterSpacing: '0.08em' }}>
-          OPERAÇÃO
-        </div>
-        <nav className="nav flex-column gap-1">
-          {menuItems.map((item) => (
-            <div key={item.title}>
-              {item.children ? (
-                <>
-                  <button
-                    onClick={() => toggleExpand(item.title)}
-                    className={`sidebar-link w-100 border-0 bg-transparent text-start ${isActive(item.href) ? "active" : ""}`}
-                  >
-                    <item.icon size={20} strokeWidth={isActive(item.href) ? 2.5 : 2} />
-                    <span className="flex-grow-1">{item.title}</span>
-                    {expandedMenus.includes(item.title) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
-                  <AnimatePresence>
-                    {expandedMenus.includes(item.title) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="sidebar-submenu"
-                        style={{ overflow: "hidden" }}
-                      >
-                        {item.children.map((child) => (
-                          child.subItems ? (
-                            <div key={child.href}>
-                              <button
-                                onClick={() => toggleGroup(child.href)}
-                                className={`submenu-link w-100 border-0 bg-transparent text-start ${isActive(child.href) ? "active" : ""}`}
-                              >
-                                <span className="flex-grow-1">{child.title}</span>
-                                {expandedGroups.includes(child.href)
-                                  ? <ChevronUp size={13} />
-                                  : <ChevronDown size={13} />
-                                }
-                              </button>
-                              <AnimatePresence>
-                                {expandedGroups.includes(child.href) && (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: "auto", opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                                    className="sidebar-subsubmenu"
-                                    style={{ overflow: "hidden" }}
-                                  >
-                                    {child.subItems.map((sub) => (
-                                      <Link
-                                        key={sub.href}
-                                        href={sub.href}
-                                        className={`subsubmenu-link ${pathname === sub.href ? "active" : ""}`}
-                                      >
-                                        <span className="subsubmenu-dot" />
-                                        {sub.title}
-                                      </Link>
-                                    ))}
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>
-                          ) : (
-                            <Link
-                              key={child.href}
-                              href={child.href}
-                              className={`submenu-link ${pathname === child.href ? "active" : ""}`}
-                            >
-                              <span className="flex-grow-1">{child.title}</span>
-                              {child.badge && (
-                                <span 
-                                  className="badge bg-primary text-white border-0 fw-black" 
-                                  style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--primary)' }}
-                                >
-                                  {child.badge}
-                                </span>
-                              )}
-                            </Link>
-                          )
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </>
-              ) : (
-                <Link
-                  href={item.href}
-                  className={`sidebar-link ${isActive(item.href) ? "active" : ""}`}
-                >
-                  <item.icon size={20} strokeWidth={isActive(item.href) ? 2.5 : 2} />
-                  <span>{item.title}</span>
-                </Link>
-              )}
-            </div>
+      <div className="sidebar-nav-container">
+        <nav className="sidebar-navigation" aria-label="Áreas do sistema">
+          {sidebarSections.map((section) => (
+            <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
+              <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
+              <div className="sidebar-section-items">
+                {section.items.map((item) => {
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`sidebar-link ${active ? "active" : ""}`}
+                      onClick={onClose}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <span className="sidebar-link-icon" aria-hidden="true">
+                        <item.icon size={22} strokeWidth={active ? 2.25 : 1.9} />
+                      </span>
+                      <span>{item.title}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
           ))}
         </nav>
       </div>
 
-      <div className="p-3 mt-auto">
-        <div className="premium-badge-card p-3 mb-3 mx-2">
-            <div className="d-flex align-items-center gap-2 mb-2">
-                <div className="badge-icon-yellow">
-                    <span className="small fw-bold text-dark">★</span>
-                </div>
-                <div className="fw-bold small text-white">Plano {organization?.subscription?.plan_name || "não informado"}</div>
-            </div>
-            <div className="text-white/50 fw-medium" style={{ fontSize: '0.7rem' }}>
-                {organization?.subscription?.current_period_ends_at
-                  ? `Válido até ${new Date(organization.subscription.current_period_ends_at).toLocaleDateString("pt-BR")}`
-                  : organization?.subscription?.status === "active" ? "Assinatura ativa" : "Consulte sua assinatura"}
-            </div>
-            {organization?.subscription?.has_active_discount && <div className="text-warning fw-bold mt-1" style={{ fontSize: '0.7rem' }}>
-              {organization.subscription.discount_type === "percentage"
-                ? `${Number(organization.subscription.discount_value).toLocaleString("pt-BR")}% de desconto`
-                : `${Number(organization.subscription.discount_value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de desconto`}
-              {organization.subscription.discount_ends_at
-                ? ` até ${new Date(organization.subscription.discount_ends_at).toLocaleDateString("pt-BR")}`
+      <footer className="sidebar-footer">
+        <div className="premium-badge-card">
+          <div className="sidebar-plan-heading">
+            <div className="badge-icon-yellow" aria-hidden="true">★</div>
+            <strong>Plano {plan?.plan_name || "não informado"}</strong>
+          </div>
+          <span>{planStatus}</span>
+          {plan?.has_active_discount && (
+            <small>
+              {plan.discount_type === "percentage"
+                ? `${Number(plan.discount_value).toLocaleString("pt-BR")}% de desconto`
+                : `${Number(plan.discount_value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de desconto`}
+              {plan.discount_ends_at
+                ? ` até ${new Date(plan.discount_ends_at).toLocaleDateString("pt-BR")}`
                 : " permanente"}
-            </div>}
+            </small>
+          )}
         </div>
 
-        <nav className="nav flex-column gap-1">
-          <Link
-            href="/home/settings"
-            className={`sidebar-link ${isActive("/home/settings") ? "active" : ""}`}
-          >
-            <Settings size={20} strokeWidth={isActive("/home/settings") ? 2.5 : 2} />
-            <span>Configurações</span>
-          </Link>
-        </nav>
-      </div>
-
-    </div>
+        <Link
+          href="/home/settings"
+          className={`sidebar-link sidebar-settings-link ${isActive("/home/settings") ? "active" : ""}`}
+          onClick={onClose}
+          aria-current={isActive("/home/settings") ? "page" : undefined}
+        >
+          <span className="sidebar-link-icon" aria-hidden="true">
+            <Settings size={22} strokeWidth={isActive("/home/settings") ? 2.25 : 1.9} />
+          </span>
+          <span>Configurações</span>
+        </Link>
+      </footer>
+    </aside>
   );
 }

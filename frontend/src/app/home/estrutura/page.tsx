@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import axios from "axios";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft, Sprout, Tractor, X, Car, BarChart3, ListChecks, MapPinned,
+  Waves, PanelsTopLeft, Sprout, Tractor, X, Car, BarChart3, ListChecks, MapPinned, CalendarClock, CircleAlert, MapPin, Wrench,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -14,6 +15,7 @@ import { apiClient } from "@/services/api";
 import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
 import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
 import { LocationPicker } from "@/components/farm/LocationPicker";
+import { useToast } from "@/components/ui/Toast";
 
 import styles from "./structure.module.css";
 
@@ -54,15 +56,26 @@ const emptyForm: FarmStructurePayload = {
   built_area_m2: null, length_m: null, width_m: null,
   acquisition_value: "0.00", current_value: "0.00", acquisition_date: null,
   is_active: true, notes: "", latitude: null, longitude: null,
+  last_maintenance_date: null, next_maintenance_date: null, maintenance_notes: "",
 };
 const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "0.00" };
 
 const money = (value: string | number) => Number(value || 0).toLocaleString("pt-BR", {
   style: "currency", currency: "BRL",
 });
+const apiMessage = (error: unknown, fallback: string) => {
+  if (!axios.isAxiosError(error) || !error.response?.data) return fallback;
+  const first = Object.entries(error.response.data as Record<string, unknown>)[0];
+  if (!first) return fallback;
+  const detail = Array.isArray(first[1]) ? first[1][0] : first[1];
+  return `${first[0] === "detail" ? "" : `${first[0]}: `}${String(detail)}`;
+};
 
 export default function FarmStructurePage() {
   const router = useRouter();
+  const { showToast } = useToast();
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
+  const modalTriggerRef = useRef<HTMLElement | null>(null);
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [items, setItems] = useState<FarmStructure[]>([]);
@@ -84,6 +97,36 @@ export default function FarmStructurePage() {
 
   const canDelete = role === "owner" || role === "admin";
 
+  const closeForm = useCallback((force = false) => {
+    if (!force && saving) return;
+    if (!force && showForm && !editing && form.name && form.name !== categoryDefaults[form.category].name
+      && !confirm("Descartar os dados preenchidos desta estrutura?")) return;
+    setShowForm(false);
+    window.setTimeout(() => modalTriggerRef.current?.focus(), 0);
+  }, [editing, form.category, form.name, saving, showForm]);
+
+  useEffect(() => {
+    if (!showForm) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    modalCloseRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeForm();
+      if (event.key === "Tab") {
+        const dialog = modalCloseRef.current?.closest('[role="dialog"]');
+        const nodes = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])') || []);
+        if (!nodes.length) return;
+        if (event.shiftKey && document.activeElement === nodes[0]) { event.preventDefault(); nodes.at(-1)?.focus(); }
+        else if (!event.shiftKey && document.activeElement === nodes.at(-1)) { event.preventDefault(); nodes[0].focus(); }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeForm, showForm]);
+
   const loadStructures = useCallback(async (selectedFarm: string) => {
     if (!selectedFarm) return;
     setLoading(true);
@@ -94,8 +137,8 @@ export default function FarmStructurePage() {
       ]);
       setItems(listResponse.data.results);
       setSummary(summaryResponse.data);
-    } catch {
-      setError("Não foi possível carregar a estrutura desta fazenda.");
+    } catch (requestError) {
+      setError(apiMessage(requestError, "Não foi possível carregar a estrutura desta fazenda."));
     } finally {
       setLoading(false);
     }
@@ -108,26 +151,14 @@ export default function FarmStructurePage() {
         if (!active) return;
         const available = data.results || [];
         setFarms(available);
-        setFarmId((current) => current || available[0]?.id || "");
-        if (!available.length) setLoading(false);
+        const initialFarmId = available[0]?.id || "";
+        setFarmId(initialFarmId);
+        if (initialFarmId) void loadStructures(initialFarmId);
+        else setLoading(false);
       })
       .catch(() => { if (active) { setError("Não foi possível carregar as fazendas."); setLoading(false); } });
     return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!farmId) return;
-    let active = true;
-    Promise.all([farmStructureService.list(farmId), farmStructureService.summary(farmId)])
-      .then(([listResponse, summaryResponse]) => {
-        if (!active) return;
-        setItems(listResponse.data.results);
-        setSummary(summaryResponse.data);
-      })
-      .catch(() => { if (active) setError("Não foi possível carregar a estrutura desta fazenda."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [farmId]);
+  }, [loadStructures]);
 
   const categorySummary = useMemo(() => new Map(
     (summary?.categories || []).map((category) => [category.category, category]),
@@ -169,6 +200,7 @@ export default function FarmStructurePage() {
   }, [farmId, farms, items]);
 
   const openCreate = (category: FarmStructureCategory = "corral") => {
+    modalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const defaults = categoryDefaults[category];
     setEditing(null);
     setForm({
@@ -185,16 +217,19 @@ export default function FarmStructurePage() {
 
   const selectCategory = (category: FarmStructureCategory) => {
     setSelectedCategory(category);
-    openCreate(category);
+    window.setTimeout(() => document.getElementById("category-overview")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const openEdit = (item: FarmStructure) => {
+    modalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setEditing(item);
     setForm({
       farm: item.farm, category: item.category, name: item.name, description: item.description,
       built_area_m2: item.built_area_m2, length_m: item.length_m, width_m: item.width_m,
       quantity: item.quantity, acquisition_value: item.acquisition_value,
       current_value: item.current_value, acquisition_date: item.acquisition_date,
+      last_maintenance_date: item.last_maintenance_date, next_maintenance_date: item.next_maintenance_date,
+      maintenance_notes: item.maintenance_notes,
       is_active: item.is_active, notes: item.notes, latitude: item.latitude, longitude: item.longitude,
     });
     setStructureItem({ ...emptyItem, structure: item.id });
@@ -212,8 +247,10 @@ export default function FarmStructurePage() {
       setEditing(response.data);
       setStructureItem({ ...emptyItem, structure: response.data.id });
       await loadStructures(farmId);
-    } catch {
-      setError("Não foi possível salvar. Verifique os dados e suas permissões.");
+      showToast(editing ? "Estrutura atualizada com sucesso." : "Estrutura cadastrada com sucesso.", "success");
+    } catch (requestError) {
+      const message = apiMessage(requestError, "Não foi possível salvar. Verifique os dados e suas permissões.");
+      setError(message); showToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -229,16 +266,22 @@ export default function FarmStructurePage() {
       setItems(list.data.results); setEditing(updated);
       setStructureItem({ ...emptyItem, structure: editing.id });
       const totals = await farmStructureService.summary(farmId); setSummary(totals.data);
-    } catch { setError("Não foi possível adicionar o item utilizado."); }
+      showToast("Item adicionado à estrutura.", "success");
+    } catch (requestError) { const message = apiMessage(requestError, "Não foi possível adicionar o item utilizado."); setError(message); showToast(message, "error"); }
   };
 
   const removeStructureItem = async (itemId: string) => {
-    await farmStructureService.removeItem(itemId);
-    const list = await farmStructureService.list(farmId);
-    setItems(list.data.results);
-    setEditing((current) => current ? list.data.results.find((item) => item.id === current.id) || current : null);
-    const totals = await farmStructureService.summary(farmId);
-    setSummary(totals.data);
+    try {
+      await farmStructureService.removeItem(itemId);
+      const [list, totals] = await Promise.all([farmStructureService.list(farmId), farmStructureService.summary(farmId)]);
+      setItems(list.data.results);
+      setEditing((current) => current ? list.data.results.find((item) => item.id === current.id) || current : null);
+      setSummary(totals.data);
+      showToast("Item removido da estrutura.", "success");
+    } catch (requestError) {
+      const message = apiMessage(requestError, "Não foi possível remover o item.");
+      setError(message); showToast(message, "error");
+    }
   };
 
   const remove = async (item: FarmStructure) => {
@@ -246,6 +289,7 @@ export default function FarmStructurePage() {
     try {
       await farmStructureService.remove(item.id);
       await loadStructures(farmId);
+      showToast("Estrutura excluída.", "success");
     } catch {
       setError("Não foi possível excluir esta estrutura.");
     }
@@ -258,7 +302,7 @@ export default function FarmStructurePage() {
           <div className={styles.heroIcon}><Warehouse size={30} /></div>
           <div><h1>Estrutura da Fazenda</h1><p>Cadastre e gerencie toda a estrutura da propriedade</p></div>
         </div>
-        <button className="btn btn-light d-flex align-items-center gap-2 fw-semibold" onClick={() => openCreate()} disabled={!farmId}>
+        <button className="btn btn-light d-flex align-items-center gap-2 fw-semibold" onClick={() => openCreate(selectedCategory === "all" ? "corral" : selectedCategory)} disabled={!farmId}>
           <Plus size={18} /> Nova estrutura
         </button>
       </header>
@@ -266,12 +310,12 @@ export default function FarmStructurePage() {
       <div className={styles.content}>
         <div className={`${styles.infoBar} d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3`}>
           <div className={styles.info}><Info size={21} /><span><strong>Organize a estrutura da fazenda por categorias.</strong><br />Cada item fica vinculado à propriedade selecionada.</span></div>
-          <select className="form-select" style={{ maxWidth: 320 }} value={farmId} onChange={(event) => { setLoading(true); setFarmId(event.target.value); }}>
+          <select className="form-select" style={{ maxWidth: 320 }} value={farmId} onChange={(event) => { const nextFarm = event.target.value; setFarmId(nextFarm); void loadStructures(nextFarm); }}>
             {farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}
           </select>
         </div>
 
-        {error && <div className="alert alert-danger py-2">{error}</div>}
+        {error && <div className={styles.errorState} role="alert"><CircleAlert size={20} /><span>{error}</span><button onClick={() => void loadStructures(farmId)}>Tentar novamente</button></div>}
         {!farms.length && !loading && <div className="alert alert-warning">Cadastre uma fazenda antes de adicionar estruturas.</div>}
 
         <section className={styles.categorySection}>
@@ -307,13 +351,15 @@ export default function FarmStructurePage() {
                   <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
                   <div className={styles.categoryFooter}>
                     <span><ClipboardList size={16} /> {data?.items || 0} itens cadastrados</span>
-                    <strong>{money(data?.acquisition_value || 0)} <ChevronRight size={16} /></strong>
+                    <strong>{selectedCategory === value ? "Selecionada" : "Ver itens"} <ChevronRight size={16} /></strong>
                   </div>
                 </button>
               );
             })}
           </div>
         </section>
+
+        {selectedCategory !== "all" && <CategoryOverview category={categories.find((candidate) => candidate.value === selectedCategory)!} structures={items.filter((item) => item.category === selectedCategory)} onEdit={openEdit} onCreate={() => openCreate(selectedCategory)} />}
 
         <section id="structure-report" className="mt-4" style={{ order: 4 }}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
@@ -348,15 +394,15 @@ export default function FarmStructurePage() {
         <section className={styles.quickActions} style={{ order: 3 }}>
           <h2 className={styles.sectionTitle}>Ações rápidas</h2>
           <div>
-            <button onClick={() => openCreate()} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
+            <button onClick={() => openCreate(selectedCategory === "all" ? "corral" : selectedCategory)} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
             <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>Ver todos os itens</strong><small>Lista consolidada</small></span></button>
             <button onClick={() => router.push("/home/relatorios")}><BarChart3 size={20} /><span><strong>Relatórios</strong><small>Análises da fazenda</small></span></button>
           </div>
         </section>
       </div>
 
-      {showForm && <div className={styles.modalBackdrop} onMouseDown={() => setShowForm(false)}><div className={styles.modalCard} onMouseDown={(event) => event.stopPropagation()}>
-        <div className="d-flex justify-content-between align-items-center border-bottom p-4"><div><h2 className="h4 fw-bold mb-1">{editing ? "Editar estrutura" : `Cadastrar ${categories.find((category) => category.value === form.category)?.label || "estrutura"}`}</h2><p className="text-muted small mb-0">Informe dimensões, valores, localização e materiais utilizados.</p></div><button className="btn-close" onClick={() => setShowForm(false)} /></div>
+      {showForm && <div className={styles.modalBackdrop} onMouseDown={() => closeForm()}><div className={styles.modalCard} role="dialog" aria-modal="true" aria-labelledby="structure-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className={styles.modalHeader}><div><h2 id="structure-modal-title" className="h4 fw-bold mb-1">{editing ? "Editar estrutura" : `Cadastrar ${categories.find((category) => category.value === form.category)?.label || "estrutura"}`}</h2><p className="text-muted small mb-0">Informe dimensões, valores, localização e materiais utilizados.</p></div><button ref={modalCloseRef} type="button" className="btn-close" onClick={() => closeForm()} aria-label="Fechar formulário" /></div>
         <form onSubmit={submit}><div className={`${styles.identityFields} p-4 row g-3`}>
           <div className="col-md-7"><label className="form-label">Nome</label><input required className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="col-md-5"><label className="form-label">Categoria</label><select className="form-select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as FarmStructureCategory })}>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></div>
@@ -365,8 +411,12 @@ export default function FarmStructurePage() {
           <div className="col-md-3"><label className="form-label">Valor unitário pago</label><input required min={0} step="0.01" type="number" className="form-control" value={form.acquisition_value} onChange={(e) => setForm({ ...form, acquisition_value: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">Valor unitário atual</label><input required min={0} step="0.01" type="number" className="form-control" value={form.current_value} onChange={(e) => setForm({ ...form, current_value: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">Aquisição</label><input type="date" className="form-control" value={form.acquisition_date || ""} onChange={(e) => setForm({ ...form, acquisition_date: e.target.value || null })} /></div>
+          <div className="col-md-4"><label className="form-label">Última manutenção</label><input type="date" className="form-control" value={form.last_maintenance_date || ""} onChange={(e) => setForm({ ...form, last_maintenance_date: e.target.value || null })} /></div>
+          <div className="col-md-4"><label className="form-label">Próxima manutenção</label><input type="date" className="form-control" value={form.next_maintenance_date || ""} onChange={(e) => setForm({ ...form, next_maintenance_date: e.target.value || null })} /></div>
+          <div className="col-md-4"><label className="form-label">Situação</label><select className="form-select" value={form.is_active ? "active" : "inactive"} onChange={(e) => setForm({ ...form, is_active: e.target.value === "active" })}><option value="active">Ativa</option><option value="inactive">Inativa</option></select></div>
+          <div className="col-12"><label className="form-label">Observações de manutenção</label><textarea className="form-control" rows={2} value={form.maintenance_notes || ""} onChange={(e) => setForm({ ...form, maintenance_notes: e.target.value })} /></div>
           <div className="col-12"><label className="form-label">Observações</label><textarea className="form-control" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-        </div><div className="border-top p-3 d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? "Salvando..." : editing ? "Atualizar dados" : "Salvar e adicionar itens"}</button></div></form>
+        </div><div className={styles.modalActions}><button type="button" className="btn btn-outline-secondary" onClick={() => closeForm()}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? <><span className="spinner-border spinner-border-sm me-2" />Salvando...</> : editing ? "Atualizar dados" : "Salvar e adicionar itens"}</button></div></form>
         <div className={`${styles.flowGrid} ${form.category === "irrigation" ? styles.irrigationFlow : ""}`}>
         <section className={`${styles.stepCard} ${styles.dimensionsStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 3 : 1}</span><h3>Dimensões</h3></div><form onSubmit={submit}><div className="row g-3">
           <div className="col-12"><label className="form-label">Área construída (m²)</label><input type="number" min={0} step="0.01" className="form-control" value={form.built_area_m2 || ""} onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })} /></div>
@@ -380,10 +430,35 @@ export default function FarmStructurePage() {
         </section>
         <section className={`${styles.stepCard} ${styles.locationStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 2 : 3}</span><h3>Localização <small>(opcional)</small></h3></div><form onSubmit={submit}><LocationPicker latitude={form.latitude} longitude={form.longitude} lastLocation={lastRegisteredLocation} onChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))} /><button className="btn btn-success w-100 mt-3" disabled={saving}>{editing ? "Salvar localização" : "Salvar estrutura"}</button></form></section>
         </div>
-        {editing && <div className={styles.successBar}><span><MapPinned size={24} /></span><div><strong>Estrutura salva</strong><small>Os dados e itens cadastrados já estão disponíveis para uso na fazenda.</small></div><button className="btn btn-success" onClick={() => setShowForm(false)}>Concluir</button></div>}
+        {editing && <div className={styles.successBar}><span><MapPinned size={24} /></span><div><strong>Estrutura salva</strong><small>Os dados e itens cadastrados já estão disponíveis para uso na fazenda.</small></div><button className="btn btn-success" onClick={() => closeForm(true)}>Concluir</button></div>}
       </div></div>}
     </div>
   );
+}
+
+function CategoryOverview({ category, structures, onEdit, onCreate }: { category: typeof categories[number]; structures: FarmStructure[]; onEdit: (item: FarmStructure) => void; onCreate: () => void }) {
+  const paid = structures.reduce((total, item) => total + Number(item.acquisition_value) * item.quantity + Number(item.items_value || 0), 0);
+  const current = structures.reduce((total, item) => total + Number(item.current_value) * item.quantity, 0);
+  const pending = structures.filter((item) => item.maintenance_status === "overdue" || item.maintenance_status === "due_soon");
+  const Icon = category.icon;
+  const maintenanceLabel = { overdue: "Atrasada", due_soon: "Próxima", scheduled: "Agendada", not_scheduled: "Sem agenda" } as const;
+  return <section id="category-overview" className={styles.categoryOverview} aria-labelledby="category-overview-title">
+    <header><div><Icon size={24} /><span><h2 id="category-overview-title">Visão de {category.label}</h2><p>{category.description}</p></span></div><button onClick={onCreate}><Plus size={17} /> Nova estrutura</button></header>
+    <div className={styles.categoryStats}>
+      <SummaryCard icon={ClipboardList} label="Estruturas" value={String(structures.length)} detail={`${structures.filter((item) => item.is_active).length} ativas`} />
+      <SummaryCard icon={Calculator} label="Valor investido" value={money(paid)} detail="Estruturas e materiais" />
+      <SummaryCard icon={Warehouse} label="Valor atual" value={money(current)} detail="Patrimônio estimado" />
+      <SummaryCard icon={CalendarClock} label="Pendências" value={String(pending.length)} detail="Manutenções próximas ou vencidas" />
+    </div>
+    {!structures.length ? <div className={styles.categoryEmpty}><Icon size={34} /><strong>Nenhuma estrutura cadastrada</strong><p>Cadastre a primeira estrutura desta categoria para acompanhar patrimônio, materiais, localização e manutenção.</p><button onClick={onCreate}><Plus size={17} /> Cadastrar agora</button></div>
+      : <div className={styles.structureCards}>{structures.map((item) => <article key={item.id} className={styles.structureDetailCard}>
+        <header><div><strong>{item.name}</strong><span className={item.is_active ? styles.activeStatus : styles.inactiveStatus}>{item.is_active ? "Ativa" : "Inativa"}</span></div><button onClick={() => onEdit(item)} aria-label={`Editar ${item.name}`}><Pencil size={16} /></button></header>
+        <p>{item.description || "Sem descrição informada."}</p>
+        <dl><div><dt>Quantidade</dt><dd>{item.quantity}</dd></div><div><dt>Área</dt><dd>{item.built_area_m2 ? `${item.built_area_m2} m²` : "—"}</dd></div><div><dt>Materiais</dt><dd>{item.items.length}</dd></div><div><dt>Valor atual</dt><dd>{money(Number(item.current_value) * item.quantity)}</dd></div></dl>
+        <div className={styles.structureMeta}><span><MapPin size={15} />{item.latitude && item.longitude ? "Localização cadastrada" : "Sem localização"}</span><span data-status={item.maintenance_status}><Wrench size={15} />{maintenanceLabel[item.maintenance_status]}{item.next_maintenance_date ? ` · ${new Date(`${item.next_maintenance_date}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}</span></div>
+        {item.maintenance_notes && <small className={styles.maintenanceNote}>{item.maintenance_notes}</small>}
+      </article>)}</div>}
+  </section>;
 }
 
 function SummaryCard({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string; detail: string }) {

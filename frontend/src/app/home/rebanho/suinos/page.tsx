@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { SpeciesModuleHome } from "@/components/livestock/SpeciesModuleHome";
 
 export default function SuinosPage() {
-  redirect("/home/rebanho/suinos/cadastro");
+  return <SpeciesModuleHome species="suinos" />;
 }

@@ -60,6 +60,11 @@ class PlatformAccessAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["organizations"]["total"], 2)
         self.assertEqual(response.data["organizations"]["active"], 2)
+        self.assertIn("segments", response.data)
+        self.assertIn("commercial", response.data)
+        self.assertIn("finance", response.data)
+        self.assertIn("recent_activities", response.data)
+        self.assertEqual(response.data["commercial"]["open_leads"], 0)
 
     def test_platform_admin_can_read_own_platform_identity(self):
         self.client.force_authenticate(user=self.platform_admin)

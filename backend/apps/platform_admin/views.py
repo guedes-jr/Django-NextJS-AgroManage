@@ -248,7 +248,7 @@ def client_state(request):
 @api_view(["GET"])
 @permission_classes([IsPlatformStaff])
 def dashboard_summary(request):
-    """Return the first global KPIs for the platform backoffice."""
+    """Return executive, commercial and operational KPIs for the platform backoffice."""
 
     thirty_days_ago = timezone.now() - timedelta(days=30)
     organizations = Organization.objects.all()
@@ -262,6 +262,58 @@ def dashboard_summary(request):
         .annotate(total=Count("id"))
         .order_by("plan")
     )
+    subscriptions = Subscription.objects.select_related("plan", "organization")
+    active_subscriptions = subscriptions.filter(status=Subscription.Status.ACTIVE)
+    segment_results = []
+    for plan in Plan.objects.filter(is_active=True).order_by("sort_order", "monthly_price"):
+        plan_subscriptions = subscriptions.filter(plan=plan)
+        active_plan_subscriptions = plan_subscriptions.filter(status=Subscription.Status.ACTIVE)
+        plan_organizations = Organization.objects.filter(subscription__plan=plan)
+        plan_users = User.objects.filter(organization__subscription__plan=plan)
+        segment_mrr = Decimal("0")
+        for subscription in active_plan_subscriptions:
+            segment_mrr += (
+                subscription.plan.yearly_price / Decimal("12")
+                if subscription.billing_cycle == Subscription.BillingCycle.YEARLY
+                else subscription.plan.monthly_price
+            )
+        segment_results.append({
+            "code": plan.code,
+            "name": plan.name,
+            "organizations": plan_organizations.count(),
+            "active_organizations": plan_organizations.filter(is_active=True).count(),
+            "users": plan_users.count(),
+            "active_users": plan_users.filter(is_active=True).count(),
+            "farms": plan_organizations.aggregate(total=Count("farms", distinct=True))["total"] or 0,
+            "active_subscriptions": active_plan_subscriptions.count(),
+            "trialing_subscriptions": plan_subscriptions.filter(status=Subscription.Status.TRIALING).count(),
+            "mrr": segment_mrr,
+        })
+
+    mrr = Decimal("0")
+    for subscription in active_subscriptions:
+        mrr += (
+            subscription.plan.yearly_price / Decimal("12")
+            if subscription.billing_cycle == Subscription.BillingCycle.YEARLY
+            else subscription.plan.monthly_price
+        )
+    today = timezone.localdate()
+    open_invoices = Invoice.objects.filter(status__in=(Invoice.Status.OPEN, Invoice.Status.OVERDUE))
+    overdue_invoices = open_invoices.filter(due_date__lt=today)
+    open_leads = DemoRequest.objects.exclude(status__in=(DemoRequest.Status.WON, DemoRequest.Status.LOST))
+    won_leads = DemoRequest.objects.filter(status=DemoRequest.Status.WON)
+    pipeline_value = open_leads.aggregate(value=Sum("estimated_value"))["value"] or Decimal("0")
+    recent_activities = []
+    for log in PlatformAuditLog.objects.select_related("actor", "organization").order_by("-created_at")[:8]:
+        recent_activities.append({
+            "id": str(log.id),
+            "action": log.action,
+            "description": log.description or log.action.replace(".", " ").title(),
+            "actor_name": log.actor.full_name if log.actor else "Sistema",
+            "organization_name": log.organization.name if log.organization else "Plataforma",
+            "object_type": log.object_type,
+            "created_at": log.created_at,
+        })
 
     return Response(
         {
@@ -286,6 +338,25 @@ def dashboard_summary(request):
                 "total": PlatformStaffProfile.objects.count(),
                 "active": PlatformStaffProfile.objects.filter(is_active=True).count(),
             },
+            "segments": segment_results,
+            "commercial": {
+                "open_leads": open_leads.count(),
+                "won_leads": won_leads.count(),
+                "scheduled_demos": DemoAppointment.objects.filter(
+                    status=DemoAppointment.Status.SCHEDULED,
+                    starts_at__gte=timezone.now(),
+                ).count(),
+                "pipeline_value": pipeline_value,
+            },
+            "finance": {
+                "mrr": mrr,
+                "active_subscriptions": active_subscriptions.count(),
+                "trialing_subscriptions": subscriptions.filter(status=Subscription.Status.TRIALING).count(),
+                "open_invoices": open_invoices.count(),
+                "overdue_invoices": overdue_invoices.count(),
+                "outstanding": sum((invoice.amount_due for invoice in open_invoices), Decimal("0")),
+            },
+            "recent_activities": recent_activities,
         }
     )
 

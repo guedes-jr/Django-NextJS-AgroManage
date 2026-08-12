@@ -51,6 +51,205 @@ def _org(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def crops_general_report(request):
+    """Consolidated crop report used by the general plantations report screen."""
+    from collections import defaultdict
+    from apps.crops.models import (
+        Fertigation,
+        Fertilization,
+        Irrigation,
+        LandPreparation,
+        PesticideApplication,
+        SectorStructureItem,
+    )
+
+    org = _org(request)
+    if not org:
+        return Response({"detail": "Usuário sem organização."}, status=status.HTTP_400_BAD_REQUEST)
+
+    today = timezone.localdate()
+    try:
+        start_date = date.fromisoformat(request.query_params.get("start_date", ""))
+    except ValueError:
+        start_date = today.replace(month=1, day=1)
+    try:
+        end_date = date.fromisoformat(request.query_params.get("end_date", ""))
+    except ValueError:
+        end_date = today
+    if start_date > end_date:
+        return Response({"detail": "A data inicial deve ser anterior à data final."}, status=status.HTTP_400_BAD_REQUEST)
+
+    cycles = PlantingCycle.objects.filter(
+        organization=org,
+        planting_date__lte=end_date,
+    ).filter(
+        Q(actual_harvest_date__gte=start_date)
+        | Q(actual_harvest_date__isnull=True, expected_harvest_date__gte=start_date)
+        | Q(actual_harvest_date__isnull=True, expected_harvest_date__isnull=True)
+    ).select_related("field", "farm")
+
+    crop = request.query_params.get("crop", "").strip()
+    farm = request.query_params.get("farm", "").strip()
+    cycle_status = request.query_params.get("status", "").strip()
+    if crop:
+        cycles = cycles.filter(crop_name__iexact=crop)
+    if farm:
+        cycles = cycles.filter(farm_id=farm)
+    if cycle_status:
+        cycles = cycles.filter(status=cycle_status)
+
+    cycle_ids = list(cycles.values_list("id", flat=True))
+    transactions = Transaction.objects.filter(
+        organization=org,
+        planting_cycle_id__in=cycle_ids,
+        due_date__range=(start_date, end_date),
+    ).exclude(status=Transaction.Status.CANCELLED).select_related("category")
+
+    expense_by_cycle = defaultdict(Decimal)
+    revenue_actual_by_cycle = defaultdict(Decimal)
+    costs_by_category = defaultdict(Decimal)
+    for transaction in transactions:
+        if transaction.category.category_type == FinancialCategory.CategoryType.EXPENSE:
+            expense_by_cycle[transaction.planting_cycle_id] += transaction.amount
+            name = (transaction.category.name or "Outros").strip()
+            costs_by_category[name] += transaction.amount
+        else:
+            revenue_actual_by_cycle[transaction.planting_cycle_id] += transaction.amount
+
+    structures = SectorStructureItem.objects.filter(
+        plantation_id__in=cycle_ids,
+        created_at__date__range=(start_date, end_date),
+    )
+    structure_by_cycle = defaultdict(Decimal)
+    for item in structures:
+        structure_by_cycle[item.plantation_id] += item.total_value
+        costs_by_category["Estruturas"] += item.total_value
+
+    rows = []
+    total_area = Decimal("0")
+    total_cost = Decimal("0")
+    total_revenue = Decimal("0")
+    total_production = Decimal("0")
+    field_ids = set()
+    crops = set()
+    for cycle in cycles.order_by("crop_name", "field__name"):
+        area = cycle.planted_area_ha or cycle.field.area_ha or Decimal("0")
+        cost = expense_by_cycle[cycle.id] + structure_by_cycle[cycle.id]
+        predicted_revenue = cycle.estimated_revenue or Decimal("0")
+        predicted_production = cycle.estimated_production_kg or Decimal("0")
+        profit = predicted_revenue - cost
+        margin = (profit / predicted_revenue * 100) if predicted_revenue else Decimal("0")
+        cost_per_kg = (cost / predicted_production) if predicted_production else Decimal("0")
+        profit_per_kg = (profit / predicted_production) if predicted_production else Decimal("0")
+        cultivation_end = min(end_date, cycle.actual_harvest_date or end_date)
+        days = max((cultivation_end - cycle.planting_date).days, 0)
+
+        total_area += area
+        total_cost += cost
+        total_revenue += predicted_revenue
+        total_production += predicted_production
+        field_ids.add(cycle.field_id)
+        crops.add(cycle.crop_name)
+        rows.append({
+            "id": str(cycle.id),
+            "name": cycle.name or cycle.crop_name,
+            "crop": cycle.crop_name,
+            "field": cycle.field.name,
+            "area_ha": float(area),
+            "planting_date": cycle.planting_date.isoformat(),
+            "days": days,
+            "predicted_production_kg": float(predicted_production),
+            "cost": float(cost),
+            "predicted_revenue": float(predicted_revenue),
+            "actual_revenue": float(revenue_actual_by_cycle[cycle.id]),
+            "predicted_profit": float(profit),
+            "margin": float(margin.quantize(Decimal("0.01"))),
+            "cost_per_kg": float(cost_per_kg.quantize(Decimal("0.01"))),
+            "profit_per_kg": float(profit_per_kg.quantize(Decimal("0.01"))),
+        })
+
+    total_profit = total_revenue - total_cost
+    total_margin = (total_profit / total_revenue * 100) if total_revenue else Decimal("0")
+    average_price = (total_revenue / total_production) if total_production else Decimal("0")
+
+    irrigation_qs = Irrigation.objects.filter(
+        plantation_id__in=cycle_ids,
+        date__range=(start_date, end_date),
+    )
+    irrigation_totals = irrigation_qs.aggregate(
+        water=Coalesce(Sum("liters_used"), Decimal("0")),
+        energy=Coalesce(Sum("energy_kwh"), Decimal("0")),
+        pump_hours=Coalesce(Sum("hours"), Decimal("0")),
+    )
+    tractor_hours = LandPreparation.objects.filter(
+        plantation_id__in=cycle_ids,
+        date__range=(start_date, end_date),
+    ).aggregate(total=Coalesce(Sum("hours_worked"), Decimal("0")))["total"]
+
+    applications = []
+    for item in Fertilization.objects.filter(
+        plantation_id__in=cycle_ids, application_date__range=(start_date, end_date)
+    ).select_related("item"):
+        applications.append({
+            "id": str(item.id), "date": item.application_date.isoformat(),
+            "product": item.item.nome, "purpose": item.get_application_method_display(),
+            "area_ha": float(item.area_applied_ha or 0), "quantity": float(item.quantity),
+            "unit": item.unit, "equipment": "—", "type": "Adubação",
+        })
+    for item in Fertigation.objects.filter(
+        plantation_id__in=cycle_ids, application_date__range=(start_date, end_date)
+    ).select_related("item"):
+        applications.append({
+            "id": str(item.id), "date": item.application_date.isoformat(),
+            "product": item.item.nome, "purpose": "Fertirrigação",
+            "area_ha": float(item.area_applied_ha or 0), "quantity": float(item.quantity),
+            "unit": item.unit, "equipment": "Sistema de irrigação", "type": "Fertirrigação",
+        })
+    for item in PesticideApplication.objects.filter(
+        plantation_id__in=cycle_ids, application_date__range=(start_date, end_date)
+    ).select_related("item"):
+        applications.append({
+            "id": str(item.id), "date": item.application_date.isoformat(),
+            "product": item.item.nome, "purpose": item.target or item.get_pesticide_type_display(),
+            "area_ha": float(item.area_applied_ha or 0), "quantity": float(item.quantity),
+            "unit": item.unit, "equipment": item.equipment or "—", "type": "Defensivo",
+        })
+    applications.sort(key=lambda item: item["date"], reverse=True)
+
+    cost_total = sum(costs_by_category.values(), Decimal("0"))
+    cost_distribution = [
+        {
+            "name": name,
+            "value": float(value),
+            "percentage": float((value / cost_total * 100).quantize(Decimal("0.01"))) if cost_total else 0,
+        }
+        for name, value in sorted(costs_by_category.items(), key=lambda pair: pair[1], reverse=True)
+        if value
+    ]
+
+    return Response({
+        "period": {"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+        "filters": {"crops": sorted(crops)},
+        "kpis": {
+            "area_ha": float(total_area), "fields": len(field_ids), "cost": float(total_cost),
+            "predicted_revenue": float(total_revenue), "predicted_profit": float(total_profit),
+            "margin": float(total_margin.quantize(Decimal("0.01"))),
+            "predicted_production_kg": float(total_production), "average_price_per_kg": float(average_price),
+        },
+        "plantations": rows,
+        "cost_distribution": cost_distribution,
+        "consumption": {
+            "water_liters": float(irrigation_totals["water"]),
+            "energy_kwh": float(irrigation_totals["energy"]),
+            "pump_hours": float(irrigation_totals["pump_hours"]),
+            "tractor_hours": float(tractor_hours),
+        },
+        "applications": applications,
+    })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def dashboard_summary(request):
     """
     Aggregated KPIs and chart data scoped to the requesting user's organization.

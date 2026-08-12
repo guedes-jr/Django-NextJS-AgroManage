@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FeedProductionDashboard } from "@/components/dashboard/FeedProductionDashboard";
 import { 
   FlaskConical, 
-  LayoutDashboard, 
   ChevronRight, 
   Plus, 
   History,
@@ -13,7 +13,6 @@ import {
   Heart,
   ChevronUp,
   ShieldCheck,
-  Baby
 } from "lucide-react";
 import { FeedConsumptionDashboard } from "@/components/dashboard/FeedConsumptionDashboard";
 
@@ -25,8 +24,11 @@ const TABS = [
   { id: "producao", label: "Produção de Ração", icon: <FlaskConical size={18} /> },
 ];
 
-export default function SuinosRacaoPage() {
-  const [activeTab, setActiveTab] = useState("lotes");
+function SuinosRacaoContent() {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab = requestedTab && TABS.some((tab) => tab.id === requestedTab) ? requestedTab : "lotes";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showForm, setShowForm] = useState(false);
 
   return (
@@ -99,5 +101,13 @@ export default function SuinosRacaoPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function SuinosRacaoPage() {
+  return (
+    <Suspense fallback={<div className="p-5 text-center text-muted-foreground">Carregando alimentação...</div>}>
+      <SuinosRacaoContent />
+    </Suspense>
   );
 }

@@ -16,6 +16,7 @@ urlpatterns = [
     path("stock/movement/", views.stock_movement_report, name="stock-movement-report"),
     path("stock/low/", views.stock_low_report, name="stock-low-report"),
     path("stock/expiry/", views.stock_expiry_report, name="stock-expiry-report"),
+    path("crops/general/", views.crops_general_report, name="crops-general-report"),
     path(
         "finance/cashflow/",
         views.finance_cashflow_report,

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from django.db import IntegrityError
+from django.db.models import Q, Sum
 from django.utils import timezone
 import datetime
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication
@@ -1946,6 +1947,62 @@ class ReproductionDashboardView(APIView):
             "aiSuggestions": ai_suggestions,
             "message": "Dashboard API is connected."
         }, status=status.HTTP_200_OK)
+
+
+class SpeciesSummaryView(APIView):
+    """Small, tenant-safe summary used by each livestock module landing page."""
+
+    def get(self, request):
+        organization = getattr(request.user, "organization", None)
+        if not request.user.is_authenticated or not organization:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        species_code = request.query_params.get("species", "suinos")
+        base_filter = {"farm__organization": organization, "species__code": species_code}
+
+        active_batches = AnimalBatch.objects.filter(
+            **base_filter, status=AnimalBatch.Status.ACTIVE
+        )
+        # An individual linked to a batch is already represented by that batch quantity.
+        standalone_animals = Animal.objects.filter(
+            **base_filter, status=AnimalBatch.Status.ACTIVE, batch__isnull=True
+        )
+        batch_total = active_batches.aggregate(total=Sum("quantity"))["total"] or 0
+
+        female_categories = [AnimalBatch.Category.MATRIZ]
+        if species_code == "bovinos":
+            female_categories.append(AnimalBatch.Category.VACA)
+        active_females = (
+            active_batches.filter(category__in=female_categories).aggregate(total=Sum("quantity"))["total"] or 0
+        ) + standalone_animals.filter(category__in=female_categories).count()
+
+        sanitary_alerts = SanitaryAlert.objects.filter(
+            farm__organization=organization,
+            status=SanitaryAlert.STATUS_CHOICES[0][0],
+        ).filter(
+            Q(affected_animals__species__code=species_code)
+            | Q(affected_batches__species__code=species_code)
+        ).distinct().count()
+
+        today = timezone.now().date()
+        reproductive_actions = 0
+        if species_code in {"suinos", "bovinos"}:
+            reproductive_actions += Pregnancy.objects.filter(
+                female__farm__organization=organization,
+                female__species__code=species_code,
+                status="ongoing",
+                expected_birth_date__lte=today + datetime.timedelta(days=7),
+            ).count()
+            reproductive_actions += standalone_animals.filter(
+                reproductive_status=Animal.ReproductiveStatus.AGUARDANDO_COBERTURA
+            ).count()
+
+        return Response({
+            "species": species_code,
+            "total_animals": int(batch_total) + standalone_animals.count(),
+            "active_females": int(active_females),
+            "active_alerts": sanitary_alerts + reproductive_actions,
+        })
 
 
 class VaccinationRecordViewSet(viewsets.ModelViewSet):

@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -92,6 +95,15 @@ class FarmStructureTestCase(APITestCase):
         self.assertEqual(summary.data["total_items"], 1)
         self.assertEqual(summary.data["acquisition_value"], 1000)
         self.assertEqual(summary.data["current_value"], 800)
+
+    def test_maintenance_status_is_dynamic(self):
+        self.other_structure.next_maintenance_date = timezone.localdate() - timedelta(days=1)
+        self.other_structure.maintenance_notes = "Revisar cobertura"
+        self.other_structure.save(update_fields=["next_maintenance_date", "maintenance_notes"])
+        response = self.client.get(reverse("farm-structures-detail", args=[self.other_structure.id]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["maintenance_status"], "overdue")
+        self.assertEqual(response.data["maintenance_notes"], "Revisar cobertura")
 
 
 class FarmAssetTestCase(APITestCase):

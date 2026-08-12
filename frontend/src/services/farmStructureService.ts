@@ -13,6 +13,9 @@ export interface FarmStructurePayload {
   acquisition_value: string;
   current_value: string;
   acquisition_date?: string | null;
+  last_maintenance_date?: string | null;
+  next_maintenance_date?: string | null;
+  maintenance_notes?: string;
   is_active?: boolean;
   notes?: string;
   latitude?: string | null;

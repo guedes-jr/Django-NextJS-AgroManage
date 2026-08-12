@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 
 from .models import Farm, FarmAsset, FarmAssetImplement, FarmStructure, FarmStructureItem, Sector
 
@@ -39,6 +40,7 @@ class FarmStructureSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
     items = FarmStructureItemSerializer(many=True, read_only=True)
     items_value = serializers.SerializerMethodField()
+    maintenance_status = serializers.SerializerMethodField()
 
     class Meta:
         model = FarmStructure
@@ -46,7 +48,8 @@ class FarmStructureSerializer(serializers.ModelSerializer):
             "id", "farm", "farm_name", "category", "category_label", "name",
             "description", "built_area_m2", "length_m", "width_m", "quantity",
             "acquisition_value", "current_value",
-            "acquisition_date", "is_active", "notes", "created_by",
+            "acquisition_date", "last_maintenance_date", "next_maintenance_date",
+            "maintenance_notes", "maintenance_status", "is_active", "notes", "created_by",
             "created_by_name", "latitude", "longitude", "items", "items_value", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_by", "created_at", "updated_at"]
@@ -60,6 +63,16 @@ class FarmStructureSerializer(serializers.ModelSerializer):
 
     def get_items_value(self, obj):
         return sum(item.value for item in obj.items.all())
+
+    def get_maintenance_status(self, obj):
+        if not obj.next_maintenance_date:
+            return "not_scheduled"
+        today = timezone.localdate()
+        if obj.next_maintenance_date < today:
+            return "overdue"
+        if (obj.next_maintenance_date - today).days <= 30:
+            return "due_soon"
+        return "scheduled"
 
 
 class FarmAssetImplementSerializer(serializers.ModelSerializer):

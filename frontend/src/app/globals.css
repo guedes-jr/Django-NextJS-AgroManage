@@ -210,6 +210,12 @@ body {
   color-scheme: inherit;
 }
 
+.route-loading { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; min-height:420px; }
+.route-loading span { min-height:150px; border:1px solid var(--border); border-radius:14px; background:linear-gradient(90deg,var(--muted),var(--card),var(--muted)); background-size:200% 100%; animation:route-shimmer 1.35s linear infinite; }
+.route-loading p { grid-column:1/-1; margin:0; color:var(--muted-foreground); text-align:center; }
+@keyframes route-shimmer { to { background-position:-200% 0; } }
+@media(max-width:700px){.route-loading{grid-template-columns:1fr}.route-loading span{min-height:110px}}
+
 /* Custom Utilities */
 
 .view-transition {

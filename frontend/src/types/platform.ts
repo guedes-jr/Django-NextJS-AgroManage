@@ -104,6 +104,14 @@ export interface PlatformDashboard {
     without_organization: number;
   };
   platform_team: { total: number; active: number };
+  segments: Array<{
+    code: string; name: string; organizations: number; active_organizations: number;
+    users: number; active_users: number; farms: number; active_subscriptions: number;
+    trialing_subscriptions: number; mrr: string;
+  }>;
+  commercial: { open_leads: number; won_leads: number; scheduled_demos: number; pipeline_value: string };
+  finance: { mrr: string; active_subscriptions: number; trialing_subscriptions: number; open_invoices: number; overdue_invoices: number; outstanding: string };
+  recent_activities: Array<{ id:string; action:string; description:string; actor_name:string; organization_name:string; object_type:string; created_at:string }>;
 }
 
 export interface PlatformOrganization {

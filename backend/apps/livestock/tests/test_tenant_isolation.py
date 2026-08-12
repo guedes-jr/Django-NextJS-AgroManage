@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from apps.farms.models import Farm
 from apps.inventory.models import ItemEstoque
-from apps.livestock.models import Animal, ClinicalRecord, Species
+from apps.livestock.models import Animal, AnimalBatch, ClinicalRecord, Species
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -76,3 +76,31 @@ class LivestockTenantIsolationTestCase(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_species_summary_aggregates_only_authenticated_organization(self):
+        AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="A-LOTE",
+            quantity=10,
+            entry_date=date.today(),
+            status=AnimalBatch.Status.ACTIVE,
+            category=AnimalBatch.Category.MATRIZ,
+        )
+        AnimalBatch.objects.create(
+            farm=self.farm_b,
+            species=self.species,
+            batch_code="B-LOTE",
+            quantity=99,
+            entry_date=date.today(),
+            status=AnimalBatch.Status.ACTIVE,
+            category=AnimalBatch.Category.MATRIZ,
+        )
+        self.animal_a.category = AnimalBatch.Category.MATRIZ
+        self.animal_a.save(update_fields=["category"])
+
+        response = self.client.get(reverse("species_summary"), {"species": self.species.code})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_animals"], 11)
+        self.assertEqual(response.data["active_females"], 11)
