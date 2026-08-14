@@ -692,7 +692,7 @@ export default function PlantacoesDashboard() {
           <KpiCard color="oklch(0.55 0.14 150)" icon={<BarChart3 size={27} />} label="Receita Estimada" value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub="Estimativa total" />
         </div>
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.52 0.12 145)" icon={<FileText size={27} />} label="Relatório" value={String(plantations.length)} sub="Abrir relatório geral" onClick={() => window.open("/home/relatorios/plantacoes", "_blank", "noopener,noreferrer")} />
+          <KpiCard color="oklch(0.52 0.12 145)" icon={<FileText size={27} />} label="Relatório" value={String(plantations.length)} sub="Abrir relatório geral" onClick={() => window.open("/relatorios/plantacoes", "_blank", "noopener,noreferrer")} />
         </div>
       </div>
 

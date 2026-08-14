@@ -147,7 +147,7 @@ export default function RelatoriosPage() {
               <div className="list-group list-group-flush">
                 <button
                   className="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0"
-                  onClick={() => window.open('/home/relatorios/plantacoes', '_blank', 'noopener,noreferrer')}
+                  onClick={() => window.open('/relatorios/plantacoes', '_blank', 'noopener,noreferrer')}
                 >
                   <div className="rounded bg-success bg-opacity-10 p-2">
                     <Sprout size={20} className="text-success" />

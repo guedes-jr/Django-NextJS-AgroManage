@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CalendarDays, CircleDollarSign, Download, Droplets, Filter,
+  CalendarDays, CircleDollarSign, Droplets, Filter,
   Leaf, Percent, Printer, Sprout, Timer, Tractor, TrendingUp, Weight,
   Zap,
 } from "lucide-react";
@@ -114,12 +114,6 @@ export default function RelatorioGeralPlantacoesPage() {
     ...(sources.pesticides || []).filter(inReport).map((x) => ({ id: `p-${x.id}`, plantation: String(x.plantation), date: iso(x.application_date), product: String(x.item_name || x.pesticide_type_display || "Defensivo"), purpose: String(x.target || x.pesticide_type_display || "Proteção da cultura"), area: num(x.area_applied_ha), quantity: num(x.quantity), unit: String(x.unit || ""), equipment: String(x.equipment || x.operator || "-") })),
   ].filter((item) => (!startDate || !item.date || item.date >= startDate) && (!endDate || !item.date || item.date <= endDate)).sort((a, b) => b.date.localeCompare(a.date)), [endDate, inReport, sources, startDate]);
 
-  const exportCsv = () => {
-    const lines = ["Cultura;Talhão;Área (ha);Plantio;Custo;Receita prevista;Lucro previsto;Produção prevista (kg)", ...rows.map(({ item, area, cost, revenue, profit, production }) => [item.crop_name, item.field_name, area, date(item.planting_date), cost, revenue, profit, production].join(";"))];
-    const blob = new Blob([`\ufeff${lines.join("\n")}`], { type: "text/csv;charset=utf-8" });
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "relatorio-geral-plantacoes.csv"; link.click(); URL.revokeObjectURL(link.href);
-  };
-
   if (loading) return <div className={styles.loading}><span className="spinner-border text-success" /> Carregando relatório...</div>;
 
   const cards = [
@@ -136,8 +130,6 @@ export default function RelatorioGeralPlantacoesPage() {
       <div className={styles.heading}><span className={styles.logo}><Sprout /></span><div><h1>Relatório geral das plantações</h1><p>Visão geral de todas as plantações da fazenda</p></div></div>
       <div className={styles.headerActions}>
         <div className={styles.period}><CalendarDays /><span><b>Período do relatório</b>{date(startDate)} a {date(endDate)}</span></div>
-        <button onClick={() => window.print()}><Printer /> Imprimir</button>
-        <button onClick={exportCsv}><Download /> Exportar</button>
       </div>
     </header>
 
@@ -171,5 +163,8 @@ export default function RelatorioGeralPlantacoesPage() {
       {!applications.length && <tr><td colSpan={7} className={styles.empty}>Nenhuma aplicação registrada no período.</td></tr>}
     </tbody></table></div></section>
     <footer className={styles.footer}>Os valores apresentados são baseados nos lançamentos realizados até a data do relatório.</footer>
+    <div className={styles.printAction}>
+      <button type="button" onClick={() => window.print()}><Printer /> Imprimir relatório</button>
+    </div>
   </div>;
 }

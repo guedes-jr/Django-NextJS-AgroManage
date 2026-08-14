@@ -75,7 +75,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
     <>
     {user?.force_password_change && <ForcePasswordModal onSuccess={handlePasswordChanged} />}
     <header 
-      className="dashboard-topbar d-flex justify-content-between align-items-center p-3 px-4 shadow-sm"
+      className="d-flex justify-content-between align-items-center p-3 px-4 shadow-sm"
       style={{ background: 'var(--background)', zIndex: 10, borderBottom: '1px solid var(--border)' }}
     >
       <div className="d-flex align-items-center gap-2">
