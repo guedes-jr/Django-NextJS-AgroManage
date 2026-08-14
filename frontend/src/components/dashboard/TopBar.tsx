@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { User, LogOut, ChevronDown, Bell, Menu } from "lucide-react";
 import { ForcePasswordModal } from "@/components/auth/ForcePasswordModal";
+import { ContextualBackButton } from "@/components/navigation/ContextualBackButton";
 import Image from "next/image";
 
 interface UserData {
@@ -89,6 +90,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
         >
           <Menu size={24} />
         </button>
+        <ContextualBackButton area="home" />
         <div className="d-none d-lg-block">
           {/* Breadcrumb placeholders or empty for page context */}
         </div>

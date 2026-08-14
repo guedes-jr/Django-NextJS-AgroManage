@@ -16,6 +16,7 @@ import {
 import { pig, pigHead } from "@lucide/lab";
 import apiClient from "@/services/api";
 import styles from "./species-module-home.module.css";
+import { SwineOverviewInsights } from "./SwineOverviewInsights";
 
 type SpeciesCode = "suinos";
 type ModuleIcon = ComponentType<LucideProps>;
@@ -190,6 +191,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
           ))}
         </div>
       </section>
+      <SwineOverviewInsights />
     </div>
   );
 }

@@ -667,3 +667,30 @@ body {
   --bs-table-border-color: var(--border);
   color: var(--foreground) !important;
 }
+
+.contextual-back-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--foreground);
+  background: var(--card);
+  box-shadow: 0 3px 9px color-mix(in srgb, var(--foreground), transparent 94%);
+  font-size: .76rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.contextual-back-button:hover {
+  border-color: color-mix(in srgb, var(--primary), transparent 50%);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary), var(--card) 94%);
+}
+
+@media (max-width: 700px) {
+  .contextual-back-button span { display: none; }
+  .contextual-back-button { width: 36px; padding: 0; justify-content: center; }
+}

@@ -469,8 +469,17 @@ class ConsumoRacao(BaseModel):
     lote_animal = models.ForeignKey(
         "livestock.AnimalBatch",
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="consumos",
     )
+    animais = models.ManyToManyField(
+        "livestock.Animal",
+        blank=True,
+        related_name="consumos_racao",
+    )
+    categoria_destino = models.CharField(max_length=30, blank=True)
+    fase_destino = models.CharField(max_length=30, blank=True)
     item_estoque = models.ForeignKey(
         ItemEstoque,
         on_delete=models.PROTECT,
@@ -506,4 +515,5 @@ class ConsumoRacao(BaseModel):
         ordering = ["-data_inicio"]
 
     def __str__(self) -> str:
-        return f"Consumo {self.lote_animal.batch_code} - {self.item_estoque.nome}"
+        destino = self.lote_animal.batch_code if self.lote_animal else f"{self.animais.count()} animais"
+        return f"Consumo {destino} - {self.item_estoque.nome}"

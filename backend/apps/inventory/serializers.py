@@ -464,15 +464,17 @@ class ProducaoRacaoSerializer(serializers.ModelSerializer):
 
 
 class ConsumoRacaoSerializer(serializers.ModelSerializer):
-    lote_codigo = serializers.CharField(source="lote_animal.batch_code", read_only=True)
+    lote_codigo = serializers.CharField(source="lote_animal.batch_code", read_only=True, default=None)
     item_nome = serializers.CharField(source="item_estoque.nome", read_only=True)
     usuario_nome = serializers.SerializerMethodField()
     tipo_registro_display = serializers.CharField(source="get_tipo_registro_display", read_only=True)
+    animais_identificadores = serializers.SerializerMethodField()
 
     class Meta:
         model = ConsumoRacao
         fields = [
-            "id", "lote_animal", "lote_codigo", "item_estoque", "item_nome",
+            "id", "lote_animal", "lote_codigo", "animais", "animais_identificadores",
+            "categoria_destino", "fase_destino", "item_estoque", "item_nome",
             "data_inicio", "data_fim", "quantidade", "custo_unitario", "custo_total",
             "tipo_registro", "tipo_registro_display", "usuario", "usuario_nome", "observacao",
             "created_at"
@@ -485,9 +487,19 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
         batch = attrs.get("lote_animal", getattr(self.instance, "lote_animal", None))
         if not organization or not item or item.organization_id != organization.id:
             raise serializers.ValidationError({"item_estoque": "Item não pertence à sua organização."})
-        if not batch or batch.farm.organization_id != organization.id:
+        animals = attrs.get("animais", [])
+        if not batch and not animals:
+            raise serializers.ValidationError({"destino": "Selecione um lote ou pelo menos um animal."})
+        if batch and animals:
+            raise serializers.ValidationError({"destino": "Selecione lote ou animais, não ambos."})
+        if batch and batch.farm.organization_id != organization.id:
             raise serializers.ValidationError({"lote_animal": "Lote animal não pertence à sua organização."})
+        if animals and any(animal.farm.organization_id != organization.id for animal in animals):
+            raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à sua organização."})
         return attrs
+
+    def get_animais_identificadores(self, obj):
+        return list(obj.animais.values_list("identifier", flat=True))
 
     def get_usuario_nome(self, obj):
         if not obj.usuario:

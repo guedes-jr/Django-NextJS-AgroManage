@@ -7,6 +7,7 @@ import { Activity, Building2, ClipboardList, Eye, LayoutDashboard, LogOut, Scrol
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
+import { ContextualBackButton } from "@/components/navigation/ContextualBackButton";
 
 const navigation = [
   { href: "/platform", label: "Visão geral", icon: LayoutDashboard },
@@ -91,7 +92,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="platform-main">
         <header className="platform-topbar">
-          <div><strong>Backoffice</strong><span className="text-muted ms-2 small">Ambiente administrativo</span></div>
+          <div className="d-flex align-items-center gap-3"><ContextualBackButton area="platform" /><div><strong>Backoffice</strong><span className="text-muted ms-2 small">Ambiente administrativo</span></div></div>
           <div className="d-flex align-items-center gap-3">
             <div className="text-end d-none d-sm-block"><div className="small fw-bold">{staff?.full_name}</div><div className="text-muted" style={{fontSize:12}}>{staff?.role_display}</div></div>
             <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2" onClick={logout}><LogOut size={15} /> Sair</button>

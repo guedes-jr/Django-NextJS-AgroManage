@@ -4,6 +4,7 @@ import "./globals.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { RouteScrollManager } from "@/components/navigation/RouteScrollManager";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://agromanage.com"),
@@ -59,6 +60,7 @@ export default function RootLayout({
         </Script>
         <ThemeProvider>
           <ToastProvider>
+            <RouteScrollManager />
             {children}
           </ToastProvider>
         </ThemeProvider>

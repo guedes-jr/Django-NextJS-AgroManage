@@ -847,13 +847,13 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
             qs = ConsumoRacao.objects.filter(
                 organization=self.request.user.organization
-            ).select_related("lote_animal", "item_estoque", "usuario")
+            ).select_related("lote_animal", "item_estoque", "usuario").prefetch_related("animais")
             
             # Filter by species (e.g. ?especie=suino)
             especie = self.request.query_params.get("especie")
             if especie:
                 # We filter by the species code in the related AnimalBatch
-                qs = qs.filter(lote_animal__species__code=especie)
+                qs = qs.filter(Q(lote_animal__species__code=especie) | Q(animais__species__code=especie)).distinct()
                 
             return qs
         return ConsumoRacao.objects.none()
@@ -900,6 +900,10 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
                 lote.quantidade_atual -= qtde_abater
                 lotes_para_atualizar.append(lote)
                 
+                batch = serializer.validated_data.get("lote_animal")
+                animals = serializer.validated_data.get("animais", [])
+                destination_label = batch.batch_code if batch else ", ".join(animal.identifier for animal in animals[:3])
+                species_name = batch.species.name if batch else (animals[0].species.name if animals else "Rebanho")
                 movimentacoes.append(
                     MovimentacaoEstoque(
                         item=item,
@@ -907,8 +911,8 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
                         tipo=TipoMovimentacao.CONSUMO,
                         quantidade=qtde_abater,
                         responsavel=user,
-                        destino=serializer.validated_data.get("lote_animal").species.name,
-                        observacao=f"Consumo de Ração: Lote Animal {serializer.validated_data.get('lote_animal').batch_code}"
+                        destino=species_name,
+                        observacao=f"Consumo de Ração: {destination_label}"
                     )
                 )
                 qtde_restante -= qtde_abater
@@ -940,10 +944,9 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
         categoria = request.query_params.get("categoria")
         qs = ConsumoRacao.objects.filter(organization=organization)
         if especie:
-            qs = qs.filter(lote_animal__species__code=especie)
+            qs = qs.filter(Q(lote_animal__species__code=especie) | Q(animais__species__code=especie)).distinct()
         if categoria and categoria != "lotes":
-            # Filter by category if specified and not the generic "lotes" tab
-            qs = qs.filter(lote_animal__category__icontains=categoria)
+            qs = qs.filter(categoria_destino=categoria)
             
         # 1. Total consumed in the last 30 days
         from django.utils import timezone

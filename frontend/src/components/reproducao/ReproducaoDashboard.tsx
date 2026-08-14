@@ -1,7 +1,7 @@
 "use client";
  
 import { useState, useEffect } from "react";
-import { Activity, AlertTriangle, BellRing, CalendarDays, CheckCircle2, ChevronRight, Grid2X2, List, Loader2, Plus, Sparkles, Syringe, X } from "lucide-react";
+import { ChevronRight, Grid2X2, List, Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import "./reproducao.css";
@@ -106,18 +106,6 @@ function DashboardTabContent({
   onTabChange: (id: string) => void;
 }) {
   const [compactView, setCompactView] = useState(false);
-  const upcomingEvents = [
-    { icon: "🔄", title: "Coberturas previstas", detail: `${config.kpis[1]?.value ?? 0} matrizes aguardando`, tone: "blue" },
-    { icon: "🤰", title: "Gestação em acompanhamento", detail: `${config.kpis[2]?.value ?? 0} matrizes gestantes`, tone: "amber" },
-    { icon: "🍼", title: "Partos e desmames", detail: "Confira os próximos prazos", tone: "green" },
-  ];
-  const dailyActivities = [
-    { text: "Verificar matrizes em cio", sector: "Marrãs" },
-    { text: "Acompanhar matrizes próximas ao parto", sector: "Gestação" },
-    { text: "Revisar leitões e desmames programados", sector: "Maternidade" },
-    { text: "Conferir lotes na creche", sector: "Creche" },
-  ];
-
   return (
     <div className="repro-overview">
       <ReproducaoKpiCards kpis={config.kpis} />
@@ -152,27 +140,6 @@ function DashboardTabContent({
             </button>;
           })}
         </div>
-      </section>
-
-      <section className="repro-insight-grid">
-        <article className="repro-insight-card">
-          <header><span><CalendarDays size={19}/> Próximos eventos</span><button>Ver todos</button></header>
-          <div className="repro-event-list">
-            {upcomingEvents.map(event => <div className={`repro-event-row ${event.tone}`} key={event.title}><b>{event.icon}</b><div><strong>{event.title}</strong><span>{event.detail}</span></div><ChevronRight size={16}/></div>)}
-          </div>
-        </article>
-        <article className="repro-insight-card">
-          <header><span><Activity size={19}/> Atividades de hoje</span><button>Ver todas</button></header>
-          <div className="repro-task-list">{dailyActivities.map(task => <div className="repro-task-row" key={task.text}><CheckCircle2 size={18}/><div><strong>{task.text}</strong><span>Setor de {task.sector}</span></div><em>Pendente</em></div>)}</div>
-        </article>
-        <article className="repro-insight-card repro-alert-card">
-          <header><span><BellRing size={19}/> Alertas do sistema <i>{config.alerts.length + config.aiSuggestions.length}</i></span><button>Ver todos</button></header>
-          <div className="repro-system-alerts">
-            {config.alerts.slice(0, 3).map((alert, index) => <div className={`repro-system-alert ${alert.type === "danger" ? "danger" : "warning"}`} key={`${alert.text}-${index}`}><AlertTriangle size={20}/><div><strong>{alert.text}</strong><span>{alert.time || "Requer atenção"}</span></div><ChevronRight size={17}/></div>)}
-            {config.alerts.length === 0 && <div className="repro-all-clear"><Sparkles size={23}/><div><strong>Tudo sob controle</strong><span>Nenhum alerta crítico neste momento.</span></div></div>}
-            {config.aiSuggestions.slice(0, 1).map((item, index) => <div className="repro-system-alert vaccine" key={index}><Syringe size={20}/><div><strong>{item.text}</strong><span>Sugestão do sistema</span></div><ChevronRight size={17}/></div>)}
-          </div>
-        </article>
       </section>
 
       <div className="repro-chart-wrap"><DesempenhoChart category="reprodutivo" /></div>
