@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2, CircleCheck } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
@@ -588,23 +588,62 @@ export default function PlantacoesDashboard() {
         </Button>
       </div>
 
-      <div className="dashboard-card mb-3" style={{ borderRadius: 8, padding: "14px 18px" }}>
-        <div className="d-flex align-items-center justify-content-between gap-3 mb-3">
-          <div className="d-flex align-items-center gap-2">
-            <AlertTriangle size={17} style={{ color: "oklch(0.72 0.18 78)" }} />
-            <h2 className="fw-bold mb-0" style={{ fontSize: "1rem" }}>Alertas</h2>
+      <div
+        className="dashboard-card mb-3 overflow-hidden"
+        style={{
+          borderRadius: 14,
+          borderLeft: `4px solid ${realAlerts.length ? "oklch(0.72 0.18 78)" : "var(--primary)"}`,
+          boxShadow: "0 8px 22px color-mix(in oklch, var(--foreground) 9%, transparent)",
+        }}
+      >
+        <div className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3" style={{ padding: "22px 28px 22px 22px" }}>
+          <div className="d-flex align-items-center gap-3 gap-md-4 min-w-0">
+            <div
+              className="d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{
+                width: 66,
+                height: 66,
+                borderRadius: 18,
+                color: "oklch(0.72 0.18 78)",
+                background: "oklch(0.97 0.025 82)",
+              }}
+            >
+              <AlertTriangle size={35} strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="fw-black mb-2 text-foreground" style={{ fontSize: "1.22rem", lineHeight: 1.1 }}>Alertas</h2>
+              <p className="text-muted-foreground mb-0" style={{ fontSize: "0.92rem" }}>
+                {realAlerts.length === 0
+                  ? "Nenhum alerta real para as plantações cadastradas."
+                  : `Existem ${realAlerts.length} ${realAlerts.length === 1 ? "alerta que precisa" : "alertas que precisam"} da sua atenção.`}
+              </p>
+            </div>
           </div>
-          <span className="text-muted-foreground fw-semibold" style={{ fontSize: "0.75rem" }}>{realAlerts.length} alerta{realAlerts.length === 1 ? "" : "s"}</span>
+          <span
+            className="d-inline-flex align-items-center justify-content-center gap-2 fw-semibold flex-shrink-0 align-self-start align-self-sm-center"
+            style={{
+              minHeight: 42,
+              padding: "0 16px",
+              borderRadius: 14,
+              color: realAlerts.length ? "oklch(0.55 0.16 70)" : "var(--primary)",
+              background: realAlerts.length ? "oklch(0.96 0.035 82)" : "color-mix(in oklch, var(--primary) 9%, var(--card))",
+              boxShadow: "0 5px 14px color-mix(in oklch, var(--foreground) 7%, transparent)",
+              fontSize: "0.86rem",
+            }}
+          >
+            {realAlerts.length === 0 ? <CircleCheck size={19} /> : <AlertTriangle size={19} />}
+            {realAlerts.length} alerta{realAlerts.length === 1 ? "" : "s"}
+          </span>
         </div>
-        {realAlerts.length === 0 ? (
-          <div className="text-muted-foreground small">Nenhum alerta real para as plantações cadastradas.</div>
-        ) : (
-          <div className="row g-3">
+        {realAlerts.length > 0 && (
+          <div style={{ padding: "0 22px 22px" }}>
+            <div className="row g-3">
             {realAlerts.map((alert) => (
               <div key={alert.title} className="col-12 col-md-6 col-xl">
                 <AlertCard icon={alert.icon} title={alert.title} value={alert.value} color={alert.color} tint={alert.tint} />
               </div>
             ))}
+            </div>
           </div>
         )}
       </div>
