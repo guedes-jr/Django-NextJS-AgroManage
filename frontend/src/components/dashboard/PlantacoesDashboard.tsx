@@ -137,27 +137,54 @@ const isSeedInventoryItem = (item: InventorySeedOption) => {
   );
 };
 
-function KpiCard({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; color: string }) {
+function KpiCard({ icon, label, value, sub, color, onClick }: { icon: React.ReactNode; label: string; value: string; sub?: string; color: string; onClick?: () => void }) {
+  const Component = onClick ? "button" : "div";
   return (
-    <div className="dashboard-card h-100" style={{ borderRadius: 8, padding: "18px 20px" }}>
-      <div className="d-flex align-items-center gap-3 h-100" style={{ minHeight: 58 }}>
+    <Component
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className="dashboard-card h-100 overflow-hidden position-relative text-start w-100"
+      style={{
+        borderRadius: 12,
+        border: "1px solid var(--border)",
+        padding: "20px 20px 18px",
+        minHeight: 218,
+        boxShadow: "0 7px 18px color-mix(in oklch, var(--foreground) 7%, transparent)",
+        cursor: onClick ? "pointer" : undefined,
+      }}
+    >
+      <div className="d-flex flex-column h-100">
+        <div className="d-flex align-items-center gap-3" style={{ minHeight: 58 }}>
         <div
           className="d-flex align-items-center justify-content-center flex-shrink-0"
           style={{
-            width: 36,
-            height: 36,
+            width: 54,
+            height: 54,
+            borderRadius: 15,
             color,
+            background: "color-mix(in oklch, var(--primary) 9%, var(--card))",
           }}
         >
-        {icon}
+          {icon}
         </div>
-        <div className="flex-grow-1 min-w-0">
-          <div className="text-muted-foreground fw-semibold mb-1" style={{ fontSize: "0.72rem" }}>{label}</div>
-          <div className="fw-black text-foreground lh-sm" style={{ fontSize: "1.06rem" }}>{value}</div>
-          {sub && <div className="text-muted-foreground mt-1" style={{ fontSize: "0.72rem" }}>{sub}</div>}
+          <div className="fw-bold text-foreground lh-sm" style={{ fontSize: "0.84rem" }}>{label}</div>
+        </div>
+
+        <div className="d-flex align-items-end flex-grow-1 py-3">
+          <div className="fw-black text-foreground lh-sm" style={{ fontSize: "1.65rem", letterSpacing: "-0.02em" }}>{value}</div>
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+          {sub && (
+            <div className="d-flex align-items-center gap-2 text-muted-foreground" style={{ fontSize: "0.77rem" }}>
+              <span className="d-inline-block flex-shrink-0" style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+              <span>{sub}</span>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+      <span className="position-absolute bottom-0 start-0 w-100" style={{ height: 5, background: "var(--primary)" }} />
+    </Component>
   );
 }
 
@@ -650,22 +677,22 @@ export default function PlantacoesDashboard() {
 
       <div className="row g-3 mb-3">
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.58 0.16 145)" icon={<Ruler size={22} />} label="Área Total" value={totalArea ? `${fmt(totalArea)} ha` : "-"} sub={`${fields.length || "-"} talhões`} />
+          <KpiCard color="oklch(0.58 0.16 145)" icon={<Ruler size={27} />} label="Área Total" value={totalArea ? `${fmt(totalArea)} ha` : "-"} sub={`${fields.length || "-"} talhões`} />
         </div>
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.58 0.16 145)" icon={<Sprout size={22} />} label="Área Plantada" value={areaPlanted ? `${fmt(areaPlanted)} ha` : "-"} sub={totalArea ? `${Math.round((parseNumber(areaPlanted) / totalArea) * 100)}% do total` : "Área cadastrada"} />
+          <KpiCard color="oklch(0.58 0.16 145)" icon={<Sprout size={27} />} label="Área Plantada" value={areaPlanted ? `${fmt(areaPlanted)} ha` : "-"} sub={totalArea ? `${Math.round((parseNumber(areaPlanted) / totalArea) * 100)}% do total` : "Área cadastrada"} />
         </div>
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.54 0.15 145)" icon={<Leaf size={22} />} label="Em Desenvolvimento" value={`${dashboardData?.total_active ?? plantations.length} plantações`} sub="Ativas no ciclo" />
+          <KpiCard color="oklch(0.54 0.15 145)" icon={<Leaf size={27} />} label="Em Desenvolvimento" value={`${dashboardData?.total_active ?? plantations.length} plantações`} sub="Ativas no ciclo" />
         </div>
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.53 0.14 145)" icon={<DollarSign size={22} />} label="Investimento" value={dashboardData?.total_investment ? money(dashboardData.total_investment) : "-"} sub="Total investido" />
+          <KpiCard color="oklch(0.53 0.14 145)" icon={<DollarSign size={27} />} label="Investimento" value={dashboardData?.total_investment ? money(dashboardData.total_investment) : "-"} sub="Total investido" />
         </div>
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.55 0.14 150)" icon={<BarChart3 size={22} />} label="Receita Estimada" value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub="Estimativa total" />
+          <KpiCard color="oklch(0.55 0.14 150)" icon={<BarChart3 size={27} />} label="Receita Estimada" value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub="Estimativa total" />
         </div>
         <div className="col-12 col-md-6 col-xl-2">
-          <KpiCard color="oklch(0.52 0.12 145)" icon={<Calendar size={22} />} label="Colheitas (30d)" value={String(dashboardData?.upcoming_harvests ?? 0)} sub="Agendadas" />
+          <KpiCard color="oklch(0.52 0.12 145)" icon={<FileText size={27} />} label="Relatório" value={String(plantations.length)} sub="Abrir relatório geral" onClick={() => window.open("/home/relatorios/plantacoes", "_blank", "noopener,noreferrer")} />
         </div>
       </div>
 

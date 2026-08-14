@@ -1111,7 +1111,7 @@ export default function PlantacaoDetailPage() {
               label: "Relatório",
               desc: "Gerar PDF completo ou resumo da produção",
               stage: shortcutStages.relatorio,
-              onClick: () => router.push(`/home/plantacoes/${id}/historico`),
+              onClick: () => window.open(`/home/plantacoes/${id}/historico`, "_blank", "noopener,noreferrer"),
               featuredImage: true,
             },
             {

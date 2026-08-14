@@ -11,7 +11,8 @@ import {
   TrendingUp,
   TrendingDown,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  Sprout
 } from "lucide-react";
 
 interface DashboardData {
@@ -144,6 +145,19 @@ export default function RelatoriosPage() {
             </div>
             <div className="card-body p-0">
               <div className="list-group list-group-flush">
+                <button
+                  className="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0"
+                  onClick={() => window.open('/home/relatorios/plantacoes', '_blank', 'noopener,noreferrer')}
+                >
+                  <div className="rounded bg-success bg-opacity-10 p-2">
+                    <Sprout size={20} className="text-success" />
+                  </div>
+                  <div className="flex-grow-1 text-start">
+                    <div className="fw-medium">Relatório de Plantações</div>
+                    <div className="text-muted small">Custos, produção, consumo e aplicações por cultura</div>
+                  </div>
+                  <ArrowRight size={16} className="text-muted" />
+                </button>
                 <button 
                   className="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0"
                   onClick={() => router.push('/home/relatorios/estoque')}

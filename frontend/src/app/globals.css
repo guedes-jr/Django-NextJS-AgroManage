@@ -667,3 +667,15 @@ body {
   --bs-table-border-color: var(--border);
   color: var(--foreground) !important;
 }
+@media print {
+  body:has(.plantation-report-page) .dashboard-sidebar,
+  body:has(.plantation-report-page) .dashboard-topbar,
+  body:has(.plantation-report-page) .dashboard-screen-banner {
+    display: none !important;
+  }
+
+  body:has(.plantation-report-page) main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+}
