@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from apps.farms.models import Farm
 from apps.livestock.models import AnimalBatch
 from apps.crops.models import Field, PlantingCycle
-from apps.inventory.models import ItemEstoque, LoteEstoque
+from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque
 from apps.finance.models import Transaction, FinancialCategory
 from apps.tasks.models import Task
 from common.permissions import OrganizationRolePermission
@@ -353,6 +353,81 @@ def dashboard_summary(request):
         or 0
     )
 
+    def financial_breakdown(queryset, category_type, label_field="category__name"):
+        return [
+            {"name": row[label_field] or "Outros", "value": float(row["total"])}
+            for row in queryset.filter(category__category_type=category_type)
+            .values(label_field)
+            .annotate(total=Sum("amount"))
+            .order_by("-total")[:5]
+            if row["total"]
+        ]
+
+    paid_month = transactions_qs.filter(
+        payment_date__gte=month_start,
+        payment_date__lte=today,
+        status=Transaction.Status.PAID,
+    )
+    crop_transactions = paid_month.filter(planting_cycle__isnull=False)
+    crop_cost = crop_transactions.filter(
+        category__category_type=FinancialCategory.CategoryType.EXPENSE
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    crop_revenue = crop_transactions.filter(
+        category__category_type=FinancialCategory.CategoryType.REVENUE
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+    livestock_terms = Q(category__name__icontains="suín") | Q(category__name__icontains="suin")
+    livestock_terms |= Q(category__name__icontains="animal") | Q(category__name__icontains="rebanho")
+    livestock_transactions = paid_month.filter(planting_cycle__isnull=True).filter(livestock_terms)
+    livestock_finance_cost = livestock_transactions.filter(
+        category__category_type=FinancialCategory.CategoryType.EXPENSE
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    livestock_revenue = livestock_transactions.filter(
+        category__category_type=FinancialCategory.CategoryType.REVENUE
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    feed_consumption = ConsumoRacao.objects.filter(
+        organization=org,
+        data_inicio__gte=month_start,
+        data_inicio__lte=today,
+    )
+    feed_cost = feed_consumption.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")
+    livestock_cost = livestock_finance_cost + feed_cost
+
+    def segment_payload(cost, revenue, costs, revenues):
+        profit = revenue - cost
+        margin = (profit / revenue * 100) if revenue else Decimal("0")
+        return {
+            "cost": float(cost),
+            "revenue": float(revenue),
+            "profit": float(profit),
+            "margin": float(margin.quantize(Decimal("0.01"))),
+            "cost_breakdown": costs,
+            "revenue_breakdown": revenues,
+        }
+
+    livestock_cost_breakdown = financial_breakdown(
+        livestock_transactions, FinancialCategory.CategoryType.EXPENSE
+    )
+    feed_breakdown = [
+        {"name": row["item_estoque__nome"] or "Ração", "value": float(row["total"])}
+        for row in feed_consumption.values("item_estoque__nome")
+        .annotate(total=Sum("custo_total")).order_by("-total")[:5]
+        if row["total"]
+    ]
+    livestock_cost_breakdown = feed_breakdown + livestock_cost_breakdown
+
+    recent_transactions = [
+        {
+            "title": transaction.description,
+            "date": (transaction.payment_date or transaction.due_date).isoformat(),
+            "type": transaction.category.category_type,
+            "amount": float(transaction.amount),
+            "category": transaction.category.name,
+        }
+        for transaction in transactions_qs.exclude(status=Transaction.Status.CANCELLED)
+        .select_related("category").order_by("-payment_date", "-created_at")[:4]
+    ]
+
     # Chart: last 7 months revenue vs expense
     seven_months_ago = (today - relativedelta(months=6)).replace(day=1)
     monthly_finance = list(
@@ -424,6 +499,21 @@ def dashboard_summary(request):
                     for r in production_by_crop
                 ],
             },
+            "segments": {
+                "crops": segment_payload(
+                    crop_cost,
+                    crop_revenue,
+                    financial_breakdown(crop_transactions, FinancialCategory.CategoryType.EXPENSE),
+                    financial_breakdown(crop_transactions, FinancialCategory.CategoryType.REVENUE, "planting_cycle__crop_name"),
+                ),
+                "livestock": segment_payload(
+                    livestock_cost,
+                    livestock_revenue,
+                    livestock_cost_breakdown,
+                    financial_breakdown(livestock_transactions, FinancialCategory.CategoryType.REVENUE),
+                ),
+            },
+            "recent_activities": recent_transactions,
             "tasks": tasks_data,
         }
     )

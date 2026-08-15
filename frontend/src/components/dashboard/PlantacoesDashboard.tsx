@@ -147,7 +147,7 @@ function KpiCard({ icon, label, value, sub, color, onClick }: { icon: React.Reac
       style={{
         borderRadius: 12,
         border: "1px solid var(--border)",
-        padding: "20px 20px 18px",
+        padding: "20px 18px 18px",
         minHeight: 218,
         boxShadow: "0 7px 18px color-mix(in oklch, var(--foreground) 7%, transparent)",
         cursor: onClick ? "pointer" : undefined,
@@ -158,8 +158,8 @@ function KpiCard({ icon, label, value, sub, color, onClick }: { icon: React.Reac
         <div
           className="d-flex align-items-center justify-content-center flex-shrink-0"
           style={{
-            width: 54,
-            height: 54,
+            width: 50,
+            height: 50,
             borderRadius: 15,
             color,
             background: "color-mix(in oklch, var(--primary) 9%, var(--card))",
@@ -167,18 +167,18 @@ function KpiCard({ icon, label, value, sub, color, onClick }: { icon: React.Reac
         >
           {icon}
         </div>
-          <div className="fw-bold text-foreground lh-sm" style={{ fontSize: "0.84rem" }}>{label}</div>
+          <div className="fw-bold text-foreground lh-sm flex-grow-1" style={{ fontSize: "0.84rem", overflowWrap: "anywhere", hyphens: "auto" }}>{label}</div>
         </div>
 
         <div className="d-flex align-items-end flex-grow-1 py-3">
-          <div className="fw-black text-foreground lh-sm" style={{ fontSize: "1.65rem", letterSpacing: "-0.02em" }}>{value}</div>
+          <div className="fw-black text-foreground lh-sm" style={{ fontSize: "clamp(1.28rem, 1.7vw, 1.65rem)", letterSpacing: "-0.02em", overflowWrap: "anywhere" }}>{value}</div>
         </div>
 
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
           {sub && (
             <div className="d-flex align-items-center gap-2 text-muted-foreground" style={{ fontSize: "0.77rem" }}>
               <span className="d-inline-block flex-shrink-0" style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
-              <span>{sub}</span>
+              <span style={{ overflowWrap: "anywhere" }}>{sub}</span>
             </div>
           )}
         </div>
@@ -675,23 +675,23 @@ export default function PlantacoesDashboard() {
         )}
       </div>
 
-      <div className="row g-3 mb-3">
-        <div className="col-12 col-md-6 col-xl-2">
+      <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 185px), 1fr))", gap: 16 }}>
+        <div>
           <KpiCard color="oklch(0.58 0.16 145)" icon={<Ruler size={27} />} label="Área Total" value={totalArea ? `${fmt(totalArea)} ha` : "-"} sub={`${fields.length || "-"} talhões`} />
         </div>
-        <div className="col-12 col-md-6 col-xl-2">
+        <div>
           <KpiCard color="oklch(0.58 0.16 145)" icon={<Sprout size={27} />} label="Área Plantada" value={areaPlanted ? `${fmt(areaPlanted)} ha` : "-"} sub={totalArea ? `${Math.round((parseNumber(areaPlanted) / totalArea) * 100)}% do total` : "Área cadastrada"} />
         </div>
-        <div className="col-12 col-md-6 col-xl-2">
+        <div>
           <KpiCard color="oklch(0.54 0.15 145)" icon={<Leaf size={27} />} label="Em Desenvolvimento" value={`${dashboardData?.total_active ?? plantations.length} plantações`} sub="Ativas no ciclo" />
         </div>
-        <div className="col-12 col-md-6 col-xl-2">
+        <div>
           <KpiCard color="oklch(0.53 0.14 145)" icon={<DollarSign size={27} />} label="Investimento" value={dashboardData?.total_investment ? money(dashboardData.total_investment) : "-"} sub="Total investido" />
         </div>
-        <div className="col-12 col-md-6 col-xl-2">
+        <div>
           <KpiCard color="oklch(0.55 0.14 150)" icon={<BarChart3 size={27} />} label="Receita Estimada" value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub="Estimativa total" />
         </div>
-        <div className="col-12 col-md-6 col-xl-2">
+        <div>
           <KpiCard color="oklch(0.52 0.12 145)" icon={<FileText size={27} />} label="Relatório" value={String(plantations.length)} sub="Abrir relatório geral" onClick={() => window.open("/relatorios/plantacoes", "_blank", "noopener,noreferrer")} />
         </div>
       </div>
