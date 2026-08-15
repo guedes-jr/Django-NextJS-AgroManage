@@ -36,6 +36,7 @@ import type {
   PlatformSupportAccess,
   PlatformSupportAccessPage,
   CommercialDashboard,
+  PlatformAIDashboard,
 } from "@/types/platform";
 
 const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
@@ -135,6 +136,14 @@ export const platformService = {
   },
   async dashboard() {
     const { data } = await platformApi.get<PlatformDashboard>("platform/dashboard/");
+    return data;
+  },
+  async aiDashboard() {
+    const { data } = await platformApi.get<PlatformAIDashboard>("platform/ai/dashboard/");
+    return data;
+  },
+  async updateOrganizationAI(id: string, payload: { enabled?: boolean; limit?: number }) {
+    const { data } = await platformApi.patch<{id:string;enabled:boolean;limit:number|null}>(`platform/ai/organizations/${id}/`, payload);
     return data;
   },
   async organizations(params?: Record<string, string | number | boolean>) {

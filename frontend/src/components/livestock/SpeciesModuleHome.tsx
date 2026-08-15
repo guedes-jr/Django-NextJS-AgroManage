@@ -10,6 +10,8 @@ import {
   FileChartColumnIncreasing,
   Icon,
   MarsStroke,
+  BadgeDollarSign,
+  UsersRound,
   Wheat,
   type LucideProps,
 } from "lucide-react";
@@ -40,8 +42,22 @@ const modules: Array<{
   description: string;
   href: string;
   icon: ModuleIcon;
-  tone: "green" | "orange" | "purple" | "blue" | "cyan";
+  tone: "green" | "orange" | "purple" | "blue" | "cyan" | "emerald" | "slate";
 }> = [
+  {
+    title: "Venda de Animais",
+    description: "Saídas, compradores e receitas",
+    href: "/home/rebanho/suinos/vendas",
+    icon: BadgeDollarSign,
+    tone: "emerald",
+  },
+  {
+    title: "Mão de Obra",
+    description: "Serviços, equipe e custos",
+    href: "/home/rebanho/suinos/mao-de-obra",
+    icon: UsersRound,
+    tone: "slate",
+  },
   {
     title: "Cadastro",
     description: "Animais, matrizes e lotes",
@@ -171,7 +187,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
             <span>Operações</span>
             <h2 id="swine-modules-title">O que você deseja acessar?</h2>
           </div>
-          <p>Escolha uma área para continuar o manejo do plantel.</p>
+          <p>Escolha uma área para continuar a gestão do plantel.</p>
         </div>
 
         <div className={styles.moduleGrid}>

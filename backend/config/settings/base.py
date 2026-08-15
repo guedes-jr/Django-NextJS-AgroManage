@@ -63,6 +63,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.platform_admin",
     "apps.billing",
+    "apps.ai_assistant",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -153,6 +154,15 @@ DEMO_REQUEST_NOTIFICATION_EMAILS = env.list(
     "DEMO_REQUEST_NOTIFICATION_EMAILS",
     default=["contato@agromanage.com"],
 )
+
+# ---------------------------------------------------------------------------
+# OpenAI / Assistente Rural IA (segredos apenas no backend)
+# ---------------------------------------------------------------------------
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_AI_MODEL = env("OPENAI_AI_MODEL", default="gpt-5.6-terra")
+OPENAI_AI_MAX_OUTPUT_TOKENS = env.int("OPENAI_AI_MAX_OUTPUT_TOKENS", default=1200)
+OPENAI_AI_TIMEOUT_SECONDS = env.int("OPENAI_AI_TIMEOUT_SECONDS", default=45)
+OPENAI_AI_STORE_RESPONSES = env.bool("OPENAI_AI_STORE_RESPONSES", default=False)
 
 # ---------------------------------------------------------------------------
 # Django REST Framework

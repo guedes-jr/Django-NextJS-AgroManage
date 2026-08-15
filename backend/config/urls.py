@@ -29,6 +29,7 @@ api_v1_patterns = [
     path("tasks/", include("apps.tasks.urls")),
     path("audit/", include("apps.audit.urls")),
     path("notifications/", include("apps.notifications.urls")),
+    path("ai/", include("apps.ai_assistant.urls")),
 ]
 
 # ---------------------------------------------------------------------------

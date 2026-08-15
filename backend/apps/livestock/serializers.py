@@ -88,7 +88,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'batch_code', 'name', 'category', 'phase',
             'gender', 'origin', 'purchase_value', 'avg_weight_kg', 
-            'entry_date', 'status', 'species_code', 'breed_name',
+            'entry_date', 'exit_date', 'status', 'sale_value', 'species_code', 'breed_name',
             'species_code_input', 'breed_name_input', 'farm_id', 'quantity', 'mother',
             'notes', 'source_batch_ids', 'birth_date'
         ]

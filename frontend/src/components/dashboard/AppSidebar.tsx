@@ -11,6 +11,7 @@ import {
   Icon,
   LayoutDashboard,
   PackageOpen,
+  Sparkles,
   Settings,
   Sprout,
   Stethoscope,
@@ -76,6 +77,12 @@ const sidebarSections: SidebarSection[] = [
       { title: "Financeiro", href: "/home/financeiro", icon: CircleDollarSign },
       { title: "Estrutura da fazenda", href: "/home/estrutura", icon: BarnIcon },
       { title: "Relatórios", href: "/home/relatorios", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Inteligência",
+    items: [
+      { title: "Assistente IA", href: "/home/assistente-ia", icon: Sparkles },
     ],
   },
   {

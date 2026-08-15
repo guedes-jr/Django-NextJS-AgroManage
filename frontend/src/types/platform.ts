@@ -212,6 +212,9 @@ export interface PlatformSubscription {
 export type PlatformSubscriptionPage = PaginatedResponse<PlatformSubscription>;
 
 export interface PlatformFinanceDashboard { mrr:string; arr:string; received_month:string; outstanding:string; active_subscriptions:number; open_invoices:number; overdue_invoices:number; failed_payments:number; }
+export interface PlatformAIOrganization { id:string; name:string; plan:string; enabled:boolean; limit:number|null; used:number; remaining:number|null; users:number; input_tokens:number; output_tokens:number; cost_usd:number; }
+export interface PlatformAIIncident { id:string; organization:string; subject:string; role:string; status:"blocked"|"failed"; error_code:string; created_at:string; }
+export interface PlatformAIDashboard { period:{start:string;end:string}; metrics:{questions:number;input_tokens:number;output_tokens:number;cost_usd:number;active_users:number;active_organizations:number;completed_answers:number;blocked:number;failed:number;feedback_total:number;helpful:number;helpful_rate:number}; subjects:{subject:string;label:string;total:number}[]; organizations:PlatformAIOrganization[]; incidents:PlatformAIIncident[]; }
 export interface PlatformInvoice { id:string; number:string; organization:string; organization_name:string; plan_name:string; status:string; status_display:string; total:string; amount_paid:string; amount_due:string; due_date:string; paid_at:string|null; created_at:string; }
 export type PlatformInvoicePage = PaginatedResponse<PlatformInvoice>;
 export interface PlatformHealth { status:string; checked_at:string; environment:string; checks:Record<string,{status:string;engine?:string;pending?:number}>; }

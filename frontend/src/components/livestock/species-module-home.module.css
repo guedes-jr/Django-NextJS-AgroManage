@@ -139,14 +139,14 @@
 
 .moduleGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
 .moduleCard {
   display: flex;
   min-width: 0;
-  min-height: 365px;
+  min-height: 330px;
   padding: 28px 16px 16px;
   flex-direction: column;
   align-items: center;
@@ -173,6 +173,8 @@
 .moduleCard[data-tone="purple"] { --module-color: #7224c9; --module-soft: #f2e9ff; }
 .moduleCard[data-tone="blue"] { --module-color: #1768d4; --module-soft: #eaf3ff; }
 .moduleCard[data-tone="cyan"] { --module-color: #12a4a4; --module-soft: #e7f8f7; }
+.moduleCard[data-tone="emerald"] { --module-color: #07844f; --module-soft: #e7f8f0; }
+.moduleCard[data-tone="slate"] { --module-color: #526175; --module-soft: #edf1f5; }
 
 .moduleIcon {
   display: grid;

@@ -27,6 +27,10 @@ from celery import current_app
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, Subscription
 from apps.billing.services import create_manual_invoice, record_manual_payment
+from apps.ai_assistant.models import AIConversation, AIFeedback, AIMessage, AIUsage
+from apps.ai_assistant.services.quota import (
+    CUSTOM_ENABLED_KEY, CUSTOM_LIMIT_KEY, get_organization_ai_rules,
+)
 from common.permissions import IsPlatformAdmin, IsPlatformAuditor, IsPlatformDeveloper, IsPlatformStaff, IsPlatformSupport
 
 from .serializers import (
@@ -74,6 +78,124 @@ from .approved_queries import available_queries, run_approved_query
 from .sandbox_client import SandboxClient, SandboxUnavailable
 
 User = get_user_model()
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformStaff])
+def ai_dashboard(request):
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+    usage = AIUsage.objects.filter(period_start=month_start)
+    totals = usage.aggregate(
+        questions=Sum("questions_used"), input_tokens=Sum("input_tokens"),
+        output_tokens=Sum("output_tokens"), cost=Sum("estimated_cost_usd"),
+        users=Count("user", distinct=True), organizations=Count("organization", distinct=True),
+    )
+    messages = AIMessage.objects.filter(created_at__date__gte=month_start)
+    feedback = AIFeedback.objects.filter(created_at__date__gte=month_start)
+    feedback_total = feedback.count()
+    helpful = feedback.filter(helpful=True).count()
+
+    usage_by_org = {
+        row["organization_id"]: row
+        for row in usage.values("organization_id").annotate(
+            questions=Sum("questions_used"), input_tokens=Sum("input_tokens"),
+            output_tokens=Sum("output_tokens"), cost=Sum("estimated_cost_usd"),
+            users=Count("user", distinct=True),
+        )
+    }
+    organizations = Organization.objects.filter(is_active=True).select_related(
+        "subscription__plan"
+    ).prefetch_related("subscription__plan__entitlements__feature").order_by("name")
+    organization_rows = []
+    for organization in organizations:
+        org_usage = usage_by_org.get(organization.id, {})
+        rules = get_organization_ai_rules(organization)
+        used = org_usage.get("questions") or 0
+        limit = rules["limit"]
+        organization_rows.append({
+            "id": str(organization.id), "name": organization.name,
+            "plan": getattr(getattr(organization, "subscription", None), "plan", None).name
+            if getattr(organization, "subscription", None) else "Sem plano",
+            "enabled": rules["enabled"], "limit": limit, "used": used,
+            "remaining": None if limit is None else max(limit - used, 0),
+            "users": org_usage.get("users") or 0,
+            "input_tokens": org_usage.get("input_tokens") or 0,
+            "output_tokens": org_usage.get("output_tokens") or 0,
+            "cost_usd": float(org_usage.get("cost") or 0),
+        })
+    organization_rows.sort(key=lambda item: item["used"], reverse=True)
+
+    incidents = [
+        {
+            "id": str(item.id), "organization": item.conversation.organization.name,
+            "subject": item.conversation.get_subject_display(), "role": item.get_role_display(),
+            "status": item.status, "error_code": item.error_code,
+            "created_at": item.created_at.isoformat(),
+        }
+        for item in messages.filter(status__in=[AIMessage.Status.BLOCKED, AIMessage.Status.FAILED])
+        .select_related("conversation__organization").order_by("-created_at")[:20]
+    ]
+    subjects = [
+        {"subject": row["subject"], "label": dict(AIConversation.Subject.choices).get(row["subject"], row["subject"]), "total": row["total"]}
+        for row in AIConversation.objects.filter(created_at__date__gte=month_start)
+        .values("subject").annotate(total=Count("id")).order_by("-total")
+    ]
+    return Response({
+        "period": {"start": month_start.isoformat(), "end": today.isoformat()},
+        "metrics": {
+            "questions": totals["questions"] or 0,
+            "input_tokens": totals["input_tokens"] or 0,
+            "output_tokens": totals["output_tokens"] or 0,
+            "cost_usd": float(totals["cost"] or 0),
+            "active_users": totals["users"] or 0,
+            "active_organizations": totals["organizations"] or 0,
+            "completed_answers": messages.filter(role=AIMessage.Role.ASSISTANT, status=AIMessage.Status.COMPLETED).count(),
+            "blocked": messages.filter(status=AIMessage.Status.BLOCKED).count(),
+            "failed": messages.filter(status=AIMessage.Status.FAILED).count(),
+            "feedback_total": feedback_total,
+            "helpful": helpful,
+            "helpful_rate": round(helpful / feedback_total * 100, 1) if feedback_total else 0,
+        },
+        "subjects": subjects,
+        "organizations": organization_rows,
+        "incidents": incidents,
+    })
+
+
+@api_view(["PATCH"])
+@permission_classes([IsPlatformAdmin])
+def update_organization_ai(request, organization_id):
+    organization = Organization.objects.select_related("subscription__plan").filter(id=organization_id).first()
+    if not organization or not hasattr(organization, "subscription"):
+        return Response({"detail": "Organização ou assinatura não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+    enabled = request.data.get("enabled")
+    limit = request.data.get("limit")
+    if enabled is not None and not isinstance(enabled, bool):
+        return Response({"detail": "O campo enabled deve ser verdadeiro ou falso."}, status=status.HTTP_400_BAD_REQUEST)
+    if limit is not None:
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            return Response({"detail": "O limite deve ser um número inteiro."}, status=status.HTTP_400_BAD_REQUEST)
+        if limit < 0 or limit > 100000:
+            return Response({"detail": "O limite deve estar entre 0 e 100.000."}, status=status.HTTP_400_BAD_REQUEST)
+    subscription = organization.subscription
+    custom_limits = dict(subscription.custom_limits or {})
+    if enabled is not None:
+        custom_limits[CUSTOM_ENABLED_KEY] = enabled
+    if limit is not None:
+        custom_limits[CUSTOM_LIMIT_KEY] = limit
+    subscription.custom_limits = custom_limits
+    subscription.save(update_fields=("custom_limits", "updated_at"))
+    rules = get_organization_ai_rules(organization)
+    record_platform_action(
+        request=request, action="ai.organization_limits_updated", organization=organization,
+        object_type="organization", object_id=organization.id,
+        description="Configuração do Assistente IA atualizada.",
+        extra_data={"enabled": rules["enabled"], "limit": rules["limit"]},
+    )
+    return Response({"id": str(organization.id), **rules})
 
 
 class DemoRequestThrottle(SimpleRateThrottle):
