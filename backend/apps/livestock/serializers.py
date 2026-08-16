@@ -81,6 +81,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     # Fields to return data
     species_code = serializers.CharField(source='species.code', read_only=True)
     breed_name = serializers.CharField(source='breed.name', read_only=True)
+    farm_name = serializers.CharField(source='farm.name', read_only=True)
     
     class Meta:
         model = AnimalBatch
@@ -89,7 +90,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             'id', 'batch_code', 'name', 'category', 'phase',
             'gender', 'origin', 'purchase_value', 'avg_weight_kg', 
             'entry_date', 'exit_date', 'status', 'sale_value', 'species_code', 'breed_name',
-            'species_code_input', 'breed_name_input', 'farm_id', 'quantity', 'mother',
+            'species_code_input', 'breed_name_input', 'farm_id', 'farm_name', 'quantity', 'mother',
             'notes', 'source_batch_ids', 'birth_date'
         ]
 

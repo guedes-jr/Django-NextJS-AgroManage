@@ -1,140 +1,69 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, CircleUserRound, Layers3, Mars, Search, ShieldCheck, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, CircleUserRound, ExternalLink, Layers3, Mars, Search, ShieldCheck, UsersRound } from "lucide-react";
 import { apiClient } from "@/services/api";
 import styles from "./swine-feeding.module.css";
 
 type Target = "lotes" | "matrizes" | "marras" | "reprodutores";
-type Batch = { id: string; batch_code: string; name?: string; category?: string; phase?: string; quantity?: number; status?: string; species_code?: string };
-type Animal = { id: string; identifier: string; category?: string; reproductive_status?: string; status?: string; species_code?: string };
-type Feed = { id: string; nome: string; estoque_atual?: string; unidade_display?: string; custo_medio?: string; custo_unitario?: string; valor_unitario?: string };
-type Entry = { id: string; data_inicio: string; data_fim: string; categoria_destino?: string; fase_destino?: string; lote_codigo?: string; animais_identificadores?: string[]; item_nome: string; quantidade: number; custo_unitario: number; custo_total: number; usuario_nome?: string };
+type Batch = { id:string; batch_code:string; name?:string; category?:string; phase?:string; quantity?:number; status?:string; species_code?:string; farm_name?:string };
+type Animal = { id:string; identifier:string; category?:string; reproductive_status?:string; status?:string; species_code?:string };
+type Feed = { id:string; nome:string; estoque_atual?:string; unidade_display?:string; custo_medio?:string; custo_unitario?:string; valor_unitario?:string; especie_animal?:string; indicacao_uso?:string };
+type Entry = { id:string; data_inicio:string; data_fim:string; categoria_destino?:string; fase_destino?:string; lote_codigo?:string; animais?:string[]; animais_identificadores?:string[]; item_nome:string; quantidade:number; custo_unitario:number; custo_total:number; usuario_nome?:string };
 
 const targetOptions = [
-  { id: "lotes" as const, title: "Lotes", description: "Alimente os lotes por fase de produção", icon: Layers3, tone: "green" },
-  { id: "matrizes" as const, title: "Matrizes", description: "Alimente matrizes por fase reprodutiva", icon: CircleUserRound, tone: "purple" },
-  { id: "marras" as const, title: "Marrãs", description: "Alimente marrãs por categoria", icon: UsersRound, tone: "orange" },
-  { id: "reprodutores" as const, title: "Reprodutores", description: "Alimente reprodutores individualmente", icon: Mars, tone: "blue" },
+  { id:"lotes" as const,title:"Lotes",description:"Alimente os lotes por fase de produção",icon:Layers3,tone:"green" },
+  { id:"matrizes" as const,title:"Matrizes",description:"Alimente matrizes por fase reprodutiva",icon:CircleUserRound,tone:"purple" },
+  { id:"marras" as const,title:"Marrãs",description:"Alimente marrãs por categoria",icon:UsersRound,tone:"orange" },
+  { id:"reprodutores" as const,title:"Reprodutores",description:"Alimente reprodutores individualmente",icon:Mars,tone:"blue" },
 ];
-const phaseOptions: Record<Target, Array<{ id: string; label: string }>> = {
-  lotes: [{ id: "creche", label: "Creche" }, { id: "crescimento", label: "Crescimento" }, { id: "engorda", label: "Engorda" }],
-  matrizes: [{ id: "vazia", label: "Vazia" }, { id: "gestante", label: "Gestante" }, { id: "lactante", label: "Lactante" }],
-  marras: [{ id: "marras", label: "Marrãs" }],
-  reprodutores: [{ id: "reprodutor", label: "Reprodutor" }],
+const phaseOptions:Record<Target,Array<{id:string;label:string}>> = {
+  lotes:[{id:"maternidade",label:"Leitão/Maternidade"},{id:"creche",label:"Creche"},{id:"crescimento",label:"Crescimento"},{id:"engorda",label:"Engorda"}],
+  matrizes:[{id:"vazia",label:"Vazia"},{id:"gestante",label:"Gestante"},{id:"lactante",label:"Lactante"}],
+  marras:[{id:"marras",label:"Marrãs"}], reprodutores:[{id:"reprodutor",label:"Reprodutor"}],
 };
-const today = () => new Date().toISOString().slice(0, 10);
-const formatMoney = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const batchPhaseMap:Record<string,string[]>={maternidade:["gestacao_maternidade","maternidade"],creche:["creche"],crescimento:["crescimento"],engorda:["engorda"]};
+const targetLabels:Record<Target,string>={lotes:"Lote",matrizes:"Matrizes",marras:"Marrãs",reprodutores:"Reprodutores"};
+const statusLabels:Record<string,string>={active:"Ativo",sold:"Vendido",finished:"Finalizado",dead:"Morto"};
+const today=()=>new Date().toISOString().slice(0,10);
+const money=(value:number)=>value.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const normalize=(value="")=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+const phaseLabel=(target:Target,phase:string)=>phaseOptions[target]?.find(item=>item.id===phase)?.label||phase;
 
-export function SwineFeedingDashboard() {
-  const [target, setTarget] = useState<Target>("lotes");
-  const [phase, setPhase] = useState("creche");
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [animals, setAnimals] = useState<Animal[]>([]);
-  const [feeds, setFeeds] = useState<Feed[]>([]);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [selectedBatch, setSelectedBatch] = useState("");
-  const [selectedAnimals, setSelectedAnimals] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
-  const [feed, setFeed] = useState("");
-  const [startDate, setStartDate] = useState(today());
-  const [endDate, setEndDate] = useState(today());
-  const [quantity, setQuantity] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+export function SwineFeedingDashboard(){
+ const[target,setTarget]=useState<Target>("lotes"),[phase,setPhase]=useState("maternidade"),[batches,setBatches]=useState<Batch[]>([]),[animals,setAnimals]=useState<Animal[]>([]),[feeds,setFeeds]=useState<Feed[]>([]),[entries,setEntries]=useState<Entry[]>([]);
+ const[selectedBatch,setSelectedBatch]=useState(""),[selectedAnimals,setSelectedAnimals]=useState<string[]>([]),[search,setSearch]=useState(""),[feed,setFeed]=useState(""),[startDate,setStartDate]=useState(today()),[endDate,setEndDate]=useState(today()),[quantity,setQuantity]=useState(""),[saving,setSaving]=useState(false),[message,setMessage]=useState("");
+ const selectAllRef=useRef<HTMLInputElement>(null);
+ const load=async()=>{const[batchRes,animalRes,feedRes,historyRes]=await Promise.all([apiClient.get("/livestock/batches/?especie=suino&page_size=500"),apiClient.get("/livestock/animals/?page_size=500"),apiClient.get("/inventory/items/all_items/?categoria=racao"),apiClient.get("/inventory/consumos/?especie=suinos&page_size=100")]);setBatches(batchRes.data.results||batchRes.data||[]);setAnimals((animalRes.data.results||animalRes.data||[]).filter((item:Animal)=>item.species_code==="suinos"));setFeeds(feedRes.data||[]);setEntries(historyRes.data.results||historyRes.data||[]);};
+ useEffect(()=>{load().catch(()=>setMessage("Não foi possível carregar todos os dados de alimentação."));},[]);
 
-  const load = async () => {
-    const [batchRes, animalRes, feedRes, historyRes] = await Promise.all([
-      apiClient.get("/livestock/batches/?especie=suino&page_size=500"),
-      apiClient.get("/livestock/animals/?page_size=500"),
-      apiClient.get("/inventory/items/all_items/?categoria=racao"),
-      apiClient.get("/inventory/consumos/?especie=suinos&page_size=100"),
-    ]);
-    setBatches(batchRes.data.results || batchRes.data || []);
-    setAnimals((animalRes.data.results || animalRes.data || []).filter((item: Animal) => item.species_code === "suinos"));
-    setFeeds(feedRes.data || []);
-    setEntries(historyRes.data.results || historyRes.data || []);
-  };
+ const availableBatches=useMemo(()=>{const allowed=batchPhaseMap[phase]||[],unique=new Map<string,Batch>();batches.forEach(batch=>{if(batch.species_code==="suinos"&&batch.status==="active"&&allowed.includes(batch.phase||"")&&!unique.has(batch.id))unique.set(batch.id,batch);});return Array.from(unique.values()).sort((a,b)=>a.batch_code.localeCompare(b.batch_code,"pt-BR",{numeric:true}));},[batches,phase]);
+ const availableAnimals=useMemo(()=>animals.filter(animal=>{const category=normalize(animal.category),reproductive=normalize(animal.reproductive_status);const categoryMatch=target==="matrizes"?category==="matriz":target==="marras"?category==="marra":category==="reprodutor"||category==="cachaco";return !["dead","sold","finished"].includes(animal.status||"")&&categoryMatch&&(target!=="matrizes"||reproductive===normalize(phase))&&normalize(animal.identifier).includes(normalize(search));}).sort((a,b)=>a.identifier.localeCompare(b.identifier,"pt-BR",{numeric:true})),[animals,phase,search,target]);
+ const compatibleFeeds=useMemo(()=>feeds.filter(item=>{if(item.especie_animal&&!["suino","multiplo"].includes(item.especie_animal))return false;const indication=normalize(item.indicacao_uso);if(!indication)return true;const terms=["maternidade","creche","crescimento","engorda","gestante","lactante","vazia","marra","reprodutor"],declared=terms.filter(term=>indication.includes(term));return !declared.length||declared.some(term=>normalize(phaseLabel(target,phase)).includes(term)||normalize(phase).includes(term));}),[feeds,phase,target]);
+ const selectedFeed=compatibleFeeds.find(item=>item.id===feed),unitCost=Number(selectedFeed?.custo_medio||selectedFeed?.custo_unitario||selectedFeed?.valor_unitario||0),totalCost=Number(quantity||0)*unitCost,selectedBatchData=availableBatches.find(item=>item.id===selectedBatch),selectedAnimalData=animals.filter(animal=>selectedAnimals.includes(animal.id));
+ const allVisibleSelected=availableAnimals.length>0&&availableAnimals.every(animal=>selectedAnimals.includes(animal.id)),someVisibleSelected=availableAnimals.some(animal=>selectedAnimals.includes(animal.id));
+ useEffect(()=>{if(selectAllRef.current)selectAllRef.current.indeterminate=someVisibleSelected&&!allVisibleSelected;},[allVisibleSelected,someVisibleSelected]);
+ const changePhase=(next:string)=>{setPhase(next);setSelectedBatch("");setSelectedAnimals([]);setFeed("");setSearch("");setMessage("");};
+ const changeTarget=(next:Target)=>{setTarget(next);changePhase(phaseOptions[next][0].id);};
+ const toggleAnimal=(id:string)=>setSelectedAnimals(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);
+ const toggleAll=(checked:boolean)=>{const visible=new Set(availableAnimals.map(animal=>animal.id));setSelectedAnimals(current=>checked?Array.from(new Set([...current,...visible])):current.filter(id=>!visible.has(id)));};
+ const save=async()=>{if(endDate<startDate){setMessage("A data final não pode ser anterior à data inicial.");return;}if(!feed||Number(quantity)<=0||(target==="lotes"?!selectedBatch:!selectedAnimals.length)){setMessage("Preencha o destino, a ração e uma quantidade maior que zero.");return;}try{setSaving(true);setMessage("");await apiClient.post("/inventory/consumos/",{lote_animal:target==="lotes"?selectedBatch:null,animais:target==="lotes"?[]:selectedAnimals,categoria_destino:target,fase_destino:phase,item_estoque:feed,data_inicio:startDate,data_fim:endDate,quantidade:Number(quantity),tipo_registro:"total_periodo"});setQuantity("");setSelectedAnimals([]);setSelectedBatch("");setMessage("Consumo registrado com sucesso.");await load();}catch(error:any){const data=error?.response?.data,detail=typeof data==="string"?data:data?.detail||data?.item_estoque?.[0]||data?.lote_animal?.[0]||data?.animais?.[0]||data?.data_fim?.[0];setMessage(detail||"Não foi possível salvar. Verifique o estoque disponível e tente novamente.");}finally{setSaving(false);}};
 
-  useEffect(() => {
-    Promise.all([
-      apiClient.get("/livestock/batches/?especie=suino&page_size=500"),
-      apiClient.get("/livestock/animals/?page_size=500"),
-      apiClient.get("/inventory/items/all_items/?categoria=racao"),
-      apiClient.get("/inventory/consumos/?especie=suinos&page_size=100"),
-    ]).then(([batchRes, animalRes, feedRes, historyRes]) => {
-      setBatches(batchRes.data.results || batchRes.data || []);
-      setAnimals((animalRes.data.results || animalRes.data || []).filter((item: Animal) => item.species_code === "suinos"));
-      setFeeds(feedRes.data || []);
-      setEntries(historyRes.data.results || historyRes.data || []);
-    }).catch(() => setMessage("Não foi possível carregar todos os dados de alimentação."));
-  }, []);
-
-  const availableBatches = useMemo(() => batches.filter((batch) => {
-    if (batch.status && batch.status !== "active") return false;
-    const normalized = `${batch.phase || ""} ${batch.category || ""}`.toLowerCase();
-    return normalized.includes(phase === "creche" ? "creche" : phase === "crescimento" ? "crescimento" : "engorda") || (!batch.phase && target === "lotes");
-  }), [batches, phase, target]);
-  const availableAnimals = useMemo(() => animals.filter((animal) => {
-    const category = (animal.category || "").toLowerCase();
-    const status = (animal.reproductive_status || "").toLowerCase();
-    const categoryMatch = target === "matrizes" ? category.includes("matriz") : target === "marras" ? category.includes("marr") : category.includes("reprodutor") || category.includes("cachaço");
-    const phaseMatch = target !== "matrizes" || status === phase;
-    return animal.status !== "dead" && animal.status !== "sold" && categoryMatch && phaseMatch && animal.identifier.toLowerCase().includes(search.toLowerCase());
-  }), [animals, phase, search, target]);
-  const selectedFeed = feeds.find((item) => item.id === feed);
-  const unitCost = Number(selectedFeed?.custo_medio || selectedFeed?.custo_unitario || selectedFeed?.valor_unitario || 0);
-  const totalCost = Number(quantity || 0) * unitCost;
-  const selectedBatchData = availableBatches.find((item) => item.id === selectedBatch);
-
-  const toggleAnimal = (id: string) => setSelectedAnimals((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const changeTarget = (nextTarget: Target) => {
-    setTarget(nextTarget); setPhase(phaseOptions[nextTarget][0].id);
-    setSelectedBatch(""); setSelectedAnimals([]); setSearch("");
-  };
-  const save = async () => {
-    if (!feed || !quantity || (target === "lotes" ? !selectedBatch : !selectedAnimals.length)) { setMessage("Preencha o destino, a ração e a quantidade consumida."); return; }
-    try {
-      setSaving(true); setMessage("");
-      await apiClient.post("/inventory/consumos/", {
-        lote_animal: target === "lotes" ? selectedBatch : null,
-        animais: target === "lotes" ? [] : selectedAnimals,
-        categoria_destino: target,
-        fase_destino: phase,
-        item_estoque: feed,
-        data_inicio: startDate,
-        data_fim: endDate,
-        quantidade: Number(quantity),
-        tipo_registro: "total_periodo",
-      });
-      setQuantity(""); setSelectedAnimals([]); setMessage("Consumo registrado com sucesso."); await load();
-    } catch { setMessage("Não foi possível salvar. Verifique o estoque disponível e tente novamente."); }
-    finally { setSaving(false); }
-  };
-
-  return <div className={styles.page}>
-    <header className={styles.title}><div><h1>Alimentação dos Animais</h1><p>Registre e acompanhe o consumo de ração dos seus animais de forma rápida e prática.</p></div></header>
-    <section className={styles.panel}><h2>1. O que você deseja alimentar?</h2><div className={styles.targets}>{targetOptions.map(({ icon: Icon, ...option }) => <button key={option.id} data-active={target === option.id} data-tone={option.tone} onClick={() => changeTarget(option.id)}><span><Icon /></span><div><strong>{option.title}</strong><small>{option.description}</small></div></button>)}</div></section>
-
-    <section className={styles.panel}>
-      <h2>2. {target === "lotes" ? "Selecione a fase e o lote" : target === "matrizes" ? "Fase produtiva das matrizes" : `Selecionar ${target}`}</h2>
-      <div className={styles.selectionLayout}>
-        <div className={styles.phases}>{phaseOptions[target].map((item) => <button key={item.id} data-active={phase === item.id} onClick={() => { setPhase(item.id); setSelectedAnimals([]); }}><ShieldCheck />{item.label}</button>)}</div>
-        {target === "lotes" ? <div className={styles.batchSelection}><label>Selecione o lote<select value={selectedBatch} onChange={(event) => setSelectedBatch(event.target.value)}><option value="">Selecione...</option>{availableBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_code} — {batch.name || batch.category}</option>)}</select></label>{selectedBatchData && <aside><UsersRound /><span><b>{selectedBatchData.quantity || 0} animais</b> no lote</span></aside>}</div> : <div className={styles.animalsArea}>
-          <div className={styles.animalToolbar}><label><input type="checkbox" checked={availableAnimals.length > 0 && selectedAnimals.length === availableAnimals.length} onChange={(event) => setSelectedAnimals(event.target.checked ? availableAnimals.map((item) => item.id) : [])} /> Selecionar todos</label><div><Search /><input placeholder={`Buscar ${target.slice(0, -1)}...`} value={search} onChange={(event) => setSearch(event.target.value)} /></div></div>
-          <div className={styles.selectedBadge}>{selectedAnimals.length} {target} selecionado{selectedAnimals.length === 1 ? "" : "s"}</div>
-          <div className={styles.animalTable}><div className={styles.animalHead}><span></span><b>Código</b><b>Categoria</b><b>Fase</b><b>Status</b></div>{availableAnimals.map((animal) => <label key={animal.id}><input type="checkbox" checked={selectedAnimals.includes(animal.id)} onChange={() => toggleAnimal(animal.id)} /><b>{animal.identifier}</b><span>{animal.category}</span><span>{phaseOptions[target].find((item) => item.id === phase)?.label}</span><em>Ativo</em></label>)}{!availableAnimals.length && <p>Nenhum animal encontrado nesta fase.</p>}</div>
-        </div>}
-      </div>
-    </section>
-
-    <section className={styles.panel}><h2>3. Novo lançamento de consumo</h2><div className={styles.consumptionForm}>
-      <label>Ração utilizada<select value={feed} onChange={(event) => setFeed(event.target.value)}><option value="">Selecione a ração...</option>{feeds.map((item) => <option key={item.id} value={item.id}>{item.nome} — saldo {item.estoque_atual || 0} {item.unidade_display || ""}</option>)}</select></label>
-      <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label><label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
-      <label>Quantidade consumida<div className={styles.quantity}><input type="number" min="0" step="0.01" value={quantity} onChange={(event) => setQuantity(event.target.value)} /><span>kg</span></div></label>
-      <label>Custo total<input value={formatMoney(totalCost)} readOnly /></label><button onClick={save} disabled={saving}><Check />{saving ? "Salvando..." : "Salvar consumo"}</button>
-    </div>{message && <p className={message.includes("sucesso") ? styles.success : styles.message}>{message}</p>}<small className={styles.stockHint}>{selectedFeed ? "Ração cadastrada no estoque" : "Selecione uma ração disponível no estoque"}</small></section>
-
-    <section className={styles.panel}><h2>4. Últimos lançamentos</h2><div className={styles.history}><table><thead><tr><th>Data</th><th>Destino</th><th>Fase/Categoria</th><th>Lote/Animais</th><th>Ração</th><th>Quantidade</th><th>Custo/kg</th><th>Custo total</th><th>Usuário</th></tr></thead><tbody>{entries.slice(0, 12).map((entry) => <tr key={entry.id}><td>{new Date(`${entry.data_inicio}T12:00:00`).toLocaleDateString("pt-BR")}</td><td>{entry.categoria_destino || "Lote"}</td><td>{entry.fase_destino || "-"}</td><td>{entry.lote_codigo || entry.animais_identificadores?.slice(0, 3).join(", ") || "-"}</td><td>{entry.item_nome}</td><td>{Number(entry.quantidade).toLocaleString("pt-BR")} kg</td><td>{formatMoney(Number(entry.custo_unitario))}</td><td><b>{formatMoney(Number(entry.custo_total))}</b></td><td>{entry.usuario_nome || "-"}</td></tr>)}</tbody></table>{!entries.length && <p>Nenhum lançamento registrado.</p>}</div></section>
-  </div>;
+ return <div className={styles.page}>
+  <header className={styles.title}><h1>Alimentação dos Animais</h1><p>Registre e acompanhe o consumo de ração dos seus animais de forma rápida e prática.</p></header>
+  <section className={styles.panel}><h2>1. O que você deseja alimentar?</h2><div className={styles.targets}>{targetOptions.map(({icon:Icon,...option})=><button type="button" key={option.id} data-active={target===option.id} data-tone={option.tone} onClick={()=>changeTarget(option.id)}><span><Icon/></span><div><strong>{option.title}</strong><small>{option.description}</small></div></button>)}</div></section>
+  <section className={styles.panel}><h2>2. {target==="lotes"?"Selecione a fase e o lote":target==="matrizes"?"Fase produtiva das matrizes":`Selecionar ${targetLabels[target]}`}</h2><div className={styles.selectionLayout}>
+   <div className={styles.phases}>{phaseOptions[target].map(item=><button type="button" key={item.id} data-active={phase===item.id} onClick={()=>changePhase(item.id)}><ShieldCheck/>{item.label}</button>)}</div>
+   {target==="lotes"?<div className={styles.batchSelection}><label>Selecione o lote<select value={selectedBatch} onChange={event=>setSelectedBatch(event.target.value)}><option value="">Selecione um lote de {phaseLabel(target,phase)}...</option>{availableBatches.map(batch=><option key={batch.id} value={batch.id}>{batch.batch_code} — {batch.name||batch.category||phaseLabel(target,phase)} — {batch.quantity||0} animais</option>)}</select><small>{availableBatches.length?`${availableBatches.length} lote(s) disponível(is) nesta fase`:"Nenhum lote ativo cadastrado nesta fase"}</small></label>{selectedBatchData&&<aside><UsersRound/><span><b>{selectedBatchData.batch_code}</b><small>{phaseLabel(target,phase)} · {selectedBatchData.quantity||0} animais{selectedBatchData.farm_name?` · ${selectedBatchData.farm_name}`:""}</small></span></aside>}</div>:<div className={styles.animalsArea}>
+    <div className={styles.animalToolbar}><label><input ref={selectAllRef} type="checkbox" checked={allVisibleSelected} onChange={event=>toggleAll(event.target.checked)}/> Selecionar todos desta fase</label><div><Search/><input placeholder={`Buscar ${target==="matrizes"?"matriz":targetLabels[target].toLowerCase()}...`} value={search} onChange={event=>setSearch(event.target.value)}/></div></div>
+    <div className={styles.selectionSummary}><span>{selectedAnimals.length} selecionado{selectedAnimals.length===1?"":"s"}</span>{selectedAnimalData.length>0&&<small>{selectedAnimalData.slice(0,4).map(animal=>animal.identifier).join(", ")}{selectedAnimalData.length>4?` e mais ${selectedAnimalData.length-4}`:""}</small>}</div>
+    <div className={styles.animalTable}><table><thead><tr><th/><th>Código</th><th>Categoria</th><th>Fase</th><th>Status</th><th/></tr></thead><tbody>{availableAnimals.map(animal=><tr key={animal.id} data-selected={selectedAnimals.includes(animal.id)}><td><input aria-label={`Selecionar ${animal.identifier}`} type="checkbox" checked={selectedAnimals.includes(animal.id)} onChange={()=>toggleAnimal(animal.id)}/></td><td><b>{animal.identifier}</b></td><td>{animal.category||"-"}</td><td>{phaseLabel(target,phase)}</td><td><em>{statusLabels[animal.status||"active"]||"Ativo"}</em></td><td><Link href={`/home/rebanho/suinos/animal/${animal.id}`} title={`Abrir ${animal.identifier}`}><ExternalLink size={15}/></Link></td></tr>)}{!availableAnimals.length&&<tr><td colSpan={6} className={styles.empty}>Nenhum animal ativo encontrado nesta categoria e fase.</td></tr>}</tbody></table></div>
+   </div>}
+  </div></section>
+  <section className={styles.panel}><h2>3. Novo lançamento de consumo</h2><div className={styles.destinationSummary}><strong>Destino:</strong> {target==="lotes"?(selectedBatchData?`${selectedBatchData.batch_code} · ${phaseLabel(target,phase)} · ${selectedBatchData.quantity||0} animais`:"Selecione um lote"):(selectedAnimals.length?`${selectedAnimals.length} ${targetLabels[target].toLowerCase()} selecionado(s) · ${phaseLabel(target,phase)}`:`Selecione ${targetLabels[target].toLowerCase()}`)}</div><div className={styles.consumptionForm}>
+   <label>Ração utilizada<select value={feed} onChange={event=>setFeed(event.target.value)}><option value="">Selecione uma ração compatível...</option>{compatibleFeeds.map(item=><option key={item.id} value={item.id}>{item.nome} — saldo {Number(item.estoque_atual||0).toLocaleString("pt-BR")} {item.unidade_display||""}</option>)}</select></label><label>Data inicial<input type="date" value={startDate} onChange={event=>setStartDate(event.target.value)}/></label><label>Data final<input type="date" min={startDate} value={endDate} onChange={event=>setEndDate(event.target.value)}/></label><label>Quantidade consumida<div className={styles.quantity}><input type="number" min="0.01" step="0.01" value={quantity} onChange={event=>setQuantity(event.target.value)}/><span>kg</span></div></label><label>Custo total<input value={money(totalCost)} readOnly/></label><button type="button" onClick={save} disabled={saving}><Check/>{saving?"Salvando...":"Salvar consumo"}</button>
+  </div>{message&&<p className={message.includes("sucesso")?styles.success:styles.message}>{message}</p>}<small className={styles.stockHint}>{selectedFeed?`Ração para suínos disponível no estoque · custo médio ${money(unitCost)}/kg`:compatibleFeeds.length?"Selecione uma ração indicada para suínos":"Nenhuma ração compatível disponível no estoque"}</small></section>
+  <section className={styles.panel}><h2>4. Últimos lançamentos</h2><div className={styles.history}><table><thead><tr><th>Data</th><th>Destino</th><th>Fase/Categoria</th><th>Lote/Animais</th><th>Ração</th><th>Quantidade</th><th>Custo/kg</th><th>Custo total</th><th>Usuário</th></tr></thead><tbody>{entries.slice(0,12).map(entry=>{const entryTarget=(entry.categoria_destino||"lotes") as Target,identifiers=entry.animais_identificadores||[];return <tr key={entry.id}><td>{new Date(`${entry.data_inicio}T12:00:00`).toLocaleDateString("pt-BR")}</td><td><span className={styles.destinationTag}>{targetLabels[entryTarget]||entry.categoria_destino||"Lote"}</span></td><td>{phaseLabel(entryTarget,entry.fase_destino||"")||"-"}</td><td>{entry.lote_codigo||identifiers.slice(0,3).join(", ")||"-"}{identifiers.length>3&&<small> +{identifiers.length-3}</small>}{!entry.lote_codigo&&entry.animais?.[0]&&<Link className={styles.historyLink} href={`/home/rebanho/suinos/animal/${entry.animais[0]}`}><ExternalLink size={13}/></Link>}</td><td>{entry.item_nome}</td><td>{Number(entry.quantidade).toLocaleString("pt-BR")} kg</td><td>{money(Number(entry.custo_unitario))}</td><td><b>{money(Number(entry.custo_total))}</b></td><td>{entry.usuario_nome||"-"}</td></tr>;})}</tbody></table>{!entries.length&&<p>Nenhum lançamento registrado.</p>}</div></section>
+ </div>;
 }

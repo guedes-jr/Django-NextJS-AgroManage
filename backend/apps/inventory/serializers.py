@@ -496,6 +496,50 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"lote_animal": "Lote animal não pertence à sua organização."})
         if animals and any(animal.farm.organization_id != organization.id for animal in animals):
             raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à sua organização."})
+        if attrs.get("data_inicio") and attrs.get("data_fim") and attrs["data_fim"] < attrs["data_inicio"]:
+            raise serializers.ValidationError({"data_fim": "A data final não pode ser anterior à data inicial."})
+
+        destination = attrs.get("categoria_destino", getattr(self.instance, "categoria_destino", ""))
+        destination_phase = attrs.get("fase_destino", getattr(self.instance, "fase_destino", ""))
+        allowed_phases = {
+            "lotes": {"maternidade", "creche", "crescimento", "engorda"},
+            "matrizes": {"vazia", "gestante", "lactante"},
+            "marras": {"marras"},
+            "reprodutores": {"reprodutor"},
+        }
+        if destination not in allowed_phases:
+            raise serializers.ValidationError({"categoria_destino": "Categoria de destino inválida."})
+        if destination_phase not in allowed_phases[destination]:
+            raise serializers.ValidationError({"fase_destino": "Fase incompatível com a categoria selecionada."})
+
+        if batch:
+            batch_phases = {
+                "maternidade": {"gestacao_maternidade", "maternidade"},
+                "creche": {"creche"},
+                "crescimento": {"crescimento"},
+                "engorda": {"engorda"},
+            }
+            if batch.species.code != "suinos":
+                raise serializers.ValidationError({"lote_animal": "O lote selecionado não pertence à suinocultura."})
+            if destination != "lotes" or batch.phase not in batch_phases.get(destination_phase, set()):
+                raise serializers.ValidationError({"lote_animal": "O lote não pertence à fase produtiva selecionada."})
+
+        if animals:
+            for animal in animals:
+                if animal.species.code != "suinos":
+                    raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à suinocultura."})
+                category = (animal.category or "").casefold()
+                reproductive_status = (animal.reproductive_status or "").casefold()
+                compatible = (
+                    (destination == "matrizes" and category == "matriz" and reproductive_status == destination_phase)
+                    or (destination == "marras" and category in {"marrã", "marra"})
+                    or (destination == "reprodutores" and category in {"reprodutor", "cachaço", "cachaco"})
+                )
+                if not compatible:
+                    raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à categoria ou fase selecionada."})
+
+        if item.especie_animal not in {"", "suino", "multiplo"}:
+            raise serializers.ValidationError({"item_estoque": "A ração selecionada não é indicada para suínos."})
         return attrs
 
     def get_animais_identificadores(self, obj):
