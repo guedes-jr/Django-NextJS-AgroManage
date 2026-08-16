@@ -1,513 +1,70 @@
 "use client";
-
-import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { apiClient } from "@/services/api";
-import { Beef, TrendingUp, TrendingDown, ArrowDown, ArrowUp, Search, Filter, Tag, Activity, Download } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import React,{useEffect,useMemo,useState} from "react";
+import {Activity,BarChart3,BadgeDollarSign,CalendarDays,Coins,Download,FileSpreadsheet,Filter,HeartPulse,LoaderCircle,Percent,PiggyBank,Printer,Search,TrendingUp,UsersRound} from "lucide-react";
 import * as XLSX from "xlsx";
+import {jsPDF} from "jspdf";
+import autoTable from "jspdf-autotable";
+import apiClient from "@/services/api";
+import styles from "./page.module.css";
 
-interface LivestockReport {
-  total_animals: number;
-  items: {
-    id: string;
-    farm: string;
-    species: string;
-    species_code: string;
-    breed: string | null;
-    batch_code: string;
-    name: string | null;
-    category: string | null;
-    origin: string | null;
-    quantity: number;
-    status: string;
-    entry_date: string | null;
-    avg_weight: number | null;
-  }[];
-  by_species: { species: string; total: number; batches: number }[];
-  by_farm: { farm: string; total: number; batches: number }[];
-  by_status: { status: string; total: number; batches: number }[];
+type Tab="overview"|"reproduction"|"batches"|"females";
+interface Item{id:string;batch_code:string;name?:string;quantity:number;category?:string;breed?:string;farm:string;entry_date?:string;status:string;avg_weight?:number;species_code:string}
+interface Report{total_animals:number;items:Item[];by_status:{status:string;total:number;batches:number}[]}
+interface Transaction{id:string;description:string;amount:string;due_date:string;category_name:string;category_type:"revenue"|"expense";reference?:string}
+interface ReproductiveCycle{mating_date?:string;expected_birth_date?:string;live_born?:number;weaned_quantity?:number;birth_date?:string}
+interface Female{id:string;identifier:string;category:string;reproductive_status:string;birth_count:number;birth_date?:string;breed_name?:string;status:string;reproductive_cycles?:ReproductiveCycle[]}
+interface Repro{kpis:{marras:number;matrizes_ativas:number;reprodutores:number;gestantes:number;aguardando_cobertura:number;nascidos_mes:number;tx_prenhez:string}}
+const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}),num=new Intl.NumberFormat("pt-BR");
+const today=()=>new Date().toISOString().slice(0,10),monthStart=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10)};
+const tabs=[{id:"overview" as Tab,label:"Visão Geral",Icon:BarChart3},{id:"reproduction" as Tab,label:"Índices Reprodutivos",Icon:HeartPulse},{id:"batches" as Tab,label:"Relatório Geral dos Lotes",Icon:FileSpreadsheet},{id:"females" as Tab,label:"Relatório das Matrizes",Icon:UsersRound}];
+export default function SwineReports(){const [tab,setTab]=useState<Tab>("overview"),[report,setReport]=useState<Report|null>(null),[transactions,setTransactions]=useState<Transaction[]>([]),[females,setFemales]=useState<Female[]>([]),[repro,setRepro]=useState<Repro|null>(null),[loading,setLoading]=useState(true),[from,setFrom]=useState(monthStart()),[to,setTo]=useState(today()),[status,setStatus]=useState(""),[category,setCategory]=useState(""),[search,setSearch]=useState("");
+ const load=async()=>{setLoading(true);try{const [r,t,a,p]=await Promise.all([apiClient.get("/reports/livestock/inventory/",{params:{species:"suinos"}}),apiClient.get("/finance/transactions/",{params:{page_size:1000}}),apiClient.get("/livestock/animals/",{params:{species:"suinos",page_size:1000}}),apiClient.get("/livestock/dashboard/reproduction/",{params:{species:"suinos"}})]);setReport(r.data);setTransactions(t.data.results||t.data||[]);const animals:Female[]=a.data.results||a.data||[];setFemales(animals.filter(x=>x.category==="Matriz"||x.category==="Marrã"));setRepro(p.data)}finally{setLoading(false)}};useEffect(()=>{load()},[]);
+ const periodTx=useMemo(()=>transactions.filter(x=>x.due_date>=from&&x.due_date<=to),[transactions,from,to]);const revenue=periodTx.filter(x=>x.category_type==="revenue").reduce((s,x)=>s+Number(x.amount),0),cost=periodTx.filter(x=>x.category_type==="expense").reduce((s,x)=>s+Number(x.amount),0),profit=revenue-cost,margin=revenue?profit/revenue*100:0,total=report?.total_animals||0;
+ const filteredLots=useMemo(()=>(report?.items||[]).filter(x=>(!status||x.status===status)&&(!category||x.category===category)&&(!search||`${x.batch_code} ${x.name||""} ${x.farm}`.toLowerCase().includes(search.toLowerCase()))),[report,status,category,search]);const filteredFemales=useMemo(()=>females.filter(x=>(!status||x.status===status)&&(!search||x.identifier.toLowerCase().includes(search.toLowerCase()))),[females,status,search]);
+ const costs=useMemo(()=>{const map=new Map<string,number>();periodTx.filter(x=>x.category_type==="expense").forEach(x=>map.set(x.category_name||"Outros",(map.get(x.category_name||"Outros")||0)+Number(x.amount)));return [...map].sort((a,b)=>b[1]-a[1])},[periodTx]);
+ const rows=tab==="females"?filteredFemales.map(x=>[x.identifier,x.category,x.reproductive_status||"-",x.birth_count,x.breed_name||"-",x.status]):filteredLots.map(x=>[x.batch_code,x.quantity,x.category||"-",x.farm,x.entry_date||"-",x.status]);
+ const exportExcel=()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Relatório","Suinocultura"],["Período",`${from} a ${to}`],["Custo",cost],["Receita",revenue],["Lucro",profit]]),"Resumo");XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([tab==="females"?["Matriz","Categoria","Fase","Partos","Raça","Status"]:["Lote","Quantidade","Categoria","Fazenda","Entrada","Status"],...rows]),tab==="females"?"Matrizes":"Lotes");XLSX.writeFile(wb,"relatorio_suinocultura.xlsx")};
+ const exportPdf=()=>{const doc=new jsPDF({orientation:"landscape"});doc.setFontSize(18);doc.text("Relatório da Suinocultura",14,18);doc.setFontSize(9);doc.text(`Período: ${new Date(from+"T00:00:00").toLocaleDateString("pt-BR")} a ${new Date(to+"T00:00:00").toLocaleDateString("pt-BR")}`,14,25);autoTable(doc,{startY:31,head:[tab==="females"?["Matriz","Categoria","Fase","Partos","Raça","Status"]:["Lote","Qtd.","Categoria","Fazenda","Entrada","Status"]],body:rows});doc.save("relatorio_suinocultura.pdf")};
+ const reset=()=>{setStatus("");setCategory("");setSearch("");setFrom(monthStart());setTo(today())};
+ if(loading)return <div className={styles.loading}><LoaderCircle className={styles.spin}/><span>Preparando os relatórios da suinocultura…</span></div>;
+ return <div className={styles.page}><header className={styles.header}><div><span className={styles.pig}>🐖</span><div><h1>SUINOCULTURA</h1><p>Acompanhe o desempenho financeiro e produtivo da sua granja.</p></div></div><div className={styles.actions}><label><CalendarDays size={17}/><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/><span>até</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button onClick={exportExcel}><FileSpreadsheet size={17}/>Exportar Excel</button><button onClick={exportPdf}><Download size={17}/>Exportar PDF</button><button className={styles.print} onClick={()=>window.print()}><Printer size={17}/>Imprimir</button></div></header>
+ <nav className={styles.tabs}>{tabs.map(x=><button className={tab===x.id?styles.active:""} onClick={()=>setTab(x.id)} key={x.id}><x.Icon size={18}/>{x.label}</button>)}</nav>
+ {tab==="overview"&&<><section className={styles.kpis}>{[{label:"Custo total",value:brl.format(cost),Icon:Coins,tone:"red"},{label:"Receita total",value:brl.format(revenue),Icon:BadgeDollarSign,tone:"green"},{label:"Lucro total",value:brl.format(profit),Icon:TrendingUp,tone:"blue"},{label:"Margem de lucro",value:`${margin.toFixed(2)}%`,Icon:Percent,tone:"purple"},{label:"Custo por animal",value:brl.format(total?cost/total:0),Icon:PiggyBank,tone:"orange"},{label:"Lucro por animal",value:brl.format(total?profit/total:0),Icon:Activity,tone:"darkgreen"}].map(x=><article data-tone={x.tone} key={x.label}><x.Icon/><div><span>{x.label}</span><strong>{x.value}</strong><small>Período selecionado</small></div></article>)}</section><Filters from={from} to={to} setFrom={setFrom} setTo={setTo} status={status} setStatus={setStatus} category={category} setCategory={setCategory} search={search} setSearch={setSearch} reset={reset}/><section className={styles.overviewGrid}><div className={styles.panel}><h2>Resumo por categoria</h2><div className={styles.costTable}>{costs.length?costs.map(([name,value],i)=><div key={name}><span className={styles.dot} style={{background:["#1768d4","#e62f35","#f59e0b","#16803c","#7c3aed"][i%5]}}/><strong>{name}</strong><b>{brl.format(value)}</b><i><em style={{width:`${cost?value/cost*100:0}%`}}/></i><small>{cost?`${(value/cost*100).toFixed(1)}%`:"0%"}</small></div>):<p className={styles.empty}>Nenhum custo no período.</p>}</div></div><div className={styles.panel}><h2>Distribuição dos custos</h2><div className={styles.donutWrap}><div className={styles.donut} style={{"--fill":`${Math.min(cost/(cost+revenue||1)*100,100)}%`} as React.CSSProperties}><span><strong>{brl.format(cost)}</strong><small>Custo total</small></span></div><div className={styles.legend}>{costs.slice(0,5).map(([name,value],i)=><div key={name}><i style={{background:["#1768d4","#e62f35","#f59e0b","#16803c","#7c3aed"][i]}}/><span>{name}</span><strong>{brl.format(value)}</strong></div>)}</div></div></div></section></>}
+ {tab==="reproduction"&&<Reproduction data={repro} report={report} profit={profit}/>} {tab==="batches"&&<><Filters from={from} to={to} setFrom={setFrom} setTo={setTo} status={status} setStatus={setStatus} category={category} setCategory={setCategory} search={search} setSearch={setSearch} reset={reset}/><LotsTable items={filteredLots}/></>} {tab==="females"&&<><Filters from={from} to={to} setFrom={setFrom} setTo={setTo} status={status} setStatus={setStatus} category={category} setCategory={setCategory} search={search} setSearch={setSearch} reset={reset} hideCategory/><FemalesTable items={filteredFemales}/></>}
+ <footer className={styles.footer}>Os dados são calculados com base nos lançamentos realizados no sistema. <span>Atualizado em {new Date().toLocaleString("pt-BR")}</span></footer></div>}
+
+function Filters({from,to,setFrom,setTo,status,setStatus,category,setCategory,search,setSearch,reset,hideCategory=false}:any){return <section className={styles.filters}><label><span>Data inicial</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label><span>Data final</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><label><span>Situação</span><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Todas</option><option value="active">Ativos</option><option value="sold">Vendidos</option><option value="finished">Finalizados</option></select></label>{!hideCategory&&<label><span>Categoria</span><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Todas</option><option>Leitão</option><option>Terminação</option><option>Matriz</option><option>Marrã</option><option>Reprodutor</option></select></label>}<label className={styles.search}><span>Buscar</span><div><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por identificação…"/></div></label><button className={styles.filterButton}><Filter size={17}/>Aplicar filtros</button><button className={styles.clear} onClick={reset}>Limpar</button></section>}
+function Reproduction({data,report,profit}:{data:Repro|null;report:Report|null;profit:number}){
+ const [year,setYear]=useState(String(new Date().getFullYear())),[farm,setFarm]=useState("");const k=data?.kpis,matrices=k?.matrizes_ativas||0,born=k?.nascidos_mes||0,farms=[...new Set((report?.items||[]).map(x=>x.farm))];
+ const top=[
+  {icon:"🐖",label:"Leitões nascidos por matriz",meta:"Indicador mensal",value:matrices?(born/matrices).toFixed(1):"—",tone:"green",state:matrices&&born?"Calculado":"Sem dados"},
+  {icon:"📈",label:"Taxa de prenhez",meta:"Meta: 90%",value:k?.tx_prenhez||"—",tone:"orange",state:"Acompanhar"},
+  {icon:"🐷",label:"Nascidos no mês",meta:"Partos registrados",value:num.format(born),tone:"red",state:born?"Atualizado":"Sem dados"},
+  {icon:"⚕",label:"Matrizes gestantes",meta:"Plantel atual",value:num.format(k?.gestantes||0),tone:"red",state:"Atualizado"},
+  {icon:"♻",label:"Matrizes ativas",meta:"Em produção",value:num.format(matrices),tone:"green",state:"Atualizado"},
+  {icon:"◉",label:"Lucro por matriz",meta:"Resultado do período",value:matrices?brl.format(profit/matrices):"—",tone:"green",state:matrices?"Calculado":"Sem dados"},
+ ];
+ const groups=[
+  {title:"REPRODUÇÃO",tone:"pink",rows:[["Taxa de Prenhez (%)","90%",k?.tx_prenhez||"—"],["Matrizes Ativas","—",num.format(matrices)],["Matrizes Gestantes","—",num.format(k?.gestantes||0)],["Aguardando Cobertura","—",num.format(k?.aguardando_cobertura||0)],["Marrãs","—",num.format(k?.marras||0)]]},
+  {title:"NASCIMENTO",tone:"purple",rows:[["Leitões Nascidos no Mês","—",num.format(born)],["Nascidos por Matriz","—",matrices?(born/matrices).toFixed(1):"—"],["Leitões Nascidos Mortos (%)","5%","—"],["Leitões Mumificados (%)","1%","—"],["Peso Médio ao Nascer (kg)","1,30","—"]]},
+  {title:"MATERNIDADE",tone:"orange",rows:[["Leitões Desmamados","—","—"],["Desmamados por Matriz","12,5","—"],["Mortalidade na Maternidade (%)","8%","—"],["Peso Médio ao Desmame (kg)","6,0","—"],["Idade Média ao Desmame (dias)","21","—"]]},
+  {title:"CRECHE",tone:"blue",rows:[["Quantidade Alojada","—",phaseTotal(report,"Leitão")],["Peso de Entrada (kg)","5,0","—"],["Ganho de Peso Diário (kg)","0,35","—"],["Conversão Alimentar","1,80","—"],["Mortalidade (%)","5%","—"]]},
+  {title:"CRESCIMENTO",tone:"green",rows:[["Animais em Crescimento","—",phaseTotal(report,"Crescimento")],["Peso Médio (kg)","30,0",phaseWeight(report,"Crescimento")],["Ganho de Peso Diário (kg)","0,60","—"],["Conversão Alimentar","2,20","—"],["Mortalidade (%)","3%","—"]]},
+  {title:"TERMINAÇÃO",tone:"violet",rows:[["Animais em Terminação","—",phaseTotal(report,"Terminação")],["Peso Médio (kg)","110,0",phaseWeight(report,"Terminação")],["Dias até o Abate","160","—"],["Conversão Alimentar","2,80","—"],["Animais Vendidos","—",soldTotal(report)]]},
+ ];
+ const distribution=[["Maternidade",k?.gestantes||0,"#8b45c8"],["Creche",categoryTotal(report,"Leitão"),"#168ee5"],["Crescimento",categoryTotal(report,"Crescimento"),"#24bd9b"],["Terminação",categoryTotal(report,"Terminação"),"#f59e0b"],["Reprodução",matrices+(k?.marras||0),"#f23b78"]] as [string,number,string][];
+ return <div className={styles.productivity}><div className={styles.productiveHeader}><div><h2>Índices Produtivos - Suinocultura</h2><p>Acompanhe todos os indicadores da sua criação com dados lançados no sistema.</p></div><HeartPulse size={27}/></div><section className={styles.productiveFilters}><label><span>Ano</span><select value={year} onChange={e=>setYear(e.target.value)}>{[0,1,2,3].map(n=><option key={n}>{new Date().getFullYear()-n}</option>)}</select></label><label><span>Fazenda</span><select value={farm} onChange={e=>setFarm(e.target.value)}><option value="">Todas</option>{farms.map(x=><option key={x}>{x}</option>)}</select></label><button><Filter size={16}/>Aplicar filtros</button><button className={styles.clear} onClick={()=>setFarm("")}>Limpar</button></section><section className={styles.productiveKpis}>{top.map(x=><article data-tone={x.tone} key={x.label}><span className={styles.productiveIcon}>{x.icon}</span><div><small>{x.label}</small><em>{x.meta}</em><strong>{x.value}</strong><b>{x.state}</b></div></article>)}</section><section className={styles.indicatorGrid}>{groups.map(group=><article data-tone={group.tone} key={group.title}><h3><i/> {group.title}</h3><div className={styles.indicatorHead}><span>Indicador</span><span>Meta</span><span>Resultado</span></div>{group.rows.map(row=><div className={styles.indicatorRow} key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b></div>)}</article>)}</section><section className={styles.phasePanel}><h3>DISTRIBUIÇÃO DOS ANIMAIS POR FASE</h3><div><div className={styles.phaseDonut}><span><strong>{num.format(distribution.reduce((s,x)=>s+x[1],0))}</strong><small>Total</small></span></div><div className={styles.phaseLegend}>{distribution.map(([name,value,color])=><div key={name}><i style={{background:color}}/><span>{name}</span><b>{num.format(value)}</b></div>)}</div></div></section></div>
 }
-
-function RebanhoReportsContent() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  // URL Params State
-  const initialSpecies = searchParams.get("species") || "";
-  const initialCategory = searchParams.get("category") || "";
-  const initialStatus = searchParams.get("status") || "";
-  const initialSearch = searchParams.get("search") || "";
-
-  const [data, setData] = useState<LivestockReport | null>(null);
-  const [organization, setOrganization] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'inventario' | 'movimentacao'>('movimentacao');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    apiClient.get("/organizations/me/").then(res => {
-      setOrganization(res.data);
-    }).catch(err => console.error("Error fetching org:", err));
-  }, []);
-
-  // Local filter states
-  const [species, setSpecies] = useState(initialSpecies);
-  const [category, setCategory] = useState(initialCategory);
-  const [status, setStatus] = useState(initialStatus);
-  const [search, setSearch] = useState(initialSearch);
-
-  const fetchReport = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (species) params.append("species", species);
-      if (category) params.append("category", category);
-      if (status) params.append("status", status);
-      if (search) params.append("search", search);
-
-      const res = await apiClient.get(`/reports/livestock/inventory/?${params.toString()}`);
-      setData(res.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchReport();
-  }, [species, category, status, searchParams]); // re-fetch when params change
-
-  // Apply filters via URL
-  const applyFilters = () => {
-    const params = new URLSearchParams();
-    if (species) params.append("species", species);
-    if (category) params.append("category", category);
-    if (status) params.append("status", status);
-    if (search) params.append("search", search);
-    router.push(`${pathname}?${params.toString()}`);
-  };
-
-  // Listen to enter key on search
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') applyFilters();
-  };
-
-  // Debounced search effect (optional, or just use applyFilters button/enter)
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (search !== initialSearch) applyFilters();
-    }, 600);
-    return () => clearTimeout(delayDebounceFn);
-  }, [search]);
-
-  const exportToPDF = () => {
-    if (!data) return;
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(20);
-    doc.text(organization?.name || "Relatório de Rebanho", 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Documento: ${organization?.document || 'N/A'}`, 14, 30);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 35);
-    
-    // Summary
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text("Resumo:", 14, 45);
-    doc.setFontSize(10);
-    doc.text(`Total de Animais: ${data.total_animals}`, 14, 52);
-    doc.text(`Total de Lotes/Registros: ${data.items.length}`, 14, 57);
-    doc.text(`Espécies: ${data.by_species.map(s => s.species).join(", ") || 'N/A'}`, 14, 62);
-
-    // Table
-    const tableData = data.items.map(item => [
-      item.batch_code,
-      item.quantity.toString(),
-      item.species,
-      item.category || "N/A",
-      item.farm,
-      item.entry_date ? new Date(item.entry_date).toLocaleDateString('pt-BR') : "-",
-      item.status
-    ]);
-
-    autoTable(doc, {
-      startY: 70,
-      head: [["Identificação", "Qtd", "Espécie", "Categoria", "Fazenda", "Data", "Status"]],
-      body: tableData,
-    });
-
-    doc.save("relatorio_rebanho.pdf");
-  };
-
-  const exportToXLSX = () => {
-    if (!data) return;
-    
-    // Summary Sheet
-    const summaryData = [
-      ["Organização", organization?.name || "N/A"],
-      ["Documento", organization?.document || "N/A"],
-      ["Data de Geração", new Date().toLocaleString('pt-BR')],
-      [""],
-      ["Total de Animais", data.total_animals],
-      ["Total de Registros", data.items.length]
-    ];
-    
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-    
-    // Details Sheet
-    const detailsData = data.items.map(item => ({
-      "Identificação": item.batch_code,
-      "Nome": item.name || "",
-      "Quantidade": item.quantity,
-      "Espécie": item.species,
-      "Categoria": item.category || "",
-      "Raça": item.breed || "",
-      "Fazenda": item.farm,
-      "Data de Referência": item.entry_date ? new Date(item.entry_date).toLocaleDateString('pt-BR') : "",
-      "Status": item.status
-    }));
-    
-    const wsDetails = XLSX.utils.json_to_sheet(detailsData);
-    
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsSummary, "Resumo");
-    XLSX.utils.book_append_sheet(wb, wsDetails, "Detalhado");
-    
-    XLSX.writeFile(wb, "relatorio_rebanho.xlsx");
-  };
-
-  return (
-    <div className="p-4 p-md-5">
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
-        <div>
-          <h1 className="fw-bold mb-1" style={{ fontSize: '2rem', letterSpacing: '-0.03em', color: "var(--foreground)" }}>
-            Relatório de Rebanho
-          </h1>
-          <p className="text-muted-foreground mb-0 fw-medium">Análise detalhada do seu plantel com filtros avançados</p>
-        </div>
-        <div className="d-flex gap-2">
-          <button 
-            className="btn btn-outline-primary px-3 fw-medium d-flex align-items-center gap-2"
-            onClick={exportToPDF}
-            disabled={loading || !data?.items?.length}
-          >
-            <Download size={16} /> PDF
-          </button>
-          <button 
-            className="btn btn-outline-success px-3 fw-medium d-flex align-items-center gap-2"
-            onClick={exportToXLSX}
-            disabled={loading || !data?.items?.length}
-          >
-            <Download size={16} /> Excel
-          </button>
-          <button 
-            className="btn btn-light px-4 fw-medium border shadow-sm"
-            onClick={() => {
-              setSpecies(""); setCategory(""); setStatus(""); setSearch("");
-              router.push(pathname);
-            }}
-          >
-            Limpar Filtros
-          </button>
-        </div>
-      </div>
-
-      {/* KPIs Resumo */}
-      <div className="row g-4 mb-5">
-        <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
-            <div className="d-flex align-items-center gap-3">
-              <div className="d-flex align-items-center justify-content-center rounded-circle bg-primary/10 text-primary" style={{ width: '48px', height: '48px' }}>
-                <Beef size={24} />
-              </div>
-              <div>
-                <div className="text-muted-foreground fw-semibold small text-uppercase" style={{ letterSpacing: '0.05em' }}>Total Animais</div>
-                <div className="fw-bold text-foreground" style={{ fontSize: '1.75rem' }}>{loading ? "..." : data?.total_animals || 0}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
-            <div className="d-flex align-items-center gap-3">
-              <div className="d-flex align-items-center justify-content-center rounded-circle bg-success/10 text-success" style={{ width: '48px', height: '48px' }}>
-                <TrendingUp size={24} />
-              </div>
-              <div>
-                <div className="text-muted-foreground fw-semibold small text-uppercase" style={{ letterSpacing: '0.05em' }}>Lotes / Registros</div>
-                <div className="fw-bold text-foreground" style={{ fontSize: '1.75rem' }}>{loading ? "..." : data?.items?.length || 0}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
-            <div className="d-flex align-items-center gap-3">
-              <div className="d-flex align-items-center justify-content-center rounded-circle bg-warning/10 text-warning" style={{ width: '48px', height: '48px' }}>
-                <Activity size={24} />
-              </div>
-              <div>
-                <div className="text-muted-foreground fw-semibold small text-uppercase" style={{ letterSpacing: '0.05em' }}>Espécies Encontradas</div>
-                <div className="fw-bold text-foreground" style={{ fontSize: '1.75rem' }}>{loading ? "..." : data?.by_species?.length || 0}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-4 border-bottom border-border">
-        <ul className="nav nav-tabs border-0 gap-3" style={{ marginBottom: '-1px' }}>
-          <li className="nav-item">
-            <button 
-              className={`nav-link border-0 fw-semibold pb-3 px-1 ${activeTab === 'movimentacao' ? 'active border-bottom border-2 border-primary text-primary' : 'text-muted-foreground'}`}
-              onClick={() => setActiveTab('movimentacao')}
-              style={{ background: 'transparent' }}
-            >
-              Listagem Detalhada
-            </button>
-          </li>
-          <li className="nav-item">
-            <button 
-              className={`nav-link border-0 fw-semibold pb-3 px-1 ${activeTab === 'inventario' ? 'active border-bottom border-2 border-primary text-primary' : 'text-muted-foreground'}`}
-              onClick={() => setActiveTab('inventario')}
-              style={{ background: 'transparent' }}
-            >
-              Resumo Agrupado
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      {/* Área Principal de Filtros e Tabela */}
-      {activeTab === 'movimentacao' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="dashboard-card overflow-hidden p-0 shadow-sm" style={{ border: "1px solid var(--border)", borderRadius: "0.75rem", background: "var(--card)" }}>
-          
-          {/* Header & Filters */}
-          <div className="p-4 border-bottom border-border bg-muted/10">
-            <div className="row g-3 align-items-center">
-              <div className="col-12 col-md-4">
-                <div className="position-relative">
-                  <Search className="position-absolute text-muted-foreground" size={18} style={{ left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input 
-                    type="text" 
-                    className="form-control shadow-none transition-all focus-ring" 
-                    placeholder="Buscar lote, brinco, identificação..." 
-                    style={{ paddingLeft: '44px', height: '46px', borderRadius: '2rem', border: '1px solid var(--border)', backgroundColor: '#ffffff', color: '#000000' }}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                  />
-                </div>
-              </div>
-              <div className="col-12 col-md-8">
-                <div className="d-flex flex-wrap gap-2 justify-content-md-end">
-                  <select 
-                    className="form-select shadow-none bg-background text-foreground" 
-                    style={{ width: 'auto', minWidth: '150px', borderRadius: '2rem', height: '46px' }}
-                    value={species}
-                    onChange={(e) => { setSpecies(e.target.value); applyFilters(); }}
-                  >
-                    <option value="">Todas as Espécies</option>
-                    <option value="bovinos">Bovinos</option>
-                    <option value="suinos">Suínos</option>
-                    <option value="aves">Aves</option>
-                  </select>
-                  
-                  <select 
-                    className="form-select shadow-none bg-background text-foreground" 
-                    style={{ width: 'auto', minWidth: '150px', borderRadius: '2rem', height: '46px' }}
-                    value={category}
-                    onChange={(e) => { setCategory(e.target.value); applyFilters(); }}
-                  >
-                    <option value="">Todas Categorias</option>
-                    <option value="Matriz">Matrizes</option>
-                    <option value="Reprodutor">Reprodutores (Bov)</option>
-                    <option value="Cachaço">Cachaços (Suíno)</option>
-                    <option value="Bezerro">Bezerros</option>
-                    <option value="Leitão">Leitões</option>
-                    <option value="Terminação">Terminação</option>
-                    <option value="Lote">Lotes</option>
-                  </select>
-
-                  <select 
-                    className="form-select shadow-none bg-background text-foreground" 
-                    style={{ width: 'auto', minWidth: '140px', borderRadius: '2rem', height: '46px' }}
-                    value={status}
-                    onChange={(e) => { setStatus(e.target.value); applyFilters(); }}
-                  >
-                    <option value="">Status (Todos)</option>
-                    <option value="active">Ativos</option>
-                    <option value="sold">Vendidos</option>
-                    <option value="dead">Óbito</option>
-                    <option value="sick">Doentes</option>
-                    <option value="quarantine">Quarentena</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="table-responsive">
-            <table className="table table-hover mb-0 align-middle text-nowrap" style={{ minWidth: '800px' }}>
-              <thead>
-                <tr style={{ background: 'var(--muted)', borderBottom: '2px solid var(--border)' }}>
-                  <th className="fw-bold text-muted-foreground border-0 py-3 ps-4" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificação</th>
-                  <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Qtd</th>
-                  <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Espécie / Categoria</th>
-                  <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fazenda</th>
-                  <th className="fw-bold text-muted-foreground border-0 py-3" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Data Ref.</th>
-                  <th className="fw-bold text-muted-foreground border-0 py-3 pe-4" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-5">
-                      <div className="spinner-border text-primary" role="status" />
-                    </td>
-                  </tr>
-                ) : !data?.items || data.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-5">
-                      <div className="d-flex flex-column align-items-center justify-content-center text-muted-foreground opacity-75">
-                        <Filter size={48} className="mb-3 opacity-50" strokeWidth={1} />
-                        <h5 className="fw-semibold text-foreground mb-1">Nenhum resultado encontrado</h5>
-                        <p className="small mb-0">Seus filtros não retornaram nenhum animal ou lote.</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <AnimatePresence>
-                    {data.items.map((row, idx) => (
-                      <motion.tr 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2, delay: idx > 15 ? 0 : idx * 0.03 }}
-                        key={row.id || idx} 
-                        style={{ borderBottom: '1px solid var(--border)' }}
-                        className="bg-background hover-bg-muted/50 transition-colors"
-                      >
-                        <td className="py-3 ps-4">
-                          <div className="d-flex align-items-center gap-3">
-                            <div className="d-flex align-items-center justify-content-center rounded-circle bg-primary/10 text-primary" style={{ width: '40px', height: '40px' }}>
-                              <Tag size={18} />
-                            </div>
-                            <div>
-                              <div className="fw-bold text-foreground" style={{ fontSize: '0.95rem' }}>{row.batch_code}</div>
-                              <div className="text-muted-foreground" style={{ fontSize: '0.75rem' }}>{row.name || 'Sem nome alternativo'}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3">
-                          <div className="fw-bold text-foreground bg-secondary/10 text-secondary d-inline-block text-center rounded-pill px-2 py-1" style={{ fontSize: '0.85rem', minWidth: '32px' }}>
-                            {row.quantity || 1}
-                          </div>
-                        </td>
-                        <td className="py-3">
-                          <div className="d-flex flex-column">
-                            <span className="fw-semibold text-foreground mb-1" style={{ fontSize: '0.9rem' }}>{row.species}</span>
-                            <span className="text-muted-foreground" style={{ fontSize: '0.75rem' }}>{row.category || 'N/A'} {row.breed ? `• ${row.breed}` : ''}</span>
-                          </div>
-                        </td>
-                        <td className="py-3">
-                          <span className="fw-medium text-foreground">{row.farm}</span>
-                        </td>
-                        <td className="py-3 text-muted-foreground fw-medium" style={{ fontSize: '0.9rem' }}>
-                          {row.entry_date ? new Date(row.entry_date).toLocaleDateString('pt-BR') : '-'}
-                        </td>
-                        <td className="py-3 pe-4">
-                          <span className={`badge rounded-pill px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1 ${
-                            row.status === 'Ativo' || row.status === 'active' ? 'bg-success/15 text-success border border-success/20' : 
-                            row.status === 'Vendido' || row.status === 'sold' ? 'bg-primary/15 text-primary border border-primary/20' : 
-                            'bg-muted text-muted-foreground border border-border'
-                          }`}>
-                            <div className={`rounded-circle ${
-                              row.status === 'Ativo' || row.status === 'active' ? 'bg-success' : 
-                              row.status === 'Vendido' || row.status === 'sold' ? 'bg-primary' : 
-                              'bg-muted-foreground'
-                            }`} style={{ width: '6px', height: '6px' }}></div>
-                            {row.status}
-                          </span>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      )}
-
-      {activeTab === 'inventario' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="row">
-          <div className="col-md-6 mb-4">
-            <div className="dashboard-card h-100 p-4" style={{ borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--card)' }}>
-              <h5 className="fw-bold mb-4">Animais por Espécie</h5>
-              {loading ? (
-                <div className="text-center py-4"><div className="spinner-border text-primary" role="status" /></div>
-              ) : data?.by_species?.map(s => (
-                <div key={s.species} className="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-border">
-                  <div className="d-flex align-items-center gap-2">
-                    <div className="bg-primary/10 text-primary p-2 rounded"><Beef size={16}/></div>
-                    <span className="fw-medium">{s.species}</span>
-                  </div>
-                  <div className="text-end">
-                    <div className="fw-bold">{s.total}</div>
-                    <div className="small text-muted-foreground">{s.batches} registros</div>
-                  </div>
-                </div>
-              ))}
-              {!loading && (!data?.by_species || data.by_species.length === 0) && (
-                <p className="text-muted-foreground text-center py-4">Nenhum animal registrado</p>
-              )}
-            </div>
-          </div>
-          <div className="col-md-6 mb-4">
-            <div className="dashboard-card h-100 p-4" style={{ borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--card)' }}>
-              <h5 className="fw-bold mb-4">Animais por Fazenda</h5>
-              {loading ? (
-                <div className="text-center py-4"><div className="spinner-border text-primary" role="status" /></div>
-              ) : data?.by_farm?.map(f => (
-                <div key={f.farm} className="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-border">
-                  <div className="d-flex align-items-center gap-2">
-                    <div className="bg-success/10 text-success p-2 rounded"><Activity size={16}/></div>
-                    <span className="fw-medium">{f.farm}</span>
-                  </div>
-                  <div className="text-end">
-                    <div className="fw-bold">{f.total}</div>
-                    <div className="small text-muted-foreground">{f.batches} registros</div>
-                  </div>
-                </div>
-              ))}
-              {!loading && (!data?.by_farm || data.by_farm.length === 0) && (
-                <p className="text-muted-foreground text-center py-4">Nenhuma fazenda encontrada</p>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
+const categoryTotal=(report:Report|null,category:string)=>(report?.items||[]).filter(x=>x.category===category&&x.status==="active").reduce((s,x)=>s+x.quantity,0);
+const phaseTotal=(report:Report|null,category:string)=>num.format(categoryTotal(report,category));
+const phaseWeight=(report:Report|null,category:string)=>{const rows=(report?.items||[]).filter(x=>x.category===category&&x.avg_weight);return rows.length?`${(rows.reduce((s,x)=>s+(x.avg_weight||0),0)/rows.length).toFixed(1)} kg`:"—"};
+const soldTotal=(report:Report|null)=>num.format((report?.items||[]).filter(x=>x.status==="sold").reduce((s,x)=>s+x.quantity,0));
+function LotsTable({items}:{items:Item[]}){return <section className={styles.tablePanel}><div className={styles.tableTitle}><div><span>LOTES</span><h2>Relatório Geral dos Lotes</h2></div><strong>{items.length} registros</strong></div><div className={styles.tableScroll}><table><thead><tr><th>Lote</th><th>Categoria</th><th>Quantidade</th><th>Peso médio</th><th>Fazenda</th><th>Entrada</th><th>Status</th></tr></thead><tbody>{items.length?items.map(x=><tr key={x.id}><td><b>{x.batch_code}</b><small>{x.name||"Sem nome"}</small></td><td>{x.category||"-"}</td><td>{num.format(x.quantity)}</td><td>{x.avg_weight?`${num.format(x.avg_weight)} kg`:"-"}</td><td>{x.farm}</td><td>{x.entry_date?new Date(x.entry_date+"T00:00:00").toLocaleDateString("pt-BR"):"-"}</td><td><span className={styles.status} data-status={x.status}>{x.status}</span></td></tr>):<tr><td colSpan={7} className={styles.empty}>Nenhum lote encontrado.</td></tr>}</tbody></table></div></section>}
+function FemalesTable({items}:{items:Female[]}){
+ const active=items.filter(x=>x.status==="active").length,empty=items.filter(x=>x.reproductive_status==="vazia").length,discarded=items.filter(x=>x.status!=="active").length,pregnant=items.filter(x=>x.reproductive_status==="gestante").length,lactating=items.filter(x=>x.reproductive_status==="lactante").length;
+ const cards=[{label:"Total de Matrizes",value:items.length,meta:"Todas as categorias",tone:"purple",icon:"🐖"},{label:"Matrizes Ativas",value:active,meta:percentage(active,items.length),tone:"green",icon:"✓"},{label:"Vazias",value:empty,meta:percentage(empty,items.length),tone:"orange",icon:"✓"},{label:"Descartadas",value:discarded,meta:percentage(discarded,items.length),tone:"red",icon:"×"},{label:"Gestantes",value:pregnant,meta:percentage(pregnant,items.length),tone:"blue",icon:"♀"},{label:"Lactantes",value:lactating,meta:percentage(lactating,items.length),tone:"pink",icon:"◔"}];
+ return <div className={styles.femaleReport}><div className={styles.femaleHeading}><div><h2>Relatório das Matrizes</h2><p>Acompanhe o desempenho reprodutivo e produtivo de todas as matrizes.</p></div><UsersRound size={28}/></div><section className={styles.femaleKpis}>{cards.map(x=><article data-tone={x.tone} key={x.label}><span>{x.icon}</span><div><small>{x.label}</small><strong>{num.format(x.value)}</strong><em>{x.meta}</em></div></article>)}</section><section className={styles.tablePanel}><div className={styles.tableTitle}><div><span>LISTA DE MATRIZES</span><h2>Matrizes cadastradas</h2></div><strong>{items.length} animais</strong></div><div className={styles.tableScroll}><table className={styles.femaleTable}><thead><tr><th>Matriz</th><th>Categoria</th><th>Situação</th><th>Fase atual</th><th>Últ. cobertura</th><th>Partos</th><th>Nascidos vivos<small>Média/parto</small></th><th>Desmamados<small>Média/parto</small></th><th>Parto provável</th><th>Ações</th></tr></thead><tbody>{items.length?items.map(x=>{const cycles=x.reproductive_cycles||[],last=cycles.at(-1),finished=cycles.filter(c=>c.birth_date),live=finished.reduce((s,c)=>s+(c.live_born||0),0),weaned=finished.reduce((s,c)=>s+(c.weaned_quantity||0),0);return <tr key={x.id}><td><b>{x.identifier}</b></td><td>{x.category}</td><td><span className={styles.matrixSituation} data-status={x.status}>{x.status==="active"?"Ativa":"Descartada"}</span></td><td>{phaseName(x.reproductive_status)}</td><td>{formatDate(last?.mating_date)}</td><td>{x.birth_count||finished.length}</td><td>{finished.length?(live/finished.length).toFixed(1):"—"}</td><td>{finished.length?(weaned/finished.length).toFixed(1):"—"}</td><td>{formatDate(last?.expected_birth_date)}</td><td><div className={styles.rowActions}><button title="Visualizar matriz">◉</button><button title="Ver indicadores">▥</button></div></td></tr>}):<tr><td colSpan={10} className={styles.empty}>Nenhuma matriz encontrada.</td></tr>}</tbody></table></div><div className={styles.tableFooter}><span>Mostrando {items.length} matrizes</span><div><button disabled>Anterior</button><b>1</b><button disabled>Próximo</button></div></div></section></div>
 }
-
-export default function RebanhoReportsPage() {
-  return (
-    <Suspense fallback={
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
-        <div className="spinner-border text-primary" role="status" />
-      </div>
-    }>
-      <RebanhoReportsContent />
-    </Suspense>
-  );
-}
+const percentage=(value:number,total:number)=>total?`${(value/total*100).toFixed(2)}% do total`:"0% do total";
+const formatDate=(value?:string)=>value?new Date(value+"T00:00:00").toLocaleDateString("pt-BR"):"—";
+const phaseName=(value:string)=>({gestante:"Gestação",lactante:"Lactação",vazia:"Vazia",coberta:"Coberta",aguardando_cobertura:"Aguardando cobertura",descanso:"Descanso"} as Record<string,string>)[value]||value||"—";

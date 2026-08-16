@@ -213,7 +213,6 @@
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 1250px) {
-  .moduleGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .moduleCard { min-height: 330px; }
 }
 

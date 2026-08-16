@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { 
   Building2, 
   Users, 
@@ -23,7 +23,6 @@ import {
   Phone,
   Lock,
   User,
-  RefreshCw,
   Sun,
   Moon,
   Contrast
@@ -83,7 +82,7 @@ interface Member {
   is_active: boolean;
 }
 
-type Tab = "organization" | "members" | "subscription" | "security" | "preferences" | "system";
+type Tab = "organization" | "members" | "subscription" | "security" | "preferences";
 
 interface CurrentUser {
   id: string;
@@ -156,12 +155,6 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("organization");
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => getStoredCurrentUser());
-  const isAdmin = currentUser?.role === "owner" || currentUser?.role === "admin";
-  const [updatingProject, setUpdatingProject] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
-  const [updateProgress, setUpdateProgress] = useState(0);
-  const [updateLogs, setUpdateLogs] = useState("");
-  const terminalRef = useRef<HTMLPreElement>(null);
   const [org, setOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -362,46 +355,6 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchData();
   }, [activeTab]);
-
-  const fetchUpdateLogs = async () => {
-    try {
-      const res = await apiClient.get("/organizations/update-logs/");
-      setUpdateStatus(res.data.status);
-      setUpdateProgress(res.data.progress);
-      setUpdateLogs(res.data.logs);
-      return res.data.status;
-    } catch (err) {
-      console.error("Erro ao carregar logs de atualização:", err);
-      return "failed";
-    }
-  };
-
-  useEffect(() => {
-    let intervalId: any = null;
-
-    if (activeTab === "system" && isAdmin) {
-      fetchUpdateLogs().then((status) => {
-        if (status === "running") {
-          intervalId = setInterval(async () => {
-            const currentStatus = await fetchUpdateLogs();
-            if (currentStatus !== "running") {
-              clearInterval(intervalId);
-            }
-          }, 2000);
-        }
-      });
-    }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [activeTab, isAdmin]);
-
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [updateLogs]);
 
   const handleUpdateOrg = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -753,41 +706,12 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateProject = async () => {
-    if (!window.confirm("Deseja realmente atualizar o projeto? O sistema ficará temporariamente indisponível durante a reinicialização dos serviços.")) {
-      return;
-    }
-    setUpdatingProject(true);
-    setUpdateStatus("running");
-    setUpdateProgress(5);
-    setUpdateLogs("Iniciando processo...");
-    setError(null);
-    setSuccess(null);
-    try {
-      await apiClient.post("/organizations/update-project/");
-      
-      // Start polling immediately
-      const intervalId = setInterval(async () => {
-        const currentStatus = await fetchUpdateLogs();
-        if (currentStatus !== "running") {
-          clearInterval(intervalId);
-        }
-      }, 2000);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Erro ao iniciar atualização.");
-      setUpdateStatus("failed");
-    } finally {
-      setUpdatingProject(false);
-    }
-  };
-
   const tabs = [
     { id: "organization", label: "Organização", icon: Building2 },
     { id: "members", label: "Membros", icon: Users },
     { id: "subscription", label: "Assinatura", icon: CreditCard },
     { id: "security", label: "Segurança", icon: ShieldCheck },
     { id: "preferences", label: "Preferências", icon: Settings },
-    ...(isAdmin ? [{ id: "system", label: "Sistema", icon: RefreshCw }] : []),
   ];
 
   return (
@@ -1480,112 +1404,6 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                {/* --- System Tab --- */}
-                {activeTab === "system" && isAdmin && (
-                  <div className="fade-in">
-                    <div className="section-header mb-5">
-                      <h2 className="fw-bold h5 mb-1">Manutenção do Sistema</h2>
-                      <p className="small text-muted-foreground">Gerencie as atualizações e manutenção da plataforma</p>
-                    </div>
-
-                    <div className="dashboard-card p-4 border-dashed mb-4" style={{ borderColor: "oklch(0.6 0.2 25 / 0.3)" }}>
-                      <div className="d-flex align-items-center gap-3 mb-3">
-                        <div className="icon-box bg-danger/10 text-danger rounded-xl p-2" style={{ background: "oklch(0.6 0.2 25 / 0.1)", color: "oklch(0.6 0.2 25)" }}>
-                          <AlertTriangle size={20} />
-                        </div>
-                        <div>
-                          <h4 className="fw-bold small mb-1">Atualizar Código do Projeto</h4>
-                          <p className="extra-small text-muted-foreground mb-0">
-                            Puxar a versão mais recente do Git e reiniciar os servidores de backend/frontend.
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="alert alert-warning border-0 rounded-xl mb-4 py-3 px-4" style={{ background: "oklch(0.95 0.05 40 / 0.3)", color: "oklch(0.5 0.1 40)" }}>
-                        <div className="d-flex align-items-start gap-2">
-                          <AlertTriangle size={16} className="mt-1 flex-shrink-0" />
-                          <div className="small fw-medium">
-                            <strong>Atenção:</strong> Esta ação interromperá as conexões ativas por alguns instantes
-                            enquanto o servidor reinicia para aplicar a atualização.
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="d-flex justify-content-start mb-4">
-                        <button 
-                          onClick={handleUpdateProject}
-                          disabled={updatingProject || updateStatus === "running"}
-                          className="btn btn-danger-elegant px-4 py-2.5 d-flex align-items-center gap-2 rounded-xl fw-bold text-white"
-                          style={{ 
-                            background: "oklch(0.6 0.2 25)", 
-                            border: "none", 
-                            fontSize: "0.875rem", 
-                            boxShadow: "0 4px 12px oklch(0.6 0.2 25 / 0.2)" 
-                          }}
-                        >
-                          {updatingProject || updateStatus === "running" ? (
-                            <>
-                              <Loader2 size={18} className="animate-spin" />
-                              Atualizando...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw size={18} />
-                              Atualizar Projeto
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {updateStatus !== "idle" && (
-                        <div className="mt-4 fade-in">
-                          <div className="d-flex justify-content-between align-items-center mb-2">
-                            <span className="small fw-bold text-muted-foreground">Progresso da Atualização</span>
-                            <span className="small fw-bold" style={{ color: "var(--primary)" }}>{updateProgress}%</span>
-                          </div>
-                          <div className="progress mb-4" style={{ height: "10px", borderRadius: "10px", background: "var(--background)", overflow: "hidden" }}>
-                            <div 
-                              className={`progress-bar progress-bar-striped ${updateStatus === "running" ? "progress-bar-animated" : ""} ${updateStatus === "failed" ? "bg-danger" : "bg-primary"}`}
-                              role="progressbar" 
-                              style={{ width: `${updateProgress}%`, transition: "width 0.5s ease" }}
-                              aria-valuenow={updateProgress} 
-                              aria-valuemin={0} 
-                              aria-valuemax={100}
-                            ></div>
-                          </div>
-
-                          <div className="terminal-container rounded-xl overflow-hidden" style={{ background: "#0f172a", border: "1px solid #1e293b", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}>
-                            <div className="terminal-header d-flex align-items-center px-3 py-2" style={{ background: "#1e293b", borderBottom: "1px solid #334155" }}>
-                              <div className="d-flex gap-2">
-                                <div className="rounded-circle" style={{ width: "12px", height: "12px", background: "#ef4444" }}></div>
-                                <div className="rounded-circle" style={{ width: "12px", height: "12px", background: "#eab308" }}></div>
-                                <div className="rounded-circle" style={{ width: "12px", height: "12px", background: "#22c55e" }}></div>
-                              </div>
-                              <div className="mx-auto extra-small text-muted fw-medium" style={{ color: "#94a3b8" }}>
-                                deploy@agromanage: ~
-                              </div>
-                            </div>
-                            <pre 
-                              ref={terminalRef}
-                              className="p-3 m-0"
-                              style={{ 
-                                height: "300px", 
-                                overflowY: "auto", 
-                                color: "#10b981", 
-                                fontFamily: "'Fira Code', 'Courier New', Courier, monospace", 
-                                fontSize: "0.85rem",
-                                whiteSpace: "pre-wrap",
-                                wordBreak: "break-all"
-                              }}
-                            >
-                              {updateLogs || "Aguardando logs..."}
-                            </pre>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </div>

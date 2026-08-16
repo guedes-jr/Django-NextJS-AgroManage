@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Bot, Building2, ClipboardList, Eye, LayoutDashboard, LogOut, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards } from "lucide-react";
+import { Activity, Bot, Building2, ClipboardList, Eye, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards } from "lucide-react";
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
@@ -64,6 +64,11 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
             const active = item.href === "/platform" ? pathname === item.href : pathname.startsWith(item.href);
             return <Link key={item.href} href={item.href} className={active ? "active" : ""}><item.icon size={19} /><span className="nav-label">{item.label}</span></Link>;
           })}
+          {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
+            <Link href="/platform/system-update" className={pathname.startsWith("/platform/system-update") ? "active" : ""}>
+              <RefreshCw size={19} /><span className="nav-label">Atualização do sistema</span>
+            </Link>
+          )}
           {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
             <Link href="/platform/team" className={pathname.startsWith("/platform/team") ? "active" : ""}>
               <UserCog size={19} /><span className="nav-label">Equipe interna</span>

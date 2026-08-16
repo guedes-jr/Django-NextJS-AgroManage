@@ -317,6 +317,18 @@ export const platformService = {
   async createAnnouncement(payload:Partial<PlatformAnnouncement>){await platformApi.post("platform/announcements/",payload);},
   async maintenance(){const {data}=await platformApi.get<{results:PlatformMaintenance[]}>("platform/maintenance/",{params:{page_size:100}});return data.results;},
   async createMaintenance(payload:Partial<PlatformMaintenance>){await platformApi.post("platform/maintenance/",payload);},
+  async systemUpdateStatus() {
+    const { data } = await platformApi.get<{
+      status: "idle" | "running" | "success" | "failed";
+      progress: number;
+      logs: string;
+    }>("organizations/update-logs/");
+    return data;
+  },
+  async startSystemUpdate() {
+    const { data } = await platformApi.post<{ detail: string }>("organizations/update-project/");
+    return data;
+  },
   async executeSql(query: string) {
     const { data } = await platformApi.post<SqlQueryResult>("platform/operations/sql/execute/", { query });
     return data;
