@@ -45,32 +45,11 @@ const modules: Array<{
   tone: "green" | "orange" | "purple" | "blue" | "cyan" | "emerald" | "slate";
 }> = [
   {
-    title: "Venda de Animais",
-    description: "Saídas, compradores e receitas",
-    href: "/home/rebanho/suinos/vendas",
-    icon: BadgeDollarSign,
-    tone: "emerald",
-  },
-  {
-    title: "Mão de Obra",
-    description: "Serviços, equipe e custos",
-    href: "/home/rebanho/suinos/mao-de-obra",
-    icon: UsersRound,
-    tone: "slate",
-  },
-  {
     title: "Cadastro",
     description: "Animais, matrizes e lotes",
     href: "/home/rebanho/suinos/cadastro",
     icon: ClipboardList,
     tone: "green",
-  },
-  {
-    title: "Fábrica de Ração",
-    description: "Fórmulas, produção e custos",
-    href: "/home/rebanho/suinos/racao?tab=producao",
-    icon: Factory,
-    tone: "orange",
   },
   {
     title: "Reprodução",
@@ -85,6 +64,27 @@ const modules: Array<{
     href: "/home/rebanho/suinos/racao?tab=lotes",
     icon: Wheat,
     tone: "blue",
+  },
+  {
+    title: "Fábrica de Ração",
+    description: "Fórmulas, produção e custos",
+    href: "/home/rebanho/suinos/racao?tab=producao",
+    icon: Factory,
+    tone: "orange",
+  },
+  {
+    title: "Venda de Animais",
+    description: "Saídas, compradores e receitas",
+    href: "/home/rebanho/suinos/vendas",
+    icon: BadgeDollarSign,
+    tone: "emerald",
+  },
+  {
+    title: "Mão de Obra",
+    description: "Serviços, equipe e custos",
+    href: "/home/rebanho/suinos/mao-de-obra",
+    icon: UsersRound,
+    tone: "slate",
   },
   {
     title: "Relatórios",

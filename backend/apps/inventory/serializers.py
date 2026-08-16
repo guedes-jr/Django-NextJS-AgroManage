@@ -374,10 +374,11 @@ class AlertaEstoqueSerializer(serializers.ModelSerializer):
 class FormulaIngredienteSerializer(serializers.ModelSerializer):
     item_nome = serializers.CharField(source="item.nome", read_only=True)
     estoque_atual = serializers.DecimalField(source="item.estoque_atual", max_digits=10, decimal_places=2, read_only=True)
+    custo_medio = serializers.DecimalField(source="item.custo_medio", max_digits=12, decimal_places=2, read_only=True)
     
     class Meta:
         model = FormulaIngrediente
-        fields = ["id", "item", "item_nome", "percentual", "estoque_atual"]
+        fields = ["id", "item", "item_nome", "percentual", "estoque_atual", "custo_medio"]
 
 
 class FormulaRacaoSerializer(serializers.ModelSerializer):

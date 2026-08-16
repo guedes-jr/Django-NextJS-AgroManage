@@ -5,7 +5,6 @@ import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
   Bird,
   CircleDollarSign,
   Icon,
@@ -76,7 +75,6 @@ const sidebarSections: SidebarSection[] = [
       { title: "Estoque", href: "/home/estoque/resumo", icon: PackageOpen },
       { title: "Financeiro", href: "/home/financeiro", icon: CircleDollarSign },
       { title: "Estrutura da fazenda", href: "/home/estrutura", icon: BarnIcon },
-      { title: "Relatórios", href: "/home/relatorios", icon: BarChart3 },
     ],
   },
   {
