@@ -19,6 +19,11 @@ class StockReportService:
         return lote.numero_lote or str(lote.id)
 
     @staticmethod
+    def _get_item_code(item) -> str | None:
+        """ItemEstoque não possui mais o antigo campo `codigo`."""
+        return str(item.id).split("-")[0].upper() if item else None
+
+    @staticmethod
     def get_general_stock(organization, filters: Dict = None) -> Dict[str, Any]:
         """
         Relatório geral de estoque.
@@ -36,10 +41,7 @@ class StockReportService:
             if filters.get("category"):
                 items = items.filter(categoria=filters["category"])
             if filters.get("search"):
-                items = items.filter(
-                    Q(nome__icontains=filters["search"])
-                    | Q(codigo__icontains=filters["search"])
-                )
+                items = items.filter(nome__icontains=filters["search"])
 
         results = []
         total_value = 0
@@ -54,11 +56,10 @@ class StockReportService:
             )
             min_stock = item.estoque_minimo or 0
 
-            if total_qty > 0:
-                results.append(
-                    {
+            results.append(
+                {
                         "id": str(item.id),
-                        "code": item.codigo,
+                        "code": StockReportService._get_item_code(item),
                         "name": item.nome,
                         "category": item.get_categoria_display(),
                         "unit": item.get_unidade_medida_display(),
@@ -68,11 +69,11 @@ class StockReportService:
                         else 0,
                         "total_value": round(float(total_cost), 2),
                         "min_stock": float(min_stock),
-                        "is_low_stock": total_qty <= min_stock if min_stock else False,
-                    }
-                )
-                total_value += total_cost
-                total_items += 1
+                        "is_low_stock": total_qty < min_stock if min_stock else False,
+                }
+            )
+            total_value += total_cost
+            total_items += 1
 
         return {
             "items": results,
@@ -128,7 +129,7 @@ class StockReportService:
                     else None,
                     "type": movement.get_tipo_display(),
                     "type_code": movement.tipo,
-                    "item_code": movement.item.codigo if movement.item else None,
+                    "item_code": StockReportService._get_item_code(movement.item),
                     "item_name": movement.item.nome if movement.item else None,
                     "quantity": float(movement.quantidade or 0),
                     "lote_code": StockReportService._get_lote_code(movement.lote),
@@ -191,7 +192,7 @@ class StockReportService:
                 results.append(
                     {
                         "id": str(item.id),
-                        "code": item.codigo,
+                        "code": StockReportService._get_item_code(item),
                         "name": item.nome,
                         "category": item.get_categoria_display(),
                         "unit": item.get_unidade_medida_display(),
@@ -246,7 +247,7 @@ class StockReportService:
                 {
                     "id": str(lote.id),
                     "item_id": str(lote.item.id),
-                    "item_code": lote.item.codigo,
+                    "item_code": StockReportService._get_item_code(lote.item),
                     "item_name": lote.item.nome,
                     "lote_code": StockReportService._get_lote_code(lote),
                     "quantity": float(quantity),
@@ -312,18 +313,22 @@ class FinancialReportService:
         """
         from apps.finance.models import Transaction, FinancialCategory
 
-        queryset = Transaction.objects.filter(organization=organization)
+        queryset = Transaction.objects.filter(
+            organization=organization,
+            status=Transaction.Status.PAID,
+            payment_date__isnull=False,
+        )
 
         if date_range:
             start = date_range.get("start")
             end = date_range.get("end")
             if start:
-                queryset = queryset.filter(due_date__gte=start)
+                queryset = queryset.filter(payment_date__gte=start)
             if end:
-                queryset = queryset.filter(due_date__lte=end)
+                queryset = queryset.filter(payment_date__lte=end)
 
         monthly = (
-            queryset.annotate(month=TruncMonth("due_date"))
+            queryset.annotate(month=TruncMonth("payment_date"))
             .values("month", "category__category_type")
             .annotate(total=Sum("amount"))
             .order_by("month")
@@ -465,7 +470,9 @@ class FinancialReportService:
         """
         from apps.finance.models import Transaction, FinancialCategory
 
-        queryset = Transaction.objects.filter(organization=organization)
+        queryset = Transaction.objects.filter(organization=organization).exclude(
+            status=Transaction.Status.CANCELLED
+        )
 
         if category_type:
             queryset = queryset.filter(category__category_type=category_type)
@@ -522,7 +529,7 @@ class FinancialReportService:
 
         queryset = Transaction.objects.filter(
             organization=organization, due_date__gte=start_date, due_date__lte=end_date
-        )
+        ).exclude(status=Transaction.Status.CANCELLED)
 
         monthly = (
             queryset.annotate(month=TruncMonth("due_date"))
@@ -635,7 +642,8 @@ class LivestockReportService:
                     "category": batch.category,
                     "origin": batch.origin,
                     "quantity": batch.quantity,
-                    "status": batch.get_status_display(),
+                    "status": batch.status,
+                    "status_display": batch.get_status_display(),
                     "entry_date": batch.entry_date.isoformat()
                     if batch.entry_date
                     else None,
@@ -672,6 +680,9 @@ class LivestockReportService:
                 for s in by_status
             ],
             "total_animals": batches.aggregate(total=Sum("quantity"))["total"] or 0,
+            "total_active_animals": batches.filter(status="active").aggregate(
+                total=Sum("quantity")
+            )["total"] or 0,
         }
 
 

@@ -424,8 +424,10 @@ def dashboard_summary(request):
             "amount": float(transaction.amount),
             "category": transaction.category.name,
         }
-        for transaction in transactions_qs.exclude(status=Transaction.Status.CANCELLED)
-        .select_related("category").order_by("-payment_date", "-created_at")[:4]
+        for transaction in transactions_qs.filter(
+            status=Transaction.Status.PAID,
+            payment_date__isnull=False,
+        ).select_related("category").order_by("-payment_date", "-created_at")[:4]
     ]
 
     # Chart: last 7 months revenue vs expense
@@ -433,6 +435,7 @@ def dashboard_summary(request):
     monthly_finance = list(
         transactions_qs.filter(
             payment_date__gte=seven_months_ago,
+            payment_date__lte=today,
             status=Transaction.Status.PAID,
         )
         .annotate(month=TruncMonth("payment_date"))
@@ -441,12 +444,20 @@ def dashboard_summary(request):
         .order_by("month")
     )
 
-    # Build month buckets
+    # Mantém os sete meses no gráfico, inclusive os meses sem lançamentos.
+    # Isso garante que a comparação da tela seja sempre mês atual x mês anterior.
     finance_map: dict = {}
+    for offset in range(7):
+        bucket_date = seven_months_ago + relativedelta(months=offset)
+        key = bucket_date.strftime("%Y-%m")
+        finance_map[key] = {
+            "mes": bucket_date.strftime("%b"),
+            "receita": 0,
+            "despesa": 0,
+        }
+
     for row in monthly_finance:
-        key = row["month"].strftime("%b")
-        if key not in finance_map:
-            finance_map[key] = {"mes": key, "receita": 0, "despesa": 0}
+        key = row["month"].strftime("%Y-%m")
         if row["category__category_type"] == FinancialCategory.CategoryType.REVENUE:
             finance_map[key]["receita"] += float(row["total"])
         else:

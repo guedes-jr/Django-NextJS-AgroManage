@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
-import { Wallet, TrendingUp, TrendingDown, PieChart, ArrowDown, ArrowUp } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowDown, ArrowUp, CalendarDays } from "lucide-react";
 
 interface CashflowReport {
   summary: {
@@ -26,13 +26,16 @@ export default function FinanceiroReportsPage() {
   const [data, setData] = useState<CashflowReport | null>(null);
   const [activeTab, setActiveTab] = useState<'fluxo' | 'dre' | 'categoria' | 'comparativo'>('fluxo');
   const [loading, setLoading] = useState(true);
+  const currentYear = new Date().getFullYear();
+  const [start, setStart] = useState(`${currentYear}-01-01`);
+  const [end, setEnd] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
-    apiClient.get("/reports/finance/cashflow/")
+    apiClient.get("/reports/finance/cashflow/", { params: { start, end } })
       .then(res => setData(res.data))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [start, end]);
 
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -45,15 +48,21 @@ export default function FinanceiroReportsPage() {
     );
   }
 
-  const totalIncome = data?.by_category?.filter(c => c.type === 'revenue').reduce((sum, c) => sum + c.amount, 0) || 0;
-  const totalExpense = data?.by_category?.filter(c => c.type === 'expense').reduce((sum, c) => sum + c.amount, 0) || 0;
+  const totalIncome = data?.summary.total_revenue || 0;
+  const totalExpense = data?.summary.total_expense || 0;
 
   return (
     <div className="p-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h4 className="fw-bold mb-1">Relatório Financeiro</h4>
-          <p className="text-muted mb-0">Análise financeira da fazenda</p>
+          <p className="text-muted mb-0">Pagamentos realizados no período selecionado</p>
+        </div>
+        <div className="d-flex align-items-center gap-2">
+          <CalendarDays size={18} />
+          <input className="form-control" type="date" value={start} max={end} onChange={event => setStart(event.target.value)} />
+          <span>até</span>
+          <input className="form-control" type="date" value={end} min={start} onChange={event => setEnd(event.target.value)} />
         </div>
       </div>
 

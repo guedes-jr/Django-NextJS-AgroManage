@@ -276,7 +276,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     n: c.cycle_number,
     dataCob: fmtDate(c.mating_date) || "-",
     tipo: c.mating_type_display || c.mating_type || "-",
-    rep: c.mating_type === 'natural' && c.sire_name ? `${c.sire_identifier} - ${c.sire_name}` : (c.sire_identifier || c.sire_info || "-"),
+    rep: c.sire_name || c.sire_info || c.sire_identifier || "-",
     dataConf: c.pregnancy_confirmed ? "Confirmada" : (c.pregnancy_status === "failed" ? "Falhou" : "-"),
     prevParto: fmtDate(c.expected_birth_date) || "-",
     dataParto: fmtDate(c.birth_date) || "-",

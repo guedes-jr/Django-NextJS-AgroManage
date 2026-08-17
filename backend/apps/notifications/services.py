@@ -155,7 +155,7 @@ class NotificationService:
     def create_due_reproductive_vaccine_notifications(organization=None):
         """Cria, uma única vez, os avisos de vacinas reprodutivas vencidas."""
         from django.db import transaction
-        from apps.livestock.models import Birth
+        from apps.livestock.models import Birth, Litter, Mating
 
         due = Birth.objects.filter(
             reproductive_vaccine_due_date__lte=timezone.now().date(),
@@ -187,5 +187,68 @@ class NotificationService:
                 )
                 birth.reproductive_vaccine_notification_sent = True
                 birth.save(update_fields=['reproductive_vaccine_notification_sent'])
+                created += 1
+
+        mating_due = Mating.objects.filter(
+            reproductive_vaccine_due_date__lte=timezone.now().date(),
+            reproductive_vaccine_notification_sent=False,
+            reproductive_vaccine_item__isnull=False,
+        ).select_related('female__farm__organization', 'reproductive_vaccine_item')
+        if organization is not None:
+            mating_due = mating_due.filter(female__farm__organization=organization)
+
+        for mating_id in mating_due.values_list('id', flat=True):
+            with transaction.atomic():
+                mating = Mating.objects.select_for_update().select_related(
+                    'female__farm__organization', 'reproductive_vaccine_item'
+                ).get(id=mating_id)
+                if mating.reproductive_vaccine_notification_sent:
+                    continue
+                NotificationService.create_for_organization(
+                    organization=mating.female.farm.organization,
+                    title=f"Vacina reprodutiva — {mating.female.identifier}",
+                    message=(
+                        f"Aplicar {mating.reproductive_vaccine_item.nome} na fêmea "
+                        f"{mating.female.identifier}. Agendada para "
+                        f"{mating.reproductive_vaccine_due_date.strftime('%d/%m/%Y')}."
+                    ),
+                    notif_type=NotificationType.ANIMAL,
+                    priority=NotificationPriority.HIGH,
+                    link="/home/rebanho/suinos/reproducao?tab=gestacao",
+                )
+                mating.reproductive_vaccine_notification_sent = True
+                mating.save(update_fields=['reproductive_vaccine_notification_sent'])
+                created += 1
+
+        mating_notices = Litter.objects.filter(
+            next_mating_notice_date__lte=timezone.now().date(),
+            next_mating_notification_sent=False,
+        ).select_related('birth__female__farm__organization')
+        if organization is not None:
+            mating_notices = mating_notices.filter(
+                birth__female__farm__organization=organization
+            )
+
+        for litter_id in mating_notices.values_list('id', flat=True):
+            with transaction.atomic():
+                litter = Litter.objects.select_for_update().select_related(
+                    'birth__female__farm__organization'
+                ).get(id=litter_id)
+                if litter.next_mating_notification_sent:
+                    continue
+                female = litter.birth.female
+                NotificationService.create_for_organization(
+                    organization=female.farm.organization,
+                    title=f"Próxima cobertura — {female.identifier}",
+                    message=(
+                        f"A matriz {female.identifier} está programada para uma nova cobertura "
+                        f"em {litter.next_mating_notice_date.strftime('%d/%m/%Y')}."
+                    ),
+                    notif_type=NotificationType.ANIMAL,
+                    priority=NotificationPriority.HIGH,
+                    link="/home/rebanho/suinos/reproducao?tab=matrizes",
+                )
+                litter.next_mating_notification_sent = True
+                litter.save(update_fields=['next_mating_notification_sent'])
                 created += 1
         return created

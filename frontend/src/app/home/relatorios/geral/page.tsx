@@ -9,23 +9,19 @@ import {
   Beef,
   TrendingUp,
   TrendingDown,
-  Calendar,
   ArrowRight
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface DashboardData {
   kpis: {
-    total_revenue: number;
-    total_expenses: number;
-    net_result: number;
+    month_revenue: number;
+    month_expense: number;
     total_animals: number;
     total_inventory_value: number;
-    low_stock_count: number;
+    low_stock_items: number;
   };
-  monthly_revenue: { month: string; value: number }[];
-  monthly_expenses: { month: string; value: number }[];
-  expense_by_category: { category: string; total: number }[];
+  charts: { revenue_vs_expense: { mes: string; receita: number; despesa: number }[] };
 }
 
 export default function RelatoriosGeralPage() {
@@ -71,8 +67,8 @@ export default function RelatoriosGeralPage() {
                   <TrendingUp size={24} className="text-success" />
                 </div>
                 <div>
-                  <div className="text-muted small">Receita Total</div>
-                  <div className="fw-bold fs-5">{formatCurrency(data?.kpis.total_revenue || 0)}</div>
+                  <div className="text-muted small">Receita do mês</div>
+                  <div className="fw-bold fs-5">{formatCurrency(data?.kpis.month_revenue || 0)}</div>
                 </div>
               </div>
             </div>
@@ -87,8 +83,8 @@ export default function RelatoriosGeralPage() {
                   <TrendingDown size={24} className="text-danger" />
                 </div>
                 <div>
-                  <div className="text-muted small">Despesas Totais</div>
-                  <div className="fw-bold fs-5">{formatCurrency(data?.kpis.total_expenses || 0)}</div>
+                  <div className="text-muted small">Despesas do mês</div>
+                  <div className="fw-bold fs-5">{formatCurrency(data?.kpis.month_expense || 0)}</div>
                 </div>
               </div>
             </div>
@@ -104,8 +100,8 @@ export default function RelatoriosGeralPage() {
                 </div>
                 <div>
                   <div className="text-muted small">Resultado Líquido</div>
-                  <div className={`fw-bold fs-5 ${(data?.kpis.net_result || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
-                    {formatCurrency(data?.kpis.net_result || 0)}
+                  <div className={`fw-bold fs-5 ${((data?.kpis.month_revenue || 0) - (data?.kpis.month_expense || 0)) >= 0 ? 'text-success' : 'text-danger'}`}>
+                    {formatCurrency((data?.kpis.month_revenue || 0) - (data?.kpis.month_expense || 0))}
                   </div>
                 </div>
               </div>
@@ -190,12 +186,12 @@ export default function RelatoriosGeralPage() {
               <h6 className="fw-bold mb-0">Alertas</h6>
             </div>
             <div className="card-body">
-              {data?.kpis.low_stock_count ? (
+              {data?.kpis.low_stock_items ? (
                 <div className="d-flex align-items-center gap-3 p-3 bg-warning bg-opacity-10 rounded">
                   <Package size={24} className="text-warning" />
                   <div>
                     <div className="fw-medium">Estoque Baixo</div>
-                    <div className="text-muted small">{data.kpis.low_stock_count} itens abaixo do mínimo</div>
+                    <div className="text-muted small">{data.kpis.low_stock_items} itens abaixo do mínimo</div>
                   </div>
                 </div>
               ) : (

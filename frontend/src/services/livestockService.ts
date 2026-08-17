@@ -69,7 +69,7 @@ export const createMating = async (data: any) => {
   return response.data;
 };
 
-export const getReproducers = async (species: string): Promise<{ id: number; identifier: string; category: string }[]> => {
+export const getReproducers = async (species: string): Promise<{ id: number; identifier: string; name: string; category: string }[]> => {
   const response = await apiClient.get(`/livestock/animals/reproducers/?species=${species}`);
   return response.data;
 };

@@ -458,6 +458,7 @@ class AnimalSerializer(serializers.ModelSerializer):
     species_name = serializers.CharField(source='species.name', read_only=True)
     species_code = serializers.CharField(source='species.code', read_only=True)
     breed_name = serializers.CharField(source='breed.name', read_only=True)
+    farm_name = serializers.CharField(source='farm.name', read_only=True)
     batch_code = serializers.CharField(source='batch.batch_code', read_only=True)
     batch_origin = serializers.SerializerMethodField()
 
@@ -471,7 +472,7 @@ class AnimalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Animal
         fields = [
-            'id', 'farm', 'species', 'species_name', 'species_code', 'breed', 'breed_name',
+            'id', 'farm', 'farm_name', 'species', 'species_name', 'species_code', 'breed', 'breed_name',
             'batch', 'batch_code', 'batch_origin', 'identifier', 'birth_date', 'entry_date',
             'gender', 'category', 'status', 'reproductive_status',
             'initial_weight_kg', 'current_weight_kg', 'notes',
@@ -573,9 +574,38 @@ class MatingSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'female', 'female_identifier', 'sire', 'sire_identifier',
             'sire_info', 'mating_date', 'mating_type', 'status',
-            'expected_birth_date', 'notes'
+            'expected_birth_date', 'reproductive_vaccine_item',
+            'reproductive_vaccine_days', 'reproductive_vaccine_due_date', 'notes'
         ]
-        read_only_fields = ['female']
+        read_only_fields = ['female', 'reproductive_vaccine_due_date']
+
+    def validate(self, attrs):
+        item = attrs.get('reproductive_vaccine_item')
+        days = attrs.get('reproductive_vaccine_days')
+        if bool(item) != bool(days):
+            raise serializers.ValidationError({
+                'reproductive_vaccine_days': 'Selecione a vacina e informe os dias para o aviso.'
+            })
+        if days is not None and not 1 <= days <= 365:
+            raise serializers.ValidationError({
+                'reproductive_vaccine_days': 'Informe um prazo entre 1 e 365 dias.'
+            })
+        request = self.context.get('request')
+        if item and request and item.organization_id != request.user.organization_id:
+            raise serializers.ValidationError({'reproductive_vaccine_item': 'Vacina inválida.'})
+        if item and item.categoria != 'vacina':
+            raise serializers.ValidationError({'reproductive_vaccine_item': 'O item selecionado não é uma vacina.'})
+        return attrs
+
+    def create(self, validated_data):
+        import datetime
+
+        days = validated_data.get('reproductive_vaccine_days')
+        if days:
+            validated_data['reproductive_vaccine_due_date'] = (
+                validated_data['mating_date'] + datetime.timedelta(days=days)
+            )
+        return super().create(validated_data)
 
 
 class PregnancySerializer(serializers.ModelSerializer):
@@ -644,8 +674,26 @@ class LitterSerializer(serializers.ModelSerializer):
         model = Litter
         fields = [
             'id', 'birth', 'weaning_date', 'weaned_quantity',
-            'avg_weaning_weight_kg', 'notes'
+            'avg_weaning_weight_kg', 'next_mating_notice_days',
+            'next_mating_notice_date', 'notes'
         ]
+        read_only_fields = ['next_mating_notice_date']
+
+    def validate_next_mating_notice_days(self, value):
+        if value is not None and not 1 <= value <= 365:
+            raise serializers.ValidationError("Informe um prazo entre 1 e 365 dias.")
+        return value
+
+    def create(self, validated_data):
+        import datetime
+
+        days = validated_data.get('next_mating_notice_days')
+        weaning_date = validated_data.get('weaning_date')
+        if days and weaning_date:
+            validated_data['next_mating_notice_date'] = (
+                weaning_date + datetime.timedelta(days=days)
+            )
+        return super().create(validated_data)
 
 
 class IncubationSerializer(serializers.ModelSerializer):

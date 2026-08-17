@@ -228,6 +228,16 @@ class Mating(BaseModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING_DG)
     
     expected_birth_date = models.DateField(null=True, blank=True)
+    reproductive_vaccine_item = models.ForeignKey(
+        "inventory.ItemEstoque",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="scheduled_mating_reproductive_vaccinations",
+    )
+    reproductive_vaccine_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    reproductive_vaccine_due_date = models.DateField(null=True, blank=True)
+    reproductive_vaccine_notification_sent = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
     class Meta(BaseModel.Meta):
@@ -353,6 +363,9 @@ class Litter(BaseModel):
     weaning_date = models.DateField(null=True, blank=True)
     weaned_quantity = models.PositiveIntegerField(default=0, help_text="Quantidade desmamada viva")
     avg_weaning_weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    next_mating_notice_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    next_mating_notice_date = models.DateField(null=True, blank=True)
+    next_mating_notification_sent = models.BooleanField(default=False)
     
     notes = models.TextField(blank=True)
 

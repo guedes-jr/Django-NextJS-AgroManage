@@ -243,7 +243,7 @@ export function ReproducaoDashboard({
   initialLoading?: boolean;
   tabLoading?: Record<string, boolean>;
   onSuccess?: () => void;
-  reproducerOptions?: { id: number; identifier: string; category: string }[];
+  reproducerOptions?: { id: number; identifier: string; name?: string; category: string }[];
   activeTab?: string;
   onTabChange?: (id: string) => void;
 }) {
@@ -1092,6 +1092,28 @@ export function ReproducaoDashboard({
               initialValue: rows.length === 1 
                 ? `L-CRECHE-${rows[0].identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
                 : `L-CRECHE-LOTE-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
+            },
+            {
+              name: "schedule_next_mating",
+              label: "Agendar aviso da próxima cobertura?",
+              type: "select",
+              required: true,
+              initialValue: "no",
+              options: [
+                { value: "no", label: "Não agendar" },
+                { value: "yes", label: "Agendar aviso" },
+              ],
+              showIf: (values) => values.weaning_type === "total",
+            },
+            {
+              name: "next_mating_notice_days",
+              label: "Avisar após o desmame (dias)",
+              type: "number",
+              required: true,
+              initialValue: 7,
+              min: 1,
+              max: 365,
+              showIf: (values) => values.weaning_type === "total" && values.schedule_next_mating === "yes",
             }
           ],
           onConfirm: async (data) => {
@@ -1128,6 +1150,9 @@ export function ReproducaoDashboard({
                   weaning_date: data.weaning_date,
                   weaned_quantity: batchQty,
                   avg_weaning_weight_kg: data.avg_weaning_weight_kg ? parseFloat(data.avg_weaning_weight_kg) : null,
+                  next_mating_notice_days: data.weaning_type === "total" && data.schedule_next_mating === "yes"
+                    ? Number(data.next_mating_notice_days)
+                    : null,
                   notes: `Desmame da matriz ${identifier}`
                 });
 
@@ -1172,7 +1197,7 @@ export function ReproducaoDashboard({
       case 'mating_marra': {
         const sireOpts = (reproducerOptions || []).map(r => ({
           value: String(r.id),
-          label: `${r.identifier}${r.category ? ` (${r.category})` : ''}`,
+          label: `${r.name || r.identifier}${r.name && r.name !== r.identifier ? ` — ${r.identifier}` : ''}${r.category ? ` (${r.category})` : ''}`,
         }));
         const semenOpts = (semenItems || []).map(s => {
           const classif = s.tipo_semen_display || (s.tipo_semen === 'sexado_macho' ? 'Sexado Macho' : s.tipo_semen === 'sexado_femea' ? 'Sexado Fêmea' : 'Convencional');
@@ -1257,29 +1282,33 @@ export function ReproducaoDashboard({
               showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
             {
-              name: "apply_reproductive_vaccine",
-              label: "Vac. reprod.?",
+              name: "schedule_reproductive_vaccine",
+              label: "Agendar vacina reprodutiva?",
               type: "select",
               options: [
-                { value: "no", label: "Não aplicar" },
-                { value: "yes", label: "Aplicar agora" },
+                { value: "no", label: "Não agendar" },
+                { value: "yes", label: "Agendar aviso" },
               ],
               initialValue: "no",
               required: true,
             },
             {
-              name: "reproductive_vaccine_item_id",
+              name: "reproductive_vaccine_item",
               label: "Vacina reprodutiva",
               type: "select",
               options: reproductiveVaccineOpts,
               required: true,
-              showIf: (vals) => vals.apply_reproductive_vaccine === "yes",
+              showIf: (vals) => vals.schedule_reproductive_vaccine === "yes",
             },
             {
-              name: "reproductive_vaccine_dosage_ml",
-              label: "Dose (ml)",
+              name: "reproductive_vaccine_days",
+              label: "Avisar após (dias)",
               type: "number",
-              showIf: (vals) => vals.apply_reproductive_vaccine === "yes",
+              required: true,
+              initialValue: 21,
+              min: 1,
+              max: 365,
+              showIf: (vals) => vals.schedule_reproductive_vaccine === "yes",
             },
             { name: "notes", label: "Observações", type: "textarea" },
           ],
@@ -1292,6 +1321,13 @@ export function ReproducaoDashboard({
               }
             }
 
+            if (data.material_origin !== "semen" && data.sire_id) {
+              const selectedSire = (reproducerOptions || []).find(
+                sire => String(sire.id) === String(data.sire_id)
+              );
+              if (selectedSire) computedSireInfo = selectedSire.name || selectedSire.identifier;
+            }
+
             const isSireText = isNaN(Number(data.sire_id));
             if (isSireText && data.sire_id) {
               computedSireInfo = computedSireInfo ? `${computedSireInfo} - ${data.sire_id}` : data.sire_id;
@@ -1302,6 +1338,12 @@ export function ReproducaoDashboard({
               mating_type: data.mating_type || "natural",
               sire_info: computedSireInfo,
               ...(data.material_origin !== "semen" && data.sire_id && !isSireText ? { sire_id: Number(data.sire_id) } : {}),
+              reproductive_vaccine_item: data.schedule_reproductive_vaccine === "yes"
+                ? Number(data.reproductive_vaccine_item)
+                : null,
+              reproductive_vaccine_days: data.schedule_reproductive_vaccine === "yes"
+                ? Number(data.reproductive_vaccine_days)
+                : null,
               notes: data.notes || "",
             };
 
@@ -1314,16 +1356,6 @@ export function ReproducaoDashboard({
 
             // 1. Register the coverages
             await Promise.all(animalIds.map(animalId => registerMating(String(animalId), payload)));
-
-            if (data.apply_reproductive_vaccine === "yes" && data.reproductive_vaccine_item_id) {
-              await Promise.all(animalIds.map(animalId => registerVaccination(String(animalId), {
-                vaccine_item_id: Number(data.reproductive_vaccine_item_id),
-                application_date: data.mating_date,
-                dose_type: "unica",
-                dosage_ml: data.reproductive_vaccine_dosage_ml ? Number(data.reproductive_vaccine_dosage_ml) : undefined,
-                notes: "Vacina reprodutiva aplicada durante o registro da cobertura.",
-              })));
-            }
 
             // 2. Perform inventory consumption if semen is used
             if (data.material_origin === "semen" && data.semen_item_id) {

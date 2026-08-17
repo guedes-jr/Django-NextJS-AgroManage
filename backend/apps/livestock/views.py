@@ -587,7 +587,11 @@ def build_reproductive_cycles(animal):
             "mating_type": m.mating_type,
             "mating_type_display": m.get_mating_type_display(),
             "sire_identifier": m.sire.identifier if m.sire else None,
-            "sire_name": m.sire.batch.name if m.sire and m.sire.batch else None,
+            "sire_name": (
+                m.sire.batch.name
+                if m.sire and m.sire.batch and m.sire.batch.name
+                else (m.sire.identifier if m.sire else None)
+            ),
             "sire_info": m.sire_info,
             "status": m.status,
             "status_display": m.get_status_display(),
@@ -1200,9 +1204,14 @@ class AnimalViewSet(viewsets.ModelViewSet):
             species__code=species,
             gender='M',
             status='active'
-        ).order_by('identifier')
+        ).select_related('batch').order_by('identifier')
         data = [
-            {'id': a.id, 'identifier': a.identifier, 'category': a.category or ''}
+            {
+                'id': a.id,
+                'identifier': a.identifier,
+                'name': a.batch.name if a.batch and a.batch.name else a.identifier,
+                'category': a.category or '',
+            }
             for a in qs
         ]
         return Response(data)
@@ -1210,7 +1219,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='register-mating')
     def register_mating(self, request, pk=None):
         animal = self.get_object()
-        serializer = MatingSerializer(data=request.data)
+        serializer = MatingSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             mating = serializer.save(female=animal)
 
