@@ -409,7 +409,6 @@ export default function FarmStructurePage() {
           <div>
             <button onClick={() => openCreate(selectedCategory === "all" ? "pigsty" : selectedCategory)} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
             <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>Ver todos os itens</strong><small>Lista consolidada</small></span></button>
-            <button onClick={() => router.push("/home/relatorios")}><BarChart3 size={20} /><span><strong>Relatórios</strong><small>Análises da fazenda</small></span></button>
           </div>
         </section>
       </div>
