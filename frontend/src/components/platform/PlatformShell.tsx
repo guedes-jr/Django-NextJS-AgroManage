@@ -35,14 +35,14 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         clearPlatformSession();
-        router.replace("/platform/login");
+        router.replace("/login");
       })
       .finally(() => setChecking(false));
   }, [router]);
 
   const logout = () => {
     clearPlatformSession();
-    router.replace("/platform/login");
+    router.replace("/login");
   };
 
   if (checking && !staff) {

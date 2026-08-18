@@ -75,6 +75,23 @@ class PlatformAccessAPITestCase(APITestCase):
         self.assertEqual(response.data["email"], self.platform_admin.email)
         self.assertEqual(response.data["role"], PlatformStaffProfile.Role.ADMIN)
 
+    def test_login_identifies_platform_staff_without_trusting_is_staff_alone(self):
+        platform_response = self.client.post(
+            reverse("auth_login"),
+            {"email": self.platform_admin.email, "password": "password123"},
+            format="json",
+        )
+        customer_response = self.client.post(
+            reverse("auth_login"),
+            {"email": self.customer_owner.email, "password": "password123"},
+            format="json",
+        )
+
+        self.assertEqual(platform_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(platform_response.data["user"]["is_platform_staff"])
+        self.assertEqual(customer_response.status_code, status.HTTP_200_OK)
+        self.assertFalse(customer_response.data["user"]["is_platform_staff"])
+
     def test_platform_admin_can_list_all_organizations(self):
         self.client.force_authenticate(user=self.platform_admin)
 

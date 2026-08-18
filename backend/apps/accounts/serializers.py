@@ -44,6 +44,10 @@ class LoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(required=False, allow_null=True)
+    is_platform_staff = serializers.SerializerMethodField()
+
+    def get_is_platform_staff(self, user):
+        return is_active_platform_staff(user)
     
     class Meta:
         model = User
@@ -61,6 +65,7 @@ class UserSerializer(serializers.ModelSerializer):
             "min_stock_alert",
             "is_active",
             "force_password_change",
+            "is_platform_staff",
             "created_at",
             "updated_at",
         ]

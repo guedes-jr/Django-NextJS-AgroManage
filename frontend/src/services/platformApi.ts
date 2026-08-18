@@ -83,7 +83,7 @@ platformApi.interceptors.response.use(
     const refresh = localStorage.getItem(PLATFORM_REFRESH_TOKEN);
     if (!refresh) {
       clearPlatformSession();
-      window.location.href = "/platform/login";
+      window.location.href = "/login";
       return Promise.reject(error);
     }
 
@@ -97,7 +97,7 @@ platformApi.interceptors.response.use(
     } catch (refreshError) {
       waiting.forEach((resolve) => resolve(null));
       clearPlatformSession();
-      window.location.href = "/platform/login";
+      window.location.href = "/login";
       return Promise.reject(refreshError);
     } finally {
       waiting = [];
@@ -113,14 +113,19 @@ export function clearPlatformSession() {
   localStorage.removeItem(PLATFORM_STAFF);
 }
 
+export function setPlatformSession(access: string, refresh: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PLATFORM_ACCESS_TOKEN, access);
+  localStorage.setItem(PLATFORM_REFRESH_TOKEN, refresh);
+}
+
 export const platformService = {
   async login(email: string, password: string) {
     const { data } = await axios.post<{
       access: string;
       refresh: string;
     }>(`${baseURL}auth/login/`, { email, password });
-    localStorage.setItem(PLATFORM_ACCESS_TOKEN, data.access);
-    localStorage.setItem(PLATFORM_REFRESH_TOKEN, data.refresh);
+    setPlatformSession(data.access, data.refresh);
     try {
       const staff = await this.me();
       localStorage.setItem(PLATFORM_STAFF, JSON.stringify(staff));

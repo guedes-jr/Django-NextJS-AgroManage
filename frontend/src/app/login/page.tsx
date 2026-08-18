@@ -4,7 +4,6 @@ import "./login.css";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sprout,
   Mail,
   Lock,
   User,
@@ -13,6 +12,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
+import { clearPlatformSession, platformService, PLATFORM_STAFF, setPlatformSession } from "@/services/platformApi";
 import { useToast } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { isTheme } from "@/lib/theme";
@@ -89,18 +89,24 @@ export default function LoginPage() {
           email: formData.email,
           password: formData.password,
         });
-        localStorage.setItem("access_token", data.access);
-        localStorage.setItem("refresh_token", data.refresh);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        if (isTheme(data.user?.theme)) {
-          setTheme(data.user.theme);
+        if (data.user?.is_platform_staff === true) {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("user");
+          setPlatformSession(data.access, data.refresh);
+          const staff = await platformService.me();
+          localStorage.setItem(PLATFORM_STAFF, JSON.stringify(staff));
+          router.replace("/platform");
+        } else {
+          clearPlatformSession();
+          localStorage.setItem("access_token", data.access);
+          localStorage.setItem("refresh_token", data.refresh);
+          localStorage.setItem("user", JSON.stringify(data.user));
+          if (isTheme(data.user?.theme)) {
+            setTheme(data.user.theme);
+          }
+          router.replace("/home");
         }
-        
-        // Aguarda 100ms para garantir sincronização do localStorage
-        // e que o interceptador tenha tempo de pegar o token
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        router.push("/home");
       } else if (view === "register") {
         await apiClient.post("/auth/register/", {
           email: formData.email,
