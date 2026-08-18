@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
 import { farmStructureService } from "@/services/farmStructureService";
 import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
-import { FarmFormModal, type CreatedFarm } from "@/components/farm/FarmFormModal";
 import { useToast } from "@/components/ui/Toast";
 
 import styles from "./structure.module.css";
@@ -69,7 +68,6 @@ export default function FarmStructurePage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showFarmForm, setShowFarmForm] = useState(false);
   const [role] = useState(() => {
     if (typeof window === "undefined") return "";
     try { return (JSON.parse(localStorage.getItem("user") || "{}") as StoredUser).role || ""; }
@@ -94,12 +92,6 @@ export default function FarmStructurePage() {
       setLoading(false);
     }
   }, []);
-
-  const handleFarmCreated = (farm: CreatedFarm) => {
-    setFarms((current) => [...current.filter((item) => item.id !== farm.id), farm]);
-    setFarmId(farm.id);
-    void loadStructures(farm.id);
-  };
 
   useEffect(() => {
     let active = true;
@@ -211,9 +203,9 @@ export default function FarmStructurePage() {
             )}
           </div>
           <div className={styles.categoryGrid}>
-            <button className={styles.categoryCard} onClick={() => setShowFarmForm(true)}>
+            <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/propriedade")}>
               <div className={styles.categoryMain}><div className={styles.categoryIcon}><Building2 size={34} /></div><div><h3>Propriedade</h3><p>Cadastre uma nova fazenda para organizar talhões, plantações e estruturas.</p></div></div>
-              <div className={styles.categoryFooter}><span>Cadastro da fazenda</span><strong>Adicionar <Plus size={16} /></strong></div>
+              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
             </button>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas")}>
               <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas e veículos</h3><p>Máquinas, implementos, caminhões e veículos da propriedade.</p></div></div>
@@ -272,8 +264,6 @@ export default function FarmStructurePage() {
           </div>
         </section>
       </div>
-
-      <FarmFormModal isOpen={showFarmForm} onClose={() => setShowFarmForm(false)} onCreated={handleFarmCreated} />
     </div>
   );
 }

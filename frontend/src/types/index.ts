@@ -71,6 +71,8 @@ export interface Farm {
   total_area_ha: string | null;
   state: string;
   city: string;
+  address: string;
+  notes: string;
   latitude: string | null;
   longitude: string | null;
   is_active: boolean;
