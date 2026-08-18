@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
-  ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft, Tractor, X, ListChecks, CircleAlert
+  ChevronRight, Info, Pencil, PiggyBank, Search, Trash2, Warehouse,
+  Waves, PanelsTopLeft, Tractor, ListChecks, CircleAlert
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -64,7 +64,6 @@ export default function FarmStructurePage() {
   const [farmId, setFarmId] = useState("");
   const [items, setItems] = useState<FarmStructure[]>([]);
   const [summary, setSummary] = useState<FarmStructureSummary | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<FarmStructureCategory | "all">("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,12 +108,7 @@ export default function FarmStructurePage() {
     return () => { active = false; };
   }, [loadStructures]);
 
-  const categorySummary = useMemo(() => new Map(
-    (summary?.categories || []).map((category) => [category.category, category]),
-  ), [summary]);
-
   const reportRows = useMemo(() => items
-    .filter((structure) => selectedCategory === "all" || structure.category === selectedCategory)
     .flatMap((structure) => [
       {
         key: `structure-${structure.id}`,
@@ -130,20 +124,15 @@ export default function FarmStructurePage() {
         material,
         searchable: `${material.name} ${material.unit} ${structure.name} ${structure.category_label}`,
       })),
-    ]), [items, selectedCategory]);
+    ]), [items]);
 
   const filteredReportRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase("pt-BR").includes(term));
   }, [reportRows, search]);
 
-  const openCreate = (category: FarmStructureCategory = "pigsty") => {
+  const openCreate = (category: FarmStructureCategory) => {
     router.push(`/home/estrutura/${getCategoryPath(category)}`);
-  };
-
-  const selectCategory = (category: FarmStructureCategory) => {
-    setSelectedCategory(category);
-    window.setTimeout(() => document.getElementById("category-overview")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const openEdit = (item: FarmStructure) => {
@@ -168,9 +157,6 @@ export default function FarmStructurePage() {
           <div className={styles.heroIcon}><Warehouse size={30} /></div>
           <div><h1>Estrutura da Fazenda</h1><p>Cadastre e gerencie toda a estrutura da propriedade</p></div>
         </div>
-        <button className="btn btn-light d-flex align-items-center gap-2 fw-semibold" onClick={() => openCreate(selectedCategory === "all" ? "pigsty" : selectedCategory)} disabled={!farmId}>
-          <Plus size={18} /> Nova estrutura
-        </button>
       </header>
 
       <div className={styles.content}>
@@ -194,13 +180,8 @@ export default function FarmStructurePage() {
           <div className={styles.categoryHeading}>
             <div>
               <h2 className={styles.sectionTitle}>1. Escolha a categoria da estrutura</h2>
-              <p>Selecione uma opção para acessar o cadastro correspondente.</p>
+              <p>Selecione uma opção para acessar o módulo correspondente.</p>
             </div>
-            {selectedCategory !== "all" && (
-              <button className={styles.clearFilter} onClick={() => setSelectedCategory("all")}>
-                <X size={15} /> Exibir todas
-              </button>
-            )}
           </div>
           <div className={styles.categoryGrid}>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/propriedade")}>
@@ -215,23 +196,17 @@ export default function FarmStructurePage() {
               <div className={styles.categoryMain}><div className={styles.categoryIcon}><Beef size={34} /></div><div><h3>Curral</h3><p>Estruturas de manejo para bovinos e criações de grande porte.</p></div></div>
               <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
             </button>
-            {categories.map(({ value, label, description, icon: Icon }) => {
-              const data = categorySummary.get(value);
-              return (
-                <button key={value} className={`${styles.categoryCard} ${selectedCategory === value ? styles.selected : ""}`}
-                  onClick={() => selectCategory(value)}>
-                  <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
-                  <div className={styles.categoryFooter}>
-                    <span><ClipboardList size={16} /> {data?.items || 0} itens cadastrados</span>
-                    <strong>{selectedCategory === value ? "Selecionada" : "Ver itens"} <ChevronRight size={16} /></strong>
-                  </div>
-                </button>
-              );
-            })}
+            {categories.map(({ value, label, description, icon: Icon }) => (
+              <button key={value} className={styles.categoryCard} onClick={() => openCreate(value)}>
+                <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
+                <div className={styles.categoryFooter}>
+                  <span>Acessar módulo</span>
+                  <strong>Abrir <ChevronRight size={16} /></strong>
+                </div>
+              </button>
+            ))}
           </div>
         </section>
-
-        {selectedCategory !== "all" && <CategoryOverview category={categories.find((candidate) => candidate.value === selectedCategory)!} structures={items.filter((item) => item.category === selectedCategory)} onEdit={openEdit} onCreate={() => openCreate(selectedCategory)} />}
 
         <section id="structure-report" className="mt-4" style={{ order: 4 }}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
@@ -259,7 +234,6 @@ export default function FarmStructurePage() {
         <section className={styles.quickActions} style={{ order: 3 }}>
           <h2 className={styles.sectionTitle}>Ações rápidas</h2>
           <div>
-            <button onClick={() => openCreate(selectedCategory === "all" ? "pigsty" : selectedCategory)} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
             <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>Ver todos os itens</strong><small>Lista consolidada</small></span></button>
           </div>
         </section>
@@ -319,47 +293,5 @@ function MaterialReportRow({ structure, material, canDelete, onRemoved }: {
         {canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title="Remover item da estrutura"><Trash2 size={15} /></button>}
       </td>
     </tr>
-  );
-}
-
-function CategoryOverview({ category, structures, onEdit, onCreate }: {
-  category: typeof categories[0];
-  structures: FarmStructure[];
-  onEdit: (item: FarmStructure) => void;
-  onCreate: () => void;
-}) {
-  const Icon = category.icon;
-  const count = structures.length;
-  const value = structures.reduce((sum, item) => sum + (Number(item.current_value) * item.quantity), 0);
-  return (
-    <div id="category-overview" className={styles.categoryOverview} style={{ order: 2 }}>
-      <div className={styles.overviewHeader}>
-        <div className="d-flex gap-3 align-items-center">
-          <div className={styles.overviewIcon}><Icon size={24} /></div>
-          <div><h2 className="h5 fw-bold mb-0 text-white">{category.label}</h2><p className="text-white-50 small mb-0">{category.description}</p></div>
-        </div>
-        <div className="d-flex gap-4">
-          <div className="text-end"><span className="d-block text-white-50 small">Total de itens</span><strong className="text-white fs-5">{count}</strong></div>
-          <div className="text-end"><span className="d-block text-white-50 small">Valor em {category.label.toLowerCase()}</span><strong className="text-white fs-5">{money(value)}</strong></div>
-        </div>
-      </div>
-      <div className="p-3 bg-white border-top border-light">
-        {structures.length === 0 ? (
-          <div className="text-center text-muted py-4">Nenhum {category.label.toLowerCase()} cadastrado.<br /><button className="btn btn-sm btn-success mt-2" onClick={onCreate}>Cadastrar agora</button></div>
-        ) : (
-          <div className="table-responsive"><table className="table table-sm align-middle mb-0"><thead><tr><th>Nome</th><th>Área</th><th>Quantidade</th><th>Valor</th><th /></tr></thead><tbody>
-            {structures.map((item) => (
-              <tr key={item.id}>
-                <td><strong>{item.name}</strong><br /><small className="text-muted">{item.items.length} itens vinculados</small></td>
-                <td>{item.built_area_m2 ? `${item.built_area_m2} m²` : "—"}</td>
-                <td>{item.quantity}</td>
-                <td>{money(Number(item.current_value) * item.quantity)}</td>
-                <td className="text-end"><button className="btn btn-sm btn-outline-secondary" onClick={() => onEdit(item)}>Gerenciar</button></td>
-              </tr>
-            ))}
-          </tbody></table></div>
-        )}
-      </div>
-    </div>
   );
 }
