@@ -284,7 +284,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
           <div className="d-flex flex-column gap-4">
             <AnimatePresence mode="wait">
               <motion.div
-                key={`${currentStep}-${rows.length}`}
+                key={`${rows.length}`}
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
@@ -462,7 +462,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                         </div>
                       </div>
                     </div>
-                  </div>
                 ))}
               </motion.div>
             </AnimatePresence>
