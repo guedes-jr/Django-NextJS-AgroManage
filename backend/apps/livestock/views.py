@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from django.db import IntegrityError
-from django.db.models import Q, Sum
+from django.db.models import Prefetch, Q, Sum
 from django.utils import timezone
 import datetime
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication
@@ -578,7 +578,9 @@ def build_reproductive_cycles(animal):
         return cycles
         
     # Ordena as coberturas cronologicamente
-    matings = animal.matings_as_female.all().order_by('mating_date')
+    matings = animal.matings_as_female.all()
+    if 'matings_as_female' not in getattr(animal, '_prefetched_objects_cache', {}):
+        matings = matings.order_by('mating_date')
     
     for idx, m in enumerate(matings):
         cycle = {
@@ -1189,7 +1191,22 @@ class AnimalViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
-            return Animal.objects.filter(farm__organization=user.organization)
+            queryset = Animal.objects.filter(
+                farm__organization=user.organization
+            ).select_related(
+                'farm', 'species', 'breed', 'batch', 'sire_ref', 'dam_ref'
+            ).prefetch_related(
+                Prefetch(
+                    'matings_as_female',
+                    queryset=Mating.objects.select_related(
+                        'sire__batch', 'pregnancy__birth__litter'
+                    ).order_by('mating_date'),
+                ),
+            )
+            species = self.request.query_params.get('species')
+            if species:
+                queryset = queryset.filter(species__code=species)
+            return queryset
         return Animal.objects.none()
 
     @action(detail=False, methods=['get'], url_path='reproducers')
@@ -1899,7 +1916,10 @@ class ReproductionDashboardView(APIView):
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0)
         
         births = Birth.objects.filter(female__farm__organization=user.organization, female__species__code=species_code, birth_date__gte=start_of_month)
-        nascidos_mes = sum([b.total_born for b in births])
+        birth_totals = births.aggregate(
+            live=Sum('live_born'), stillborn=Sum('stillborn'), mummified=Sum('mummified')
+        )
+        nascidos_mes = sum(value or 0 for value in birth_totals.values())
         
         # Tx Prenhez simplificada: Gestantes / (Matrizes Ativas) * 100
         tx_prenhez = 0

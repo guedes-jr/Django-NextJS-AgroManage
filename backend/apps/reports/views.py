@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.farms.models import Farm
-from apps.livestock.models import AnimalBatch
+from apps.livestock.models import AnimalBatch, Species
 from apps.crops.models import Field, PlantingCycle
 from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque
 from apps.finance.models import Transaction, FinancialCategory
@@ -416,6 +416,68 @@ def dashboard_summary(request):
     ]
     livestock_cost_breakdown = feed_breakdown + livestock_cost_breakdown
 
+    # Cada atividade pecuária ganha seu próprio card na dashboard. Suinocultura
+    # permanece disponível mesmo antes do primeiro lote ser cadastrado.
+    organization_species = list(
+        Species.objects.filter(batches__farm__in=farm_ids)
+        .distinct()
+        .order_by("name")
+    )
+    swine = Species.objects.filter(code__in=["suinos", "suino"]).first()
+    if swine:
+        organization_species = [item for item in organization_species if item.pk != swine.pk]
+        organization_species.insert(0, swine)
+
+    def species_title(species):
+        code = species.code.lower()
+        if code in {"suino", "suinos"}:
+            return "Suinocultura"
+        if code in {"ave", "aves"}:
+            return "Aves"
+        return species.name
+
+    livestock_by_species = []
+    for species in organization_species:
+        species_batches = AnimalBatch.objects.filter(
+            farm__in=farm_ids, species=species
+        ).values_list("id", flat=True)
+        species_references = (
+            Q(reference__in=[f"PURCHASE-BATCH-{batch_id}" for batch_id in species_batches])
+            | Q(reference__in=[f"SALE-BATCH-{batch_id}" for batch_id in species_batches])
+        )
+        species_terms = Q(description__icontains=species.name) | Q(category__name__icontains=species.name)
+        if species.code.lower() in {"suino", "suinos"}:
+            species_terms |= Q(description__icontains="suin") | Q(category__name__icontains="suin")
+        species_transactions = paid_month.filter(species_references | species_terms)
+        species_feed = feed_consumption.filter(
+            Q(lote_animal__species=species) | Q(animais__species=species)
+        ).distinct()
+        species_cost = (
+            species_transactions.filter(category__category_type=FinancialCategory.CategoryType.EXPENSE)
+            .aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        ) + (species_feed.aggregate(total=Sum("custo_total"))["total"] or Decimal("0"))
+        species_revenue = species_transactions.filter(
+            category__category_type=FinancialCategory.CategoryType.REVENUE
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        species_costs = financial_breakdown(
+            species_transactions, FinancialCategory.CategoryType.EXPENSE
+        )
+        species_costs = [
+            {"name": row["item_estoque__nome"] or "Ração", "value": float(row["total"])}
+            for row in species_feed.values("item_estoque__nome").annotate(total=Sum("custo_total")).order_by("-total")[:5]
+            if row["total"]
+        ] + species_costs
+        livestock_by_species.append({
+            "code": species.code,
+            "name": species_title(species),
+            **segment_payload(
+                species_cost,
+                species_revenue,
+                species_costs,
+                financial_breakdown(species_transactions, FinancialCategory.CategoryType.REVENUE),
+            ),
+        })
+
     recent_transactions = [
         {
             "title": transaction.description,
@@ -523,6 +585,7 @@ def dashboard_summary(request):
                     livestock_cost_breakdown,
                     financial_breakdown(livestock_transactions, FinancialCategory.CategoryType.REVENUE),
                 ),
+                "livestock_by_species": livestock_by_species,
             },
             "recent_activities": recent_transactions,
             "tasks": tasks_data,

@@ -19,6 +19,29 @@ import { isTheme } from "@/lib/theme";
 
 type View = "login" | "register" | "forgot";
 
+const apiErrorMessage = (value: unknown): string | null => {
+  if (typeof value === "string" && value.trim()) return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = apiErrorMessage(item);
+      if (message) return message;
+    }
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+
+  const payload = value as Record<string, unknown>;
+  for (const key of ["detail", "non_field_errors", "error", "message"]) {
+    const message = apiErrorMessage(payload[key]);
+    if (message) return message;
+  }
+  for (const item of Object.values(payload)) {
+    const message = apiErrorMessage(item);
+    if (message) return message;
+  }
+  return null;
+};
+
 const titles: Record<View, { title: string; subtitle: string }> = {
   login: {
     title: "Bem-vindo de volta",
@@ -100,29 +123,7 @@ export default function LoginPage() {
       const axiosErr = err as {
         response?: { data?: Record<string, unknown> };
       };
-      const data = axiosErr.response?.data ?? {};
-      let msg = "Erro ao processar requisição.";
-
-      // Prioridade: non_field_errors > detail > primeiro campo com array
-      if (Array.isArray(data.non_field_errors) && data.non_field_errors.length > 0) {
-        msg = String(data.non_field_errors[0]);
-      } else if (typeof data.detail === "string") {
-        msg = data.detail;
-      } else {
-        // Percorre todos os campos e pega a primeira mensagem encontrada
-        for (const key of Object.keys(data)) {
-          const val = data[key];
-          if (Array.isArray(val) && val.length > 0) {
-            msg = String(val[0]);
-            break;
-          } else if (typeof val === "string") {
-            msg = val;
-            break;
-          }
-        }
-      }
-
-      setError(msg);
+      setError(apiErrorMessage(axiosErr.response?.data) ?? "Erro ao processar requisição.");
     } finally {
       setLoading(false);
     }
