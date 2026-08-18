@@ -9,6 +9,7 @@ import { cropService } from "@/services/cropService";
 import type { Plantation, PlantationStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { FarmFormModal, type CreatedFarm } from "@/components/farm/FarmFormModal";
 
 type FieldOption = { id: string; name: string; farm_name: string; area_ha?: string | number | null };
 type FarmOption = { id: string; name: string; city?: string; state?: string };
@@ -260,6 +261,7 @@ export default function PlantacoesDashboard() {
   const [farms, setFarms] = useState<FarmOption[]>([]);
   const [seedItems, setSeedItems] = useState<InventorySeedOption[]>([]);
   const [showFieldModal, setShowFieldModal] = useState(false);
+  const [showFarmModal, setShowFarmModal] = useState(false);
   const [savingField, setSavingField] = useState(false);
   const [fieldError, setFieldError] = useState("");
   const [fieldForm, setFieldForm] = useState({
@@ -423,6 +425,21 @@ export default function PlantacoesDashboard() {
     } finally {
       setSavingField(false);
     }
+  };
+
+  const handleFarmCreated = (farm: CreatedFarm) => {
+    setFarms((current) => [...current.filter((item) => item.id !== farm.id), farm]);
+    setFieldForm((current) => ({ ...current, farm: farm.id }));
+  };
+
+  const openFarmCreate = () => {
+    setShowFieldModal(false);
+    setShowFarmModal(true);
+  };
+
+  const closeFarmCreate = () => {
+    setShowFarmModal(false);
+    setShowFieldModal(true);
   };
 
   const handleSave = async () => {
@@ -1118,16 +1135,15 @@ export default function PlantacoesDashboard() {
             <div className="col-12">
               <div className="login-input-group mb-0">
                 <label className="login-label fw-bold">Propriedade <span className="text-danger">*</span></label>
-                <div className="login-input-wrapper">
-                  <select className="login-input login-input-icon-left bg-white text-foreground" value={fieldForm.farm} onChange={(e) => setFieldForm({ ...fieldForm, farm: e.target.value })} disabled={farms.length === 0} required>
-                    <option value="">{farms.length ? "Selecione..." : "Nenhuma propriedade disponível"}</option>
-                    {farms.map((farm) => (
-                      <option key={farm.id} value={farm.id}>
-                        {farm.name}{farm.city || farm.state ? ` (${[farm.city, farm.state].filter(Boolean).join(" - ")})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <MapPin className="login-input-icon text-muted-foreground" size={16} />
+                <div className="d-flex gap-2 align-items-stretch">
+                  <div className="login-input-wrapper flex-grow-1">
+                    <select className="login-input login-input-icon-left bg-white text-foreground" value={fieldForm.farm} onChange={(e) => setFieldForm({ ...fieldForm, farm: e.target.value })} disabled={farms.length === 0} required>
+                      <option value="">{farms.length ? "Selecione..." : "Nenhuma propriedade disponível"}</option>
+                      {farms.map((farm) => (<option key={farm.id} value={farm.id}>{farm.name}{farm.city || farm.state ? ` (${[farm.city, farm.state].filter(Boolean).join(" - ")})` : ""}</option>))}
+                    </select>
+                    <MapPin className="login-input-icon text-muted-foreground" size={16} />
+                  </div>
+                  <button type="button" className="btn btn-outline-agro d-flex align-items-center justify-content-center" style={{ width: 46, minWidth: 46, borderRadius: 8 }} onClick={openFarmCreate} title="Cadastrar propriedade" aria-label="Cadastrar propriedade"><Plus size={18} /></button>
                 </div>
               </div>
             </div>
@@ -1185,6 +1201,8 @@ export default function PlantacoesDashboard() {
           </div>
         </div>
       </Modal>
+
+      <FarmFormModal isOpen={showFarmModal} onClose={closeFarmCreate} onCreated={handleFarmCreated} />
     </div>
   );
 }

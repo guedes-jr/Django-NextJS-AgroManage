@@ -255,6 +255,20 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
                 <label className="small fw-semibold mb-1 d-block">Descrição (opcional)</label>
                 <textarea className="form-control" rows={2} value={selected.descricao} onChange={(e) => setFormulas((prev) => prev.map((f, i) => i === selectedIndex ? { ...f, descricao: e.target.value } : f))} />
               </div>
+              <div className="col-12">
+                <label className="small fw-semibold mb-1 d-block">Item gerado no estoque (Produto Final)</label>
+                <select 
+                  className="form-select" 
+                  value={selected.item_final || ""} 
+                  onChange={(e) => setFormulas((prev) => prev.map((f, i) => i === selectedIndex ? { ...f, item_final: Number(e.target.value) || null } : f))}
+                >
+                  <option value="">Selecione o item de estoque...</option>
+                  {inventoryItems.map(item => (
+                    <option key={item.id} value={item.id}>{item.nome}</option>
+                  ))}
+                </select>
+                <small className="text-muted-foreground mt-1 d-block">A produção desta fórmula dará entrada no saldo deste item.</small>
+              </div>
             </div>
 
             <h4 className="fw-bold mb-1" style={{ fontSize: "1rem" }}>Composição da fórmula</h4>

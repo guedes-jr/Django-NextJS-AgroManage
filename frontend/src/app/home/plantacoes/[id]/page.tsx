@@ -247,7 +247,6 @@ const getErrorMessage = (error: unknown) => {
 };
 
 const shortcutStages = {
-  estrutura: { image: "/images/crops/sector-structure-wide.png", color: "oklch(0.62 0.12 70)" },
   preparo: { image: "/images/crops/mechanized-services-wide.png", color: "oklch(0.7 0.18 85)" },
   plantio: { image: "/images/crops/seeds-seedlings-wide.png", color: "oklch(0.66 0.16 70)" },
   adubacao: { image: "/images/crops/base-fertilization-wide.png", color: "oklch(0.62 0.17 145)" },
@@ -1036,14 +1035,6 @@ export default function PlantacaoDetailPage() {
           {[
             {
               number: 1,
-              label: "Estrutura do Setor",
-              desc: "Irrigação, sustentação, cercas e instalações",
-              stage: shortcutStages.estrutura,
-              onClick: () => router.push(`/home/plantacoes/${id}/estrutura`),
-              featuredImage: true,
-            },
-            {
-              number: 2,
               label: "Serviços Mecanizados",
               desc: "Calagem, colheita, gradagem e mais",
               stage: shortcutStages.preparo,
@@ -1051,7 +1042,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 3,
+              number: 2,
               label: "Adubação de Base",
               desc: "Produtos, doses, quantidades e custo",
               stage: shortcutStages.adubacao,
@@ -1059,7 +1050,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 4,
+              number: 3,
               label: "Sementes/mudas",
               desc: "Híbrido, mudas, quantidade, sacas e custo",
               stage: shortcutStages.plantio,
@@ -1067,7 +1058,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 5,
+              number: 4,
               label: "Fertirrigação",
               desc: "Adubos via fertirrigação, doses, volume e custo",
               stage: shortcutStages.fertirrigacao,
@@ -1075,7 +1066,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 6,
+              number: 5,
               label: "Foliares / Defensivos",
               desc: "Produtos, doses, volume e custo",
               stage: shortcutStages.foliarDefensivos,
@@ -1083,7 +1074,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 7,
+              number: 6,
               label: "Irrigação",
               desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
               stage: shortcutStages.irrigacao,
@@ -1091,7 +1082,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 8,
+              number: 7,
               label: "Área do Agrônomo",
               desc: "Recomendações, programações e acompanhamentos",
               stage: shortcutStages.agronomo,
@@ -1099,7 +1090,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 9,
+              number: 8,
               label: "Mão de Obra",
               desc: "Atividades, horas trabalhadas e custos",
               stage: shortcutStages.maoObra,
@@ -1107,7 +1098,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 10,
+              number: 9,
               label: "Relatório",
               desc: "Gerar PDF completo ou resumo da produção",
               stage: shortcutStages.relatorio,
@@ -1115,7 +1106,7 @@ export default function PlantacaoDetailPage() {
               featuredImage: true,
             },
             {
-              number: 11,
+              number: 10,
               label: "Colheita",
               desc: "Produção, sacas, umidade e valor",
               stage: shortcutStages.colheita,

@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft, Sprout, Tractor, X, Car, BarChart3, ListChecks, MapPinned, CalendarClock, CircleAlert, MapPin, Wrench,
+  Waves, PanelsTopLeft, Tractor, X, BarChart3, ListChecks, MapPinned, CalendarClock, CircleAlert, MapPin, Wrench,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -15,6 +15,7 @@ import { apiClient } from "@/services/api";
 import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
 import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
 import { LocationPicker } from "@/components/farm/LocationPicker";
+import { FarmFormModal, type CreatedFarm } from "@/components/farm/FarmFormModal";
 import { useToast } from "@/components/ui/Toast";
 
 import styles from "./structure.module.css";
@@ -28,7 +29,6 @@ const categories: Array<{
   description: string;
   icon: LucideIcon;
 }> = [
-  { value: "corral", label: "Curral", description: "Estruturas de manejo para bovinos e criações de grande porte.", icon: Beef },
   { value: "pigsty", label: "Chiqueiro", description: "Estruturas destinadas à criação e ao manejo de suínos.", icon: PiggyBank },
   { value: "poultry_house", label: "Galinheiro", description: "Instalações para aves, postura, corte e reprodução.", icon: Bird },
   { value: "warehouse", label: "Depósitos e armazéns", description: "Armazenamento de grãos, insumos e materiais.", icon: Warehouse },
@@ -52,7 +52,7 @@ const categoryDefaults: Record<FarmStructureCategory, { name: string; materials:
 };
 
 const emptyForm: FarmStructurePayload = {
-  farm: "", category: "corral", name: "", description: "", quantity: 1,
+  farm: "", category: "pigsty", name: "", description: "", quantity: 1,
   built_area_m2: null, length_m: null, width_m: null,
   acquisition_value: "0.00", current_value: "0.00", acquisition_date: null,
   is_active: true, notes: "", latitude: null, longitude: null,
@@ -86,6 +86,7 @@ export default function FarmStructurePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showFarmForm, setShowFarmForm] = useState(false);
   const [editing, setEditing] = useState<FarmStructure | null>(null);
   const [form, setForm] = useState<FarmStructurePayload>(emptyForm);
   const [structureItem, setStructureItem] = useState<FarmStructureItemPayload>(emptyItem);
@@ -110,6 +111,13 @@ export default function FarmStructurePage() {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     modalCloseRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showForm]);
+
+  useEffect(() => {
+    if (!showForm) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeForm();
       if (event.key === "Tab") {
@@ -122,7 +130,6 @@ export default function FarmStructurePage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [closeForm, showForm]);
@@ -143,6 +150,13 @@ export default function FarmStructurePage() {
       setLoading(false);
     }
   }, []);
+
+  const handleFarmCreated = (farm: CreatedFarm) => {
+    setFarms((current) => [...current.filter((item) => item.id !== farm.id), farm]);
+    setFarmId(farm.id);
+    setForm((current) => ({ ...current, farm: farm.id }));
+    void loadStructures(farm.id);
+  };
 
   useEffect(() => {
     let active = true;
@@ -199,7 +213,7 @@ export default function FarmStructurePage() {
     return null;
   }, [farmId, farms, items]);
 
-  const openCreate = (category: FarmStructureCategory = "corral") => {
+  const openCreate = (category: FarmStructureCategory = "pigsty") => {
     modalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const defaults = categoryDefaults[category];
     setEditing(null);
@@ -302,7 +316,7 @@ export default function FarmStructurePage() {
           <div className={styles.heroIcon}><Warehouse size={30} /></div>
           <div><h1>Estrutura da Fazenda</h1><p>Cadastre e gerencie toda a estrutura da propriedade</p></div>
         </div>
-        <button className="btn btn-light d-flex align-items-center gap-2 fw-semibold" onClick={() => openCreate(selectedCategory === "all" ? "corral" : selectedCategory)} disabled={!farmId}>
+        <button className="btn btn-light d-flex align-items-center gap-2 fw-semibold" onClick={() => openCreate(selectedCategory === "all" ? "pigsty" : selectedCategory)} disabled={!farmId}>
           <Plus size={18} /> Nova estrutura
         </button>
       </header>
@@ -318,6 +332,12 @@ export default function FarmStructurePage() {
         {error && <div className={styles.errorState} role="alert"><CircleAlert size={20} /><span>{error}</span><button onClick={() => void loadStructures(farmId)}>Tentar novamente</button></div>}
         {!farms.length && !loading && <div className="alert alert-warning">Cadastre uma fazenda antes de adicionar estruturas.</div>}
 
+        <section className="mb-4"><h2 className={styles.sectionTitle}>Resumo geral da estrutura</h2><div className={styles.summaryGrid}>
+          <SummaryCard icon={ClipboardList} label="Total de itens" value={String(summary?.total_items || 0)} detail={`${summary?.total_records || 0} registros`} />
+          <SummaryCard icon={Calculator} label="Valor total pago" value={money(summary?.acquisition_value || 0)} detail="Valor de aquisição" />
+          <SummaryCard icon={Warehouse} label="Valor líquido atual" value={money(summary?.current_value || 0)} detail="Estrutura atual" />
+        </div></section>
+
         <section className={styles.categorySection}>
           <div className={styles.categoryHeading}>
             <div>
@@ -331,16 +351,16 @@ export default function FarmStructurePage() {
             )}
           </div>
           <div className={styles.categoryGrid}>
-            <button className={styles.categoryCard} onClick={() => router.push("/home/plantacoes")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Sprout size={34} /></div><div><h3>Plantação</h3><p>Talhões, culturas, safras e atividades agrícolas.</p></div></div>
-              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+            <button className={styles.categoryCard} onClick={() => setShowFarmForm(true)}>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Building2 size={34} /></div><div><h3>Propriedade</h3><p>Cadastre uma nova fazenda para organizar talhões, plantações e estruturas.</p></div></div>
+              <div className={styles.categoryFooter}><span>Cadastro da fazenda</span><strong>Adicionar <Plus size={16} /></strong></div>
             </button>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas</h3><p>Máquinas, implementos e veículos da propriedade.</p></div></div>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas e veículos</h3><p>Máquinas, implementos, caminhões e veículos da propriedade.</p></div></div>
               <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
             </button>
-            <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas?grupo=veiculos")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Car size={34} /></div><div><h3>Veículos</h3><p>Caminhões, caminhonetes, automóveis e motocicletas.</p></div></div>
+            <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/curral")}>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Beef size={34} /></div><div><h3>Curral</h3><p>Estruturas de manejo para bovinos e criações de grande porte.</p></div></div>
               <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
             </button>
             {categories.map(({ value, label, description, icon: Icon }) => {
@@ -384,17 +404,10 @@ export default function FarmStructurePage() {
           </div>
         </section>
 
-        <section className="mt-4" style={{ order: 3 }}><h2 className={styles.sectionTitle}>Resumo geral da estrutura</h2><div className={styles.summaryGrid}>
-          <SummaryCard icon={ClipboardList} label="Total de itens" value={String(summary?.total_items || 0)} detail={`${summary?.total_records || 0} registros`} />
-          <SummaryCard icon={Calculator} label="Valor total pago" value={money(summary?.acquisition_value || 0)} detail="Valor de aquisição" />
-          <SummaryCard icon={Droplets} label="Depreciação acumulada" value={money(summary?.depreciation_value || 0)} detail="Até o momento" />
-          <SummaryCard icon={Warehouse} label="Valor líquido atual" value={money(summary?.current_value || 0)} detail="Estrutura atual" />
-        </div></section>
-
         <section className={styles.quickActions} style={{ order: 3 }}>
           <h2 className={styles.sectionTitle}>Ações rápidas</h2>
           <div>
-            <button onClick={() => openCreate(selectedCategory === "all" ? "corral" : selectedCategory)} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
+            <button onClick={() => openCreate(selectedCategory === "all" ? "pigsty" : selectedCategory)} disabled={!farmId}><Plus size={20} /><span><strong>Nova estrutura</strong><small>Cadastrar novo item</small></span></button>
             <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>Ver todos os itens</strong><small>Lista consolidada</small></span></button>
             <button onClick={() => router.push("/home/relatorios")}><BarChart3 size={20} /><span><strong>Relatórios</strong><small>Análises da fazenda</small></span></button>
           </div>
@@ -432,6 +445,7 @@ export default function FarmStructurePage() {
         </div>
         {editing && <div className={styles.successBar}><span><MapPinned size={24} /></span><div><strong>Estrutura salva</strong><small>Os dados e itens cadastrados já estão disponíveis para uso na fazenda.</small></div><button className="btn btn-success" onClick={() => closeForm(true)}>Concluir</button></div>}
       </div></div>}
+      <FarmFormModal isOpen={showFarmForm} onClose={() => setShowFarmForm(false)} onCreated={handleFarmCreated} />
     </div>
   );
 }
