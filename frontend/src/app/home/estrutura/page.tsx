@@ -1,24 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import axios from "axios";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Plus, Search, Trash2, Warehouse,
-  Waves, PanelsTopLeft, Tractor, X, BarChart3, ListChecks, MapPinned, CalendarClock, CircleAlert, MapPin, Wrench,
+  Waves, PanelsTopLeft, Tractor, X, ListChecks, CircleAlert
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { apiClient } from "@/services/api";
-import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
+import { farmStructureService } from "@/services/farmStructureService";
 import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
-import { LocationPicker } from "@/components/farm/LocationPicker";
 import { FarmFormModal, type CreatedFarm } from "@/components/farm/FarmFormModal";
 import { useToast } from "@/components/ui/Toast";
 
 import styles from "./structure.module.css";
+import axios from "axios";
 
 interface PaginatedFarms { results: Farm[] }
 interface StoredUser { role?: string }
@@ -39,30 +37,10 @@ const categories: Array<{
   { value: "other", label: "Outros", description: "Outras estruturas não enquadradas nas categorias anteriores.", icon: Ellipsis },
 ];
 
-const categoryDefaults: Record<FarmStructureCategory, { name: string; materials: string[] }> = {
-  corral: { name: "Novo curral", materials: ["Mourão de concreto", "Tábuas", "Porteira", "Bebedouro", "Cocho"] },
-  pigsty: { name: "Novo chiqueiro", materials: ["Piso de concreto", "Parede de alvenaria", "Cobertura", "Bebedouro", "Comedouro"] },
-  poultry_house: { name: "Novo galinheiro", materials: ["Tela galvanizada", "Cobertura", "Poleiro", "Bebedouro", "Comedouro"] },
-  warehouse: { name: "Novo depósito ou armazém", materials: ["Piso de concreto", "Estrutura metálica", "Cobertura", "Portão", "Prateleira"] },
-  irrigation: { name: "Novo sistema de irrigação", materials: ["Tubulação", "Bomba d'água", "Aspersor", "Filtro", "Registro"] },
-  water_reservoir: { name: "Novo reservatório", materials: ["Reservatório", "Tubulação", "Bomba d'água", "Boia", "Registro"] },
-  facility: { name: "Nova instalação", materials: ["Alvenaria", "Cobertura", "Instalação elétrica", "Porta", "Janela"] },
-  fence: { name: "Nova cerca ou divisão", materials: ["Mourão", "Arame", "Grampo", "Porteira", "Esticador"] },
-  other: { name: "Nova estrutura", materials: ["Material de construção", "Mão de obra", "Equipamento"] },
-};
-
-const emptyForm: FarmStructurePayload = {
-  farm: "", category: "pigsty", name: "", description: "", quantity: 1,
-  built_area_m2: null, length_m: null, width_m: null,
-  acquisition_value: "0.00", current_value: "0.00", acquisition_date: null,
-  is_active: true, notes: "", latitude: null, longitude: null,
-  last_maintenance_date: null, next_maintenance_date: null, maintenance_notes: "",
-};
-const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "0.00" };
-
 const money = (value: string | number) => Number(value || 0).toLocaleString("pt-BR", {
   style: "currency", currency: "BRL",
 });
+
 const apiMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error) || !error.response?.data) return fallback;
   const first = Object.entries(error.response.data as Record<string, unknown>)[0];
@@ -71,11 +49,18 @@ const apiMessage = (error: unknown, fallback: string) => {
   return `${first[0] === "detail" ? "" : `${first[0]}: `}${String(detail)}`;
 };
 
+const getCategoryPath = (cat: FarmStructureCategory) => {
+  const map: Record<FarmStructureCategory, string> = {
+    corral: "curral", pigsty: "chiqueiro", poultry_house: "galinheiro",
+    warehouse: "armazem", irrigation: "irrigacao", water_reservoir: "reservatorio",
+    facility: "instalacao", fence: "cerca", other: "outro"
+  };
+  return map[cat] || "outro";
+};
+
 export default function FarmStructurePage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const modalCloseRef = useRef<HTMLButtonElement>(null);
-  const modalTriggerRef = useRef<HTMLElement | null>(null);
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [items, setItems] = useState<FarmStructure[]>([]);
@@ -83,13 +68,8 @@ export default function FarmStructurePage() {
   const [selectedCategory, setSelectedCategory] = useState<FarmStructureCategory | "all">("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false);
   const [showFarmForm, setShowFarmForm] = useState(false);
-  const [editing, setEditing] = useState<FarmStructure | null>(null);
-  const [form, setForm] = useState<FarmStructurePayload>(emptyForm);
-  const [structureItem, setStructureItem] = useState<FarmStructureItemPayload>(emptyItem);
   const [role] = useState(() => {
     if (typeof window === "undefined") return "";
     try { return (JSON.parse(localStorage.getItem("user") || "{}") as StoredUser).role || ""; }
@@ -97,42 +77,6 @@ export default function FarmStructurePage() {
   });
 
   const canDelete = role === "owner" || role === "admin";
-
-  const closeForm = useCallback((force = false) => {
-    if (!force && saving) return;
-    if (!force && showForm && !editing && form.name && form.name !== categoryDefaults[form.category].name
-      && !confirm("Descartar os dados preenchidos desta estrutura?")) return;
-    setShowForm(false);
-    window.setTimeout(() => modalTriggerRef.current?.focus(), 0);
-  }, [editing, form.category, form.name, saving, showForm]);
-
-  useEffect(() => {
-    if (!showForm) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    modalCloseRef.current?.focus();
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [showForm]);
-
-  useEffect(() => {
-    if (!showForm) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeForm();
-      if (event.key === "Tab") {
-        const dialog = modalCloseRef.current?.closest('[role="dialog"]');
-        const nodes = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])') || []);
-        if (!nodes.length) return;
-        if (event.shiftKey && document.activeElement === nodes[0]) { event.preventDefault(); nodes.at(-1)?.focus(); }
-        else if (!event.shiftKey && document.activeElement === nodes.at(-1)) { event.preventDefault(); nodes[0].focus(); }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [closeForm, showForm]);
 
   const loadStructures = useCallback(async (selectedFarm: string) => {
     if (!selectedFarm) return;
@@ -154,7 +98,6 @@ export default function FarmStructurePage() {
   const handleFarmCreated = (farm: CreatedFarm) => {
     setFarms((current) => [...current.filter((item) => item.id !== farm.id), farm]);
     setFarmId(farm.id);
-    setForm((current) => ({ ...current, farm: farm.id }));
     void loadStructures(farm.id);
   };
 
@@ -202,31 +145,8 @@ export default function FarmStructurePage() {
     return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase("pt-BR").includes(term));
   }, [reportRows, search]);
 
-  const lastRegisteredLocation = useMemo(() => {
-    const item = items.find((structure) => structure.latitude && structure.longitude);
-    if (item) return { latitude: item.latitude!, longitude: item.longitude!, label: item.name };
-
-    const farm = farms.find((candidate) => candidate.id === farmId);
-    if (farm?.latitude && farm.longitude) {
-      return { latitude: farm.latitude, longitude: farm.longitude, label: farm.name };
-    }
-    return null;
-  }, [farmId, farms, items]);
-
   const openCreate = (category: FarmStructureCategory = "pigsty") => {
-    modalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const defaults = categoryDefaults[category];
-    setEditing(null);
-    setForm({
-      ...emptyForm,
-      farm: farmId,
-      category,
-      name: defaults.name,
-      latitude: lastRegisteredLocation?.latitude || null,
-      longitude: lastRegisteredLocation?.longitude || null,
-    });
-    setStructureItem(emptyItem);
-    setShowForm(true);
+    router.push(`/home/estrutura/${getCategoryPath(category)}`);
   };
 
   const selectCategory = (category: FarmStructureCategory) => {
@@ -235,67 +155,7 @@ export default function FarmStructurePage() {
   };
 
   const openEdit = (item: FarmStructure) => {
-    modalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setEditing(item);
-    setForm({
-      farm: item.farm, category: item.category, name: item.name, description: item.description,
-      built_area_m2: item.built_area_m2, length_m: item.length_m, width_m: item.width_m,
-      quantity: item.quantity, acquisition_value: item.acquisition_value,
-      current_value: item.current_value, acquisition_date: item.acquisition_date,
-      last_maintenance_date: item.last_maintenance_date, next_maintenance_date: item.next_maintenance_date,
-      maintenance_notes: item.maintenance_notes,
-      is_active: item.is_active, notes: item.notes, latitude: item.latitude, longitude: item.longitude,
-    });
-    setStructureItem({ ...emptyItem, structure: item.id });
-    setShowForm(true);
-  };
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      const response = editing
-        ? await farmStructureService.update(editing.id, form)
-        : await farmStructureService.create(form);
-      setEditing(response.data);
-      setStructureItem({ ...emptyItem, structure: response.data.id });
-      await loadStructures(farmId);
-      showToast(editing ? "Estrutura atualizada com sucesso." : "Estrutura cadastrada com sucesso.", "success");
-    } catch (requestError) {
-      const message = apiMessage(requestError, "Não foi possível salvar. Verifique os dados e suas permissões.");
-      setError(message); showToast(message, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addStructureItem = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!editing) return;
-    try {
-      await farmStructureService.addItem({ ...structureItem, structure: editing.id });
-      const list = await farmStructureService.list(farmId);
-      const updated = list.data.results.find((item) => item.id === editing.id) || null;
-      setItems(list.data.results); setEditing(updated);
-      setStructureItem({ ...emptyItem, structure: editing.id });
-      const totals = await farmStructureService.summary(farmId); setSummary(totals.data);
-      showToast("Item adicionado à estrutura.", "success");
-    } catch (requestError) { const message = apiMessage(requestError, "Não foi possível adicionar o item utilizado."); setError(message); showToast(message, "error"); }
-  };
-
-  const removeStructureItem = async (itemId: string) => {
-    try {
-      await farmStructureService.removeItem(itemId);
-      const [list, totals] = await Promise.all([farmStructureService.list(farmId), farmStructureService.summary(farmId)]);
-      setItems(list.data.results);
-      setEditing((current) => current ? list.data.results.find((item) => item.id === current.id) || current : null);
-      setSummary(totals.data);
-      showToast("Item removido da estrutura.", "success");
-    } catch (requestError) {
-      const message = apiMessage(requestError, "Não foi possível remover o item.");
-      setError(message); showToast(message, "error");
-    }
+    router.push(`/home/estrutura/${getCategoryPath(item.category)}?edit=${item.id}`);
   };
 
   const remove = async (item: FarmStructure) => {
@@ -413,103 +273,103 @@ export default function FarmStructurePage() {
         </section>
       </div>
 
-      {showForm && <div className={styles.modalBackdrop} onMouseDown={() => closeForm()}><div className={styles.modalCard} role="dialog" aria-modal="true" aria-labelledby="structure-modal-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className={styles.modalHeader}><div><h2 id="structure-modal-title" className="h4 fw-bold mb-1">{editing ? "Editar estrutura" : `Cadastrar ${categories.find((category) => category.value === form.category)?.label || "estrutura"}`}</h2><p className="text-muted small mb-0">Informe dimensões, valores, localização e materiais utilizados.</p></div><button ref={modalCloseRef} type="button" className="btn-close" onClick={() => closeForm()} aria-label="Fechar formulário" /></div>
-        <form onSubmit={submit}><div className={`${styles.identityFields} p-4 row g-3`}>
-          <div className="col-md-7"><label className="form-label">Nome</label><input required className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="col-md-5"><label className="form-label">Categoria</label><select className="form-select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as FarmStructureCategory })}>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></div>
-          <div className="col-12"><label className="form-label">Descrição</label><textarea className="form-control" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-          <div className="col-md-3"><label className="form-label">Quantidade</label><input required min={1} type="number" className="form-control" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></div>
-          <div className="col-md-3"><label className="form-label">Valor unitário pago</label><input required min={0} step="0.01" type="number" className="form-control" value={form.acquisition_value} onChange={(e) => setForm({ ...form, acquisition_value: e.target.value })} /></div>
-          <div className="col-md-3"><label className="form-label">Valor unitário atual</label><input required min={0} step="0.01" type="number" className="form-control" value={form.current_value} onChange={(e) => setForm({ ...form, current_value: e.target.value })} /></div>
-          <div className="col-md-3"><label className="form-label">Aquisição</label><input type="date" className="form-control" value={form.acquisition_date || ""} onChange={(e) => setForm({ ...form, acquisition_date: e.target.value || null })} /></div>
-          <div className="col-md-4"><label className="form-label">Última manutenção</label><input type="date" className="form-control" value={form.last_maintenance_date || ""} onChange={(e) => setForm({ ...form, last_maintenance_date: e.target.value || null })} /></div>
-          <div className="col-md-4"><label className="form-label">Próxima manutenção</label><input type="date" className="form-control" value={form.next_maintenance_date || ""} onChange={(e) => setForm({ ...form, next_maintenance_date: e.target.value || null })} /></div>
-          <div className="col-md-4"><label className="form-label">Situação</label><select className="form-select" value={form.is_active ? "active" : "inactive"} onChange={(e) => setForm({ ...form, is_active: e.target.value === "active" })}><option value="active">Ativa</option><option value="inactive">Inativa</option></select></div>
-          <div className="col-12"><label className="form-label">Observações de manutenção</label><textarea className="form-control" rows={2} value={form.maintenance_notes || ""} onChange={(e) => setForm({ ...form, maintenance_notes: e.target.value })} /></div>
-          <div className="col-12"><label className="form-label">Observações</label><textarea className="form-control" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-        </div><div className={styles.modalActions}><button type="button" className="btn btn-outline-secondary" onClick={() => closeForm()}>Cancelar</button><button className="btn btn-success" disabled={saving}>{saving ? <><span className="spinner-border spinner-border-sm me-2" />Salvando...</> : editing ? "Atualizar dados" : "Salvar e adicionar itens"}</button></div></form>
-        <div className={`${styles.flowGrid} ${form.category === "irrigation" ? styles.irrigationFlow : ""}`}>
-        <section className={`${styles.stepCard} ${styles.dimensionsStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 3 : 1}</span><h3>Dimensões</h3></div><form onSubmit={submit}><div className="row g-3">
-          <div className="col-12"><label className="form-label">Área construída (m²)</label><input type="number" min={0} step="0.01" className="form-control" value={form.built_area_m2 || ""} onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })} /></div>
-          <div className="col-12"><label className="form-label">Comprimento (m)</label><input type="number" min={0} step="0.01" className="form-control" value={form.length_m || ""} onChange={(e) => setForm({ ...form, length_m: e.target.value || null })} /></div>
-          <div className="col-12"><label className="form-label">Largura (m)</label><input type="number" min={0} step="0.01" className="form-control" value={form.width_m || ""} onChange={(e) => setForm({ ...form, width_m: e.target.value || null })} /></div>
-          <div className="col-12"><button className="btn btn-success w-100" disabled={saving}>{editing ? "Salvar dimensões" : "Salvar estrutura"}</button></div>
-        </div></form></section>
-        <section className={`${styles.stepCard} ${styles.itemsStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 1 : 2}</span><h3>Itens utilizados</h3></div>{!editing && <p className="small text-muted">Salve os dados iniciais da estrutura para liberar a inclusão de itens.</p>}
-          {editing && <><form className="row g-2 align-items-end" onSubmit={addStructureItem}><div className="col-md-4"><label className="form-label">Item</label><input required list={`materials-${form.category}`} className="form-control" value={structureItem.name} onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })} /><datalist id={`materials-${form.category}`}>{categoryDefaults[form.category].materials.map((material) => <option key={material} value={material} />)}</datalist></div><div className="col-md-2"><label className="form-label">Quantidade</label><input required type="number" min="0.01" step="0.01" className="form-control" value={structureItem.quantity} onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })} /></div><div className="col-md-2"><label className="form-label">Unidade</label><select required className="form-select" value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })}><option value="un">un</option><option value="m">m</option><option value="m²">m²</option><option value="m³">m³</option><option value="kg">kg</option><option value="L">L</option><option value="serviço">serviço</option></select></div><div className="col-md-2"><label className="form-label">Valor total</label><input required type="number" min="0" step="0.01" className="form-control" value={structureItem.value} onChange={(e) => setStructureItem({ ...structureItem, value: e.target.value })} /></div><div className="col-md-2"><button className="btn btn-outline-success w-100"><Plus size={16} /> Adicionar</button></div></form>
-          <div className="table-responsive mt-3"><table className="table table-sm"><thead><tr><th>Item</th><th>Quantidade</th><th>Valor</th><th /></tr></thead><tbody>{editing.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.quantity} {item.unit}</td><td>{money(item.value)}</td><td className="text-end">{canDelete && <button type="button" className="btn btn-sm text-danger" onClick={() => void removeStructureItem(item.id)}><Trash2 size={14} /></button>}</td></tr>)}</tbody></table></div></>}
-        </section>
-        <section className={`${styles.stepCard} ${styles.locationStep}`}><div className={styles.stepHeading}><span>{form.category === "irrigation" ? 2 : 3}</span><h3>Localização <small>(opcional)</small></h3></div><form onSubmit={submit}><LocationPicker latitude={form.latitude} longitude={form.longitude} lastLocation={lastRegisteredLocation} onChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))} /><button className="btn btn-success w-100 mt-3" disabled={saving}>{editing ? "Salvar localização" : "Salvar estrutura"}</button></form></section>
-        </div>
-        {editing && <div className={styles.successBar}><span><MapPinned size={24} /></span><div><strong>Estrutura salva</strong><small>Os dados e itens cadastrados já estão disponíveis para uso na fazenda.</small></div><button className="btn btn-success" onClick={() => closeForm(true)}>Concluir</button></div>}
-      </div></div>}
       <FarmFormModal isOpen={showFarmForm} onClose={() => setShowFarmForm(false)} onCreated={handleFarmCreated} />
     </div>
   );
 }
 
-function CategoryOverview({ category, structures, onEdit, onCreate }: { category: typeof categories[number]; structures: FarmStructure[]; onEdit: (item: FarmStructure) => void; onCreate: () => void }) {
-  const paid = structures.reduce((total, item) => total + Number(item.acquisition_value) * item.quantity + Number(item.items_value || 0), 0);
-  const current = structures.reduce((total, item) => total + Number(item.current_value) * item.quantity, 0);
-  const pending = structures.filter((item) => item.maintenance_status === "overdue" || item.maintenance_status === "due_soon");
-  const Icon = category.icon;
-  const maintenanceLabel = { overdue: "Atrasada", due_soon: "Próxima", scheduled: "Agendada", not_scheduled: "Sem agenda" } as const;
-  return <section id="category-overview" className={styles.categoryOverview} aria-labelledby="category-overview-title">
-    <header><div><Icon size={24} /><span><h2 id="category-overview-title">Visão de {category.label}</h2><p>{category.description}</p></span></div><button onClick={onCreate}><Plus size={17} /> Nova estrutura</button></header>
-    <div className={styles.categoryStats}>
-      <SummaryCard icon={ClipboardList} label="Estruturas" value={String(structures.length)} detail={`${structures.filter((item) => item.is_active).length} ativas`} />
-      <SummaryCard icon={Calculator} label="Valor investido" value={money(paid)} detail="Estruturas e materiais" />
-      <SummaryCard icon={Warehouse} label="Valor atual" value={money(current)} detail="Patrimônio estimado" />
-      <SummaryCard icon={CalendarClock} label="Pendências" value={String(pending.length)} detail="Manutenções próximas ou vencidas" />
-    </div>
-    {!structures.length ? <div className={styles.categoryEmpty}><Icon size={34} /><strong>Nenhuma estrutura cadastrada</strong><p>Cadastre a primeira estrutura desta categoria para acompanhar patrimônio, materiais, localização e manutenção.</p><button onClick={onCreate}><Plus size={17} /> Cadastrar agora</button></div>
-      : <div className={styles.structureCards}>{structures.map((item) => <article key={item.id} className={styles.structureDetailCard}>
-        <header><div><strong>{item.name}</strong><span className={item.is_active ? styles.activeStatus : styles.inactiveStatus}>{item.is_active ? "Ativa" : "Inativa"}</span></div><button onClick={() => onEdit(item)} aria-label={`Editar ${item.name}`}><Pencil size={16} /></button></header>
-        <p>{item.description || "Sem descrição informada."}</p>
-        <dl><div><dt>Quantidade</dt><dd>{item.quantity}</dd></div><div><dt>Área</dt><dd>{item.built_area_m2 ? `${item.built_area_m2} m²` : "—"}</dd></div><div><dt>Materiais</dt><dd>{item.items.length}</dd></div><div><dt>Valor atual</dt><dd>{money(Number(item.current_value) * item.quantity)}</dd></div></dl>
-        <div className={styles.structureMeta}><span><MapPin size={15} />{item.latitude && item.longitude ? "Localização cadastrada" : "Sem localização"}</span><span data-status={item.maintenance_status}><Wrench size={15} />{maintenanceLabel[item.maintenance_status]}{item.next_maintenance_date ? ` · ${new Date(`${item.next_maintenance_date}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}</span></div>
-        {item.maintenance_notes && <small className={styles.maintenanceNote}>{item.maintenance_notes}</small>}
-      </article>)}</div>}
-  </section>;
-}
-
 function SummaryCard({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string; detail: string }) {
-  return <div className={styles.summaryCard}><div className={styles.summaryIcon}><Icon size={25} /></div><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></div>;
+  return (
+    <div className={styles.summaryCard}>
+      <Icon size={28} />
+      <div className={styles.summaryInfo}><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
+    </div>
+  );
 }
 
 function StructureReportRow({ structure, canDelete, onEdit, onRemove }: {
   structure: FarmStructure;
   canDelete: boolean;
-  onEdit: (structure: FarmStructure) => void;
-  onRemove: (structure: FarmStructure) => Promise<void>;
+  onEdit: (item: FarmStructure) => void;
+  onRemove: (item: FarmStructure) => Promise<void>;
 }) {
-  return <tr>
-    <td><span className="badge bg-success-subtle text-success border border-success-subtle">{structure.category_label}</span></td>
-    <td><strong>{structure.name}</strong>{structure.description && <div className="text-muted small">{structure.description}</div>}</td>
-    <td>Estrutura principal</td>
-    <td>{structure.built_area_m2 ? `${structure.built_area_m2} m²` : "—"}</td>
-    <td>{structure.quantity}</td>
-    <td>{money(Number(structure.acquisition_value) * structure.quantity)}</td>
-    <td className="text-success fw-semibold">{money(Number(structure.current_value) * structure.quantity)}</td>
-    <td className="text-end"><button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title="Editar"><Pencil size={15} /></button>{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title="Excluir"><Trash2 size={15} /></button>}</td>
-  </tr>;
+  return (
+    <tr>
+      <td><span className={`badge border ${styles.badge} ${styles.badgeStructure}`}>{structure.category_label}</span></td>
+      <td><strong>{structure.name}</strong>{structure.description && <div className="text-muted small text-truncate" style={{ maxWidth: 250 }}>{structure.description}</div>}</td>
+      <td>Estrutura principal</td>
+      <td>{structure.built_area_m2 ? `${structure.built_area_m2} m²` : "—"}</td>
+      <td>{structure.quantity}</td>
+      <td>{money(Number(structure.acquisition_value) * structure.quantity)}</td>
+      <td className="text-success fw-semibold">{money(Number(structure.current_value) * structure.quantity)}</td>
+      <td className="text-end">
+        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title="Editar dados da estrutura"><Pencil size={15} /></button>
+        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title="Excluir estrutura"><Trash2 size={15} /></button>}
+      </td>
+    </tr>
+  );
 }
 
 function MaterialReportRow({ structure, material, canDelete, onRemoved }: {
   structure: FarmStructure;
   material: FarmStructureItem;
   canDelete: boolean;
-  onRemoved: () => Promise<void>;
+  onRemoved: () => void;
 }) {
-  return <tr className={styles.materialRow}>
-    <td><span className="badge bg-secondary-subtle text-secondary border">Item utilizado</span></td>
-    <td><strong>{material.name}</strong></td>
-    <td>{structure.name} <div className="text-muted small">{structure.category_label}</div></td>
-    <td>{material.unit}</td>
-    <td>{material.quantity}</td>
-    <td>{money(material.value)}</td>
-    <td>—</td>
-    <td className="text-end">{canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title="Excluir item"><Trash2 size={15} /></button>}</td>
-  </tr>;
+  return (
+    <tr className={styles.materialRow}>
+      <td><span className={`badge border ${styles.badge} ${styles.badgeMaterial}`}>Item utilizado</span></td>
+      <td><strong>{material.name}</strong></td>
+      <td className="text-truncate" style={{ maxWidth: 150 }}>{structure.name}</td>
+      <td>—</td>
+      <td>{material.quantity} {material.unit}</td>
+      <td>{money(material.value)}</td>
+      <td>—</td>
+      <td className="text-end">
+        {canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title="Remover item da estrutura"><Trash2 size={15} /></button>}
+      </td>
+    </tr>
+  );
+}
+
+function CategoryOverview({ category, structures, onEdit, onCreate }: {
+  category: typeof categories[0];
+  structures: FarmStructure[];
+  onEdit: (item: FarmStructure) => void;
+  onCreate: () => void;
+}) {
+  const Icon = category.icon;
+  const count = structures.length;
+  const value = structures.reduce((sum, item) => sum + (Number(item.current_value) * item.quantity), 0);
+  return (
+    <div id="category-overview" className={styles.categoryOverview} style={{ order: 2 }}>
+      <div className={styles.overviewHeader}>
+        <div className="d-flex gap-3 align-items-center">
+          <div className={styles.overviewIcon}><Icon size={24} /></div>
+          <div><h2 className="h5 fw-bold mb-0 text-white">{category.label}</h2><p className="text-white-50 small mb-0">{category.description}</p></div>
+        </div>
+        <div className="d-flex gap-4">
+          <div className="text-end"><span className="d-block text-white-50 small">Total de itens</span><strong className="text-white fs-5">{count}</strong></div>
+          <div className="text-end"><span className="d-block text-white-50 small">Valor em {category.label.toLowerCase()}</span><strong className="text-white fs-5">{money(value)}</strong></div>
+        </div>
+      </div>
+      <div className="p-3 bg-white border-top border-light">
+        {structures.length === 0 ? (
+          <div className="text-center text-muted py-4">Nenhum {category.label.toLowerCase()} cadastrado.<br /><button className="btn btn-sm btn-success mt-2" onClick={onCreate}>Cadastrar agora</button></div>
+        ) : (
+          <div className="table-responsive"><table className="table table-sm align-middle mb-0"><thead><tr><th>Nome</th><th>Área</th><th>Quantidade</th><th>Valor</th><th /></tr></thead><tbody>
+            {structures.map((item) => (
+              <tr key={item.id}>
+                <td><strong>{item.name}</strong><br /><small className="text-muted">{item.items.length} itens vinculados</small></td>
+                <td>{item.built_area_m2 ? `${item.built_area_m2} m²` : "—"}</td>
+                <td>{item.quantity}</td>
+                <td>{money(Number(item.current_value) * item.quantity)}</td>
+                <td className="text-end"><button className="btn btn-sm btn-outline-secondary" onClick={() => onEdit(item)}>Gerenciar</button></td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
+      </div>
+    </div>
+  );
 }
