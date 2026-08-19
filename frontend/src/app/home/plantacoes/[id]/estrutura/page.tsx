@@ -115,7 +115,7 @@ export default function SectorStructurePage() {
 
   return <div className={styles.page}>
     <header className={styles.hero}>
-      <button onClick={() => router.back()} aria-label="Voltar"><ArrowLeft size={27} /></button>
+
       <div><h1>Estrutura do Setor</h1><p>Lance a estrutura utilizada no setor plantado</p></div>
       <button className={styles.saveButton} onClick={() => router.back()}><Save size={20} /> Salvar</button>
     </header>

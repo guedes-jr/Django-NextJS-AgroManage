@@ -159,9 +159,6 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
     )
     data_fabricacao = serializers.DateField(write_only=True, required=False, allow_null=True)
     local_armazenamento = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    fornecedor = serializers.PrimaryKeyRelatedField(
-        queryset=Fornecedor.objects.all(), required=False, allow_null=True, write_only=True
-    )
     nota_fiscal = serializers.CharField(write_only=True, required=False, allow_blank=True)
     observacao_lote = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
@@ -191,7 +188,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
             # Write-only batch fields
             "custo_unitario", "data_fabricacao", "local_armazenamento",
-            "fornecedor", "nota_fiscal", "observacao_lote",
+            "nota_fiscal", "observacao_lote",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
@@ -208,9 +205,6 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
         elif categoria:
             attrs["categorias"] = [categoria]
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
-        fornecedor = attrs.get("fornecedor")
-        if fornecedor and (not organization or fornecedor.organization_id != organization.id):
-            raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
         return attrs
 
     def create(self, validated_data):
@@ -219,7 +213,6 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "custo_unitario": validated_data.pop("custo_unitario", None),
             "data_fabricacao": validated_data.pop("data_fabricacao", None),
             "local_armazenamento": validated_data.pop("local_armazenamento", ""),
-            "fornecedor": validated_data.pop("fornecedor", ""),
             "nota_fiscal": validated_data.pop("nota_fiscal", ""),
             "observacao_lote": validated_data.pop("observacao_lote", ""),
         }

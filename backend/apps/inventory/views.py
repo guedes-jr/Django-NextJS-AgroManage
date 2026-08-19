@@ -55,9 +55,32 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_authenticated and self.request.user.organization:
-            return qs.filter(organization=self.request.user.organization)
-        return qs.none() # Return nothing if not authenticated/no org
+        if not (self.request.user.is_authenticated and self.request.user.organization):
+            return qs.none()
+        qs = qs.filter(organization=self.request.user.organization)
+
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            qs = qs.filter(nome__icontains=search)
+
+        categoria = self.request.query_params.get("categoria", "").strip()
+        if categoria and categoria != "todas":
+            qs = qs.filter(
+                Q(categoria=categoria)
+                | Q(categorias__contains=[categoria])
+            )
+
+        status_filter = self.request.query_params.get("status", "").strip()
+        if status_filter == "baixo":
+            qs = qs.annotate(
+                saldo_total=Sum("lotes__quantidade_atual", filter=Q(lotes__ativo=True))
+            ).filter(estoque_minimo__gt=0, saldo_total__lt=models.F("estoque_minimo"))
+        elif status_filter == "normal":
+            qs = qs.annotate(
+                saldo_total=Sum("lotes__quantidade_atual", filter=Q(lotes__ativo=True))
+            ).exclude(estoque_minimo__gt=0, saldo_total__lt=models.F("estoque_minimo"))
+
+        return qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

@@ -931,12 +931,8 @@ export default function PlantacaoDetailPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="dashboard-card p-4 mb-4">
         <div className="d-flex align-items-center gap-3 flex-wrap">
-          <button className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" onClick={() => router.back()} style={{ width: 36, height: 36 }}>
-            <ArrowLeft size={16} />
-          </button>
           <div className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
             style={{ width: 48, height: 48, background: `color-mix(in srgb, ${cultureVisual.color}, transparent 88%)`, overflow: "hidden" }}>
             <Image src={cultureVisual.image} alt={plantation.crop_name || "Cultura"} width={42} height={42} style={{ objectFit: "cover", borderRadius: 8 }} />

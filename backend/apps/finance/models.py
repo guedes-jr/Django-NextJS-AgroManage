@@ -110,6 +110,11 @@ class Transaction(BaseModel):
     def __str__(self) -> str:
         return f"{self.description} — R$ {self.amount} ({self.status})"
 
+    def save(self, *args, **kwargs):
+        if self.status == self.Status.PAID and not self.payment_date:
+            self.payment_date = self.due_date
+        super().save(*args, **kwargs)
+
     @property
     def is_revenue(self) -> bool:
         return self.category.category_type == FinancialCategory.CategoryType.REVENUE

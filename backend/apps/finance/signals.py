@@ -27,6 +27,7 @@ def create_inventory_transaction(sender, instance, created, **kwargs):
             amount=total_cost,
             category=category,
             due_date=instance.data_entrada,
+            payment_date=instance.data_entrada,
             status="paid",  # Assumimos pago se entrou no estoque com custo
             reference=f"LOTE-{instance.id}"
         )
@@ -51,6 +52,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
             amount=instance.purchase_value,
             category=category_pur,
             due_date=instance.entry_date,
+            payment_date=instance.entry_date,
             status="paid",
             reference=ref_pur
         )
@@ -72,6 +74,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
                 amount=instance.sale_value,
                 category=category_sale,
                 due_date=instance.exit_date or instance.updated_at.date(),
+                payment_date=instance.exit_date or instance.updated_at.date(),
                 status="paid",
                 reference=ref_sale
             )

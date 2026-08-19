@@ -42,8 +42,17 @@ export const cropService = {
   listSoilAnalyses: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/soil-analyses/", { params }),
 
+  deleteSoilAnalysis: (id: string) =>
+    apiClient.delete(`/crops/soil-analyses/${id}/`),
+
   listAgronomistRecommendations: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/agronomist-recommendations/", { params }),
+
+  updateAgronomistRecommendation: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/agronomist-recommendations/${id}/`, data),
+
+  deleteAgronomistRecommendation: (id: string) =>
+    apiClient.delete(`/crops/agronomist-recommendations/${id}/`),
 
   // ── Plantings ─────────────────────────────────────────────
   listPlantings: (params?: Record<string, string | number>) =>
@@ -52,6 +61,12 @@ export const cropService = {
   createPlanting: (data: Record<string, unknown>) =>
     apiClient.post("/crops/plantings/", data),
 
+  updatePlanting: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/plantings/${id}/`, data),
+
+  deletePlanting: (id: string) =>
+    apiClient.delete(`/crops/plantings/${id}/`),
+
   // ── Fertilizations ──────────────────────────────────────
   listFertilizations: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/fertilizations/", { params }),
@@ -59,12 +74,24 @@ export const cropService = {
   createFertilization: (data: Record<string, unknown>) =>
     apiClient.post("/crops/fertilizations/", data),
 
+  updateFertilization: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/fertilizations/${id}/`, data),
+
+  deleteFertilization: (id: string) =>
+    apiClient.delete(`/crops/fertilizations/${id}/`),
+
   // ── Fertigations ────────────────────────────────────────
   listFertigations: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/fertigations/", { params }),
 
   createFertigation: (data: Record<string, unknown>) =>
     apiClient.post("/crops/fertigations/", data),
+
+  updateFertigation: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/fertigations/${id}/`, data),
+
+  deleteFertigation: (id: string) =>
+    apiClient.delete(`/crops/fertigations/${id}/`),
 
   // ── Pesticide Applications ──────────────────────────────
   listPesticideApplications: (params?: Record<string, string | number>) =>
@@ -76,12 +103,24 @@ export const cropService = {
   bulkCreatePesticideApplications: (data: Record<string, unknown>) =>
     apiClient.post("/crops/pesticides/bulk-create/", data),
 
+  updatePesticideApplication: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/pesticides/${id}/`, data),
+
+  deletePesticideApplication: (id: string) =>
+    apiClient.delete(`/crops/pesticides/${id}/`),
+
   // ── Irrigations ────────────────────────────────────────
   listIrrigations: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/irrigations/", { params }),
 
   createIrrigation: (data: Record<string, unknown>) =>
     apiClient.post("/crops/irrigations/", data),
+
+  updateIrrigation: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/irrigations/${id}/`, data),
+
+  deleteIrrigation: (id: string) =>
+    apiClient.delete(`/crops/irrigations/${id}/`),
 
   listIrrigationPumps: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/irrigation-pumps/", { params }),
@@ -101,6 +140,12 @@ export const cropService = {
 
   createLaborRecord: (data: Record<string, unknown>) =>
     apiClient.post("/crops/labor-records/", data),
+
+  updateLaborRecord: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/labor-records/${id}/`, data),
+
+  deleteLaborRecord: (id: string) =>
+    apiClient.delete(`/crops/labor-records/${id}/`),
 
   // ── Harvests ───────────────────────────────────────────
   listHarvests: (params?: Record<string, string | number>) =>

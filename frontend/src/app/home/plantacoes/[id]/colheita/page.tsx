@@ -418,15 +418,7 @@ export default function ColheitaPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-outline-secondary d-flex align-items-center gap-2 px-4"
-          style={{ height: 46, borderRadius: 10, fontWeight: 700 }}
-          onClick={() => router.push(`/home/plantacoes/${id}`)}
-        >
-          <ArrowLeft size={18} />
-          Voltar
-        </button>
+
       </div>
 
       {error && (

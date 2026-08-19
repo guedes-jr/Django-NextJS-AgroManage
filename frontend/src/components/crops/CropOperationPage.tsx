@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Droplets, Plus, Save, ShieldCheck, Sprout, Trash2, Wheat } from "lucide-react";
+import { ArrowLeft, Droplets, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, Wheat, X } from "lucide-react";
 import apiClient from "@/services/api";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
@@ -50,6 +50,7 @@ type ApplicationRecord = {
   total_price?: string | number | null;
   operator?: string | null;
   notes?: string | null;
+  equipments?: { equipment: string; total_price?: string | number | null }[];
 };
 
 type IrrigationPump = {
@@ -289,6 +290,12 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
     operator: "",
     notes: "",
   });
+
+  // ── Edit / Delete states ────────────────────────────────────────────────
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<ApplicationRecord | IrrigationRecord | null>(null);
+  const [editForm, setEditForm] = useState({ date: "", operator: "", notes: "", quantity: "", unit_price: "" });
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchHistory = useCallback(async () => {
     if (kind === "plantio") {
@@ -544,6 +551,85 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
     }
   };
 
+  // ── Delete handler ──────────────────────────────────────────────────────
+  const handleDelete = async (recordId: string) => {
+    if (!confirm("Tem certeza que deseja remover este registro?")) return;
+    try {
+      setDeletingId(recordId);
+      if (isIrrigation) {
+        await cropService.deleteIrrigation(recordId);
+        setIrrigationHistory((prev) => prev.filter((r) => r.id !== recordId));
+      } else {
+        if (kind === "plantio") await cropService.deletePlanting(recordId);
+        else if (kind === "adubacao") await cropService.deleteFertilization(recordId);
+        else if (kind === "fertirrigacao") await cropService.deleteFertigation(recordId);
+        else if (kind === "defensivos") await cropService.deletePesticideApplication(recordId);
+        setHistory((prev) => prev.filter((r) => r.id !== recordId));
+      }
+    } catch (err) {
+      console.error("Erro ao remover registro", err);
+      alert("Erro ao remover o registro. Tente novamente.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ── Edit handlers ───────────────────────────────────────────────────────
+  const openEdit = (record: ApplicationRecord | IrrigationRecord) => {
+    setEditingRecord(record);
+    if (isIrrigation) {
+      const r = record as IrrigationRecord;
+      setEditForm({
+        date: r.start_date ?? r.date ?? "",
+        operator: r.operator ?? "",
+        notes: "",
+        quantity: r.hours_per_day != null ? String(r.hours_per_day) : "",
+        unit_price: "",
+      });
+    } else {
+      const r = record as ApplicationRecord;
+      setEditForm({
+        date: kind === "plantio" ? (r.planting_date ?? "") : (r.application_date ?? ""),
+        operator: r.operator ?? "",
+        notes: r.notes ?? "",
+        quantity: r.quantity != null ? String(r.quantity) : "",
+        unit_price: r.unit_price != null ? String(r.unit_price) : "",
+      });
+    }
+  };
+
+  const closeEdit = () => setEditingRecord(null);
+
+  const handleEditSubmit = async () => {
+    if (!editingRecord || editSaving) return;
+    try {
+      setEditSaving(true);
+      const basePayload = { operator: editForm.operator, notes: editForm.notes };
+      if (isIrrigation) {
+        await cropService.updateIrrigation(editingRecord.id, {
+          ...basePayload,
+          start_date: editForm.date,
+          hours_per_day: editForm.quantity || null,
+        });
+        await fetchHistory();
+      } else {
+        const dateField = kind === "plantio" ? { planting_date: editForm.date } : { application_date: editForm.date };
+        const payload = { ...basePayload, ...dateField };
+        if (kind === "plantio") await cropService.updatePlanting(editingRecord.id, payload);
+        else if (kind === "adubacao") await cropService.updateFertilization(editingRecord.id, payload);
+        else if (kind === "fertirrigacao") await cropService.updateFertigation(editingRecord.id, payload);
+        else if (kind === "defensivos") await cropService.updatePesticideApplication(editingRecord.id, payload);
+        await fetchHistory();
+      }
+      closeEdit();
+    } catch (err) {
+      console.error("Erro ao editar registro", err);
+      alert("Erro ao editar o registro. Tente novamente.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4">
@@ -571,9 +657,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       </div>
 
       <div className="d-flex align-items-center gap-3 mb-4">
-        <button className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" onClick={() => router.back()} style={{ width: 38, height: 38, borderRadius: 10 }}>
-          <ArrowLeft size={18} />
-        </button>
+
         <div>
           <h1 className="fw-black mb-1 text-foreground d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
             <Icon size={28} className="text-primary" /> {config.title as string}
@@ -632,8 +716,106 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
         <h2 className="fw-black text-foreground mb-3" style={{ fontSize: "1.05rem" }}>
           {config.historyTitle as string}
         </h2>
-        {isIrrigation ? <IrrigationHistory records={irrigationHistory} /> : <ApplicationHistory kind={kind} records={history} />}
+        {isIrrigation
+          ? <IrrigationHistory records={irrigationHistory} deletingId={deletingId} onDelete={handleDelete} onEdit={openEdit} />
+          : <ApplicationHistory kind={kind} records={history} deletingId={deletingId} onDelete={handleDelete} onEdit={openEdit} />}
       </div>
+
+      {/* Edit Modal */}
+      {editingRecord && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ zIndex: 1050, backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeEdit(); }}
+        >
+          <div
+            className="bg-white rounded-4 shadow-lg p-4"
+            style={{ width: "100%", maxWidth: 500, maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div className="d-flex align-items-center justify-content-between mb-4">
+              <h5 className="fw-black mb-0 d-flex align-items-center gap-2" style={{ fontSize: "1.05rem" }}>
+                <Pencil size={17} className="text-primary" />
+                Editar registro
+              </h5>
+              <button type="button" className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" style={{ width: 32, height: 32, borderRadius: 8, padding: 0 }} onClick={closeEdit}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Data */}
+            <div className="mb-3">
+              <label className="form-label fw-semibold small mb-1">
+                {isIrrigation ? "Data inicial" : (kind === "plantio" ? "Data do plantio" : "Data")}
+              </label>
+              <input
+                type="date"
+                className="form-control"
+                style={{ borderRadius: 10, height: 40 }}
+                value={editForm.date}
+                onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))}
+              />
+            </div>
+
+            {/* Operator */}
+            <div className="mb-3">
+              <label className="form-label fw-semibold small mb-1">Operador</label>
+              <input
+                className="form-control"
+                placeholder="Nome do operador"
+                style={{ borderRadius: 10, height: 40 }}
+                value={editForm.operator}
+                onChange={(e) => setEditForm((p) => ({ ...p, operator: e.target.value }))}
+              />
+            </div>
+
+            {/* Hours / Quantity (irrigation) */}
+            {isIrrigation && (
+              <div className="mb-3">
+                <label className="form-label fw-semibold small mb-1">Horas por dia</label>
+                <input
+                  type="number" step="0.1"
+                  className="form-control"
+                  style={{ borderRadius: 10, height: 40 }}
+                  value={editForm.quantity}
+                  onChange={(e) => setEditForm((p) => ({ ...p, quantity: e.target.value }))}
+                />
+              </div>
+            )}
+
+            {/* Notes (non-irrigation) */}
+            {!isIrrigation && (
+              <div className="mb-4">
+                <label className="form-label fw-semibold small mb-1">Observações</label>
+                <textarea
+                  className="form-control"
+                  rows={3}
+                  maxLength={300}
+                  style={{ borderRadius: 10, resize: "none" }}
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+                />
+              </div>
+            )}
+
+            <div className="d-flex gap-2 justify-content-end mt-3">
+              <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10 }} onClick={closeEdit} disabled={editSaving}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                style={{ borderRadius: 10 }}
+                onClick={handleEditSubmit}
+                disabled={editSaving}
+              >
+                {editSaving
+                  ? <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> Salvando...</>
+                  : <><Save size={14} /> Salvar alterações</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal
         isOpen={pumpModalOpen}
@@ -925,7 +1107,19 @@ function IrrigationForm({
   );
 }
 
-function ApplicationHistory({ kind, records }: { kind: OperationKind; records: ApplicationRecord[] }) {
+function ApplicationHistory({
+  kind,
+  records,
+  deletingId,
+  onDelete,
+  onEdit,
+}: {
+  kind: OperationKind;
+  records: ApplicationRecord[];
+  deletingId: string | null;
+  onDelete: (id: string) => void;
+  onEdit: (record: ApplicationRecord) => void;
+}) {
   return (
     <div className="table-responsive">
       <table className="table table-hover align-middle mb-0 agro-table">
@@ -936,37 +1130,93 @@ function ApplicationHistory({ kind, records }: { kind: OperationKind; records: A
             {kind === "defensivos" && <th>Tipo</th>}
             <th>Quantidade</th>
             <th>Preço</th>
+            {kind === "defensivos" && <th>Equipamentos</th>}
             <th>Total</th>
             <th>Operador</th>
             <th>Observações</th>
+            <th className="text-center" style={{ width: 90 }}>Ações</th>
           </tr>
         </thead>
         <tbody>
           {records.length === 0 ? (
             <tr>
-              <td colSpan={kind === "defensivos" ? 8 : 7} className="text-center text-muted-foreground py-4">
+              <td colSpan={kind === "defensivos" ? 9 : 8} className="text-center text-muted-foreground py-4">
                 Nenhum lançamento registrado ainda.
               </td>
             </tr>
-          ) : records.map((record) => (
+          ) : records.map((record) => {
+            const baseTotal = numericValue(record.total_price);
+            const eqTotal = (record.equipments || []).reduce((acc, eq) => acc + numericValue(eq.total_price), 0);
+            const finalTotal = baseTotal + eqTotal;
+            
+            return (
             <tr key={record.id}>
               <td>{formatDate(kind === "plantio" ? record.planting_date : record.application_date)}</td>
               <td>{record.item_name || "-"}</td>
               {kind === "defensivos" && <td>{record.pesticide_type_display || "-"}</td>}
               <td>{fmt(record.quantity)} {record.unit || ""}</td>
               <td>{money(record.unit_price)}</td>
-              <td className="fw-bold">{money(record.total_price)}</td>
+              {kind === "defensivos" && (
+                <td>
+                  {record.equipments && record.equipments.length > 0 ? (
+                    <div className="d-flex flex-column gap-1">
+                      {record.equipments.map((eq, i) => (
+                        <span key={i} className="small text-muted text-nowrap" title={eq.equipment}>
+                          {eq.equipment.length > 15 ? eq.equipment.substring(0, 15) + "..." : eq.equipment} ({money(eq.total_price)})
+                        </span>
+                      ))}
+                    </div>
+                  ) : "-"}
+                </td>
+              )}
+              <td className="fw-bold">{money(finalTotal)}</td>
               <td>{record.operator || "-"}</td>
               <td className="text-muted-foreground small">{record.notes || "-"}</td>
+              <td className="text-center">
+                <div className="d-flex gap-1 justify-content-center">
+                  <button
+                    type="button"
+                    title="Editar"
+                    className="btn btn-sm d-flex align-items-center justify-content-center"
+                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                    onClick={() => onEdit(record)}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Remover"
+                    className="btn btn-sm d-flex align-items-center justify-content-center"
+                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
+                    disabled={deletingId === record.id}
+                    onClick={() => onDelete(record.id)}
+                  >
+                    {deletingId === record.id
+                      ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
+                      : <Trash2 size={13} />}
+                  </button>
+                </div>
+              </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function IrrigationHistory({ records }: { records: IrrigationRecord[] }) {
+function IrrigationHistory({
+  records,
+  deletingId,
+  onDelete,
+  onEdit,
+}: {
+  records: IrrigationRecord[];
+  deletingId: string | null;
+  onDelete: (id: string) => void;
+  onEdit: (record: IrrigationRecord) => void;
+}) {
   return (
     <div className="table-responsive">
       <table className="table table-hover align-middle mb-0 agro-table">
@@ -981,12 +1231,13 @@ function IrrigationHistory({ records }: { records: IrrigationRecord[] }) {
             <th>Energia</th>
             <th>Custo</th>
             <th>Operador</th>
+            <th className="text-center" style={{ width: 90 }}>Ações</th>
           </tr>
         </thead>
         <tbody>
           {records.length === 0 ? (
             <tr>
-              <td colSpan={9} className="text-center text-muted-foreground py-4">
+              <td colSpan={10} className="text-center text-muted-foreground py-4">
                 Nenhuma irrigação registrada ainda.
               </td>
             </tr>
@@ -1001,6 +1252,31 @@ function IrrigationHistory({ records }: { records: IrrigationRecord[] }) {
               <td>{fmt(record.energy_kwh)} kWh</td>
               <td className="fw-bold">{money(record.energy_cost)}</td>
               <td>{record.operator || "-"}</td>
+              <td className="text-center">
+                <div className="d-flex gap-1 justify-content-center">
+                  <button
+                    type="button"
+                    title="Editar"
+                    className="btn btn-sm d-flex align-items-center justify-content-center"
+                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                    onClick={() => onEdit(record)}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Remover"
+                    className="btn btn-sm d-flex align-items-center justify-content-center"
+                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
+                    disabled={deletingId === record.id}
+                    onClick={() => onDelete(record.id)}
+                  >
+                    {deletingId === record.id
+                      ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
+                      : <Trash2 size={13} />}
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, ReactNode } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -134,7 +134,7 @@ export function ProdutosDashboard() {
     }
   }, [searchParams]);
 
-  const fetchItems = async (targetPage = 1) => {
+  const fetchItems = useCallback(async (targetPage = 1, opts?: { search?: string; categoria?: string; status?: string }) => {
     const accessToken = localStorage.getItem("access_token");
 
     if (!accessToken) {
@@ -146,54 +146,54 @@ export function ProdutosDashboard() {
     setLoading(true);
 
     try {
-      const { data } = await apiClient.get<PaginatedResponse<InventoryItem>>("/inventory/items/", {
-        params: { page: targetPage, page_size: 20 },
-      });
+      const params: Record<string, unknown> = { page: targetPage, page_size: 20 };
+      const resolvedSearch  = opts?.search  ?? searchTerm;
+      const resolvedCat     = opts?.categoria ?? categoryFilter;
+      const resolvedStatus  = opts?.status    ?? statusFilter;
+
+      if (resolvedSearch)  params.search   = resolvedSearch;
+      if (resolvedCat && resolvedCat !== "todas") params.categoria = resolvedCat;
+      if (resolvedStatus && resolvedStatus !== "todos") params.status = resolvedStatus;
+
+      const { data } = await apiClient.get<PaginatedResponse<InventoryItem>>("/inventory/items/", { params });
 
       setItems(Array.isArray(data?.results) ? data.results : []);
       setTotalPages(data?.total_pages || 1);
       setTotalCount(data?.count || 0);
       setPage(targetPage);
     } catch (error: any) {
-      console.error("Erro ao buscar produtos:", {
-        message: error?.message,
-        code: error?.code,
-        status: error?.response?.status,
-        response: error?.response?.data,
-        requestUrl: error?.config?.url,
-        baseURL: error?.config?.baseURL,
-        params: error?.config?.params,
-        headers: error?.config?.headers,
-      });
-
+      console.error("Erro ao buscar produtos:", error?.response?.data || error?.message);
       setItems([]);
       setTotalPages(1);
       setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleSearchChange = async (query: string) => {
+  // Debounce search term before hitting the backend
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = (query: string) => {
     setSearchTerm(query);
-    if (query.length < 3) {
+    // Autocomplete suggestions (3+ chars)
+    if (query.length >= 3) {
+      setIsLoadingSuggestions(true);
+      setShowSuggestions(true);
+      apiClient.get("/inventory/items/all_items/", { params: { search: query, limit: 5 } })
+        .then(({ data }) => setSuggestions(data || []))
+        .catch(() => {})
+        .finally(() => setIsLoadingSuggestions(false));
+    } else {
       setSuggestions([]);
       setShowSuggestions(false);
-      return;
     }
-
-    setIsLoadingSuggestions(true);
-    setShowSuggestions(true);
-    try {
-      const { data } = await apiClient.get("/inventory/items/all_items/", {
-        params: { search: query, limit: 5 }
-      });
-      setSuggestions(data || []);
-    } catch (err) {
-      console.error("Erro ao buscar sugestões:", err);
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
+    // Debounce the paginated list refetch
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      fetchItems(1, { search: query, categoria: categoryFilter, status: statusFilter });
+    }, 400);
   };
 
   const handleSelectSuggestion = (produto: any) => {
@@ -218,7 +218,16 @@ export function ProdutosDashboard() {
 
   useEffect(() => {
     fetchItems(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Refetch when category or status filter changes (reset to page 1)
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    fetchItems(1, { search: searchTerm, categoria: categoryFilter, status: statusFilter });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, statusFilter]);
 
   const handleSaveItems = async (newItems: any[]) => {
     const payload = newItems.map((row) => ({
@@ -305,31 +314,8 @@ export function ProdutosDashboard() {
     });
   };
 
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory =
-        categoryFilter === "todas" ||
-        item.categoria === categoryFilter ||
-        item.categorias?.includes(categoryFilter) ||
-        (categoryFilter === "defensivo" &&
-          ["defensivo", "foliar"].some((categoria) =>
-            item.categoria === categoria || item.categorias?.includes(categoria)
-          )) ||
-        (categoryFilter === "medicamento_vacina" &&
-          ["medicamento", "vacina", "medicamento_vacina"].some((categoria) =>
-            item.categoria === categoria || item.categorias?.includes(categoria)
-          ));
-      const estoqueAtual = toNumber(item.estoque_atual);
-      const estoqueMinimo = toNumber(item.estoque_minimo);
-      const isBaixo = estoqueAtual <= estoqueMinimo;
-      const matchesStatus =
-        statusFilter === "todos" ||
-        (statusFilter === "baixo" && isBaixo) ||
-        (statusFilter === "normal" && !isBaixo);
-      return matchesSearch && matchesCategory && matchesStatus;
-    });
-  }, [items, searchTerm, categoryFilter, statusFilter]);
+  // filteredItems: just the current page (filtering already done in backend)
+  const filteredItems = items;
 
   const stats = useMemo(() => {
     const total = items.length;
@@ -596,10 +582,10 @@ export function ProdutosDashboard() {
       <div className="d-flex align-items-center justify-content-between mt-3">
         <div className="text-muted-foreground small">Mostrando página {page} de {totalPages} ({totalCount} itens)</div>
         <div className="d-flex gap-2">
-          <button className="btn btn-light btn-sm" disabled={page <= 1} onClick={() => fetchItems(page - 1)}>
+          <button className="btn btn-light btn-sm" disabled={page <= 1} onClick={() => fetchItems(page - 1, { search: searchTerm, categoria: categoryFilter, status: statusFilter })}>
             <ChevronLeft size={14} />
           </button>
-          <button className="btn btn-light btn-sm" disabled={page >= totalPages} onClick={() => fetchItems(page + 1)}>
+          <button className="btn btn-light btn-sm" disabled={page >= totalPages} onClick={() => fetchItems(page + 1, { search: searchTerm, categoria: categoryFilter, status: statusFilter })}>
             <ChevronRight size={14} />
           </button>
         </div>

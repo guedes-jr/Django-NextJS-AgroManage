@@ -105,7 +105,12 @@ def _create_financial_transaction(instance, request, category_name, reference_pr
     organization = plantation.organization
     farm = plantation.farm
 
-    if not instance.total_price or instance.total_price <= 0:
+    amount = getattr(instance, "total_price", Decimal("0")) or Decimal("0")
+    if hasattr(instance, "equipments"):
+        equipment_total = sum((eq.total_price or Decimal("0") for eq in instance.equipments.all()), Decimal("0"))
+        amount += equipment_total
+
+    if amount <= 0:
         return
 
     category, _ = FinancialCategory.objects.get_or_create(
@@ -122,8 +127,9 @@ def _create_financial_transaction(instance, request, category_name, reference_pr
         farm=farm,
         category=category,
         description=f"{category_name}: {plantation}{item_desc}",
-        amount=instance.total_price,
+        amount=amount,
         due_date=due_date,
+        payment_date=due_date,
         status="paid",
         planting_cycle=plantation,
         reference=f"{reference_prefix}-{instance.id}",
@@ -198,6 +204,7 @@ def create_irrigation(serializer, request):
             description=f"Irrigação: {plantation} — {irrigation.start_date or irrigation.date}",
             amount=irrigation.energy_cost,
             due_date=irrigation.start_date or irrigation.date,
+            payment_date=irrigation.start_date or irrigation.date,
             status="paid",
             planting_cycle=plantation,
             reference=f"IRRIGATION-{irrigation.id}",
@@ -237,6 +244,7 @@ def create_labor_record(serializer, request):
             description=f"Mão de Obra: {plantation} — {labor_record.worker}",
             amount=labor_record.total_amount,
             due_date=labor_record.activity_date,
+            payment_date=labor_record.activity_date,
             status="paid",
             planting_cycle=plantation,
             reference=f"LABOR-{labor_record.id}",
@@ -270,6 +278,7 @@ def create_harvest(serializer, request):
             description=f"Colheita: {plantation} — {harvest.buyer_name or harvest.buyer or 'Venda'}",
             amount=harvest.revenue_amount,
             due_date=harvest.harvest_date,
+            payment_date=harvest.harvest_date,
             status="paid",
             planting_cycle=plantation,
             reference=f"HARVEST-{harvest.id}",
@@ -307,6 +316,7 @@ def _sync_harvest_transaction(harvest, request=None):
         "description": f"Colheita: {plantation} — {harvest.buyer_name or harvest.buyer or 'Venda'}",
         "amount": harvest.revenue_amount,
         "due_date": harvest.harvest_date,
+        "payment_date": harvest.harvest_date,
         "status": "paid",
         "planting_cycle": plantation,
     }

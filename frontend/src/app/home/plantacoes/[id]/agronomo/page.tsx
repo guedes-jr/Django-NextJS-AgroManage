@@ -15,6 +15,7 @@ import {
   Save,
   Trash2,
   UploadCloud,
+  Edit3,
 } from "lucide-react";
 import apiClient from "@/services/api";
 import { cropService } from "@/services/cropService";
@@ -158,6 +159,9 @@ export default function AgronomoPage() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingRecommendationId, setEditingRecommendationId] = useState<string | null>(null);
+  const [deletingRecommendationId, setDeletingRecommendationId] = useState<string | null>(null);
+  const [deletingSoilAnalysisId, setDeletingSoilAnalysisId] = useState<string | null>(null);
   const [completingRecommendationId, setCompletingRecommendationId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -294,6 +298,78 @@ export default function AgronomoPage() {
     }
   };
 
+  const handleEditRecommendation = (rec: Recommendation) => {
+    setEditingRecommendationId(rec.id);
+    setForm({
+      title: rec.title,
+      objective: rec.objective || "",
+      recommendation_date: rec.recommendation_date,
+      suggested_application_date: rec.suggested_application_date || "",
+      priority: rec.priority,
+      status: rec.status,
+    });
+    if (rec.products && rec.products.length > 0) {
+      setProducts(
+        rec.products.map((p) => {
+          const invItem = inventoryItems.find((i) => String(i.id) === String(p.item));
+          return {
+            item: p.item,
+            item_search: invItem?.nome || p.item_name || "",
+            category: invItem?.categoria || p.category || "",
+            dose_per_ha: p.dose_per_ha || "",
+            dose_unit: p.dose_unit || "l_ha",
+            total_quantity: p.total_quantity || "",
+            total_unit: p.total_unit || "l",
+            notes: p.notes || "",
+          };
+        })
+      );
+    } else {
+      setProducts([{ ...emptyProduct }]);
+    }
+    document.getElementById("nova-recomendacao")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleDeleteRecommendation = async (id: string) => {
+    if (!window.confirm("Deseja realmente excluir esta recomendação?")) return;
+    try {
+      setDeletingRecommendationId(id);
+      await cropService.deleteAgronomistRecommendation(id);
+      setRecommendations((prev) => prev.filter((r) => r.id !== id));
+      if (editingRecommendationId === id) {
+        setEditingRecommendationId(null);
+        setForm({
+          title: "",
+          objective: "",
+          recommendation_date: today(),
+          suggested_application_date: "",
+          priority: "medium",
+          status: "pending",
+        });
+        setProducts([{ ...emptyProduct }]);
+      }
+    } catch (error) {
+      console.error("Erro ao excluir recomendação", error);
+      alert("Não foi possível excluir a recomendação.");
+    } finally {
+      setDeletingRecommendationId(null);
+    }
+  };
+
+  const handleDeleteSoilAnalysis = async (id: string) => {
+    if (!window.confirm("Deseja realmente excluir esta análise de solo?")) return;
+    try {
+      setDeletingSoilAnalysisId(id);
+      await cropService.deleteSoilAnalysis(id);
+      setSoilAnalyses((prev) => prev.filter((a) => a.id !== id));
+    } catch (error) {
+      console.error("Erro ao excluir análise de solo", error);
+      alert("Não foi possível excluir a análise de solo.");
+    } finally {
+      setDeletingSoilAnalysisId(null);
+    }
+  };
+
   const handleSaveRecommendation = async () => {
     if (!id || !form.title.trim()) return;
     const unresolvedProduct = products.find((product) => product.item_search.trim() && !product.item);
@@ -321,8 +397,16 @@ export default function AgronomoPage() {
           notes: product.notes,
         })),
       };
-      const response = await apiClient.post("/crops/agronomist-recommendations/", payload);
-      setRecommendations((prev) => [response.data, ...prev]);
+      if (editingRecommendationId) {
+        const response = await cropService.updateAgronomistRecommendation(editingRecommendationId, payload);
+        const updated = response.data as Recommendation;
+        setRecommendations((prev) => prev.map((r) => r.id === updated.id ? updated : r));
+        setEditingRecommendationId(null);
+      } else {
+        const response = await apiClient.post("/crops/agronomist-recommendations/", payload);
+        setRecommendations((prev) => [response.data, ...prev]);
+      }
+      
       setForm({
         title: "",
         objective: "",
@@ -375,9 +459,7 @@ export default function AgronomoPage() {
     <div>
       <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-4">
         <div className="d-flex align-items-center gap-3">
-          <button className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" onClick={() => router.back()} style={{ width: 38, height: 38, borderRadius: 10 }}>
-            <ArrowLeft size={18} />
-          </button>
+
           <div>
             <h1 className="fw-black mb-1 d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
               <FlaskConical size={28} className="text-success" /> Área do Agrônomo
@@ -435,6 +517,15 @@ export default function AgronomoPage() {
                     <a className="btn btn-outline-secondary btn-sm" href={analysis.file_url} download title="Baixar">
                       <Download size={16} />
                     </a>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      disabled={deletingSoilAnalysisId === analysis.id}
+                      onClick={() => handleDeleteSoilAnalysis(analysis.id)}
+                      title="Excluir"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -477,6 +568,18 @@ export default function AgronomoPage() {
                           <CheckCircle2 size={15} />
                           {completingRecommendationId === recommendation.id ? "Concluindo..." : "Feito"}
                         </Button>
+                        <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title="Editar">
+                          <Edit3 size={15} />
+                        </Button>
+                        <Button 
+                          variant="outline-danger" 
+                          size="sm" 
+                          disabled={deletingRecommendationId === recommendation.id}
+                          onClick={() => handleDeleteRecommendation(recommendation.id)} 
+                          title="Excluir"
+                        >
+                          <Trash2 size={15} />
+                        </Button>
                       </div>
                     </div>
                     <div className="fw-bold mt-2">{recommendation.title}</div>
@@ -516,7 +619,21 @@ export default function AgronomoPage() {
                         {formatDate(recommendation.recommendation_date)} • {recommendation.status_display || recommendation.status}
                       </div>
                     </div>
-                    <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
+                    <div className="d-flex align-items-center gap-2">
+                      <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
+                      <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title="Editar">
+                        <Edit3 size={15} />
+                      </Button>
+                      <Button 
+                        variant="outline-danger" 
+                        size="sm" 
+                        disabled={deletingRecommendationId === recommendation.id}
+                        onClick={() => handleDeleteRecommendation(recommendation.id)} 
+                        title="Excluir"
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -541,6 +658,7 @@ export default function AgronomoPage() {
                       <th>Produtos</th>
                       <th>Prioridade</th>
                       <th>Status</th>
+                      <th className="text-end">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -554,6 +672,22 @@ export default function AgronomoPage() {
                         <td>{recommendation.products?.length || 0} item{(recommendation.products?.length || 0) === 1 ? "" : "s"}</td>
                         <td>{recommendation.priority_display || recommendation.priority}</td>
                         <td><Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || "Concluída"}</Badge></td>
+                        <td className="text-end">
+                          <div className="d-flex justify-content-end gap-2">
+                            <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title="Editar">
+                              <Edit3 size={15} />
+                            </Button>
+                            <Button 
+                              variant="outline-danger" 
+                              size="sm" 
+                              disabled={deletingRecommendationId === recommendation.id}
+                              onClick={() => handleDeleteRecommendation(recommendation.id)} 
+                              title="Excluir"
+                            >
+                              <Trash2 size={15} />
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -565,7 +699,9 @@ export default function AgronomoPage() {
 
         <div className="col-12" id="nova-recomendacao">
           <div className="dashboard-card p-4">
-            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Nova recomendação</h6>
+            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2">
+              <ClipboardList size={18} /> {editingRecommendationId ? "Editar recomendação" : "Nova recomendação"}
+            </h6>
             <p className="text-muted small mb-4">Preencha os dados da recomendação agrícola.</p>
 
             <div className="row g-3 mb-4">
@@ -694,9 +830,26 @@ export default function AgronomoPage() {
                 <Plus size={16} /> Adicionar produto
               </Button>
               <div className="d-flex gap-2">
-                <Button variant="outline-secondary" onClick={() => router.push(`/home/plantacoes/${id}`)}>Cancelar</Button>
+                <Button variant="outline-secondary" onClick={() => {
+                  if (editingRecommendationId) {
+                    setEditingRecommendationId(null);
+                    setForm({
+                      title: "",
+                      objective: "",
+                      recommendation_date: today(),
+                      suggested_application_date: "",
+                      priority: "medium",
+                      status: "pending",
+                    });
+                    setProducts([{ ...emptyProduct }]);
+                  } else {
+                    router.push(`/home/plantacoes/${id}`);
+                  }
+                }}>
+                  Cancelar
+                </Button>
                 <Button variant="agro" onClick={handleSaveRecommendation} disabled={saving}>
-                  <Save size={16} /> {saving ? "Salvando..." : "Salvar recomendação"}
+                  <Save size={16} /> {saving ? "Salvando..." : editingRecommendationId ? "Atualizar recomendação" : "Salvar recomendação"}
                 </Button>
               </div>
             </div>

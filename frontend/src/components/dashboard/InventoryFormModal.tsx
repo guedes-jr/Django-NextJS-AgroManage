@@ -86,7 +86,7 @@ function emptyRow(category?: InventoryCategory) {
     tipo_semen: "convencional",
     estoque_minimo: "",
     custo_unitario: "", ultimo_custo: 0,
-    local_armazenamento: "", fornecedor: "", nota_fiscal: "",
+    local_armazenamento: "", nota_fiscal: "",
     observacao_lote: "",
     // Medicamento / Vacina
     principio_ativo: "", concentracao: "", via_aplicacao: "",
@@ -118,7 +118,6 @@ function InputField({ label, required, icon: Icon, children }: any) {
 export function InventoryFormModal({ isOpen, onClose, category, onSave, initialData }: InventoryFormModalProps) {
   const [rows, setRows] = useState([emptyRow(category)]);
   const [loading, setLoading] = useState(false);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
 
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [categoryDialogRowId, setCategoryDialogRowId] = useState<number | null>(null);
@@ -137,8 +136,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
       } else {
         setRows([emptyRow(category)]);
       }
-
-      fetchSuppliers();
     }
   }, [isOpen, category, initialData]);
 
@@ -212,17 +209,6 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
     closeCategoryDialog();
   };
 
-  const fetchSuppliers = async () => {
-    try {
-      const { data } = await apiClient.get("/inventory/fornecedores/");
-      setSuppliers(Array.isArray(data) ? data : (Array.isArray(data?.results) ? data.results : []));
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("Erro ao buscar fornecedores para o modal:", err);
-      }
-    }
-  };
-
 
 
   const handleSubmit = async () => {
@@ -234,8 +220,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
           ...row,
           categoria_personalizada: undefined,
           categoria_personalizada_id: undefined,
-          descricao: row.descricao || (categoriaPersonalizada ? `Categoria personalizada: ${categoriaPersonalizada}` : row.descricao),
-          fornecedor: row.fornecedor || null
+          descricao: row.descricao || (categoriaPersonalizada ? `Categoria personalizada: ${categoriaPersonalizada}` : row.descricao)
         };
       });
       await onSave(payload);
@@ -433,23 +418,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 onChange={e => update(row.id as any, "estoque_minimo", e.target.value)} />
                             </InputField>
                           </div>
-                          <div className="col-12 col-md-4">
-                            <div className="login-input-group mb-0">
-                              <label className="login-label fw-semibold text-xs">Fornecedor</label>
-                              <select 
-                                className="login-input bg-transparent text-foreground rounded-xl" 
-                                style={{ paddingLeft: "1rem" }}
-                                value={row.fornecedor} 
-                                onChange={e => update(row.id as any, "fornecedor", e.target.value)}
-                              >
-                                <option value="">Selecione um fornecedor...</option>
-                                {suppliers.map(s => (
-                                  <option key={s.id} value={s.id}>{s.nome}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="col-12 col-md-4">
+                          <div className="col-12 col-md-6">
                             <div className="login-input-group mb-0">
                               <label className="login-label fw-semibold text-xs">Local de Armazenamento</label>
                               <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}

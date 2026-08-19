@@ -8,8 +8,10 @@ import {
   CalendarDays,
   DollarSign,
   History,
+  Pencil,
   Plus,
   Save,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -129,6 +131,18 @@ export default function MaoObraPage() {
   const [savingWorker, setSavingWorker] = useState(false);
   const [showWorkerForm, setShowWorkerForm] = useState(false);
   const [error, setError] = useState("");
+
+  // Edit / Delete states
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<LaborRecord | null>(null);
+  const [editForm, setEditForm] = useState({
+    activity_type: "pesticide_application",
+    activity_date: "",
+    daily_quantity: "",
+    daily_rate: "",
+    notes: "",
+  });
+  const [editSaving, setEditSaving] = useState(false);
 
   const [form, setForm] = useState<LaborForm>({
     activity_type: "pesticide_application",
@@ -275,6 +289,53 @@ export default function MaoObraPage() {
     }
   };
 
+  const openEditRecord = (record: LaborRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      activity_type: record.activity_type,
+      activity_date: record.activity_date,
+      daily_quantity: String(record.daily_quantity),
+      daily_rate: String(record.daily_rate),
+      notes: record.notes ?? "",
+    });
+  };
+
+  const closeEditRecord = () => setEditingRecord(null);
+
+  const handleEditSubmit = async () => {
+    if (!editingRecord || editSaving) return;
+    try {
+      setEditSaving(true);
+      await cropService.updateLaborRecord(editingRecord.id, {
+        activity_type: editForm.activity_type,
+        activity_date: editForm.activity_date,
+        daily_quantity: decimalValue(editForm.daily_quantity),
+        daily_rate: decimalValue(editForm.daily_rate),
+        notes: editForm.notes,
+      });
+      const response = await cropService.listLaborRecords({ plantation: id });
+      setLaborRecords(extractArray<LaborRecord>(response.data));
+      closeEditRecord();
+    } catch {
+      setError("Erro ao editar o registro. Tente novamente.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!confirm("Tem certeza que deseja remover este registro?")) return;
+    try {
+      setDeletingId(recordId);
+      await cropService.deleteLaborRecord(recordId);
+      setLaborRecords((prev) => prev.filter((r) => r.id !== recordId));
+    } catch {
+      setError("Erro ao remover o registro. Tente novamente.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4">
@@ -315,15 +376,7 @@ export default function MaoObraPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-outline-secondary d-flex align-items-center gap-2 px-3"
-          style={{ height: 46, borderRadius: 10, fontWeight: 700 }}
-          onClick={() => router.push(`/home/plantacoes/${id}`)}
-        >
-          <ArrowLeft size={18} />
-          Voltar para o passo a passo
-        </button>
+
       </div>
 
       {error && (
@@ -585,12 +638,13 @@ export default function MaoObraPage() {
                 <th>Valor diária</th>
                 <th>Total</th>
                 <th>Observações</th>
+                <th className="text-center" style={{ width: 90 }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {laborRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted-foreground py-4">
+                  <td colSpan={8} className="text-center text-muted-foreground py-4">
                     Nenhum lançamento de mão de obra registrado ainda.
                   </td>
                 </tr>
@@ -604,6 +658,31 @@ export default function MaoObraPage() {
                     <td>{currency(recordDailyRate(record))}</td>
                     <td className="fw-bold">{currency(recordTotal(record))}</td>
                     <td className="text-muted-foreground small">{record.notes || "-"}</td>
+                    <td className="text-center">
+                      <div className="d-flex gap-1 justify-content-center">
+                        <button
+                          type="button"
+                          title="Editar"
+                          className="btn btn-sm d-flex align-items-center justify-content-center"
+                          style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                          onClick={() => openEditRecord(record)}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Remover"
+                          className="btn btn-sm d-flex align-items-center justify-content-center"
+                          style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
+                          disabled={deletingId === record.id}
+                          onClick={() => handleDeleteRecord(record.id)}
+                        >
+                          {deletingId === record.id
+                            ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
+                            : <Trash2 size={13} />}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -743,6 +822,107 @@ export default function MaoObraPage() {
         <span className="visually-hidden">
           Trabalhador selecionado: {selectedWorker.name}
         </span>
+      )}
+
+      {/* Edit Record Modal */}
+      {editingRecord && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ zIndex: 1050, backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeEditRecord(); }}
+        >
+          <div
+            className="bg-white rounded-4 shadow-lg p-4"
+            style={{ width: "100%", maxWidth: 500, maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div className="d-flex align-items-center justify-content-between mb-4">
+              <h5 className="fw-black mb-0 d-flex align-items-center gap-2" style={{ fontSize: "1.05rem" }}>
+                <Pencil size={17} className="text-primary" />
+                Editar registro de mão de obra
+              </h5>
+              <button type="button" className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" style={{ width: 32, height: 32, borderRadius: 8, padding: 0 }} onClick={closeEditRecord}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label fw-semibold small mb-1">Tipo de atividade</label>
+              <select
+                className="form-select"
+                style={{ borderRadius: 10, height: 42 }}
+                value={editForm.activity_type}
+                onChange={(e) => setEditForm((p) => ({ ...p, activity_type: e.target.value }))}
+              >
+                {activityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label fw-semibold small mb-1">Data da atividade</label>
+              <input
+                type="date"
+                className="form-control"
+                style={{ borderRadius: 10, height: 42 }}
+                value={editForm.activity_date}
+                onChange={(e) => setEditForm((p) => ({ ...p, activity_date: e.target.value }))}
+              />
+            </div>
+
+            <div className="row g-3 mb-3">
+              <div className="col-6">
+                <label className="form-label fw-semibold small mb-1">Diárias</label>
+                <input
+                  type="number" step="0.01" min="0"
+                  className="form-control"
+                  style={{ borderRadius: 10, height: 42 }}
+                  value={editForm.daily_quantity}
+                  onChange={(e) => setEditForm((p) => ({ ...p, daily_quantity: e.target.value }))}
+                />
+              </div>
+              <div className="col-6">
+                <label className="form-label fw-semibold small mb-1">Valor da diária (R$)</label>
+                <input
+                  type="number" step="0.01" min="0"
+                  className="form-control"
+                  style={{ borderRadius: 10, height: 42 }}
+                  value={editForm.daily_rate}
+                  onChange={(e) => setEditForm((p) => ({ ...p, daily_rate: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="form-label fw-semibold small mb-1">Observações</label>
+              <textarea
+                className="form-control"
+                rows={3}
+                maxLength={300}
+                style={{ borderRadius: 10, resize: "none" }}
+                value={editForm.notes}
+                onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+              />
+            </div>
+
+            <div className="d-flex gap-2 justify-content-end">
+              <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10 }} onClick={closeEditRecord} disabled={editSaving}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                style={{ borderRadius: 10 }}
+                onClick={handleEditSubmit}
+                disabled={editSaving}
+              >
+                {editSaving
+                  ? <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> Salvando...</>
+                  : <><Save size={14} /> Salvar alterações</>}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

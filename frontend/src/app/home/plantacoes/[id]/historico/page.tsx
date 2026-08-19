@@ -591,9 +591,7 @@ export default function RelatorioPlantacaoPage() {
     <div className="p-3 p-md-4">
       <div className="d-flex align-items-center justify-content-between gap-3 mb-4 flex-wrap">
         <div>
-          <button type="button" className="btn btn-link text-decoration-none text-muted-foreground fw-semibold p-0 mb-3 d-inline-flex align-items-center gap-2" onClick={() => router.push(`/home/plantacoes/${id}`)}>
-            <ArrowLeft size={17} /> Voltar
-          </button>
+
           <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.85rem" }}>Relatório da Produção</h1>
           <p className="text-muted-foreground mb-0">Gere um PDF completo com todas as informações e atividades registradas nesta produção.</p>
         </div>
