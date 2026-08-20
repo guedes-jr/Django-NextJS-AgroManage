@@ -692,41 +692,52 @@ export default function ColheitaPage() {
                   </td>
                 </tr>
               ) : (
-                visibleHarvests.map((harvest) => (
-                  <tr key={harvest.id}>
-                    <td>{dateText(harvest.harvest_date)}</td>
-                    <td>
-                      <span className="badge bg-success-subtle text-success">
-                        {harvest.harvest_type_display || (harvest.harvest_type === "total" ? "Total" : "Parcial")}
-                      </span>
+                <>
+                  {visibleHarvests.map((harvest) => (
+                    <tr key={harvest.id}>
+                      <td>{dateText(harvest.harvest_date)}</td>
+                      <td>
+                        <span className="badge bg-success-subtle text-success">
+                          {harvest.harvest_type_display || (harvest.harvest_type === "total" ? "Total" : "Parcial")}
+                        </span>
+                      </td>
+                      <td>{numberText(decimalValue(harvest.yield_kg), " kg")}</td>
+                      <td>{money(decimalValue(harvest.unit_price))} / kg</td>
+                      <td className="fw-bold">{money(decimalValue(harvest.revenue_amount))}</td>
+                      <td>{harvest.buyer_name_display || harvest.buyer_name || "-"}</td>
+                      <td>
+                        <div className="d-flex justify-content-end gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary btn-sm"
+                            onClick={() => handleEditHarvest(harvest)}
+                            title="Editar colheita"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm"
+                            disabled={deletingHarvestId === harvest.id}
+                            onClick={() => handleDeleteHarvest(harvest)}
+                            title="Remover colheita"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="table-light">
+                    <td colSpan={2} className="text-end fw-bold">Total (Exibido):</td>
+                    <td className="fw-bold">{numberText(visibleHarvests.reduce((acc, h) => acc + decimalValue(h.yield_kg), 0), " kg")}</td>
+                    <td></td>
+                    <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
+                      {money(visibleHarvests.reduce((acc, h) => acc + decimalValue(h.revenue_amount), 0))}
                     </td>
-                    <td>{numberText(decimalValue(harvest.yield_kg), " kg")}</td>
-                    <td>{money(decimalValue(harvest.unit_price))} / kg</td>
-                    <td className="fw-bold">{money(decimalValue(harvest.revenue_amount))}</td>
-                    <td>{harvest.buyer_name_display || harvest.buyer_name || "-"}</td>
-                    <td>
-                      <div className="d-flex justify-content-end gap-2">
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary btn-sm"
-                          onClick={() => handleEditHarvest(harvest)}
-                          title="Editar colheita"
-                        >
-                          <Edit3 size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline-danger btn-sm"
-                          disabled={deletingHarvestId === harvest.id}
-                          onClick={() => handleDeleteHarvest(harvest)}
-                          title="Remover colheita"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
+                    <td colSpan={2}></td>
                   </tr>
-                ))
+                </>
               )}
             </tbody>
           </table>

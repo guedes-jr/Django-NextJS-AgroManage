@@ -5,6 +5,7 @@ import { InventoryFormModal, type InventoryCategory } from "@/components/dashboa
 import { QuickMovementModal } from "@/components/dashboard/QuickMovementModal";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Package,

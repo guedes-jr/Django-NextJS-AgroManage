@@ -1144,62 +1144,73 @@ function ApplicationHistory({
                 Nenhum lançamento registrado ainda.
               </td>
             </tr>
-          ) : records.map((record) => {
-            const baseTotal = numericValue(record.total_price);
-            const eqTotal = (record.equipments || []).reduce((acc, eq) => acc + numericValue(eq.total_price), 0);
-            const finalTotal = baseTotal + eqTotal;
-            
-            return (
-            <tr key={record.id}>
-              <td>{formatDate(kind === "plantio" ? record.planting_date : record.application_date)}</td>
-              <td>{record.item_name || "-"}</td>
-              {kind === "defensivos" && <td>{record.pesticide_type_display || "-"}</td>}
-              <td>{fmt(record.quantity)} {record.unit || ""}</td>
-              <td>{money(record.unit_price)}</td>
-              {kind === "defensivos" && (
-                <td>
-                  {record.equipments && record.equipments.length > 0 ? (
-                    <div className="d-flex flex-column gap-1">
-                      {record.equipments.map((eq, i) => (
-                        <span key={i} className="small text-muted text-nowrap" title={eq.equipment}>
-                          {eq.equipment.length > 15 ? eq.equipment.substring(0, 15) + "..." : eq.equipment} ({money(eq.total_price)})
-                        </span>
-                      ))}
+          ) : (
+            <>
+              {records.map((record) => {
+                const baseTotal = numericValue(record.total_price);
+                const eqTotal = (record.equipments || []).reduce((acc, eq) => acc + numericValue(eq.total_price), 0);
+                const finalTotal = baseTotal + eqTotal;
+                
+                return (
+                <tr key={record.id}>
+                  <td>{formatDate(kind === "plantio" ? record.planting_date : record.application_date)}</td>
+                  <td>{record.item_name || "-"}</td>
+                  {kind === "defensivos" && <td>{record.pesticide_type_display || "-"}</td>}
+                  <td>{fmt(record.quantity)} {record.unit || ""}</td>
+                  <td>{money(record.unit_price)}</td>
+                  {kind === "defensivos" && (
+                    <td>
+                      {record.equipments && record.equipments.length > 0 ? (
+                        <div className="d-flex flex-column gap-1">
+                          {record.equipments.map((eq, i) => (
+                            <span key={i} className="small text-muted text-nowrap" title={eq.equipment}>
+                              {eq.equipment.length > 15 ? eq.equipment.substring(0, 15) + "..." : eq.equipment} ({money(eq.total_price)})
+                            </span>
+                          ))}
+                        </div>
+                      ) : "-"}
+                    </td>
+                  )}
+                  <td className="fw-bold">{money(finalTotal)}</td>
+                  <td>{record.operator || "-"}</td>
+                  <td className="text-muted-foreground small">{record.notes || "-"}</td>
+                  <td className="text-center">
+                    <div className="d-flex gap-1 justify-content-center">
+                      <button
+                        type="button"
+                        title="Editar"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                        onClick={() => onEdit(record)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Remover"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
+                        disabled={deletingId === record.id}
+                        onClick={() => onDelete(record.id)}
+                      >
+                        {deletingId === record.id
+                          ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
+                          : <Trash2 size={13} />}
+                      </button>
                     </div>
-                  ) : "-"}
+                  </td>
+                </tr>
+              );
+              })}
+              <tr className="table-light">
+                <td colSpan={kind === "defensivos" ? 6 : 4} className="text-end fw-bold">Total Geral:</td>
+                <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
+                  {money(records.reduce((acc, r) => acc + numericValue(r.total_price) + (r.equipments || []).reduce((sum, e) => sum + numericValue(e.total_price), 0), 0))}
                 </td>
-              )}
-              <td className="fw-bold">{money(finalTotal)}</td>
-              <td>{record.operator || "-"}</td>
-              <td className="text-muted-foreground small">{record.notes || "-"}</td>
-              <td className="text-center">
-                <div className="d-flex gap-1 justify-content-center">
-                  <button
-                    type="button"
-                    title="Editar"
-                    className="btn btn-sm d-flex align-items-center justify-content-center"
-                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
-                    onClick={() => onEdit(record)}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Remover"
-                    className="btn btn-sm d-flex align-items-center justify-content-center"
-                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
-                    disabled={deletingId === record.id}
-                    onClick={() => onDelete(record.id)}
-                  >
-                    {deletingId === record.id
-                      ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
-                      : <Trash2 size={13} />}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          );
-          })}
+                <td colSpan={3}></td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
     </div>
@@ -1241,44 +1252,55 @@ function IrrigationHistory({
                 Nenhuma irrigação registrada ainda.
               </td>
             </tr>
-          ) : records.map((record) => (
-            <tr key={record.id}>
-              <td>{formatDate(record.start_date || record.date)}{record.end_date ? ` - ${formatDate(record.end_date)}` : ""}</td>
-              <td>{record.irrigation_system_display || "-"}</td>
-              <td>{record.pump_name || "-"}</td>
-              <td>{record.operating_days || "-"}</td>
-              <td>{fmt(record.hours || record.hours_per_day)} h</td>
-              <td>{fmt(record.liters_used, 0)} L</td>
-              <td>{fmt(record.energy_kwh)} kWh</td>
-              <td className="fw-bold">{money(record.energy_cost)}</td>
-              <td>{record.operator || "-"}</td>
-              <td className="text-center">
-                <div className="d-flex gap-1 justify-content-center">
-                  <button
-                    type="button"
-                    title="Editar"
-                    className="btn btn-sm d-flex align-items-center justify-content-center"
-                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
-                    onClick={() => onEdit(record)}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Remover"
-                    className="btn btn-sm d-flex align-items-center justify-content-center"
-                    style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
-                    disabled={deletingId === record.id}
-                    onClick={() => onDelete(record.id)}
-                  >
-                    {deletingId === record.id
-                      ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
-                      : <Trash2 size={13} />}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+          ) : (
+            <>
+              {records.map((record) => (
+                <tr key={record.id}>
+                  <td>{formatDate(record.start_date || record.date)}{record.end_date ? ` - ${formatDate(record.end_date)}` : ""}</td>
+                  <td>{record.irrigation_system_display || "-"}</td>
+                  <td>{record.pump_name || "-"}</td>
+                  <td>{record.operating_days || "-"}</td>
+                  <td>{fmt(record.hours || record.hours_per_day)} h</td>
+                  <td>{fmt(record.liters_used, 0)} L</td>
+                  <td>{fmt(record.energy_kwh)} kWh</td>
+                  <td className="fw-bold">{money(record.energy_cost)}</td>
+                  <td>{record.operator || "-"}</td>
+                  <td className="text-center">
+                    <div className="d-flex gap-1 justify-content-center">
+                      <button
+                        type="button"
+                        title="Editar"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                        onClick={() => onEdit(record)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Remover"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
+                        disabled={deletingId === record.id}
+                        onClick={() => onDelete(record.id)}
+                      >
+                        {deletingId === record.id
+                          ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
+                          : <Trash2 size={13} />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              <tr className="table-light">
+                <td colSpan={7} className="text-end fw-bold">Custo Total:</td>
+                <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
+                  {money(records.reduce((acc, record) => acc + numericValue(record.energy_cost), 0))}
+                </td>
+                <td colSpan={2}></td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
     </div>

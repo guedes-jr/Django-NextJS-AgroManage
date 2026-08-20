@@ -144,10 +144,72 @@ class PlantingCycle(BaseModel):
 
     @property
     def investment_total(self) -> Decimal:
-        """Sum of all financial transactions linked to this plantation."""
+        """Sum of all costs linked to this plantation (operations + transactions + structure)."""
+        # Direct financial transactions (manual entries)
         financial_total = self.finance_transactions.aggregate(total=models.Sum("amount"))["total"] or Decimal("0")
+
+        # Sector structure items
         structure_total = self.sector_structure_items.aggregate(total=models.Sum("total_value"))["total"] or Decimal("0")
-        return financial_total + structure_total
+
+        # Planting operations (seeds/seedlings)
+        planting_total = self.plantings.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
+
+        # Fertilization operations (adubação)
+        fertilization_total = self.fertilizations.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
+
+        # Fertigation operations (fertirrigação)
+        fertigation_total = self.fertigations.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
+
+        # Pesticide/foliar application operations (defensivos/foliares)
+        pesticide_total = self.pesticide_applications.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
+
+        # Irrigation energy cost
+        irrigation_total = self.irrigations.aggregate(total=models.Sum("energy_cost"))["total"] or Decimal("0")
+
+        # Land preparation operations (serviços mecanizados)
+        # total_price is a @property: hours_worked * hourly_rate + fuel_liters * fuel_price
+        from django.db.models import F, ExpressionWrapper, DecimalField as OrmDecimalField
+        from django.db.models.functions import Coalesce
+        land_prep_qs = self.land_preparations.filter(
+            execution_type=LandPreparation.ExecutionType.OWN
+        )
+        hours_cost = land_prep_qs.aggregate(
+            total=models.Sum(
+                ExpressionWrapper(
+                    Coalesce(F("hours_worked"), 0) * Coalesce(F("hourly_rate"), 0),
+                    output_field=OrmDecimalField(max_digits=16, decimal_places=2),
+                )
+            )
+        )["total"] or Decimal("0")
+        fuel_cost = land_prep_qs.aggregate(
+            total=models.Sum(
+                ExpressionWrapper(
+                    Coalesce(F("fuel_liters"), 0) * Coalesce(F("fuel_price"), 0),
+                    output_field=OrmDecimalField(max_digits=16, decimal_places=2),
+                )
+            )
+        )["total"] or Decimal("0")
+        land_prep_total = hours_cost + fuel_cost
+
+        # Labor records (mão de obra) — computed field: daily_quantity × daily_rate or total_amount
+        labor_total = Decimal("0")
+        for record in self.labor_records.all():
+            quantity = record.daily_quantity or Decimal("0")
+            rate = record.daily_rate or Decimal("0")
+            computed = quantity * rate
+            labor_total += computed if computed > 0 else (record.total_amount or Decimal("0"))
+
+        return (
+            financial_total
+            + structure_total
+            + planting_total
+            + fertilization_total
+            + fertigation_total
+            + pesticide_total
+            + irrigation_total
+            + land_prep_total
+            + labor_total
+        )
 
 
 class SectorStructureItem(BaseModel):

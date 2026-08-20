@@ -132,6 +132,11 @@ export function ProdutosDashboard() {
         category: categoryParam as InventoryCategory
       });
     }
+
+    const statusParam = searchParams.get("status");
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    }
   }, [searchParams]);
 
   const fetchItems = useCallback(async (targetPage = 1, opts?: { search?: string; categoria?: string; status?: string }) => {
@@ -357,7 +362,12 @@ export function ProdutosDashboard() {
           </div>
         </div>
         <div className="col-12 col-md-4">
-          <div className="dashboard-card p-4">
+          <div
+            className="dashboard-card p-4"
+            style={{ cursor: "pointer", transition: "transform 0.2s" }}
+            onClick={() => setStatusFilter("baixo")}
+            title="Clique para filtrar itens com estoque baixo"
+          >
             <div className="text-muted-foreground small fw-bold text-uppercase mb-1">Estoque Baixo</div>
             <div className="fw-black text-warning" style={{ fontSize: "1.5rem" }}>{stats.baixos}</div>
           </div>

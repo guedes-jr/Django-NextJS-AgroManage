@@ -398,6 +398,7 @@ export default function PlantacaoDetailPage() {
     name: "", crop_name: "", variety: "", planted_area_ha: "",
     planting_date: "", expected_harvest_date: "", actual_harvest_date: "",
     status: "planned" as PlantationStatus, population: "", spacing: "",
+    estimated_revenue: "", estimated_production_kg: "", estimated_bags: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -472,6 +473,9 @@ export default function PlantacaoDetailPage() {
           status: merged.status || "planned",
           population: merged.population || "",
           spacing: merged.spacing || "",
+          estimated_revenue: merged.estimated_revenue || "",
+          estimated_production_kg: merged.estimated_production_kg || "",
+          estimated_bags: merged.estimated_bags || "",
         });
         const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes, recommendationRes, structureRes] = await Promise.all([
           cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
@@ -543,15 +547,34 @@ export default function PlantacaoDetailPage() {
         status: editForm.status,
         population: editForm.population ? Number(editForm.population) : null,
         spacing: editForm.spacing || null,
+        estimated_revenue: editForm.estimated_revenue ? Number(editForm.estimated_revenue) : null,
+        estimated_production_kg: editForm.estimated_production_kg ? Number(editForm.estimated_production_kg) : null,
+        estimated_bags: editForm.estimated_bags ? Number(editForm.estimated_bags) : null,
       });
       setShowEdit(false);
       const [detailRes2, dashRes2] = await Promise.all([
         cropService.get(id!),
         cropService.dashboard(id!),
       ]);
-      setPlantation({ ...detailRes2.data, ...dashRes2.data });
+      const merged2 = { ...detailRes2.data, ...dashRes2.data };
+      setPlantation(merged2);
+      setEditForm((prev) => ({
+        ...prev,
+        estimated_revenue: merged2.estimated_revenue || "",
+        estimated_production_kg: merged2.estimated_production_kg || "",
+        estimated_bags: merged2.estimated_bags || "",
+      }));
     } catch { console.error("Failed to update"); }
     finally { setSaving(false); }
+  };
+
+  /** Refreshes investment_total from the backend dashboard after any operation */
+  const refreshDashboard = async () => {
+    if (!id) return;
+    try {
+      const { data: dashRes } = await cropService.dashboard(id);
+      setPlantation((prev) => prev ? { ...prev, ...dashRes } : null);
+    } catch { /* silent */ }
   };
 
   const handleCompleteRecommendation = async (recommendationId: string) => {
@@ -644,6 +667,7 @@ export default function PlantacaoDetailPage() {
       setAdubacaoLines([{ ...emptyAdubacaoLine }]);
       const { data: r } = await cropService.listFertilizations({ plantation: plantation.id });
       setFertilizations(Array.isArray(r?.results) ? r.results : []);
+      await refreshDashboard();
     } catch { console.error("Failed to create fertilization"); }
     finally { setSavingAdubacao(false); }
   };
@@ -685,6 +709,7 @@ export default function PlantacaoDetailPage() {
       setFertirrigacaoLines([{ ...emptyFertirrigacaoLine }]);
       const { data: r } = await cropService.listFertigations({ plantation: plantation.id });
       setFertigations(Array.isArray(r?.results) ? r.results : []);
+      await refreshDashboard();
     } catch { console.error("Failed to create fertigation"); }
     finally { setSavingFertirrigacao(false); }
   };
@@ -737,6 +762,7 @@ export default function PlantacaoDetailPage() {
       setDefensivoEquipments([{ equipment: "", quantity: "", unit_price: "", total_price: "" }]);
       const { data: r } = await cropService.listPesticideApplications({ plantation: plantation.id });
       setPesticides(Array.isArray(r?.results) ? r.results : []);
+      await refreshDashboard();
     } catch (error) {
       console.error("Failed to create pesticide application", error);
       alert(getErrorMessage(error));
@@ -786,6 +812,7 @@ export default function PlantacaoDetailPage() {
       setIrrigacaoForm({ start_date: "", end_date: "", irrigation_system: "", pump_equipment: "", hours_per_day: "", kwh_value: "", operator: "" });
       const { data: r } = await cropService.listIrrigations({ plantation: plantation.id });
       setIrrigations(Array.isArray(r?.results) ? r.results : []);
+      await refreshDashboard();
     } catch { console.error("Failed to create irrigation"); }
     finally { setSavingIrrigacao(false); }
   };
@@ -827,8 +854,7 @@ export default function PlantacaoDetailPage() {
       setPlantioLines([{ ...emptyPlantioLine }]);
       const { data: plRes } = await cropService.listPlantings({ plantation: plantation.id });
       setPlantings(Array.isArray(plRes?.results) ? plRes.results : []);
-      const { data: dashRes } = await cropService.dashboard(id!);
-      setPlantation(prev => prev ? { ...prev, investment_total: dashRes.investment_total } : null);
+      await refreshDashboard();
     } catch { console.error("Failed to create planting"); }
     finally { setSavingPlantio(false); }
   };
@@ -894,10 +920,18 @@ export default function PlantacaoDetailPage() {
   const laborCost = laborRecords.reduce((acc, record) => acc + laborRecordTotal(record), 0);
   const structureCost = sectorStructureItems.reduce((acc, record) => acc + numericValue(record.total_value), 0);
 
-  const investmentTotal = structureCost + seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost;
+  // Use backend investment_total when available (more accurate — based on financial transactions)
+  // Fall back to local sum when backend value is 0 and local sum is positive (initial load before transactions are created)
+  const localInvestmentTotal = structureCost + seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost;
+  const backendInvestmentTotal = numericValue(plantation.investment_total);
+  const investmentTotal = backendInvestmentTotal > 0 ? backendInvestmentTotal : localInvestmentTotal;
+
   const estimatedProductionKg = numericValue(plantation.estimated_production_kg);
+  // Receita estimada — comes from the plantation field (set by the user in the edit form)
+  const estimatedRevenue = numericValue(plantation.estimated_revenue);
   const realProfit = harvestRevenue - investmentTotal;
   const roi = investmentTotal > 0 ? (realProfit / investmentTotal) * 100 : null;
+  const estimatedProfit = estimatedRevenue > 0 ? estimatedRevenue - investmentTotal : null;
 
   const custoPorKg = harvestedKg > 0 ? investmentTotal / harvestedKg : null;
   const vendaPorKg = soldKg > 0 ? harvestRevenue / soldKg : null;
@@ -1146,13 +1180,23 @@ export default function PlantacaoDetailPage() {
           <MetricCard icon={<DollarSign size={14} />} label="Investimento Total" value={money(investmentTotal)} variant="danger" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Receita Bruta" value={money(harvestRevenue)} variant="success" />
+          <MetricCard
+            icon={<Sprout size={14} />}
+            label="Receita Estimada"
+            value={estimatedRevenue > 0 ? money(estimatedRevenue) : "Não informada"}
+            variant={estimatedRevenue > 0 ? "success" : "info"}
+          />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Target size={14} />} label="Lucro" value={money(realProfit)} variant={realProfit >= 0 ? "success" : "danger"} />
+          <MetricCard icon={<DollarSign size={14} />} label="Receita Real (Colheita)" value={money(harvestRevenue)} variant="success" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Target size={14} />} label="ROI" value={percent(roi)} variant={roi !== null && roi >= 0 ? "success" : "danger"} />
+          <MetricCard
+            icon={<Target size={14} />}
+            label={estimatedProfit !== null ? "Lucro Estimado" : "Lucro Real"}
+            value={estimatedProfit !== null ? money(estimatedProfit) : money(realProfit)}
+            variant={(estimatedProfit ?? realProfit) >= 0 ? "success" : "danger"}
+          />
         </div>
       </div>
 
@@ -1842,6 +1886,22 @@ export default function PlantacaoDetailPage() {
             <label className="form-label small fw-medium">Colheita Real</label>
             <input className="form-control" type="date" value={editForm.actual_harvest_date}
               onChange={(e) => setEditForm({ ...editForm, actual_harvest_date: e.target.value })} />
+          </div>
+          <div className="col-12"><hr className="my-1" /><small className="text-muted fw-bold text-uppercase" style={{ fontSize: "0.65rem", letterSpacing: "0.08em" }}>Estimativas de Produção e Receita</small></div>
+          <div className="col-6">
+            <label className="form-label small fw-medium">Receita Estimada (R$)</label>
+            <input className="form-control" type="number" step="0.01" min="0" placeholder="Ex: 150000.00" value={editForm.estimated_revenue}
+              onChange={(e) => setEditForm({ ...editForm, estimated_revenue: e.target.value })} />
+          </div>
+          <div className="col-6">
+            <label className="form-label small fw-medium">Produção Estimada (kg)</label>
+            <input className="form-control" type="number" step="0.01" min="0" placeholder="Ex: 5400" value={editForm.estimated_production_kg}
+              onChange={(e) => setEditForm({ ...editForm, estimated_production_kg: e.target.value })} />
+          </div>
+          <div className="col-6">
+            <label className="form-label small fw-medium">Sacas Estimadas (sc)</label>
+            <input className="form-control" type="number" step="0.01" min="0" placeholder="Ex: 90" value={editForm.estimated_bags}
+              onChange={(e) => setEditForm({ ...editForm, estimated_bags: e.target.value })} />
           </div>
         </div>
         </div>

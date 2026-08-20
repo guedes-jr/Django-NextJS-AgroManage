@@ -548,61 +548,70 @@ export default function PreparoTerraPage() {
                       </td>
                     </tr>
                   ) : (
-                    history.map((record) => (
-                      <tr key={record.id}>
-                        <td>{formatDate(record.date)}</td>
-                        <td>{normalizeOperationLabel(record.operation_type_display || (record.operation_type ? operationConfig[record.operation_type]?.label : "-"))}</td>
-                        <td>{record.operator || "-"}</td>
-                        <td>{numberText(record.hours_worked)} h</td>
-                        <td>{money(record.hourly_rate)}</td>
-                        <td className="fw-bold">{money(record.total_price)}</td>
-                        <td className="text-muted-foreground small">{record.notes || "-"}</td>
-                        <td className="text-center">
-                          <div className="d-flex gap-1 justify-content-center">
-                            <button
-                              type="button"
-                              title="Editar registro"
-                              className="btn btn-sm d-flex align-items-center justify-content-center"
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 8,
-                                border: "1px solid var(--bs-primary)",
-                                color: "var(--bs-primary)",
-                                backgroundColor: "transparent",
-                                padding: 0,
-                              }}
-                              onClick={() => openEditModal(record)}
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              title="Remover registro"
-                              className="btn btn-sm d-flex align-items-center justify-content-center"
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 8,
-                                border: "1px solid var(--bs-danger)",
-                                color: "var(--bs-danger)",
-                                backgroundColor: "transparent",
-                                padding: 0,
-                                opacity: deletingId === record.id ? 0.5 : 1,
-                              }}
-                              disabled={deletingId === record.id}
-                              onClick={() => handleDelete(record.id)}
-                            >
-                              {deletingId === record.id ? (
-                                <span className="spinner-border spinner-border-sm" style={{ width: 12, height: 12 }} />
-                              ) : (
-                                <Trash2 size={14} />
-                              )}
-                            </button>
-                          </div>
+                    <>
+                      {history.map((record) => (
+                        <tr key={record.id}>
+                          <td>{formatDate(record.date)}</td>
+                          <td>{normalizeOperationLabel(record.operation_type_display || (record.operation_type ? operationConfig[record.operation_type]?.label : "-"))}</td>
+                          <td>{record.operator || "-"}</td>
+                          <td>{numberText(record.hours_worked)} h</td>
+                          <td>{money(record.hourly_rate)}</td>
+                          <td className="fw-bold">{money(record.total_price)}</td>
+                          <td className="text-muted-foreground small">{record.notes || "-"}</td>
+                          <td className="text-center">
+                            <div className="d-flex gap-1 justify-content-center">
+                              <button
+                                type="button"
+                                title="Editar registro"
+                                className="btn btn-sm d-flex align-items-center justify-content-center"
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  border: "1px solid var(--bs-primary)",
+                                  color: "var(--bs-primary)",
+                                  backgroundColor: "transparent",
+                                  padding: 0,
+                                }}
+                                onClick={() => openEditModal(record)}
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                title="Remover registro"
+                                className="btn btn-sm d-flex align-items-center justify-content-center"
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  border: "1px solid var(--bs-danger)",
+                                  color: "var(--bs-danger)",
+                                  backgroundColor: "transparent",
+                                  padding: 0,
+                                  opacity: deletingId === record.id ? 0.5 : 1,
+                                }}
+                                disabled={deletingId === record.id}
+                                onClick={() => handleDelete(record.id)}
+                              >
+                                {deletingId === record.id ? (
+                                  <span className="spinner-border spinner-border-sm" style={{ width: 12, height: 12 }} />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="table-light">
+                        <td colSpan={5} className="text-end fw-bold">Total Geral:</td>
+                        <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
+                          {money(history.reduce((acc, record) => acc + numericValue(record.total_price), 0))}
                         </td>
+                        <td colSpan={2}></td>
                       </tr>
-                    ))
+                    </>
                   )}
                 </tbody>
               </table>

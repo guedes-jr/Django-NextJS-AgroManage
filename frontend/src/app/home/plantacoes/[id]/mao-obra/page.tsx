@@ -649,42 +649,51 @@ export default function MaoObraPage() {
                   </td>
                 </tr>
               ) : (
-                laborRecords.map((record) => (
-                  <tr key={record.id}>
-                    <td>{formatDate(record.activity_date)}</td>
-                    <td>{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "-"}</td>
-                    <td>{record.worker_name || "-"}</td>
-                    <td>{recordDailyQuantity(record).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td>{currency(recordDailyRate(record))}</td>
-                    <td className="fw-bold">{currency(recordTotal(record))}</td>
-                    <td className="text-muted-foreground small">{record.notes || "-"}</td>
-                    <td className="text-center">
-                      <div className="d-flex gap-1 justify-content-center">
-                        <button
-                          type="button"
-                          title="Editar"
-                          className="btn btn-sm d-flex align-items-center justify-content-center"
-                          style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
-                          onClick={() => openEditRecord(record)}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          title="Remover"
-                          className="btn btn-sm d-flex align-items-center justify-content-center"
-                          style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
-                          disabled={deletingId === record.id}
-                          onClick={() => handleDeleteRecord(record.id)}
-                        >
-                          {deletingId === record.id
-                            ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
-                            : <Trash2 size={13} />}
-                        </button>
-                      </div>
+                <>
+                  {laborRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td>{formatDate(record.activity_date)}</td>
+                      <td>{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "-"}</td>
+                      <td>{record.worker_name || "-"}</td>
+                      <td>{recordDailyQuantity(record).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>{currency(recordDailyRate(record))}</td>
+                      <td className="fw-bold">{currency(recordTotal(record))}</td>
+                      <td className="text-muted-foreground small">{record.notes || "-"}</td>
+                      <td className="text-center">
+                        <div className="d-flex gap-1 justify-content-center">
+                          <button
+                            type="button"
+                            title="Editar"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                            onClick={() => openEditRecord(record)}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Remover"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
+                            disabled={deletingId === record.id}
+                            onClick={() => handleDeleteRecord(record.id)}
+                          >
+                            {deletingId === record.id
+                              ? <span className="spinner-border spinner-border-sm" style={{ width: 11, height: 11 }} />
+                              : <Trash2 size={13} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="table-light">
+                    <td colSpan={5} className="text-end fw-bold">Total Geral:</td>
+                    <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
+                      {currency(laborRecords.reduce((acc, record) => acc + recordTotal(record), 0))}
                     </td>
+                    <td colSpan={2}></td>
                   </tr>
-                ))
+                </>
               )}
             </tbody>
           </table>
