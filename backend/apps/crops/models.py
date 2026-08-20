@@ -215,7 +215,7 @@ class Planting(BaseModel):
     unit = models.CharField(max_length=20, blank=True)
     quantity_per_ha = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    total_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
     population = models.PositiveIntegerField(null=True, blank=True, help_text="Plants per hectare")
     spacing = models.CharField(max_length=100, blank=True)
     depth = models.CharField(max_length=50, blank=True, help_text="Planting depth")
@@ -260,7 +260,7 @@ class Fertilization(BaseModel):
     unit = models.CharField(max_length=20, blank=True)
     dose_per_ha = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    total_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
     application_method = models.CharField(
         max_length=30, choices=ApplicationMethod.choices, default=ApplicationMethod.BROADCAST,
     )
@@ -298,7 +298,7 @@ class Fertigation(BaseModel):
     application_time_hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     area_applied_ha = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    total_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
     application_date = models.DateField()
     operator = models.CharField(max_length=150, blank=True)
     notes = models.TextField(blank=True)
@@ -346,7 +346,7 @@ class PesticideApplication(BaseModel):
         null=True, blank=True, related_name="crop_pesticide_applications",
     )
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    total_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
     area_applied_ha = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     application_date = models.DateField()
     operator = models.CharField(max_length=150, blank=True)
@@ -372,7 +372,7 @@ class PesticideApplicationEquipment(BaseModel):
     equipment = models.CharField(max_length=150)
     quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    total_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
 
     class Meta(BaseModel.Meta):
         verbose_name = "Pesticide Application Equipment"

@@ -377,17 +377,15 @@ export function ProdutosDashboard() {
         <div className="d-flex align-items-center justify-content-between mb-3">
           <h3 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>Cadastre novos produtos</h3>
         </div>
-        <div className="row g-3">
-          <div className="col-auto">
-            <button
-              className="btn h-100 px-4 d-flex flex-column align-items-center justify-content-center gap-2 rounded-xl border-0 shadow-sm"
-              style={{ minWidth: "140px", background: "var(--primary)", color: "white" }}
-              onClick={() => setModalConfig({ open: true })}
-            >
-              <Plus size={24} strokeWidth={3} />
-              <span className="fw-bold">Novo produto</span>
-            </button>
-          </div>
+        <div className="d-flex flex-wrap gap-3 align-items-stretch">
+          <button
+            className="btn px-4 d-flex flex-column align-items-center justify-content-center gap-2 rounded-xl border-0 shadow-sm"
+            style={{ minWidth: "140px", background: "var(--primary)", color: "white" }}
+            onClick={() => setModalConfig({ open: true })}
+          >
+            <Plus size={24} strokeWidth={3} />
+            <span className="fw-bold">Novo produto</span>
+          </button>
           {[
             { key: "racao", title: "Ração / Grãos", desc: "Milho, soja, farelo...", color: "oklch(0.7 0.15 85)" },
             { key: "nucleo", title: "Suplementos", desc: "Núcleos, premix e suplementos...", color: "oklch(0.65 0.16 230)" },
@@ -400,23 +398,27 @@ export function ProdutosDashboard() {
             { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
             { key: "material", title: "Outros Materiais", desc: "Materiais e equipamentos...", color: "oklch(0.6 0.05 240)" },
           ].map((cat) => (
-            <div key={cat.key} className="col">
-              <div className="inv-category-card" onClick={() => setModalConfig({ open: true, category: CATEGORY_MODAL_MAP[cat.key] })}>
-                <div
-                  className="inv-category-icon"
-                  style={{
-                    background: `color-mix(in srgb, ${cat.color}, transparent 85%)`,
-                    color: cat.color,
-                  }}
-                >
-                  {CATEGORY_ICONS[cat.key] || <Package size={16} />}
-                </div>
-                <div>
-                  <div className="inv-category-title">{cat.title}</div>
-                  <div className="inv-category-desc">{cat.desc}</div>
-                </div>
+            <button
+              key={cat.key}
+              type="button"
+              className="inv-category-card"
+              style={{ border: "none", background: "var(--inv-card-bg)" }}
+              onClick={() => setModalConfig({ open: true, category: CATEGORY_MODAL_MAP[cat.key] })}
+            >
+              <div
+                className="inv-category-icon"
+                style={{
+                  background: `color-mix(in srgb, ${cat.color}, transparent 85%)`,
+                  color: cat.color,
+                }}
+              >
+                {CATEGORY_ICONS[cat.key] || <Package size={16} />}
               </div>
-            </div>
+              <div>
+                <div className="inv-category-title">{cat.title}</div>
+                <div className="inv-category-desc">{cat.desc}</div>
+              </div>
+            </button>
           ))}
         </div>
       </div>

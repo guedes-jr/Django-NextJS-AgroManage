@@ -492,7 +492,7 @@ class TractorSerializer(serializers.ModelSerializer):
 class LandPreparationSerializer(serializers.ModelSerializer):
     tractor_name = serializers.CharField(source="tractor.name", read_only=True)
     tractor_brand = serializers.CharField(source="tractor.brand", read_only=True)
-    total_price = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    total_price = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
     operation_type_display = serializers.CharField(source="get_operation_type_display", read_only=True)
     execution_type_display = serializers.CharField(source="get_execution_type_display", read_only=True)
 
