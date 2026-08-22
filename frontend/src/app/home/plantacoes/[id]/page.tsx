@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, Target, CheckCircle2, ArrowRight, Plus, ClipboardList } from "lucide-react";
+import { Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, Target, CheckCircle2, ArrowRight, Plus, ClipboardList } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
@@ -101,6 +101,7 @@ type InventoryItem = {
   id: string;
   nome: string;
   categoria?: string;
+  categorias?: string[];
   categoria_display?: string;
   especie_animal: string;
   unidade_medida: string;
@@ -955,19 +956,27 @@ export default function PlantacaoDetailPage() {
     { name: "Mão de Obra", value: laborCost, fill: "var(--bs-secondary)" },
   ].filter(item => item.value > 0);
 
-  const seedItems = inventoryItems.filter((item) => item.categoria === "semente" || (!item.especie_animal && item.categoria === "outro"));
+  const itemCategories = (item: InventoryItem) =>
+    item.categorias?.length ? item.categorias : item.categoria ? [item.categoria] : [];
+  const hasItemCategory = (item: InventoryItem, categories: string[]) =>
+    itemCategories(item).some((category) => categories.includes(category));
+
+  const seedItems = inventoryItems.filter((item) =>
+    hasItemCategory(item, ["semente"]) ||
+    (!item.especie_animal && hasItemCategory(item, ["outro"]))
+  );
   const nutritionItems = inventoryItems.filter((item) =>
-    ["fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
-    (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar" && item.categoria !== "fertirrigacao")
+    hasItemCategory(item, ["fertilizante", "corretivo", "material", "outro"]) ||
+    (!item.especie_animal && !hasItemCategory(item, ["defensivo", "foliar", "fertirrigacao"]))
   );
   const fertilizerItems = nutritionItems;
   const fertigationItems = inventoryItems.filter((item) =>
-    ["fertirrigacao", "fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
-    (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar")
+    hasItemCategory(item, ["fertirrigacao", "fertilizante", "corretivo", "material", "outro"]) ||
+    (!item.especie_animal && !hasItemCategory(item, ["defensivo", "foliar"]))
   );
   const pesticideItems = inventoryItems.filter((item) =>
-    ["defensivo", "foliar"].includes(item.categoria || "") ||
-    (!item.especie_animal && item.categoria === "outro")
+    hasItemCategory(item, ["defensivo", "foliar"]) ||
+    (!item.especie_animal && hasItemCategory(item, ["outro"]))
   );
   const activeAgronomistAlerts = agronomistRecommendations.filter((recommendation) => recommendation.status !== "completed");
 
