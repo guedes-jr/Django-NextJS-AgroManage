@@ -145,8 +145,25 @@ class PlantingCycle(BaseModel):
     @property
     def investment_total(self) -> Decimal:
         """Sum of all costs linked to this plantation (operations + transactions + structure)."""
-        # Direct financial transactions (manual entries)
-        financial_total = self.finance_transactions.aggregate(total=models.Sum("amount"))["total"] or Decimal("0")
+        # Only direct/manual expenses belong here. Crop operation services also create
+        # mirrored finance transactions; those costs are summed from their source
+        # records below and must not be counted twice.
+        automatic_transaction = (
+            models.Q(reference__startswith="PLANTING-")
+            | models.Q(reference__startswith="FERTILIZATION-")
+            | models.Q(reference__startswith="FERTIGATION-")
+            | models.Q(reference__startswith="PESTICIDE-")
+            | models.Q(reference__startswith="IRRIGATION-")
+            | models.Q(reference__startswith="LANDPREP-")
+            | models.Q(reference__startswith="LABOR-")
+        )
+        financial_total = (
+            self.finance_transactions.filter(category__category_type="expense")
+            .exclude(status="cancelled")
+            .exclude(automatic_transaction)
+            .aggregate(total=models.Sum("amount"))["total"]
+            or Decimal("0")
+        )
 
         # Sector structure items
         structure_total = self.sector_structure_items.aggregate(total=models.Sum("total_value"))["total"] or Decimal("0")
