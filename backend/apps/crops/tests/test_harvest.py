@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -118,12 +118,15 @@ class HarvestAPITestCase(APITestCase):
         self.assertEqual(transaction.created_by, self.user)
 
     def test_create_stock_harvest_does_not_create_financial_transaction(self):
+        harvest_date = date.today() - timedelta(days=65)
+        self.plantation.planting_date = harvest_date - timedelta(days=65)
+        self.plantation.save(update_fields=["planting_date", "updated_at"])
         response = self.client.post(
             reverse("crops-harvests-list"),
             {
                 "planting_cycle": str(self.plantation.id),
                 "harvest_type": Harvest.HarvestType.TOTAL,
-                "harvest_date": str(date.today()),
+                "harvest_date": str(harvest_date),
                 "yield_kg": "10000.00",
                 "destination": Harvest.Destination.STOCK,
             },
@@ -134,6 +137,72 @@ class HarvestAPITestCase(APITestCase):
         self.assertEqual(Decimal(response.data["revenue_amount"]), Decimal("0.00"))
         harvest = Harvest.objects.get(id=response.data["id"])
         self.assertFalse(Transaction.objects.filter(reference=f"HARVEST-{harvest.id}").exists())
+        self.plantation.refresh_from_db()
+        self.assertEqual(self.plantation.actual_harvest_date, harvest_date)
+        self.assertEqual(self.plantation.status, PlantingCycle.Status.FINISHED)
+        self.assertEqual(self.plantation.days_in_cultivation, 65)
+
+    def test_partial_harvest_keeps_cultivation_open(self):
+        response = self.client.post(
+            reverse("crops-harvests-list"),
+            {
+                "planting_cycle": str(self.plantation.id),
+                "harvest_type": Harvest.HarvestType.PARTIAL,
+                "harvest_date": str(date.today()),
+                "yield_kg": "100.00",
+                "destination": Harvest.Destination.STOCK,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.plantation.refresh_from_db()
+        self.assertIsNone(self.plantation.actual_harvest_date)
+        self.assertEqual(self.plantation.status, PlantingCycle.Status.HARVESTING)
+
+    def test_changing_total_harvest_to_partial_reopens_cycle(self):
+        harvest = Harvest.objects.create(
+            planting_cycle=self.plantation,
+            harvest_type=Harvest.HarvestType.TOTAL,
+            harvest_date=date.today(),
+            yield_kg=Decimal("100.00"),
+            destination=Harvest.Destination.STOCK,
+        )
+        self.plantation.actual_harvest_date = harvest.harvest_date
+        self.plantation.status = PlantingCycle.Status.FINISHED
+        self.plantation.save()
+
+        response = self.client.patch(
+            reverse("crops-harvests-detail", args=[harvest.id]),
+            {"harvest_type": Harvest.HarvestType.PARTIAL},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.plantation.refresh_from_db()
+        self.assertIsNone(self.plantation.actual_harvest_date)
+        self.assertEqual(self.plantation.status, PlantingCycle.Status.HARVESTING)
+
+    def test_deleting_total_harvest_reopens_cycle(self):
+        harvest = Harvest.objects.create(
+            planting_cycle=self.plantation,
+            harvest_type=Harvest.HarvestType.TOTAL,
+            harvest_date=date.today(),
+            yield_kg=Decimal("100.00"),
+            destination=Harvest.Destination.STOCK,
+        )
+        self.plantation.actual_harvest_date = harvest.harvest_date
+        self.plantation.status = PlantingCycle.Status.FINISHED
+        self.plantation.save()
+
+        response = self.client.delete(
+            reverse("crops-harvests-detail", args=[harvest.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.plantation.refresh_from_db()
+        self.assertIsNone(self.plantation.actual_harvest_date)
+        self.assertEqual(self.plantation.status, PlantingCycle.Status.GROWING)
 
     def test_sale_harvest_rejects_buyer_from_another_organization(self):
         response = self.client.post(

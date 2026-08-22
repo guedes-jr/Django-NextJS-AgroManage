@@ -150,6 +150,35 @@ def _process_operation(instance, request, category_name, reference_prefix):
 # ── Operation services ────────────────────────────────────────────────────
 
 
+def _sync_planting_cycle_harvest_state(plantation):
+    """Keep the crop lifecycle aligned with its partial/total harvests."""
+    latest_total = (
+        plantation.harvests.filter(harvest_type="total")
+        .order_by("-harvest_date", "-created_at")
+        .first()
+    )
+    if latest_total:
+        actual_harvest_date = latest_total.harvest_date
+        status = plantation.Status.FINISHED
+    else:
+        actual_harvest_date = None
+        status = (
+            plantation.Status.HARVESTING
+            if plantation.harvests.exists()
+            else plantation.Status.GROWING
+        )
+
+    if (
+        plantation.actual_harvest_date != actual_harvest_date
+        or plantation.status != status
+    ):
+        plantation.actual_harvest_date = actual_harvest_date
+        plantation.status = status
+        plantation.save(
+            update_fields=["actual_harvest_date", "status", "updated_at"]
+        )
+
+
 @transaction.atomic
 def create_planting(serializer, request):
     planting = serializer.save()
@@ -260,6 +289,7 @@ def create_harvest(serializer, request):
     harvest = serializer.save(
         created_by=request.user if request.user.is_authenticated else None,
     )
+    _sync_planting_cycle_harvest_state(harvest.planting_cycle)
 
     if harvest.destination == harvest.Destination.SALE and harvest.revenue_amount > 0:
         from apps.finance.models import FinancialCategory, Transaction
@@ -337,8 +367,12 @@ def _sync_harvest_transaction(harvest, request=None):
 @transaction.atomic
 def update_harvest(serializer, request):
     """Update a harvest and synchronize its revenue transaction."""
+    previous_plantation = serializer.instance.planting_cycle
     harvest = serializer.save()
     _sync_harvest_transaction(harvest, request)
+    _sync_planting_cycle_harvest_state(harvest.planting_cycle)
+    if previous_plantation.pk != harvest.planting_cycle_id:
+        _sync_planting_cycle_harvest_state(previous_plantation)
     return harvest
 
 
@@ -347,5 +381,7 @@ def delete_harvest(harvest):
     """Delete a harvest and its generated revenue transaction."""
     from apps.finance.models import Transaction
 
+    plantation = harvest.planting_cycle
     Transaction.objects.filter(reference=f"HARVEST-{harvest.id}").delete()
     harvest.delete()
+    _sync_planting_cycle_harvest_state(plantation)
