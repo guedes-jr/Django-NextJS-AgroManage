@@ -833,6 +833,7 @@ class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return (
             User.objects.filter(platform_staff_profile__isnull=True)
+            .exclude(affiliate_profile__portal_access_only=True)
             .select_related("organization")
         )
 

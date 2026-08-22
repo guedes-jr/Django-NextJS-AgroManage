@@ -1,4 +1,5 @@
 from rest_framework.generics import ListAPIView
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,7 +9,26 @@ from .serializers import (
     AffiliateCommissionSerializer,
     AffiliateProfileSerializer,
     AffiliateReferralSerializer,
+    AffiliatePortalLoginSerializer,
+    issue_affiliate_portal_tokens,
 )
+
+
+class AffiliatePortalLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = AffiliatePortalLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+        affiliate = serializer.validated_data["affiliate"]
+        refresh = issue_affiliate_portal_tokens(user)
+        return Response({
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "affiliate": AffiliateProfileSerializer(affiliate).data,
+            "user": {"id": str(user.id), "full_name": user.full_name, "email": user.email},
+        })
 
 
 class AffiliateMeView(APIView):

@@ -170,6 +170,7 @@ export type PlatformUserPage = PaginatedResponse<PlatformUser>;
 export interface PlatformAffiliate {
   id: string; user_id: string; full_name: string; email: string; code: string;
   status: "active" | "inactive"; commission_type: "percentage" | "fixed_amount";
+  portal_access_only:boolean;
   commission_type_display: string; commission_value: string; currency: string;
   activated_at: string | null; deactivated_at: string | null; clicks: number;
   registrations: number; conversions: number; commissions_total: string;

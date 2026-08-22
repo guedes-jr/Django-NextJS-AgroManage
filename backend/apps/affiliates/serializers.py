@@ -1,6 +1,10 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import AffiliateProfile, Commission, ReferralAttribution
+
+User = get_user_model()
 
 
 class ReferralTrackingSerializer(serializers.Serializer):
@@ -25,6 +29,7 @@ class AffiliateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AffiliateProfile
         fields = (
+            "id",
             "code",
             "status",
             "commission_type",
@@ -33,10 +38,40 @@ class AffiliateProfileSerializer(serializers.ModelSerializer):
             "currency",
             "referral_path",
             "activated_at",
+            "portal_access_only",
         )
 
     def get_referral_path(self, affiliate):
         return f"/cadastro?ref={affiliate.code}"
+
+
+class AffiliatePortalLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        email = User.objects.normalize_email(data["email"].strip())
+        user = User.objects.filter(email__iexact=email).select_related("affiliate_profile").first()
+        if not user or not user.check_password(data["password"]):
+            raise serializers.ValidationError("Credenciais inválidas.")
+        if not user.is_active:
+            raise serializers.ValidationError("Conta inativa.")
+        try:
+            affiliate = user.affiliate_profile
+        except AffiliateProfile.DoesNotExist as exc:
+            raise serializers.ValidationError("Conta não cadastrada como afiliado.") from exc
+        if affiliate.status != AffiliateProfile.Status.ACTIVE:
+            raise serializers.ValidationError("Acesso do afiliado está inativo.")
+        data["user"] = user
+        data["affiliate"] = affiliate
+        return data
+
+
+def issue_affiliate_portal_tokens(user):
+    refresh = RefreshToken.for_user(user)
+    refresh["session_version"] = user.session_version
+    refresh["affiliate_portal"] = True
+    return refresh
 
 
 def _customer_label(attribution):

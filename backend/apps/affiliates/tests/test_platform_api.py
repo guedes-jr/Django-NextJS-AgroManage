@@ -96,6 +96,29 @@ class AffiliatePlatformAPITestCase(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_admin_creates_dedicated_affiliate_account(self):
+        response = self.client.post(
+            reverse("platform-affiliate-list"),
+            {
+                "full_name": "Dedicated Seller",
+                "email": "dedicated-seller@example.com",
+                "initial_password": "DedicatedPassword123",
+                "commission_type": "percentage",
+                "commission_value": "15.00",
+                "currency": "BRL",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        seller = User.objects.get(email="dedicated-seller@example.com")
+        self.assertIsNone(seller.organization)
+        self.assertTrue(seller.affiliate_profile.portal_access_only)
+        self.assertTrue(seller.check_password("DedicatedPassword123"))
+        customer_directory = self.client.get(reverse("platform-user-list"), {"search": seller.email})
+        self.assertEqual(customer_directory.status_code, status.HTTP_200_OK)
+        self.assertEqual(customer_directory.data["count"], 0)
+
     def test_non_platform_admin_cannot_access_program(self):
         self.client.force_authenticate(self.regular_user)
         response = self.client.get(reverse("platform-affiliate-list"))

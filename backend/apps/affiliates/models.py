@@ -56,6 +56,10 @@ class AffiliateProfile(BaseModel):
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     currency = models.CharField(max_length=3, default="BRL")
+    portal_access_only = models.BooleanField(
+        default=False,
+        help_text="Permite somente o acesso ao portal dedicado de afiliados.",
+    )
     activated_at = models.DateTimeField(null=True, blank=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(

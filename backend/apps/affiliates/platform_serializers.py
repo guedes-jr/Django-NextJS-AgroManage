@@ -43,6 +43,7 @@ class PlatformAffiliateSerializer(serializers.ModelSerializer):
         fields = (
             "id", "user_id", "full_name", "email", "code", "status",
             "commission_type", "commission_type_display", "commission_value", "currency",
+            "portal_access_only",
             "activated_at", "deactivated_at", "clicks", "registrations", "conversions",
             "commissions_total", "created_at", "updated_at",
         )
@@ -55,11 +56,24 @@ class PlatformAffiliateCreateSerializer(serializers.ModelSerializer):
     user_id = serializers.PrimaryKeyRelatedField(
         source="user",
         queryset=User.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+    full_name = serializers.CharField(max_length=255, write_only=True, required=False)
+    email = serializers.EmailField(write_only=True, required=False)
+    initial_password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        write_only=True,
+        required=False,
     )
 
     class Meta:
         model = AffiliateProfile
-        fields = ("user_id", "commission_type", "commission_value", "currency")
+        fields = (
+            "user_id", "full_name", "email", "initial_password", "portal_access_only",
+            "commission_type", "commission_value", "currency",
+        )
 
     def validate_user_id(self, user):
         if AffiliateProfile.objects.filter(user=user).exists():
@@ -67,9 +81,38 @@ class PlatformAffiliateCreateSerializer(serializers.ModelSerializer):
         return user
 
     def validate(self, attrs):
-        return validate_commission_rule(attrs)
+        attrs = validate_commission_rule(attrs)
+        user = attrs.get("user")
+        dedicated_fields = (attrs.get("full_name"), attrs.get("email"), attrs.get("initial_password"))
+        if user and any(dedicated_fields):
+            raise serializers.ValidationError(
+                "Escolha um usuário existente ou informe os dados da conta dedicada."
+            )
+        if not user and not all(dedicated_fields):
+            raise serializers.ValidationError(
+                "Nome, e-mail e senha inicial são obrigatórios para uma conta dedicada."
+            )
+        if not user and User.objects.filter(email__iexact=attrs["email"]).exists():
+            raise serializers.ValidationError({"email": "Já existe uma conta com este e-mail."})
+        if user:
+            attrs["portal_access_only"] = False
+        else:
+            attrs["portal_access_only"] = True
+        return attrs
 
     def create(self, validated_data):
+        full_name = validated_data.pop("full_name", "")
+        email = validated_data.pop("email", "")
+        password = validated_data.pop("initial_password", "")
+        user = validated_data.get("user")
+        if not user:
+            user = User.objects.create_user(
+                email=email,
+                password=password,
+                full_name=full_name,
+                role=User.Role.VIEWER,
+            )
+            validated_data["user"] = user
         validated_data["created_by"] = self.context["request"].user
         validated_data["activated_at"] = timezone.now()
         affiliate = AffiliateProfile(**validated_data)

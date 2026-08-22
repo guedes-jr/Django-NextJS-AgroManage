@@ -12,6 +12,9 @@ const computeBaseUrl = (): string => {
 
 const BASE_URL = computeBaseUrl();
 
+const loginPath = (): string =>
+  window.location.pathname.startsWith("/afiliados") ? "/afiliados/login" : "/login";
+
 export const getMediaUrl = (path: string) => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
@@ -45,8 +48,9 @@ apiClient.interceptors.request.use(
         config.url?.includes("/auth/register") || 
         config.url?.includes("/auth/password-recovery") ||
         config.url?.includes("/auth/token/refresh");
+      const isAffiliatePortalLogin = config.url?.includes("/affiliates/auth/login");
 
-      if (access && config.headers && !isPublicRoute) {
+      if (access && config.headers && !isPublicRoute && !isAffiliatePortalLogin) {
         config.headers["Authorization"] = `Bearer ${access}`;
       }
     }
@@ -131,7 +135,7 @@ apiClient.interceptors.response.use(
           originalRequest.url?.includes("/auth/register");
 
         if (!isAuthRoute && typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
-          window.location.href = "/login";
+          window.location.href = loginPath();
         }
         return Promise.reject(error);
       }
@@ -148,7 +152,7 @@ apiClient.interceptors.response.use(
         processQueue(refreshError, null);
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
-        window.location.href = "/login";
+        window.location.href = loginPath();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -26,6 +26,14 @@ class LoginSerializer(serializers.Serializer):
             if not user.is_active:
                 raise serializers.ValidationError("Usuário inativo.")
 
+            try:
+                if user.affiliate_profile.portal_access_only and not is_active_platform_staff(user):
+                    raise serializers.ValidationError(
+                        "Esta conta possui acesso exclusivo ao portal de afiliados."
+                    )
+            except ObjectDoesNotExist:
+                pass
+
             if (
                 user.organization
                 and not user.organization.is_active
