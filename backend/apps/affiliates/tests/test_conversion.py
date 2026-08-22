@@ -87,6 +87,10 @@ class AffiliateConversionTestCase(TestCase):
         self.assertEqual(commission.status, Commission.Status.PENDING)
         self.assertEqual(commission.transaction_amount, Decimal("100.00"))
         self.assertEqual(commission.commission_rate_snapshot, Decimal("12.50"))
+        self.assertEqual(
+            commission.commission_duration_snapshot,
+            AffiliateProfile.CommissionDuration.FIRST_PAYMENT,
+        )
         self.assertEqual(commission.commission_amount, Decimal("12.50"))
         self.assertEqual(commission.status_history.count(), 1)
         attribution.refresh_from_db()
@@ -132,6 +136,36 @@ class AffiliateConversionTestCase(TestCase):
 
         self.assertEqual(Commission.objects.filter(organization=organization).count(), 1)
         self.assertFalse(Commission.objects.filter(invoice=second_invoice).exists())
+
+    def test_first_three_payments_generate_three_commissions(self):
+        self.affiliate.commission_duration = (
+            AffiliateProfile.CommissionDuration.FIRST_THREE_PAYMENTS
+        )
+        self.affiliate.save(update_fields=["commission_duration", "updated_at"])
+        _customer, organization, _attribution = self.create_referred_customer("three-payments")
+
+        for index in range(4):
+            invoice = self.create_invoice(
+                organization,
+                number=f"CONVERSION-THREE-{index}",
+            )
+            record_manual_payment(invoice=invoice, amount=Decimal("100.00"))
+
+        self.assertEqual(Commission.objects.filter(organization=organization).count(), 3)
+
+    def test_permanent_rule_generates_commission_for_every_payment(self):
+        self.affiliate.commission_duration = AffiliateProfile.CommissionDuration.PERMANENT
+        self.affiliate.save(update_fields=["commission_duration", "updated_at"])
+        _customer, organization, _attribution = self.create_referred_customer("permanent")
+
+        for index in range(4):
+            invoice = self.create_invoice(
+                organization,
+                number=f"CONVERSION-PERMANENT-{index}",
+            )
+            record_manual_payment(invoice=invoice, amount=Decimal("100.00"))
+
+        self.assertEqual(Commission.objects.filter(organization=organization).count(), 4)
 
     def test_free_plan_payment_does_not_generate_commission(self):
         _customer, organization, _attribution = self.create_referred_customer("free")

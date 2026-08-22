@@ -26,6 +26,12 @@ const statusClass = (status: string) => {
   return styles.pending;
 };
 
+const durationLabel = {
+  first_payment: "primeira mensalidade",
+  first_three_payments: "3 primeiras mensalidades",
+  permanent: "todas as mensalidades",
+};
+
 export default function AffiliatePage() {
   const [profile, setProfile] = useState<AffiliateProfile | null>(null);
   const [dashboard, setDashboard] = useState<AffiliateDashboard | null>(null);
@@ -99,7 +105,7 @@ export default function AffiliatePage() {
             <div className="text-muted small mt-2">
               Comissão: {profile.commission_type === "percentage"
                 ? `${Number(profile.commission_value)}%`
-                : money(profile.commission_value)}
+                : money(profile.commission_value)} sobre {durationLabel[profile.commission_duration]}
             </div>
           </div>
           <button type="button" className="btn btn-success d-flex align-items-center justify-content-center gap-2" onClick={copyLink}>

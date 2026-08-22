@@ -26,6 +26,11 @@ class AffiliateProfile(BaseModel):
         PERCENTAGE = "percentage", "Percentual"
         FIXED_AMOUNT = "fixed_amount", "Valor fixo"
 
+    class CommissionDuration(models.TextChoices):
+        FIRST_PAYMENT = "first_payment", "Primeira mensalidade"
+        FIRST_THREE_PAYMENTS = "first_three_payments", "3 primeiras mensalidades"
+        PERMANENT = "permanent", "Permanente"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -54,6 +59,11 @@ class AffiliateProfile(BaseModel):
         decimal_places=2,
         default=0,
         validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    commission_duration = models.CharField(
+        max_length=30,
+        choices=CommissionDuration.choices,
+        default=CommissionDuration.FIRST_PAYMENT,
     )
     currency = models.CharField(max_length=3, default="BRL")
     portal_access_only = models.BooleanField(
@@ -230,6 +240,11 @@ class Commission(BaseModel):
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    commission_duration_snapshot = models.CharField(
+        max_length=30,
+        choices=AffiliateProfile.CommissionDuration.choices,
+        default=AffiliateProfile.CommissionDuration.FIRST_PAYMENT,
+    )
     commission_amount = models.DecimalField(
         max_digits=14,
         decimal_places=2,
@@ -270,12 +285,6 @@ class Commission(BaseModel):
 
     class Meta(BaseModel.Meta):
         ordering = ("-conversion_at",)
-        constraints = [
-            models.UniqueConstraint(
-                fields=("organization",),
-                name="unique_first_customer_commission",
-            ),
-        ]
         indexes = [
             models.Index(fields=("affiliate", "status"), name="aff_comm_aff_status_idx"),
             models.Index(fields=("organization", "conversion_at"), name="aff_comm_org_time_idx"),

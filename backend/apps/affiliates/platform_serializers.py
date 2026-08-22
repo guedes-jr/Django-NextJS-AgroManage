@@ -43,6 +43,7 @@ class PlatformAffiliateSerializer(serializers.ModelSerializer):
         fields = (
             "id", "user_id", "full_name", "email", "code", "status",
             "commission_type", "commission_type_display", "commission_value", "currency",
+            "commission_duration",
             "portal_access_only",
             "activated_at", "deactivated_at", "clicks", "registrations", "conversions",
             "commissions_total", "created_at", "updated_at",
@@ -73,6 +74,7 @@ class PlatformAffiliateCreateSerializer(serializers.ModelSerializer):
         fields = (
             "user_id", "full_name", "email", "initial_password", "portal_access_only",
             "commission_type", "commission_value", "currency",
+            "commission_duration",
         )
 
     def validate_user_id(self, user):
@@ -124,7 +126,7 @@ class PlatformAffiliateCreateSerializer(serializers.ModelSerializer):
 class PlatformAffiliateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AffiliateProfile
-        fields = ("commission_type", "commission_value", "currency")
+        fields = ("commission_type", "commission_value", "commission_duration", "currency")
 
     def validate(self, attrs):
         return validate_commission_rule(attrs, self.instance)
@@ -177,6 +179,7 @@ class PlatformCommissionSerializer(serializers.ModelSerializer):
             "customer_email", "organization", "organization_name", "plan", "plan_name",
             "invoice", "invoice_number", "transaction_amount", "commission_type_snapshot",
             "commission_rate_snapshot", "commission_amount", "currency", "conversion_at",
+            "commission_duration_snapshot",
             "status", "status_display", "status_reason", "approved_at", "paid_at",
             "cancelled_at", "reversed_amount", "created_at",
         )

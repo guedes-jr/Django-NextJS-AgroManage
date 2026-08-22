@@ -12,8 +12,8 @@ from .models import (
 
 @admin.register(AffiliateProfile)
 class AffiliateProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "code", "portal_access_only", "commission_type", "commission_value", "status")
-    list_filter = ("status", "portal_access_only", "commission_type")
+    list_display = ("user", "code", "portal_access_only", "commission_type", "commission_value", "commission_duration", "status")
+    list_filter = ("status", "portal_access_only", "commission_type", "commission_duration")
     search_fields = ("user__email", "user__full_name", "code")
     readonly_fields = ("code", "created_at", "updated_at")
 

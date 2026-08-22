@@ -193,11 +193,11 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformAffiliateDashboard>("platform/affiliates/dashboard/");
     return data;
   },
-  async createAffiliate(payload: {user_id?:string;full_name?:string;email?:string;initial_password?:string;portal_access_only?:boolean;commission_type:string;commission_value:string;currency:string}) {
+  async createAffiliate(payload: {user_id?:string;full_name?:string;email?:string;initial_password?:string;portal_access_only?:boolean;commission_type:string;commission_value:string;commission_duration:string;currency:string}) {
     const { data } = await platformApi.post<PlatformAffiliate>("platform/affiliates/", payload);
     return data;
   },
-  async updateAffiliate(id:string, payload:{commission_type:string;commission_value:string;currency:string}) {
+  async updateAffiliate(id:string, payload:{commission_type:string;commission_value:string;commission_duration:string;currency:string}) {
     const { data } = await platformApi.patch<PlatformAffiliate>(`platform/affiliates/${id}/`, payload);
     return data;
   },

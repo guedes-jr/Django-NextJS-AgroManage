@@ -139,21 +139,33 @@ def create_commission_for_paid_invoice(*, invoice, payment=None):
     ):
         return None, False
 
-    if Commission.objects.filter(organization=invoice.organization).exists():
-        return None, False
-
     attribution = ReferralAttribution.objects.select_for_update().select_related(
         "affiliate",
         "user",
     ).filter(
         organization=invoice.organization,
-        status=ReferralAttribution.Status.REGISTERED,
+        status__in=(
+            ReferralAttribution.Status.REGISTERED,
+            ReferralAttribution.Status.CONVERTED,
+        ),
         user__isnull=False,
     ).first()
     if not attribution:
         return None, False
 
     affiliate = attribution.affiliate
+    paid_commissions_count = Commission.objects.filter(
+        organization=invoice.organization,
+        affiliate=affiliate,
+    ).exclude(status=Commission.Status.CANCELLED).count()
+    commission_limit = {
+        AffiliateProfile.CommissionDuration.FIRST_PAYMENT: 1,
+        AffiliateProfile.CommissionDuration.FIRST_THREE_PAYMENTS: 3,
+        AffiliateProfile.CommissionDuration.PERMANENT: None,
+    }[affiliate.commission_duration]
+    if commission_limit is not None and paid_commissions_count >= commission_limit:
+        return None, False
+
     commission_amount = calculate_commission_amount(
         transaction_amount=transaction_amount,
         commission_type=affiliate.commission_type,
@@ -175,6 +187,7 @@ def create_commission_for_paid_invoice(*, invoice, payment=None):
                 currency=invoice.currency,
                 commission_type_snapshot=affiliate.commission_type,
                 commission_rate_snapshot=affiliate.commission_value,
+                commission_duration_snapshot=affiliate.commission_duration,
                 commission_amount=commission_amount,
                 conversion_at=conversion_at,
             )

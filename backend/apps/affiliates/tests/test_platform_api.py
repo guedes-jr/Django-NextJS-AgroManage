@@ -56,11 +56,13 @@ class AffiliatePlatformAPITestCase(APITestCase):
                 "user_id": str(self.candidate.id),
                 "commission_type": "percentage",
                 "commission_value": "18.00",
+                "commission_duration": "first_three_payments",
                 "currency": "BRL",
             },
             format="json",
         )
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(created.data["commission_duration"], "first_three_payments")
         affiliate_id = created.data["id"]
 
         updated = self.client.patch(

@@ -6,6 +6,7 @@ export interface AffiliateProfile {
   commission_type: "percentage" | "fixed_amount";
   commission_type_display: string;
   commission_value: string;
+  commission_duration: "first_payment" | "first_three_payments" | "permanent";
   currency: string;
   referral_path: string;
   activated_at: string | null;
@@ -46,6 +47,7 @@ export interface AffiliateCommission {
   transaction_amount: string;
   commission_type_snapshot: "percentage" | "fixed_amount";
   commission_rate_snapshot: string;
+  commission_duration_snapshot: "first_payment" | "first_three_payments" | "permanent";
   commission_amount: string;
   currency: string;
   conversion_at: string;

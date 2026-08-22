@@ -171,6 +171,7 @@ export interface PlatformAffiliate {
   id: string; user_id: string; full_name: string; email: string; code: string;
   status: "active" | "inactive"; commission_type: "percentage" | "fixed_amount";
   portal_access_only:boolean;
+  commission_duration:"first_payment"|"first_three_payments"|"permanent";
   commission_type_display: string; commission_value: string; currency: string;
   activated_at: string | null; deactivated_at: string | null; clicks: number;
   registrations: number; conversions: number; commissions_total: string;
@@ -192,6 +193,7 @@ export interface PlatformAffiliateCommission {
   customer_email:string; organization:string; organization_name:string; plan:string; plan_name:string;
   invoice:string; invoice_number:string; transaction_amount:string; commission_type_snapshot:string;
   commission_rate_snapshot:string; commission_amount:string; currency:string; conversion_at:string;
+  commission_duration_snapshot:"first_payment"|"first_three_payments"|"permanent";
   status:"pending"|"approved"|"paid"|"cancelled"; status_display:string; status_reason:string;
   approved_at:string|null; paid_at:string|null; cancelled_at:string|null; reversed_amount:string; created_at:string;
 }
