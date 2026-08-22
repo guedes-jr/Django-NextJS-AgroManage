@@ -1,4 +1,12 @@
 import { apiClient } from "@/services/api";
+import type { Theme } from "@/lib/theme";
+
+export interface AffiliateAccount {
+  full_name: string;
+  email: string;
+  phone: string;
+  theme: Theme;
+}
 
 export interface AffiliateProfile {
   code: string;
@@ -73,15 +81,39 @@ export const affiliateService = {
     const { data } = await apiClient.get<AffiliateDashboard>("/affiliates/me/dashboard/");
     return data;
   },
-  async referrals() {
-    const { data } = await apiClient.get<Page<AffiliateReferral>>(
-      "/affiliates/me/referrals/?page_size=100",
+  async account() {
+    const { data } = await apiClient.get<AffiliateAccount>("/affiliates/me/profile/");
+    return data;
+  },
+  async updateAccount(payload: Partial<AffiliateAccount>) {
+    const { data } = await apiClient.patch<AffiliateAccount>(
+      "/affiliates/me/profile/",
+      payload,
     );
     return data;
   },
-  async commissions() {
+  async changePassword(payload: {
+    current_password: string;
+    new_password: string;
+    new_password_confirm: string;
+  }) {
+    const { data } = await apiClient.post<{ detail: string; relogin_required: boolean }>(
+      "/affiliates/me/change-password/",
+      payload,
+    );
+    return data;
+  },
+  async referrals(status?: AffiliateReferral["status"]) {
+    const query = status ? `&status=${status}` : "";
+    const { data } = await apiClient.get<Page<AffiliateReferral>>(
+      `/affiliates/me/referrals/?page_size=100${query}`,
+    );
+    return data;
+  },
+  async commissions(status?: AffiliateCommission["status"]) {
+    const query = status ? `&status=${status}` : "";
     const { data } = await apiClient.get<Page<AffiliateCommission>>(
-      "/affiliates/me/commissions/?page_size=100",
+      `/affiliates/me/commissions/?page_size=100${query}`,
     );
     return data;
   },

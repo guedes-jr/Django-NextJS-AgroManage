@@ -94,3 +94,47 @@ class AffiliateMemberAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["is_affiliate"])
+
+    def test_affiliate_can_read_and_update_own_account(self):
+        response = self.client.patch(
+            reverse("affiliate-account"),
+            {
+                "full_name": "Vendedor Atualizado",
+                "phone": "85999999999",
+                "theme": "dark",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.full_name, "Vendedor Atualizado")
+        self.assertEqual(self.user.phone, "85999999999")
+        self.assertEqual(self.user.theme, User.Theme.DARK)
+
+    def test_affiliate_account_rejects_an_email_already_in_use(self):
+        response = self.client.patch(
+            reverse("affiliate-account"),
+            {"email": self.regular_user.email},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data["error"]["detail"])
+
+    def test_password_change_updates_password_and_invalidates_sessions(self):
+        response = self.client.post(
+            reverse("affiliate-change-password"),
+            {
+                "current_password": "password123",
+                "new_password": "NewSecurePassword987!",
+                "new_password_confirm": "NewSecurePassword987!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["relogin_required"])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("NewSecurePassword987!"))
+        self.assertEqual(self.user.session_version, 1)

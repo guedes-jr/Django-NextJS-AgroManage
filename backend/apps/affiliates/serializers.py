@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -44,6 +46,43 @@ class AffiliateProfileSerializer(serializers.ModelSerializer):
 
     def get_referral_path(self, affiliate):
         return f"/cadastro?ref={affiliate.code}"
+
+
+class AffiliateAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("full_name", "email", "phone", "theme")
+
+    def validate_email(self, value):
+        email = User.objects.normalize_email(value.strip())
+        queryset = User.objects.filter(email__iexact=email)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("Este e-mail já está em uso.")
+        return email
+
+
+class AffiliateChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = self.context["request"].user
+        if not user.check_password(data["current_password"]):
+            raise serializers.ValidationError(
+                {"current_password": "Senha atual incorreta."}
+            )
+        if data["new_password"] != data["new_password_confirm"]:
+            raise serializers.ValidationError(
+                {"new_password_confirm": "As senhas não conferem."}
+            )
+        try:
+            validate_password(data["new_password"], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)}) from exc
+        return data
 
 
 class AffiliatePortalLoginSerializer(serializers.Serializer):
