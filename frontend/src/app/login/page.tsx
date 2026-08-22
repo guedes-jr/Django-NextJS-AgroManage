@@ -116,6 +116,13 @@ export default function LoginPage() {
           const staff = await platformService.me();
           localStorage.setItem(PLATFORM_STAFF, JSON.stringify(staff));
           router.replace("/platform");
+        } else if (data.user?.affiliate_portal_only === true) {
+          clearPlatformSession();
+          localStorage.setItem("access_token", data.access);
+          localStorage.setItem("refresh_token", data.refresh);
+          localStorage.setItem("affiliate_user", JSON.stringify(data.user));
+          localStorage.setItem("user", JSON.stringify(data.user));
+          router.replace("/afiliados/painel");
         } else {
           clearPlatformSession();
           localStorage.setItem("access_token", data.access);

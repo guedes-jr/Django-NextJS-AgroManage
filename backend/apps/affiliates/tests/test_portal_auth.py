@@ -41,15 +41,16 @@ class AffiliatePortalAuthenticationTestCase(APITestCase):
         dashboard = self.client.get(reverse("affiliate-dashboard"))
         self.assertEqual(dashboard.status_code, status.HTTP_200_OK)
 
-    def test_dedicated_seller_is_rejected_by_customer_login(self):
+    def test_main_login_identifies_dedicated_seller_without_creating_organization(self):
         response = self.client.post(
             reverse("auth_login"),
             {"email": self.seller.email, "password": "SellerPassword123"},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("portal de afiliados", str(response.data))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["user"]["is_affiliate"])
+        self.assertTrue(response.data["user"]["affiliate_portal_only"])
         self.seller.refresh_from_db()
         self.assertIsNone(self.seller.organization)
 

@@ -26,14 +26,6 @@ class LoginSerializer(serializers.Serializer):
             if not user.is_active:
                 raise serializers.ValidationError("Usuário inativo.")
 
-            try:
-                if user.affiliate_profile.portal_access_only and not is_active_platform_staff(user):
-                    raise serializers.ValidationError(
-                        "Esta conta possui acesso exclusivo ao portal de afiliados."
-                    )
-            except ObjectDoesNotExist:
-                pass
-
             if (
                 user.organization
                 and not user.organization.is_active
@@ -55,6 +47,7 @@ class UserSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(required=False, allow_null=True)
     is_platform_staff = serializers.SerializerMethodField()
     is_affiliate = serializers.SerializerMethodField()
+    affiliate_portal_only = serializers.SerializerMethodField()
 
     def get_is_platform_staff(self, user):
         return is_active_platform_staff(user)
@@ -62,6 +55,12 @@ class UserSerializer(serializers.ModelSerializer):
     def get_is_affiliate(self, user):
         try:
             return user.affiliate_profile.status == "active"
+        except (AttributeError, ObjectDoesNotExist):
+            return False
+
+    def get_affiliate_portal_only(self, user):
+        try:
+            return user.affiliate_profile.portal_access_only
         except (AttributeError, ObjectDoesNotExist):
             return False
     
@@ -83,6 +82,7 @@ class UserSerializer(serializers.ModelSerializer):
             "force_password_change",
             "is_platform_staff",
             "is_affiliate",
+            "affiliate_portal_only",
             "created_at",
             "updated_at",
         ]

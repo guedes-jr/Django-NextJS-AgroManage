@@ -2,6 +2,7 @@
 Accounts app views — auth, user management.
 """
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.text import slugify
 from rest_framework import status, viewsets
@@ -130,6 +131,12 @@ def _ensure_user_organization(user):
 
     if is_active_platform_staff(user):
         return None
+
+    try:
+        if user.affiliate_profile.portal_access_only:
+            return None
+    except (AttributeError, ObjectDoesNotExist):
+        pass
 
     if getattr(user, "organization", None):
         return user.organization
