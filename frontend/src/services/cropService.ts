@@ -87,6 +87,9 @@ export const cropService = {
   createFertigation: (data: Record<string, unknown>) =>
     apiClient.post("/crops/fertigations/", data),
 
+  bulkCreateFertigations: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/fertigations/bulk-create/", data),
+
   updateFertigation: (id: string, data: Record<string, unknown>) =>
     apiClient.patch(`/crops/fertigations/${id}/`, data),
 

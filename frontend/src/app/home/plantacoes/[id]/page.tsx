@@ -217,8 +217,11 @@ const calculateInclusiveDays = (startDate: string, endDate: string) => {
 const calculateLineTotal = (quantity: string, unitPrice: string) => {
   const q = numericValue(quantity);
   const p = numericValue(unitPrice);
-  return q && p ? String(q * p) : "";
+  return q && p ? (q * p).toFixed(2) : "";
 };
+
+const monetaryValue = (value: string | number | null | undefined) =>
+  numericValue(value).toFixed(2);
 
 const stringifyApiError = (value: unknown): string => {
   if (!value) return "";
@@ -625,7 +628,7 @@ export default function PlantacaoDetailPage() {
         else if (invUnit === "kg" && selUnit === "tonelada") multiplier = 1000;
       }
 
-      next.total_price = (q && p) ? String(q * p * multiplier) : "";
+      next.total_price = (q && p) ? (q * p * multiplier).toFixed(2) : "";
     }
     return next;
   });
@@ -692,25 +695,30 @@ export default function PlantacaoDetailPage() {
     if (!plantation || validLines.length === 0) return;
     try {
       setSavingFertirrigacao(true);
-      await Promise.all(validLines.map((line) => cropService.createFertigation({
+      await cropService.bulkCreateFertigations({
+        fertigations: validLines.map((line) => ({
         plantation: plantation.id,
         item: line.item,
         lot: line.lot || null,
         quantity: line.quantity,
         unit: line.unit,
         unit_price: line.unit_price || null,
-        total_price: line.total_price || calculateLineTotal(line.quantity, line.unit_price) || "0",
+        total_price: monetaryValue(line.total_price || calculateLineTotal(line.quantity, line.unit_price)),
         application_date: fertirrigacaoForm.application_date,
         operator: fertirrigacaoForm.operator,
         notes: fertirrigacaoForm.notes,
-      })));
+        })),
+      });
       setShowFertirrigacao(false);
       setFertirrigacaoForm({ application_date: "", operator: "", notes: "" });
       setFertirrigacaoLines([{ ...emptyFertirrigacaoLine }]);
       const { data: r } = await cropService.listFertigations({ plantation: plantation.id });
       setFertigations(Array.isArray(r?.results) ? r.results : []);
       await refreshDashboard();
-    } catch { console.error("Failed to create fertigation"); }
+    } catch (error) {
+      console.error("Failed to create fertigation", error);
+      alert(getErrorMessage(error));
+    }
     finally { setSavingFertirrigacao(false); }
   };
 
@@ -1693,7 +1701,7 @@ export default function PlantacaoDetailPage() {
                             const qty = e.target.value;
                             setDefensivoEquipments((prev) => prev.map((item, i) => {
                               if (i !== index) return item;
-                              const total = qty && item.unit_price ? String(numericValue(qty) * numericValue(item.unit_price)) : "";
+                              const total = qty && item.unit_price ? (numericValue(qty) * numericValue(item.unit_price)).toFixed(2) : "";
                               return { ...item, quantity: qty, total_price: total };
                             }));
                           }} />
@@ -1706,7 +1714,7 @@ export default function PlantacaoDetailPage() {
                               const price = e.target.value;
                               setDefensivoEquipments((prev) => prev.map((item, i) => {
                                 if (i !== index) return item;
-                                const total = price && item.quantity ? String(numericValue(price) * numericValue(item.quantity)) : "";
+                                const total = price && item.quantity ? (numericValue(price) * numericValue(item.quantity)).toFixed(2) : "";
                                 return { ...item, unit_price: price, total_price: total };
                               }));
                             }} />

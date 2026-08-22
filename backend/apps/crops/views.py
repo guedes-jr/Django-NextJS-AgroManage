@@ -258,6 +258,39 @@ class FertigationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         create_fertigation(serializer, self.request)
 
+    @action(detail=False, methods=["post"], url_path="bulk-create")
+    def bulk_create(self, request):
+        fertigations = (
+            request.data.get("fertigations")
+            if isinstance(request.data, dict)
+            else request.data
+        )
+        if not isinstance(fertigations, list) or not fertigations:
+            raise serializers.ValidationError(
+                {"fertigations": "Informe ao menos uma fertirrigação."}
+            )
+
+        serializers_to_save = []
+        for index, fertigation_data in enumerate(fertigations, start=1):
+            serializer = self.get_serializer(data=fertigation_data)
+            try:
+                serializer.is_valid(raise_exception=True)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError(
+                    {f"fertirrigacao_{index}": exc.detail}
+                ) from exc
+            serializers_to_save.append(serializer)
+
+        created = []
+        with transaction.atomic():
+            for serializer in serializers_to_save:
+                created.append(create_fertigation(serializer, request))
+
+        return Response(
+            self.get_serializer(created, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class PesticideApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = PesticideApplicationSerializer
