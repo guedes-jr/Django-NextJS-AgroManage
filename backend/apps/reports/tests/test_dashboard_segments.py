@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.inventory.models import ItemEstoque, LoteEstoque
+from apps.finance.models import FinancialCategory, Transaction
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -75,3 +76,26 @@ class DashboardSegmentTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["kpis"]["month_expense"], 100.0)
         self.assertEqual(response.data["segments"]["crops"]["cost"], 0.0)
+
+    def test_legacy_agricultural_expense_without_cycle_is_classified_by_category(self):
+        category = FinancialCategory.objects.create(
+            organization=self.organization,
+            name="Compra de Insumos",
+            category_type=FinancialCategory.CategoryType.EXPENSE,
+        )
+        Transaction.objects.create(
+            organization=self.organization,
+            category=category,
+            description="Compra agrícola antiga",
+            amount=Decimal("570.00"),
+            due_date=date.today(),
+            payment_date=date.today(),
+            status=Transaction.Status.PAID,
+            reference="NF-LEGADA-001",
+        )
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["kpis"]["month_expense"], 570.0)
+        self.assertEqual(response.data["segments"]["crops"]["cost"], 570.0)

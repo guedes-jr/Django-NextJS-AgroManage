@@ -398,9 +398,23 @@ def dashboard_summary(request):
             data_entrada__lte=today,
         ).values_list("id", flat=True)
     ]
+    agricultural_finance_terms = (
+        Q(category__name__icontains="agríc")
+        | Q(category__name__icontains="agric")
+        | Q(category__name__icontains="plant")
+        | Q(category__name__icontains="insumo")
+        | Q(category__name__icontains="semente")
+        | Q(category__name__icontains="fertiliz")
+        | Q(category__name__icontains="aduba")
+        | Q(category__name__icontains="fertirrig")
+        | Q(category__name__icontains="defensiv")
+        | Q(category__name__icontains="foliar")
+        | Q(category__name__icontains="corretivo")
+    )
     crop_transactions = paid_month.filter(
         Q(planting_cycle__isnull=False)
         | Q(reference__in=agricultural_lot_references)
+        | (agricultural_finance_terms & ~Q(reference__startswith="LOTE-"))
     )
     crop_cost = crop_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.EXPENSE
