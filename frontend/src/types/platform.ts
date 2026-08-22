@@ -167,6 +167,35 @@ export interface PlatformUser {
 
 export type PlatformUserPage = PaginatedResponse<PlatformUser>;
 
+export interface PlatformAffiliate {
+  id: string; user_id: string; full_name: string; email: string; code: string;
+  status: "active" | "inactive"; commission_type: "percentage" | "fixed_amount";
+  commission_type_display: string; commission_value: string; currency: string;
+  activated_at: string | null; deactivated_at: string | null; clicks: number;
+  registrations: number; conversions: number; commissions_total: string;
+  created_at: string; updated_at: string;
+}
+export type PlatformAffiliatePage = PaginatedResponse<PlatformAffiliate>;
+export interface PlatformAffiliateDashboard {
+  affiliates:number; active_affiliates:number; clicks:number; registrations:number; conversions:number;
+  commissions:{generated:string;pending:string;approved:string;paid:string}; reversed_total:string;
+}
+export interface PlatformAffiliateReferral {
+  id:string; affiliate:string; affiliate_name:string; affiliate_code:string; customer_name:string;
+  customer_email:string; organization:string|null; organization_name:string; plan_name:string;
+  status:string; status_display:string; attributed_at:string; registered_at:string|null; converted_at:string|null;
+}
+export type PlatformAffiliateReferralPage = PaginatedResponse<PlatformAffiliateReferral>;
+export interface PlatformAffiliateCommission {
+  id:string; affiliate:string; affiliate_name:string; affiliate_code:string; customer_name:string;
+  customer_email:string; organization:string; organization_name:string; plan:string; plan_name:string;
+  invoice:string; invoice_number:string; transaction_amount:string; commission_type_snapshot:string;
+  commission_rate_snapshot:string; commission_amount:string; currency:string; conversion_at:string;
+  status:"pending"|"approved"|"paid"|"cancelled"; status_display:string; status_reason:string;
+  approved_at:string|null; paid_at:string|null; cancelled_at:string|null; reversed_amount:string; created_at:string;
+}
+export type PlatformAffiliateCommissionPage = PaginatedResponse<PlatformAffiliateCommission>;
+
 export interface PlatformPlan {
   id: string;
   code: string;

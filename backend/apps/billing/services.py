@@ -38,6 +38,7 @@ def create_manual_invoice(*, organization, due_date, description, amount, notes=
 
 @transaction.atomic
 def record_manual_payment(*, invoice, amount, payment_method="manual", external_id=""):
+    invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
     remaining = invoice.total - invoice.amount_paid
     amount = min(Decimal(amount), remaining)
     payment = Payment.objects.create(
@@ -56,4 +57,52 @@ def record_manual_payment(*, invoice, amount, payment_method="manual", external_
         invoice.status = Invoice.Status.PAID
         invoice.paid_at = timezone.now()
     invoice.save(update_fields=["amount_paid", "status", "paid_at", "updated_at"])
+    if invoice.status == Invoice.Status.PAID:
+        from apps.affiliates.services import create_commission_for_paid_invoice
+
+        create_commission_for_paid_invoice(invoice=invoice, payment=payment)
+    return payment
+
+
+@transaction.atomic
+def refund_manual_payment(*, payment, actor=None, reason=""):
+    if not reason.strip():
+        raise ValueError("O motivo do reembolso é obrigatório.")
+    payment = Payment.objects.select_for_update().select_related("invoice").get(pk=payment.pk)
+    if payment.status == Payment.Status.REFUNDED:
+        return payment
+    if payment.status != Payment.Status.SUCCEEDED:
+        raise ValueError("Somente pagamentos confirmados podem ser reembolsados.")
+
+    invoice = Invoice.objects.select_for_update().get(pk=payment.invoice_id)
+    payment.status = Payment.Status.REFUNDED
+    payment.save(update_fields=["status", "updated_at"])
+    invoice.amount_paid = max(invoice.amount_paid - payment.amount, Decimal("0.00"))
+    if invoice.amount_paid < invoice.total:
+        invoice.status = Invoice.Status.OPEN
+        invoice.paid_at = None
+    invoice.save(update_fields=["amount_paid", "status", "paid_at", "updated_at"])
+
+    from apps.affiliates.models import Commission, CommissionAdjustment
+    from apps.affiliates.services import transition_commission_status
+
+    commission = Commission.objects.filter(invoice=invoice).first()
+    if commission and commission.status in {Commission.Status.PENDING, Commission.Status.APPROVED}:
+        transition_commission_status(
+            commission=commission,
+            new_status=Commission.Status.CANCELLED,
+            actor=actor,
+            reason=reason,
+            metadata={"payment_id": str(payment.pk), "event": "payment_refunded"},
+        )
+    elif commission and commission.status == Commission.Status.PAID:
+        CommissionAdjustment.objects.get_or_create(
+            payment=payment,
+            defaults={
+                "commission": commission,
+                "amount": commission.commission_amount,
+                "reason": reason,
+                "created_by": actor,
+            },
+        )
     return payment

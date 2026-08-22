@@ -2,6 +2,7 @@
 Accounts app views — auth, user management.
 """
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils.text import slugify
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -187,8 +188,18 @@ def register_view(request):
 
     serializer = UserCreateSerializer(data=data)
     serializer.is_valid(raise_exception=True)
-    user = serializer.save()
-    _ensure_user_organization(user)
+    referral_token = serializer.validated_data.get("referral_token", "")
+    with transaction.atomic():
+        user = serializer.save()
+        organization = _ensure_user_organization(user)
+        if referral_token and organization:
+            from apps.affiliates.services import bind_attribution_to_customer
+
+            bind_attribution_to_customer(
+                token=referral_token,
+                user=user,
+                organization=organization,
+            )
 
     refresh = issue_tokens_for_user(user)
 

@@ -1,6 +1,7 @@
 """
 Accounts app serializers — auth, user, profile.
 """
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from common.authentication import is_active_platform_staff
 from .models import User
@@ -45,9 +46,16 @@ class LoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(required=False, allow_null=True)
     is_platform_staff = serializers.SerializerMethodField()
+    is_affiliate = serializers.SerializerMethodField()
 
     def get_is_platform_staff(self, user):
         return is_active_platform_staff(user)
+
+    def get_is_affiliate(self, user):
+        try:
+            return user.affiliate_profile.status == "active"
+        except (AttributeError, ObjectDoesNotExist):
+            return False
     
     class Meta:
         model = User
@@ -66,6 +74,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_active",
             "force_password_change",
             "is_platform_staff",
+            "is_affiliate",
             "created_at",
             "updated_at",
         ]
@@ -78,6 +87,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
+    referral_token = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -88,6 +98,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "password_confirm",
             "role",
             "phone",
+            "referral_token",
         ]
 
     def validate(self, data):
@@ -97,6 +108,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password_confirm")
+        validated_data.pop("referral_token", None)
         password = validated_data.pop("password")
         user = User.objects.create_user(password=password, **validated_data)
         return user

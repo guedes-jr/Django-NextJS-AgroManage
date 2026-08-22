@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   Bird,
   CircleDollarSign,
+  Handshake,
   Icon,
   LayoutDashboard,
   PackageOpen,
@@ -41,6 +42,7 @@ interface SidebarItem {
   title: string;
   href: string;
   icon: SidebarIcon;
+  requiresAffiliate?: boolean;
 }
 
 interface SidebarSection {
@@ -87,6 +89,7 @@ const sidebarSections: SidebarSection[] = [
     label: "Administração",
     items: [
       { title: "Equipe e usuários", href: "/home/usuarios", icon: UsersRound },
+      { title: "Área do afiliado", href: "/home/afiliados", icon: Handshake, requiresAffiliate: true },
     ],
   },
 ];
@@ -108,6 +111,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname();
   const [organization, setOrganization] = useState<SidebarOrganization | null>(null);
+  const [isAffiliate, setIsAffiliate] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/home") return pathname === href;
@@ -129,6 +133,19 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       .catch(() => {
         // The menu remains usable when organization or billing data is unavailable.
       });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .get<{ is_affiliate: boolean }>("/auth/me/")
+      .then(({ data }) => {
+        if (active) setIsAffiliate(data.is_affiliate === true);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -171,7 +188,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
               <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
               <div className="sidebar-section-items">
-                {section.items.map((item) => {
+                {section.items.filter((item) => !item.requiresAffiliate || isAffiliate).map((item) => {
                   const active = isActive(item.href);
                   return (
                     <Link

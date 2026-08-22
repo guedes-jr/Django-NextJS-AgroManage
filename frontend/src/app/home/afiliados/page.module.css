@@ -1,0 +1,10 @@
+.loading { min-height: 240px; display: grid; place-items: center; color: var(--muted-foreground); }
+.eyebrow { display: flex; align-items: center; gap: .5rem; color: #15803d; font-weight: 700; font-size: .85rem; text-transform: uppercase; letter-spacing: .05em; }
+.link { margin-top: .65rem; font-weight: 700; overflow-wrap: anywhere; color: var(--foreground); }
+.metricIcon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #15803d; background: rgba(34, 197, 94, .12); margin-bottom: 1rem; }
+.metricValue { color: var(--foreground); font-size: 1.65rem; line-height: 1.2; font-weight: 800; }
+.status { display: inline-flex; padding: .3rem .65rem; border-radius: 999px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.pending { color: #92400e; background: #fef3c7; }
+.approved { color: #1d4ed8; background: #dbeafe; }
+.success { color: #166534; background: #dcfce7; }
+.cancelled { color: #991b1b; background: #fee2e2; }

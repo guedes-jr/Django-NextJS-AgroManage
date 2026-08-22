@@ -1,7 +1,7 @@
 "use client";
 
 import "./login.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mail,
@@ -16,6 +16,11 @@ import { clearPlatformSession, platformService, PLATFORM_STAFF, setPlatformSessi
 import { useToast } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { isTheme } from "@/lib/theme";
+import {
+  clearAttributionToken,
+  getAttributionToken,
+  trackAffiliateReferral,
+} from "@/services/affiliateTracking";
 
 type View = "login" | "register" | "forgot";
 
@@ -73,6 +78,20 @@ export default function LoginPage() {
     password_confirm: "",
   });
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const affiliateCode = searchParams.get("ref")?.trim();
+    const requestedView = searchParams.get("view");
+    if (affiliateCode || requestedView === "register") {
+      queueMicrotask(() => setView("register"));
+    }
+    if (!affiliateCode) return;
+
+    void trackAffiliateReferral(affiliateCode, searchParams).catch(() => {
+      // Invalid referral data must never block regular registration.
+    });
+  }, []);
+
   const goTo = (next: View) => {
     setView(next);
     setError("");
@@ -113,7 +132,9 @@ export default function LoginPage() {
           password: formData.password,
           password_confirm: formData.password_confirm,
           full_name: formData.name,
+          referral_token: getAttributionToken(),
         });
+        clearAttributionToken();
         showToast("Conta criada! Você será redirecionado para o login. 🎉", "success", 15000);
         setTimeout(() => goTo("login"), 2000);
       } else if (view === "forgot") {

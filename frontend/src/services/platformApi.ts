@@ -37,6 +37,11 @@ import type {
   PlatformSupportAccessPage,
   CommercialDashboard,
   PlatformAIDashboard,
+  PlatformAffiliate,
+  PlatformAffiliateCommissionPage,
+  PlatformAffiliateDashboard,
+  PlatformAffiliatePage,
+  PlatformAffiliateReferralPage,
 } from "@/types/platform";
 
 const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
@@ -179,6 +184,38 @@ export const platformService = {
   async users(params?: Record<string, string | number | boolean>) {
     const { data } = await platformApi.get<PlatformUserPage>("platform/users/", { params });
     return data;
+  },
+  async affiliates(params?: Record<string, string | number>) {
+    const { data } = await platformApi.get<PlatformAffiliatePage>("platform/affiliates/", { params });
+    return data;
+  },
+  async affiliateDashboard() {
+    const { data } = await platformApi.get<PlatformAffiliateDashboard>("platform/affiliates/dashboard/");
+    return data;
+  },
+  async createAffiliate(payload: {user_id:string;commission_type:string;commission_value:string;currency:string}) {
+    const { data } = await platformApi.post<PlatformAffiliate>("platform/affiliates/", payload);
+    return data;
+  },
+  async updateAffiliate(id:string, payload:{commission_type:string;commission_value:string;currency:string}) {
+    const { data } = await platformApi.patch<PlatformAffiliate>(`platform/affiliates/${id}/`, payload);
+    return data;
+  },
+  async setAffiliateActive(id:string, active:boolean) {
+    const action = active ? "activate" : "deactivate";
+    const { data } = await platformApi.post<PlatformAffiliate>(`platform/affiliates/${id}/${action}/`);
+    return data;
+  },
+  async affiliateReferrals(params?:Record<string,string|number>) {
+    const { data } = await platformApi.get<PlatformAffiliateReferralPage>("platform/affiliate-referrals/", {params});
+    return data;
+  },
+  async affiliateCommissions(params?:Record<string,string|number>) {
+    const { data } = await platformApi.get<PlatformAffiliateCommissionPage>("platform/commissions/", {params});
+    return data;
+  },
+  async transitionAffiliateCommission(id:string, action:"approve"|"mark-paid"|"cancel", reason:string) {
+    await platformApi.post(`platform/commissions/${id}/${action}/`, {reason});
   },
   async team(params?: Record<string, string | number | boolean>) {
     const { data } = await platformApi.get<PlatformTeamPage>("platform/team/", { params });

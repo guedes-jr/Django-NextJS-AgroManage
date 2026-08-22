@@ -63,6 +63,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.platform_admin",
     "apps.billing",
+    "apps.affiliates",
     "apps.ai_assistant",
 ]
 
@@ -183,7 +184,15 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "common.exceptions.custom_exception_handler",
+    "DEFAULT_THROTTLE_RATES": {
+        "affiliate_tracking": env("AFFILIATE_TRACKING_RATE", default="60/min"),
+    },
 }
+
+AFFILIATE_ATTRIBUTION_MAX_AGE_SECONDS = env.int(
+    "AFFILIATE_ATTRIBUTION_MAX_AGE_SECONDS",
+    default=60 * 60 * 24 * 30,
+)
 
 # ---------------------------------------------------------------------------
 # JWT
