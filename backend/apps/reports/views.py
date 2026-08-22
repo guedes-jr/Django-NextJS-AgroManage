@@ -368,7 +368,40 @@ def dashboard_summary(request):
         payment_date__lte=today,
         status=Transaction.Status.PAID,
     )
-    crop_transactions = paid_month.filter(planting_cycle__isnull=False)
+    # Stock purchases do not belong to a planting cycle yet, but agricultural
+    # inputs must still be represented in the organization crop segment.
+    agricultural_categories = {
+        "semente",
+        "fertilizante",
+        "corretivo",
+        "fertirrigacao",
+        "defensivo",
+        "foliar",
+    }
+    agricultural_item_ids = []
+    for item in ItemEstoque.objects.filter(organization=org).values(
+        "id", "categoria", "categorias", "especie_animal"
+    ):
+        categories = set(item["categorias"] or [])
+        if item["categoria"]:
+            categories.add(item["categoria"])
+        if not item["especie_animal"] and categories.intersection(
+            agricultural_categories
+        ):
+            agricultural_item_ids.append(item["id"])
+
+    agricultural_lot_references = [
+        f"LOTE-{lot_id}"
+        for lot_id in LoteEstoque.objects.filter(
+            item_id__in=agricultural_item_ids,
+            data_entrada__gte=month_start,
+            data_entrada__lte=today,
+        ).values_list("id", flat=True)
+    ]
+    crop_transactions = paid_month.filter(
+        Q(planting_cycle__isnull=False)
+        | Q(reference__in=agricultural_lot_references)
+    )
     crop_cost = crop_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.EXPENSE
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
