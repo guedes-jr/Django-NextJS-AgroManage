@@ -43,6 +43,7 @@ interface SidebarItem {
   href: string;
   icon: SidebarIcon;
   requiresAffiliate?: boolean;
+  underDevelopment?: boolean;
 }
 
 interface SidebarSection {
@@ -66,8 +67,8 @@ const sidebarSections: SidebarSection[] = [
     label: "Rebanhos",
     items: [
       { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon },
-      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon },
-      { title: "Aves", href: "/home/rebanho/aves", icon: Bird },
+      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, underDevelopment: true },
+      { title: "Aves", href: "/home/rebanho/aves", icon: Bird, underDevelopment: true },
       { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope },
     ],
   },
@@ -202,6 +203,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                         <item.icon size={22} strokeWidth={active ? 2.25 : 1.9} />
                       </span>
                       <span>{item.title}</span>
+                      {item.underDevelopment && (
+                        <span className="sidebar-link-badge">Em breve</span>
+                      )}
                     </Link>
                   );
                 })}

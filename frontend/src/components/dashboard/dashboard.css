@@ -108,6 +108,7 @@
 
 .sidebar-link:focus-visible, .sidebar-close:focus-visible { outline: 2px solid #b3e487; outline-offset: 2px; }
 .sidebar-link-icon { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; color: #83c96a; transition: color .2s ease, transform .2s ease; }
+.sidebar-link-badge { margin-left: auto; padding: 3px 7px; border: 1px solid rgba(179, 228, 135, .3); border-radius: 999px; color: #c9eeb0; background: rgba(179, 228, 135, .1); font-size: .62rem; font-weight: 700; letter-spacing: .03em; line-height: 1; text-transform: uppercase; }
 .sidebar-link:hover .sidebar-link-icon, .sidebar-link.active .sidebar-link-icon { color: #a8df78; transform: translateY(-1px); }
 
 .premium-badge-card {
