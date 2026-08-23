@@ -1,4 +1,4 @@
-from celery.signals import before_task_publish, task_failure, task_postrun, task_prerun
+from celery.signals import before_task_publish, task_failure, task_postrun, task_prerun, task_retry
 from django.utils import timezone
 
 from .models import BackgroundTaskRun
@@ -42,3 +42,18 @@ def task_failed(task_id=None, exception=None, sender=None, **kwargs):
     run.error_class = exception.__class__.__name__ if exception else "Error"
     run.error_message = _safe_text(exception)
     run.save()
+
+
+@task_retry.connect
+def task_retried(request=None, reason=None, sender=None, **kwargs):
+    task_id = getattr(request, "id", None)
+    if not task_id:
+        return
+    run, _ = BackgroundTaskRun.objects.get_or_create(
+        task_id=task_id,
+        defaults={"task_name": getattr(sender, "name", "unknown")},
+    )
+    run.status = BackgroundTaskRun.Status.RETRY
+    run.error_class = reason.__class__.__name__ if reason else "Retry"
+    run.error_message = _safe_text(reason)
+    run.save(update_fields=("status", "error_class", "error_message", "updated_at"))

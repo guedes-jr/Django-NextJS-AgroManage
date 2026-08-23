@@ -4,7 +4,10 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.ai_assistant.models import AIConversation, AIFeedback, AIMessage, AIUsage
+from apps.ai_assistant.models import (
+    AIConversation, AIFeedback, AIMessage, AIModel, AIModelSyncRun,
+    AIProviderConfiguration, AIUsage,
+)
 from apps.organizations.models import Organization
 from apps.platform_admin.models import PlatformAuditLog, PlatformStaffProfile
 
@@ -84,3 +87,37 @@ class PlatformAIDashboardTests(APITestCase):
         )
         self.assertEqual(dashboard.status_code, status.HTTP_200_OK)
         self.assertEqual(mutation.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_dashboard_exposes_model_metrics_and_catalog_health_without_content(self):
+        provider = AIProviderConfiguration.objects.create(
+            provider="opencode_zen", display_name="OpenCode Zen",
+            base_url="https://opencode.ai/zen/v1", is_enabled=True, is_default=True,
+        )
+        AIModel.objects.create(
+            provider=provider, external_id="free-observed", display_name="Free Observed",
+            is_free=True, is_available=True, is_enabled=True, is_primary=True,
+        )
+        now = timezone.now()
+        AIModelSyncRun.objects.create(
+            provider=provider, status=AIModelSyncRun.Status.SUCCESS,
+            trigger=AIModelSyncRun.Trigger.SCHEDULED, started_at=now, finished_at=now,
+            models_found=1, free_models_found=1,
+        )
+        AIMessage.objects.create(
+            conversation=self.conversation, role=AIMessage.Role.ASSISTANT,
+            content="Outro conteúdo privado", status=AIMessage.Status.COMPLETED,
+            provider="opencode_zen", model="free-observed", input_tokens=20,
+            output_tokens=10, latency_ms=80, fallback_count=1,
+            provider_attempts=[
+                {"provider": "opencode_zen", "model": "free-old", "status": "provider_error"},
+                {"provider": "opencode_zen", "model": "free-observed", "status": "completed"},
+            ],
+        )
+        response = self.client.get(reverse("platform-ai-dashboard"))
+        operations = response.data["model_operations"]
+        self.assertEqual(operations["catalog"]["enabled_free_models"], 1)
+        self.assertFalse(operations["catalog"]["is_stale"])
+        self.assertEqual(operations["routing"]["fallback_answers"], 1)
+        row = next(item for item in operations["model_usage"] if item["model"] == "free-observed")
+        self.assertEqual(row["answers"], 1)
+        self.assertNotIn("content", row)

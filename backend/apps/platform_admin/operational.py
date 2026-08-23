@@ -5,6 +5,7 @@ RETRYABLE_TASKS = {
     "apps.notifications.tasks.send_daily_notifications_digest",
     "apps.notifications.tasks.send_weekly_notifications_digest",
     "apps.notifications.tasks.check_stock_levels_notifications",
+    "apps.ai_assistant.tasks.sync_opencode_zen_models_task",
 }
 
 

@@ -1,0 +1,19 @@
+[Unit]
+Description=AgroManage Celery Beat Scheduler
+After=network.target postgresql.service redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/agromanage/backend
+EnvironmentFile=/var/www/agromanage/backend/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.prod
+StateDirectory=agromanage
+ExecStart=/var/www/agromanage/backend/.venv/bin/celery -A config beat --loglevel=INFO --schedule=/var/lib/agromanage/celerybeat-schedule
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

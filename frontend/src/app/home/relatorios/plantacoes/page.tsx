@@ -15,6 +15,10 @@ type ApplicationRow = {
   id: string; plantation: string; date: string; product: string; purpose: string;
   area: number; quantity: number; unit: string; equipment: string;
 };
+type HarvestRow = {
+  id: string; plantingCycle: string; plantation: string; date: string; type: string;
+  production: number; destination: string; buyer: string; unitPrice: number; revenue: number;
+};
 
 const arrayOf = <T,>(payload: unknown): T[] => {
   if (Array.isArray(payload)) return payload as T[];
@@ -73,22 +77,50 @@ export default function RelatorioGeralPlantacoesPage() {
   const ids = useMemo(() => new Set(filtered.map((item) => item.id)), [filtered]);
   const inReport = useCallback((item: AnyRecord) => ids.has(String(item.plantation || "")), [ids]);
 
+  const harvests = useMemo<HarvestRow[]>(() => (sources.harvests || [])
+    .filter((item) => ids.has(String(item.planting_cycle || "")))
+    .map((item) => ({
+      id: String(item.id),
+      plantingCycle: String(item.planting_cycle || ""),
+      plantation: String(item.planting_cycle_name || "Plantação"),
+      date: iso(item.harvest_date),
+      type: String(item.harvest_type_display || item.harvest_type || "Colheita"),
+      production: num(item.yield_kg),
+      destination: String(item.destination_display || item.destination || "Não informado"),
+      buyer: String(item.buyer_name_display || item.buyer_name || "—"),
+      unitPrice: num(item.unit_price),
+      revenue: num(item.revenue_amount),
+    }))
+    .filter((item) => (!startDate || !item.date || item.date >= startDate) && (!endDate || !item.date || item.date <= endDate))
+    .sort((a, b) => b.date.localeCompare(a.date)), [endDate, ids, sources.harvests, startDate]);
+
   const rows = useMemo(() => filtered.map((item) => {
     const cost = num(item.investment_total);
-    const revenue = num(item.estimated_revenue);
-    const production = num(item.estimated_production_kg);
+    const predictedRevenue = num(item.estimated_revenue);
+    const predictedProduction = num(item.estimated_production_kg);
+    const cycleHarvests = harvests.filter((harvest) => harvest.plantingCycle === item.id);
+    const actualRevenue = cycleHarvests.reduce((sum, harvest) => sum + harvest.revenue, 0);
+    const harvestedProduction = cycleHarvests.reduce((sum, harvest) => sum + harvest.production, 0);
     const area = num(item.planted_area_ha);
-    const profit = revenue - cost;
-    const referenceDate = endDate ? new Date(`${endDate}T12:00:00`).getTime() : 0;
+    const predictedProfit = predictedRevenue - cost;
+    const actualProfit = actualRevenue - cost;
+    const cultivationEnd = iso(item.actual_harvest_date) || endDate;
+    const referenceDate = cultivationEnd ? new Date(`${cultivationEnd}T12:00:00`).getTime() : 0;
     const days = item.planting_date && referenceDate ? Math.max(0, Math.floor((referenceDate - new Date(`${item.planting_date}T12:00:00`).getTime()) / 86400000)) : 0;
-    return { item, cost, revenue, production, area, profit, days, margin: revenue ? profit / revenue * 100 : 0 };
-  }), [endDate, filtered]);
+    return { item, cost, predictedRevenue, predictedProduction, actualRevenue, harvestedProduction, area, predictedProfit, actualProfit, days, predictedMargin: predictedRevenue ? predictedProfit / predictedRevenue * 100 : 0, actualMargin: actualRevenue ? actualProfit / actualRevenue * 100 : 0 };
+  }), [endDate, filtered, harvests]);
 
   const totals = useMemo(() => rows.reduce((acc, row) => ({
-    area: acc.area + row.area, cost: acc.cost + row.cost, revenue: acc.revenue + row.revenue,
-    production: acc.production + row.production, profit: acc.profit + row.profit,
-  }), { area: 0, cost: 0, revenue: 0, production: 0, profit: 0 }), [rows]);
-  const margin = totals.revenue ? totals.profit / totals.revenue * 100 : 0;
+    area: acc.area + row.area, cost: acc.cost + row.cost,
+    predictedRevenue: acc.predictedRevenue + row.predictedRevenue,
+    predictedProduction: acc.predictedProduction + row.predictedProduction,
+    actualRevenue: acc.actualRevenue + row.actualRevenue,
+    harvestedProduction: acc.harvestedProduction + row.harvestedProduction,
+    predictedProfit: acc.predictedProfit + row.predictedProfit,
+    actualProfit: acc.actualProfit + row.actualProfit,
+  }), { area: 0, cost: 0, predictedRevenue: 0, predictedProduction: 0, actualRevenue: 0, harvestedProduction: 0, predictedProfit: 0, actualProfit: 0 }), [rows]);
+  const predictedMargin = totals.predictedRevenue ? totals.predictedProfit / totals.predictedRevenue * 100 : 0;
+  const actualMargin = totals.actualRevenue ? totals.actualProfit / totals.actualRevenue * 100 : 0;
 
   const costs = useMemo(() => [
     { label: "Sementes", value: (sources.plantings || []).filter(inReport).reduce((s, x) => s + num(x.total_price), 0), color: "#1685c7" },
@@ -119,10 +151,13 @@ export default function RelatorioGeralPlantacoesPage() {
   const cards = [
     { label: "Área total plantada", value: `${number(totals.area)} ha`, sub: `${rows.length} plantações`, icon: Leaf, tone: "green" },
     { label: "Custo total", value: money(totals.cost), sub: "100% do custo", icon: CircleDollarSign, tone: "green" },
-    { label: "Receita prevista", value: money(totals.revenue), sub: totals.production ? `Preço médio: ${money(totals.revenue / totals.production)}/kg` : "Sem produção estimada", icon: CircleDollarSign, tone: "blue" },
-    { label: "Lucro previsto", value: money(totals.profit), sub: "Receita − custo", icon: TrendingUp, tone: "orange" },
-    { label: "Margem de lucro", value: `${number(margin)}%`, sub: "Sobre a receita", icon: Percent, tone: "purple" },
-    { label: "Produção prevista", value: `${number(totals.production, 0)} kg`, sub: "Total estimado", icon: Weight, tone: "blue" },
+    { label: "Receita prevista", value: money(totals.predictedRevenue), sub: "Estimativa cadastrada", icon: CircleDollarSign, tone: "blue" },
+    { label: "Receita realizada", value: money(totals.actualRevenue), sub: harvests.length ? `${harvests.length} colheita(s) no período` : "Nenhuma colheita com receita", icon: CircleDollarSign, tone: "blue" },
+    { label: "Lucro previsto", value: money(totals.predictedProfit), sub: "Receita prevista − custo", icon: TrendingUp, tone: "orange" },
+    { label: "Lucro real", value: money(totals.actualProfit), sub: "Receita realizada − custo", icon: TrendingUp, tone: "orange" },
+    { label: "Margem prevista", value: `${number(predictedMargin)}%`, sub: "Sobre a receita prevista", icon: Percent, tone: "purple" },
+    { label: "Margem real", value: `${number(actualMargin)}%`, sub: "Sobre a receita realizada", icon: Percent, tone: "purple" },
+    { label: "Produção colhida", value: `${number(totals.harvestedProduction, 0)} kg`, sub: `Prevista: ${number(totals.predictedProduction, 0)} kg`, icon: Weight, tone: "blue" },
   ];
 
   return <div className={`${styles.page} plantation-report-page`}>
@@ -142,10 +177,10 @@ export default function RelatorioGeralPlantacoesPage() {
         <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
         <button><Filter /> Filtrar</button>
       </div></div>
-      <div className={styles.tableWrap}><table><thead><tr><th>Cultura / Talhão</th><th>Área (ha)</th><th>Data do plantio</th><th>Dias</th><th>Produção prevista (kg)</th><th>Custo total</th><th>Receita prevista</th><th>Lucro previsto</th><th>Margem</th><th>Custo/kg</th><th>Lucro/kg</th></tr></thead><tbody>
-        {rows.map((row) => <tr key={row.item.id}><td><b>{row.item.crop_name || row.item.name}</b><small>{row.item.field_name || "Sem talhão"}</small></td><td>{number(row.area)}</td><td>{date(row.item.planting_date)}</td><td>{row.days}</td><td>{number(row.production, 0)}</td><td>{money(row.cost)}</td><td>{money(row.revenue)}</td><td>{money(row.profit)}</td><td>{number(row.margin)}%</td><td>{row.production ? money(row.cost / row.production) : "-"}</td><td>{row.production ? money(row.profit / row.production) : "-"}</td></tr>)}
-        {!rows.length && <tr><td colSpan={11} className={styles.empty}>Nenhuma plantação encontrada no período.</td></tr>}
-      </tbody><tfoot><tr><th>Total geral</th><th>{number(totals.area)}</th><th colSpan={2}></th><th>{number(totals.production, 0)}</th><th>{money(totals.cost)}</th><th>{money(totals.revenue)}</th><th>{money(totals.profit)}</th><th>{number(margin)}%</th><th>{totals.production ? money(totals.cost / totals.production) : "-"}</th><th>{totals.production ? money(totals.profit / totals.production) : "-"}</th></tr></tfoot></table></div>
+      <div className={styles.tableWrap}><table><thead><tr><th>Cultura / Talhão</th><th>Área (ha)</th><th>Data do plantio</th><th>Dias</th><th>Produção prevista</th><th>Produção colhida</th><th>Custo total</th><th>Receita prevista</th><th>Receita realizada</th><th>Lucro previsto</th><th>Lucro real</th><th>Margem prevista</th><th>Margem real</th></tr></thead><tbody>
+        {rows.map((row) => <tr key={row.item.id}><td><b>{row.item.crop_name || row.item.name}</b><small>{row.item.field_name || "Sem talhão"}</small></td><td>{number(row.area)}</td><td>{date(row.item.planting_date)}</td><td>{row.days}</td><td>{number(row.predictedProduction, 0)} kg</td><td>{number(row.harvestedProduction, 0)} kg</td><td>{money(row.cost)}</td><td>{money(row.predictedRevenue)}</td><td>{money(row.actualRevenue)}</td><td>{money(row.predictedProfit)}</td><td>{money(row.actualProfit)}</td><td>{number(row.predictedMargin)}%</td><td>{number(row.actualMargin)}%</td></tr>)}
+        {!rows.length && <tr><td colSpan={13} className={styles.empty}>Nenhuma plantação encontrada no período.</td></tr>}
+      </tbody><tfoot><tr><th>Total geral</th><th>{number(totals.area)}</th><th colSpan={2}></th><th>{number(totals.predictedProduction, 0)} kg</th><th>{number(totals.harvestedProduction, 0)} kg</th><th>{money(totals.cost)}</th><th>{money(totals.predictedRevenue)}</th><th>{money(totals.actualRevenue)}</th><th>{money(totals.predictedProfit)}</th><th>{money(totals.actualProfit)}</th><th>{number(predictedMargin)}%</th><th>{number(actualMargin)}%</th></tr></tfoot></table></div>
     </section>
 
     <div className={styles.twoColumns}>
@@ -162,6 +197,10 @@ export default function RelatorioGeralPlantacoesPage() {
       {applications.map((item) => <tr key={item.id}><td>{date(item.date)}</td><td>{item.product}</td><td>{filtered.find((p) => p.id === item.plantation)?.crop_name || "-"}</td><td>{item.purpose}</td><td>{number(item.area)}</td><td>{number(item.quantity)} {item.unit}</td><td>{item.equipment}</td></tr>)}
       {!applications.length && <tr><td colSpan={7} className={styles.empty}>Nenhuma aplicação registrada no período.</td></tr>}
     </tbody></table></div></section>
+    <section className={styles.panel}><h2>5. Colheitas realizadas</h2><div className={styles.tableWrap}><table><thead><tr><th>Data</th><th>Plantação</th><th>Tipo</th><th>Produção colhida</th><th>Destino</th><th>Comprador</th><th>Preço unitário</th><th>Receita realizada</th></tr></thead><tbody>
+      {harvests.map((harvest) => <tr key={harvest.id}><td>{date(harvest.date)}</td><td>{filtered.find((plantation) => plantation.id === harvest.plantingCycle)?.crop_name || harvest.plantation}</td><td>{harvest.type}</td><td>{number(harvest.production, 0)} kg</td><td>{harvest.destination}</td><td>{harvest.buyer}</td><td>{harvest.unitPrice ? `${money(harvest.unitPrice)}/kg` : "—"}</td><td><b>{money(harvest.revenue)}</b></td></tr>)}
+      {!harvests.length && <tr><td colSpan={8} className={styles.empty}>Nenhuma colheita registrada no período.</td></tr>}
+    </tbody><tfoot><tr><th colSpan={3}>Total das colheitas</th><th>{number(totals.harvestedProduction, 0)} kg</th><th colSpan={3}></th><th>{money(totals.actualRevenue)}</th></tr></tfoot></table></div></section>
     <footer className={styles.footer}>Os valores apresentados são baseados nos lançamentos realizados até a data do relatório.</footer>
     <div className={styles.printAction}>
       <button type="button" onClick={() => window.print()}><Printer /> Imprimir relatório</button>

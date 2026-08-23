@@ -37,6 +37,9 @@ import type {
   PlatformSupportAccessPage,
   CommercialDashboard,
   PlatformAIDashboard,
+  PlatformAIProvider,
+  PlatformAIModel,
+  PlatformAIModelSyncRun,
   PlatformAffiliate,
   PlatformAffiliateCommissionPage,
   PlatformAffiliateDashboard,
@@ -154,6 +157,30 @@ export const platformService = {
   },
   async updateOrganizationAI(id: string, payload: { enabled?: boolean; limit?: number }) {
     const { data } = await platformApi.patch<{id:string;enabled:boolean;limit:number|null}>(`platform/ai/organizations/${id}/`, payload);
+    return data;
+  },
+  async aiProviders() {
+    const { data } = await platformApi.get<PlatformAIProvider[]>("platform/ai/providers/");
+    return data;
+  },
+  async updateAIProvider(id:string,payload:Partial<Pick<PlatformAIProvider,"display_name"|"is_enabled"|"is_default"|"timeout_seconds">>) {
+    const { data } = await platformApi.patch<PlatformAIProvider>(`platform/ai/providers/${id}/`,payload);
+    return data;
+  },
+  async aiModels(params?:Record<string,string|boolean>) {
+    const { data } = await platformApi.get<PlatformAIModel[]>("platform/ai/models/",{params});
+    return data;
+  },
+  async updateAIModel(id:string,payload:Partial<Pick<PlatformAIModel,"is_enabled"|"is_primary"|"priority">>) {
+    const { data } = await platformApi.patch<PlatformAIModel>(`platform/ai/models/${id}/`,payload);
+    return data;
+  },
+  async aiModelSyncRuns() {
+    const { data } = await platformApi.get<PlatformAIModelSyncRun[]>("platform/ai/model-sync-runs/");
+    return data;
+  },
+  async syncAIModels() {
+    const { data } = await platformApi.post<{task_id:string;status:"queued"}>("platform/ai/model-sync/",{});
     return data;
   },
   async organizations(params?: Record<string, string | number | boolean>) {

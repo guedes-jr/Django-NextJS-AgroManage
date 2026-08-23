@@ -502,14 +502,28 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
+Worker Celery e agendador Celery Beat:
+
+```bash
+sudo cp /var/www/agromanage/infra/systemd/agromanage-celery.service /etc/systemd/system/
+sudo cp /var/www/agromanage/infra/systemd/agromanage-celery-beat.service /etc/systemd/system/
+```
+
+O worker executa as tarefas assíncronas. O Beat deve possuir apenas uma instância ativa e
+dispara a sincronização semanal dos modelos gratuitos do OpenCode Zen.
+
 Ativar:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable agromanage-backend
 sudo systemctl enable agromanage-frontend
+sudo systemctl enable agromanage-celery
+sudo systemctl enable agromanage-celery-beat
 sudo systemctl start agromanage-backend
 sudo systemctl start agromanage-frontend
+sudo systemctl start agromanage-celery
+sudo systemctl start agromanage-celery-beat
 ```
 
 ---

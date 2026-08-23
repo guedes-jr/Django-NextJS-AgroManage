@@ -12,9 +12,9 @@ from .serializers import (
     AIConversationDetailSerializer, AIConversationSerializer, AIFeedbackSerializer,
     AIMessageSerializer, AIQuestionSerializer,
 )
-from .services.openai_service import (
-    AIConfigurationError, AIProviderError, OpenAIRuralAssistant,
-)
+from .services.provider_factory import get_ai_provider
+from .services.providers import AIConfigurationError, AIProviderError
+from .services.agro_context import AgroContextNotFound, build_agro_context
 from .services.quota import (
     AIDisabledError, AIQuotaExceededError, add_token_usage, consume_question,
     get_ai_quota, release_question,
@@ -57,6 +57,14 @@ class AIConversationViewSet(viewsets.ModelViewSet):
         serializer = AIQuestionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         question = serializer.validated_data["question"]
+        try:
+            agro_context = build_agro_context(
+                user=request.user,
+                context_type=serializer.validated_data.get("context_type"),
+                context_id=serializer.validated_data.get("context_id"),
+            )
+        except AgroContextNotFound as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             consume_question(request.user)
@@ -70,7 +78,7 @@ class AIConversationViewSet(viewsets.ModelViewSet):
             status=AIMessage.Status.PENDING,
         )
         try:
-            assistant = OpenAIRuralAssistant()
+            assistant = get_ai_provider()
             input_safety = assistant.moderate(question)
             local_safety = classify_local_risk(question)
             if input_safety["flagged"]:
@@ -92,7 +100,11 @@ class AIConversationViewSet(viewsets.ModelViewSet):
             )
             history.reverse()
             answer = assistant.generate(
-                user=request.user, conversation=conversation, question=question, history=history
+                user=request.user,
+                conversation=conversation,
+                question=question,
+                history=history,
+                context=agro_context.text if agro_context else "",
             )
             output_safety = assistant.moderate(answer.text)
             if output_safety["flagged"]:
@@ -112,6 +124,9 @@ class AIConversationViewSet(viewsets.ModelViewSet):
                 content=content,
                 status=AIMessage.Status.COMPLETED,
                 model=answer.model,
+                provider=answer.provider,
+                fallback_count=max(len(answer.attempts) - 1, 0),
+                provider_attempts=list(answer.attempts),
                 input_tokens=answer.input_tokens,
                 output_tokens=answer.output_tokens,
                 latency_ms=answer.latency_ms,
@@ -139,7 +154,12 @@ class AIConversationViewSet(viewsets.ModelViewSet):
         except AIProviderError as exc:
             message.status = AIMessage.Status.FAILED
             message.error_code = "provider_error"
-            message.save(update_fields=("status", "error_code", "updated_at"))
+            attempts = list(getattr(exc, "attempts", ()))
+            message.provider_attempts = attempts
+            message.fallback_count = max(len(attempts) - 1, 0)
+            message.save(update_fields=(
+                "status", "error_code", "provider_attempts", "fallback_count", "updated_at"
+            ))
             release_question(request.user)
             return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception:

@@ -7,14 +7,26 @@ class AIMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = AIMessage
         fields = (
-            "id", "role", "content", "status", "model", "input_tokens", "output_tokens",
+            "id", "role", "content", "status", "model", "provider", "fallback_count",
+            "input_tokens", "output_tokens",
             "latency_ms", "safety_classification", "created_at",
         )
         read_only_fields = fields
 
 
 class AIQuestionSerializer(serializers.Serializer):
+    CONTEXT_TYPES = ("planting", "animal", "animal_batch", "farm")
+
     question = serializers.CharField(min_length=3, max_length=4000, trim_whitespace=True)
+    context_type = serializers.ChoiceField(choices=CONTEXT_TYPES, required=False)
+    context_id = serializers.UUIDField(required=False)
+
+    def validate(self, attrs):
+        if bool(attrs.get("context_type")) != bool(attrs.get("context_id")):
+            raise serializers.ValidationError(
+                "context_type e context_id devem ser informados em conjunto."
+            )
+        return attrs
 
 
 class AIConversationSerializer(serializers.ModelSerializer):

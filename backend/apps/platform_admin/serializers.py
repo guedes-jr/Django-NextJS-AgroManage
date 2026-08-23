@@ -8,9 +8,92 @@ from django.utils.text import slugify
 
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, PlanEntitlement, Subscription
+from apps.ai_assistant.models import AIModel, AIModelSyncRun, AIProviderConfiguration
 from .models import BackgroundTaskRun, DemoAppointment, DemoRequest, DemoRequestActivity, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, MarketingEvent, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 
 User = get_user_model()
+
+
+class AIProviderConfigurationSerializer(serializers.ModelSerializer):
+    health_status_display = serializers.CharField(source="get_last_health_status_display", read_only=True)
+    credential_configured = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AIProviderConfiguration
+        fields = (
+            "id", "provider", "display_name", "base_url", "is_enabled", "is_default",
+            "timeout_seconds", "credential_configured", "last_health_status",
+            "health_status_display", "last_health_check_at", "last_health_message",
+            "created_at", "updated_at",
+        )
+        read_only_fields = (
+            "id", "provider", "base_url", "credential_configured", "last_health_status",
+            "health_status_display", "last_health_check_at", "last_health_message",
+            "created_at", "updated_at",
+        )
+
+    def get_credential_configured(self, obj):
+        import os
+
+        return bool(obj.api_key_env_var and os.environ.get(obj.api_key_env_var))
+
+    def validate(self, attrs):
+        is_default = attrs.get("is_default", getattr(self.instance, "is_default", False))
+        is_enabled = attrs.get("is_enabled", getattr(self.instance, "is_enabled", False))
+        if is_default and not is_enabled:
+            raise serializers.ValidationError("O provedor padrão deve permanecer habilitado.")
+        return attrs
+
+
+class AIModelAdminSerializer(serializers.ModelSerializer):
+    provider_name = serializers.CharField(source="provider.display_name", read_only=True)
+    provider_code = serializers.CharField(source="provider.provider", read_only=True)
+    endpoint_type_display = serializers.CharField(source="get_endpoint_type_display", read_only=True)
+
+    class Meta:
+        model = AIModel
+        fields = (
+            "id", "provider", "provider_name", "provider_code", "external_id", "display_name",
+            "endpoint_type", "endpoint_type_display", "is_free", "is_available", "is_enabled",
+            "is_primary", "priority", "supports_streaming", "supports_tools", "input_price",
+            "output_price", "context_window", "first_seen_at", "last_seen_at",
+            "last_verified_at", "created_at", "updated_at",
+        )
+        read_only_fields = (
+            "id", "provider", "provider_name", "provider_code", "external_id", "display_name",
+            "endpoint_type", "endpoint_type_display", "is_free", "is_available",
+            "supports_streaming", "supports_tools", "input_price", "output_price",
+            "context_window", "first_seen_at", "last_seen_at", "last_verified_at",
+            "created_at", "updated_at",
+        )
+
+    def validate(self, attrs):
+        is_enabled = attrs.get("is_enabled", self.instance.is_enabled)
+        is_primary = attrs.get("is_primary", self.instance.is_primary)
+        if is_enabled and not self.instance.is_available:
+            raise serializers.ValidationError("Um modelo indisponível não pode ser habilitado.")
+        if is_primary and (not is_enabled or not self.instance.provider.is_enabled):
+            raise serializers.ValidationError(
+                "O modelo principal e seu provedor devem estar habilitados."
+            )
+        return attrs
+
+
+class AIModelSyncRunSerializer(serializers.ModelSerializer):
+    provider_name = serializers.CharField(source="provider.display_name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    trigger_display = serializers.CharField(source="get_trigger_display", read_only=True)
+
+    class Meta:
+        model = AIModelSyncRun
+        fields = (
+            "id", "provider", "provider_name", "status", "status_display", "trigger",
+            "trigger_display", "started_at", "finished_at", "models_found",
+            "free_models_found", "models_created", "models_updated", "models_unavailable",
+            "added_model_ids", "unavailable_model_ids", "error_class", "error_message",
+            "response_summary", "created_at",
+        )
+        read_only_fields = fields
 
 
 class PlatformStaffSerializer(serializers.ModelSerializer):

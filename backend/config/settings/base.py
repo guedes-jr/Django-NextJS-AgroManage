@@ -5,6 +5,7 @@ Split by environment: base → dev/prod/test.
 
 from datetime import timedelta
 from pathlib import Path
+from celery.schedules import crontab
 import environ
 
 # ---------------------------------------------------------------------------
@@ -157,13 +158,20 @@ DEMO_REQUEST_NOTIFICATION_EMAILS = env.list(
 )
 
 # ---------------------------------------------------------------------------
-# OpenAI / Assistente Rural IA (segredos apenas no backend)
+# Provedores / Assistente Rural IA (segredos apenas no backend)
 # ---------------------------------------------------------------------------
+AI_DEFAULT_PROVIDER = env("AI_DEFAULT_PROVIDER", default="openai")
+AI_ALLOW_PAID_FALLBACK = env.bool("AI_ALLOW_PAID_FALLBACK", default=False)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_AI_MODEL = env("OPENAI_AI_MODEL", default="gpt-5.6-terra")
 OPENAI_AI_MAX_OUTPUT_TOKENS = env.int("OPENAI_AI_MAX_OUTPUT_TOKENS", default=1200)
 OPENAI_AI_TIMEOUT_SECONDS = env.int("OPENAI_AI_TIMEOUT_SECONDS", default=45)
 OPENAI_AI_STORE_RESPONSES = env.bool("OPENAI_AI_STORE_RESPONSES", default=False)
+OPENCODE_ZEN_API_KEY = env("OPENCODE_ZEN_API_KEY", default="")
+OPENCODE_ZEN_BASE_URL = env("OPENCODE_ZEN_BASE_URL", default="https://opencode.ai/zen/v1")
+OPENCODE_ZEN_MODEL = env("OPENCODE_ZEN_MODEL", default="mimo-v2.5-free")
+OPENCODE_ZEN_MAX_OUTPUT_TOKENS = env.int("OPENCODE_ZEN_MAX_OUTPUT_TOKENS", default=1200)
+OPENCODE_ZEN_TIMEOUT_SECONDS = env.int("OPENCODE_ZEN_TIMEOUT_SECONDS", default=45)
 
 # ---------------------------------------------------------------------------
 # Django REST Framework
@@ -226,6 +234,20 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+AI_MODEL_SYNC_DAY_OF_WEEK = env("AI_MODEL_SYNC_DAY_OF_WEEK", default="monday")
+AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
+AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
+AI_MODEL_CATALOG_STALE_DAYS = env.int("AI_MODEL_CATALOG_STALE_DAYS", default=14)
+CELERY_BEAT_SCHEDULE = {
+    "sync-opencode-zen-models-weekly": {
+        "task": "apps.ai_assistant.tasks.sync_opencode_zen_models_task",
+        "schedule": crontab(
+            minute=AI_MODEL_SYNC_MINUTE,
+            hour=AI_MODEL_SYNC_HOUR,
+            day_of_week=AI_MODEL_SYNC_DAY_OF_WEEK,
+        ),
+    },
+}
 
 # ---------------------------------------------------------------------------
 # DRF Spectacular (OpenAPI)

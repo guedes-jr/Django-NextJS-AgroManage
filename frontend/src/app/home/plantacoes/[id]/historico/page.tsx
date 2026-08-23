@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
-  ArrowLeft,
   Beaker,
   Check,
   ClipboardCheck,
@@ -63,6 +63,8 @@ type ReportEvent = {
   subtitle: string;
   details: string[];
   amount?: number;
+  quantityKg?: number;
+  revenue?: number;
   notes?: string | null;
 };
 
@@ -290,6 +292,7 @@ function buildEvents(plantation: Plantation, sources: {
 
   sources.harvests.forEach((item) => {
     const revenue = parseNumber(item.revenue_amount);
+    const quantityKg = parseNumber(item.yield_kg);
     events.push({
       id: `colheita-${item.id}`,
       type: "colheita",
@@ -302,6 +305,8 @@ function buildEvents(plantation: Plantation, sources: {
         revenue ? `Receita: ${formatAmount(revenue)}` : undefined,
       ]),
       amount: revenue,
+      quantityKg,
+      revenue,
       notes: item.notes,
     });
   });
@@ -323,7 +328,6 @@ function buildEvents(plantation: Plantation, sources: {
 
 export default function RelatorioPlantacaoPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [plantation, setPlantation] = useState<Plantation | null>(null);
@@ -415,19 +419,19 @@ export default function RelatorioPlantacaoPage() {
   const totals = useMemo(() => {
     const investment = selectedEvents.filter((event) => event.type !== "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
     const revenue = selectedEvents.filter((event) => event.type === "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
-    const harvestedKg = selectedEvents
-      .filter((event) => event.type === "colheita")
-      .reduce((sum, event) => {
-        const productionDetail = event.details.find((detail) => detail.startsWith("Produção:"));
-        return sum + parseNumber(productionDetail?.replace("Produção:", "").replace("kg", "").trim());
-      }, 0);
+    const harvestEvents = selectedEvents.filter((event) => event.type === "colheita");
+    const harvestedKg = harvestEvents.reduce((sum, event) => sum + (event.quantityKg || 0), 0);
+    const soldKg = harvestEvents
+      .filter((event) => (event.revenue || 0) > 0)
+      .reduce((sum, event) => sum + (event.quantityKg || 0), 0);
     const area = parseNumber(plantation?.planted_area_ha);
-    const soldKg = revenue > 0 ? harvestedKg : 0;
+    const profit = revenue - investment;
 
     return {
       investment,
       revenue,
-      profit: revenue - investment,
+      profit,
+      margin: revenue > 0 ? profit / revenue * 100 : 0,
       harvestedKg,
       costPerHa: area > 0 ? investment / area : 0,
       revenuePerHa: area > 0 ? revenue / area : 0,
@@ -448,65 +452,110 @@ export default function RelatorioPlantacaoPage() {
   };
 
   const buildPdf = (summaryOnly = false) => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape", format: "a4" });
     const title = plantation?.name || plantation?.crop_name || "Produção";
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let y = 18;
+    const green: [number, number, number] = [20, 120, 55];
+    const dark: [number, number, number] = [24, 39, 30];
+    const lightGreen: [number, number, number] = [237, 248, 241];
+    let y = 15;
+
+    const addHeader = () => {
+      doc.setFillColor(...green);
+      doc.rect(0, 0, pageWidth, 25, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(17);
+      doc.text(summaryOnly ? "RESUMO TOTAL DA PRODUÇÃO" : "RELATÓRIO DA PRODUÇÃO", margin, 11);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(title, margin, 18);
+      doc.text(`Gerado em ${new Date().toLocaleDateString("pt-BR")}`, pageWidth - margin, 15, { align: "right" });
+      doc.setTextColor(...dark);
+      y = 33;
+    };
+
+    addHeader();
 
     const ensureSpace = (height = 12) => {
       if (y + height <= pageHeight - margin) return;
       doc.addPage();
-      y = 18;
-    };
-
-    const textLine = (label: string, value: string) => {
-      ensureSpace(7);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${label}:`, margin, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(value || "-", margin + 48, y);
-      y += 7;
+      addHeader();
     };
 
     const section = (label: string) => {
-      y += 4;
-      ensureSpace(12);
+      ensureSpace(13);
+      doc.setFillColor(...lightGreen);
+      doc.roundedRect(margin, y, pageWidth - margin * 2, 9, 2, 2, "F");
+      doc.setTextColor(...green);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.text(label, margin, y);
-      y += 8;
       doc.setFontSize(10);
+      doc.text(label.toUpperCase(), margin + 4, y + 6);
+      doc.setTextColor(...dark);
+      y += 13;
     };
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text(summaryOnly ? "Resumo Total da Produção" : "Relatório da Produção", margin, y);
-    y += 9;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(title, margin, y);
-    y += 10;
-
-    textLine("Fazenda", plantation?.farm_name || "-");
-    textLine("Talhão", plantation?.field_name || "-");
-    textLine("Status", plantation?.status_display || "-");
-    textLine("Período", startDate && endDate ? `${formatDate(startDate)} a ${formatDate(endDate)}` : "-");
+    autoTable(doc, {
+      startY: y,
+      theme: "grid",
+      head: [["Fazenda", "Talhão", "Cultura", "Status", "Período"]],
+      body: [[
+        plantation?.farm_name || "-",
+        plantation?.field_name || "-",
+        plantation?.crop_name || title,
+        plantation?.status_display || "-",
+        startDate && endDate ? `${formatDate(startDate)} a ${formatDate(endDate)}` : "-",
+      ]],
+      headStyles: { fillColor: green, textColor: 255, fontStyle: "bold" },
+      bodyStyles: { textColor: dark, fillColor: [255, 255, 255] },
+      styles: { fontSize: 8, cellPadding: 3 },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
     section("Resumo financeiro e produtivo");
-    textLine("Investimento total", formatAmount(totals.investment));
-    textLine("Custo por hectare", totals.costPerHa ? formatAmount(totals.costPerHa) : "-");
-    textLine("Receita por hectare", totals.revenuePerHa ? formatAmount(totals.revenuePerHa) : "-");
-    textLine("Lucro real", formatAmount(totals.profit));
-    textLine("Produção", totals.harvestedKg ? `${formatNumber(totals.harvestedKg, 0)} kg` : "-");
-    textLine("Custo por kg", totals.costPerKg ? formatAmount(totals.costPerKg) : "-");
-    textLine("Venda por kg", totals.salePerKg ? formatAmount(totals.salePerKg) : "-");
-    textLine("Lucro por kg", totals.profitPerKg ? formatAmount(totals.profitPerKg) : "-");
+    autoTable(doc, {
+      startY: y,
+      theme: "grid",
+      head: [["Investimento", "Receita realizada", "Lucro real", "Margem real", "Produção colhida"]],
+      body: [[
+        formatAmount(totals.investment),
+        formatAmount(totals.revenue),
+        formatAmount(totals.profit),
+        `${formatNumber(totals.margin)}%`,
+        totals.harvestedKg ? `${formatNumber(totals.harvestedKg, 2)} kg` : "-",
+      ]],
+      headStyles: { fillColor: green, textColor: 255, fontStyle: "bold" },
+      bodyStyles: { fontSize: 11, fontStyle: "bold", textColor: dark, fillColor: lightGreen },
+      styles: { halign: "center", cellPadding: 4 },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+    autoTable(doc, {
+      startY: y,
+      theme: "grid",
+      head: [["Custo/ha", "Receita/ha", "Custo/kg colhido", "Venda/kg vendido", "Lucro/kg colhido"]],
+      body: [[
+        totals.costPerHa ? formatAmount(totals.costPerHa) : "-",
+        totals.revenuePerHa ? formatAmount(totals.revenuePerHa) : "-",
+        totals.costPerKg ? formatAmount(totals.costPerKg) : "-",
+        totals.salePerKg ? formatAmount(totals.salePerKg) : "-",
+        totals.profitPerKg ? formatAmount(totals.profitPerKg) : "-",
+      ]],
+      headStyles: { fillColor: [75, 94, 82], textColor: 255 },
+      bodyStyles: { textColor: dark },
+      styles: { halign: "center", fontSize: 8, cellPadding: 3 },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
     if (notes.trim()) {
       section("Observações para o agrônomo");
       const wrapped = doc.splitTextToSize(notes.trim(), pageWidth - margin * 2);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
       doc.text(wrapped, margin, y);
       y += wrapped.length * 5;
     }
@@ -516,20 +565,35 @@ export default function RelatorioPlantacaoPage() {
         const moduleEvents = selectedEvents.filter((event) => event.type === type);
         section(moduleConfig[type].label);
         if (!moduleEvents.length) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
           doc.text("Nenhum registro no período selecionado.", margin, y);
           y += 6;
           return;
         }
-
-        moduleEvents.forEach((event) => {
-          const line = `${formatDate(event.date)} - ${event.title} - ${event.subtitle}${event.details.length ? ` | ${event.details.join(" | ")}` : ""}${event.notes ? ` | Obs.: ${event.notes}` : ""}`;
-          const wrapped = doc.splitTextToSize(line, pageWidth - margin * 2);
-          ensureSpace(wrapped.length * 5 + 4);
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9);
-          doc.text(wrapped, margin, y);
-          y += wrapped.length * 5 + 3;
+        autoTable(doc, {
+          startY: y,
+          theme: "striped",
+          head: [["Data", "Registro", "Descrição", "Detalhes", "Valor"]],
+          body: moduleEvents.map((event) => [
+            formatDate(event.date),
+            event.title,
+            event.subtitle,
+            `${event.details.join(" • ")}${event.notes ? `${event.details.length ? " • " : ""}Obs.: ${event.notes}` : ""}` || "-",
+            event.amount ? formatAmount(event.amount) : "-",
+          ]),
+          headStyles: { fillColor: green, textColor: 255 },
+          alternateRowStyles: { fillColor: [246, 249, 247] },
+          styles: { fontSize: 7, cellPadding: 2.5, overflow: "linebreak" },
+          columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 38 }, 4: { cellWidth: 27, halign: "right" } },
+          margin: { left: margin, right: margin, bottom: margin },
+          didDrawPage: () => {
+            doc.setFontSize(7);
+            doc.setTextColor(110, 120, 114);
+            doc.text(`Página ${doc.getNumberOfPages()}`, pageWidth - margin, pageHeight - 6, { align: "right" });
+          },
         });
+        y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
       });
     }
 

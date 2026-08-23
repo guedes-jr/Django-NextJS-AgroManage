@@ -27,10 +27,15 @@ from celery import current_app
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, Plan, Subscription
 from apps.billing.services import create_manual_invoice, record_manual_payment
-from apps.ai_assistant.models import AIConversation, AIFeedback, AIMessage, AIUsage
+from apps.ai_assistant.models import (
+    AIConversation, AIFeedback, AIMessage, AIModel, AIModelSyncRun,
+    AIProviderConfiguration, AIUsage,
+)
+from apps.ai_assistant.tasks import sync_opencode_zen_models_task
 from apps.ai_assistant.services.quota import (
     CUSTOM_ENABLED_KEY, CUSTOM_LIMIT_KEY, get_organization_ai_rules,
 )
+from apps.ai_assistant.services.observability import get_ai_operations_snapshot
 from common.permissions import IsPlatformAdmin, IsPlatformAuditor, IsPlatformDeveloper, IsPlatformStaff, IsPlatformSupport
 
 from .serializers import (
@@ -69,6 +74,9 @@ from .serializers import (
     DeveloperSandboxGrantSerializer,
     SandboxExecuteSerializer,
     SandboxExecutionSerializer,
+    AIProviderConfigurationSerializer,
+    AIModelAdminSerializer,
+    AIModelSyncRunSerializer,
 )
 from .services import record_platform_action
 from .models import BackgroundTaskRun, DemoAppointment, DemoRequest, DemoRequestActivity, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, MarketingEvent, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
@@ -78,6 +86,104 @@ from .approved_queries import available_queries, run_approved_query
 from .sandbox_client import SandboxClient, SandboxUnavailable
 
 User = get_user_model()
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformStaff])
+def ai_providers(request):
+    queryset = AIProviderConfiguration.objects.all().order_by("display_name")
+    return Response(AIProviderConfigurationSerializer(queryset, many=True).data)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsPlatformAdmin])
+@transaction.atomic
+def update_ai_provider(request, provider_id):
+    provider = AIProviderConfiguration.objects.select_for_update().filter(id=provider_id).first()
+    if not provider:
+        return Response({"detail": "Provedor não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    serializer = AIProviderConfigurationSerializer(provider, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    if serializer.validated_data.get("is_default"):
+        AIProviderConfiguration.objects.exclude(id=provider.id).filter(is_default=True).update(
+            is_default=False, updated_at=timezone.now()
+        )
+    provider = serializer.save()
+    record_platform_action(
+        request=request,
+        action="ai.provider_updated",
+        object_type="AIProviderConfiguration",
+        object_id=provider.id,
+        description=f"Configuração do provedor {provider.display_name} atualizada.",
+        extra_data={"is_enabled": provider.is_enabled, "is_default": provider.is_default},
+    )
+    return Response(AIProviderConfigurationSerializer(provider).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformStaff])
+def ai_models(request):
+    queryset = AIModel.objects.select_related("provider").all()
+    provider = request.query_params.get("provider")
+    if provider:
+        queryset = queryset.filter(provider__provider=provider)
+    for parameter in ("is_free", "is_available", "is_enabled"):
+        value = request.query_params.get(parameter)
+        if value in {"true", "false"}:
+            queryset = queryset.filter(**{parameter: value == "true"})
+    queryset = queryset.order_by("-provider__is_default", "-is_primary", "priority", "display_name")
+    return Response(AIModelAdminSerializer(queryset, many=True).data)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsPlatformAdmin])
+@transaction.atomic
+def update_ai_model(request, model_id):
+    model = AIModel.objects.select_for_update().select_related("provider").filter(id=model_id).first()
+    if not model:
+        return Response({"detail": "Modelo não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    serializer = AIModelAdminSerializer(model, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    if serializer.validated_data.get("is_primary"):
+        AIModel.objects.filter(provider=model.provider, is_primary=True).exclude(id=model.id).update(
+            is_primary=False, updated_at=timezone.now()
+        )
+    model = serializer.save()
+    record_platform_action(
+        request=request,
+        action="ai.model_updated",
+        object_type="AIModel",
+        object_id=model.id,
+        description=f"Modelo {model.external_id} atualizado.",
+        extra_data={
+            "provider": model.provider.provider,
+            "is_enabled": model.is_enabled,
+            "is_primary": model.is_primary,
+            "priority": model.priority,
+        },
+    )
+    return Response(AIModelAdminSerializer(model).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformStaff])
+def ai_model_sync_runs(request):
+    queryset = AIModelSyncRun.objects.select_related("provider").order_by("-started_at")[:50]
+    return Response(AIModelSyncRunSerializer(queryset, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsPlatformAdmin])
+def trigger_ai_model_sync(request):
+    result = sync_opencode_zen_models_task.apply_async(kwargs={"trigger": AIModelSyncRun.Trigger.MANUAL})
+    record_platform_action(
+        request=request,
+        action="ai.model_sync_requested",
+        object_type="BackgroundTaskRun",
+        object_id=result.id,
+        description="Sincronização manual do catálogo OpenCode Zen solicitada.",
+    )
+    return Response({"task_id": result.id, "status": "queued"}, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(["GET"])
@@ -160,6 +266,7 @@ def ai_dashboard(request):
         "subjects": subjects,
         "organizations": organization_rows,
         "incidents": incidents,
+        "model_operations": get_ai_operations_snapshot(period_start=month_start),
     })
 
 

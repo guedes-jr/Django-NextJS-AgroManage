@@ -10,6 +10,8 @@ BRANCH="main"
 
 BACKEND_SERVICE="agromanage-backend"
 FRONTEND_SERVICE="agromanage-frontend"
+CELERY_SERVICE="agromanage-celery"
+CELERY_BEAT_SERVICE="agromanage-celery-beat"
 
 DJANGO_SETTINGS_MODULE_VALUE="config.settings.prod"
 ENV_FILE="$BACKEND_DIR/.env"
@@ -219,6 +221,16 @@ require_sudo_access
 
 run_sudo systemctl daemon-reload
 run_sudo systemctl restart "$FRONTEND_SERVICE"
+if run_sudo systemctl cat "$CELERY_SERVICE" >/dev/null 2>&1; then
+  run_sudo systemctl restart "$CELERY_SERVICE"
+else
+  echo "[AVISO] Serviço $CELERY_SERVICE não instalado. O processamento assíncrono ficará indisponível."
+fi
+if run_sudo systemctl cat "$CELERY_BEAT_SERVICE" >/dev/null 2>&1; then
+  run_sudo systemctl restart "$CELERY_BEAT_SERVICE"
+else
+  echo "[AVISO] Serviço $CELERY_BEAT_SERVICE não instalado. A sincronização semanal da IA não será executada."
+fi
 run_sudo systemctl reload nginx
 
 echo "[DEPLOY] Aguardando serviços subirem..."
@@ -228,6 +240,18 @@ echo "[DEPLOY] Verificando status do frontend..."
 if ! run_sudo systemctl is-active --quiet "$FRONTEND_SERVICE"; then
   echo "[ERRO] Frontend não subiu corretamente."
   run_sudo systemctl status "$FRONTEND_SERVICE" --no-pager
+  exit 1
+fi
+
+if run_sudo systemctl cat "$CELERY_SERVICE" >/dev/null 2>&1 && ! run_sudo systemctl is-active --quiet "$CELERY_SERVICE"; then
+  echo "[ERRO] Worker Celery não subiu corretamente."
+  run_sudo systemctl status "$CELERY_SERVICE" --no-pager
+  exit 1
+fi
+
+if run_sudo systemctl cat "$CELERY_BEAT_SERVICE" >/dev/null 2>&1 && ! run_sudo systemctl is-active --quiet "$CELERY_BEAT_SERVICE"; then
+  echo "[ERRO] Celery Beat não subiu corretamente."
+  run_sudo systemctl status "$CELERY_BEAT_SERVICE" --no-pager
   exit 1
 fi
 

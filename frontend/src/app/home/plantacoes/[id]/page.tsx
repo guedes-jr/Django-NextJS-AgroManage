@@ -971,8 +971,7 @@ export default function PlantacaoDetailPage() {
   );
   const fertilizerItems = nutritionItems;
   const fertigationItems = inventoryItems.filter((item) =>
-    hasItemCategory(item, ["fertirrigacao", "fertilizante", "corretivo", "material", "outro"]) ||
-    (!item.especie_animal && !hasItemCategory(item, ["defensivo", "foliar"]))
+    hasItemCategory(item, ["fertirrigacao"])
   );
   const pesticideItems = inventoryItems.filter((item) =>
     hasItemCategory(item, ["defensivo", "foliar"]) ||
