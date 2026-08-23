@@ -25,20 +25,23 @@ class Command(BaseCommand):
             marker = self.style.SUCCESS("OK") if ok else self.style.ERROR("FALHA")
             self.stdout.write(f"[{marker}] {name}: {detail}")
 
-        default_provider = settings.AI_DEFAULT_PROVIDER
+        provider = AIProviderConfiguration.objects.filter(
+            is_default=True, is_enabled=True
+        ).first()
+        default_provider = provider.provider if provider else settings.AI_DEFAULT_PROVIDER
         check(
             "Provedor padrão",
             default_provider in PROVIDER_FACTORIES,
             default_provider,
         )
-        credential_ok = (
+        credential_ok = bool(provider and provider.get_api_key()) or (
             bool(settings.OPENCODE_ZEN_API_KEY)
             if default_provider == "opencode_zen"
             else bool(settings.OPENAI_API_KEY)
         )
         check("Credencial", credential_ok, "configurada" if credential_ok else "ausente")
 
-        provider = AIProviderConfiguration.objects.filter(
+        provider = provider or AIProviderConfiguration.objects.filter(
             provider=default_provider, is_enabled=True
         ).first()
         check("Configuração no catálogo", provider is not None, "habilitada" if provider else "ausente")

@@ -10,13 +10,14 @@ from .base import AIConfigurationError, AIProvider, AIProviderError, GeneratedAn
 class OpenCodeZenProvider(AIProvider):
     provider_id = "opencode_zen"
 
-    def __init__(self, client=None, moderation_provider=None, model=None, endpoint_type=None):
-        if client is None and not settings.OPENCODE_ZEN_API_KEY:
+    def __init__(self, client=None, moderation_provider=None, model=None, endpoint_type=None, api_key=None):
+        configured_key = api_key or settings.OPENCODE_ZEN_API_KEY
+        if client is None and not configured_key:
             raise AIConfigurationError(
                 "A chave do OpenCode Zen ainda não foi configurada no servidor."
             )
         self.client = client or OpenAI(
-            api_key=settings.OPENCODE_ZEN_API_KEY,
+            api_key=configured_key,
             base_url=settings.OPENCODE_ZEN_BASE_URL,
             timeout=settings.OPENCODE_ZEN_TIMEOUT_SECONDS,
             max_retries=2,

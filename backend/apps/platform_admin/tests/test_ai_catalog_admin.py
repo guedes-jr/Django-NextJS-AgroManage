@@ -60,6 +60,19 @@ class PlatformAICatalogAdminTests(APITestCase):
         self.assertNotIn("api_key_env_var", response.data[0])
         self.assertNotIn("api_key", response.data[0])
 
+    def test_admin_saves_encrypted_credential_without_exposing_it(self):
+        response = self.client.patch(
+            reverse("platform-ai-provider-detail", args=(self.provider.id,)),
+            {"api_key": "zen-secret-value"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.provider.refresh_from_db()
+        self.assertTrue(response.data["credential_configured"])
+        self.assertNotIn("api_key", response.data)
+        self.assertNotEqual(self.provider.encrypted_api_key, "zen-secret-value")
+        self.assertEqual(self.provider.get_api_key(), "zen-secret-value")
+
     def test_admin_changes_primary_model_and_audits(self):
         response = self.client.patch(
             reverse("platform-ai-model-detail", args=(self.fallback.id,)),

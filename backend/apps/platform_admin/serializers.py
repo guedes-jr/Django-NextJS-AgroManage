@@ -17,6 +17,8 @@ User = get_user_model()
 class AIProviderConfigurationSerializer(serializers.ModelSerializer):
     health_status_display = serializers.CharField(source="get_last_health_status_display", read_only=True)
     credential_configured = serializers.SerializerMethodField()
+    api_key = serializers.CharField(write_only=True, required=False, allow_blank=True, trim_whitespace=True)
+    clear_api_key = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = AIProviderConfiguration
@@ -24,7 +26,7 @@ class AIProviderConfigurationSerializer(serializers.ModelSerializer):
             "id", "provider", "display_name", "base_url", "is_enabled", "is_default",
             "timeout_seconds", "credential_configured", "last_health_status",
             "health_status_display", "last_health_check_at", "last_health_message",
-            "created_at", "updated_at",
+            "created_at", "updated_at", "api_key", "clear_api_key",
         )
         read_only_fields = (
             "id", "provider", "base_url", "credential_configured", "last_health_status",
@@ -35,7 +37,19 @@ class AIProviderConfigurationSerializer(serializers.ModelSerializer):
     def get_credential_configured(self, obj):
         import os
 
-        return bool(obj.api_key_env_var and os.environ.get(obj.api_key_env_var))
+        return bool(
+            obj.get_api_key()
+            or (obj.api_key_env_var and os.environ.get(obj.api_key_env_var))
+        )
+
+    def update(self, instance, validated_data):
+        api_key = validated_data.pop("api_key", None)
+        clear_api_key = validated_data.pop("clear_api_key", False)
+        instance = super().update(instance, validated_data)
+        if api_key is not None or clear_api_key:
+            instance.set_api_key("" if clear_api_key else api_key)
+            instance.save(update_fields=("encrypted_api_key", "updated_at"))
+        return instance
 
     def validate(self, attrs):
         is_default = attrs.get("is_default", getattr(self.instance, "is_default", False))

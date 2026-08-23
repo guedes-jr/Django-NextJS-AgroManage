@@ -163,7 +163,7 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformAIProvider[]>("platform/ai/providers/");
     return data;
   },
-  async updateAIProvider(id:string,payload:Partial<Pick<PlatformAIProvider,"display_name"|"is_enabled"|"is_default"|"timeout_seconds">>) {
+  async updateAIProvider(id:string,payload:Partial<Pick<PlatformAIProvider,"display_name"|"is_enabled"|"is_default"|"timeout_seconds">> & {api_key?:string;clear_api_key?:boolean}) {
     const { data } = await platformApi.patch<PlatformAIProvider>(`platform/ai/providers/${id}/`,payload);
     return data;
   },

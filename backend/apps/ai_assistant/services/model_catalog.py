@@ -114,7 +114,9 @@ def sync_opencode_zen_models(*, trigger=AIModelSyncRun.Trigger.MANUAL, provider_
     )
 
     try:
-        catalog = (provider_client or OpenCodeZenProvider()).list_models()
+        catalog = (
+            provider_client or OpenCodeZenProvider(api_key=provider_config.get_api_key())
+        ).list_models()
         if not catalog:
             raise AIProviderError("O OpenCode Zen retornou um catálogo vazio.")
         result = _persist_catalog(provider_config, run, catalog)

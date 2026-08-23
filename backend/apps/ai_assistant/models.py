@@ -1,5 +1,8 @@
 from django.conf import settings
 from django.db import models
+from cryptography.fernet import Fernet, InvalidToken
+import base64
+import hashlib
 
 from common.models import BaseModel
 
@@ -19,6 +22,7 @@ class AIProviderConfiguration(BaseModel):
         blank=True,
         help_text="Nome da variável de ambiente que contém a credencial; nunca armazene a chave aqui.",
     )
+    encrypted_api_key = models.TextField(blank=True, editable=False)
     is_enabled = models.BooleanField(default=False)
     is_default = models.BooleanField(default=False)
     timeout_seconds = models.PositiveSmallIntegerField(default=45)
@@ -45,6 +49,28 @@ class AIProviderConfiguration(BaseModel):
 
     def __str__(self):
         return self.display_name
+
+    @staticmethod
+    def _credential_cipher():
+        digest = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()
+        return Fernet(base64.urlsafe_b64encode(digest))
+
+    def set_api_key(self, value):
+        clean = (value or "").strip()
+        self.encrypted_api_key = (
+            self._credential_cipher().encrypt(clean.encode("utf-8")).decode("ascii")
+            if clean else ""
+        )
+
+    def get_api_key(self):
+        if not self.encrypted_api_key:
+            return ""
+        try:
+            return self._credential_cipher().decrypt(
+                self.encrypted_api_key.encode("ascii")
+            ).decode("utf-8")
+        except (InvalidToken, ValueError):
+            return ""
 
 
 class AIModel(BaseModel):

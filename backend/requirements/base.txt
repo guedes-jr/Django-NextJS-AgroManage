@@ -24,3 +24,4 @@ Pillow>=10.0,<11.0
 # Utilities
 python-slugify>=8.0,<9.0
 openai>=2.0,<3.0
+cryptography>=43.0,<45.0

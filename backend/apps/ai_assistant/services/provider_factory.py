@@ -19,7 +19,15 @@ def create_provider_client(provider_id, *, model=None, endpoint_type=None):
             f'O provedor de IA "{selected_provider}" não está disponível.'
         )
     if selected_provider == "opencode_zen":
-        return factory(model=model, endpoint_type=endpoint_type)
+        api_key = settings.OPENCODE_ZEN_API_KEY
+        if not api_key:
+            from ..models import AIProviderConfiguration
+
+            configuration = AIProviderConfiguration.objects.filter(
+                provider=selected_provider
+            ).first()
+            api_key = configuration.get_api_key() if configuration else ""
+        return factory(model=model, endpoint_type=endpoint_type, api_key=api_key)
     return factory(model=model)
 
 

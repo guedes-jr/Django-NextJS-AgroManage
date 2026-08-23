@@ -91,6 +91,9 @@ User = get_user_model()
 @api_view(["GET"])
 @permission_classes([IsPlatformStaff])
 def ai_providers(request):
+    from apps.ai_assistant.services.model_catalog import get_or_create_opencode_zen_configuration
+
+    get_or_create_opencode_zen_configuration()
     queryset = AIProviderConfiguration.objects.all().order_by("display_name")
     return Response(AIProviderConfigurationSerializer(queryset, many=True).data)
 
