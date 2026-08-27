@@ -23,6 +23,7 @@ type InventoryItem = {
   id: string;
   nome: string;
   categoria?: string;
+  categorias?: string[];
   especie_animal?: string | null;
   unidade_medida?: string;
   estoque_atual?: string | number | null;
@@ -96,6 +97,21 @@ const pesticideTypeOptions = [
   { value: "bactericide", label: "Bactericida" },
   { value: "other", label: "Outro" },
 ];
+
+const allowedInventoryCategories: Record<Exclude<OperationKind, "irrigacao">, string[]> = {
+  plantio: ["semente"],
+  adubacao: ["fertilizante", "corretivo"],
+  fertirrigacao: ["fertirrigacao"],
+  defensivos: ["defensivo", "foliar"],
+};
+
+const getItemCategories = (item: InventoryItem) =>
+  item.categorias?.length ? item.categorias : item.categoria ? [item.categoria] : [];
+
+const isItemCompatibleWithOperation = (item: InventoryItem, kind: OperationKind) => {
+  if (kind === "irrigacao") return false;
+  return getItemCategories(item).some((category) => allowedInventoryCategories[kind].includes(category));
+};
 
 const irrigationSystemOptions = [
   { value: "center_pivot", label: "Pivô central" },
@@ -346,25 +362,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
   }, [fetchHistory, id, isIrrigation, kind]);
 
   const filteredItems = useMemo(() => {
-    if (kind === "plantio") {
-      return inventoryItems.filter((item) => item.categoria === "semente" || (!item.especie_animal && item.categoria === "outro"));
-    }
-    if (kind === "defensivos") {
-      return inventoryItems.filter((item) =>
-        ["defensivo", "foliar"].includes(item.categoria || "") ||
-        (!item.especie_animal && item.categoria === "outro")
-      );
-    }
-    if (kind === "fertirrigacao") {
-      return inventoryItems.filter((item) =>
-        ["fertirrigacao", "fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
-        (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar")
-      );
-    }
-    return inventoryItems.filter((item) =>
-      ["fertilizante", "corretivo", "material", "outro"].includes(item.categoria || "") ||
-      (!item.especie_animal && item.categoria !== "defensivo" && item.categoria !== "foliar" && item.categoria !== "fertirrigacao")
-    );
+    return inventoryItems.filter((item) => isItemCompatibleWithOperation(item, kind));
   }, [inventoryItems, kind]);
 
   const selectedPump = pumps.find((pump) => pump.id === irrigationForm.pump_equipment);
