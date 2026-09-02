@@ -666,7 +666,11 @@ class BirthSerializer(serializers.ModelSerializer):
             validated_data['reproductive_vaccine_due_date'] = (
                 validated_data['birth_date'] + datetime.timedelta(days=days)
             )
-        return super().create(validated_data)
+        with transaction.atomic():
+            birth = super().create(validated_data)
+            from .services import ensure_birth_batch
+            ensure_birth_batch(birth)
+            return birth
 
 
 class LitterSerializer(serializers.ModelSerializer):

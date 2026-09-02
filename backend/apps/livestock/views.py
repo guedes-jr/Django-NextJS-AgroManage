@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, serializers, filters
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q, Sum
 from django.utils import timezone
 import datetime
@@ -1631,6 +1631,33 @@ class BirthViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=['post'], url_path='desmamar')
+    def desmamar(self, request, pk=None):
+        birth = self.get_object()
+        try:
+            weaning_date = datetime.date.fromisoformat(request.data['weaning_date'])
+            quantity = int(request.data['weaned_quantity'])
+            weight = request.data.get('avg_weaning_weight_kg')
+            weight = Decimal(str(weight)) if weight not in (None, '') else None
+            notice_days = request.data.get('next_mating_notice_days')
+            notice_days = int(notice_days) if notice_days not in (None, '') else None
+            from .services import wean_birth
+            litter, batch = wean_birth(
+                birth,
+                weaning_date=weaning_date,
+                weaned_quantity=quantity,
+                avg_weaning_weight_kg=weight,
+                weaning_type=request.data.get('weaning_type', 'total'),
+                batch_code=request.data.get('batch_code', ''),
+                next_mating_notice_days=notice_days,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'litter': LitterSerializer(litter).data,
+            'batch': AnimalBatchSerializer(batch).data,
+        })
+
     @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
     def registrar_mortalidade(self, request, pk=None):
         birth = self.get_object()
@@ -1640,14 +1667,24 @@ class BirthViewSet(viewsets.ModelViewSet):
         observacao = request.data.get('observacao', '')
 
         vivos_atual = birth.live_born - birth.mortality
+        if quantidade < 1:
+            return Response(
+                {"error": "A quantidade deve ser maior que zero."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         if quantidade > vivos_atual:
             return Response(
                 {"error": f"Mortalidade ({quantidade}) não pode ser maior que leitões vivos ({vivos_atual})."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        birth.mortality += quantidade
-        birth.save(update_fields=['mortality'])
+        with transaction.atomic():
+            birth.mortality += quantidade
+            birth.save(update_fields=['mortality'])
+            if birth.batch_id and birth.batch.phase == AnimalBatch.Phase.GESTACAO_MATERNIDADE:
+                batch = AnimalBatch.objects.select_for_update().get(pk=birth.batch_id)
+                batch.quantity = max(0, batch.quantity - quantidade)
+                batch.save(update_fields=['quantity'])
 
         HistoricoEvento.objects.create(
             farm=birth.female.farm,

@@ -215,6 +215,7 @@ import {
   registerMortality,
   registerProcedure,
   createBirth,
+  weanBirth,
   registerMating,
   createMating,
   updateAnimal,
@@ -1119,59 +1120,21 @@ export function ReproducaoDashboard({
           onConfirm: async (data) => {
             const performWean = async (row: any) => {
               const birthId = row.id;
-              const femaleId = row.animal_id;
               const identifier = row.identifier;
               const vivosAtual = parseInt(row.vivos_atual || row.vivos) || 0;
 
               try {
-                // Buscar detalhes do animal para farm_id
-                const animalDetails = await fetchAnimalDetails(femaleId);
-                const farmId = animalDetails.farm_id || animalDetails.farm;
-
-                // 1. Criar o lote de leitões na Creche
                 const batchQty = parseInt(data.weaned_quantity) || vivosAtual;
-                const batch = await createAnimalBatch({
+                await weanBirth(birthId, {
                   batch_code: data.batch_code || `L-CRECHE-${identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
-                  quantity: batchQty,
-                  phase: "creche",
-                  category: "Leitão",
-                  status: "active",
-                  species_code_input: "suinos",
-                  farm_id: farmId,
-                  entry_date: data.weaning_date,
-                  mother: femaleId,
-                  avg_weight_kg: data.avg_weaning_weight_kg ? parseFloat(data.avg_weaning_weight_kg) : null,
-                  notes: `Lote desmamado da matriz ${identifier} (${data.weaning_type === 'total' ? 'Desmame Total' : 'Desmame Parcial'})`
-                });
-
-                // 2. Criar ou atualizar Litter (Leitegada / Registro de Desmame)
-                await apiClient.post("/livestock/litters/", {
-                  birth: birthId,
-                  weaning_date: data.weaning_date,
                   weaned_quantity: batchQty,
+                  weaning_date: data.weaning_date,
+                  weaning_type: data.weaning_type,
                   avg_weaning_weight_kg: data.avg_weaning_weight_kg ? parseFloat(data.avg_weaning_weight_kg) : null,
                   next_mating_notice_days: data.weaning_type === "total" && data.schedule_next_mating === "yes"
                     ? Number(data.next_mating_notice_days)
                     : null,
-                  notes: `Desmame da matriz ${identifier}`
                 });
-
-                // 3. Vincular o lote recém criado ao Parto (Birth)
-                await apiClient.patch(`/livestock/births/${birthId}/`, {
-                  batch: batch.id
-                });
-
-                // 4. Mudar status reprodutivo da matriz
-                if (data.weaning_type === "total") {
-                  await updateAnimal(femaleId, {
-                    reproductive_status: "aguardando_cobertura",
-                    previous_phase: ""
-                  });
-                } else {
-                  await updateAnimal(femaleId, {
-                    reproductive_status: "lactante"
-                  });
-                }
               } catch (err) {
                 console.error(`Erro ao desmamar matriz ${identifier}:`, err);
                 throw err;

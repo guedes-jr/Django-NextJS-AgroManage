@@ -84,6 +84,11 @@ export const createBirth = async (data: any) => {
   return response.data;
 };
 
+export const weanBirth = async (birthId: number | string, data: any) => {
+  const response = await apiClient.post(`/livestock/births/${birthId}/desmamar/`, data);
+  return response.data;
+};
+
 export const createLitter = async (data: any) => {
   const response = await apiClient.post("/livestock/litters/", data);
   return response.data;

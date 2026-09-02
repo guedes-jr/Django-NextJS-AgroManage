@@ -167,7 +167,19 @@ export function FeedConsumptionDashboard({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await apiClient.post("/inventory/consumos/", formData);
+      const selectedBatch = batches.find(batch => String(batch.id) === String(formData.lote_animal));
+      const phaseMapping: Record<string, string> = {
+        gestacao_maternidade: "maternidade",
+        maternidade: "maternidade",
+        creche: "creche",
+        crescimento: "crescimento",
+        engorda: "engorda",
+      };
+      await apiClient.post("/inventory/consumos/", {
+        ...formData,
+        categoria_destino: "lotes",
+        fase_destino: phaseMapping[selectedBatch?.phase] || selectedBatch?.phase,
+      });
       alert("Lançamento de consumo registrado com sucesso!");
       if (onToggleForm) onToggleForm();
       else setInternalShowForm(false);
@@ -256,7 +268,9 @@ export function FeedConsumptionDashboard({
                       >
                         <option value="">Selecione o lote...</option>
                         {filteredBatches.map(b => (
-                          <option key={b.id} value={b.id}>{b.batch_code} - {b.name || b.category}</option>
+                          <option key={b.id} value={b.id}>
+                            {b.batch_code} - {b.name || b.category} ({b.phase === "gestacao_maternidade" ? "Maternidade" : b.phase})
+                          </option>
                         ))}
                       </select>
                     </div>
