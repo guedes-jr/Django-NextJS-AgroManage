@@ -1678,7 +1678,7 @@ export function ReproducaoDashboard({
 
       if (data.apply_reproductive_vaccine === "yes" && data.reproductive_vaccine_item_id) {
         await registerVaccination(mating.female, {
-          vaccine_item_id: Number(data.reproductive_vaccine_item_id),
+          vaccine_item_id: String(data.reproductive_vaccine_item_id),
           application_date: data.data_cobertura || data.mating_date,
           dose_type: "unica",
           dosage_ml: data.reproductive_vaccine_dosage_ml ? Number(data.reproductive_vaccine_dosage_ml) : undefined,

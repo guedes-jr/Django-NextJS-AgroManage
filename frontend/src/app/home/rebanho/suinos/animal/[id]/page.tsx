@@ -333,7 +333,7 @@ export default function AnimalDetailPage() {
             {isFemale && (
               <>
                 <div className="col-6">
-                  <StatCard label="Ordem de Parto" value={ordemDeParto} icon={<Baby size={20} />} color="oklch(0.6 0.15 340)" subValue={isVazia ? "Aguardando cobertura" : "Em reprodução"} />
+                  <StatCard label="Próxima ordem de parto" value={ordemDeParto} icon={<Baby size={20} />} color="oklch(0.6 0.15 340)" subValue={isVazia ? "Aguardando cobertura" : "Em reprodução"} />
                 </div>
                 <div className="col-6">
                   <StatCard label="Dias Abertos" value={diasAbertos} icon={<Clock size={20} />} color="oklch(0.6 0.22 27)" subValue="Desde a última cobertura" />

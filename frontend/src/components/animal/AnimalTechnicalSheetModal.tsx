@@ -200,6 +200,9 @@ const StatBox = ({ icon, label, value, highlight, danger }: StatBoxProps) => (
 function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
   const ageString = calcAge(animal?.birth_date);
   const cycles = animal?.reproductive_cycles || [];
+  const femaleCategory = animal?.category || "Fêmea reprodutiva";
+  const femaleCategoryUpper = femaleCategory.toLocaleUpperCase("pt-BR");
+  const farmName = animal?.farm_name || "Propriedade não informada";
   
   // History calculations
   const partos = history.filter((e: any) => e.type === "birth");
@@ -334,14 +337,14 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
           </div>
           <div>
             <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.9rem", lineHeight: 1.2 }}>Gestão Agro</div>
-            <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>Fazenda São João</div>
+            <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>{farmName}</div>
           </div>
         </div>
 
         {/* Center title */}
         <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ fontWeight: 900, fontSize: "1.3rem", color: GREEN_DARK, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            FICHA TÉCNICA <span style={{ color: GRAY_TEXT }}>–</span> MATRIZ
+            FICHA TÉCNICA <span style={{ color: GRAY_TEXT }}>–</span> {femaleCategoryUpper}
           </div>
           <div style={{ fontWeight: 700, fontSize: "0.75rem", color: "#1a1a1a", marginTop: 4 }}>CONTROLE DA FASE REPRODUTIVA</div>
           <div style={{ fontSize: "0.55rem", color: GREEN_DARK, fontWeight: 700, letterSpacing: 1, marginTop: 4 }}>
@@ -352,7 +355,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
         {/* Info box right */}
         <div style={{ minWidth: 160, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
           <div style={{ background: GREEN_DARK, color: "#fff", padding: "6px 12px", width: "100%", textAlign: "center", fontWeight: 800, fontSize: "1.1rem", letterSpacing: 1 }}>
-            MATRIZ Nº {animal?.identifier || "..."}
+            {femaleCategoryUpper} Nº {animal?.identifier || "..."}
           </div>
           <div style={{ fontSize: "0.55rem", color: GRAY_TEXT, marginTop: 4, width: "100%", textAlign: "right", paddingRight: 4 }}>
             Data do Relatório: {reportDate}<br/>Hora: {reportTime}
@@ -595,7 +598,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden", marginBottom: 15 }}>
         <SectionHeader number={8} title="OBSERVAÇÕES" />
         <div style={{ padding: "10px", fontSize: "0.65rem", color: "#333", lineHeight: 1.5 }}>
-          {animal?.notes || "Nenhuma observação registrada para esta matriz."}
+          {animal?.notes || `Nenhuma observação registrada para esta ${femaleCategory.toLocaleLowerCase("pt-BR")}.`}
         </div>
       </div>
 
@@ -652,7 +655,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             <div style={{ background: "#f0f0f0", padding: "6px", borderRadius: "50%" }}>🧑‍⚕️</div>
             <div>
               <div style={{ fontWeight: 800, fontSize: "0.65rem", color: "#1a1a1a" }}>Responsável Técnico</div>
-              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>Dr. João Silva<br/>CRMV 12345</div>
+              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>Não informado</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -668,6 +671,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
 // ─── Reprodutor Template ──────────────────────────────────────────────────────
 function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
   const ageString = calcAge(animal?.birth_date);
+  const farmName = animal?.farm_name || "Propriedade não informada";
   
   // History calculations
   const coberturas = history.filter((e: any) => e.type === "mating");
@@ -710,7 +714,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
           </div>
           <div>
             <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.9rem", lineHeight: 1.2 }}>Gestão Agro</div>
-            <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>Fazenda São João</div>
+            <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>{farmName}</div>
           </div>
         </div>
 
@@ -893,7 +897,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
             <div style={{ background: "#f0f0f0", padding: "6px", borderRadius: "50%" }}>🧑‍⚕️</div>
             <div>
               <div style={{ fontWeight: 800, fontSize: "0.65rem", color: "#1a1a1a" }}>Responsável Técnico</div>
-              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>Dr. João Silva<br/>CRMV 12345</div>
+              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>Não informado</div>
             </div>
           </div>
         </div>

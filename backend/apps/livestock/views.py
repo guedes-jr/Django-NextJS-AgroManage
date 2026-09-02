@@ -1907,7 +1907,19 @@ class ReproductionDashboardView(APIView):
         # For Suínos and Bovinos
         animals = Animal.objects.filter(**farm_filter, species__code=species_code)
         
-        marras_count = animals.filter(category='Marrã' if species_code == 'suinos' else 'Novilha').count()
+        young_female_category = 'Marrã' if species_code == 'suinos' else 'Novilha'
+        # A dashboard representa fases operacionais. Uma marrã coberta/gestante
+        # pertence à fase de gestação e não deve permanecer simultaneamente no
+        # total da fase Marrãs.
+        marras_count = animals.filter(
+            category=young_female_category,
+            reproductive_status__in=[
+                Animal.ReproductiveStatus.VAZIA,
+                Animal.ReproductiveStatus.EM_PREPARO,
+                Animal.ReproductiveStatus.PRONTA,
+                Animal.ReproductiveStatus.AGUARDANDO_COBERTURA,
+            ],
+        ).count()
         matrizes_ativas = animals.filter(category='Matriz' if species_code == 'suinos' else 'Vaca', status='active').count()
         reprodutores_count = animals.filter(category='Cachaço' if species_code == 'suinos' else 'Touro', status='active').count()
         gestantes = animals.filter(reproductive_status=Animal.ReproductiveStatus.GESTANTE).count()
