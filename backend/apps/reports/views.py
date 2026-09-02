@@ -425,7 +425,9 @@ def dashboard_summary(request):
 
     livestock_terms = Q(category__name__icontains="suín") | Q(category__name__icontains="suin")
     livestock_terms |= Q(category__name__icontains="animal") | Q(category__name__icontains="rebanho")
-    livestock_transactions = paid_month.filter(planting_cycle__isnull=True).filter(livestock_terms)
+    livestock_transactions = paid_month.filter(planting_cycle__isnull=True).filter(
+        livestock_terms | Q(species__isnull=False) | Q(animal_batch__isnull=False)
+    ).distinct()
     livestock_finance_cost = livestock_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.EXPENSE
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
@@ -495,7 +497,12 @@ def dashboard_summary(request):
         species_terms = Q(description__icontains=species.name) | Q(category__name__icontains=species.name)
         if species.code.lower() in {"suino", "suinos"}:
             species_terms |= Q(description__icontains="suin") | Q(category__name__icontains="suin")
-        species_transactions = paid_month.filter(species_references | species_terms)
+        species_transactions = paid_month.filter(
+            Q(species=species)
+            | Q(animal_batch__species=species)
+            | species_references
+            | species_terms
+        ).distinct()
         species_feed = feed_consumption.filter(
             Q(lote_animal__species=species) | Q(animais__species=species)
         ).distinct()

@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.farms.models import Farm
-from apps.inventory.models import ItemEstoque
+from apps.inventory.models import ItemEstoque, LoteEstoque
 from apps.livestock.models import Animal, AnimalBatch, ClinicalRecord, Species
 from apps.organizations.models import Organization
 
@@ -76,6 +76,38 @@ class LivestockTenantIsolationTestCase(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_accepts_combined_medicine_vaccine_item_with_uuid(self):
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Vacina reprodutiva",
+            categoria="medicamento_vacina",
+            categorias=["medicamento_vacina"],
+            unidade_medida="dose",
+        )
+        LoteEstoque.objects.create(
+            item=vaccine,
+            numero_lote="VAC-001",
+            quantidade_inicial="10.00",
+            quantidade_atual="10.00",
+            data_entrada=date.today(),
+        )
+
+        response = self.client.post(
+            reverse("vaccination-list"),
+            {
+                "farm": self.farm_a.id,
+                "species": self.species.id,
+                "animal": self.animal_a.id,
+                "vaccine_item_id": vaccine.id,
+                "vaccine_name": vaccine.nome,
+                "application_date": date.today().isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(str(response.data["vaccine_item"]), str(vaccine.id))
 
     def test_species_summary_aggregates_only_authenticated_organization(self):
         AnimalBatch.objects.create(

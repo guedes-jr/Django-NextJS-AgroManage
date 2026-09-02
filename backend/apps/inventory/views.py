@@ -35,6 +35,7 @@ from .serializers import (
 from .choices import (
     CategoriaItem, UnidadeMedida, EspecieAnimal, TipoMovimentacao, TipoContratoFornecedor
 )
+from .selectors import vaccine_category_q
 
 
 class ItemEstoqueViewSet(viewsets.ModelViewSet):
@@ -66,8 +67,8 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         categoria = self.request.query_params.get("categoria", "").strip()
         if categoria and categoria != "todas":
             qs = qs.filter(
-                Q(categoria=categoria)
-                | Q(categorias__contains=[categoria])
+                vaccine_category_q() if categoria == "vacina" else
+                Q(categoria=categoria) | Q(categorias__contains=[categoria])
             )
 
         status_filter = self.request.query_params.get("status", "").strip()
@@ -190,7 +191,10 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
         if categoria:
-            items = items.filter(Q(categoria=categoria) | Q(categorias__contains=[categoria]))
+            items = items.filter(
+                vaccine_category_q() if categoria == "vacina" else
+                Q(categoria=categoria) | Q(categorias__contains=[categoria])
+            )
         if especie_animal:
             items = items.filter(especie_animal=especie_animal)
 

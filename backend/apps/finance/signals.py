@@ -1,9 +1,18 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from apps.inventory.models import LoteEstoque
-from apps.livestock.models import AnimalBatch
+from apps.livestock.models import AnimalBatch, Species
 from .models import Transaction, FinancialCategory
 from decimal import Decimal
+
+
+def _species_codes(inventory_species):
+    """Map inventory's singular species codes to legacy livestock codes."""
+    return {
+        "suino": ["suino", "suinos"],
+        "bovino": ["bovino", "bovinos"],
+        "ave": ["ave", "aves"],
+    }.get(inventory_species, [inventory_species] if inventory_species else [])
 
 @receiver(post_save, sender=LoteEstoque)
 def create_inventory_transaction(sender, instance, created, **kwargs):
@@ -29,7 +38,10 @@ def create_inventory_transaction(sender, instance, created, **kwargs):
             due_date=instance.data_entrada,
             payment_date=instance.data_entrada,
             status="paid",  # Assumimos pago se entrou no estoque com custo
-            reference=f"LOTE-{instance.id}"
+            reference=f"LOTE-{instance.id}",
+            species=Species.objects.filter(
+                code__in=_species_codes(instance.item.especie_animal)
+            ).first(),
         )
 
 @receiver(post_save, sender=AnimalBatch)
@@ -54,7 +66,9 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
             due_date=instance.entry_date,
             payment_date=instance.entry_date,
             status="paid",
-            reference=ref_pur
+            reference=ref_pur,
+            animal_batch=instance,
+            species=instance.species,
         )
 
     # --- CASO 2: VENDA DE ANIMAIS (Status alterado para Vendido) ---
@@ -76,5 +90,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
                 due_date=instance.exit_date or instance.updated_at.date(),
                 payment_date=instance.exit_date or instance.updated_at.date(),
                 status="paid",
-                reference=ref_sale
+                reference=ref_sale,
+                animal_batch=instance,
+                species=instance.species,
             )

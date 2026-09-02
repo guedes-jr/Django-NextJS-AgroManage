@@ -124,7 +124,7 @@ export const registerWeight = async (animalId: number | string, data: { weight_k
   return response.data;
 };
 
-export const registerVaccination = async (animalId: number | string, data: { vaccine_name?: string; vaccine_item_id?: number; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
+export const registerVaccination = async (animalId: number | string, data: { vaccine_name?: string; vaccine_item_id?: string; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
   const response = await apiClient.post(`/livestock/animals/${animalId}/register-vaccination/`, data);
   return response.data;
 };

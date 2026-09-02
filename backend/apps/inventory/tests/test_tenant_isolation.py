@@ -115,3 +115,28 @@ class InventoryTenantIsolationTestCase(APITestCase):
             self.client.delete(reverse("inventory-movimentacoes-detail", args=[own.id])).status_code,
             status.HTTP_403_FORBIDDEN,
         )
+
+    def test_vaccine_filter_includes_combined_medicine_vaccine_category(self):
+        combined = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Vacina reprodutiva",
+            categoria="medicamento_vacina",
+            categorias=["medicamento_vacina"],
+            unidade_medida="ml",
+        )
+        foreign = ItemEstoque.objects.create(
+            organization=self.org_b,
+            nome="Vacina externa",
+            categoria="medicamento_vacina",
+            categorias=["medicamento_vacina"],
+            unidade_medida="ml",
+        )
+
+        response = self.client.get(
+            reverse("inventory-items-all-items"), {"categoria": "vacina"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {str(item["id"]) for item in response.data}
+        self.assertIn(str(combined.id), ids)
+        self.assertNotIn(str(foreign.id), ids)

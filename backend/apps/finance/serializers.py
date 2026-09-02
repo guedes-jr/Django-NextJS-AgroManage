@@ -32,7 +32,8 @@ class TransactionSerializer(serializers.ModelSerializer):
             "id", "farm", "category", "category_name", "category_type",
             "description", "amount", "due_date", "payment_date", "status",
             "reference", "notes", "payment_method", "attachment",
-            "bank_account", "bank_account_name", "created_by", "created_at"
+            "bank_account", "bank_account_name", "planting_cycle",
+            "animal_batch", "species", "created_by", "created_at"
         ]
         read_only_fields = ["id", "created_by", "created_at"]
 
@@ -44,10 +45,16 @@ class TransactionSerializer(serializers.ModelSerializer):
         category = attrs.get("category", getattr(self.instance, "category", None))
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         bank_account = attrs.get("bank_account", getattr(self.instance, "bank_account", None))
+        animal_batch = attrs.get("animal_batch", getattr(self.instance, "animal_batch", None))
         if not organization or not category or category.organization_id != organization.id:
             raise serializers.ValidationError({"category": "A categoria não pertence à sua organização."})
         if farm and farm.organization_id != organization.id:
             raise serializers.ValidationError({"farm": "A propriedade não pertence à sua organização."})
         if bank_account and bank_account.organization_id != organization.id:
             raise serializers.ValidationError({"bank_account": "A conta bancária não pertence à sua organização."})
+        if animal_batch and animal_batch.farm.organization_id != organization.id:
+            raise serializers.ValidationError({"animal_batch": "O lote não pertence à sua organização."})
+        species = attrs.get("species", getattr(self.instance, "species", None))
+        if animal_batch and species and animal_batch.species_id != species.id:
+            raise serializers.ValidationError({"species": "A espécie não corresponde ao lote informado."})
         return attrs

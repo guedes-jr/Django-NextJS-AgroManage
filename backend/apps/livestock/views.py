@@ -1330,12 +1330,14 @@ class AnimalViewSet(viewsets.ModelViewSet):
         vaccine_item = None
         if vaccine_item_id:
             from apps.inventory.models import ItemEstoque
+            from apps.inventory.selectors import vaccine_category_q
             try:
-                vaccine_item = ItemEstoque.objects.get(
+                vaccine_item = ItemEstoque.objects.filter(
+                    vaccine_category_q(),
                     id=vaccine_item_id,
-                    categoria='vacina',
                     organization=request.user.organization,
-                )
+                    ativo=True,
+                ).get()
                 if not vaccine_name:
                     vaccine_name = vaccine_item.nome
             except ItemEstoque.DoesNotExist:

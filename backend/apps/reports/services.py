@@ -225,7 +225,7 @@ class StockReportService:
         lotes = (
             LoteEstoque.objects.filter(
                 item__organization=organization,
-                item__categoria__in=["medicamento", "vacina"],
+                item__categoria__in=["medicamento", "vacina", "medicamento_vacina"],
                 data_validade__lte=cutoff_date,
                 data_validade__gte=today,
                 quantidade_atual__gt=0,
@@ -267,7 +267,7 @@ class StockReportService:
         expired = (
             LoteEstoque.objects.filter(
                 item__organization=organization,
-                item__categoria__in=["medicamento", "vacina"],
+                item__categoria__in=["medicamento", "vacina", "medicamento_vacina"],
                 data_validade__lt=today,
                 quantidade_atual__gt=0,
                 ativo=True,

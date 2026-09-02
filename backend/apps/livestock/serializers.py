@@ -712,7 +712,7 @@ class IncubationSerializer(serializers.ModelSerializer):
 
 
 class VaccinationRecordSerializer(serializers.ModelSerializer):
-    vaccine_item_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    vaccine_item_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     vaccine_item_name = serializers.CharField(source='vaccine_item.nome', read_only=True, default=None)
 
     class Meta:
@@ -726,9 +726,12 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
         if value is None:
             return value
         from apps.inventory.models import ItemEstoque
+        from apps.inventory.selectors import vaccine_category_q
         try:
             organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
-            ItemEstoque.objects.get(id=value, categoria='vacina', organization=organization)
+            ItemEstoque.objects.filter(
+                vaccine_category_q(), id=value, organization=organization, ativo=True
+            ).get()
         except ItemEstoque.DoesNotExist:
             raise serializers.ValidationError("Vacina não encontrada no estoque.")
         return value
@@ -748,8 +751,12 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
         vaccine_item_id = validated_data.pop('vaccine_item_id', None)
         if vaccine_item_id:
             from apps.inventory.models import ItemEstoque
+            from apps.inventory.selectors import vaccine_category_q
             try:
-                item = ItemEstoque.objects.get(id=vaccine_item_id)
+                organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
+                item = ItemEstoque.objects.filter(
+                    vaccine_category_q(), id=vaccine_item_id, organization=organization, ativo=True
+                ).get()
                 validated_data['vaccine_item'] = item
                 if not validated_data.get('vaccine_name'):
                     validated_data['vaccine_name'] = item.nome

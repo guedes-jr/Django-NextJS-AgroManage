@@ -99,6 +99,15 @@ class Transaction(BaseModel):
         related_name="finance_transactions",
     )
 
+    animal_batch = models.ForeignKey(
+        "livestock.AnimalBatch", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="finance_transactions",
+    )
+    species = models.ForeignKey(
+        "livestock.Species", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="finance_transactions",
+    )
+
     created_by = models.ForeignKey(
         "accounts.User", on_delete=models.SET_NULL, null=True, related_name="transactions"
     )
