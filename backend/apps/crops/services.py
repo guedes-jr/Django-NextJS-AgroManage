@@ -32,6 +32,22 @@ def update_plantation(serializer, request):
 # ── Shared helpers for operation services ─────────────────────────────────
 
 
+def _quantity_in_inventory_unit(instance):
+    """Converte a quantidade informada para a unidade cadastrada no estoque."""
+    quantity = Decimal(instance.quantity)
+    inventory_unit = (getattr(instance.item, "unidade_medida", "") or "").lower()
+    operation_unit = (getattr(instance, "unit", "") or inventory_unit).lower()
+    factors = {
+        ("kg", "g"): Decimal("0.001"),
+        ("g", "kg"): Decimal("1000"),
+        ("l", "ml"): Decimal("0.001"),
+        ("ml", "l"): Decimal("1000"),
+        ("tonelada", "kg"): Decimal("0.001"),
+        ("kg", "tonelada"): Decimal("1000"),
+    }
+    return quantity * factors.get((inventory_unit, operation_unit), Decimal("1"))
+
+
 def _ensure_stock_lot_and_prices(instance):
     """Attach an available stock lot and derive missing prices from its cost."""
     if not getattr(instance, "item_id", None):
@@ -61,7 +77,9 @@ def _ensure_stock_lot_and_prices(instance):
     if instance.unit_price and instance.unit_price > 0 and (
         not instance.total_price or instance.total_price <= 0
     ):
-        instance.total_price = (instance.quantity * instance.unit_price).quantize(Decimal("0.01"))
+        instance.total_price = (
+            _quantity_in_inventory_unit(instance) * instance.unit_price
+        ).quantize(Decimal("0.01"))
         total_price_changed = True
 
     update_fields = []
@@ -83,7 +101,7 @@ def _create_stock_movement(instance, request, description):
 
     item = instance.item
     lot = getattr(instance, "lot", None)
-    amount = instance.quantity
+    amount = _quantity_in_inventory_unit(instance)
     user = request.user if request.user.is_authenticated else None
 
     registrar_movimentacao(
