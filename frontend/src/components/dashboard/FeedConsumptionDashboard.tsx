@@ -124,7 +124,7 @@ export function FeedConsumptionDashboard({
 
       const [resStats, resBatches, resItems] = await Promise.all([
         apiClient.get(`/inventory/consumos/stats/?${params.toString()}`),
-        apiClient.get(`/livestock/batches/?${species ? 'especie=' + species : ''}`),
+        apiClient.get(`/livestock/batches/?include_maternity=true${species ? '&especie=' + species : ''}`),
         apiClient.get("/inventory/items/all_items/?categoria=racao")
       ]);
       setStats(resStats.data);

@@ -431,7 +431,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       if (kind === "defensivos") {
         const validEquipments = equipments.filter((equipment) => equipment.equipment.trim());
         await cropService.bulkCreatePesticideApplications({
-          applications: validLines.map((line) => ({
+          applications: validLines.map((line, lineIndex) => ({
             plantation: plantation.id,
             item: line.item,
             lot: line.lot || null,
@@ -443,12 +443,13 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
             notes: form.notes,
             pesticide_type: line.pesticide_type || "other",
             application_date: form.date,
-            equipments: validEquipments.map((equipment) => ({
+            // O equipamento pertence à aplicação inteira, não a cada insumo.
+            equipments: lineIndex === 0 ? validEquipments.map((equipment) => ({
               equipment: equipment.equipment.trim(),
               quantity: equipment.quantity ? numericValue(equipment.quantity) : null,
               unit_price: equipment.unit_price ? numericValue(equipment.unit_price) : null,
               total_price: equipment.total_price ? numericValue(equipment.total_price) : null,
-            })),
+            })) : [],
           })),
         });
       } else {

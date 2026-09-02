@@ -62,6 +62,19 @@ from .selectors import (
 )
 
 
+def _consolidate_shared_equipments(applications):
+    """Evita cobrar repetidamente o mesmo equipamento em um lançamento em lote."""
+    normalized = [dict(application) for application in applications]
+    equipment_lists = [application.get("equipments") or [] for application in normalized]
+    non_empty = [equipments for equipments in equipment_lists if equipments]
+    if len(non_empty) > 1 and all(equipments == non_empty[0] for equipments in non_empty[1:]):
+        first_index = next(index for index, equipments in enumerate(equipment_lists) if equipments)
+        for index, application in enumerate(normalized):
+            if index != first_index:
+                application["equipments"] = []
+    return normalized
+
+
 class FieldViewSet(viewsets.ModelViewSet):
     queryset = Field.objects.select_related("farm", "sector").all()
     serializer_class = FieldSerializer
@@ -315,6 +328,7 @@ class PesticideApplicationViewSet(viewsets.ModelViewSet):
         applications = request.data.get("applications") if isinstance(request.data, dict) else request.data
         if not isinstance(applications, list) or not applications:
             raise serializers.ValidationError({"applications": "Informe ao menos uma aplicação."})
+        applications = _consolidate_shared_equipments(applications)
 
         serializers_to_save = []
         for index, application_data in enumerate(applications, start=1):

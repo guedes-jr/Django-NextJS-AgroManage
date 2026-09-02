@@ -597,6 +597,10 @@ class LivestockReportService:
 
         batches = AnimalBatch.objects.filter(
             farm__organization=organization
+        ).exclude(
+            phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+            category=AnimalBatch.Category.LEITAO,
+            origin=AnimalBatch.Origin.BORN,
         ).select_related("farm", "species", "breed")
 
         if filters:

@@ -373,9 +373,9 @@ class CrecheView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = AnimalBatch.objects.filter(**filters, status='active').filter(
-            phase__in=['creche', 'gestacao_maternidade']
-        )
+        # A leitegada da maternidade é um lote técnico para alimentação. Ela só
+        # entra na creche depois que o desmame muda sua fase para ``creche``.
+        qs = AnimalBatch.objects.filter(**filters, status='active', phase='creche')
         total = qs.count()
         prontos = qs.filter(quantity__gte=40)
         total_animais = sum(b.quantity for b in qs)
@@ -881,7 +881,15 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
-            return AnimalBatch.objects.filter(farm__organization=user.organization)
+            queryset = AnimalBatch.objects.filter(farm__organization=user.organization)
+            include_maternity = self.request.query_params.get('include_maternity') == 'true'
+            if not include_maternity:
+                queryset = queryset.exclude(
+                    phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+                    category=AnimalBatch.Category.LEITAO,
+                    origin=AnimalBatch.Origin.BORN,
+                )
+            return queryset
         return AnimalBatch.objects.none()
 
     @action(detail=False, methods=['post'])
@@ -959,6 +967,26 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     'date': fr.date.isoformat() if fr.date else None,
                     'entry_date': fr.date.isoformat() if fr.date else None,
                     'notes': fr.notes,
+                })
+
+            # A tela atual de alimentação grava os lançamentos em ConsumoRacao.
+            # Incluí-los aqui mantém a ficha técnica alinhada ao histórico exibido
+            # no módulo de alimentação.
+            for consumption in b.consumos.select_related('item_estoque').all().order_by('data_inicio'):
+                qty = b.quantity if b.quantity and b.quantity > 0 else None
+                total_kg = float(consumption.quantidade)
+                history_list.append({
+                    'type': 'feed',
+                    'batch_id': str(b.id),
+                    'title': consumption.item_estoque.nome,
+                    'total_kg': total_kg,
+                    'cost': float(consumption.custo_total),
+                    'avg_per_animal': round(total_kg / qty, 3) if qty else None,
+                    'date': consumption.data_inicio.isoformat() if consumption.data_inicio else None,
+                    'entry_date': consumption.data_inicio.isoformat() if consumption.data_inicio else None,
+                    'end_date': consumption.data_fim.isoformat() if consumption.data_fim else None,
+                    'notes': consumption.observacao,
+                    'source': 'feed_consumption',
                 })
 
             # 5. Registros reais de pesagem do lote
@@ -2042,6 +2070,10 @@ class SpeciesSummaryView(APIView):
 
         active_batches = AnimalBatch.objects.filter(
             **base_filter, status=AnimalBatch.Status.ACTIVE
+        ).exclude(
+            phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+            category=AnimalBatch.Category.LEITAO,
+            origin=AnimalBatch.Origin.BORN,
         )
         # An individual linked to a batch is already represented by that batch quantity.
         standalone_animals = Animal.objects.filter(

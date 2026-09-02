@@ -265,6 +265,10 @@ def dashboard_summary(request):
     # ── Livestock ─────────────────────────────────────────────────────────────
     batches_qs = AnimalBatch.objects.filter(
         farm__in=farm_ids, status=AnimalBatch.Status.ACTIVE
+    ).exclude(
+        phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+        category=AnimalBatch.Category.LEITAO,
+        origin=AnimalBatch.Origin.BORN,
     )
     total_animals = batches_qs.aggregate(total=Sum("quantity"))["total"] or 0
 

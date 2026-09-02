@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.farms.models import Farm
-from apps.inventory.models import ItemEstoque, LoteEstoque
+from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque
 from apps.livestock.models import (
     Animal, AnimalBatch, ClinicalRecord, HistoricoEvento, Mating, Pregnancy, Species,
 )
@@ -190,3 +190,64 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(str(response.data["reproductive_vaccine_item"]), str(vaccine.id))
         self.assertEqual(response.data["reproductive_vaccine_due_date"], "2026-07-04")
+
+    def test_batch_history_includes_current_feed_consumption(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="MAT-01-2",
+            quantity=10,
+            entry_date=date.today(),
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.CRECHE,
+        )
+        feed = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Pré-máster",
+            categoria="racao",
+            unidade_medida="kg",
+        )
+        ConsumoRacao.objects.create(
+            organization=self.org_a,
+            farm=self.farm_a,
+            lote_animal=batch,
+            categoria_destino="lotes",
+            fase_destino="maternidade",
+            item_estoque=feed,
+            data_inicio=date.today(),
+            data_fim=date.today(),
+            quantidade="1.00",
+            custo_unitario="10.00",
+            custo_total="10.00",
+        )
+
+        response = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        feed_event = next(event for event in response.data if event["type"] == "feed")
+        self.assertEqual(feed_event["title"], "Pré-máster")
+        self.assertEqual(feed_event["total_kg"], 1.0)
+        self.assertEqual(feed_event["cost"], 10.0)
+        self.assertEqual(feed_event["avg_per_animal"], 0.1)
+
+    def test_maternity_technical_batch_is_only_listed_when_explicitly_requested(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="MAT-TECNICO-01",
+            quantity=12,
+            entry_date=date.today(),
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+            origin=AnimalBatch.Origin.BORN,
+        )
+
+        regular_response = self.client.get(reverse("animalbatch-list"))
+        feeding_response = self.client.get(
+            reverse("animalbatch-list"), {"include_maternity": "true"}
+        )
+
+        regular_ids = {str(item["id"]) for item in regular_response.data["results"]}
+        feeding_ids = {str(item["id"]) for item in feeding_response.data["results"]}
+        self.assertNotIn(str(batch.id), regular_ids)
+        self.assertIn(str(batch.id), feeding_ids)
