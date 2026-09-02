@@ -247,7 +247,7 @@ const calculateInclusiveDays = (startDate: string, endDate: string) => {
 const calculateLineTotal = (quantity: string, unitPrice: string) => {
   const q = numericValue(quantity);
   const p = numericValue(unitPrice);
-  return q && p ? String(q * p) : "";
+  return q && p ? (q * p).toFixed(2) : "";
 };
 
 const stringifyApiError = (value: unknown): string => {
@@ -402,7 +402,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
           else if (invUnit === "tonelada" && selectedUnit === "kg") multiplier = 0.001;
           else if (invUnit === "kg" && selectedUnit === "tonelada") multiplier = 1000;
         }
-        next.total_price = q && p ? String(q * p * multiplier) : "";
+        next.total_price = q && p ? (q * p * multiplier).toFixed(2) : "";
       }
       return next;
     }));

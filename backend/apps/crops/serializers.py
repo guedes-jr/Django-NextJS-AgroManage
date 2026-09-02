@@ -1,6 +1,8 @@
 """
 Serializers for the crops app.
 """
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
 from rest_framework import serializers
 
 from .models import (
@@ -24,6 +26,18 @@ from .models import (
     LaborRecord,
     SectorStructureItem,
 )
+
+
+class RoundedMoneyField(serializers.DecimalField):
+    """Normaliza resíduos de ponto flutuante enviados pelo navegador."""
+
+    def to_internal_value(self, data):
+        if data not in (None, ""):
+            try:
+                data = str(Decimal(str(data)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            except (InvalidOperation, TypeError, ValueError):
+                pass
+        return super().to_internal_value(data)
 
 
 class FieldSerializer(serializers.ModelSerializer):
@@ -176,6 +190,9 @@ class FertilizationSerializer(serializers.ModelSerializer):
 
 class FertigationSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="item.nome", read_only=True)
+    total_price = RoundedMoneyField(
+        max_digits=16, decimal_places=2, required=False, allow_null=True
+    )
 
     class Meta:
         model = Fertigation
