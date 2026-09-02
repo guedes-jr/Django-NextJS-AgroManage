@@ -1302,7 +1302,7 @@ export function ReproducaoDashboard({
               sire_info: computedSireInfo,
               ...(data.material_origin !== "semen" && data.sire_id && !isSireText ? { sire_id: Number(data.sire_id) } : {}),
               reproductive_vaccine_item: data.schedule_reproductive_vaccine === "yes"
-                ? Number(data.reproductive_vaccine_item)
+                ? data.reproductive_vaccine_item
                 : null,
               reproductive_vaccine_days: data.schedule_reproductive_vaccine === "yes"
                 ? Number(data.reproductive_vaccine_days)
@@ -1637,6 +1637,12 @@ export function ReproducaoDashboard({
         mating_type: mating_type,
         sire_info: computedSireInfo,
         ...(material_origin !== "semen" && data.sire_id && !isSireText ? { sire_id: Number(data.sire_id) } : {}),
+        reproductive_vaccine_item: data.schedule_reproductive_vaccine === "yes"
+          ? data.reproductive_vaccine_item
+          : null,
+        reproductive_vaccine_days: data.schedule_reproductive_vaccine === "yes"
+          ? Number(data.reproductive_vaccine_days)
+          : null,
       });
 
       if (data.apply_reproductive_vaccine === "yes" && data.reproductive_vaccine_item_id) {

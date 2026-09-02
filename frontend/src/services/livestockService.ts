@@ -65,6 +65,8 @@ export const createMating = async (data: any) => {
     mating_type: data.mating_type,
     sire_info: data.sire_info || "",
     ...(data.sire_id ? { sire_id: data.sire_id } : {}),
+    reproductive_vaccine_item: data.reproductive_vaccine_item || null,
+    reproductive_vaccine_days: data.reproductive_vaccine_days || null,
   });
   return response.data;
 };

@@ -7,7 +7,9 @@ from rest_framework.test import APITestCase
 
 from apps.farms.models import Farm
 from apps.inventory.models import ItemEstoque, LoteEstoque
-from apps.livestock.models import Animal, AnimalBatch, ClinicalRecord, Species
+from apps.livestock.models import (
+    Animal, AnimalBatch, ClinicalRecord, HistoricoEvento, Mating, Pregnancy, Species,
+)
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -108,6 +110,19 @@ class LivestockTenantIsolationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(str(response.data["vaccine_item"]), str(vaccine.id))
+        vaccine.lotes.get().refresh_from_db()
+        self.assertEqual(vaccine.estoque_atual, 9)
+        self.assertTrue(
+            HistoricoEvento.objects.filter(
+                matriz=self.animal_a,
+                tipo_evento="Vacinação",
+                metadata__vacina=vaccine.nome,
+            ).exists()
+        )
+        from apps.livestock.views import build_animal_history
+        self.assertTrue(
+            any(event["type"] == "vaccination" for event in build_animal_history(self.animal_a))
+        )
 
     def test_species_summary_aggregates_only_authenticated_organization(self):
         AnimalBatch.objects.create(
@@ -136,3 +151,42 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_animals"], 11)
         self.assertEqual(response.data["active_females"], 11)
+
+    def test_birth_accepts_scheduled_combined_category_vaccine_uuid(self):
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Vacina reprodutiva combinada",
+            categoria="medicamento_vacina",
+            categorias=["medicamento_vacina"],
+            unidade_medida="dose",
+        )
+        mating = Mating.objects.create(
+            female=self.animal_a,
+            mating_date=date(2026, 1, 1),
+        )
+        pregnancy = Pregnancy.objects.create(
+            mating=mating,
+            female=self.animal_a,
+            start_date=date(2026, 1, 1),
+            expected_birth_date=date(2026, 4, 25),
+        )
+
+        response = self.client.post(
+            reverse("birth-list"),
+            {
+                "pregnancy": pregnancy.id,
+                "female": self.animal_a.id,
+                "birth_date": "2026-04-25",
+                "live_born": 10,
+                "stillborn": 1,
+                "mummified": 0,
+                "expected_weaning_days": 21,
+                "reproductive_vaccine_item": vaccine.id,
+                "reproductive_vaccine_days": 70,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(str(response.data["reproductive_vaccine_item"]), str(vaccine.id))
+        self.assertEqual(response.data["reproductive_vaccine_due_date"], "2026-07-04")

@@ -593,7 +593,8 @@ class MatingSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if item and request and item.organization_id != request.user.organization_id:
             raise serializers.ValidationError({'reproductive_vaccine_item': 'Vacina inválida.'})
-        if item and item.categoria != 'vacina':
+        from apps.inventory.selectors import VACCINE_CATEGORIES
+        if item and item.categoria not in VACCINE_CATEGORIES:
             raise serializers.ValidationError({'reproductive_vaccine_item': 'O item selecionado não é uma vacina.'})
         return attrs
 
@@ -654,7 +655,8 @@ class BirthSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if item and request and item.organization_id != request.user.organization_id:
             raise serializers.ValidationError({'reproductive_vaccine_item': 'Vacina inválida.'})
-        if item and item.categoria != 'vacina':
+        from apps.inventory.selectors import VACCINE_CATEGORIES
+        if item and item.categoria not in VACCINE_CATEGORIES:
             raise serializers.ValidationError({'reproductive_vaccine_item': 'O item selecionado não é uma vacina.'})
         return attrs
 
