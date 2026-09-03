@@ -601,8 +601,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 <GeneticsRow icon={<IconFemale />} label="Mãe (Matriz):" value={mae ?? "-"} />
                 <GeneticsRow icon={<IconMale />} label="Pai (Reprodutor):" value={pai ?? "-"} />
                 <GeneticsRow icon={<IconBaby />} label="Nascidos Vivos:" value={nascidosVivos != null ? fmtInt(nascidosVivos) : "-"} />
-                <GeneticsRow icon={<IconSkull />} label="Nascidos Mortos:" value={nascidosMortos != null ? fmtInt(nascidosMortos) : "-"} />
-                <GeneticsRow icon={<IconDanger />} label="Natimortos:" value={natimortos != null ? fmtInt(natimortos) : "-"} />
+                <GeneticsRow icon={<IconSkull />} label="Óbitos no Parto:" value={nascidosMortos != null ? fmtInt(nascidosMortos) : "-"} />
+                <GeneticsRow icon={<IconDanger />} label="Mumificados:" value={natimortos != null ? fmtInt(natimortos) : "-"} />
                 <GeneticsRow icon={<IconSum />} label="Total Nascidos:" value={totalNascidos != null ? fmtInt(totalNascidos) : "-"} bold />
               </div>
 
@@ -780,7 +780,6 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               type PhaseRow = { fase: string; qtdIni: string; qtdAtual: string; idade: string; pesoMedio: string; pesoTotal: string; gpd: string; conv: string; mort: string; status: "concluida" | "andamento" | "vazia" };
 
               const EMPTY: Omit<PhaseRow, "fase" | "status"> = { qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" };
-              const EM_ANDAMENTO: Omit<PhaseRow, "fase" | "status"> = { qtdIni: "-", qtdAtual: "-", idade: "-", pesoMedio: "-", pesoTotal: "-", gpd: "-", conv: "-", mort: "-" };
 
               const buildFaseRow = (faseLabel: string, phaseKey: string): PhaseRow => {
                 const ph = getCompletedPhase(phaseKey);
@@ -806,7 +805,51 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     mort: calcFaseMort(phaseKey),
                   };
                 }
-                if (isCurrentPhase(phaseKey)) return { fase: faseLabel, status: "andamento", ...EM_ANDAMENTO };
+                if (isCurrentPhase(phaseKey)) {
+                  const currentRecord = phaseHistory.find((p: any) => p.phase === phaseKey && p.is_current);
+                  const phaseEntryDate = currentRecord?.entry_date || animal?.entry_date;
+                  const daysInPhase = phaseEntryDate
+                    ? Math.max(0, Math.floor((Date.now() - new Date(phaseEntryDate).getTime()) / 86400000))
+                    : null;
+                  const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
+                  const prevKey = prevPhaseMap[phaseKey];
+                  const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
+                  const qtdEntrada = prevKey === "maternidade"
+                    ? (weanedQty ?? nascidosVivos ?? qtdInicial)
+                    : (prevPh?.quantity ?? qtdInicial);
+                  const pesoEntrada = prevKey === "maternidade"
+                    ? (weanedPeso ?? pesoMedioNasc)
+                    : (prevPh?.avg_weight_kg ?? pesoMedioNasc);
+                  const pesoAtual = pesoMedioAtual;
+                  const ganhoPorAnimal = pesoAtual != null && pesoEntrada != null
+                    ? pesoAtual - Number(pesoEntrada)
+                    : null;
+                  const faseGpd = ganhoPorAnimal != null && daysInPhase != null && daysInPhase > 0
+                    ? ganhoPorAnimal / daysInPhase
+                    : null;
+                  const feedInPhase = phaseEntryDate ? history.filter((e: any) =>
+                    e.type === "feed" && e.date && new Date(e.date).getTime() >= new Date(phaseEntryDate).getTime()
+                  ) : [];
+                  const feedTotal = feedInPhase.reduce((sum: number, event: any) => sum + Number(event.total_kg || 0), 0);
+                  const conversion = ganhoPorAnimal != null && ganhoPorAnimal > 0 && qtdAtual && feedTotal > 0
+                    ? (feedTotal / qtdAtual) / ganhoPorAnimal
+                    : null;
+                  const deaths = qtdEntrada != null && qtdAtual != null
+                    ? Math.max(0, Number(qtdEntrada) - Number(qtdAtual))
+                    : null;
+                  return {
+                    fase: faseLabel,
+                    status: "andamento",
+                    qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada) : "-",
+                    qtdAtual: qtdAtual != null ? fmtInt(qtdAtual) : "-",
+                    idade: ageInDays != null ? String(ageInDays) : "-",
+                    pesoMedio: pesoAtual != null ? fmt(pesoAtual) : "-",
+                    pesoTotal: pesoAtual != null && qtdAtual != null ? fmt(pesoAtual * qtdAtual) : "-",
+                    gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
+                    conv: conversion != null ? fmt(conversion) : "-",
+                    mort: deaths != null ? String(deaths) : "-",
+                  };
+                }
                 return { fase: faseLabel, status: "vazia", ...EMPTY };
               };
 
@@ -824,7 +867,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                       mort: mortMaternidade != null ? String(mortMaternidade) : "0",
                     }
                   : maternidadeEmAndamento
-                    ? { fase: "MATERNIDADE", status: "andamento", ...EM_ANDAMENTO }
+                    ? { fase: "MATERNIDADE", status: "andamento", ...EMPTY }
                     : { fase: "MATERNIDADE", status: "vazia", ...EMPTY },
                 buildFaseRow("CRECHE", "creche"),
                 buildFaseRow("CRESCIMENTO", "crescimento"),

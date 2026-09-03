@@ -134,8 +134,13 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             birth = None
 
         if birth:
+            # Lotes oriundos de uma leitegada não possuem necessariamente um
+            # Animal individual. Nesse caso, a data real vem do parto.
+            if not ret['birth_date'] and birth.birth_date:
+                ret['birth_date'] = birth.birth_date.isoformat()
             ret['born_alive'] = birth.live_born
-            ret['stillborn'] = birth.stillborn
+            ret['born_dead'] = birth.stillborn
+            ret['stillborn'] = birth.mummified
             ret['mummified'] = birth.mummified
             ret['birth_weight_kg'] = float(birth.avg_weight_kg) if birth.avg_weight_kg else None
             ret['dam_identifier'] = birth.female.identifier if birth.female else None
@@ -172,6 +177,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
 
         else:
             ret['born_alive'] = None
+            ret['born_dead'] = None
             ret['stillborn'] = None
             ret['mummified'] = None
             ret['birth_weight_kg'] = None
