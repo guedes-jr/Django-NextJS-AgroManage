@@ -83,6 +83,23 @@ class AffiliateTrackingAPITestCase(APITestCase):
         self.assertEqual(second.data["affiliate_code"], self.affiliate.code)
         self.assertEqual(ReferralVisit.objects.filter(visitor_id=visitor_id).count(), 2)
 
+    def test_registered_visitor_must_start_a_new_browser_attribution(self):
+        visitor_id = uuid.uuid4()
+        tracked = self.track(visitor_id=visitor_id)
+        registered = self.register(
+            email="first-referred@example.com",
+            token=tracked.data["attribution_token"],
+        )
+
+        repeated = self.track(code=self.other_affiliate.code, visitor_id=visitor_id)
+
+        self.assertEqual(registered.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(repeated.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            repeated.data["code"],
+            "affiliate_visitor_already_registered",
+        )
+
     def test_invalid_or_inactive_code_is_rejected(self):
         invalid = self.track(code="DOES-NOT-EXIST")
         self.affiliate.status = AffiliateProfile.Status.INACTIVE

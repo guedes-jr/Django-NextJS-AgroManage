@@ -2125,7 +2125,13 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
-            return VaccinationRecord.objects.filter(farm__organization=user.organization)
+            queryset = VaccinationRecord.objects.filter(
+                farm__organization=user.organization
+            ).select_related('species', 'vaccine_item', 'animal', 'batch')
+            species = self.request.query_params.get('species')
+            if species:
+                queryset = queryset.filter(species__code=species)
+            return queryset
         return VaccinationRecord.objects.none()
 
     def create(self, request, *args, **kwargs):

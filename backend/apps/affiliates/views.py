@@ -8,7 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
-from .models import AffiliateProfile
+from .models import AffiliateProfile, ReferralAttribution
 from .serializers import ReferralTrackingSerializer
 from .services import issue_attribution_token, record_first_touch
 
@@ -47,6 +47,14 @@ def track_referral(request):
         user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
         **data,
     )
+    if attribution.status != ReferralAttribution.Status.VISITED:
+        return Response(
+            {
+                "detail": "Este visitante já concluiu um cadastro.",
+                "code": "affiliate_visitor_already_registered",
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
     return Response(
         {
             "attribution_token": issue_attribution_token(attribution),

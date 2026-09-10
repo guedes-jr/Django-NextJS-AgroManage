@@ -726,6 +726,11 @@ class IncubationSerializer(serializers.ModelSerializer):
 class VaccinationRecordSerializer(serializers.ModelSerializer):
     vaccine_item_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     vaccine_item_name = serializers.CharField(source='vaccine_item.nome', read_only=True, default=None)
+    species_code = serializers.CharField(source='species.code', read_only=True)
+    animal_identifier = serializers.CharField(source='animal.identifier', read_only=True, default=None)
+    batch_code = serializers.CharField(source='batch.batch_code', read_only=True, default=None)
+    dose_type_display = serializers.CharField(source='get_dose_type_display', read_only=True)
+    inventory_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = VaccinationRecord
@@ -733,6 +738,17 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'vaccine_item': {'read_only': True},
         }
+
+    def get_inventory_cost(self, record):
+        """Custo da unidade efetivamente baixada do estoque na vacinação."""
+        item = record.vaccine_item
+        if not item:
+            return "0.00"
+        unit_cost = item.custo_medio
+        if not unit_cost:
+            last_costed_lot = item.lotes.filter(custo_unitario__gt=0).order_by("-created_at").first()
+            unit_cost = last_costed_lot.custo_unitario if last_costed_lot else 0
+        return str(unit_cost)
 
     def validate_vaccine_item_id(self, value):
         if value is None:

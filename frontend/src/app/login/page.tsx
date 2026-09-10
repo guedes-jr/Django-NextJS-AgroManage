@@ -1,7 +1,7 @@
 "use client";
 
 import "./login.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mail,
@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { isTheme } from "@/lib/theme";
 import {
-  clearAttributionToken,
+  clearAffiliateTracking,
   getAttributionToken,
   trackAffiliateReferral,
 } from "@/services/affiliateTracking";
@@ -71,6 +71,7 @@ export default function LoginPage() {
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const affiliateTrackingRef = useRef<Promise<void> | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -87,8 +88,9 @@ export default function LoginPage() {
     }
     if (!affiliateCode) return;
 
-    void trackAffiliateReferral(affiliateCode, searchParams).catch(() => {
-      // Invalid referral data must never block regular registration.
+    affiliateTrackingRef.current = trackAffiliateReferral(affiliateCode, searchParams);
+    void affiliateTrackingRef.current.catch(() => {
+      // A falha será exibida se o usuário enviar o formulário de afiliado.
     });
   }, []);
 
@@ -134,6 +136,18 @@ export default function LoginPage() {
           router.replace("/home");
         }
       } else if (view === "register") {
+        // O tracking iniciado ao abrir o link pode ainda estar em andamento quando
+        // o formulário é enviado. Aguarde-o para não cadastrar sem a atribuição.
+        if (!affiliateTrackingRef.current) {
+          const searchParams = new URLSearchParams(window.location.search);
+          const affiliateCode = searchParams.get("ref")?.trim();
+          if (affiliateCode) {
+            affiliateTrackingRef.current = trackAffiliateReferral(affiliateCode, searchParams);
+          }
+        }
+        if (affiliateTrackingRef.current) {
+          await affiliateTrackingRef.current;
+        }
         await apiClient.post("/auth/register/", {
           email: formData.email,
           password: formData.password,
@@ -141,7 +155,8 @@ export default function LoginPage() {
           full_name: formData.name,
           referral_token: getAttributionToken(),
         });
-        clearAttributionToken();
+        // Uma nova pessoa usando o mesmo navegador precisa de um novo visitante.
+        clearAffiliateTracking();
         showToast("Conta criada! Você será redirecionado para o login. 🎉", "success", 15000);
         setTimeout(() => goTo("login"), 2000);
       } else if (view === "forgot") {

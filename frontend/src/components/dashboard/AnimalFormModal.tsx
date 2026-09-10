@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { Plus, Trash2, Tag, Calendar, Banknote, User, Activity, FileText, Warehouse, GitBranch, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Tag, Calendar, Banknote, User, Activity, FileText, Warehouse, GitBranch, ChevronDown, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AnimalFormModalProps {
@@ -22,6 +22,13 @@ interface AnimalFormModalProps {
 
 export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: AnimalFormModalProps) {
   const { showToast } = useToast();
+  const [customBreeds, setCustomBreeds] = useState<Record<AnimalFormModalProps["type"], string[]>>({
+    bovinos: [],
+    suinos: [],
+    aves: [],
+  });
+  const [addingBreedFor, setAddingBreedFor] = useState<number | null>(null);
+  const [newBreed, setNewBreed] = useState("");
   const [rows, setRows] = useState([
     { 
       id: Date.now(), 
@@ -68,6 +75,8 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
         damName: "",
       }]);
       setShowFiliation({});
+      setAddingBreedFor(null);
+      setNewBreed("");
     }
   }, [isOpen, initialData, type]);
 
@@ -194,6 +203,28 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
   };
 
   const currentConfig = typeConfig[type] || typeConfig.bovinos;
+  const breedOptions = [...currentConfig.racas, ...customBreeds[type]];
+
+  const addBreed = (rowId: number) => {
+    const name = newBreed.trim();
+    if (!name) {
+      showToast("Informe o nome da raça ou linhagem.", "warning");
+      return;
+    }
+
+    const existing = breedOptions.find((breed) => breed.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"));
+    const selectedName = existing || name;
+    if (!existing) {
+      setCustomBreeds((current) => ({
+        ...current,
+        [type]: [...current[type], name],
+      }));
+    }
+    updateRow(rowId, "raca", selectedName);
+    setAddingBreedFor(null);
+    setNewBreed("");
+    showToast(existing ? "Raça selecionada." : "Raça adicionada à seleção.", "success");
+  };
 
   const getNumberPlaceholder = (cat?: string) => {
     if (initialData?.isMatrixShortcut || initialData?.isSireShortcut) {
@@ -293,10 +324,50 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
                         <label className="login-label">Linhagem/Raça</label>
-                        <select className="login-input text-foreground" style={{ paddingLeft: "1rem" }} value={row.raca} onChange={(e) => updateRow(row.id, "raca", e.target.value)}>
-                          <option value="">Não informada</option>
-                          {currentConfig.racas.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        <div className="d-flex gap-2 align-items-stretch">
+                          <select className="login-input text-foreground flex-grow-1" style={{ paddingLeft: "1rem", minWidth: 0 }} value={row.raca} onChange={(e) => updateRow(row.id, "raca", e.target.value)}>
+                            <option value="">Não informada</option>
+                            {breedOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn btn-outline-success d-flex align-items-center justify-content-center"
+                            style={{ width: 46, flex: "0 0 46px" }}
+                            onClick={() => {
+                              setAddingBreedFor(row.id);
+                              setNewBreed("");
+                            }}
+                            title="Cadastrar nova raça ou linhagem"
+                            aria-label="Cadastrar nova raça ou linhagem"
+                          >
+                            <Plus size={20} />
+                          </button>
+                        </div>
+                        {addingBreedFor === row.id && (
+                          <div className="d-flex gap-2 mt-2">
+                            <input
+                              autoFocus
+                              className="login-input text-foreground flex-grow-1"
+                              style={{ paddingLeft: "1rem", minWidth: 0 }}
+                              placeholder="Nome da nova raça"
+                              value={newBreed}
+                              onChange={(event) => setNewBreed(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  addBreed(row.id);
+                                }
+                                if (event.key === "Escape") setAddingBreedFor(null);
+                              }}
+                            />
+                            <button type="button" className="btn btn-success px-3" onClick={() => addBreed(row.id)} title="Adicionar raça" aria-label="Adicionar raça">
+                              <Check size={18} />
+                            </button>
+                            <button type="button" className="btn btn-outline-secondary px-3" onClick={() => setAddingBreedFor(null)} title="Cancelar" aria-label="Cancelar cadastro da raça">
+                              <X size={18} />
+                            </button>
+                          </div>
+                        )}
                      </div>
                   </div>
                   <div className="col-12 col-md-3">

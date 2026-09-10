@@ -110,6 +110,16 @@ class LivestockTenantIsolationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(str(response.data["vaccine_item"]), str(vaccine.id))
+        self.assertEqual(response.data["species_code"], self.species.code)
+        self.assertEqual(response.data["animal_identifier"], self.animal_a.identifier)
+        self.assertEqual(response.data["dose_type_display"], "Dose Única")
+        self.assertEqual(response.data["inventory_cost"], "0")
+
+        list_response = self.client.get(
+            reverse("vaccination-list"), {"species": self.species.code}
+        )
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(list_response.data["results"][0]["animal_identifier"], self.animal_a.identifier)
         vaccine.lotes.get().refresh_from_db()
         self.assertEqual(vaccine.estoque_atual, 9)
         self.assertTrue(
