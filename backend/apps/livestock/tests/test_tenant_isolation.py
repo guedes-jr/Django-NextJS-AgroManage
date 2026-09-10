@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -8,7 +9,7 @@ from rest_framework.test import APITestCase
 from apps.farms.models import Farm
 from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque
 from apps.livestock.models import (
-    Animal, AnimalBatch, ClinicalRecord, HistoricoEvento, Mating, Pregnancy, Species,
+    Animal, AnimalBatch, ClinicalRecord, HeatRecord, HistoricoEvento, Mating, Pregnancy, Species,
 )
 from apps.organizations.models import Organization
 
@@ -113,7 +114,7 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.data["species_code"], self.species.code)
         self.assertEqual(response.data["animal_identifier"], self.animal_a.identifier)
         self.assertEqual(response.data["dose_type_display"], "Dose Única")
-        self.assertEqual(response.data["inventory_cost"], "0")
+        self.assertEqual(response.data["inventory_cost"], "0.00")
 
         list_response = self.client.get(
             reverse("vaccination-list"), {"species": self.species.code}
@@ -133,6 +134,42 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertTrue(
             any(event["type"] == "vaccination" for event in build_animal_history(self.animal_a))
         )
+
+    def test_vaccination_deducts_applied_ml_from_inventory(self):
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Vacina líquida",
+            categoria="vacina",
+            unidade_medida="ml",
+        )
+        stock_batch = LoteEstoque.objects.create(
+            item=vaccine,
+            numero_lote="VAC-ML-001",
+            quantidade_inicial=Decimal("100.00"),
+            quantidade_atual=Decimal("100.00"),
+            custo_unitario=Decimal("2.00"),
+            data_entrada=date.today(),
+        )
+
+        response = self.client.post(
+            reverse("vaccination-list"),
+            {
+                "farm": self.farm_a.id,
+                "species": self.species.id,
+                "animal": self.animal_a.id,
+                "vaccine_item_id": vaccine.id,
+                "vaccine_name": vaccine.nome,
+                "application_date": date.today().isoformat(),
+                "dosage_ml": "2.50",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["inventory_cost"], "5.00")
+        stock_batch.refresh_from_db()
+        self.assertEqual(stock_batch.quantidade_atual, 97.5)
+        self.assertEqual(stock_batch.movimentacoes.get(tipo="consumo").quantidade, 2.5)
 
     def test_species_summary_aggregates_only_authenticated_organization(self):
         AnimalBatch.objects.create(
@@ -161,6 +198,109 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_animals"], 11)
         self.assertEqual(response.data["active_females"], 11)
+
+    def test_reproduction_dashboard_alerts_upcoming_predicted_heat(self):
+        predicted_date = date.today() + timedelta(days=15)
+        HeatRecord.objects.create(
+            animal=self.animal_a,
+            heat_number=2,
+            heat_date=predicted_date,
+            is_predicted=True,
+        )
+        HeatRecord.objects.create(
+            animal=self.animal_b,
+            heat_number=2,
+            heat_date=predicted_date,
+            is_predicted=True,
+        )
+
+        response = self.client.get(
+            reverse("reproduction_dashboard"), {"species": self.species.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        heat_alerts = [alert for alert in response.data["alerts"] if "2º cio" in alert["text"]]
+        self.assertEqual(len(heat_alerts), 1)
+        self.assertIn("1 novilha", heat_alerts[0]["text"])
+        self.assertEqual(heat_alerts[0]["time"], "Em 15 dias")
+
+        marras_response = self.client.get(
+            reverse("marras"), {"species": self.species.code}
+        )
+        self.assertEqual(marras_response.status_code, status.HTTP_200_OK)
+        tab_alerts = [
+            alert for alert in marras_response.data["alerts"] if "2º cio" in alert["text"]
+        ]
+        self.assertEqual(len(tab_alerts), 1)
+        self.assertIn("1 novilha", tab_alerts[0]["text"])
+
+    def test_reproduction_alerts_include_scheduled_diagnosis_and_vaccine(self):
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Parvovirose",
+            categoria="vacina",
+            unidade_medida="dose",
+        )
+        self.animal_a.reproductive_status = Animal.ReproductiveStatus.COBERTA
+        self.animal_a.save(update_fields=["reproductive_status"])
+        mating = Mating.objects.create(
+            female=self.animal_a,
+            mating_date=date.today(),
+            status=Mating.Status.PENDING_DG,
+            reproductive_vaccine_item=vaccine,
+            reproductive_vaccine_days=70,
+            reproductive_vaccine_due_date=date.today() + timedelta(days=70),
+        )
+
+        dashboard_response = self.client.get(
+            reverse("reproduction_dashboard"), {"species": self.species.code}
+        )
+        self.assertEqual(dashboard_response.status_code, status.HTTP_200_OK)
+        alert_texts = [alert["text"] for alert in dashboard_response.data["alerts"]]
+        self.assertTrue(any("Diagnóstico de prenhez" in text for text in alert_texts))
+        self.assertTrue(any("Vacina Parvovirose" in text for text in alert_texts))
+
+        gestation_response = self.client.get(
+            reverse("gestacoes"), {"species": self.species.code}
+        )
+        self.assertEqual(gestation_response.status_code, status.HTTP_200_OK)
+        gestation_alerts = gestation_response.data["alerts"]
+        self.assertTrue(any(alert["time"] == "Em 21 dias" for alert in gestation_alerts))
+        self.assertTrue(any(alert["time"] == "Em 70 dias" for alert in gestation_alerts))
+        self.assertEqual(
+            Mating.objects.get(id=mating.id).reproductive_vaccine_due_date,
+            date.today() + timedelta(days=70),
+        )
+
+    def test_confirmed_pregnancy_expected_birth_is_shown_in_alerts(self):
+        mating = Mating.objects.create(
+            female=self.animal_a,
+            mating_date=date.today(),
+            status=Mating.Status.CONFIRMED,
+        )
+        Pregnancy.objects.create(
+            mating=mating,
+            female=self.animal_a,
+            start_date=date.today(),
+            expected_birth_date=date.today() + timedelta(days=114),
+            status=Pregnancy.Status.ONGOING,
+        )
+
+        for endpoint in ("reproduction_dashboard", "gestacoes"):
+            response = self.client.get(reverse(endpoint), {"species": self.species.code})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            birth_alert = next(
+                alert for alert in response.data["alerts"]
+                if "Parto da matriz" in alert["text"]
+            )
+            self.assertIn(self.animal_a.identifier, birth_alert["text"])
+            self.assertEqual(birth_alert["time"], "Em 114 dias")
+
+        summary_response = self.client.get(
+            reverse("species_summary"), {"species": self.species.code}
+        )
+        self.assertEqual(summary_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(summary_response.data["active_alerts"], 1)
 
     def test_birth_accepts_scheduled_combined_category_vaccine_uuid(self):
         vaccine = ItemEstoque.objects.create(
@@ -200,6 +340,16 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(str(response.data["reproductive_vaccine_item"]), str(vaccine.id))
         self.assertEqual(response.data["reproductive_vaccine_due_date"], "2026-07-04")
+
+        maternity_response = self.client.get(
+            reverse("maternidades"), {"species": self.species.code}
+        )
+        self.assertEqual(maternity_response.status_code, status.HTTP_200_OK)
+        vaccine_alert = next(
+            alert for alert in maternity_response.data["alerts"]
+            if "Vacina reprodutiva combinada" in alert["text"]
+        )
+        self.assertIn(self.animal_a.identifier, vaccine_alert["text"])
 
     def test_batch_history_includes_current_feed_consumption(self):
         batch = AnimalBatch.objects.create(

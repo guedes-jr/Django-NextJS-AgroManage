@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.db import transaction
+from decimal import Decimal
 from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento, HeatRecord, LitterMedication
 from collections import Counter
 
@@ -744,11 +745,13 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
         item = record.vaccine_item
         if not item:
             return "0.00"
+        from .services import vaccination_inventory_quantity
         unit_cost = item.custo_medio
         if not unit_cost:
             last_costed_lot = item.lotes.filter(custo_unitario__gt=0).order_by("-created_at").first()
             unit_cost = last_costed_lot.custo_unitario if last_costed_lot else 0
-        return str(unit_cost)
+        quantity = vaccination_inventory_quantity(item, record.dosage_ml)
+        return str((Decimal(str(unit_cost)) * quantity).quantize(Decimal("0.01")))
 
     def validate_vaccine_item_id(self, value):
         if value is None:

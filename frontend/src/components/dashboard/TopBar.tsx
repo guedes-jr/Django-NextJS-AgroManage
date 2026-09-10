@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, LogOut, ChevronDown, Bell, Menu } from "lucide-react";
+import { User, LogOut, ChevronDown, Menu } from "lucide-react";
 import { ForcePasswordModal } from "@/components/auth/ForcePasswordModal";
 import { ContextualBackButton } from "@/components/navigation/ContextualBackButton";
+import { NotificationBell } from "@/components/notifications";
 import Image from "next/image";
 
 interface UserData {
@@ -111,15 +112,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
 
       <div className="d-flex align-items-center gap-3">
         {/* Notifications */}
-        <button className="btn btn-link text-muted-foreground p-1 position-relative hover-text-primary transition-colors">
-          <Bell size={22} />
-          <span 
-            className="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-danger border border-2 border-white"
-            style={{ width: '18px', height: '18px', padding: '0', fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '6px', marginLeft: '-6px' }}
-          >
-            3
-          </span>
-        </button>
+        <NotificationBell />
 
         {/* User Profile */}
         <div className="position-relative ms-2">

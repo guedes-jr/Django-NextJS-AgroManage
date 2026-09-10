@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+import re
 from typing import Optional
 
 from django.db import transaction
@@ -18,6 +19,32 @@ PHASE_LABELS = {
     "maternidade": "Maternidade",
     "reproducao": "Reprodução",
 }
+
+
+def vaccination_inventory_quantity(vaccine_item, dosage_ml=None) -> Decimal:
+    """Convert the applied dosage in ml to the unit used by the inventory item."""
+    dosage = Decimal(str(dosage_ml or 0))
+    if dosage <= 0:
+        return Decimal("1.00")
+
+    unit = vaccine_item.unidade_medida
+    if unit == "ml":
+        quantity = dosage
+    elif unit == "l":
+        quantity = dosage / Decimal("1000")
+    elif unit == "dose":
+        match = re.search(r"\d+(?:[.,]\d+)?", vaccine_item.volume_por_dose or "")
+        volume_per_dose = Decimal(match.group(0).replace(",", ".")) if match else Decimal("0")
+        quantity = dosage / volume_per_dose if volume_per_dose > 0 else Decimal("1")
+    elif unit == "unidade" and vaccine_item.doses_por_embalagem:
+        match = re.search(r"\d+(?:[.,]\d+)?", vaccine_item.volume_por_dose or "")
+        volume_per_dose = Decimal(match.group(0).replace(",", ".")) if match else Decimal("0")
+        package_volume = volume_per_dose * vaccine_item.doses_por_embalagem
+        quantity = dosage / package_volume if package_volume > 0 else Decimal("1")
+    else:
+        quantity = Decimal("1")
+
+    return quantity.quantize(Decimal("0.01"))
 
 
 def ensure_birth_batch(birth) -> AnimalBatch:

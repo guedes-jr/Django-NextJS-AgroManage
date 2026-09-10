@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.utils import timezone
 import datetime
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication
@@ -19,27 +19,224 @@ from decimal import Decimal
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-def _dar_baixa_vacina(vaccine_item, user, quantidade: Decimal = Decimal("1"),
-                       observacao: str = "", destino: str = "Pecuária") -> None:
-    """Dá baixa de 1 dose (ou quantidade informada) do item de vacina no estoque."""
+def _heat_prediction_alerts(organization, species_code, horizon_days=45):
+    """Build alerts for predicted heats that are overdue or approaching."""
+    today = timezone.localdate()
+    predictions = (
+        HeatRecord.objects.filter(
+            animal__farm__organization=organization,
+            animal__species__code=species_code,
+            animal__status=AnimalBatch.Status.ACTIVE,
+            animal__reproductive_status__in=[
+                Animal.ReproductiveStatus.VAZIA,
+                Animal.ReproductiveStatus.EM_PREPARO,
+                Animal.ReproductiveStatus.PRONTA,
+                Animal.ReproductiveStatus.AGUARDANDO_COBERTURA,
+            ],
+            is_predicted=True,
+            heat_number__in=(2, 3),
+            heat_date__lte=today + datetime.timedelta(days=horizon_days),
+        )
+        .values("heat_number", "heat_date")
+        .annotate(total=Count("id"))
+        .order_by("heat_date", "heat_number")
+    )
+
+    alerts = []
+    for prediction in predictions:
+        heat_date = prediction["heat_date"]
+        days = (heat_date - today).days
+        total = prediction["total"]
+        is_coverage = prediction["heat_number"] == 3
+        event = "cobertura" if is_coverage else "2º cio"
+        subject = "marrã" if species_code == "suinos" else "novilha"
+        subject_label = subject if total == 1 else f"{subject}s"
+        formatted_date = heat_date.strftime("%d/%m/%Y")
+
+        if days < 0:
+            alerts.append({
+                "type": "danger",
+                "icon": "⚠️",
+                "text": f"{total} {subject_label} com {event} previsto em atraso ({formatted_date}).",
+                "time": f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}",
+            })
+        elif days == 0:
+            alerts.append({
+                "type": "warning",
+                "icon": "🎯" if is_coverage else "🔴",
+                "text": f"{total} {subject_label} com {event} previsto para hoje.",
+                "time": "Hoje",
+            })
+        else:
+            alerts.append({
+                "type": "warning" if is_coverage else "info",
+                "icon": "🎯" if is_coverage else "📅",
+                "text": f"{total} {subject_label} com {event} previsto para {formatted_date}.",
+                "time": f"Em {days} dia{'s' if days != 1 else ''}",
+            })
+    return alerts
+
+
+def _scheduled_reproductive_alerts(organization, species_code, include_birth_vaccines=True):
+    """Expose scheduled pregnancy checks and vaccines as dashboard alerts."""
+    today = timezone.localdate()
+    alerts = []
+
+    pending_matings = Mating.objects.filter(
+        female__farm__organization=organization,
+        female__species__code=species_code,
+        female__status=AnimalBatch.Status.ACTIVE,
+        status=Mating.Status.PENDING_DG,
+    ).select_related("female")
+    for mating in pending_matings:
+        due_date = mating.mating_date + datetime.timedelta(days=21)
+        days = (due_date - today).days
+        if days < 0:
+            alert_type, time_label = "danger", f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}"
+            text = f"Diagnóstico de prenhez de {mating.female.identifier} está atrasado desde {due_date.strftime('%d/%m/%Y')}."
+        elif days == 0:
+            alert_type, time_label = "warning", "Hoje"
+            text = f"Diagnóstico de prenhez de {mating.female.identifier} previsto para hoje."
+        else:
+            alert_type, time_label = "info", f"Em {days} dia{'s' if days != 1 else ''}"
+            text = f"Diagnóstico de prenhez de {mating.female.identifier} previsto para {due_date.strftime('%d/%m/%Y')}."
+        alerts.append({"type": alert_type, "icon": "🔬", "text": text, "time": time_label})
+
+    vaccine_matings = Mating.objects.filter(
+        female__farm__organization=organization,
+        female__species__code=species_code,
+        female__status=AnimalBatch.Status.ACTIVE,
+        reproductive_vaccine_item__isnull=False,
+        reproductive_vaccine_due_date__isnull=False,
+    ).exclude(
+        Q(status=Mating.Status.FAILED) | Q(pregnancy__status__in=[Pregnancy.Status.LOST, Pregnancy.Status.COMPLETED])
+    ).select_related("female", "reproductive_vaccine_item")
+    for mating in vaccine_matings:
+        due_date = mating.reproductive_vaccine_due_date
+        days = (due_date - today).days
+        if days < 0:
+            alert_type, time_label = "danger", f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}"
+            state = "está atrasada desde"
+        elif days == 0:
+            alert_type, time_label = "warning", "Hoje"
+            state = "está agendada para hoje —"
+        else:
+            alert_type, time_label = "info", f"Em {days} dia{'s' if days != 1 else ''}"
+            state = "agendada para"
+        text = (
+            f"Vacina {mating.reproductive_vaccine_item.nome} de {mating.female.identifier} "
+            f"{state} {due_date.strftime('%d/%m/%Y')}."
+        )
+        alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label})
+
+    if include_birth_vaccines:
+        alerts.extend(_scheduled_birth_vaccine_alerts(organization, species_code))
+
+    return alerts
+
+
+def _scheduled_birth_vaccine_alerts(organization, species_code):
+    """Return only postpartum reproductive-vaccine alerts."""
+    today = timezone.localdate()
+    alerts = []
+    birth_vaccines = Birth.objects.filter(
+        female__farm__organization=organization,
+        female__species__code=species_code,
+        female__status=AnimalBatch.Status.ACTIVE,
+        reproductive_vaccine_item__isnull=False,
+        reproductive_vaccine_due_date__isnull=False,
+    ).select_related("female", "reproductive_vaccine_item")
+
+    for birth in birth_vaccines:
+        due_date = birth.reproductive_vaccine_due_date
+        days = (due_date - today).days
+        alert_type = "danger" if days < 0 else "warning" if days == 0 else "info"
+        time_label = (
+            f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}" if days < 0
+            else "Hoje" if days == 0
+            else f"Em {days} dia{'s' if days != 1 else ''}"
+        )
+        if days < 0:
+            state = "está atrasada desde"
+        elif days == 0:
+            state = "está agendada para hoje —"
+        else:
+            state = "agendada para"
+        text = f"Vacina {birth.reproductive_vaccine_item.nome} de {birth.female.identifier} {state} {due_date.strftime('%d/%m/%Y')}."
+        alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label})
+
+    return alerts
+
+
+def _expected_birth_alerts(organization, species_code):
+    """Expose every ongoing pregnancy's expected birth as a dated alert."""
+    today = timezone.localdate()
+    alerts = []
+    pregnancies = Pregnancy.objects.filter(
+        female__farm__organization=organization,
+        female__species__code=species_code,
+        female__status=AnimalBatch.Status.ACTIVE,
+        status=Pregnancy.Status.ONGOING,
+        expected_birth_date__isnull=False,
+    ).select_related("female")
+
+    for pregnancy in pregnancies.order_by("expected_birth_date", "female__identifier"):
+        due_date = pregnancy.expected_birth_date
+        days = (due_date - today).days
+        formatted_date = due_date.strftime("%d/%m/%Y")
+        if days < 0:
+            alert_type = "danger"
+            time_label = f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}"
+            text = f"Parto da matriz {pregnancy.female.identifier} está atrasado desde {formatted_date}."
+        elif days == 0:
+            alert_type, time_label = "warning", "Hoje"
+            text = f"Parto da matriz {pregnancy.female.identifier} previsto para hoje."
+        else:
+            alert_type = "warning" if days <= 7 else "info"
+            time_label = f"Em {days} dia{'s' if days != 1 else ''}"
+            text = f"Parto da matriz {pregnancy.female.identifier} previsto para {formatted_date}."
+        alerts.append({"type": alert_type, "icon": "🐷", "text": text, "time": time_label})
+
+    return alerts
+
+
+@transaction.atomic
+def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
+                       observacao: str = "", destino: str = "Pecuária") -> Decimal:
+    """Dá baixa da quantidade aplicada, convertida para a unidade do estoque."""
     from apps.inventory.choices import TipoMovimentacao
     from apps.inventory.services import registrar_movimentacao
+    from .services import vaccination_inventory_quantity
 
-    lote = vaccine_item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by(
-        "data_entrada", "id"
-    ).first()
-    if not lote:
-        return  # sem estoque disponível — não bloqueia
+    quantidade = vaccination_inventory_quantity(vaccine_item, dosagem_ml)
+    lotes = list(vaccine_item.lotes.select_for_update().filter(
+        ativo=True, quantidade_atual__gt=0
+    ).order_by("data_validade", "data_entrada", "id"))
+    disponivel = sum((lote.quantidade_atual for lote in lotes), Decimal("0"))
+    if disponivel < quantidade:
+        raise serializers.ValidationError({
+            "dosage_ml": (
+                f"Estoque insuficiente para esta aplicação. Disponível: "
+                f"{disponivel} {vaccine_item.unidade_medida}."
+            )
+        })
 
-    registrar_movimentacao(
-        item=vaccine_item,
-        lote=lote,
-        tipo=TipoMovimentacao.CONSUMO,
-        quantidade=quantidade,
-        responsavel=user,
-        destino=destino,
-        observacao=observacao or "Consumo por vacinação",
-    )
+    restante = quantidade
+    for lote in lotes:
+        if restante <= 0:
+            break
+        retirada = min(restante, lote.quantidade_atual)
+        registrar_movimentacao(
+            item=vaccine_item,
+            lote=lote,
+            tipo=TipoMovimentacao.CONSUMO,
+            quantidade=retirada,
+            responsavel=user,
+            destino=destino,
+            observacao=observacao or "Consumo por vacinação",
+        )
+        restante -= retirada
+    return quantidade
 
 # ─── Phase Dashboard Views ────────────────────────────────────────────────────
 
@@ -89,7 +286,7 @@ class MarrasView(BasePhaseView):
         em_preparo = qs.filter(reproductive_status='em_preparo').count()
         disponiveis = qs.filter(reproductive_status='vazia').count()
 
-        alerts = []
+        alerts = _heat_prediction_alerts(request.user.organization, species)
         if prontas > 0:
             alerts.append({"type": "info", "icon": "🎯", "text": f"{prontas} marrã{'s' if prontas > 1 else ''} pronta{'s' if prontas > 1 else ''} para cobertura.", "time": "Hoje"})
 
@@ -248,11 +445,10 @@ class GestacoesView(BasePhaseView):
         confirmar_hoje = len([r for r in rows if r['status'] == "Confirmar Prenhez" and r['dias_faltantes'] == "Pronto!"])
         parto_proximo = len([r for r in rows if r['status'] == "Parto próximo"])
 
-        alerts = []
-        if confirmar_hoje > 0:
-            alerts.append({"type": "info", "icon": "🔬", "text": f"{confirmar_hoje} diagnóstico{'s' if confirmar_hoje > 1 else ''} de prenhez pronto{'s' if confirmar_hoje > 1 else ''} para realização.", "time": "Hoje"})
-        if parto_proximo > 0:
-            alerts.append({"type": "warning", "icon": "⏰", "text": f"{parto_proximo} parto{'s' if parto_proximo > 1 else ''} previsto{'s' if parto_proximo > 1 else ''} para os próximos 7 dias.", "time": "Hoje"})
+        alerts = _scheduled_reproductive_alerts(
+            request.user.organization, species, include_birth_vaccines=False
+        )
+        alerts.extend(_expected_birth_alerts(request.user.organization, species))
 
         return Response({
             "kpis": {
@@ -299,7 +495,7 @@ class MaternidadeView(BasePhaseView):
         total_dead_birth = sum(b.stillborn + b.mummified for b in lactating_qs)
         mortalidade_pct = round((total_dead_birth / total_born_lactating * 100), 1) if total_born_lactating else 0
 
-        alerts = []
+        alerts = _scheduled_birth_vaccine_alerts(request.user.organization, species)
         pendentes_desmame = sum(
             1
             for birth in lactating_qs
@@ -1346,6 +1542,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         return Response({"message": "Peso registrado com sucesso", "weight": weight}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='register-vaccination')
+    @transaction.atomic
     def register_vaccination(self, request, pk=None):
         animal = self.get_object()
         vaccine_name = request.data.get('vaccine_name')
@@ -1399,7 +1596,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
         # Baixa de estoque
         if vaccine_item:
-            _dar_baixa_vacina(vaccine_item, request.user,
+            _dar_baixa_vacina(vaccine_item, request.user, record.dosage_ml,
                               observacao=f"Vacinação do animal {animal.identifier}")
 
         return Response({"message": "Vacina registrada com sucesso"}, status=status.HTTP_201_CREATED)
@@ -2007,7 +2204,9 @@ class ReproductionDashboardView(APIView):
             tx_prenhez = int((gestantes / total_produtivas) * 100)
             
         # IA Alerts (Simple rules)
-        alerts = []
+        alerts = _heat_prediction_alerts(user.organization, species_code)
+        alerts.extend(_scheduled_reproductive_alerts(user.organization, species_code))
+        alerts.extend(_expected_birth_alerts(user.organization, species_code))
         ai_suggestions = []
         
         # Check close births
@@ -2018,12 +2217,6 @@ class ReproductionDashboardView(APIView):
             expected_birth_date__lte=now.date() + datetime.timedelta(days=7)
         )
         if close_pregnancies.exists():
-            alerts.append({
-                "type": "warning", 
-                "icon": "⏰", 
-                "text": f"Previsão de {close_pregnancies.count()} partos para os próximos 7 dias.", 
-                "time": "Hoje"
-            })
             ai_suggestions.append({"text": "Prepare o setor de maternidade para os partos iminentes."})
         
         # Check delayed matings
@@ -2096,18 +2289,15 @@ class SpeciesSummaryView(APIView):
             | Q(affected_batches__species__code=species_code)
         ).distinct().count()
 
-        today = timezone.now().date()
         reproductive_actions = 0
         if species_code in {"suinos", "bovinos"}:
-            reproductive_actions += Pregnancy.objects.filter(
-                female__farm__organization=organization,
-                female__species__code=species_code,
-                status="ongoing",
-                expected_birth_date__lte=today + datetime.timedelta(days=7),
-            ).count()
-            reproductive_actions += standalone_animals.filter(
+            reproductive_actions = len(_heat_prediction_alerts(organization, species_code))
+            reproductive_actions += len(_scheduled_reproductive_alerts(organization, species_code))
+            reproductive_actions += len(_expected_birth_alerts(organization, species_code))
+            if standalone_animals.filter(
                 reproductive_status=Animal.ReproductiveStatus.AGUARDANDO_COBERTURA
-            ).count()
+            ).exists():
+                reproductive_actions += 1
 
         return Response({
             "species": species_code,
@@ -2134,6 +2324,7 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
             return queryset
         return VaccinationRecord.objects.none()
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         
@@ -2221,7 +2412,7 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
         # Baixa de estoque
         if record.vaccine_item:
             target_desc = record.animal.identifier if record.animal else record.batch.batch_code if record.batch else "desconhecido"
-            _dar_baixa_vacina(record.vaccine_item, request.user,
+            _dar_baixa_vacina(record.vaccine_item, request.user, record.dosage_ml,
                               observacao=f"Vacinação de {target_desc}")
 
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
