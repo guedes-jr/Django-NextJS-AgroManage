@@ -15,6 +15,7 @@ export interface ModalField {
   initialValue?: string | number;
   min?: number;
   max?: number;
+  step?: number;
   disabled?: boolean;
   showIf?: (values: Record<string, string>) => boolean;
 }
@@ -147,6 +148,7 @@ export function ReproducaoModal({
                       required={field.required}
                       min={field.min}
                       max={field.max}
+                      step={field.step}
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
                       onChange={(e) => handleFieldChange(field.name, e.target.value)}

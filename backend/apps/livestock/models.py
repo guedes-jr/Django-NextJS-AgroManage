@@ -963,8 +963,14 @@ class LitterMedication(BaseModel):
         related_name="litter_medications",
         help_text="Lote da Creche/Crescimento/Engorda herdeiro do histórico"
     )
+    inventory_item = models.ForeignKey(
+        "inventory.ItemEstoque", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="litter_applications",
+    )
     medicamento = models.CharField(max_length=150)
     dosagem = models.CharField(max_length=100, blank=True)
+    animal_count = models.PositiveIntegerField(null=True, blank=True)
+    inventory_quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     data_aplicacao = models.DateField()
     motivo = models.CharField(max_length=200, blank=True)
     responsavel = models.CharField(max_length=100, blank=True)

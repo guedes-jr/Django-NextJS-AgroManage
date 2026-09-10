@@ -9,7 +9,8 @@ from rest_framework.test import APITestCase
 from apps.farms.models import Farm
 from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque
 from apps.livestock.models import (
-    Animal, AnimalBatch, ClinicalRecord, HeatRecord, HistoricoEvento, Mating, Pregnancy, Species,
+    Animal, AnimalBatch, Birth, ClinicalRecord, HeatRecord, HistoricoEvento,
+    LitterMedication, Mating, Pregnancy, Species,
 )
 from apps.organizations.models import Organization
 
@@ -350,6 +351,61 @@ class LivestockTenantIsolationTestCase(APITestCase):
             if "Vacina reprodutiva combinada" in alert["text"]
         )
         self.assertIn(self.animal_a.identifier, vaccine_alert["text"])
+
+    def test_litter_medicine_and_vaccine_applications_consume_inventory(self):
+        mating = Mating.objects.create(female=self.animal_a, mating_date=date.today())
+        pregnancy = Pregnancy.objects.create(
+            mating=mating,
+            female=self.animal_a,
+            start_date=date.today(),
+            expected_birth_date=date.today(),
+        )
+        birth = Birth.objects.create(
+            pregnancy=pregnancy,
+            female=self.animal_a,
+            birth_date=date.today(),
+            live_born=10,
+        )
+
+        cases = (
+            ("APLICACAO_MEDICAMENTO", "medicamento", "Ferrodex"),
+            ("APLICACAO_VACINA", "vacina", "Vacina leitões"),
+        )
+        for index, (procedure_type, category, name) in enumerate(cases):
+            item = ItemEstoque.objects.create(
+                organization=self.org_a,
+                nome=name,
+                categoria=category,
+                unidade_medida="ml",
+            )
+            lot = LoteEstoque.objects.create(
+                item=item,
+                numero_lote=f"MAT-{index}",
+                quantidade_inicial=Decimal("100.00"),
+                quantidade_atual=Decimal("100.00"),
+                data_entrada=date.today(),
+            )
+
+            response = self.client.post(
+                reverse("birth-registrar-procedimento", args=[birth.id]),
+                {
+                    "tipo": procedure_type,
+                    "inventory_item": item.id,
+                    "animal_count": 10,
+                    "dose_per_animal": "2",
+                    "data": date.today().isoformat(),
+                },
+                format="json",
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            lot.refresh_from_db()
+            self.assertEqual(lot.quantidade_atual, Decimal("80.00"))
+            application = LitterMedication.objects.get(
+                birth=birth, inventory_item=item
+            )
+            self.assertEqual(application.animal_count, 10)
+            self.assertEqual(application.inventory_quantity, Decimal("20.00"))
 
     def test_batch_history_includes_current_feed_consumption(self):
         batch = AnimalBatch.objects.create(

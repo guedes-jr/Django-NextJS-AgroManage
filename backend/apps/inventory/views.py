@@ -193,6 +193,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         if categoria:
             items = items.filter(
                 vaccine_category_q() if categoria == "vacina" else
+                Q(categoria__in=("medicamento", "medicamento_vacina")) if categoria == "medicamento" else
                 Q(categoria=categoria) | Q(categorias__contains=[categoria])
             )
         if especie_animal:

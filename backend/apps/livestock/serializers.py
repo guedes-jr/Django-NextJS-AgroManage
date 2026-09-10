@@ -931,7 +931,8 @@ class LitterMedicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = LitterMedication
         fields = [
-            'id', 'birth', 'batch', 'medicamento', 'dosagem',
+            'id', 'birth', 'batch', 'inventory_item', 'medicamento', 'dosagem',
+            'animal_count', 'inventory_quantity',
             'data_aplicacao', 'motivo', 'responsavel', 'notes', 'created_at'
         ]
         read_only_fields = ['created_at']

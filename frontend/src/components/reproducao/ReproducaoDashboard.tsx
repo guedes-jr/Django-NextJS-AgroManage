@@ -256,6 +256,7 @@ export function ReproducaoDashboard({
   const [allSemenItems, setAllSemenItems] = useState<any[]>([]);
   const [semenItems, setSemenItems] = useState<any[]>([]);
   const [vaccineItems, setVaccineItems] = useState<any[]>([]);
+  const [medicationItems, setMedicationItems] = useState<any[]>([]);
   const [batchSheetOpen, setBatchSheetOpen] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<string | number | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
@@ -323,6 +324,20 @@ export function ReproducaoDashboard({
       }
     };
     fetchVaccines();
+  }, []);
+
+  useEffect(() => {
+    const fetchMedications = async () => {
+      try {
+        const { data } = await apiClient.get("/inventory/items/all_items/", {
+          params: { categoria: "medicamento" }
+        });
+        setMedicationItems(data || []);
+      } catch (err) {
+        console.error("Erro ao buscar medicamentos do estoque:", err);
+      }
+    };
+    fetchMedications();
   }, []);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
@@ -549,7 +564,7 @@ export function ReproducaoDashboard({
           title: "Registrar Pesagem",
           subtitle: "Informe o peso atual do animal ou lote",
           fields: [
-            { 
+            {
               name: "id", 
               label: "Animal / Lote", 
               type: animalOptions.length > 0 ? "select" : "text", 
@@ -735,6 +750,7 @@ export function ReproducaoDashboard({
               options: [
                 { value: "TRANSFERENCIA_LEITAO", label: "🔄 Transferência de Leitões" },
                 { value: "APLICACAO_MEDICAMENTO", label: "💊 Aplicação de Medicamentos" },
+                { value: "APLICACAO_VACINA", label: "💉 Aplicação de Vacina" },
               ],
               initialValue: "TRANSFERENCIA_LEITAO",
               colSpan: "full"
@@ -771,19 +787,45 @@ export function ReproducaoDashboard({
             },
             // Campos para Aplicação de Medicamentos
             { 
-              name: "medicamento", 
+              name: "inventory_item_medication",
               label: "Medicamento", 
-              type: "text", 
+              type: "select",
               required: true,
-              placeholder: "Ex: Ferro Injetável",
+              options: medicationItems.map((item) => ({
+                value: String(item.id),
+                label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
+              })),
               showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
             },
             { 
-              name: "dosagem", 
-              label: "Dosagem", 
-              type: "text",
-              placeholder: "Ex: 1ml/animal",
-              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+              name: "inventory_item_vaccine",
+              label: "Vacina",
+              type: "select",
+              required: true,
+              options: vaccineItems.map((item) => ({
+                value: String(item.id),
+                label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
+              })),
+              showIf: (values: any) => values.tipo === "APLICACAO_VACINA"
+            },
+            {
+              name: "animal_count",
+              label: "Quantidade de Leitões",
+              type: "number",
+              required: true,
+              min: 1,
+              initialValue: rows.length === 1 ? (rows[0].vivos ?? rows[0].live_born ?? "") : "",
+              showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
+            },
+            {
+              name: "dose_per_animal",
+              label: "Dose por Leitão (unidade do estoque)",
+              type: "number",
+              required: true,
+              min: 0.01,
+              step: 0.01,
+              placeholder: "Ex: 2",
+              showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
             { 
               name: "data", 
@@ -791,25 +833,27 @@ export function ReproducaoDashboard({
               type: "date", 
               required: true, 
               initialValue: new Date().toISOString().split('T')[0],
-              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+              showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
             { 
               name: "motivo", 
               label: "Motivo", 
               type: "text",
               placeholder: "Ex: Prevenção de anemia",
-              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+              showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
             { 
               name: "responsavel", 
               label: "Responsável", 
               type: "text",
               placeholder: "Nome do responsável",
-              showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
+              showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
           ],
           onConfirm: async (data) => {
-            const targets = rows.length > 0 ? rows : animalOptions.map(o => ({ id: o.value }));
+            data.inventory_item = data.tipo === "APLICACAO_VACINA"
+              ? data.inventory_item_vaccine
+              : data.inventory_item_medication;
             if (rows.length > 1) {
               await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
             } else {
