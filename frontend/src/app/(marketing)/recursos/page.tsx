@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BarChart3, Beef, Boxes, CheckCircle2, HeartPulse, ShieldCheck, Users, WalletCards, Wheat } from "lucide-react";
 import { MarketingPage } from "@/components/marketing/MarketingPage";
 
-export const metadata: Metadata = { title:"Recursos | AgroManage", description:"Conheça em detalhes os módulos de gestão rural do AgroManage." };
+export const metadata: Metadata = { title:"Recursos | Fazenda Mais", description:"Conheça em detalhes os módulos de gestão rural do sistema Fazenda Mais." };
 const modules=[
   {Icon:Wheat,title:"Plantações",tag:"Produção agrícola",text:"Acompanhe o ciclo produtivo do preparo à colheita, mantendo custos e atividades ligados à área correta.",items:["Preparo de solo, adubação e sementes","Irrigação, defensivos e fertirrigação","Mão de obra, agrônomo, histórico e colheita"]},
   {Icon:Beef,title:"Rebanhos",tag:"Produção animal",text:"Organize animais e lotes com informações produtivas, reprodutivas, alimentares e sanitárias.",items:["Suínos, aves e bovinos","Cadastros, lotes, pesagens e reprodução","Consumo e fórmulas de ração"]},

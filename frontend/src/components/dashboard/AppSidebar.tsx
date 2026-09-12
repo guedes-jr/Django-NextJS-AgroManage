@@ -170,7 +170,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
           <Sprout size={27} strokeWidth={2.1} />
         </div>
         <div className="sidebar-brand-copy">
-          <strong>Gestão Agro</strong>
+          <strong>Fazenda Mais</strong>
           <span title={organization?.name}>{organization?.name || "Minha organização"}</span>
         </div>
         <button

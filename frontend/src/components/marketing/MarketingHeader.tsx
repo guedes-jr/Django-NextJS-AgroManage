@@ -11,9 +11,9 @@ export function MarketingHeader() {
   useEffect(()=>{const timer=window.setTimeout(()=>{if(localStorage.getItem("agromanage_lp_variant")==="cta_clarity")setCtaLabel("Ver aplicado à minha fazenda");},0);return()=>window.clearTimeout(timer);},[]);
   return <header className="marketing-header">
     <div className="marketing-container header-inner">
-      <Link href="/" className="marketing-brand" aria-label="AgroManage - início">
+      <Link href="/" className="marketing-brand" aria-label="Fazenda Mais - início">
         <Image src="/logo_primary.png" alt="" width={38} height={38} priority />
-        <span>Agro<strong>Manage</strong></span>
+        <span>Fazenda <strong>Mais</strong></span>
       </Link>
       <button className="marketing-menu-toggle" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Abrir menu">
         {open ? <X /> : <Menu />}

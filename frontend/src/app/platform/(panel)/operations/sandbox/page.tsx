@@ -21,7 +21,7 @@ export default function SandboxAccessPage() {
   const [sandbox, setSandbox] = useState<SandboxStatus>(initialSandbox);
   const [justification, setJustification] = useState("");
   const [minutes, setMinutes] = useState(30);
-  const [code, setCode] = useState('print("Sandbox AgroManage")');
+  const [code, setCode] = useState('print("Sandbox Fazenda Mais")');
   const [execution, setExecution] = useState<SandboxExecutionResult | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

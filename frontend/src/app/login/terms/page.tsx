@@ -13,13 +13,13 @@ export default function TermsPage() {
         <div className="legal-content" style={{ maxHeight: "400px", overflowY: "auto", padding: "1rem 0" }}>
           <h2>1. Aceitação dos Termos</h2>
           <p>
-            Ao acessar e usar o AgroManage, você concorda em cumprir estes Termos de Uso. 
+            Ao acessar e usar o sistema Fazenda Mais, você concorda em cumprir estes Termos de Uso.
             Se você não concorda com qualquer parte destes termos, não use nossa aplicação.
           </p>
 
           <h2>2. Uso da Aplicação</h2>
           <p>
-            O AgroManage é uma plataforma de gestão agropecuária destinada a produtores 
+            O sistema Fazenda Mais é uma plataforma de gestão agropecuária destinada a produtores
             rurais e profissionais do setor agronegócios. Você concorda em usar a aplicação 
             apenas para fins legítimos.
           </p>
@@ -39,7 +39,7 @@ export default function TermsPage() {
 
           <h2>5. Limitação de Responsabilidade</h2>
           <p>
-            O AgroManage não será responsável por quaisquer danos diretos, indiretos, 
+            O sistema Fazenda Mais não será responsável por quaisquer danos diretos, indiretos,
             incidentais ou conseqenciais decorrentes do uso ou incapacidade de usar 
             a aplicação.
           </p>

@@ -253,8 +253,8 @@ CELERY_BEAT_SCHEDULE = {
 # DRF Spectacular (OpenAPI)
 # ---------------------------------------------------------------------------
 SPECTACULAR_SETTINGS = {
-    "TITLE": "AgroManage API",
-    "DESCRIPTION": "REST API for the AgroManage platform — livestock, crops, inventory, finance.",
+    "TITLE": "Fazenda Mais API",
+    "DESCRIPTION": "REST API for the Fazenda Mais platform — livestock, crops, inventory, finance.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }

@@ -36,7 +36,7 @@ export default function AffiliatePortalLayout({ children }: { children: React.Re
 
   return <div className={styles.shell}>
     <aside className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ""}`}>
-      <div className={styles.brand}><span className={styles.brandIcon}><Handshake size={23} /></span><div><strong>Portal do Afiliado</strong><span>Gestão Agro</span></div><button className={styles.closeMenu} onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X /></button></div>
+      <div className={styles.brand}><span className={styles.brandIcon}><Handshake size={23} /></span><div><strong>Portal do Afiliado</strong><span>Fazenda Mais</span></div><button className={styles.closeMenu} onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X /></button></div>
       <nav className={styles.navigation} aria-label="Navegação do portal"><span className={styles.navLabel}>Visão geral</span>{navigation.map((item) => { const active = item.exact ? pathname === item.href : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={active ? styles.activeLink : ""}><item.icon size={19} /><span>{item.label}</span></Link>; })}</nav>
       <div className={styles.sidebarSummary}><BarChart3 size={18} /><div><strong>Acompanhe seus resultados</strong><span>Dados atualizados em tempo real.</span></div></div>
     </aside>

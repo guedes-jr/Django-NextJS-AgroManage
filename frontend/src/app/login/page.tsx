@@ -193,12 +193,12 @@ export default function LoginPage() {
             <div className="d-flex align-items-center gap-2 mb-4">
               <img
                 src="/logo_primary.png"
-                alt="Gestão Agro Logo"
+                alt="Fazenda Mais Logo"
                 style={{ width: '150px', objectFit: 'contain', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))' }}
               />
               <h1 className="mb-0" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.04em' }}>
-                <span className="logo-text-gestao">Gestão</span>{' '}
-                <span className="logo-text-agro">Agro</span>
+                <span className="logo-text-gestao">Fazenda</span>{' '}
+                <span className="logo-text-agro">Mais</span>
               </h1>
             </div>
 
@@ -226,7 +226,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-white small mb-0 fw-medium opacity-75">
-              © 2026 Gestão Agro
+              © 2026 Fazenda Mais
             </p>
           </div>
         </div>

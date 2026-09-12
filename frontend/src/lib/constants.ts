@@ -2,7 +2,7 @@
  * Application-wide constants.
  */
 
-export const APP_NAME = "AgroManage";
+export const APP_NAME = "Fazenda Mais";
 export const APP_VERSION = "0.1.0";
 
 // ─── API ─────────────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import type { PlatformFinanceDashboard, PlatformInvoicePage, PlatformOrganizatio
 const money=(value:string)=>Number(value).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
 export default function PlatformFinancePage(){
- const {showToast}=useToast(); const [dashboard,setDashboard]=useState<PlatformFinanceDashboard|null>(null); const [invoices,setInvoices]=useState<PlatformInvoicePage|null>(null); const [organizations,setOrganizations]=useState<PlatformOrganization[]>([]); const [showForm,setShowForm]=useState(false); const [form,setForm]=useState({organization_id:"",due_date:"",description:"Mensalidade AgroManage",amount:""});
+ const {showToast}=useToast(); const [dashboard,setDashboard]=useState<PlatformFinanceDashboard|null>(null); const [invoices,setInvoices]=useState<PlatformInvoicePage|null>(null); const [organizations,setOrganizations]=useState<PlatformOrganization[]>([]); const [showForm,setShowForm]=useState(false); const [form,setForm]=useState({organization_id:"",due_date:"",description:"Mensalidade Fazenda Mais",amount:""});
  const load=useCallback(()=>{Promise.all([platformService.financeDashboard(),platformService.invoices({page_size:100}),platformService.organizations({page_size:100,is_active:true})]).then(([d,i,o])=>{setDashboard(d);setInvoices(i);setOrganizations(o.results);}).catch(()=>showToast("Não foi possível carregar o financeiro.","error"));},[showToast]);
  useEffect(()=>{load();},[load]);
  const create=async(e:FormEvent)=>{e.preventDefault();try{await platformService.createInvoice(form);showToast("Fatura criada.","success");setShowForm(false);load();}catch{showToast("Não foi possível criar a fatura.","error");}};

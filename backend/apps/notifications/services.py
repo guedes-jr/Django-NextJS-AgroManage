@@ -72,7 +72,7 @@ class NotificationService:
             user=user,
             type=NotificationType.SYSTEM,
             priority=NotificationPriority.LOW,
-            title="Bem-vindo ao AgroManage!",
+            title="Bem-vindo ao sistema Fazenda Mais!",
             message="Seu cadastro foi realizado com sucesso. Explore as funcionalidades do sistema.",
             link="/home"
         )

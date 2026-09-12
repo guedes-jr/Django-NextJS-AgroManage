@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Plus, Trash2 } from "lucide-react";
 import "./reproducao.css";
 
 export interface ModalField {
   name: string;
   label: string;
-  type: "text" | "date" | "time" | "number" | "select" | "textarea" | "hidden";
+  type: "text" | "date" | "time" | "number" | "select" | "textarea" | "hidden" | "inventory-list";
   placeholder?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
@@ -57,6 +57,19 @@ export function ReproducaoModal({
 
   const handleFieldChange = (name: string, val: string) => {
     setFormValues((prev) => ({ ...prev, [name]: val }));
+  };
+
+  const inventoryRows = (field: ModalField) => {
+    try {
+      const parsed = JSON.parse(formValues[field.name] || "[]");
+      return Array.isArray(parsed) && parsed.length ? parsed : [{ inventory_item: "", dose_per_animal: "" }];
+    } catch {
+      return [{ inventory_item: "", dose_per_animal: "" }];
+    }
+  };
+
+  const updateInventoryRows = (field: ModalField, rows: Array<Record<string, string>>) => {
+    handleFieldChange(field.name, JSON.stringify(rows));
   };
 
   const visibleFields = fields.filter((f) => !f.showIf || f.showIf(formValues));
@@ -113,7 +126,51 @@ export function ReproducaoModal({
                     </label>
                   )}
 
-                  {field.type === "select" ? (
+                  {field.type === "inventory-list" ? (
+                    <div className="repro-inventory-list">
+                      {inventoryRows(field).map((row: Record<string, string>, index: number, rows: Array<Record<string, string>>) => (
+                        <div className="repro-inventory-row" key={`${field.name}-${index}`}>
+                          <select
+                            required={field.required}
+                            disabled={loading || field.disabled}
+                            value={row.inventory_item || ""}
+                            aria-label={`${field.label} ${index + 1}`}
+                            onChange={(event) => {
+                              const next = [...rows];
+                              next[index] = { ...row, inventory_item: event.target.value };
+                              updateInventoryRows(field, next);
+                            }}
+                          >
+                            <option value="">Selecione...</option>
+                            {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                          </select>
+                          <input
+                            type="number"
+                            required
+                            min="0.01"
+                            step="0.01"
+                            placeholder="Dose/leitão"
+                            value={row.dose_per_animal || ""}
+                            disabled={loading || field.disabled}
+                            aria-label={`Dose do ${field.label.toLowerCase()} ${index + 1}`}
+                            onChange={(event) => {
+                              const next = [...rows];
+                              next[index] = { ...row, dose_per_animal: event.target.value };
+                              updateInventoryRows(field, next);
+                            }}
+                          />
+                          {rows.length > 1 && (
+                            <button type="button" className="repro-inventory-remove" aria-label={`Remover ${field.label.toLowerCase()} ${index + 1}`} onClick={() => updateInventoryRows(field, rows.filter((_, rowIndex) => rowIndex !== index))}>
+                              <Trash2 size={17} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" className="repro-inventory-add" onClick={() => updateInventoryRows(field, [...inventoryRows(field), { inventory_item: "", dose_per_animal: "" }])}>
+                        <Plus size={17} /> Adicionar {field.label.toLowerCase()}
+                      </button>
+                    </div>
+                  ) : field.type === "select" ? (
                     <select 
                       id={`modal-${field.name}`} 
                       name={field.name} 

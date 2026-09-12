@@ -336,7 +336,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             <span style={{ fontSize: "1.5rem" }}>🐷</span>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.9rem", lineHeight: 1.2 }}>Gestão Agro</div>
+            <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.9rem", lineHeight: 1.2 }}>Fazenda Mais</div>
             <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>{farmName}</div>
           </div>
         </div>
@@ -713,7 +713,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
             <span style={{ fontSize: "1.5rem" }}>🐗</span>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.9rem", lineHeight: 1.2 }}>Gestão Agro</div>
+            <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.9rem", lineHeight: 1.2 }}>Fazenda Mais</div>
             <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>{farmName}</div>
           </div>
         </div>

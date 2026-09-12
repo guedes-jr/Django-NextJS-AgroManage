@@ -6,6 +6,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, Prefetch, Q, Sum
 from django.utils import timezone
 import datetime
+import json
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
@@ -2010,35 +2011,14 @@ class BirthViewSet(viewsets.ModelViewSet):
 
         elif tipo in ('APLICACAO_MEDICAMENTO', 'APLICACAO_VACINA'):
             from apps.inventory.models import ItemEstoque
-
-            try:
-                item = ItemEstoque.objects.get(
-                    id=request.data.get('inventory_item'),
-                    organization=request.user.organization,
-                    ativo=True,
-                )
-            except (ItemEstoque.DoesNotExist, ValueError, TypeError):
-                return Response(
-                    {"error": "Selecione um medicamento ou vacina válido do estoque."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            categorias = set(item.categorias or []) | {item.categoria}
             permitidas = ({'vacina', 'medicamento_vacina'} if tipo == 'APLICACAO_VACINA'
                           else {'medicamento', 'medicamento_vacina'})
-            if not categorias.intersection(permitidas):
-                return Response(
-                    {"error": "O item selecionado não corresponde ao tipo de aplicação."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
             vivos_atual = max(0, birth.live_born - birth.mortality)
             try:
                 animal_count = int(request.data.get('animal_count') or vivos_atual)
-                dose_per_animal = Decimal(str(request.data.get('dose_per_animal', '')))
-            except (ValueError, TypeError, ArithmeticError):
+            except (ValueError, TypeError):
                 return Response(
-                    {"error": "Informe uma quantidade de animais e uma dose válidas."},
+                    {"error": "Informe uma quantidade de animais válida."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if animal_count < 1 or animal_count > vivos_atual:
@@ -2046,60 +2026,89 @@ class BirthViewSet(viewsets.ModelViewSet):
                     {"error": f"A quantidade deve ficar entre 1 e {vivos_atual} leitões vivos."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            if dose_per_animal <= 0:
+
+            raw_applications = request.data.get('applications')
+            if isinstance(raw_applications, str):
+                try:
+                    raw_applications = json.loads(raw_applications)
+                except json.JSONDecodeError:
+                    raw_applications = None
+            if not raw_applications:
+                # Compatibilidade com clientes anteriores à lista dinâmica.
+                raw_applications = [{
+                    'inventory_item': request.data.get('inventory_item'),
+                    'dose_per_animal': request.data.get('dose_per_animal'),
+                }]
+            if not isinstance(raw_applications, list):
                 return Response(
-                    {"error": "A dose por leitão deve ser maior que zero."},
+                    {"error": "A lista de medicamentos ou vacinas é inválida."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            quantidade_estoque = (dose_per_animal * animal_count).quantize(Decimal("0.01"))
-            medicamento = item.nome
-            dosagem = f"{dose_per_animal} {item.unidade_medida}/animal"
+            applications = []
+            for index, application in enumerate(raw_applications, start=1):
+                try:
+                    item = ItemEstoque.objects.get(
+                        id=application.get('inventory_item'),
+                        organization=request.user.organization,
+                        ativo=True,
+                    )
+                    dose_per_animal = Decimal(str(application.get('dose_per_animal', '')))
+                except (ItemEstoque.DoesNotExist, ValueError, TypeError, ArithmeticError, AttributeError):
+                    return Response(
+                        {"error": f"Revise o produto e a dose da aplicação {index}."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                categorias = set(item.categorias or []) | {item.categoria}
+                if not categorias.intersection(permitidas):
+                    return Response(
+                        {"error": f"O item da aplicação {index} não corresponde ao tipo selecionado."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if dose_per_animal <= 0:
+                    return Response(
+                        {"error": f"A dose da aplicação {index} deve ser maior que zero."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                applications.append((item, dose_per_animal))
+
             motivo = request.data.get('motivo', '')
             responsavel = request.data.get('responsavel', '')
-
-            _dar_baixa_aplicacao_coletiva(
-                item, quantidade_estoque, request.user,
-                f"{medicamento} aplicado em {animal_count} leitões da matriz {birth.female.identifier}",
-            )
-
-            med = LitterMedication.objects.create(
-                birth=birth,
-                batch=birth.batch,
-                inventory_item=item,
-                medicamento=medicamento,
-                dosagem=dosagem,
-                animal_count=animal_count,
-                inventory_quantity=quantidade_estoque,
-                data_aplicacao=data,
-                motivo=motivo,
-                responsavel=responsavel,
-                notes=observacao,
-            )
-
-            HistoricoEvento.objects.create(
-                farm=birth.female.farm,
-                tipo_evento='Vacinação Maternidade' if tipo == 'APLICACAO_VACINA' else 'Medicação Maternidade',
-                descricao=f"Medicamento: {medicamento} | Dosagem: {dosagem} | Motivo: {motivo} | Responsável: {responsavel}",
-                data_evento=data,
-                matriz=birth.female,
-                lote=birth.batch,
-                metadata={
-                    'tipo': 'APLICACAO_MEDICAMENTO',
-                    'medicamento': medicamento,
-                    'dosagem': dosagem,
-                    'inventory_item_id': str(item.id),
-                    'animal_count': animal_count,
-                    'inventory_quantity': str(quantidade_estoque),
-                    'motivo': motivo,
-                    'responsavel': responsavel,
-                    'litter_medication_id': med.id,
-                }
-            )
+            results = []
+            for item, dose_per_animal in applications:
+                quantidade_estoque = (dose_per_animal * animal_count).quantize(Decimal("0.01"))
+                dosagem = f"{dose_per_animal} {item.unidade_medida}/animal"
+                _dar_baixa_aplicacao_coletiva(
+                    item, quantidade_estoque, request.user,
+                    f"{item.nome} aplicado em {animal_count} leitões da matriz {birth.female.identifier}",
+                )
+                med = LitterMedication.objects.create(
+                    birth=birth, batch=birth.batch, inventory_item=item,
+                    medicamento=item.nome, dosagem=dosagem,
+                    animal_count=animal_count, inventory_quantity=quantidade_estoque,
+                    data_aplicacao=data, motivo=motivo, responsavel=responsavel,
+                    notes=observacao,
+                )
+                HistoricoEvento.objects.create(
+                    farm=birth.female.farm,
+                    tipo_evento='Vacinação Maternidade' if tipo == 'APLICACAO_VACINA' else 'Medicação Maternidade',
+                    descricao=f"Produto: {item.nome} | Dosagem: {dosagem} | Motivo: {motivo} | Responsável: {responsavel}",
+                    data_evento=data, matriz=birth.female, lote=birth.batch,
+                    metadata={
+                        'tipo': tipo, 'medicamento': item.nome, 'dosagem': dosagem,
+                        'inventory_item_id': str(item.id), 'animal_count': animal_count,
+                        'inventory_quantity': str(quantidade_estoque), 'motivo': motivo,
+                        'responsavel': responsavel, 'litter_medication_id': med.id,
+                    },
+                )
+                results.append({
+                    "inventory_item": str(item.id), "name": item.nome,
+                    "inventory_quantity": str(quantidade_estoque),
+                    "inventory_unit": item.unidade_medida,
+                })
             return Response({
-                "message": "Aplicação registrada e estoque atualizado com sucesso.",
-                "inventory_quantity": str(quantidade_estoque),
-                "inventory_unit": item.unidade_medida,
+                "message": f"{len(results)} aplicação(ões) registrada(s) e estoque atualizado.",
+                "applications": results,
             })
 
         else:

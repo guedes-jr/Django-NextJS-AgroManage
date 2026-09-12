@@ -37,9 +37,9 @@ export function ContactForm() {
       <label className="full"><span><CalendarDays size={15}/> Horário preferido para a demonstração</span><select value={selectedSlot} onChange={event=>setSelectedSlot(event.target.value)}><option value="">Prefiro combinar depois</option>{slots.map(slot=><option value={slot} key={slot}>{new Date(slot).toLocaleString("pt-BR",{dateStyle:"full",timeStyle:"short"})}</option>)}</select></label>
       <label className="full"><span>O que você deseja organizar?</span><textarea name="message" rows={5} required minLength={10} maxLength={3000} placeholder="Conte brevemente seus principais desafios de gestão."/></label>
     </div>
-    <label className="contact-consent"><input type="checkbox" required/> <span>Concordo em fornecer estes dados para que a equipe AgroManage entre em contato.</span></label>
+    <label className="contact-consent"><input type="checkbox" required/> <span>Concordo em fornecer estes dados para que a equipe Fazenda Mais entre em contato.</span></label>
     <button className="marketing-button primary" type="submit" disabled={loading}>{loading?"Enviando...":"Enviar solicitação"} {!loading&&<ArrowRight size={17}/>}</button>
-    {process.env.NEXT_PUBLIC_WHATSAPP_NUMBER&&<a className="marketing-button whatsapp" href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Quero conhecer o AgroManage.")}`} target="_blank" rel="noreferrer"><MessageCircle size={17}/> Falar pelo WhatsApp</a>}
+    {process.env.NEXT_PUBLIC_WHATSAPP_NUMBER&&<a className="marketing-button whatsapp" href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Quero conhecer o sistema Fazenda Mais.")}`} target="_blank" rel="noreferrer"><MessageCircle size={17}/> Falar pelo WhatsApp</a>}
     <small>A solicitação ficará disponível para análise na Central da Plataforma.</small>
   </form>;
 }

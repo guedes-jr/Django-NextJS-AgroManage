@@ -491,7 +491,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   </svg>
                 </div>
                 <div>
-                  <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.85rem", lineHeight: 1.2 }}>Gestão Agro</div>
+                  <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.85rem", lineHeight: 1.2 }}>Fazenda Mais</div>
                   <div style={{ color: GRAY_TEXT, fontSize: "0.6rem" }}>Fazenda São João</div>
                 </div>
               </div>
@@ -1236,7 +1236,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.75rem" }}>Sistema Gestão Agro</div>
+                <div style={{ fontWeight: 800, color: GREEN_DARK, fontSize: "0.75rem" }}>Sistema Fazenda Mais</div>
                 <div style={{ fontSize: "0.54rem", color: GRAY_TEXT, marginTop: 2 }}>Página 1 de 1</div>
               </div>
             </div>

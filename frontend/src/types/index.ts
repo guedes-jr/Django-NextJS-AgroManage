@@ -1,5 +1,5 @@
 /**
- * Global TypeScript types for AgroManage frontend.
+ * Global TypeScript types for Fazenda Mais frontend.
  */
 
 // ─── Pagination ──────────────────────────────────────────────────────────────

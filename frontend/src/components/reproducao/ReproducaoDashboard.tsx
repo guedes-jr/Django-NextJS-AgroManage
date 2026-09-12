@@ -786,22 +786,26 @@ export function ReproducaoDashboard({
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
             // Campos para Aplicação de Medicamentos
-            { 
-              name: "inventory_item_medication",
-              label: "Medicamento", 
-              type: "select",
+            {
+              name: "medication_applications",
+              label: "Medicamento",
+              type: "inventory-list",
               required: true,
+              colSpan: "full",
+              initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
               options: medicationItems.map((item) => ({
                 value: String(item.id),
                 label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
               })),
               showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
             },
-            { 
-              name: "inventory_item_vaccine",
+            {
+              name: "vaccine_applications",
               label: "Vacina",
-              type: "select",
+              type: "inventory-list",
               required: true,
+              colSpan: "full",
+              initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
               options: vaccineItems.map((item) => ({
                 value: String(item.id),
                 label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
@@ -815,16 +819,6 @@ export function ReproducaoDashboard({
               required: true,
               min: 1,
               initialValue: rows.length === 1 ? (rows[0].vivos ?? rows[0].live_born ?? "") : "",
-              showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
-            },
-            {
-              name: "dose_per_animal",
-              label: "Dose por Leitão (unidade do estoque)",
-              type: "number",
-              required: true,
-              min: 0.01,
-              step: 0.01,
-              placeholder: "Ex: 2",
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
             { 
@@ -851,9 +845,11 @@ export function ReproducaoDashboard({
             },
           ],
           onConfirm: async (data) => {
-            data.inventory_item = data.tipo === "APLICACAO_VACINA"
-              ? data.inventory_item_vaccine
-              : data.inventory_item_medication;
+            data.applications = JSON.parse(
+              data.tipo === "APLICACAO_VACINA"
+                ? data.vaccine_applications
+                : data.medication_applications
+            );
             if (rows.length > 1) {
               await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
             } else {

@@ -373,13 +373,13 @@ def public_demo_request(request):
             fail_silently=True,
         )
     send_mail(
-        subject="Recebemos sua solicitação — AgroManage",
+        subject="Recebemos sua solicitação — Fazenda Mais",
         message=(
             f"Olá, {demo_request.name}!\n\nRecebemos sua solicitação de demonstração para "
             f"{demo_request.organization_name}. Nossa equipe analisará o cenário informado e entrará "
             "em contato."
             + (f"\n\nHorário solicitado: {timezone.localtime(demo_request.preferred_demo_at).strftime('%d/%m/%Y às %H:%M')}." if demo_request.preferred_demo_at else "")
-            + "\n\nEnquanto isso, você pode conhecer os recursos e planos em nosso site.\n\nEquipe AgroManage"
+            + "\n\nEnquanto isso, você pode conhecer os recursos e planos em nosso site.\n\nEquipe Fazenda Mais"
         ),
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[demo_request.email],
@@ -906,12 +906,12 @@ class PlatformDemoRequestViewSet(viewsets.ReadOnlyModelViewSet):
             metadata={"appointment_id": str(appointment.id)},
         )
         send_mail(
-            subject="Demonstração AgroManage agendada",
+            subject="Demonstração Fazenda Mais agendada",
             message=(
                 f"Olá, {demo_request.name}!\n\nSua demonstração foi agendada para "
                 f"{timezone.localtime(appointment.starts_at).strftime('%d/%m/%Y às %H:%M')}.\n"
                 f"Duração prevista: {appointment.duration_minutes} minutos.\n"
-                f"Link: {appointment.meeting_url or 'Será enviado pela equipe.'}\n\nEquipe AgroManage"
+                f"Link: {appointment.meeting_url or 'Será enviado pela equipe.'}\n\nEquipe Fazenda Mais"
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[demo_request.email],

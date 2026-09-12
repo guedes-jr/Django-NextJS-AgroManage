@@ -13,7 +13,7 @@ export default function LicensePage() {
         <div className="legal-content" style={{ maxHeight: "400px", overflowY: "auto", padding: "1rem 0" }}>
           <h2>Licença MIT</h2>
           <p>
-            Copyright (c) 2024 AgroManage
+            Copyright (c) 2024 Fazenda Mais
           </p>
           <p>
             Permission is hereby granted, free of charge, to any person obtaining a copy 
@@ -46,7 +46,7 @@ export default function LicensePage() {
 
           <h2>Direitos de Propriedade Intelectual</h2>
           <p>
-            O AgroManage e todos os seus componentes são propriedade de seus criadores. 
+            O sistema Fazenda Mais e todos os seus componentes são propriedade de seus criadores.
             Todos os direitos não expressamente concedidos nesta licença são reservados.
           </p>
         </div>

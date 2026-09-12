@@ -575,6 +575,45 @@
   outline: none;
 }
 
+.repro-inventory-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.repro-inventory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.repro-inventory-remove,
+.repro-inventory-add {
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--foreground);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.repro-inventory-remove {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--destructive);
+}
+
+.repro-inventory-add {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--primary);
+  font-weight: 700;
+}
+
 .repro-field input:focus,
 .repro-field select:focus,
 .repro-field textarea:focus {
@@ -652,5 +691,9 @@
 @media (max-width: 767px) {
   .repro-fields-grid {
     grid-template-columns: 1fr;
+  }
+
+  .repro-inventory-row {
+    grid-template-columns: minmax(0, 1fr) 105px auto;
   }
 }

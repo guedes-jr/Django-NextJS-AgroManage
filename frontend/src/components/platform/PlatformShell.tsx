@@ -55,7 +55,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
         <div className="platform-brand">
           <div className="platform-brand-mark"><ShieldCheck size={23} /></div>
           <div className="platform-brand-copy">
-            <div className="fw-bold">AgroManage</div>
+            <div className="fw-bold">Fazenda Mais</div>
             <div className="small text-white-50">Central da plataforma</div>
           </div>
         </div>

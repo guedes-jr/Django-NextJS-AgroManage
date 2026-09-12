@@ -35,7 +35,7 @@ export default function BovinosRacaoPage() {
       <div className="d-flex align-items-center justify-content-between mb-4">
         <div>
           <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-2">
-            <Link href="/home" className="text-decoration-none text-muted-foreground">Gestão Agro</Link>
+            <Link href="/home" className="text-decoration-none text-muted-foreground">Fazenda Mais</Link>
             <ChevronRight size={14} />
             <Link href="/home/rebanho" className="text-decoration-none text-muted-foreground">Rebanho</Link>
             <ChevronRight size={14} />

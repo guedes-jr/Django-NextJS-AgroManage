@@ -31,7 +31,7 @@ class EmailNotificationService:
         if notification.type in type_mapping and not type_mapping[notification.type]:
             return
 
-        subject = f"[AgroManage] {notification.title}"
+        subject = f"[Fazenda Mais] {notification.title}"
         message = notification.message
 
         try:
@@ -75,7 +75,7 @@ class EmailNotificationService:
 
         try:
             send_mail(
-                subject=f"[AgroManage] Resumo diário - {notifications.count()} notificações",
+                subject=f"[Fazenda Mais] Resumo diário - {notifications.count()} notificações",
                 message=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL or "noreply@agromanage.com",
                 recipient_list=[user.email],
@@ -115,7 +115,7 @@ class EmailNotificationService:
 
         try:
             send_mail(
-                subject=f"[AgroManage] Resumo semanal - {notifications.count()} notificações",
+                subject=f"[Fazenda Mais] Resumo semanal - {notifications.count()} notificações",
                 message=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL or "noreply@agromanage.com",
                 recipient_list=[user.email],

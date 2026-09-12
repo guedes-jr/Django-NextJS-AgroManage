@@ -240,7 +240,7 @@ class DemoAppointmentSerializer(serializers.ModelSerializer):
         from django.utils import timezone
         start = timezone.localtime(obj.starts_at)
         end = start + timedelta(minutes=obj.duration_minutes)
-        title = f"Demonstração AgroManage — {obj.demo_request.organization_name}"
+        title = f"Demonstração Fazenda Mais — {obj.demo_request.organization_name}"
         return start, end, title
 
     def get_google_calendar_url(self, obj):

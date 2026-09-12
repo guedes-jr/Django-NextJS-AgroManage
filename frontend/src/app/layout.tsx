@@ -1,20 +1,23 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { RouteScrollManager } from "@/components/navigation/RouteScrollManager";
+import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://agromanage.com"),
-  title: "AgroManage",
+  title: "Fazenda Mais",
   description: "Sistema de Gestão Agrícola",
+  applicationName: "Fazenda Mais",
+  manifest: "/manifest.webmanifest",
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    siteName: "AgroManage",
-    title: "AgroManage | Gestão rural em um só lugar",
+    siteName: "Fazenda Mais",
+    title: "Fazenda Mais | Gestão rural em um só lugar",
     description: "Fazendas, produção, rebanhos, estoque e finanças em uma única plataforma.",
     images: [{ url: "/farm-hero.jpg", width: 1200, height: 630 }],
   },
@@ -26,6 +29,10 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
     shortcut: "/favicon-32x32.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#176b3a",
 };
 
 export default function RootLayout({
@@ -62,6 +69,7 @@ export default function RootLayout({
           <ToastProvider>
             <RouteScrollManager />
             {children}
+            <PWAInstallPrompt />
           </ToastProvider>
         </ThemeProvider>
       </body>

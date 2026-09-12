@@ -407,6 +407,52 @@ class LivestockTenantIsolationTestCase(APITestCase):
             self.assertEqual(application.animal_count, 10)
             self.assertEqual(application.inventory_quantity, Decimal("20.00"))
 
+    def test_litter_accepts_multiple_medications_in_one_transaction(self):
+        mating = Mating.objects.create(female=self.animal_a, mating_date=date.today())
+        pregnancy = Pregnancy.objects.create(
+            mating=mating, female=self.animal_a, start_date=date.today(),
+            expected_birth_date=date.today(),
+        )
+        birth = Birth.objects.create(
+            pregnancy=pregnancy, female=self.animal_a,
+            birth_date=date.today(), live_born=10,
+        )
+        items = []
+        lots = []
+        for index, name in enumerate(("Ferrodex", "Antibiótico")):
+            item = ItemEstoque.objects.create(
+                organization=self.org_a, nome=name,
+                categoria="medicamento", unidade_medida="ml",
+            )
+            lot = LoteEstoque.objects.create(
+                item=item, numero_lote=f"MULTI-{index}",
+                quantidade_inicial=Decimal("100.00"),
+                quantidade_atual=Decimal("100.00"), data_entrada=date.today(),
+            )
+            items.append(item)
+            lots.append(lot)
+
+        response = self.client.post(
+            reverse("birth-registrar-procedimento", args=[birth.id]),
+            {
+                "tipo": "APLICACAO_MEDICAMENTO",
+                "animal_count": 10,
+                "applications": [
+                    {"inventory_item": items[0].id, "dose_per_animal": "2"},
+                    {"inventory_item": items[1].id, "dose_per_animal": "0.5"},
+                ],
+                "data": date.today().isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data["applications"]), 2)
+        for lot, expected in zip(lots, (Decimal("80.00"), Decimal("95.00"))):
+            lot.refresh_from_db()
+            self.assertEqual(lot.quantidade_atual, expected)
+        self.assertEqual(LitterMedication.objects.filter(birth=birth).count(), 2)
+
     def test_batch_history_includes_current_feed_consumption(self):
         batch = AnimalBatch.objects.create(
             farm=self.farm_a,
