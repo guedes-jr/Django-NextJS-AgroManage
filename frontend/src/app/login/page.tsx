@@ -3,6 +3,7 @@
 import "./login.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   Mail,
   Lock,
@@ -10,6 +11,14 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  PiggyBank,
+  Bird,
+  Beef,
+  Sprout,
+  ShieldCheck,
+  ChartNoAxesCombined,
+  Cloud,
+  Smartphone,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { clearPlatformSession, platformService, PLATFORM_STAFF, setPlatformSession } from "@/services/platformApi";
@@ -49,8 +58,8 @@ const apiErrorMessage = (value: unknown): string | null => {
 
 const titles: Record<View, { title: string; subtitle: string }> = {
   login: {
-    title: "Bem-vindo de volta",
-    subtitle: "Acesse sua fazenda digital",
+    title: "Bem-vindo de volta!",
+    subtitle: "Acesse sua fazenda digital e continue gerindo o que realmente importa.",
   },
   register: {
     title: "Crie sua conta",
@@ -179,236 +188,116 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-container">
+    <main className="login-page">
       <div className="login-card">
-        {/* Hero Section */}
-        <div className="login-hero d-none d-lg-block">
-          <img
-            src="/farm-hero.jpg"
-            alt="Fazenda"
-            className="login-hero-img"
-          />
-          <div className="login-hero-overlay" />
+        <section className="login-hero" aria-label="Conheça a Fazenda Mais">
+          <div className="login-hero-shade" />
           <div className="login-hero-content">
-            <div className="d-flex align-items-center gap-2 mb-4">
-              <img
-                src="/logo_primary.png"
-                alt="Fazenda Mais Logo"
-                style={{ width: '150px', objectFit: 'contain', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))' }}
-              />
-              <h1 className="mb-0" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.04em' }}>
-                <span className="logo-text-gestao">Fazenda</span>{' '}
-                <span className="logo-text-agro">Mais</span>
-              </h1>
+            <header className="login-brand">
+              <Image src="/logo_primary.png" alt="" width={116} height={116} className="login-brand-mark" priority />
+              <div><div className="login-brand-name">Fazenda<span>+</span></div><div className="login-brand-tagline">TECNOLOGIA QUE TRANSFORMA GESTÃO EM RESULTADOS</div></div>
+            </header>
+            <div className="hero-copy">
+              <span className="hero-copy-line" />
+              <h1>Sua fazenda<br /><strong>mais eficiente</strong><br />com tecnologia.</h1>
+              <p>Controle seu rebanho, sua plantação e toda a sua produção em uma única plataforma, com <b>mais segurança, produtividade e resultados.</b></p>
             </div>
-
-            <div className="hero-text">
-              <h1 className="text-white mb-3 fs-2 fw-bold">
-                Sua fazenda <span className="text-gradient-gold">inteligente</span>
-              </h1>
-              <p className="text-white mb-5 fs-6" style={{ maxWidth: '420px', lineHeight: '1.6' }}>
-                Controle rebanho, estoque e finanças em uma plataforma moderna,
-                feita para o produtor brasileiro.
-              </p>
-
-              <div className="d-flex gap-4 pt-2">
+            <div className="hero-slogan">Do campo<br />para um futuro<br />melhor!<span /></div>
+            <div className="hero-bottom">
+              <div className="feature-cards">
                 {[
-                  { n: "+12k", l: "Produtores" },
-                  { n: "98%", l: "Satisfação" },
-                  { n: "24/7", l: "Suporte" },
-                ].map((s) => (
-                  <div key={s.l}>
-                    <div className="text-white fw-bold fs-3">{s.n}</div>
-                    <div className="text-white small fw-medium">{s.l}</div>
+                  { icon: PiggyBank, title: "Suínos", text: "Mais controle e produtividade", className: "pigs" },
+                  { icon: Bird, title: "Aves", text: "Gestão completa do seu plantel", className: "birds" },
+                  { icon: Beef, title: "Bovinos", text: "Do pasto ao resultado", className: "cattle" },
+                  { icon: Sprout, title: "Plantações", text: "Planejamento para melhores safras", className: "crops" },
+                ].map(({ icon: Icon, title, text, className }) => (
+                  <div className={`feature-card ${className}`} key={title}>
+                    <div className="feature-card-image" />
+                    <div className="feature-card-content"><Icon size={27} /><strong>{title}</strong><span>{text}</span></div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <p className="text-white small mb-0 fw-medium opacity-75">
-              © 2026 Fazenda Mais
-            </p>
-          </div>
-        </div>
-
-        {/* Form Section */}
-        <div className="login-form-container">
-          <div className="login-form-wrapper">
-            {/* Auth Tabs */}
-            <div className="auth-tabs">
-              <button
-                type="button"
-                className={`auth-tab ${view === 'login' ? 'active' : ''}`}
-                onClick={() => goTo('login')}
-              >
-                Entrar
-              </button>
-              <button
-                type="button"
-                className={`auth-tab ${view === 'register' ? 'active' : ''}`}
-                onClick={() => goTo('register')}
-              >
-                Cadastro
-              </button>
-            </div>
-
-            <div className="view-transition" key={view}>
-              <div className="text-center mb-5">
-                <h2 className="fw-bold text-foreground mb-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
-                  {titles[view].title}
-                </h2>
-                <p className="text-muted-foreground fs-6">{titles[view].subtitle}</p>
+              <div className="hero-benefits">
+                <span><ShieldCheck />Dados seguros</span><span><ChartNoAxesCombined />Gestão integrada</span>
+                <span><Cloud />Acesso em qualquer lugar</span><span><Smartphone />No campo e na cidade</span>
               </div>
+            </div>
+          </div>
+        </section>
 
-              {error && (
-                <div className="alert alert-danger border-0 shadow-sm py-2 px-3 mb-4 small rounded-4" role="alert">
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit}>
-                <div className="d-flex flex-column gap-4">
+        <section className="login-form-container">
+          <div className="login-form-wrapper">
+            <div className="auth-tabs">
+              <button type="button" className={`auth-tab ${view === "login" ? "active" : ""}`} onClick={() => goTo("login")}>Entrar</button>
+              <button type="button" className={`auth-tab ${view === "register" ? "active" : ""}`} onClick={() => goTo("register")}>Cadastro</button>
+            </div>
+            <div className="view-transition" key={view}>
+              <div className="login-heading"><h2>{titles[view].title}</h2><p>{titles[view].subtitle}</p></div>
+              {error && <div className="login-error" role="alert">{error}</div>}
+              <form onSubmit={handleSubmit} className="login-form">
+                <div className="login-fields">
                   {view === "register" && (
                     <div className="login-input-group">
-                      <label>Nome completo</label>
+                      <label htmlFor="name">Nome completo</label>
                       <div className="login-input-wrapper">
-                        <input
-                          type="text"
-                          className="login-input login-input-icon-left"
-                          placeholder="João da Silva"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          required
-                        />
+                        <input id="name" type="text" className="login-input login-input-icon-left" placeholder="João da Silva" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
                         <User className="login-input-icon" size={20} />
                       </div>
                     </div>
                   )}
-
-              <div className="login-input-group">
-                <label>E-mail</label>
-                <div className="login-input-wrapper">
-                  <input
-                    type="email"
-                    className="login-input login-input-icon-left"
-                    placeholder="voce@fazenda.com.br"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
-                  <Mail className="login-input-icon" size={20} />
-                </div>
-              </div>
-
-              {view !== "forgot" && (
-                <div className={view === "register" ? "d-flex gap-3" : ""}>
-                  <div className={`login-input-group ${view === "register" ? "flex-grow-1" : ""}`}>
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                      <label className="mb-0">Senha</label>
-                    </div>
+                  <div className="login-input-group">
+                    <label htmlFor="email">E-mail</label>
                     <div className="login-input-wrapper">
-                      <input
-                        type={showPwd ? "text" : "password"}
-                        className="login-input login-input-icon-left"
-                        placeholder="••••••••"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                      />
-                      <Lock className="login-input-icon" size={20} />
-                      <button
-                        type="button"
-                        className="login-input-toggle"
-                        onClick={() => setShowPwd(!showPwd)}
-                      >
-                        {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
+                      <input id="email" type="email" className="login-input login-input-icon-left" placeholder="voce@fazenda.com.br" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
+                      <Mail className="login-input-icon" size={20} />
                     </div>
                   </div>
-
-                  {view === "register" && (
-                    <div className="login-input-group flex-grow-1">
-                      <div className="d-flex justify-content-between align-items-center mb-2">
-                        <label className="mb-0">Confirmar senha</label>
+                  {view !== "forgot" && (
+                    <div className={view === "register" ? "register-passwords" : ""}>
+                      <div className="login-input-group">
+                        <label htmlFor="password">Senha</label>
+                        <div className="login-input-wrapper">
+                          <input id="password" type={showPwd ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder="Sua senha" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+                          <Lock className="login-input-icon" size={20} />
+                          <button type="button" className="login-input-toggle" onClick={() => setShowPwd(!showPwd)} aria-label={showPwd ? "Ocultar senha" : "Mostrar senha"}>{showPwd ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+                        </div>
                       </div>
-                      <div className="login-input-wrapper">
-                        <input
-                          type={showPwdConfirm ? "text" : "password"}
-                          className="login-input login-input-icon-left"
-                          placeholder="••••••••"
-                          value={formData.password_confirm}
-                          onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })}
-                          required
-                        />
-                        <Lock className="login-input-icon" size={20} />
-                        <button
-                          type="button"
-                          className="login-input-toggle"
-                          onClick={() => setShowPwdConfirm(!showPwdConfirm)}
-                        >
-                          {showPwdConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-                      {formData.password.length > 0 && formData.password_confirm.length > 0 && formData.password !== formData.password_confirm && (
-                        <div className="text-danger small mt-1">As senhas não conferem.</div>
+                      {view === "register" && (
+                        <div className="login-input-group">
+                          <label htmlFor="password-confirm">Confirmar senha</label>
+                          <div className="login-input-wrapper">
+                            <input id="password-confirm" type={showPwdConfirm ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder="Confirme sua senha" value={formData.password_confirm} onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })} required />
+                            <Lock className="login-input-icon" size={20} />
+                            <button type="button" className="login-input-toggle" onClick={() => setShowPwdConfirm(!showPwdConfirm)} aria-label={showPwdConfirm ? "Ocultar confirmação" : "Mostrar confirmação"}>{showPwdConfirm ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+                          </div>
+                          {formData.password && formData.password_confirm && formData.password !== formData.password_confirm && <div className="password-error">As senhas não conferem.</div>}
+                        </div>
                       )}
                     </div>
                   )}
+                  {view === "login" && (
+                    <div className="login-options">
+                      <label className="remember-label"><input type="checkbox" id="remember" />Lembrar meus dados</label>
+                      <button type="button" className="btn-link-agro" onClick={() => goTo("forgot")}>Esqueci a senha?</button>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {view === "login" && (
-                <div className="d-flex justify-content-between align-items-center">
-                  <label className="d-flex align-items-center gap-2 text-muted-foreground small cursor-pointer mb-0">
-                    <input type="checkbox" className="form-check-input rounded-1" id="remember" style={{ width: '18px', height: '18px' }} />
-                    Lembrar meus dados
-                  </label>
-                  <button
-                    type="button"
-                    className="btn-link-agro small"
-                    onClick={() => goTo("forgot")}
-                  >
-                    Esqueci a senha
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="btn-login"
-                disabled={loading}
-              >
-                {loading ? (
-                  <span className="spinner-border spinner-border-sm" />
-                ) : (
-                  <>
-                    <span>
-                      {view === "login" && "Entrar na plataforma"}
-                      {view === "register" && "Criar minha conta"}
-                      {view === "forgot" && "Enviar link de acesso"}
-                    </span>
-                    <ArrowRight size={20} />
-                  </>
-                )}
-              </button>
-
-              {view === "forgot" && (
-                <div className="text-center">
-                  <button
-                    type="button"
-                    className="btn-link-agro small"
-                    onClick={() => goTo("login")}
-                  >
-                    ← Voltar para o login
-                  </button>
-                </div>
-              )}
+                <button type="submit" className="btn-login" disabled={loading}>
+                  {loading ? <span className="spinner-border spinner-border-sm" /> : <><span>{view === "login" ? "Entrar na plataforma" : view === "register" ? "Criar minha conta" : "Enviar link de acesso"}</span><ArrowRight size={21} /></>}
+                </button>
+                {view === "forgot" && <div className="login-back"><button type="button" className="btn-link-agro" onClick={() => goTo("login")}>← Voltar para o login</button></div>}
+              </form>
             </div>
-          </form>
+            {view === "login" && (
+              <>
+                <div className="login-divider"><span>ou</span></div>
+                <button type="button" className="google-login"><span className="google-g">G</span>Entrar com Google</button>
+                <p className="login-security"><Lock size={16} />Seus dados estão protegidos e são 100% seguros.</p>
+              </>
+            )}
           </div>
-        </div>
+        </section>
       </div>
-    </div>
-  </div>
+    </main>
   );
 }

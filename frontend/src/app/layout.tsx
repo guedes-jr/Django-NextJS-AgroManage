@@ -8,7 +8,7 @@ import { RouteScrollManager } from "@/components/navigation/RouteScrollManager";
 import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://agromanage.com"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fazendamais.com"),
   title: "Fazenda Mais",
   description: "Sistema de Gestão Agrícola",
   applicationName: "Fazenda Mais",

@@ -201,7 +201,8 @@ if [ ! -f ".env.production" ]; then
   echo "NEXT_PUBLIC_API_URL=/api/v1"
   echo "NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000"
   echo "NEXT_PUBLIC_APP_NAME=AgroManage"
-  echo "NEXT_PUBLIC_APP_URL=http://191.252.218.62"
+  echo "NEXT_PUBLIC_APP_URL=https://fazendamais.com"
+  echo "NEXT_PUBLIC_SITE_URL=https://fazendamais.com"
   exit 1
 fi
 
@@ -274,10 +275,10 @@ echo "Commit anterior salvo em:"
 echo "$PROJECT_DIR/.last_deploy_commit"
 echo ""
 echo "Frontend:"
-echo "http://191.252.218.62/login"
+echo "https://fazendamais.com/login"
 echo ""
 echo "Admin:"
-echo "http://191.252.218.62/admin/"
+echo "https://fazendamais.com/admin/"
 echo ""
 echo "[DEPLOY] Reiniciando backend por último para não encerrar o processo de atualização antes da conclusão..."
 run_sudo systemctl restart "$BACKEND_SERVICE"
