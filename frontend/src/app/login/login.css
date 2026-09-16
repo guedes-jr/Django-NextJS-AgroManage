@@ -2,16 +2,16 @@
   min-height: 100svh;
   display: grid;
   place-items: center;
-  padding: clamp(18px, 3vh, 32px) clamp(18px, 3vw, 48px);
+  padding: clamp(16px, 2.7vh, 24px) clamp(18px, 3vw, 44px);
   background:
     linear-gradient(rgba(246, 249, 244, .24), rgba(246, 249, 244, .24)),
     url("/login-farm-hero.png") center / cover fixed;
   font-family: Arial, Helvetica, sans-serif;
 }
 .login-card {
-  width: min(1440px, 100%);
-  height: min(952px, calc(100svh - 56px));
-  min-height: 680px;
+  width: min(1360px, 100%);
+  height: min(820px, calc(100svh - 44px));
+  min-height: 640px;
   display: grid;
   grid-template-columns: 59% 41%;
   overflow: hidden;
@@ -76,12 +76,12 @@
   letter-spacing: 1.05px;
 }
 
-.hero-copy {
+.login-page .hero-copy {
   width: min(465px, 62%);
   margin-top: clamp(28px, 5vh, 58px);
 }
 
-.hero-copy-line {
+.login-page .hero-copy-line {
   display: block;
   width: 52px;
   height: 4px;
@@ -90,7 +90,7 @@
   background: #8dc63f;
 }
 
-.hero-copy h1 {
+.login-page .hero-copy h1 {
   margin: 0;
   color: #fff;
   font-size: clamp(35px, 3.25vw, 54px);
@@ -99,8 +99,9 @@
   font-weight: 850;
 }
 
-.hero-copy h1 strong { color: #9ed52e; font-weight: 900; }
-.hero-copy p {
+.login-page .hero-copy h1 strong { color: #9ed52e; font-weight: 900; }
+.login-page .hero-copy p {
+  color: #fff;
   margin: 17px 0 0;
   max-width: 440px;
   font-size: clamp(15px, 1.2vw, 20px);
@@ -135,9 +136,11 @@
   gap: 13px;
 }
 
-.feature-card {
+.login-page .feature-card {
   position: relative;
   height: clamp(166px, 23vh, 230px);
+  min-height: 0;
+  padding: 0;
   overflow: hidden;
   border: 1px solid rgba(210, 255, 192, .48);
   border-radius: 16px;
@@ -145,23 +148,23 @@
   box-shadow: 0 8px 22px rgba(0, 28, 17, .22);
 }
 
-.feature-card-image {
+.login-page .feature-card-image {
   position: absolute;
   inset: 0;
   background: url("/login-farm-hero.png") center 63% / 345% auto no-repeat;
   filter: saturate(1.06);
 }
-.feature-card.birds .feature-card-image { background-position: 12% 72%; }
-.feature-card.cattle .feature-card-image { background-position: 53% 68%; }
-.feature-card.crops .feature-card-image { background-position: 4% 100%; }
-.feature-card::after {
+.login-page .feature-card.birds .feature-card-image { background-position: 12% 72%; }
+.login-page .feature-card.cattle .feature-card-image { background-position: 53% 68%; }
+.login-page .feature-card.crops .feature-card-image { background-position: 4% 100%; }
+.login-page .feature-card::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(0deg, rgba(0, 58, 31, .97) 0%, rgba(0, 58, 31, .7) 43%, transparent 72%);
 }
 
-.feature-card-content {
+.login-page .feature-card-content {
   position: absolute;
   z-index: 1;
   inset: auto 10px 12px;
@@ -170,9 +173,9 @@
   align-items: center;
   text-align: center;
 }
-.feature-card-content svg { margin-bottom: 4px; fill: #fff; }
-.feature-card-content strong { font-size: clamp(16px, 1.4vw, 21px); }
-.feature-card-content span { margin-top: 2px; font-size: clamp(11px, .95vw, 14px); line-height: 1.15; }
+.login-page .feature-card-content svg { margin-bottom: 4px; fill: #fff; }
+.login-page .feature-card-content strong { font-size: clamp(16px, 1.4vw, 21px); }
+.login-page .feature-card-content span { margin-top: 2px; font-size: clamp(11px, .95vw, 14px); line-height: 1.15; }
 
 .hero-benefits {
   display: grid;
@@ -413,17 +416,24 @@
   .login-security { font-size: 11px; }
 }
 
-@media (max-height: 800px) and (min-width: 901px) {
+@media (max-height: 1000px) and (min-width: 901px) {
   .login-card { min-height: 650px; }
-  .login-form-container { padding-top: 28px; padding-bottom: 28px; }
-  .auth-tabs { margin-bottom: 30px; }
-  .login-heading { margin-bottom: 26px; }
+  .login-hero-content { padding-top: 30px; padding-bottom: 24px; }
+  .login-brand-mark { width: 96px; height: 96px; }
+  .login-brand-name { font-size: clamp(44px, 3.6vw, 58px); }
+  .login-form-container { padding: 28px clamp(38px, 4vw, 56px); }
+  .auth-tabs { margin-bottom: 32px; }
+  .auth-tab { height: 52px; }
+  .login-heading { margin-bottom: 27px; }
+  .login-heading h2 { font-size: clamp(31px, 2.35vw, 37px); }
+  .login-heading p { font-size: 17px; }
   .login-fields { gap: 20px; }
   .login-input { height: 54px; }
-  .btn-login { height: 57px; margin-top: 26px; }
+  .btn-login { height: 58px; margin-top: 27px; }
   .login-divider { margin: 25px 0; }
   .google-login { height: 56px; }
-  .login-security { margin-top: 25px; }
+  .login-security { margin-top: 24px; }
   .hero-copy { margin-top: 24px; }
-  .feature-card { height: 160px; }
+  .login-page .feature-card { height: 158px; }
+  .hero-benefits { margin-top: 16px; }
 }

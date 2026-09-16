@@ -21,6 +21,30 @@ const features = [
   { icon: BarChart3, title: "Relatórios claros", text: "Transforme dados do dia a dia em decisões rápidas e confiáveis." },
 ];
 
+const fieldStories = [
+  {
+    image: "/landing-agriculture.png",
+    eyebrow: "Produção agrícola",
+    title: "Tecnologia que acompanha cada safra",
+    text: "Planejamento, operações e custos conectados ao que realmente acontece no campo.",
+    href: "/gestao-agricola",
+  },
+  {
+    image: "/landing-livestock.png",
+    eyebrow: "Gestão pecuária",
+    title: "Mais clareza sobre todo o rebanho",
+    text: "Manejo, saúde, alimentação e desempenho reunidos para decisões mais seguras.",
+    href: "/gestao-pecuaria",
+  },
+  {
+    image: "/landing-multifarm.png",
+    eyebrow: "Visão integrada",
+    title: "Toda a operação vista de cima",
+    text: "Compare unidades, centralize informações e acompanhe várias fazendas sem perder detalhes.",
+    href: "/gestao-multifazendas",
+  },
+];
+
 const audiences = [
   { icon: Tractor, title: "Produtores e propriedades", text: "Organize a rotina da propriedade e acompanhe custos, estoque e produção sem depender de várias planilhas." },
   { icon: UsersRound, title: "Equipes de campo", text: "Distribua responsabilidades e mantenha informações acessíveis para quem executa e para quem supervisiona." },
@@ -62,7 +86,7 @@ export default function MarketingHomePage() {
             <div className="hero-proof"><span><CheckCircle2 size={17} /> Implantação assistida</span><span><CheckCircle2 size={17} /> Suporte especializado</span><span><CheckCircle2 size={17} /> Dados protegidos</span></div>
           </div>
           <div className="hero-visual">
-            <Image src="/farm-hero.jpg" alt="Produção agrícola acompanhada pelo sistema Fazenda Mais" fill priority sizes="(max-width: 900px) 100vw, 46vw" />
+            <Image src="/login-farm-hero.png" alt="Produtor observando uma fazenda conectada pelo sistema Fazenda Mais" fill priority sizes="(max-width: 900px) 100vw, 46vw" />
             <div className="hero-overlay" />
             <div className="hero-floating-card top"><span>Visão da operação</span><strong>Indicadores em tempo real</strong></div>
             <div className="hero-floating-card bottom"><BarChart3 size={22} /><div><span>Decisões orientadas por dados</span><strong>Do campo ao financeiro</strong></div></div>
@@ -71,6 +95,19 @@ export default function MarketingHomePage() {
       </section>
 
       <section className="marketing-section" id="recursos"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Uma plataforma, toda a operação</div><h2>Gestão completa sem perder a simplicidade</h2><p>Informação organizada para sua equipe trabalhar melhor e você decidir com segurança.</p></div><div className="feature-grid">{features.map(({icon:Icon,title,text})=><article className="feature-card" key={title}><div className="feature-icon"><Icon size={22}/></div><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
+
+      <section className="field-stories-section">
+        <div className="marketing-container">
+          <div className="section-heading left field-stories-heading"><div className="eyebrow">Feito para a realidade do campo</div><h2>Uma visão completa, em cada frente da operação</h2><p>Da lavoura ao rebanho, o Fazenda Mais transforma a rotina produtiva em informação clara para sua equipe.</p></div>
+          <div className="field-stories-grid">
+            {fieldStories.map((story, index)=><Link href={story.href} className={`field-story-card ${index === 0 ? "featured" : ""}`} key={story.title}>
+              <Image src={story.image} alt={story.title} fill sizes={index === 0 ? "(max-width: 900px) 100vw, 58vw" : "(max-width: 900px) 100vw, 29vw"}/>
+              <span className="field-story-shade" />
+              <div className="field-story-copy"><small>{story.eyebrow}</small><h3>{story.title}</h3><p>{story.text}</p><span className="field-story-link">Conhecer solução <ArrowRight size={17}/></span></div>
+            </Link>)}
+          </div>
+        </div>
+      </section>
 
       <section className="workflow-section"><div className="marketing-container"><div className="section-heading left"><div className="eyebrow">Do cadastro à decisão</div><h2>Uma rotina simples para manter a gestão em dia</h2><p>O sistema Fazenda Mais acompanha o fluxo real da operação, transformando registros cotidianos em visão gerencial.</p></div><div className="workflow-grid"><article><span>01</span><div className="workflow-icon"><Layers3 size={23}/></div><h3>Configure sua operação</h3><p>Cadastre organização, fazendas, equipe, estruturas, rebanhos e áreas produtivas.</p></article><article><span>02</span><div className="workflow-icon"><ClipboardCheck size={23}/></div><h3>Registre o que acontece</h3><p>Centralize movimentações, manejos, custos, tarefas, compras e atividades de campo.</p></article><article><span>03</span><div className="workflow-icon"><BarChart3 size={23}/></div><h3>Acompanhe e decida</h3><p>Use indicadores e relatórios para identificar desvios, oportunidades e prioridades.</p></article></div></div></section>
 
