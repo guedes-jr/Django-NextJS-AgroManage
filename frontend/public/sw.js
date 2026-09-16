@@ -1,6 +1,11 @@
-const CACHE_NAME = "fazenda-mais-static-v1";
+const CACHE_NAME = "fazenda-mais-static-v2";
 const OFFLINE_URL = "/offline.html";
-const PRECACHE = [OFFLINE_URL, "/pwa-192x192.png", "/pwa-512x512.png"];
+const PRECACHE = [
+  OFFLINE_URL,
+  "/pwa-leaf-v2-192x192.png",
+  "/pwa-leaf-v2-512x512.png",
+  "/pwa-leaf-v2-maskable-512x512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

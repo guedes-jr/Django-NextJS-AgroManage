@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Fazenda Mais",
   description: "Sistema de Gestão Agrícola",
   applicationName: "Fazenda Mais",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.webmanifest?v=2",
   openGraph: {
     type: "website",
     locale: "pt_BR",
@@ -23,11 +23,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-leaf-v2-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-leaf-v2-32x32.png", sizes: "32x32", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png",
-    shortcut: "/favicon-32x32.png",
+    apple: "/apple-touch-icon-v2.png",
+    shortcut: "/favicon-leaf-v2-32x32.png",
   },
 };
 
@@ -43,9 +43,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" data-theme="light" data-bs-theme="light" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-leaf-v2-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-leaf-v2-16x16.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v2.png" />
       </head>
       <body suppressHydrationWarning>
         <Script id="theme-init" strategy="beforeInteractive">
