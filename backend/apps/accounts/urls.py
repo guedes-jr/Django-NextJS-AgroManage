@@ -11,6 +11,7 @@ router.register(r"users", views.UserViewSet, basename="user")
 
 urlpatterns = [
     re_path(r"^login/?$", views.login_view, name="auth_login"),
+    re_path(r"^google/?$", views.google_login_view, name="auth_google"),
     re_path(r"^register/?$", views.register_view, name="auth_register"),
     re_path(r"^password-recovery/?$", views.password_recovery_view, name="auth_password_recovery"),
     re_path(r"^logout/?$", views.logout_view, name="auth_logout"),

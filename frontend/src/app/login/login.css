@@ -345,6 +345,18 @@
   cursor: pointer;
 }
 .google-login:hover { background: #f9faf9; }
+.google-login:disabled { opacity: .55; cursor: not-allowed; }
+.google-login-slot {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity .2s;
+}
+.google-login-slot > div { width: 100% !important; }
+.google-login-slot iframe { width: 100% !important; }
+.google-login-slot.is-loading { opacity: .55; pointer-events: none; }
 .google-g {
   font-size: 27px;
   font-weight: 900;

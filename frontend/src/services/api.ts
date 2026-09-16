@@ -45,6 +45,7 @@ apiClient.interceptors.request.use(
 
       const isPublicRoute = 
         config.url?.includes("/auth/login") || 
+        config.url?.includes("/auth/google") ||
         config.url?.includes("/auth/register") || 
         config.url?.includes("/auth/password-recovery") ||
         config.url?.includes("/auth/token/refresh");
@@ -132,6 +133,7 @@ apiClient.interceptors.response.use(
         // não redirecionamos para não entrar em loop ou refresh de página.
         const isAuthRoute = 
           originalRequest.url?.includes("/auth/login") || 
+          originalRequest.url?.includes("/auth/google") ||
           originalRequest.url?.includes("/auth/register");
 
         if (!isAuthRoute && typeof window !== "undefined" && !window.location.pathname.includes("/login")) {

@@ -1,9 +1,10 @@
 "use client";
 
 import "./login.css";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Script from "next/script";
 import {
   Mail,
   Lock,
@@ -32,6 +33,42 @@ import {
 } from "@/services/affiliateTracking";
 
 type View = "login" | "register" | "forgot";
+
+interface LoginResponse {
+  access: string;
+  refresh: string;
+  user: {
+    is_platform_staff?: boolean;
+    affiliate_portal_only?: boolean;
+    theme?: unknown;
+    [key: string]: unknown;
+  };
+}
+
+interface GoogleCredentialResponse {
+  credential: string;
+}
+
+interface GoogleIdentityApi {
+  accounts: {
+    id: {
+      initialize: (config: {
+        client_id: string;
+        callback: (response: GoogleCredentialResponse) => void;
+      }) => void;
+      renderButton: (
+        parent: HTMLElement,
+        options: Record<string, string | number>,
+      ) => void;
+    };
+  };
+}
+
+declare global {
+  interface Window {
+    google?: GoogleIdentityApi;
+  }
+}
 
 const apiErrorMessage = (value: unknown): string | null => {
   if (typeof value === "string" && value.trim()) return value;
@@ -80,7 +117,10 @@ export default function LoginPage() {
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [googleReady, setGoogleReady] = useState(false);
   const affiliateTrackingRef = useRef<Promise<void> | null>(null);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -108,6 +148,68 @@ export default function LoginPage() {
     setError("");
   };
 
+  const completeLogin = useCallback(async (data: LoginResponse) => {
+    if (data.user?.is_platform_staff === true) {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user");
+      setPlatformSession(data.access, data.refresh);
+      const staff = await platformService.me();
+      localStorage.setItem(PLATFORM_STAFF, JSON.stringify(staff));
+      router.replace("/platform");
+    } else if (data.user?.affiliate_portal_only === true) {
+      clearPlatformSession();
+      localStorage.setItem("access_token", data.access);
+      localStorage.setItem("refresh_token", data.refresh);
+      localStorage.setItem("affiliate_user", JSON.stringify(data.user));
+      localStorage.setItem("user", JSON.stringify(data.user));
+      router.replace("/afiliados/painel");
+    } else {
+      clearPlatformSession();
+      localStorage.setItem("access_token", data.access);
+      localStorage.setItem("refresh_token", data.refresh);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      if (isTheme(data.user?.theme)) setTheme(data.user.theme);
+      router.replace("/home");
+    }
+  }, [router, setTheme]);
+
+  const handleGoogleCredential = useCallback(async (response: GoogleCredentialResponse) => {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await apiClient.post<LoginResponse>("/auth/google/", {
+        credential: response.credential,
+      });
+      await completeLogin(data);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: Record<string, unknown> } };
+      setError(apiErrorMessage(axiosErr.response?.data) ?? "Não foi possível entrar com o Google.");
+    } finally {
+      setLoading(false);
+    }
+  }, [completeLogin]);
+
+  useEffect(() => {
+    const target = googleButtonRef.current;
+    if (!googleReady || view !== "login" || !googleClientId || !target || !window.google) return;
+
+    target.replaceChildren();
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: (response) => void handleGoogleCredential(response),
+    });
+    window.google.accounts.id.renderButton(target, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      shape: "rectangular",
+      text: "signin_with",
+      locale: "pt-BR",
+      width: Math.max(240, Math.floor(target.getBoundingClientRect().width)),
+    });
+  }, [googleClientId, googleReady, handleGoogleCredential, view]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -115,35 +217,11 @@ export default function LoginPage() {
 
     try {
       if (view === "login") {
-        const { data } = await apiClient.post("/auth/login/", {
+        const { data } = await apiClient.post<LoginResponse>("/auth/login/", {
           email: formData.email,
           password: formData.password,
         });
-        if (data.user?.is_platform_staff === true) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          localStorage.removeItem("user");
-          setPlatformSession(data.access, data.refresh);
-          const staff = await platformService.me();
-          localStorage.setItem(PLATFORM_STAFF, JSON.stringify(staff));
-          router.replace("/platform");
-        } else if (data.user?.affiliate_portal_only === true) {
-          clearPlatformSession();
-          localStorage.setItem("access_token", data.access);
-          localStorage.setItem("refresh_token", data.refresh);
-          localStorage.setItem("affiliate_user", JSON.stringify(data.user));
-          localStorage.setItem("user", JSON.stringify(data.user));
-          router.replace("/afiliados/painel");
-        } else {
-          clearPlatformSession();
-          localStorage.setItem("access_token", data.access);
-          localStorage.setItem("refresh_token", data.refresh);
-          localStorage.setItem("user", JSON.stringify(data.user));
-          if (isTheme(data.user?.theme)) {
-            setTheme(data.user.theme);
-          }
-          router.replace("/home");
-        }
+        await completeLogin(data);
       } else if (view === "register") {
         // O tracking iniciado ao abrir o link pode ainda estar em andamento quando
         // o formulário é enviado. Aguarde-o para não cadastrar sem a atribuição.
@@ -189,6 +267,11 @@ export default function LoginPage() {
 
   return (
     <main className="login-page">
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={() => setGoogleReady(true)}
+      />
       <div className="login-card">
         <section className="login-hero" aria-label="Conheça a Fazenda Mais">
           <div className="login-hero-shade" />
@@ -291,7 +374,17 @@ export default function LoginPage() {
             {view === "login" && (
               <>
                 <div className="login-divider"><span>ou</span></div>
-                <button type="button" className="google-login"><span className="google-g">G</span>Entrar com Google</button>
+                {googleClientId ? (
+                  <div
+                    ref={googleButtonRef}
+                    className={`google-login-slot${loading ? " is-loading" : ""}`}
+                    aria-label="Entrar com Google"
+                  />
+                ) : (
+                  <button type="button" className="google-login" disabled title="Configure NEXT_PUBLIC_GOOGLE_CLIENT_ID">
+                    <span className="google-g">G</span>Entrar com Google
+                  </button>
+                )}
                 <p className="login-security"><Lock size={16} />Seus dados estão protegidos e são 100% seguros.</p>
               </>
             )}

@@ -422,6 +422,7 @@ Copie `backend/.env.example` para `backend/.env` e ajuste:
 | `DATABASE_URL` | `postgres://agro:agro@localhost:5432/agrodb` | ✅ | URL de conexão com PostgreSQL |
 | `REDIS_URL` | `redis://localhost:6379/0` | ✅ | URL do Redis (Celery/Cache) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | — | Origens CORS permitidas |
+| `GOOGLE_OAUTH_CLIENT_ID` | — | Para login Google | Client ID OAuth 2.0 do tipo Aplicativo da Web |
 
 ### Frontend (`frontend/.env.local`)
 
@@ -432,6 +433,7 @@ Copie `frontend/.env.example` para `frontend/.env.local`:
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000/api/v1` | URL base da API Django |
 | `NEXT_PUBLIC_APP_NAME` | `AgroManage` | Nome da aplicação |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | URL pública do frontend |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | — | Mesmo Client ID OAuth 2.0 configurado no backend |
 
 ---
 

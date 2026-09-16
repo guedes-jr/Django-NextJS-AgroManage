@@ -23,6 +23,11 @@ from .serializers import (
     CreateMemberSerializer,
 )
 from .tokens import issue_tokens_for_user
+from .google_oauth import (
+    GoogleOAuthConfigurationError,
+    GoogleOAuthError,
+    verify_google_credential,
+)
 
 User = get_user_model()
 
@@ -175,6 +180,60 @@ def login_view(request):
 
     refresh = issue_tokens_for_user(user)
 
+    return Response(
+        {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "user": UserSerializer(user).data,
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def google_login_view(request):
+    """Authenticate a verified Google identity and return application JWTs."""
+    try:
+        identity = verify_google_credential(str(request.data.get("credential") or ""))
+    except GoogleOAuthConfigurationError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except GoogleOAuthError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    from apps.platform_admin.operational import active_maintenance_window
+    from common.authentication import is_active_platform_staff
+
+    with transaction.atomic():
+        user = User.objects.select_for_update().filter(email__iexact=identity["email"]).first()
+        if user is None:
+            user = User.objects.create_user(
+                email=identity["email"],
+                password=None,
+                full_name=identity["name"],
+                role=User.Role.OWNER,
+            )
+
+        if not user.is_active:
+            return Response({"detail": "Usuário inativo."}, status=status.HTTP_403_FORBIDDEN)
+        if (
+            user.organization
+            and not user.organization.is_active
+            and not is_active_platform_staff(user)
+        ):
+            return Response(
+                {"detail": "Organização suspensa. Entre em contato com o suporte."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        window = active_maintenance_window()
+        if window and not is_active_platform_staff(user):
+            return Response(
+                {"detail": window.message, "code": "maintenance_mode"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        _ensure_user_organization(user)
+
+    refresh = issue_tokens_for_user(user)
     return Response(
         {
             "access": str(refresh.access_token),
