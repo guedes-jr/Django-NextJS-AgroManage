@@ -1,5 +1,10 @@
 """Validation helpers for Google Identity Services credentials."""
+import logging
+
 from django.conf import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleOAuthError(Exception):
@@ -21,8 +26,9 @@ def verify_google_credential(credential: str) -> dict[str, str]:
         from google.auth.transport import requests as google_requests
         from google.oauth2 import id_token
     except ImportError as exc:  # pragma: no cover - protected by deployment dependencies
+        logger.exception("google-auth is not installed in the backend environment")
         raise GoogleOAuthConfigurationError(
-            "Dependência de autenticação do Google não instalada."
+            "Login com Google temporariamente indisponível. Tente novamente em instantes."
         ) from exc
 
     try:
