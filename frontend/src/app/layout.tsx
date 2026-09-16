@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Fazenda Mais",
   description: "Sistema de Gestão Agrícola",
   applicationName: "Fazenda Mais",
-  manifest: "/manifest.webmanifest?v=2",
+  manifest: "/manifest.webmanifest?v=3",
   openGraph: {
     type: "website",
     locale: "pt_BR",

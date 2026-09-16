@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Fazenda Mais",
     short_name: "Fazenda Mais",
     description: "Gestão completa da fazenda, produção, rebanhos, estoque e finanças.",
-    start_url: "/",
+    start_url: "/login?source=pwa",
     scope: "/",
     display: "standalone",
     background_color: "#f7faf5",

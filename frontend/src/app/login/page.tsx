@@ -203,10 +203,10 @@ export default function LoginPage() {
       type: "standard",
       theme: "outline",
       size: "large",
-      shape: "rectangular",
+      shape: "pill",
       text: "signin_with",
       locale: "pt-BR",
-      width: Math.max(240, Math.floor(target.getBoundingClientRect().width)),
+      width: Math.min(400, Math.max(240, Math.floor(target.getBoundingClientRect().width))),
     });
   }, [googleClientId, googleReady, handleGoogleCredential, view]);
 
