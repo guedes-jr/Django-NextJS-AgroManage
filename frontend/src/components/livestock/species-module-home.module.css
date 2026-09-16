@@ -97,9 +97,9 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  min-height: 128px;
-  gap: 20px;
-  padding: 20px;
+  min-height: 104px;
+  gap: 16px;
+  padding: 16px 18px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--background);
@@ -107,11 +107,12 @@
 
 .metricIcon {
   display: grid;
-  width: 66px;
-  height: 66px;
-  flex: 0 0 66px;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
   place-items: center;
-  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--metric-color), transparent 82%);
+  border-radius: 50%;
   color: var(--metric-color);
   background: var(--metric-soft);
 }
@@ -119,8 +120,8 @@
 .metricCard[data-tone="rose"] { --metric-color: #e62f54; --metric-soft: #fff0f3; }
 .metricCard[data-tone="pink"] { --metric-color: #df2e69; --metric-soft: #fff0f5; }
 .metricCard[data-tone="amber"] { --metric-color: #e98a08; --metric-soft: #fff5e8; }
-.metricCard strong { display: block; font-size: clamp(1.55rem, 2.5vw, 2.05rem); line-height: 1; letter-spacing: -.045em; }
-.metricCard > div:last-child > span:last-child { display: block; margin-top: 11px; color: var(--muted-foreground); font-size: .88rem; font-weight: 600; }
+.metricCard strong { display: block; font-size: clamp(1.45rem, 2.2vw, 1.85rem); line-height: 1; letter-spacing: -.045em; }
+.metricCard > div:last-child > span:last-child { display: block; margin-top: 7px; color: var(--muted-foreground); font-size: .82rem; font-weight: 600; }
 
 .valueSkeleton {
   display: block;
@@ -146,16 +147,16 @@
 .moduleCard {
   display: flex;
   min-width: 0;
-  min-height: 330px;
-  padding: 28px 16px 16px;
+  min-height: 218px;
+  padding: 21px;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   border: 1px solid var(--border);
   border-radius: 16px;
   color: var(--foreground);
   background: var(--card);
   box-shadow: var(--card-premium-shadow);
-  text-align: center;
+  text-align: left;
   text-decoration: none;
   transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
@@ -178,15 +179,17 @@
 
 .moduleIcon {
   display: grid;
-  width: 92px;
-  height: 92px;
-  margin: 12px 0 38px;
+  width: 54px;
+  height: 54px;
+  margin: 0 0 20px;
   place-items: center;
-  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--module-color), transparent 82%);
+  border-radius: 15px;
   color: var(--module-color);
   background: var(--module-soft);
 }
 
+.moduleIcon svg { width: 25px; height: 25px; stroke-width: 2; }
 .moduleCopy { flex: 1; }
 .moduleCard h3 { font-size: 1.08rem; font-weight: 800; line-height: 1.25; letter-spacing: -.025em; }
 .moduleCard p { margin-top: 9px; color: var(--muted-foreground); font-size: .73rem; line-height: 1.45; }
@@ -194,15 +197,16 @@
 .moduleAction {
   display: flex;
   width: 100%;
-  min-height: 48px;
-  margin-top: 26px;
+  min-height: auto;
+  margin-top: 18px;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--module-color), transparent 76%);
-  border-radius: 10px;
+  justify-content: flex-start;
+  gap: 7px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--module-color), transparent 84%);
+  border-radius: 0;
   color: var(--module-color);
-  background: color-mix(in srgb, var(--module-soft), white 24%);
+  background: transparent;
   font-size: .82rem;
   font-weight: 800;
 }
@@ -213,7 +217,7 @@
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 1250px) {
-  .moduleCard { min-height: 330px; }
+  .moduleGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 850px) {
@@ -228,8 +232,7 @@
   .metricCard { gap: 15px; padding: 16px; }
   .metricIcon { width: 55px; height: 55px; flex-basis: 55px; }
   .moduleGrid { grid-template-columns: 1fr; }
-  .moduleCard { min-height: 285px; }
-  .moduleIcon { margin-bottom: 28px; }
+  .moduleCard { min-height: 205px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

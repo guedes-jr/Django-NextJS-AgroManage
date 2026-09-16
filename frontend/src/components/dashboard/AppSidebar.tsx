@@ -6,17 +6,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bird,
+  Bot,
   CircleDollarSign,
-  Handshake,
+  BadgePercent,
   Icon,
-  LayoutDashboard,
-  PackageOpen,
-  Sparkles,
+  PanelsTopLeft,
   Settings,
   Sprout,
   Stethoscope,
-  UsersRound,
-  Wheat,
+  UserRoundCog,
+  Warehouse,
   X,
   type LucideProps,
 } from "lucide-react";
@@ -42,6 +41,7 @@ interface SidebarItem {
   title: string;
   href: string;
   icon: SidebarIcon;
+  iconTone: "emerald" | "lime" | "rose" | "amber" | "sky" | "teal" | "orange" | "gold" | "earth" | "violet" | "blue" | "cyan";
   requiresAffiliate?: boolean;
   underDevelopment?: boolean;
 }
@@ -59,38 +59,38 @@ const sidebarSections: SidebarSection[] = [
   {
     label: "Operação",
     items: [
-      { title: "Dashboard", href: "/home", icon: LayoutDashboard },
-      { title: "Plantações", href: "/home/plantacoes", icon: Wheat },
+      { title: "Dashboard", href: "/home", icon: PanelsTopLeft, iconTone: "emerald" },
+      { title: "Plantações", href: "/home/plantacoes", icon: Sprout, iconTone: "lime" },
     ],
   },
   {
     label: "Rebanhos",
     items: [
-      { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon },
-      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, underDevelopment: true },
-      { title: "Aves", href: "/home/rebanho/aves", icon: Bird, underDevelopment: true },
-      { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope },
+      { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
+      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, iconTone: "amber", underDevelopment: true },
+      { title: "Aves", href: "/home/rebanho/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
+      { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope, iconTone: "teal" },
     ],
   },
   {
     label: "Gestão",
     items: [
-      { title: "Estoque", href: "/home/estoque/resumo", icon: PackageOpen },
-      { title: "Financeiro", href: "/home/financeiro", icon: CircleDollarSign },
-      { title: "Estrutura da fazenda", href: "/home/estrutura", icon: BarnIcon },
+      { title: "Estoque", href: "/home/estoque/resumo", icon: Warehouse, iconTone: "orange" },
+      { title: "Financeiro", href: "/home/financeiro", icon: CircleDollarSign, iconTone: "gold" },
+      { title: "Estrutura da fazenda", href: "/home/estrutura", icon: BarnIcon, iconTone: "earth" },
     ],
   },
   {
     label: "Inteligência",
     items: [
-      { title: "Assistente IA", href: "/home/assistente-ia", icon: Sparkles },
+      { title: "Assistente IA", href: "/home/assistente-ia", icon: Bot, iconTone: "violet" },
     ],
   },
   {
     label: "Administração",
     items: [
-      { title: "Equipe e usuários", href: "/home/usuarios", icon: UsersRound },
-      { title: "Área do afiliado", href: "/home/afiliados", icon: Handshake, requiresAffiliate: true },
+      { title: "Equipe e usuários", href: "/home/usuarios", icon: UserRoundCog, iconTone: "blue" },
+      { title: "Área do afiliado", href: "/home/afiliados", icon: BadgePercent, iconTone: "cyan", requiresAffiliate: true },
     ],
   },
 ];
@@ -199,8 +199,8 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                       onClick={onClose}
                       aria-current={active ? "page" : undefined}
                     >
-                      <span className="sidebar-link-icon" aria-hidden="true">
-                        <item.icon size={22} strokeWidth={active ? 2.25 : 1.9} />
+                      <span className={`sidebar-link-icon tone-${item.iconTone}`} aria-hidden="true">
+                        <item.icon size={19} strokeWidth={active ? 2.3 : 2} />
                       </span>
                       <span>{item.title}</span>
                       {item.underDevelopment && (
@@ -241,7 +241,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
           aria-current={isActive("/home/settings") ? "page" : undefined}
         >
           <span className="sidebar-link-icon" aria-hidden="true">
-            <Settings size={22} strokeWidth={isActive("/home/settings") ? 2.25 : 1.9} />
+            <Settings size={19} strokeWidth={isActive("/home/settings") ? 2.3 : 2} />
           </span>
           <span>Configurações</span>
         </Link>

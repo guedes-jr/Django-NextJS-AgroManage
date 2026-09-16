@@ -476,7 +476,6 @@ function ReproducaoPageContent() {
         ],
         tabActions: [
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso do lote", type: 'weight' },
-          { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
           { label: "Juntar Lotes", icon: "🔗", color: "oklch(0.65 0.15 270)", desc: "Unificar lotes", type: 'merge_batches' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para crescimento", type: "transfer_crescimento" },
@@ -522,7 +521,6 @@ function ReproducaoPageContent() {
         ],
         tabActions: [
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
-          { label: "Registrar Consumo", icon: "🍽️", color: "oklch(0.55 0.16 145)", desc: "Consumo de ração" },
           { label: "Lançar Medicação", icon: "💊", color: "oklch(0.6 0.22 27)", desc: "Medicação", type: 'vaccine' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para engorda", type: "transfer_engorda" },
         ],
