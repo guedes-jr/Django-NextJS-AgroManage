@@ -1141,6 +1141,80 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 )
             raise
 
+    @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
+    def registrar_mortalidade(self, request, pk=None):
+        """Registra mortes em um lote e baixa a quantidade disponível."""
+        try:
+            quantidade = int(request.data.get('quantidade', 0))
+        except (TypeError, ValueError):
+            return Response(
+                {'quantidade': 'Informe uma quantidade válida.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if quantidade <= 0:
+            return Response(
+                {'quantidade': 'A quantidade deve ser maior que zero.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data_evento_raw = request.data.get('data')
+        try:
+            data_evento = (
+                datetime.date.fromisoformat(data_evento_raw)
+                if data_evento_raw
+                else timezone.localdate()
+            )
+        except (TypeError, ValueError):
+            return Response(
+                {'data': 'Informe uma data válida.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            batch = self.get_queryset().select_for_update().filter(pk=pk).first()
+            if batch is None:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            if quantidade > batch.quantity:
+                return Response(
+                    {'quantidade': f'O lote possui somente {batch.quantity} animais.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            quantidade_anterior = batch.quantity
+            batch.quantity -= quantidade
+            update_fields = ['quantity', 'updated_at']
+            if batch.quantity == 0:
+                batch.status = AnimalBatch.Status.DEAD
+                batch.exit_date = data_evento
+                update_fields.extend(['status', 'exit_date'])
+            batch.save(update_fields=update_fields)
+
+            causa = str(request.data.get('causa') or 'Não informada')
+            observacao = str(request.data.get('observacao') or '').strip()
+            HistoricoEvento.objects.create(
+                farm=batch.farm,
+                lote=batch,
+                tipo_evento='Mortalidade de Lote',
+                descricao=(
+                    f'{quantidade} morte(s) registrada(s) no lote {batch.batch_code}. '
+                    f'Causa: {causa}.'
+                ),
+                data_evento=data_evento,
+                metadata={
+                    'quantidade_mortes': quantidade,
+                    'quantidade_anterior': quantidade_anterior,
+                    'quantidade_atual': batch.quantity,
+                    'causa': causa,
+                    'observacao': observacao,
+                },
+            )
+
+        return Response({
+            'message': 'Mortalidade registrada com sucesso.',
+            'batch': AnimalBatchSerializer(batch).data,
+        })
+
     @action(detail=True, methods=['get'])
     def history(self, request, pk=None):
         """Retorna o histórico completo do lote, incluindo fases, consumo de ração e pesagens reais."""

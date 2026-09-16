@@ -12,7 +12,7 @@ export function MarketingHeader() {
   return <header className="marketing-header">
     <div className="marketing-container header-inner">
       <Link href="/" className="marketing-brand" aria-label="Fazenda Mais - início">
-        <Image src="/logo_primary.png" alt="" width={38} height={38} priority />
+        <Image src="/logo_agro_leaf.png" alt="" width={38} height={38} priority />
         <span>Fazenda <strong>Mais</strong></span>
       </Link>
       <button className="marketing-menu-toggle" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Abrir menu">

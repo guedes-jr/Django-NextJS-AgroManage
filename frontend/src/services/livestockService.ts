@@ -106,6 +106,11 @@ export const updateAnimalBatch = async (id: number, data: any) => {
   return response.data;
 };
 
+export const registerBatchMortality = async (id: number | string, data: { quantidade: number; data: string; causa: string; observacao?: string }) => {
+  const response = await apiClient.post(`/livestock/batches/${id}/registrar-mortalidade/`, data);
+  return response.data;
+};
+
 export const updateAnimal = async (id: number, data: any) => {
   const response = await apiClient.patch(`/livestock/animals/${id}/`, data);
   return response.data;

@@ -62,7 +62,7 @@ export interface TabConfig {
     icon: string; 
     color: string; 
     desc: string; 
-    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet';
+    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet' | 'batch_mortality' | 'sale_redirect';
     onClick?: () => void;
   }[];
   tabAlerts?: AlertItem[];
@@ -127,7 +127,6 @@ function DashboardTabContent({
             return <button key={`${targetId}-${step.label}`} className="repro-phase-card" onClick={() => onTabChange(targetId)} style={{ "--phase-accent": step.accent ?? step.borderColor, "--phase-soft": step.color } as React.CSSProperties}>
               <div className="repro-phase-photo">
                 {step.image ? <Image src={step.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 25vw" /> : <span className="repro-phase-placeholder">{step.icon}</span>}
-                <span className="repro-phase-icon" aria-hidden="true">{step.icon}</span>
               </div>
               <div className="repro-phase-body">
                 <div className="repro-phase-copy">
@@ -221,6 +220,7 @@ import {
   updateAnimal,
   createAnimalBatch,
   updateAnimalBatch,
+  registerBatchMortality,
   changeBatchPhase,
   updatePregnancy,
   fetchAnimalDetails,
@@ -558,6 +558,54 @@ export function ReproducaoDashboard({
     })).filter(o => o.value);
 
     switch (action.type) {
+      case 'sale_redirect':
+        router.push(`/home/rebanho/${config.especie}/vendas`);
+        break;
+      case 'batch_mortality': {
+        const availableRows = rows.length > 0 ? rows : (currentTab?.rows || []);
+        const batchOptions = availableRows.map(r => ({
+          value: String(r.id || r.pk || ""),
+          label: String(r.lote || r.batch_code || r.name || r.id || "Lote"),
+        })).filter(option => option.value);
+        setActionModal({
+          open: true,
+          title: "Registrar Mortalidade",
+          subtitle: "A quantidade informada será baixada do lote selecionado.",
+          fields: [
+            {
+              name: "id",
+              label: "Lote",
+              type: batchOptions.length > 0 ? "select" : "text",
+              options: batchOptions,
+              initialValue: batchOptions.length === 1 ? batchOptions[0].value : undefined,
+              required: true,
+            },
+            { name: "quantidade", label: "Quantidade de animais mortos", type: "number", required: true },
+            { name: "data", label: "Data da ocorrência", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "causa", label: "Causa provável", type: "select", required: true, options: [
+              { value: "DOENCA", label: "Doença" },
+              { value: "ACIDENTE", label: "Acidente" },
+              { value: "ESMAGAMENTO", label: "Esmagamento" },
+              { value: "REFUGO", label: "Baixo desenvolvimento / Refugo" },
+              { value: "DESCONHECIDA", label: "Causa desconhecida" },
+              { value: "OUTRA", label: "Outra" },
+            ] },
+            { name: "observacao", label: "Observações", type: "textarea" },
+          ],
+          onConfirm: async (data) => {
+            await registerBatchMortality(data.id, {
+              quantidade: Number(data.quantidade),
+              data: data.data,
+              causa: data.causa,
+              observacao: data.observacao,
+            });
+            showToast("Mortalidade registrada e quantidade do lote atualizada.", "success");
+            onSuccess?.();
+            setActionModal(prev => ({ ...prev, open: false }));
+          },
+        });
+        break;
+      }
       case 'weight':
         setActionModal({
           open: true,

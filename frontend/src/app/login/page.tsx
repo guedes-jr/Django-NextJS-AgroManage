@@ -194,7 +194,7 @@ export default function LoginPage() {
           <div className="login-hero-shade" />
           <div className="login-hero-content">
             <header className="login-brand">
-              <Image src="/logo_primary.png" alt="" width={116} height={116} className="login-brand-mark" priority />
+              <Image src="/logo_agro_leaf.png" alt="" width={116} height={116} className="login-brand-mark" priority />
               <div><div className="login-brand-name">Fazenda<span>+</span></div><div className="login-brand-tagline">TECNOLOGIA QUE TRANSFORMA GESTÃO EM RESULTADOS</div></div>
             </header>
             <div className="hero-copy">

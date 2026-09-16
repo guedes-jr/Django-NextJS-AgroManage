@@ -477,6 +477,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso do lote", type: 'weight' },
           { label: "Registrar Vacina", icon: "💉", color: "oklch(0.6 0.22 27)", desc: "Vacinação", type: 'vaccine' },
+          { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.58 0.2 25)", desc: "Dar baixa no lote", type: 'batch_mortality' },
           { label: "Juntar Lotes", icon: "🔗", color: "oklch(0.65 0.15 270)", desc: "Unificar lotes", type: 'merge_batches' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para crescimento", type: "transfer_crescimento" },
         ],
@@ -522,6 +523,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Atualizar peso", type: 'weight' },
           { label: "Lançar Medicação", icon: "💊", color: "oklch(0.6 0.22 27)", desc: "Medicação", type: 'vaccine' },
+          { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.58 0.2 25)", desc: "Dar baixa no lote", type: 'batch_mortality' },
           { label: "Transferir", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Para engorda", type: "transfer_engorda" },
         ],
         tabAlerts: tab.crescimento?.alerts || [],
@@ -558,7 +560,7 @@ function ReproducaoPageContent() {
         selectable: true,
         rowKey: "lote",
         batchActions: [
-          { label: "Registrar Venda", icon: "💰", variant: "primary", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimalBatch(r.id as number, { status: "sold" }))); refetchTabs(["engorda", "dashboard"], false, true); showToast(`Venda registrada para ${rows.length} lotes!`, "success"); } },
+          { label: "Registrar Venda", icon: "💰", variant: "primary", onClick: () => router.push("/home/rebanho/suinos/vendas") },
           { label: "Encerrar Lotes", icon: "🔒", variant: "danger", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimalBatch(r.id as number, { status: "finished" }))); refetchTabs(["engorda", "dashboard"], false, true); showToast(`${rows.length} lotes encerrados.`, "success"); } },
         ],
         kpis: [
@@ -570,8 +572,8 @@ function ReproducaoPageContent() {
           { label: "Valor Estimado", value: eng.valor_estimado ? `R$ ${Number(eng.valor_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "—", icon: "💲", color: "oklch(0.55 0.12 230)", trend: "neutral" },
         ],
         tabActions: [
-          { label: "Registrar Venda", icon: "💰", color: "oklch(0.55 0.16 145)", desc: "Registrar venda" },
-          { label: "Atualizar Preço", icon: "💲", color: "oklch(0.55 0.16 230)", desc: "Preço por kg" },
+          { label: "Registrar Venda", icon: "💰", color: "oklch(0.55 0.16 145)", desc: "Ir para vendas de animais", type: 'sale_redirect' },
+          { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.58 0.2 25)", desc: "Dar baixa no lote", type: 'batch_mortality' },
           { label: "Encerrar Lote", icon: "🔒", color: "oklch(0.6 0.22 27)", desc: "Finalizar lote" },
           { label: "Resumo Financeiro", icon: "📊", color: "oklch(0.78 0.15 85)", desc: "Ver resultados" },
         ],
@@ -601,7 +603,7 @@ function ReproducaoPageContent() {
         },
       } as any,
     ],
-  }), [tab, d, m, mat, g, matn, cr, cresc, eng, tabLoadingStates, reproducers, activeTab, showToast, refetchTabs, setActiveTab]);
+  }), [tab, d, m, mat, g, matn, cr, cresc, eng, tabLoadingStates, reproducers, activeTab, showToast, refetchTabs, router, setActiveTab]);
 
   const handleSuccess = () => {
     refetchTabs(["dashboard", "marras", "matrizes", "gestacao", "maternidade", "creche", "crescimento", "engorda"], false, true);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KpiCard } from "./ReproducaoKpiCards";
+import { KpiCard, ReproductionIcon } from "./ReproducaoKpiCards";
 import {
   DataTable,
   BatchAction,
@@ -116,7 +116,7 @@ export function ReproducaoTabContent({
   return (
     <div>
       {kpis && kpis.length > 0 && (
-        <div className="row g-3 mb-5">
+        <div className="repro-tab-kpi-grid">
           {kpis.map((k, i) => {
             const trendStyles: Record<string, { bg: string; text: string; symbol: string }> = {
               up:      { bg: "oklch(0.95 0.05 145)", text: "oklch(0.45 0.15 145)", symbol: "↑" },
@@ -125,14 +125,13 @@ export function ReproducaoTabContent({
             };
             const trend = trendStyles[k.trend ?? "neutral"];
             return (
-              <div key={i} className="col-12 col-sm-6 col-lg">
-                <div className="dashboard-card p-3 border border-border bg-background shadow-sm h-100">
-                  <div className="d-flex align-items-center gap-3 mb-3">
+              <div key={i} className="repro-tab-kpi-card">
+                  <div className="d-flex align-items-center gap-3">
                     <div
-                      className="p-2 rounded-lg d-flex align-items-center justify-content-center"
+                      className="repro-tab-kpi-icon"
                       style={{ background: k.color, color: k.color.replace('0.95', '0.45').replace('0.96', '0.5'), width: 40, height: 40 }}
                     >
-                      <span style={{ fontSize: '1.1rem' }}>{k.icon}</span>
+                      <ReproductionIcon icon={k.icon} size={20} />
                     </div>
                     <div className="flex-grow-1">
                       <div className="h4 fw-black mb-0">{k.value}</div>
@@ -155,7 +154,6 @@ export function ReproducaoTabContent({
                       </span>
                     )}
                   </div>
-                </div>
               </div>
             );
           })}

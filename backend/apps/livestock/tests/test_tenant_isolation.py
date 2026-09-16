@@ -200,6 +200,54 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.data["total_animals"], 11)
         self.assertEqual(response.data["active_females"], 11)
 
+    def test_batch_mortality_reduces_quantity_and_records_history(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="CRECHE-01",
+            quantity=10,
+            entry_date=date.today(),
+            phase=AnimalBatch.Phase.CRECHE,
+        )
+
+        response = self.client.post(
+            reverse("animalbatch-registrar-mortalidade", args=[batch.id]),
+            {
+                "quantidade": 2,
+                "data": date.today().isoformat(),
+                "causa": "DOENCA",
+                "observacao": "Ocorrência confirmada pelo responsável.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 8)
+        history = HistoricoEvento.objects.get(lote=batch, tipo_evento="Mortalidade de Lote")
+        self.assertEqual(history.metadata["quantidade_mortes"], 2)
+        self.assertEqual(history.metadata["quantidade_atual"], 8)
+
+    def test_batch_mortality_rejects_quantity_above_available(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="CRESC-01",
+            quantity=3,
+            entry_date=date.today(),
+            phase=AnimalBatch.Phase.CRESCIMENTO,
+        )
+
+        response = self.client.post(
+            reverse("animalbatch-registrar-mortalidade", args=[batch.id]),
+            {"quantidade": 4, "causa": "DESCONHECIDA"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 3)
+
     def test_reproduction_dashboard_alerts_upcoming_predicted_heat(self):
         predicted_date = date.today() + timedelta(days=15)
         HeatRecord.objects.create(
