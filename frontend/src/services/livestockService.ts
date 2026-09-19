@@ -5,6 +5,14 @@ export const getReproductionDashboard = async (species: string) => {
   return response.data;
 };
 
+export const acknowledgeOperationalAlert = async (alertKey: string, alertText: string) => {
+  const response = await apiClient.post("/livestock/dashboard/reproduction/acknowledge-alert/", {
+    alert_key: alertKey,
+    alert_text: alertText,
+  });
+  return response.data;
+};
+
 export const getMarras = async (species: string, page = 1, pageSize = 50) => {
   const response = await apiClient.get(`/livestock/marras/?species=${species}&page=${page}&page_size=${pageSize}`);
   return response.data;

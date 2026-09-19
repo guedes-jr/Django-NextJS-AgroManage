@@ -2,99 +2,47 @@
 
 import notificationService from "./notificationService";
 
+function urlBase64ToUint8Array(value: string) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(window.atob(base64), character => character.charCodeAt(0));
+}
+
 class PushNotificationService {
-  private permission: NotificationPermission = "default";
-  private pollingInterval: NodeJS.Timeout | null = null;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
   async requestPermission(): Promise<boolean> {
-    if (!("Notification" in window)) {
-      console.log("Este navegador não suporta notificações");
-      return false;
-    }
-
-    if (Notification.permission === "granted") {
-      this.permission = "granted";
-      return true;
-    }
-
-    if (Notification.permission !== "denied") {
-      this.permission = await Notification.requestPermission();
-      return this.permission === "granted";
-    }
-
-    return false;
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+    if (permission !== "granted") return false;
+    const { public_key } = await notificationService.getPushConfig();
+    if (!public_key) return false;
+    const registration = await navigator.serviceWorker.register("/notification-sw.js");
+    const existing = await registration.pushManager.getSubscription();
+    const subscription = existing || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(public_key) });
+    const json = subscription.toJSON();
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) return false;
+    await notificationService.savePushSubscription({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth });
+    return true;
   }
 
-  async showNotification(title: string, options?: NotificationOptions): Promise<void> {
-    if (this.permission !== "granted") {
-      const granted = await this.requestPermission();
-      if (!granted) return;
-    }
-
-    const notification = new Notification(title, {
-      icon: "/logo.png",
-      badge: "/logo.png",
-      ...options,
-    });
-
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-      if (options?.data?.link) {
-        window.location.href = options.data.link;
-      }
-    };
-  }
-
-  startPolling(intervalMs: number = 30000, onNewNotification?: (count: number) => void): void {
-    if (this.pollingInterval) {
-      this.stopPolling();
-    }
-
-    let lastCount = 0;
-
-    const checkNotifications = async () => {
+  startPolling(intervalMs = 30000, onNewNotification?: (count: number) => void): void {
+    this.stopPolling();
+    let lastCount = -1;
+    const check = async () => {
       try {
         const { unread_count } = await notificationService.getUnreadCount();
-        
-        if (unread_count > 0 && unread_count > lastCount && onNewNotification) {
-          onNewNotification(unread_count);
-          
-          const notifications = await notificationService.getAll();
-          if (notifications.length > 0) {
-            const latest = notifications[0];
-            this.showNotification(latest.title, {
-              body: latest.message,
-              data: { link: latest.link }
-            });
-          }
-        }
-        
+        if (lastCount >= 0 && unread_count > lastCount) onNewNotification?.(unread_count);
         lastCount = unread_count;
-      } catch (error) {
-        console.error("Polling error:", error);
-      }
+      } catch (error) { console.error("Notification polling error:", error); }
     };
-
-    checkNotifications();
-    this.pollingInterval = setInterval(checkNotifications, intervalMs);
+    void check();
+    this.pollingInterval = setInterval(() => void check(), intervalMs);
   }
 
-  stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-    }
-  }
-
-  isSupported(): boolean {
-    return "Notification" in window;
-  }
-
-  getPermissionStatus(): NotificationPermission {
-    if (!("Notification" in window)) return "denied";
-    return Notification.permission;
-  }
+  stopPolling() { if (this.pollingInterval) clearInterval(this.pollingInterval); this.pollingInterval = null; }
+  isSupported() { return typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window; }
+  getPermissionStatus(): NotificationPermission { return typeof window !== "undefined" && "Notification" in window ? Notification.permission : "denied"; }
 }
 
 export const pushService = new PushNotificationService();

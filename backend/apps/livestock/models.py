@@ -3,6 +3,7 @@ Livestock domain models — species, breeds, animals, batches.
 Generic model supports cattle, swine, poultry, sheep and more.
 """
 from common.models import BaseModel
+from django.conf import settings
 from django.db import models
 
 
@@ -983,3 +984,32 @@ class LitterMedication(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.medicamento} — Leitegada {self.birth_id} em {self.data_aplicacao}"
+
+
+class AcknowledgedOperationalAlert(BaseModel):
+    """Alerta calculado que um usuário confirmou como tratado."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="acknowledged_operational_alerts",
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="acknowledged_operational_alerts",
+    )
+    alert_key = models.CharField(max_length=64)
+    alert_text = models.CharField(max_length=500, blank=True)
+    acknowledged_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Alerta operacional confirmado"
+        verbose_name_plural = "Alertas operacionais confirmados"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "organization", "alert_key"),
+                name="uniq_user_operational_alert_ack",
+            )
+        ]
+        indexes = [models.Index(fields=("user", "organization", "alert_key"))]

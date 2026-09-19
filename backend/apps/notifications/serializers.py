@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Notification, NotificationPreference, NotificationTemplate, NotificationType, NotificationPriority
+from .models import Notification, NotificationPreference, NotificationTemplate, NotificationType, NotificationPriority, PushSubscription
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -7,9 +7,10 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = [
             "id", "type", "priority", "title", "message", 
-            "link", "is_read", "read_at", "created_at"
+            "link", "is_read", "read_at", "event_key", "occurrence_count", "last_occurred_at",
+            "is_archived", "archived_at", "created_at"
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "event_key", "occurrence_count", "last_occurred_at", "archived_at", "created_at"]
 
 
 class NotificationPreferenceSerializer(serializers.ModelSerializer):
@@ -43,3 +44,10 @@ class NotificationCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200)
     message = serializers.CharField()
     link = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class PushSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PushSubscription
+        fields = ["id", "endpoint", "p256dh", "auth", "user_agent", "created_at"]
+        read_only_fields = ["id", "user_agent", "created_at"]

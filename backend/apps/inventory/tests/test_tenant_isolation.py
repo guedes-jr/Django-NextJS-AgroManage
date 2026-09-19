@@ -1,11 +1,12 @@
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.inventory.models import Fornecedor, ItemEstoque, LoteEstoque, MovimentacaoEstoque
+from apps.inventory.models import Fornecedor, FormulaRacao, ItemEstoque, LoteEstoque, MovimentacaoEstoque
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -115,6 +116,66 @@ class InventoryTenantIsolationTestCase(APITestCase):
             self.client.delete(reverse("inventory-movimentacoes-detail", args=[own.id])).status_code,
             status.HTTP_403_FORBIDDEN,
         )
+
+    def test_movement_category_filter_exposes_semen_quantity_and_cost(self):
+        semen = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Sêmen suíno",
+            categoria="semen",
+            unidade_medida="dose",
+        )
+        lot = LoteEstoque.objects.create(
+            item=semen,
+            numero_lote="SEM-001",
+            quantidade_inicial=Decimal("10.00"),
+            quantidade_atual=Decimal("9.00"),
+            custo_unitario=Decimal("25.00"),
+            data_entrada=date.today(),
+        )
+        movement = MovimentacaoEstoque.objects.create(
+            item=semen,
+            lote=lot,
+            tipo="consumo",
+            quantidade=Decimal("1.00"),
+            responsavel=self.user_a,
+            observacao="Consumo automático por inseminação artificial.",
+        )
+
+        response = self.client.get(
+            reverse("inventory-movimentacoes-list"),
+            {"tipo": "consumo", "categoria": "semen"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["id"] for row in response.data["results"]], [str(movement.id)])
+        self.assertEqual(response.data["results"][0]["item_categoria"], "semen")
+        self.assertEqual(response.data["results"][0]["item_unidade"], "dose")
+        self.assertEqual(response.data["results"][0]["quantidade"], "1.00")
+        self.assertEqual(response.data["results"][0]["custo_total"], "25.0000")
+
+    def test_feed_filter_includes_product_generated_by_active_formula(self):
+        produced_feed = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Ração produzida na fábrica",
+            categoria="outro",
+            unidade_medida="kg",
+        )
+        FormulaRacao.objects.create(
+            organization=self.org_a,
+            nome="Ração crescimento",
+            especie_animal="suino",
+            item_final=produced_feed,
+            ativa=True,
+        )
+        self.make_lot(produced_feed, "PROD-FABRICA-001")
+
+        response = self.client.get(
+            reverse("inventory-items-all-items"), {"categoria": "racao"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {str(item["id"]) for item in response.data}
+        self.assertIn(str(produced_feed.id), ids)
+        self.assertIn(str(self.item_a.id), ids)
+        self.assertNotIn(str(self.item_b.id), ids)
 
     def test_vaccine_filter_includes_combined_medicine_vaccine_category(self):
         combined = ItemEstoque.objects.create(

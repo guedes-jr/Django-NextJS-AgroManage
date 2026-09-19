@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import { Bell, CheckCheck, Trash2, Loader2, AlertTriangle, Package, Beef, Receipt, FileText } from "lucide-react";
 import useNotifications from "@/hooks/useNotifications";
 
 interface Props {
   onClose: () => void;
-  onRefresh: () => void;
 }
 
 const typeIcons: Record<string, React.ReactNode> = {
@@ -24,7 +22,7 @@ const priorityColors: Record<string, string> = {
   urgent: "text-danger",
 };
 
-export default function NotificationDropdown({ onClose, onRefresh }: Props) {
+export default function NotificationDropdown({ onClose }: Props) {
   const {
     notifications,
     unreadCount,
@@ -33,10 +31,7 @@ export default function NotificationDropdown({ onClose, onRefresh }: Props) {
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
-
-  useEffect(() => {
-    onRefresh();
-  }, [onRefresh]);
+  const activeNotifications = notifications.filter(notification => !notification.is_archived);
 
   return (
     <>
@@ -67,13 +62,13 @@ export default function NotificationDropdown({ onClose, onRefresh }: Props) {
             <div className="d-flex justify-content-center align-items-center py-5">
               <Loader2 className="animate-spin text-primary" size={24} />
             </div>
-          ) : notifications.length === 0 ? (
+          ) : activeNotifications.length === 0 ? (
             <div className="text-center py-5 text-muted">
               <Bell size={32} className="mb-2 opacity-50" />
               <p className="small mb-0">Nenhuma notificação</p>
             </div>
           ) : (
-            notifications.map((notification) => (
+            activeNotifications.slice(0, 20).map((notification) => (
               <div
                 key={notification.id}
                 className={`p-3 border-bottom notification-item ${!notification.is_read ? "bg-primary/5" : ""}`}

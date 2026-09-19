@@ -1,6 +1,7 @@
 export { default as NotificationBell } from "./NotificationBell";
 export { default as NotificationDropdown } from "./NotificationDropdown";
 export { default as NotificationPreferences } from "./NotificationPreferences";
+export { NotificationProvider } from "./NotificationProvider";
 export { ToastProvider, useToast } from "./Toast";
 export { notificationService } from "@/services/notificationService";
 export { pushService } from "@/services/pushNotificationService";

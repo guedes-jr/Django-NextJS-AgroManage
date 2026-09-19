@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, BellRing, CalendarDays, CheckCircle2, ChevronRight, Loader2, Sparkles, Syringe } from "lucide-react";
-import { getReproductionDashboard } from "@/services/livestockService";
+import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
 import styles from "./swine-overview-insights.module.css";
 
-type AlertItem = { text?: string; time?: string; type?: string };
-type SuggestionItem = { text?: string };
+type AlertItem = { alert_key?: string; text?: string; time?: string; type?: string };
+type SuggestionItem = { alert_key?: string; text?: string };
 type ReproductionOverview = {
   kpis?: { aguardando_cobertura?: number; gestantes?: number };
   alerts?: AlertItem[];
@@ -16,6 +16,7 @@ type ReproductionOverview = {
 export function SwineOverviewInsights() {
   const [data, setData] = useState<ReproductionOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -40,6 +41,21 @@ export function SwineOverviewInsights() {
   const alerts = data?.alerts || [];
   const suggestions = data?.aiSuggestions || [];
 
+  const confirmAlert = async (item: AlertItem | SuggestionItem) => {
+    if (!item.alert_key || confirming) return;
+    setConfirming(item.alert_key);
+    try {
+      await acknowledgeOperationalAlert(item.alert_key, item.text || "");
+      setData((current) => current ? {
+        ...current,
+        alerts: (current.alerts || []).filter((alert) => alert.alert_key !== item.alert_key),
+        aiSuggestions: (current.aiSuggestions || []).filter((suggestion) => suggestion.alert_key !== item.alert_key),
+      } : current);
+    } finally {
+      setConfirming(null);
+    }
+  };
+
   return (
     <section className={styles.section} aria-labelledby="swine-attention-title">
       <div className={styles.heading}><div><span>Acompanhamento</span><h2 id="swine-attention-title">Agenda, atividades e alertas</h2></div><p>Informações prioritárias do manejo reprodutivo.</p></div>
@@ -56,9 +72,9 @@ export function SwineOverviewInsights() {
           <article className={styles.card}>
             <header><span><BellRing size={19}/> Alertas do sistema <i>{alerts.length + suggestions.length}</i></span></header>
             <div className={styles.list}>
-              {alerts.slice(0, 3).map((alert, index) => <div className={styles.alert} data-danger={alert.type === "danger"} key={`${alert.text}-${index}`}><AlertTriangle size={20}/><div><strong>{alert.text}</strong><small>{alert.time || "Requer atenção"}</small></div><ChevronRight size={17}/></div>)}
+              {alerts.slice(0, 3).map((alert, index) => <div className={styles.alert} data-danger={alert.type === "danger"} key={alert.alert_key || `${alert.text}-${index}`}><AlertTriangle size={20}/><div><strong>{alert.text}</strong><small>{alert.time || "Requer atenção"}</small></div><button className="btn btn-sm border-0 p-1" style={{ color: "inherit", fontSize: "1.05rem" }} disabled={!alert.alert_key || confirming === alert.alert_key} onClick={() => void confirmAlert(alert)} title="Confirmar que este alerta foi tratado" aria-label="Confirmar alerta tratado"><span aria-hidden="true">🆗</span></button></div>)}
               {!alerts.length && !suggestions.length && <div className={styles.clear}><Sparkles size={23}/><div><strong>Tudo sob controle</strong><small>Nenhum alerta crítico neste momento.</small></div></div>}
-              {suggestions.slice(0, 1).map((item, index) => <div className={styles.suggestion} key={index}><Syringe size={20}/><div><strong>{item.text}</strong><small>Sugestão do sistema</small></div><ChevronRight size={17}/></div>)}
+              {suggestions.slice(0, 1).map((item, index) => <div className={styles.suggestion} key={item.alert_key || index}><Syringe size={20}/><div><strong>{item.text}</strong><small>Sugestão do sistema</small></div><button className="btn btn-sm border-0 p-1" style={{ color: "inherit", fontSize: "1.05rem" }} disabled={!item.alert_key || confirming === item.alert_key} onClick={() => void confirmAlert(item)} title="Confirmar que esta orientação foi atendida" aria-label="Confirmar orientação atendida"><span aria-hidden="true">🆗</span></button></div>)}
             </div>
           </article>
         </div>

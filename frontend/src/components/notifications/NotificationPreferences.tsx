@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Save, Loader2, Bell, Package, Beef, Receipt, FileText } from "lucide-react";
 import notificationService, { NotificationPreference } from "@/services/notificationService";
+import pushService from "@/services/pushNotificationService";
 
 interface Props {
   onSuccess?: (message: string) => void;
@@ -27,7 +28,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
   };
 
   useEffect(() => {
-    fetchPreferences();
+    const timeout = window.setTimeout(() => void fetchPreferences(), 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   const handleSave = async () => {
@@ -35,6 +37,7 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
     setSaving(true);
     try {
       await notificationService.updatePreferences(preferences);
+      if (preferences.push_notifications) await pushService.requestPermission();
       onSuccess?.("Preferências salvas!");
     } catch (err) {
       console.error("Error saving preferences:", err);
@@ -77,6 +80,10 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
           <label className="form-check-label small" htmlFor="email_notifications">
             Ativar notificações por email
           </label>
+        </div>
+        <div className="form-check form-switch mt-3 pt-3 border-top">
+          <input className="form-check-input" type="checkbox" id="push_notifications" checked={preferences.push_notifications} onChange={e => setPreferences({...preferences, push_notifications:e.target.checked})}/>
+          <label className="form-check-label small" htmlFor="push_notifications"><strong>Notificações no navegador</strong><span className="d-block text-muted extra-small">Receba atualizações mesmo quando o sistema não estiver aberto.</span></label>
         </div>
       </div>
 

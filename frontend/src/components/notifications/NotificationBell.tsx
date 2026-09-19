@@ -9,11 +9,17 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const { unreadCount, fetchNotifications } = useNotifications();
 
+  const toggleDropdown = () => {
+    const opening = !isOpen;
+    setIsOpen(opening);
+    if (opening) void fetchNotifications();
+  };
+
   return (
     <div className="position-relative">
       <button
         className="btn-icon-muted p-2"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         style={{ background: "transparent", border: "none", cursor: "pointer" }}
         aria-label="Notificações"
       >
@@ -29,10 +35,7 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <NotificationDropdown
-          onClose={() => setIsOpen(false)}
-          onRefresh={fetchNotifications}
-        />
+        <NotificationDropdown onClose={() => setIsOpen(false)} />
       )}
     </div>
   );

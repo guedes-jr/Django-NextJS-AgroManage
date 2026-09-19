@@ -5,6 +5,9 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from .models import Notification, NotificationPreference
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class EmailNotificationService:
@@ -18,7 +21,7 @@ class EmailNotificationService:
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         
         if not pref.email_notifications:
-            return
+            return False
         
         # Check if this notification type is enabled
         type_mapping = {
@@ -33,6 +36,7 @@ class EmailNotificationService:
 
         subject = f"[Fazenda Mais] {notification.title}"
         message = notification.message
+        html_content = render_to_string("notifications/instant.html", {"user": user, "notification": notification})
 
         try:
             send_mail(
@@ -40,10 +44,13 @@ class EmailNotificationService:
                 message=message,
                 from_email=settings.DEFAULT_FROM_EMAIL or "noreply@agromanage.com",
                 recipient_list=[user.email],
+                html_message=html_content,
                 fail_silently=False,
             )
+            return True
         except Exception as e:
-            print(f"Error sending email notification: {e}")
+            logger.exception("Falha ao enviar notificação por e-mail para %s", user.email)
+            return False
 
     @staticmethod
     def send_daily_digest(user):
@@ -83,7 +90,7 @@ class EmailNotificationService:
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"Error sending daily digest: {e}")
+            logger.exception("Falha ao enviar resumo diário para %s", user.email)
 
     @staticmethod
     def send_weekly_digest(user):
@@ -123,7 +130,7 @@ class EmailNotificationService:
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"Error sending weekly digest: {e}")
+            logger.exception("Falha ao enviar resumo semanal para %s", user.email)
 
 
 # Import timezone after to avoid circular import

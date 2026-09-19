@@ -269,6 +269,8 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
 
 class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     item_nome = serializers.CharField(source="item.nome", read_only=True)
+    item_categoria = serializers.CharField(source="item.categoria", read_only=True)
+    item_unidade = serializers.CharField(source="item.unidade_medida", read_only=True)
     tipo_display = serializers.CharField(source="get_tipo_display", read_only=True)
     responsavel_nome = serializers.SerializerMethodField()
     custo_unitario_movimento = serializers.SerializerMethodField()
@@ -315,7 +317,7 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     class Meta:
         model = MovimentacaoEstoque
         fields = [
-            "id", "item", "item_nome", "lote",
+            "id", "item", "item_nome", "item_categoria", "item_unidade", "lote",
             "tipo", "tipo_display", "quantidade",
             "data_movimentacao",
             "responsavel", "responsavel_nome",

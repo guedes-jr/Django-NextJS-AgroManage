@@ -7,7 +7,7 @@ from .views import (
     MarrasView, MatrizesView, GestacoesView, MaternidadeView,
     CrecheView, CrescimentoView, EngordaView,
     VaccinationRecordViewSet, WeightRecordViewSet,
-    ClinicalRecordViewSet, DiseaseViewSet,
+    ClinicalRecordViewSet, DiseaseViewSet, AcknowledgeOperationalAlertView,
     MedicationViewSet, AlertViewSet, SymptomViewSet, HealthRecordViewSet
 )
 
@@ -31,6 +31,7 @@ router.register(r'health/records', HealthRecordViewSet, basename='healthrecord')
 urlpatterns = [
     # Custom dashboard endpoint
     path('dashboard/reproduction/', ReproductionDashboardView.as_view(), name='reproduction_dashboard'),
+    path('dashboard/reproduction/acknowledge-alert/', AcknowledgeOperationalAlertView.as_view(), name='acknowledge_operational_alert'),
     path('dashboard/species-summary/', SpeciesSummaryView.as_view(), name='species_summary'),
     
     # Phase-specific endpoints

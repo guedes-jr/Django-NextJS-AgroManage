@@ -2,6 +2,7 @@
 
 import "./dashboard.css";
 import { useEffect, useState, type ComponentType } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -167,7 +168,13 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
     >
       <header className="sidebar-brand">
         <div className="sidebar-brand-mark" aria-hidden="true">
-          <Sprout size={27} strokeWidth={2.1} />
+          <Image
+            src="/logo_agro_leaf.png"
+            alt=""
+            width={42}
+            height={42}
+            priority
+          />
         </div>
         <div className="sidebar-brand-copy">
           <strong>Fazenda Mais</strong>

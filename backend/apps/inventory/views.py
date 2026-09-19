@@ -194,8 +194,12 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
             items = items.filter(
                 vaccine_category_q() if categoria == "vacina" else
                 Q(categoria__in=("medicamento", "medicamento_vacina")) if categoria == "medicamento" else
+                (
+                    Q(categoria="racao")
+                    | Q(formulas_como_resultado__organization=organization, formulas_como_resultado__ativa=True)
+                ) if categoria == "racao" else
                 Q(categoria=categoria) | Q(categorias__contains=[categoria])
-            )
+            ).distinct()
         if especie_animal:
             items = items.filter(especie_animal=especie_animal)
 
@@ -315,6 +319,9 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         tipo = self.request.query_params.get("tipo")
         if tipo:
             qs = qs.filter(tipo=tipo)
+        categoria = self.request.query_params.get("categoria")
+        if categoria:
+            qs = qs.filter(item__categoria=categoria)
         item_filter = self.request.query_params.get("item_id")
         if item_filter:
             qs = qs.filter(item_id=item_filter)

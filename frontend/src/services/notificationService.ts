@@ -9,8 +9,14 @@ export interface Notification {
   link: string | null;
   is_read: boolean;
   read_at: string | null;
+  occurrence_count: number;
+  last_occurred_at: string | null;
+  is_archived: boolean;
+  archived_at: string | null;
   created_at: string;
 }
+
+type NotificationPage = { count: number; next: string | null; previous: string | null; results: Notification[] };
 
 export interface NotificationPreference {
   id: string;
@@ -25,9 +31,9 @@ export interface NotificationPreference {
 }
 
 export const notificationService = {
-  getAll: async (): Promise<Notification[]> => {
-    const response = await apiClient.get<Notification[]>("/notifications/");
-    return response.data;
+  getAll: async (params?: Record<string, string | number | boolean>): Promise<Notification[]> => {
+    const response = await apiClient.get<NotificationPage | Notification[]>("/notifications/", { params });
+    return Array.isArray(response.data) ? response.data : response.data.results;
   },
 
   getUnreadCount: async (): Promise<{ unread_count: number }> => {
@@ -46,6 +52,21 @@ export const notificationService = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/notifications/${id}/`);
   },
+
+  archive: async (id: string): Promise<Notification> => {
+    const response = await apiClient.post<Notification>(`/notifications/${id}/archive/`);
+    return response.data;
+  },
+
+  unarchive: async (id: string): Promise<Notification> => {
+    const response = await apiClient.post<Notification>(`/notifications/${id}/unarchive/`);
+    return response.data;
+  },
+
+  archiveRead: async (): Promise<void> => { await apiClient.post("/notifications/archive-read/"); },
+
+  getPushConfig: async (): Promise<{ public_key: string }> => (await apiClient.get("/notifications/web-push-config/")).data,
+  savePushSubscription: async (data: { endpoint: string; p256dh: string; auth: string }): Promise<void> => { await apiClient.post("/notifications/push-subscriptions/", data); },
 
   getPreferences: async (): Promise<NotificationPreference> => {
     const response = await apiClient.get<NotificationPreference>("/notifications/preferences/");

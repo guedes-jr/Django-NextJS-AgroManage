@@ -553,7 +553,9 @@ export function ReproducaoDashboard({
     }
 
     const animalOptions = rows.map(r => ({ 
-      value: String(r.id || r.pk || r.identifier || ""), 
+      // Em Gestação/Maternidade, `id` pertence ao evento reprodutivo.
+      // As ações sanitárias devem sempre apontar para a matriz vinculada.
+      value: String(r.animal_id || r.id || r.pk || r.identifier || ""),
       label: String(r.identifier || r.batch_code || r.name || r.id || r.pk || "Sem ID") 
     })).filter(o => o.value);
 
@@ -634,7 +636,7 @@ export function ReproducaoDashboard({
       case 'vaccine': {
         const vaccineOpts = (vaccineItems || []).map(v => ({
           value: String(v.id),
-          label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+          label: `${v.nome}${v.estoque_atual != null ? ` (Estoque: ${v.estoque_atual} ${v.unidade_display || v.unidade_medida || 'un'})` : ''}`,
         }));
         setActionModal({
           open: true,
@@ -658,6 +660,7 @@ export function ReproducaoDashboard({
           ],
           onConfirm: async (data) => {
             await registerVaccination(data.id, data);
+            showToast("Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -1326,6 +1329,16 @@ export function ReproducaoDashboard({
               showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
             {
+              name: "semen_doses",
+              label: "Doses de sêmen utilizadas por matriz",
+              type: "number",
+              initialValue: 1,
+              min: 1,
+              step: 1,
+              required: true,
+              showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
+            },
+            {
               name: "sire_info",
               label: "Identificação do Sêmen (texto livre)",
               type: "text",
@@ -1411,11 +1424,12 @@ export function ReproducaoDashboard({
             // 2. Perform inventory consumption if semen is used
             if (data.material_origin === "semen" && data.semen_item_id) {
               try {
+                const dosesPerFemale = Math.max(1, Number(data.semen_doses || 1));
                 await apiClient.post("/inventory/movimentacoes/", {
                   item: data.semen_item_id,
                   tipo: "consumo",
-                  quantidade: 1.0 * Math.max(1, targetRows.length),
-                  observacao: `Consumo automático por inseminação artificial na fêmea ${animalIds.join(", ")}.`,
+                  quantidade: dosesPerFemale * Math.max(1, targetRows.length),
+                  observacao: `Consumo automático de ${dosesPerFemale} dose(s) por matriz em inseminação artificial: ${animalIds.join(", ")}.`,
                 });
               } catch (movErr) {
                 console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);
@@ -1566,8 +1580,12 @@ export function ReproducaoDashboard({
         break;
       case 'technical_sheet':
         if (rows.length > 0) {
+          // Linhas de gestação/maternidade representam o evento reprodutivo.
+          // A ficha técnica, porém, deve receber o id do animal (matriz), não o
+          // id desse evento — o mesmo critério usado ao clicar na linha/lupa.
+          const animalId = rows[0].animal_id || rows[0].id || rows[0].pk;
           setBatchSheetOpen(true);
-          setSelectedBatchId(rows[0].id);
+          setSelectedBatchId(animalId);
         }
         break;
       case 'primary':
@@ -1660,6 +1678,16 @@ export function ReproducaoDashboard({
           showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
         },
         {
+          name: "semen_doses",
+          label: "Doses de sêmen utilizadas",
+          type: "number",
+          initialValue: 1,
+          min: 1,
+          step: 1,
+          required: true,
+          showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
+        },
+        {
           name: "sire_info",
           label: "Identificação do Sêmen (texto livre)",
           type: "text",
@@ -1746,11 +1774,12 @@ export function ReproducaoDashboard({
       // 2. Perform inventory consumption if semen is used
       if (mating_type === "ai" && material_origin === "semen" && semen_item_id) {
         try {
+          const semenDoses = Math.max(1, Number(data.semen_doses || 1));
           await apiClient.post("/inventory/movimentacoes/", {
             item: semen_item_id,
             tipo: "consumo",
-            quantidade: 1.0,
-            observacao: `Consumo automático por Inseminação Artificial na fêmea ${female_id}.`,
+            quantidade: semenDoses,
+            observacao: `Consumo automático de ${semenDoses} dose(s) por Inseminação Artificial na fêmea ${female_id}.`,
           });
         } catch (movErr) {
           console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);

@@ -2,28 +2,75 @@
 Serviços para criação de notificações.
 """
 from django.utils import timezone
+from django.db import IntegrityError, transaction
+from django.db.models import F
+import logging
 from datetime import timedelta
 from .models import Notification, NotificationType, NotificationPriority
 from .models import NotificationPreference
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationService:
     """Serviço centralizado para criar notificações"""
 
     @staticmethod
-    def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None):
+    def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key=""):
         """Cria uma notificação para o usuário"""
-        return Notification.objects.create(
-            user=user,
-            type=notif_type,
-            priority=priority,
-            title=title,
-            message=message,
-            link=link or ""
-        )
+        if not NotificationService.should_notify(user, notif_type):
+            return None
+        now = timezone.now()
+        if event_key:
+            try:
+                notification, created = Notification.objects.get_or_create(
+                    user=user,
+                    event_key=event_key,
+                    is_archived=False,
+                    defaults={"type": notif_type, "priority": priority, "title": title, "message": message, "link": link or "", "last_occurred_at": now},
+                )
+            except IntegrityError:
+                notification = Notification.objects.get(user=user, event_key=event_key, is_archived=False)
+                created = False
+            if not created:
+                Notification.objects.filter(pk=notification.pk).update(
+                    title=title, message=message, link=link or "", priority=priority,
+                    occurrence_count=F("occurrence_count") + 1, last_occurred_at=now,
+                    is_read=False, read_at=None,
+                )
+                notification.refresh_from_db()
+                return notification
+        else:
+            notification = Notification.objects.create(
+                user=user, type=notif_type, priority=priority, title=title,
+                message=message, link=link or "", last_occurred_at=now,
+            )
+        NotificationService.schedule_external_delivery(notification)
+        return notification
 
     @staticmethod
-    def create_for_organization(organization, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, roles=None):
+    def schedule_external_delivery(notification):
+        from .models import NotificationDelivery
+        from .tasks import dispatch_notification
+
+        pref = NotificationService.get_user_preferences(notification.user)
+        channels = []
+        if pref.email_notifications and pref.frequency == "instant":
+            channels.append(NotificationDelivery.Channel.EMAIL)
+        if pref.push_notifications:
+            channels.append(NotificationDelivery.Channel.WEB_PUSH)
+        for channel in channels:
+            NotificationDelivery.objects.get_or_create(notification=notification, channel=channel)
+        if channels:
+            def enqueue():
+                try:
+                    dispatch_notification.delay(str(notification.id))
+                except Exception:
+                    logger.exception("Não foi possível enfileirar a entrega da notificação %s", notification.id)
+            transaction.on_commit(enqueue)
+
+    @staticmethod
+    def create_for_organization(organization, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, roles=None, event_key=""):
         """Cria notificações para todos os usuários de uma organização"""
         if roles is None:
             roles = ["owner", "admin"]
@@ -33,44 +80,49 @@ class NotificationService:
 
         notifications = []
         for user in users:
-            notifications.append(
-                Notification.objects.create(
-                    user=user,
-                    type=notif_type,
-                    priority=priority,
-                    title=title,
-                    message=message,
-                    link=link or ""
-                )
+            notification = NotificationService.create(
+                user=user,
+                title=title,
+                message=message,
+                notif_type=notif_type,
+                priority=priority,
+                link=link,
+                event_key=event_key,
             )
+            if notification is not None:
+                notifications.append(notification)
         return notifications
 
     @staticmethod
-    def create_bulk(users, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None):
+    def create_bulk(users, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key=""):
         """Cria notificações em bulk para múltiplos usuários"""
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-
+        if event_key:
+            return [notification for user in users if (notification := NotificationService.create(
+                user, title, message, notif_type, priority, link, event_key
+            )) is not None]
         notifications = []
         for user in users:
-            notifications.append(
-                Notification(
-                    user=user,
-                    type=notif_type,
-                    priority=priority,
-                    title=title,
-                    message=message,
-                    link=link or ""
-                )
-            )
-        return Notification.objects.bulk_create(notifications)
+            if not NotificationService.should_notify(user, notif_type):
+                continue
+            notifications.append(Notification(
+                user=user,
+                type=notif_type,
+                priority=priority,
+                title=title,
+                message=message,
+                link=link or ""
+            ))
+        created = Notification.objects.bulk_create(notifications)
+        for notification in created:
+            NotificationService.schedule_external_delivery(notification)
+        return created
 
     @staticmethod
     def notify_welcome(user):
         """Notificação de boas-vindas ao criar conta"""
-        return Notification.objects.create(
+        return NotificationService.create(
             user=user,
-            type=NotificationType.SYSTEM,
+            notif_type=NotificationType.SYSTEM,
             priority=NotificationPriority.LOW,
             title="Bem-vindo ao sistema Fazenda Mais!",
             message="Seu cadastro foi realizado com sucesso. Explore as funcionalidades do sistema.",
@@ -80,9 +132,9 @@ class NotificationService:
     @staticmethod
     def notify_organization_invite(user, organization, invited_by):
         """Notificação de convite para organização"""
-        return Notification.objects.create(
+        return NotificationService.create(
             user=user,
-            type=NotificationType.SYSTEM,
+            notif_type=NotificationType.SYSTEM,
             priority=NotificationPriority.MEDIUM,
             title=f"Convite para {organization.name}",
             message=f"{invited_by.full_name} convite você para fazer parte da organização {organization.name}.",
@@ -92,9 +144,9 @@ class NotificationService:
     @staticmethod
     def notify_password_change(user):
         """Notificação de alteração de senha"""
-        return Notification.objects.create(
+        return NotificationService.create(
             user=user,
-            type=NotificationType.SYSTEM,
+            notif_type=NotificationType.SYSTEM,
             priority=NotificationPriority.HIGH,
             title="Senha alterada",
             message="Sua senha foi alterada com sucesso.",
@@ -107,7 +159,7 @@ class NotificationService:
         from apps.inventory.models import LoteEstoque
 
         total_qty = sum(
-            LoteEstoque.objects.filter(item=item).values_list("quantidade", flat=True)
+            LoteEstoque.objects.filter(item=item, ativo=True).values_list("quantidade_atual", flat=True)
         )
 
         if item.estoque_minimo and total_qty <= float(item.estoque_minimo):
@@ -127,7 +179,8 @@ class NotificationService:
                 message=message,
                 notif_type=NotificationType.STOCK,
                 priority=NotificationPriority.HIGH,
-                link=f"/home/inventory/{item.id}"
+                link="/home/estoque/produtos",
+                event_key=f"inventory.low_stock:{item.id}",
             )
         return None
 
@@ -184,6 +237,7 @@ class NotificationService:
                     notif_type=NotificationType.ANIMAL,
                     priority=NotificationPriority.HIGH,
                     link="/home/rebanho/suinos/reproducao?tab=maternidade",
+                    event_key=f"livestock.reproductive_vaccine.birth:{birth.id}",
                 )
                 birth.reproductive_vaccine_notification_sent = True
                 birth.save(update_fields=['reproductive_vaccine_notification_sent'])
@@ -215,6 +269,7 @@ class NotificationService:
                     notif_type=NotificationType.ANIMAL,
                     priority=NotificationPriority.HIGH,
                     link="/home/rebanho/suinos/reproducao?tab=gestacao",
+                    event_key=f"livestock.reproductive_vaccine.mating:{mating.id}",
                 )
                 mating.reproductive_vaccine_notification_sent = True
                 mating.save(update_fields=['reproductive_vaccine_notification_sent'])
@@ -247,6 +302,7 @@ class NotificationService:
                     notif_type=NotificationType.ANIMAL,
                     priority=NotificationPriority.HIGH,
                     link="/home/rebanho/suinos/reproducao?tab=matrizes",
+                    event_key=f"livestock.next_mating:{litter.id}",
                 )
                 litter.next_mating_notification_sent = True
                 litter.save(update_fields=['next_mating_notification_sent'])

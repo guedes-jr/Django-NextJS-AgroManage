@@ -4,6 +4,66 @@ Tarefas Celery para notificações.
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def dispatch_notification(self, notification_id):
+    """Entrega uma notificação pendente nos canais externos configurados."""
+    from django.conf import settings
+    from .emails import EmailNotificationService
+    from .models import Notification, NotificationDelivery, PushSubscription
+
+    notification = Notification.objects.select_related("user").get(pk=notification_id)
+    deliveries = notification.deliveries.filter(status__in=[NotificationDelivery.Status.PENDING, NotificationDelivery.Status.FAILED])
+    for delivery in deliveries:
+        delivery.attempts += 1
+        try:
+            if delivery.channel == NotificationDelivery.Channel.EMAIL:
+                sent = EmailNotificationService.send_notification_email(notification.user, notification)
+                if not sent:
+                    delivery.status = NotificationDelivery.Status.SKIPPED
+                else:
+                    delivery.status = NotificationDelivery.Status.SENT
+                    delivery.delivered_at = timezone.now()
+            elif delivery.channel == NotificationDelivery.Channel.WEB_PUSH:
+                private_key = getattr(settings, "WEB_PUSH_VAPID_PRIVATE_KEY", "")
+                subject = getattr(settings, "WEB_PUSH_VAPID_SUBJECT", "mailto:contato@agromanage.com")
+                subscriptions = PushSubscription.objects.filter(user=notification.user, is_active=True)
+                if not private_key or not subscriptions.exists():
+                    delivery.status = NotificationDelivery.Status.SKIPPED
+                else:
+                    from pywebpush import WebPushException, webpush
+                    sent_any = False
+                    payload = json.dumps({"title": notification.title, "body": notification.message, "link": notification.link or "/home/notifications"})
+                    for subscription in subscriptions:
+                        try:
+                            webpush(
+                                subscription_info={"endpoint": subscription.endpoint, "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth}},
+                                data=payload,
+                                vapid_private_key=private_key,
+                                vapid_claims={"sub": subject},
+                            )
+                            sent_any = True
+                        except WebPushException as exc:
+                            if getattr(exc.response, "status_code", None) in (404, 410):
+                                subscription.is_active = False
+                                subscription.save(update_fields=("is_active", "updated_at"))
+                            else:
+                                raise
+                    delivery.status = NotificationDelivery.Status.SENT if sent_any else NotificationDelivery.Status.SKIPPED
+                    delivery.delivered_at = timezone.now() if sent_any else None
+            delivery.last_error = ""
+        except Exception as exc:
+            delivery.status = NotificationDelivery.Status.FAILED
+            delivery.last_error = str(exc)[:2000]
+            delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "updated_at"))
+            raise
+        delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "updated_at"))
+    return deliveries.count()
 
 
 @shared_task
@@ -45,29 +105,29 @@ def send_weekly_notifications_digest():
 
 
 @shared_task
-def check_overdue_invoices_notifications():
+def check_overdue_transactions_notifications():
     """
     Verifica faturas vencidas e cria notificações.
     """
-    from apps.finance.models import Invoice
+    from apps.finance.models import Transaction
     from .services import NotificationService
 
     from datetime import date
-    overdue_invoices = Invoice.objects.filter(
-        status__in=["pending", "sent"],
+    overdue_transactions = Transaction.objects.filter(
+        status="pending",
         due_date__lt=date.today()
     )
 
-    for invoice in overdue_invoices:
-        invoice.status = "overdue"
-        invoice.save()
+    for transaction in overdue_transactions:
+        transaction.status = "overdue"
+        transaction.save(update_fields=("status", "updated_at"))
 
-        organization = invoice.organization
+        organization = transaction.organization
         if not organization:
             continue
 
-        title = f"Fatura vencida: {invoice.invoice_number}"
-        message = f"A fatura de R$ {invoice.total_amount} está vencida desde {invoice.due_date}"
+        title = f"Lançamento vencido: {transaction.description}"
+        message = f"O lançamento de R$ {transaction.amount} está vencido desde {transaction.due_date}"
 
         NotificationService.create_for_organization(
             organization=organization,
@@ -75,10 +135,11 @@ def check_overdue_invoices_notifications():
             message=message,
             notif_type="finance",
             priority="high",
-            link=f"/home/finance/invoices/{invoice.id}"
+            link="/home/financeiro",
+            event_key=f"finance.transaction.overdue:{transaction.id}",
         )
 
-    return f"Verificadas {overdue_invoices.count()} faturas vencidas"
+    return f"Verificados {overdue_transactions.count()} lançamentos vencidos"
 
 
 @shared_task
@@ -94,7 +155,7 @@ def check_stock_levels_notifications():
 
     for item in items:
         total_qty = LoteEstoque.objects.filter(item=item).aggregate(
-            total=Sum("quantidade")
+            total=Sum("quantidade_atual")
         )["total"] or 0
 
         if total_qty <= float(item.estoque_minimo):
@@ -111,7 +172,8 @@ def check_stock_levels_notifications():
                 message=message,
                 notif_type="stock",
                 priority="high",
-                link=f"/home/inventory/{item.id}"
+                link="/home/estoque/produtos",
+                event_key=f"inventory.low_stock:{item.id}",
             )
 
     return f"Verificados {items.count()} itens de estoque"

@@ -236,11 +236,20 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+WEB_PUSH_VAPID_PUBLIC_KEY = env("WEB_PUSH_VAPID_PUBLIC_KEY", default="")
+WEB_PUSH_VAPID_PRIVATE_KEY = env("WEB_PUSH_VAPID_PRIVATE_KEY", default="")
+WEB_PUSH_VAPID_SUBJECT = env("WEB_PUSH_VAPID_SUBJECT", default="mailto:contato@agromanage.com")
 AI_MODEL_SYNC_DAY_OF_WEEK = env("AI_MODEL_SYNC_DAY_OF_WEEK", default="monday")
 AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
 AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
 AI_MODEL_CATALOG_STALE_DAYS = env.int("AI_MODEL_CATALOG_STALE_DAYS", default=14)
 CELERY_BEAT_SCHEDULE = {
+    "notifications-daily-digest": {"task": "apps.notifications.tasks.send_daily_notifications_digest", "schedule": crontab(minute=0, hour=7)},
+    "notifications-weekly-digest": {"task": "apps.notifications.tasks.send_weekly_notifications_digest", "schedule": crontab(minute=0, hour=7, day_of_week="monday")},
+    "notifications-overdue-finance": {"task": "apps.notifications.tasks.check_overdue_transactions_notifications", "schedule": crontab(minute=10, hour=6)},
+    "notifications-stock-levels": {"task": "apps.notifications.tasks.check_stock_levels_notifications", "schedule": crontab(minute=0, hour="*/6")},
+    "notifications-reproductive-vaccines": {"task": "apps.notifications.tasks.check_reproductive_vaccine_notifications", "schedule": crontab(minute=20, hour=6)},
+    "notifications-cleanup": {"task": "apps.notifications.tasks.cleanup_old_notifications", "schedule": crontab(minute=30, hour=3, day_of_week="sunday")},
     "sync-opencode-zen-models-weekly": {
         "task": "apps.ai_assistant.tasks.sync_opencode_zen_models_task",
         "schedule": crontab(

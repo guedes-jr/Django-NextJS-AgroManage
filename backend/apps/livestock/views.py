@@ -6,8 +6,9 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, Prefetch, Q, Sum
 from django.utils import timezone
 import datetime
+import hashlib
 import json
-from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication
+from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication, AcknowledgedOperationalAlert
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
     PregnancySerializer, BirthSerializer, LitterSerializer,
@@ -19,6 +20,10 @@ from rest_framework.views import APIView
 from decimal import Decimal
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _operational_alert_key(species_code, kind, text, context=""):
+    payload = f"{species_code}|{kind}|{text}|{context}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 def _heat_prediction_alerts(organization, species_code, horizon_days=45):
     """Build alerts for predicted heats that are overdue or approaching."""
@@ -2384,7 +2389,16 @@ class ReproductionDashboardView(APIView):
             expected_birth_date__lte=now.date() + datetime.timedelta(days=7)
         )
         if close_pregnancies.exists():
-            ai_suggestions.append({"text": "Prepare o setor de maternidade para os partos iminentes."})
+            text = "Prepare o setor de maternidade para os partos iminentes."
+            pregnancy_signature = ",".join(
+                str(value) for value in close_pregnancies.order_by("id").values_list("id", flat=True)
+            )
+            ai_suggestions.append({
+                "text": text,
+                "alert_key": _operational_alert_key(
+                    species_code, "maternity-preparation", text, pregnancy_signature
+                ),
+            })
         
         # Check delayed matings
         empty_matrizes = animals.filter(reproductive_status=Animal.ReproductiveStatus.VAZIA)
@@ -2398,6 +2412,31 @@ class ReproductionDashboardView(APIView):
                 "text": f"{aguardando_cobertura} matriz{'es' if aguardando_cobertura > 1 else ''} aguardando cobertura.",
                 "time": "Hoje"
             })
+
+        for alert in alerts:
+            alert.setdefault(
+                "alert_key",
+                _operational_alert_key(species_code, "alert", alert["text"]),
+            )
+        for suggestion in ai_suggestions:
+            suggestion.setdefault(
+                "alert_key",
+                _operational_alert_key(species_code, "suggestion", suggestion["text"]),
+            )
+
+        acknowledged_keys = set(
+            AcknowledgedOperationalAlert.objects.filter(
+                user=user,
+                organization=user.organization,
+                alert_key__in=[
+                    item["alert_key"] for item in [*alerts, *ai_suggestions]
+                ],
+            ).values_list("alert_key", flat=True)
+        )
+        alerts = [item for item in alerts if item["alert_key"] not in acknowledged_keys]
+        ai_suggestions = [
+            item for item in ai_suggestions if item["alert_key"] not in acknowledged_keys
+        ]
 
         return Response({
             "species": species_code,
@@ -2415,6 +2454,29 @@ class ReproductionDashboardView(APIView):
             "aiSuggestions": ai_suggestions,
             "message": "Dashboard API is connected."
         }, status=status.HTTP_200_OK)
+
+
+class AcknowledgeOperationalAlertView(APIView):
+    def post(self, request):
+        organization = getattr(request.user, "organization", None)
+        if not request.user.is_authenticated or not organization:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        alert_key = str(request.data.get("alert_key", "")).strip()
+        alert_text = str(request.data.get("alert_text", "")).strip()[:500]
+        if len(alert_key) != 64 or any(char not in "0123456789abcdef" for char in alert_key):
+            return Response(
+                {"alert_key": "Chave de alerta inválida."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        AcknowledgedOperationalAlert.objects.get_or_create(
+            user=request.user,
+            organization=organization,
+            alert_key=alert_key,
+            defaults={"alert_text": alert_text},
+        )
+        return Response({"detail": "Alerta confirmado."}, status=status.HTTP_200_OK)
 
 
 class SpeciesSummaryView(APIView):

@@ -172,6 +172,50 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(stock_batch.quantidade_atual, 97.5)
         self.assertEqual(stock_batch.movimentacoes.get(tipo="consumo").quantidade, 2.5)
 
+    def test_animal_vaccination_action_updates_sheet_inventory_and_report(self):
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Literguarde",
+            categoria="vacina",
+            unidade_medida="ml",
+        )
+        stock_batch = LoteEstoque.objects.create(
+            item=vaccine,
+            numero_lote="LITER-001",
+            quantidade_inicial=Decimal("50.00"),
+            quantidade_atual=Decimal("50.00"),
+            custo_unitario=Decimal("3.00"),
+            data_entrada=date.today(),
+        )
+
+        response = self.client.post(
+            reverse("animal-register-vaccination", args=[self.animal_a.id]),
+            {
+                "vaccine_item_id": str(vaccine.id),
+                "application_date": date.today().isoformat(),
+                "dose_type": "unica",
+                "dosage_ml": "2.00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        stock_batch.refresh_from_db()
+        self.assertEqual(stock_batch.quantidade_atual, Decimal("48.00"))
+        self.assertTrue(self.animal_a.vaccinations.filter(
+            vaccine_item=vaccine, dosage_ml=Decimal("2.00")
+        ).exists())
+        self.assertTrue(HistoricoEvento.objects.filter(
+            matriz=self.animal_a, tipo_evento="Vacinação", metadata__vacina=vaccine.nome
+        ).exists())
+
+        report = self.client.get(
+            reverse("vaccination-list"), {"species": self.species.code}
+        )
+        item = next(row for row in report.data["results"] if row["vaccine_name"] == vaccine.nome)
+        self.assertEqual(item["dosage_ml"], "2.00")
+        self.assertEqual(item["inventory_cost"], "6.00")
+
     def test_species_summary_aggregates_only_authenticated_organization(self):
         AnimalBatch.objects.create(
             farm=self.farm_a,
@@ -320,6 +364,36 @@ class LivestockTenantIsolationTestCase(APITestCase):
             Mating.objects.get(id=mating.id).reproductive_vaccine_due_date,
             date.today() + timedelta(days=70),
         )
+
+    def test_user_can_acknowledge_generated_operational_alert(self):
+        self.animal_a.reproductive_status = Animal.ReproductiveStatus.COBERTA
+        self.animal_a.save(update_fields=["reproductive_status"])
+        Mating.objects.create(
+            female=self.animal_a,
+            mating_date=date.today() - timedelta(days=22),
+            status=Mating.Status.PENDING_DG,
+        )
+
+        dashboard = self.client.get(
+            reverse("reproduction_dashboard"), {"species": self.species.code}
+        )
+        alert = next(
+            item for item in dashboard.data["alerts"]
+            if "Diagnóstico de prenhez" in item["text"]
+        )
+        response = self.client.post(
+            reverse("acknowledge_operational_alert"),
+            {"alert_key": alert["alert_key"], "alert_text": alert["text"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        refreshed = self.client.get(
+            reverse("reproduction_dashboard"), {"species": self.species.code}
+        )
+        self.assertNotIn(alert["alert_key"], {
+            item["alert_key"] for item in refreshed.data["alerts"]
+        })
 
     def test_confirmed_pregnancy_expected_birth_is_shown_in_alerts(self):
         mating = Mating.objects.create(

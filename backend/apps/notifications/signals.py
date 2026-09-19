@@ -6,17 +6,19 @@ from django.dispatch import receiver
 from django.utils import timezone
 from datetime import timedelta
 from .models import Notification, NotificationType, NotificationPriority
+from .services import NotificationService
 
 
-def create_notification(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None):
+def create_notification(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key=""):
     """Função utilitária para criar notificações"""
-    return Notification.objects.create(
+    return NotificationService.create(
         user=user,
-        type=notif_type,
+        notif_type=notif_type,
         priority=priority,
         title=title,
         message=message,
-        link=link or ""
+        link=link,
+        event_key=event_key,
     )
 
 
@@ -65,7 +67,8 @@ def check_stock_levels(sender, instance, created, **kwargs):
                     message=message,
                     notif_type=NotificationType.STOCK,
                     priority=NotificationPriority.HIGH,
-                    link=f"/home/inventory/{item.id}"
+                    link="/home/estoque/produtos",
+                    event_key=f"inventory.low_stock:{item.id}",
                 )
 
     # Check for low validity items (medications close to expiry)
@@ -91,7 +94,8 @@ def check_stock_levels(sender, instance, created, **kwargs):
                         message=message,
                         notif_type=NotificationType.STOCK,
                         priority=NotificationPriority.MEDIUM,
-                        link=f"/home/inventory/{item.id}"
+                        link="/home/estoque/produtos",
+                        event_key=f"inventory.expiry:{instance.id}",
                     )
 
 
@@ -124,7 +128,8 @@ def check_animal_vaccinations(sender, instance, created, **kwargs):
                 message=message,
                 notif_type=NotificationType.ANIMAL,
                 priority=NotificationPriority.LOW,
-                link=f"/home/livestock/batches/{instance.id}"
+                link="/home",
+                event_key=f"livestock.batch.created:{instance.id}",
             )
 
 
@@ -152,7 +157,8 @@ def check_transaction_status(sender, instance, created, **kwargs):
                 message=message,
                 notif_type=NotificationType.FINANCE,
                 priority=NotificationPriority.MEDIUM,
-                link=f"/home/finance/transactions/{instance.id}"
+                link="/home/financeiro",
+                event_key=f"finance.transaction.created:{instance.id}",
             )
 
     # Check for overdue transactions
@@ -172,7 +178,8 @@ def check_transaction_status(sender, instance, created, **kwargs):
                     message=message,
                     notif_type=NotificationType.FINANCE,
                     priority=NotificationPriority.HIGH,
-                    link=f"/home/finance/transactions/{instance.id}"
+                    link="/home/financeiro",
+                    event_key=f"finance.transaction.overdue:{instance.id}",
                 )
 
 

@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SupportAccessBanner } from "@/components/platform/SupportAccessBanner";
 import { ClientAnnouncementBanner } from "@/components/platform/ClientAnnouncementBanner";
+import { NotificationProvider } from "@/components/notifications";
 
 export default function HomeLayout({
   children,
@@ -30,7 +31,7 @@ export default function HomeLayout({
   }, [closeSidebar, isSidebarOpen]);
 
   return (
-    <div className="d-flex" style={{ minHeight: "100vh" }}>
+    <NotificationProvider><div className="d-flex" style={{ minHeight: "100vh" }}>
       <AppSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
       
       {/* Mobile Overlay */}
@@ -49,6 +50,6 @@ export default function HomeLayout({
           {children}
         </main>
       </div>
-    </div>
+    </div></NotificationProvider>
   );
 }
