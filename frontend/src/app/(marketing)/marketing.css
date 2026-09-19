@@ -443,6 +443,8 @@
 .review-actions { margin-top:22px; display:flex; justify-content:space-between; gap:20px; }
 .review-actions>button { padding:0 22px; display:flex; gap:9px; align-items:center; color:#405047; background:#e3e7e2; border:0; border-radius:28px; font-weight:700; }
 .review-actions .plan-primary-button { min-width:340px; margin:0; }
+.quote-action { display:flex; flex-direction:column; align-items:stretch; }
+.quote-action>small { max-width:360px; margin:0 0 7px; color:#9b2f2f; font-size:.7rem; text-align:center; }
 
 @media(max-width:1000px){
   .plan-builder-hero-inner{grid-template-columns:1fr 1fr}.plan-builder-secure{display:none}.segment-grid{grid-template-columns:repeat(2,1fr)}.segment-card:last-child{grid-column:1/-1}.segment-card:last-child .segment-content{display:grid;grid-template-columns:1fr 1.35fr;gap:0 24px}.segment-card:last-child .segment-tiers{grid-column:2;grid-row:1/4}.segment-card:last-child .segment-discount{grid-column:1}.plan-selection-bar{grid-template-columns:1fr}.selection-summary{padding-right:0;border-right:0;border-bottom:1px solid #e2e8df;padding-bottom:20px}.plan-review-grid{grid-template-columns:1fr}.plan-benefits{grid-template-columns:repeat(2,1fr)}

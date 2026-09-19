@@ -27,19 +27,32 @@ Permitir que cada cliente monte uma assinatura combinando segmentos (por exemplo
 
 ## Próximas fases
 
-### 1. Catálogo e API
+### 1. Catálogo e API — concluído
 
-- Criar `PlanSegment` para nome, código, descrição, imagem, ícone, cor, ordem e status.
-- Criar `PlanTier` para unidade, mínimo, máximo, preço mensal, preço anual e indicação de preço personalizado.
-- Expor endpoints públicos somente de leitura para o configurador.
-- Adicionar CRUD de segmentos e faixas ao painel da plataforma.
+- Criado `PlanSegment` para nome, código, descrição, imagem, ícone, cor, ordem, desconto anual e status.
+- Criado `PlanTier` para unidade, mínimo, máximo, preço mensal e indicação de preço personalizado.
+- Endpoint público somente de leitura disponível em `/api/v1/public/plan-segments/`.
+- CRUD inicial disponível no Django Admin, com as faixas editáveis dentro de cada segmento.
+- O configurador consome a API e mantém um catálogo local como fallback de disponibilidade.
 
-### 2. Orçamento e checkout
+### 2. Orçamento — concluído; checkout — pendente
 
-- Criar `SubscriptionQuote` com composição, ciclo, subtotal, descontos, total e validade.
-- Recalcular todos os valores no servidor; nunca confiar no total enviado pelo navegador.
+- Criados `SubscriptionQuote` e `SubscriptionQuoteItem` com composição, snapshots, ciclo, subtotal, descontos, total e validade de sete dias.
+- Todos os valores são recalculados no servidor; o navegador envia somente as faixas e o ciclo.
+- A API rejeita faixas indisponíveis e mais de uma faixa do mesmo segmento.
+- A criação pública de orçamentos possui limitação por IP configurável por `SUBSCRIPTION_QUOTE_RATE`.
 - Integrar o provedor de pagamento e usar idempotência na criação da cobrança.
 - Transformar o orçamento aprovado em assinatura e entitlements por segmento.
+
+### 2.1. Arquitetura de gateways — concluída
+
+- Contrato abstrato para criar, consultar, reembolsar e interpretar webhooks de cobranças.
+- Registro central de adaptadores, permitindo adicionar provedores sem alterar o domínio de cobrança.
+- Gerencianet / Efí registrado como primeiro adaptador para PIX, boleto e cartão.
+- Credenciais genéricas criptografadas e nunca retornadas pela API.
+- Seleção transacional e auditada do gateway padrão em `/platform/payment-gateways`.
+- Ambiente de homologação ou produção configurável no backoffice.
+- Pendente: transporte HTTP, certificado efetivo, webhooks e idempotência específicos do Gerencianet.
 
 ### 3. Regras do produto
 

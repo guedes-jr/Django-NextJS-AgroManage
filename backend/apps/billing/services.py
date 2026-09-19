@@ -4,7 +4,74 @@ from uuid import uuid4
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Invoice, InvoiceItem, Payment, PaymentAttempt
+from datetime import timedelta
+
+from rest_framework.exceptions import ValidationError
+
+from .models import Invoice, InvoiceItem, Payment, PaymentAttempt, PlanTier, SubscriptionQuote, SubscriptionQuoteItem
+
+
+@transaction.atomic
+def create_subscription_quote(*, tier_ids, billing_cycle):
+    if billing_cycle not in SubscriptionQuote.BillingCycle.values:
+        raise ValidationError({"billing_cycle": "Ciclo de cobrança inválido."})
+    if not tier_ids:
+        raise ValidationError({"tier_ids": "Selecione ao menos uma faixa."})
+
+    tiers = list(PlanTier.objects.select_related("segment").filter(
+        id__in=tier_ids,
+        is_active=True,
+        segment__is_active=True,
+        segment__is_public=True,
+    ))
+    if len(tiers) != len(set(tier_ids)):
+        raise ValidationError({"tier_ids": "Uma ou mais faixas não estão disponíveis."})
+    segment_ids = [tier.segment_id for tier in tiers]
+    if len(segment_ids) != len(set(segment_ids)):
+        raise ValidationError({"tier_ids": "Selecione somente uma faixa por segmento."})
+
+    subtotal = Decimal("0.00")
+    discount = Decimal("0.00")
+    item_values = []
+    requires_contact = False
+    for tier in tiers:
+        requires_quote = tier.requires_quote or tier.monthly_price is None
+        requires_contact = requires_contact or requires_quote
+        price = tier.monthly_price
+        discount_percent = tier.segment.annual_discount_percent if billing_cycle == SubscriptionQuote.BillingCycle.YEARLY else Decimal("0.00")
+        item_discount = (price * discount_percent / Decimal("100")).quantize(Decimal("0.01")) if price is not None else Decimal("0.00")
+        final_price = price - item_discount if price is not None else None
+        subtotal += price or Decimal("0.00")
+        discount += item_discount
+        item_values.append((tier, discount_percent, final_price, requires_quote))
+
+    monthly_total = subtotal - discount
+    billing_total = monthly_total * (12 if billing_cycle == SubscriptionQuote.BillingCycle.YEARLY else 1)
+    quote = SubscriptionQuote.objects.create(
+        billing_cycle=billing_cycle,
+        monthly_subtotal=subtotal,
+        monthly_discount=discount,
+        monthly_total=monthly_total,
+        billing_total=billing_total,
+        requires_contact=requires_contact,
+        expires_at=timezone.now() + timedelta(days=7),
+    )
+    SubscriptionQuoteItem.objects.bulk_create([
+        SubscriptionQuoteItem(
+            quote=quote,
+            tier=tier,
+            segment_code=tier.segment.code,
+            segment_name=tier.segment.name,
+            segment_subtitle=tier.segment.subtitle,
+            tier_label=tier.label,
+            monthly_price=tier.monthly_price,
+            discount_percent=discount_percent,
+            final_monthly_price=final_price,
+            requires_quote=requires_quote,
+        )
+        for tier, discount_percent, final_price, requires_quote in item_values
+    ])
+    return quote
 
 
 @transaction.atomic

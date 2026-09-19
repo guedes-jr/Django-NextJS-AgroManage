@@ -7,11 +7,74 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.text import slugify
 
 from apps.organizations.models import Organization
-from apps.billing.models import Feature, Invoice, Payment, Plan, PlanEntitlement, Subscription
+from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, PlanEntitlement, Subscription
+from apps.billing.gateways import gateway_registry
 from apps.ai_assistant.models import AIModel, AIModelSyncRun, AIProviderConfiguration
 from .models import BackgroundTaskRun, DemoAppointment, DemoRequest, DemoRequestActivity, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, MarketingEvent, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
 
 User = get_user_model()
+
+
+class PaymentGatewayConfigurationSerializer(serializers.ModelSerializer):
+    credentials = serializers.DictField(child=serializers.CharField(trim_whitespace=True), write_only=True, required=False)
+    clear_credentials = serializers.BooleanField(write_only=True, required=False, default=False)
+    credential_configured = serializers.SerializerMethodField()
+    credential_fields = serializers.SerializerMethodField()
+    supported_methods = serializers.SerializerMethodField()
+    environment_display = serializers.CharField(source="get_environment_display", read_only=True)
+
+    class Meta:
+        model = PaymentGatewayConfiguration
+        fields = (
+            "id", "provider", "display_name", "environment", "environment_display", "is_enabled",
+            "is_default", "credential_configured", "credential_fields", "supported_methods", "settings",
+            "last_health_status", "last_health_message", "last_health_check_at", "credentials",
+            "clear_credentials", "created_at", "updated_at",
+        )
+        read_only_fields = (
+            "id", "provider", "credential_configured", "credential_fields", "supported_methods",
+            "last_health_status", "last_health_message", "last_health_check_at", "created_at", "updated_at",
+        )
+
+    def _gateway_class(self, obj):
+        try:
+            return gateway_registry.get_class(obj.provider)
+        except Exception:
+            return None
+
+    def get_credential_configured(self, obj):
+        gateway_class = self._gateway_class(obj)
+        credentials = obj.get_credentials()
+        return bool(gateway_class and all(credentials.get(key) for key in gateway_class.credential_fields))
+
+    def get_credential_fields(self, obj):
+        gateway_class = self._gateway_class(obj)
+        return list(gateway_class.credential_fields) if gateway_class else []
+
+    def get_supported_methods(self, obj):
+        gateway_class = self._gateway_class(obj)
+        return list(gateway_class.supported_methods) if gateway_class else []
+
+    def validate(self, attrs):
+        is_default = attrs.get("is_default", getattr(self.instance, "is_default", False))
+        is_enabled = attrs.get("is_enabled", getattr(self.instance, "is_enabled", False))
+        if is_default and not is_enabled:
+            raise serializers.ValidationError("O gateway padrão deve permanecer habilitado.")
+        if is_default:
+            gateway_class = self._gateway_class(self.instance)
+            credentials = {**self.instance.get_credentials(), **attrs.get("credentials", {})}
+            if not gateway_class or not all(credentials.get(key) for key in gateway_class.credential_fields):
+                raise serializers.ValidationError("Configure todas as credenciais antes de definir o gateway como padrão.")
+        return attrs
+
+    def update(self, instance, validated_data):
+        credentials = validated_data.pop("credentials", None)
+        clear_credentials = validated_data.pop("clear_credentials", False)
+        instance = super().update(instance, validated_data)
+        if credentials is not None or clear_credentials:
+            instance.set_credentials({} if clear_credentials else {**instance.get_credentials(), **credentials})
+            instance.save(update_fields=("encrypted_credentials", "updated_at"))
+        return instance
 
 
 class AIProviderConfigurationSerializer(serializers.ModelSerializer):

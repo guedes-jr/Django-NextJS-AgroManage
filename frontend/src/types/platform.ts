@@ -17,6 +17,25 @@ export interface PlatformStaff {
   mfa_required: boolean;
 }
 
+export interface PlatformPaymentGateway {
+  id: string;
+  provider: string;
+  display_name: string;
+  environment: "sandbox" | "production";
+  environment_display: string;
+  is_enabled: boolean;
+  is_default: boolean;
+  credential_configured: boolean;
+  credential_fields: string[];
+  supported_methods: string[];
+  settings: Record<string, unknown>;
+  last_health_status: "unknown" | "healthy" | "error";
+  last_health_message: string;
+  last_health_check_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PlatformTeamMember extends PlatformStaff {
   is_active: boolean;
   last_login: string | null;

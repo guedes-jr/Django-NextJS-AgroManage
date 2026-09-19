@@ -45,6 +45,7 @@ import type {
   PlatformAffiliateDashboard,
   PlatformAffiliatePage,
   PlatformAffiliateReferralPage,
+  PlatformPaymentGateway,
 } from "@/types/platform";
 
 const envUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
@@ -149,6 +150,14 @@ export const platformService = {
   },
   async dashboard() {
     const { data } = await platformApi.get<PlatformDashboard>("platform/dashboard/");
+    return data;
+  },
+  async paymentGateways() {
+    const { data } = await platformApi.get<PlatformPaymentGateway[]>("platform/payment-gateways/");
+    return data;
+  },
+  async updatePaymentGateway(id:string,payload:Partial<Pick<PlatformPaymentGateway,"display_name"|"environment"|"is_enabled"|"is_default"|"settings">> & {credentials?:Record<string,string>;clear_credentials?:boolean}) {
+    const { data } = await platformApi.patch<PlatformPaymentGateway>(`platform/payment-gateways/${id}/`,payload);
     return data;
   },
   async aiDashboard() {

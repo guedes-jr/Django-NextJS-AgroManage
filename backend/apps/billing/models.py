@@ -1,8 +1,14 @@
 from common.models import BaseModel
 from decimal import Decimal
+import uuid
 
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
+from cryptography.fernet import Fernet, InvalidToken
+import base64
+import hashlib
+import json
 
 
 class Plan(BaseModel):
@@ -27,6 +33,150 @@ class Plan(BaseModel):
 
     def __str__(self):
         return self.name
+
+
+class PlanSegment(BaseModel):
+    """Public, composable product area offered in the plan builder."""
+
+    class Accent(models.TextChoices):
+        GREEN = "green", "Verde"
+        WINE = "wine", "Vinho"
+
+    code = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=120)
+    subtitle = models.CharField(max_length=160)
+    description = models.TextField()
+    image_path = models.CharField(max_length=255, blank=True)
+    icon = models.CharField(max_length=40, default="sprout")
+    accent = models.CharField(max_length=12, choices=Accent.choices, default=Accent.GREEN)
+    metric_label = models.CharField(max_length=80, blank=True)
+    annual_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15)
+    is_active = models.BooleanField(default=True)
+    is_public = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("sort_order", "name", "subtitle")
+
+    def __str__(self):
+        return f"{self.name} — {self.subtitle}"
+
+
+class PlanTier(BaseModel):
+    """Price band for a segment, based on the size of the customer's operation."""
+
+    segment = models.ForeignKey(PlanSegment, on_delete=models.CASCADE, related_name="tiers")
+    label = models.CharField(max_length=120)
+    minimum_quantity = models.PositiveIntegerField(null=True, blank=True)
+    maximum_quantity = models.PositiveIntegerField(null=True, blank=True)
+    monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    requires_quote = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("sort_order", "minimum_quantity", "label")
+        constraints = [
+            models.UniqueConstraint(fields=("segment", "label"), name="unique_plan_segment_tier_label"),
+        ]
+
+    def __str__(self):
+        return f"{self.segment}: {self.label}"
+
+
+class SubscriptionQuote(BaseModel):
+    """Server-calculated snapshot of a plan-builder selection."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Rascunho"
+        CONVERTED = "converted", "Convertido"
+        EXPIRED = "expired", "Expirado"
+
+    class BillingCycle(models.TextChoices):
+        MONTHLY = "monthly", "Mensal"
+        YEARLY = "yearly", "Anual"
+
+    public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    billing_cycle = models.CharField(max_length=20, choices=BillingCycle.choices)
+    currency = models.CharField(max_length=3, default="BRL")
+    monthly_subtotal = models.DecimalField(max_digits=14, decimal_places=2)
+    monthly_discount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    monthly_total = models.DecimalField(max_digits=14, decimal_places=2)
+    billing_total = models.DecimalField(max_digits=14, decimal_places=2)
+    requires_contact = models.BooleanField(default=False)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-created_at",)
+
+    @property
+    def is_expired(self):
+        return self.expires_at <= timezone.now()
+
+
+class SubscriptionQuoteItem(BaseModel):
+    quote = models.ForeignKey(SubscriptionQuote, on_delete=models.CASCADE, related_name="items")
+    tier = models.ForeignKey(PlanTier, on_delete=models.PROTECT, related_name="quote_items")
+    segment_code = models.SlugField(max_length=80)
+    segment_name = models.CharField(max_length=120)
+    segment_subtitle = models.CharField(max_length=160)
+    tier_label = models.CharField(max_length=120)
+    monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    final_monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    requires_quote = models.BooleanField(default=False)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("created_at",)
+
+
+class PaymentGatewayConfiguration(BaseModel):
+    class Environment(models.TextChoices):
+        SANDBOX = "sandbox", "Homologação"
+        PRODUCTION = "production", "Produção"
+
+    class HealthStatus(models.TextChoices):
+        UNKNOWN = "unknown", "Não verificado"
+        HEALTHY = "healthy", "Disponível"
+        ERROR = "error", "Com erro"
+
+    provider = models.SlugField(max_length=50, unique=True)
+    display_name = models.CharField(max_length=100)
+    environment = models.CharField(max_length=20, choices=Environment.choices, default=Environment.SANDBOX)
+    is_enabled = models.BooleanField(default=False)
+    is_default = models.BooleanField(default=False)
+    encrypted_credentials = models.TextField(blank=True, editable=False)
+    settings = models.JSONField(default=dict, blank=True)
+    last_health_status = models.CharField(max_length=20, choices=HealthStatus.choices, default=HealthStatus.UNKNOWN)
+    last_health_message = models.CharField(max_length=500, blank=True)
+    last_health_check_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("display_name",)
+        constraints = [
+            models.UniqueConstraint(fields=("is_default",), condition=models.Q(is_default=True), name="unique_default_payment_gateway"),
+        ]
+
+    @staticmethod
+    def _credential_cipher():
+        digest = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()
+        return Fernet(base64.urlsafe_b64encode(digest))
+
+    def set_credentials(self, credentials):
+        clean = {str(key): str(value).strip() for key, value in (credentials or {}).items() if str(value).strip()}
+        self.encrypted_credentials = self._credential_cipher().encrypt(json.dumps(clean).encode()).decode("ascii") if clean else ""
+
+    def get_credentials(self):
+        if not self.encrypted_credentials:
+            return {}
+        try:
+            return json.loads(self._credential_cipher().decrypt(self.encrypted_credentials.encode("ascii")).decode())
+        except (InvalidToken, ValueError, json.JSONDecodeError):
+            return {}
+
+    def __str__(self):
+        return self.display_name
 
 
 class Feature(BaseModel):

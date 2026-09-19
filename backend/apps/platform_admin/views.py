@@ -25,7 +25,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from celery import current_app
 
 from apps.organizations.models import Organization
-from apps.billing.models import Feature, Invoice, Payment, Plan, Subscription
+from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, Subscription
 from apps.billing.services import create_manual_invoice, record_manual_payment
 from apps.ai_assistant.models import (
     AIConversation, AIFeedback, AIMessage, AIModel, AIModelSyncRun,
@@ -77,6 +77,7 @@ from .serializers import (
     AIProviderConfigurationSerializer,
     AIModelAdminSerializer,
     AIModelSyncRunSerializer,
+    PaymentGatewayConfigurationSerializer,
 )
 from .services import record_platform_action
 from .models import BackgroundTaskRun, DemoAppointment, DemoRequest, DemoRequestActivity, DeveloperSandboxGrant, FeatureFlag, MaintenanceWindow, MarketingEvent, PlatformAuditLog, PlatformStaffProfile, SandboxExecution, SqlQueryExecution, SupportAccessGrant, SystemAnnouncement
@@ -86,6 +87,36 @@ from .approved_queries import available_queries, run_approved_query
 from .sandbox_client import SandboxClient, SandboxUnavailable
 
 User = get_user_model()
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformStaff])
+def payment_gateways(request):
+    queryset = PaymentGatewayConfiguration.objects.all()
+    return Response(PaymentGatewayConfigurationSerializer(queryset, many=True).data)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsPlatformAdmin])
+@transaction.atomic
+def update_payment_gateway(request, gateway_id):
+    gateway = PaymentGatewayConfiguration.objects.select_for_update().filter(id=gateway_id).first()
+    if not gateway:
+        return Response({"detail": "Gateway não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    serializer = PaymentGatewayConfigurationSerializer(gateway, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    if serializer.validated_data.get("is_default"):
+        PaymentGatewayConfiguration.objects.exclude(id=gateway.id).filter(is_default=True).update(is_default=False, updated_at=timezone.now())
+    gateway = serializer.save()
+    record_platform_action(
+        request=request,
+        action="billing.gateway_updated",
+        object_type="PaymentGatewayConfiguration",
+        object_id=gateway.id,
+        description=f"Gateway {gateway.display_name} atualizado.",
+        extra_data={"provider": gateway.provider, "environment": gateway.environment, "is_enabled": gateway.is_enabled, "is_default": gateway.is_default},
+    )
+    return Response(PaymentGatewayConfigurationSerializer(gateway).data)
 
 
 @api_view(["GET"])

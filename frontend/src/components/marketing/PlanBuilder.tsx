@@ -1,8 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,7 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-type Tier = { label: string; price: number | null };
+type Tier = { id: string; label: string; price: number | null };
 type Segment = {
   id: string;
   title: string;
@@ -31,10 +30,23 @@ type Segment = {
   image: string;
   accent: "wine" | "green";
   Icon: typeof Sprout;
+  annualDiscountPercent: number;
   tiers: Tier[];
 };
 
-const segments: Segment[] = [
+type ApiSegment = {
+  code: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  image_path: string;
+  icon: string;
+  accent: "wine" | "green";
+  annual_discount_percent: string;
+  tiers: Array<{ id: string; label: string; monthly_price: string | null; requires_quote: boolean }>;
+};
+
+const defaultSegments: Segment[] = [
   {
     id: "suinocultura-ciclo-completo",
     title: "Suinocultura",
@@ -43,12 +55,13 @@ const segments: Segment[] = [
     image: "/landing-livestock.png",
     accent: "wine",
     Icon: PiggyBank,
+    annualDiscountPercent: 15,
     tiers: [
-      { label: "1 a 10 matrizes", price: 39.9 },
-      { label: "11 a 50 matrizes", price: 59.9 },
-      { label: "51 a 100 matrizes", price: 89.9 },
-      { label: "101 a 200 matrizes", price: 129.9 },
-      { label: "Acima de 200 matrizes", price: null },
+      { id: "fallback-ciclo-1", label: "1 a 10 matrizes", price: 39.9 },
+      { id: "fallback-ciclo-2", label: "11 a 50 matrizes", price: 59.9 },
+      { id: "fallback-ciclo-3", label: "51 a 100 matrizes", price: 89.9 },
+      { id: "fallback-ciclo-4", label: "101 a 200 matrizes", price: 129.9 },
+      { id: "fallback-ciclo-5", label: "Acima de 200 matrizes", price: null },
     ],
   },
   {
@@ -59,10 +72,11 @@ const segments: Segment[] = [
     image: "/images/reproduction/crescimento.png",
     accent: "wine",
     Icon: PiggyBank,
+    annualDiscountPercent: 15,
     tiers: [
-      { label: "Até 200 animais", price: 39.9 },
-      { label: "201 a 1.000 animais", price: 59.9 },
-      { label: "Acima de 1.000 animais", price: null },
+      { id: "fallback-engorda-1", label: "Até 200 animais", price: 39.9 },
+      { id: "fallback-engorda-2", label: "201 a 1.000 animais", price: 59.9 },
+      { id: "fallback-engorda-3", label: "Acima de 1.000 animais", price: null },
     ],
   },
   {
@@ -73,12 +87,13 @@ const segments: Segment[] = [
     image: "/landing-agriculture.png",
     accent: "green",
     Icon: Sprout,
+    annualDiscountPercent: 15,
     tiers: [
-      { label: "Até 1 hectare", price: 39.9 },
-      { label: "1 a 3 hectares", price: 59.9 },
-      { label: "4 a 9 hectares", price: 99.9 },
-      { label: "10 a 30 hectares", price: 169.9 },
-      { label: "Acima de 30 hectares", price: null },
+      { id: "fallback-plantacoes-1", label: "Até 1 hectare", price: 39.9 },
+      { id: "fallback-plantacoes-2", label: "1 a 3 hectares", price: 59.9 },
+      { id: "fallback-plantacoes-3", label: "4 a 9 hectares", price: 99.9 },
+      { id: "fallback-plantacoes-4", label: "10 a 30 hectares", price: 169.9 },
+      { id: "fallback-plantacoes-5", label: "Acima de 30 hectares", price: null },
     ],
   },
 ];
@@ -96,19 +111,57 @@ const formatMoney = (value: number) => value.toLocaleString("pt-BR", {
 });
 
 export function PlanBuilder() {
+  const [segments, setSegments] = useState<Segment[]>(defaultSegments);
   const [step, setStep] = useState<1 | 2>(1);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState("");
   const [selected, setSelected] = useState<Record<string, number>>({
     "suinocultura-ciclo-completo": 0,
     plantacoes: 0,
   });
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/v1/public/plan-segments/")
+      .then((response) => {
+        if (!response.ok) throw new Error("plan segment catalog unavailable");
+        return response.json() as Promise<ApiSegment[]>;
+      })
+      .then((catalog) => {
+        if (!active || !catalog.length) return;
+        const mapped = catalog.map((segment): Segment => ({
+          id: segment.code,
+          title: segment.name,
+          subtitle: segment.subtitle,
+          description: segment.description,
+          image: segment.image_path || "/farm-hero.jpg",
+          accent: segment.accent,
+          Icon: segment.icon === "pig" ? PiggyBank : Sprout,
+          annualDiscountPercent: Number(segment.annual_discount_percent),
+          tiers: segment.tiers.map((tier) => ({
+            id: tier.id,
+            label: tier.label,
+            price: tier.requires_quote || tier.monthly_price === null ? null : Number(tier.monthly_price),
+          })),
+        })).filter((segment) => segment.tiers.length > 0);
+        if (mapped.length) setSegments(mapped);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   const chosen = useMemo(() => segments.flatMap((segment) => {
     const tierIndex = selected[segment.id];
-    return tierIndex === undefined ? [] : [{ segment, tier: segment.tiers[tierIndex] }];
-  }), [selected]);
+    const tier = tierIndex === undefined ? undefined : segment.tiers[tierIndex];
+    return tier ? [{ segment, tier }] : [];
+  }), [selected, segments]);
   const subtotal = chosen.reduce((sum, item) => sum + (item.tier.price ?? 0), 0);
-  const total = billing === "yearly" ? subtotal * 0.85 : subtotal;
+  const total = chosen.reduce((sum, item) => {
+    if (item.tier.price === null) return sum;
+    const multiplier = billing === "yearly" ? 1 - item.segment.annualDiscountPercent / 100 : 1;
+    return sum + item.tier.price * multiplier;
+  }, 0);
   const hasCustomPrice = chosen.some((item) => item.tier.price === null);
 
   const selectTier = (segmentId: string, tierIndex: number) => {
@@ -124,6 +177,27 @@ export function PlanBuilder() {
   };
 
   const checkoutHref = `/contato?plano=${encodeURIComponent(chosen.map(({ segment, tier }) => `${segment.title} ${segment.subtitle} - ${tier.label}`).join(", "))}&ciclo=${billing}`;
+
+  const continueToCheckout = async () => {
+    setQuoteLoading(true);
+    setQuoteError("");
+    try {
+      const response = await fetch("/api/v1/public/subscription-quotes/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier_ids: chosen.map(({ tier }) => tier.id), billing_cycle: billing }),
+      });
+      if (!response.ok) throw new Error("quote unavailable");
+      const quote = await response.json() as { public_token: string; requires_contact: boolean };
+      window.location.assign(`${checkoutHref}&orcamento=${quote.public_token}${quote.requires_contact ? "&atendimento=1" : ""}`);
+    } catch {
+      const usingFallback = chosen.some(({ tier }) => tier.id.startsWith("fallback-"));
+      if (usingFallback) window.location.assign(`${checkoutHref}&atendimento=1`);
+      else setQuoteError("Não foi possível registrar o orçamento agora. Tente novamente em instantes.");
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
 
   return <div className="plan-builder">
     <section className="plan-builder-hero">
@@ -168,7 +242,7 @@ export function PlanBuilder() {
                     <strong>{tier.price === null ? "Fale com a equipe" : <>{formatMoney(tier.price)}<small>/mês</small></>}</strong>
                   </label>)}
                 </div>
-                <div className="segment-discount"><BadgePercent/><span><strong>15% de desconto no plano anual</strong><small>Economia aplicada a qualquer faixa.</small></span></div>
+                <div className="segment-discount"><BadgePercent/><span><strong>{segment.annualDiscountPercent}% de desconto no plano anual</strong><small>Economia aplicada a qualquer faixa.</small></span></div>
               </div>
             </article>;
           })}
@@ -210,16 +284,16 @@ export function PlanBuilder() {
           <aside>
             <section className="review-card order-summary">
               <h3><ClipboardList/> Resumo do pedido</h3>
-              {chosen.map(({ segment, tier }) => <div key={segment.id}><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? "Sob consulta" : formatMoney(billing === "yearly" ? tier.price * .85 : tier.price)}</b></div>)}
+              {chosen.map(({ segment, tier }) => <div key={segment.id}><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? "Sob consulta" : formatMoney(billing === "yearly" ? tier.price * (1 - segment.annualDiscountPercent / 100) : tier.price)}</b></div>)}
               <div className="review-total"><strong>Total mensal</strong><b>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}</b></div>
-              {billing === "yearly" && !hasCustomPrice && <p>Economia de {formatMoney(subtotal * .15 * 12)} por ano.</p>}
+              {billing === "yearly" && !hasCustomPrice && <p>Economia de {formatMoney((subtotal - total) * 12)} por ano.</p>}
             </section>
             <section className="review-card included-card"><h3>O que você recebe</h3>{["Acesso completo aos módulos selecionados", "Atualizações sem custo adicional", "Suporte especializado", "Dados seguros na nuvem", "Cancele quando quiser"].map((item) => <p key={item}><CheckCircle2/>{item}</p>)}</section>
           </aside>
         </div>
         <div className="review-actions">
           <button onClick={() => { setStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowLeft/> Voltar e editar planos</button>
-          <Link className="plan-primary-button" href={checkoutHref}>{hasCustomPrice ? "Falar com um especialista" : "Continuar para contratação"}<ArrowRight/></Link>
+          <div className="quote-action">{quoteError && <small role="alert">{quoteError}</small>}<button className="plan-primary-button" onClick={continueToCheckout} disabled={quoteLoading}>{quoteLoading ? "Preparando orçamento..." : hasCustomPrice ? "Falar com um especialista" : "Continuar para contratação"}{!quoteLoading && <ArrowRight/>}</button></div>
         </div>
       </>}
 
