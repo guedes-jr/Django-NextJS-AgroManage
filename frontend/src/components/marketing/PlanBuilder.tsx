@@ -52,7 +52,7 @@ const defaultSegments: Segment[] = [
     title: "Suinocultura",
     subtitle: "Ciclo completo",
     description: "Gerencie reprodução, maternidade, crescimento e terminação em uma única rotina.",
-    image: "/landing-livestock.png",
+    image: "/images/reproduction/maternidade.png",
     accent: "wine",
     Icon: PiggyBank,
     annualDiscountPercent: 15,
