@@ -173,7 +173,7 @@ echo "[DEPLOY] Instalando dependências do backend..."
 pip install -r requirements/prod.txt
 
 echo "[DEPLOY] Validando dependência de autenticação Google..."
-python -c "import google.auth"
+python -c "import google.auth; import google.auth.transport.requests"
 
 echo "[DEPLOY] Garantindo Gunicorn instalado..."
 pip install gunicorn

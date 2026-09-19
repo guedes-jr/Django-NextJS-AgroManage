@@ -26,7 +26,7 @@ drf-spectacular==0.29.0
 executing==2.2.1
 factory_boy==3.3.3
 Faker==24.14.1
-google-auth>=2.35,<3.0
+google-auth[requests]>=2.35,<3.0
 inflection==0.5.1
 iniconfig==2.3.0
 ipython==8.39.0
