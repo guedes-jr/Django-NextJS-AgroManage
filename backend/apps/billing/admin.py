@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Feature, Invoice, InvoiceItem, Payment, PaymentAttempt, PaymentGatewayConfiguration, Plan, PlanEntitlement, PlanSegment, PlanTier, Subscription, SubscriptionQuote, SubscriptionQuoteItem
+from .models import Feature, Invoice, InvoiceItem, Payment, PaymentAttempt, PaymentGatewayConfiguration, Plan, PlanEntitlement, PlanSegment, PlanTier, Subscription, SubscriptionItem, SubscriptionQuote, SubscriptionQuoteItem
 
 
 class PlanEntitlementInline(admin.TabularInline):
@@ -38,6 +38,13 @@ class SubscriptionQuoteItemInline(admin.TabularInline):
     can_delete = False
 
 
+class SubscriptionItemInline(admin.TabularInline):
+    model = SubscriptionItem
+    extra = 0
+    readonly_fields = ("segment_code", "segment_name", "segment_subtitle", "tier_label", "monthly_price", "discount_percent", "final_monthly_price")
+    can_delete = False
+
+
 @admin.register(SubscriptionQuote)
 class SubscriptionQuoteAdmin(admin.ModelAdmin):
     list_display = ("public_token", "billing_cycle", "monthly_total", "billing_total", "requires_contact", "status", "expires_at")
@@ -65,6 +72,7 @@ class FeatureAdmin(admin.ModelAdmin):
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = ("organization", "plan", "status", "billing_cycle", "current_period_ends_at")
     list_filter = ("status", "billing_cycle", "plan")
+    inlines = (SubscriptionItemInline,)
     search_fields = ("organization__name", "organization__document")
 
 

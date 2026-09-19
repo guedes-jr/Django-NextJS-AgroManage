@@ -163,6 +163,8 @@ export function PlanBuilder() {
     return sum + item.tier.price * multiplier;
   }, 0);
   const hasCustomPrice = chosen.some((item) => item.tier.price === null);
+  const annualTotal = total * 12;
+  const annualSavings = (subtotal - total) * 12;
 
   const selectTier = (segmentId: string, tierIndex: number) => {
     setSelected((current) => ({ ...current, [segmentId]: tierIndex }));
@@ -256,7 +258,8 @@ export function PlanBuilder() {
               <b>{tier.price === null ? "Sob consulta" : formatMoney(tier.price)}</b>
               <button onClick={() => toggleSegment(segment.id)} aria-label={`Remover ${segment.title}`}><Trash2/></button>
             </div>) : <p className="empty-selection">Selecione ao menos um segmento para montar seu plano.</p>}
-            <div className="selection-total"><span>Total mensal</span><strong>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}<small>/mês</small></strong></div>
+            <div className="selection-total"><span>{billing === "yearly" ? "Equivalente mensal" : "Total mensal"}</span><strong>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}<small>/mês</small></strong></div>
+            {billing === "yearly" && !hasCustomPrice && <div className="selection-annual-total"><span>Montante da compra (12 meses)</span><strong>{formatMoney(annualTotal)}</strong></div>}
           </div>
           <div className="selection-checkout">
             <BillingChoice billing={billing} setBilling={setBilling}/>
@@ -279,14 +282,14 @@ export function PlanBuilder() {
               </div>)}
               <button className="add-segment" onClick={() => setStep(1)}><Plus/> Adicionar outro segmento</button>
             </section>
-            <section className="review-card"><h3>Tipo de assinatura</h3><BillingChoice billing={billing} setBilling={setBilling} expanded/><div className="annual-callout"><BadgePercent/><span><strong>Plano anual com 15% de desconto</strong><small>Economize em todos os segmentos e em qualquer faixa.</small></span></div></section>
+            <section className="review-card"><h3>Tipo de assinatura</h3><BillingChoice billing={billing} setBilling={setBilling} expanded/>{billing === "yearly" && <div className="annual-callout"><BadgePercent/><span><strong>Desconto anual aplicado por segmento</strong><small>O valor integral dos 12 meses aparece no resumo antes da contratação.</small></span></div>}</section>
           </div>
           <aside>
             <section className="review-card order-summary">
               <h3><ClipboardList/> Resumo do pedido</h3>
               {chosen.map(({ segment, tier }) => <div key={segment.id}><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? "Sob consulta" : formatMoney(billing === "yearly" ? tier.price * (1 - segment.annualDiscountPercent / 100) : tier.price)}</b></div>)}
-              <div className="review-total"><strong>Total mensal</strong><b>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}</b></div>
-              {billing === "yearly" && !hasCustomPrice && <p>Economia de {formatMoney((subtotal - total) * 12)} por ano.</p>}
+              <div className="review-total"><strong>{billing === "yearly" ? "Equivalente mensal" : "Total mensal"}</strong><b>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}</b></div>
+              {billing === "yearly" && !hasCustomPrice && <><div className="review-billing-total"><strong>Total da compra</strong><b>{formatMoney(annualTotal)}</b></div><p>Economia de {formatMoney(annualSavings)} por ano.</p></>}
             </section>
             <section className="review-card included-card"><h3>O que você recebe</h3>{["Acesso completo aos módulos selecionados", "Atualizações sem custo adicional", "Suporte especializado", "Dados seguros na nuvem", "Cancele quando quiser"].map((item) => <p key={item}><CheckCircle2/>{item}</p>)}</section>
           </aside>
@@ -310,6 +313,6 @@ export function PlanBuilder() {
 function BillingChoice({ billing, setBilling, expanded = false }: { billing: "monthly" | "yearly"; setBilling: (value: "monthly" | "yearly") => void; expanded?: boolean }) {
   return <div className={`billing-choice ${expanded ? "expanded" : ""}`}>
     <label className={billing === "monthly" ? "active" : ""}><input type="radio" name="billing" checked={billing === "monthly"} onChange={() => setBilling("monthly")}/><span><strong>Plano mensal</strong><small>Cancele quando quiser.</small></span></label>
-    <label className={billing === "yearly" ? "active" : ""}><input type="radio" name="billing" checked={billing === "yearly"} onChange={() => setBilling("yearly")}/><span><strong>Plano anual <b>15% de desconto</b></strong><small>Mais economia para sua operação.</small></span></label>
+    <label className={billing === "yearly" ? "active" : ""}><input type="radio" name="billing" checked={billing === "yearly"} onChange={() => setBilling("yearly")}/><span><strong>Plano anual</strong><small>Desconto aplicado conforme cada segmento.</small></span></label>
   </div>;
 }

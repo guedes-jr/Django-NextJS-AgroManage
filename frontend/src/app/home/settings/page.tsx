@@ -28,6 +28,7 @@ import {
   Contrast
 } from "lucide-react";
 import { apiClient } from "@/services/api";
+import { isAxiosError } from "axios";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -70,7 +71,20 @@ interface Organization {
   contacts?: OrganizationContact[];
   farms_count?: number;
   storage_used?: number;
+  subscription?: {
+    plan_name: string;
+    plan_code: string;
+    status: string;
+    billing_cycle: "monthly" | "yearly";
+    current_period_ends_at: string | null;
+    monthly_total: string;
+    billing_total: string;
+    items: Array<{ id: string; tier_id: string; segment_code: string; segment_name: string; segment_subtitle: string; tier_label: string; final_monthly_price: string | null }>;
+  } | null;
 }
+
+type PlanCatalogSegment = { code: string; name: string; subtitle: string; description: string; accent: "green" | "wine"; annual_discount_percent: string; tiers: Array<{ id: string; label: string; monthly_price: string | null; requires_quote: boolean }> };
+type ChangePreview = { quote: { public_token: string; billing_cycle: "monthly" | "yearly"; monthly_subtotal: string; monthly_discount: string; monthly_total: string; billing_total: string; requires_contact: boolean }; current_monthly_total: string; new_monthly_total: string; monthly_difference: string; prorated_difference: string; remaining_days: number; effective_at: "immediately" | "next_renewal" };
 
 interface Member {
   id: string;
@@ -180,6 +194,12 @@ export default function SettingsPage() {
     storageUsed: 0,
     storageLimit: 1
   });
+  const [planSelectorOpen, setPlanSelectorOpen] = useState(false);
+  const [planCatalog, setPlanCatalog] = useState<PlanCatalogSegment[]>([]);
+  const [selectedTiers, setSelectedTiers] = useState<Record<string, string>>({});
+  const [selectedBilling, setSelectedBilling] = useState<"monthly" | "yearly">("monthly");
+  const [changePreview, setChangePreview] = useState<ChangePreview | null>(null);
+  const [planChangeLoading, setPlanChangeLoading] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [addressModalMode, setAddressModalMode] = useState<'add' | 'edit'>('add');
   const [addressForm, setAddressForm] = useState({
@@ -271,16 +291,6 @@ export default function SettingsPage() {
     return limits[plan] || limits.free;
   };
 
-  const getPlanPrice = (plan: string) => {
-    const prices: Record<string, string> = {
-      free: 'Grátis',
-      starter: 'R$ 49/mês',
-      pro: 'R$ 199/mês',
-      enterprise: 'Sob consulta'
-    };
-    return prices[plan] || prices.free;
-  };
-
   const formatStorage = (gb: number) => {
     if (gb < 1) return `${Math.round(gb * 1024)} MB`;
     return `${gb} GB`;
@@ -305,6 +315,7 @@ export default function SettingsPage() {
         try {
           const orgRes = await apiClient.get<Organization>("/organizations/me/");
           const orgData = orgRes.data;
+          setOrg(orgData);
           
           let membersList: Member[] = [];
           try {
@@ -351,6 +362,57 @@ export default function SettingsPage() {
       setLoading(false);
     }
   };
+
+  const openPlanSelector = async () => {
+    setPlanChangeLoading(true);
+    setChangePreview(null);
+    setError(null);
+    try {
+      const { data } = await apiClient.get<PlanCatalogSegment[]>("/public/plan-segments/");
+      setPlanCatalog(data);
+      setSelectedTiers(Object.fromEntries((org?.subscription?.items || []).map(item => [item.segment_code, item.tier_id])));
+      setSelectedBilling(org?.subscription?.billing_cycle || "monthly");
+      setPlanSelectorOpen(true);
+    } catch {
+      setError("Não foi possível carregar os planos disponíveis.");
+    } finally {
+      setPlanChangeLoading(false);
+    }
+  };
+
+  const previewPlanChange = async () => {
+    const tierIds = Object.values(selectedTiers);
+    if (!tierIds.length) return;
+    setPlanChangeLoading(true);
+    setError(null);
+    try {
+      const { data } = await apiClient.post<ChangePreview>("/organizations/me/subscription/change-preview/", { tier_ids: tierIds, billing_cycle: selectedBilling });
+      setChangePreview(data);
+    } catch {
+      setError("Não foi possível calcular a alteração do plano.");
+    } finally {
+      setPlanChangeLoading(false);
+    }
+  };
+
+  const confirmPlanChange = async () => {
+    if (!changePreview) return;
+    setPlanChangeLoading(true);
+    setError(null);
+    try {
+      const { data } = await apiClient.post("/organizations/me/subscription/change/", { quote_token: changePreview.quote.public_token });
+      setOrg(current => current ? { ...current, subscription: data.subscription } : current);
+      setSuccess(data.detail || "Plano atualizado com sucesso.");
+      setPlanSelectorOpen(false);
+      setChangePreview(null);
+    } catch (requestError: unknown) {
+      setError(isAxiosError(requestError) ? requestError.response?.data?.detail || "Não foi possível confirmar a alteração." : "Não foi possível confirmar a alteração.");
+    } finally {
+      setPlanChangeLoading(false);
+    }
+  };
+
+  const money = (value: string | number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   useEffect(() => {
     fetchData();
@@ -1256,16 +1318,17 @@ export default function SettingsPage() {
                     <div className="plan-card p-5 rounded-3xl border d-flex justify-content-between align-items-center" style={{ background: 'var(--primary)', color: 'white' }}>
                       <div>
                         <div className="small fw-bold text-white/70 text-uppercase mb-2">Plano Atual</div>
-                        <h3 className="fw-black h1 mb-1">{org?.plan_display || 'FREE'}</h3>
-                        <p className="mb-0 text-white/80 fw-medium">{org?.plan === 'free' ? 'Plano gratuito' : 'Faturamento mensal'}</p>
+                        <h3 className="fw-black h1 mb-1">{org?.subscription?.items?.length ? `${org.subscription.items.length} segmento${org.subscription.items.length > 1 ? "s" : ""}` : org?.subscription?.plan_name || org?.plan_display || 'FREE'}</h3>
+                        <p className="mb-0 text-white/80 fw-medium">Cobrança {org?.subscription?.billing_cycle === "yearly" ? "anual" : "mensal"}</p>
                       </div>
                       <div className="text-end">
-                        <div className="h3 fw-black mb-0">{getPlanPrice(org?.plan || 'free')}</div>
-                        {org?.plan !== 'enterprise' && (
-                          <button className="btn btn-light mt-3 fw-bold rounded-xl px-4 py-2 border-0">Upgrade</button>
-                        )}
+                        <div className="h3 fw-black mb-0">{money(org?.subscription?.monthly_total || 0)}<small className="fs-6 fw-normal">/mês</small></div>
+                        {org?.subscription?.billing_cycle === "yearly" && <div className="small text-white-50 mt-1">{money(org.subscription.billing_total)} por 12 meses</div>}
+                        <button onClick={openPlanSelector} disabled={planChangeLoading} className="btn btn-light mt-3 fw-bold rounded-xl px-4 py-2 border-0">{planChangeLoading ? "Carregando..." : "Alterar plano"}</button>
                       </div>
                     </div>
+
+                    {!!org?.subscription?.items?.length && <div className="row g-3 mt-2">{org.subscription.items.map(item => <div className="col-md-6" key={item.id}><div className="dashboard-card p-3 border-dashed h-100"><div className="extra-small text-uppercase fw-bold text-success">{item.segment_name}</div><div className="fw-bold mt-1">{item.segment_subtitle}</div><div className="small text-muted-foreground mt-1">{item.tier_label}</div><div className="fw-black mt-2">{item.final_monthly_price === null ? "Sob consulta" : `${money(item.final_monthly_price)}/mês`}</div></div></div>)}</div>}
 
                     <div className="row g-4 mt-4">
                       <div className="col-md-4">
@@ -1753,6 +1816,42 @@ export default function SettingsPage() {
 
 
       {/* Password Change Modal */}
+      <Modal
+        isOpen={planSelectorOpen}
+        onClose={() => setPlanSelectorOpen(false)}
+        title="Alterar plano"
+        description="Selecione os segmentos e veja a diferença em relação à assinatura atual."
+        maxWidth="plan-selector-modal"
+        footer={<>
+          <button type="button" className="btn-secondary-elegant px-4 py-2" onClick={() => { setPlanSelectorOpen(false); setChangePreview(null); }}>Cancelar</button>
+          {!changePreview ? <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || !Object.keys(selectedTiers).length} onClick={previewPlanChange}>{planChangeLoading ? "Calculando..." : "Calcular alteração"}</button> : <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || changePreview.quote.requires_contact || changePreview.effective_at === "next_renewal"} onClick={confirmPlanChange}>{planChangeLoading ? "Confirmando..." : changePreview.quote.requires_contact ? "Falar com especialista" : changePreview.effective_at === "next_renewal" ? "Downgrade na renovação" : "Confirmar alteração"}</button>}
+        </>}
+      >
+        <div className="p-3 p-md-4 plan-selector-content">
+          <div className="billing-selector mb-4">
+            <button className={selectedBilling === "monthly" ? "active" : ""} onClick={() => { setSelectedBilling("monthly"); setChangePreview(null); }}>Mensal</button>
+            <button className={selectedBilling === "yearly" ? "active" : ""} onClick={() => { setSelectedBilling("yearly"); setChangePreview(null); }}>Anual com desconto</button>
+          </div>
+          <div className="plan-selector-grid">
+            {planCatalog.map(segment => <article className={`plan-segment-option ${segment.accent}`} key={segment.code}>
+              <div className="d-flex justify-content-between gap-3"><div><div className="plan-segment-kicker">{segment.name}</div><h3>{segment.subtitle}</h3></div>{selectedTiers[segment.code] && <button className="remove-segment" onClick={() => { setSelectedTiers(current => { const next = { ...current }; delete next[segment.code]; return next; }); setChangePreview(null); }}>Remover</button>}</div>
+              <p>{segment.description}</p>
+              <div className="plan-tier-options">{segment.tiers.map(tier => <label className={selectedTiers[segment.code] === tier.id ? "active" : ""} key={tier.id}><input type="radio" name={`settings-${segment.code}`} checked={selectedTiers[segment.code] === tier.id} onChange={() => { setSelectedTiers(current => ({ ...current, [segment.code]: tier.id })); setChangePreview(null); }}/><span>{tier.label}</span><strong>{tier.requires_quote || tier.monthly_price === null ? "Sob consulta" : `${money(tier.monthly_price)}/mês`}</strong></label>)}</div>
+              {selectedBilling === "yearly" && <small className="annual-discount-note">{Number(segment.annual_discount_percent)}% de desconto no anual</small>}
+            </article>)}
+          </div>
+          {changePreview && <section className="change-preview mt-4">
+            <h3>Resumo da alteração</h3>
+            <div><span>Plano atual</span><strong>{money(changePreview.current_monthly_total)}/mês</strong></div>
+            <div><span>Novo plano</span><strong>{money(changePreview.new_monthly_total)}/mês</strong></div>
+            <div><span>Diferença mensal</span><strong>{Number(changePreview.monthly_difference) >= 0 ? "+" : ""}{money(changePreview.monthly_difference)}</strong></div>
+            {selectedBilling === "yearly" && <div className="purchase-total"><span>Montante da compra — 12 meses</span><strong>{money(changePreview.quote.billing_total)}</strong></div>}
+            {changePreview.effective_at === "immediately" && Number(changePreview.prorated_difference) > 0 && <p>Valor estimado para aplicar a alteração agora: <strong>{money(changePreview.prorated_difference)}</strong>.</p>}
+            {changePreview.effective_at === "next_renewal" && <p>Esta alteração reduz o valor atual e deverá ser agendada para a próxima renovação.</p>}
+          </section>}
+        </div>
+      </Modal>
+
       {passwordModalOpen && (
         <div className="modal-overlay" onClick={() => setPasswordModalOpen(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1826,6 +1925,28 @@ export default function SettingsPage() {
           color: var(--primary);
           box-shadow: var(--shadow-soft);
         }
+        :global(.plan-selector-modal) { max-width: 1120px; }
+        .billing-selector { display:flex; width:max-content; padding:4px; background:var(--muted); border-radius:12px; }
+        .billing-selector button { padding:.65rem 1.1rem; color:var(--muted-foreground); background:transparent; border:0; border-radius:9px; font-size:.8rem; font-weight:800; }
+        .billing-selector button.active { color:white; background:var(--primary); }
+        .plan-selector-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; align-items:start; }
+        .plan-segment-option { padding:1.15rem; background:var(--card); border:1px solid var(--border); border-top:4px solid #26814a; border-radius:16px; }
+        .plan-segment-option.wine { border-top-color:#9d3738; }
+        .plan-segment-kicker { color:var(--primary); font-size:.68rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+        .plan-segment-option h3 { margin:.25rem 0 0; font-size:1.05rem; }
+        .plan-segment-option>p { min-height:3.4rem; margin:.8rem 0; color:var(--muted-foreground); font-size:.75rem; }
+        .remove-segment { align-self:start; color:#a43b3b; background:transparent; border:0; font-size:.68rem; font-weight:800; }
+        .plan-tier-options { display:flex; flex-direction:column; gap:.45rem; }
+        .plan-tier-options label { display:grid; grid-template-columns:auto 1fr auto; gap:.5rem; align-items:center; padding:.65rem; border:1px solid var(--border); border-radius:10px; cursor:pointer; font-size:.7rem; }
+        .plan-tier-options label.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 8%,var(--card)); box-shadow:inset 0 0 0 1px var(--primary); }
+        .plan-tier-options label strong { text-align:right; font-size:.69rem; }
+        .annual-discount-note { display:block; margin-top:.75rem; padding:.55rem; color:#176d3a; background:#eaf6e5; border-radius:8px; text-align:center; font-weight:800; }
+        .change-preview { max-width:620px; margin-inline:auto; padding:1.2rem; background:var(--card); border:1px solid var(--border); border-radius:15px; }
+        .change-preview h3 { margin:0 0 .65rem; font-size:1rem; }
+        .change-preview>div { display:flex; justify-content:space-between; gap:1rem; padding:.6rem 0; border-bottom:1px solid var(--border); font-size:.78rem; }
+        .change-preview .purchase-total { padding:.85rem; margin-top:.55rem; color:#145f35; background:#eaf6e5; border:0; border-radius:9px; font-weight:900; }
+        .change-preview p { margin:.75rem 0 0; color:var(--muted-foreground); font-size:.72rem; }
+        @media(max-width:900px){.plan-selector-grid{grid-template-columns:1fr}.plan-segment-option>p{min-height:0}}
         .form-control-custom {
           width: 100%;
           border: 1px solid var(--border);

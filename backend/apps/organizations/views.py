@@ -7,6 +7,8 @@ import os
 import subprocess
 from django.conf import settings
 from django.utils import timezone
+from django.db import transaction
+from decimal import Decimal
 from .models import OrganizationAddress, OrganizationContact
 from .serializers import (
     OrganizationSerializer, 
@@ -14,6 +16,9 @@ from .serializers import (
     OrganizationContactSerializer
 )
 from common.permissions import IsPlatformAdmin
+from apps.billing.models import Subscription, SubscriptionItem, SubscriptionQuote
+from apps.billing.serializers import SubscriptionQuoteInputSerializer, PublicSubscriptionQuoteSerializer
+from apps.billing.services import create_manual_invoice, create_subscription_quote
 
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
@@ -43,6 +48,110 @@ def my_organization_view(request):
     serializer.save()
     
     return Response(serializer.data)
+
+
+def _current_monthly_total(subscription):
+    items = list(subscription.items.all())
+    if items:
+        return sum((item.final_monthly_price or Decimal("0.00") for item in items), Decimal("0.00"))
+    if subscription.billing_cycle == Subscription.BillingCycle.YEARLY and subscription.plan.yearly_price:
+        return (subscription.plan.yearly_price / Decimal("12")).quantize(Decimal("0.01"))
+    return subscription.plan.monthly_price
+
+
+def _change_preview(subscription, quote):
+    current_monthly = _current_monthly_total(subscription)
+    difference = quote.monthly_total - current_monthly
+    remaining_days = 0
+    if subscription.current_period_ends_at and subscription.current_period_ends_at > timezone.now():
+        remaining_days = max((subscription.current_period_ends_at - timezone.now()).days, 0)
+    if subscription.billing_cycle == Subscription.BillingCycle.YEARLY and quote.billing_cycle == SubscriptionQuote.BillingCycle.MONTHLY:
+        effective_at = "next_renewal"
+        prorata = Decimal("0.00")
+    elif subscription.billing_cycle == Subscription.BillingCycle.MONTHLY and quote.billing_cycle == SubscriptionQuote.BillingCycle.YEARLY:
+        effective_at = "immediately"
+        current_credit = current_monthly * Decimal(min(remaining_days, 30)) / Decimal("30")
+        prorata = max(quote.billing_total - current_credit, Decimal("0.00")).quantize(Decimal("0.01"))
+    else:
+        effective_at = "immediately" if difference >= 0 else "next_renewal"
+        prorata = (difference * Decimal(min(remaining_days, 30)) / Decimal("30")).quantize(Decimal("0.01"))
+    return {
+        "quote": PublicSubscriptionQuoteSerializer(quote).data,
+        "current_monthly_total": current_monthly,
+        "new_monthly_total": quote.monthly_total,
+        "monthly_difference": difference,
+        "prorated_difference": prorata,
+        "remaining_days": remaining_days,
+        "effective_at": effective_at,
+    }
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def subscription_change_preview_view(request):
+    org = getattr(request.user, "organization", None)
+    if not org or not hasattr(org, "subscription"):
+        return Response({"detail": "Assinatura não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+    serializer = SubscriptionQuoteInputSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    quote = create_subscription_quote(**serializer.validated_data)
+    return Response(_change_preview(org.subscription, quote), status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def subscription_change_confirm_view(request):
+    if request.user.role not in ["owner", "admin"]:
+        return Response({"detail": "Apenas administradores podem alterar a assinatura."}, status=status.HTTP_403_FORBIDDEN)
+    org = getattr(request.user, "organization", None)
+    if not org or not hasattr(org, "subscription"):
+        return Response({"detail": "Assinatura não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        quote = SubscriptionQuote.objects.prefetch_related("items__tier").get(public_token=request.data.get("quote_token"))
+    except (SubscriptionQuote.DoesNotExist, ValueError, TypeError):
+        return Response({"detail": "Orçamento inválido."}, status=status.HTTP_400_BAD_REQUEST)
+    if quote.status != SubscriptionQuote.Status.DRAFT or quote.is_expired:
+        return Response({"detail": "Este orçamento não está mais disponível."}, status=status.HTTP_400_BAD_REQUEST)
+    if quote.requires_contact:
+        return Response({"detail": "Esta composição precisa de atendimento comercial."}, status=status.HTTP_400_BAD_REQUEST)
+
+    subscription = org.subscription
+    preview = _change_preview(subscription, quote)
+    if preview["effective_at"] == "next_renewal":
+        return Response({"detail": "Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação."}, status=status.HTTP_400_BAD_REQUEST)
+
+    subscription.items.all().delete()
+    SubscriptionItem.objects.bulk_create([
+        SubscriptionItem(
+            subscription=subscription,
+            tier=item.tier,
+            segment_code=item.segment_code,
+            segment_name=item.segment_name,
+            segment_subtitle=item.segment_subtitle,
+            tier_label=item.tier_label,
+            monthly_price=item.monthly_price,
+            discount_percent=item.discount_percent,
+            final_monthly_price=item.final_monthly_price,
+        ) for item in quote.items.all()
+    ])
+    subscription.billing_cycle = quote.billing_cycle
+    subscription.save(update_fields=("billing_cycle", "updated_at"))
+    invoice = None
+    if preview["prorated_difference"] > 0:
+        invoice = create_manual_invoice(
+            organization=org,
+            due_date=timezone.localdate(),
+            description=f"Alteração de assinatura — orçamento {quote.public_token}",
+            amount=preview["prorated_difference"],
+        )
+    quote.status = SubscriptionQuote.Status.CONVERTED
+    quote.save(update_fields=("status", "updated_at"))
+    return Response({
+        "detail": "Plano atualizado com sucesso.",
+        "subscription": OrganizationSerializer(org).data["subscription"],
+        "invoice": {"id": str(invoice.id), "number": invoice.number, "total": invoice.total} if invoice else None,
+    })
 
 
 @api_view(["POST"])

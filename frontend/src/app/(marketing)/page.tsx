@@ -5,7 +5,6 @@ import { ArrowRight, BarChart3, Beef, Boxes, CheckCircle2, ClipboardCheck, Heart
 
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
-import { PublicPlans } from "@/components/marketing/PublicPlans";
 
 export const metadata: Metadata = {
   title: "Fazenda Mais | Gestão rural em um só lugar",
@@ -73,7 +72,7 @@ const faqs = [
 
 export default function MarketingHomePage() {
   return <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({"@context":"https://schema.org","@type":"SoftwareApplication",name:"Fazenda Mais",applicationCategory:"BusinessApplication",operatingSystem:"Web",description:"Plataforma de gestão rural para fazendas, produção, rebanhos, estoque e finanças.",offers:{"@type":"Offer",price:"79.90",priceCurrency:"BRL"}})}} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({"@context":"https://schema.org","@type":"SoftwareApplication",name:"Fazenda Mais",applicationCategory:"BusinessApplication",operatingSystem:"Web",description:"Plataforma de gestão rural para fazendas, produção, rebanhos, estoque e finanças.",url:"/planos"})}} />
     <MarketingHeader />
     <main>
       <section className="marketing-hero">
@@ -117,7 +116,7 @@ export default function MarketingHomePage() {
 
       <section className="marketing-section audience-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Feito para quem vive a operação</div><h2>Do campo à gestão estratégica</h2><p>Uma experiência que atende diferentes níveis de responsabilidade sem complicar o trabalho.</p></div><div className="audience-grid">{audiences.map(({icon:Icon,title,text})=><article key={title}><Icon size={28}/><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 
-      <section className="marketing-section pricing-section" id="planos"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Planos que acompanham seu crescimento</div><h2>Comece com o que sua operação precisa</h2><p>Preços e limites sempre sincronizados com a oferta comercial do sistema Fazenda Mais.</p></div><PublicPlans compact /><div className="section-action"><Link href="/planos" className="text-link">Comparar todos os planos <ArrowRight size={17}/></Link></div></div></section>
+      <section className="marketing-section plan-calculator-cta" id="planos"><div className="marketing-container"><div className="final-cta-card"><div><div className="eyebrow light">Plano sob medida</div><h2>Calcule o plano ideal para a sua operação</h2><p>Escolha os segmentos, informe o porte de cada atividade e veja o valor da assinatura na hora.</p></div><Link href="/planos" className="marketing-button light">Calcular meu plano <ArrowRight size={18}/></Link></div></div></section>
 
       <section className="marketing-section testimonials-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">Experiência de quem está no campo</div><h2>Mais clareza para cuidar da operação</h2><p>Veja como uma gestão conectada transforma a rotina de produtores e equipes rurais.</p></div><div className="testimonials-grid">{testimonials.map((testimonial)=><article className="testimonial-card" key={testimonial.name}><div className="testimonial-top"><div className="testimonial-stars" aria-label="5 de 5 estrelas">{Array.from({length:5}).map((_,index)=><Star key={index} size={15} fill="currentColor" />)}</div><Quote size={28}/></div><blockquote>“{testimonial.quote}”</blockquote><div className="testimonial-author"><span>{testimonial.initials}</span><div><strong>{testimonial.name}</strong><small>{testimonial.role}</small></div></div></article>)}</div></div></section>
 

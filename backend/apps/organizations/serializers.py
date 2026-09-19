@@ -46,6 +46,20 @@ class OrganizationSerializer(serializers.ModelSerializer):
         subscription = getattr(obj, "subscription", None)
         if not subscription:
             return None
+        items = [{
+            "id": str(item.id),
+            "tier_id": str(item.tier_id),
+            "segment_code": item.segment_code,
+            "segment_name": item.segment_name,
+            "segment_subtitle": item.segment_subtitle,
+            "tier_label": item.tier_label,
+            "monthly_price": item.monthly_price,
+            "discount_percent": item.discount_percent,
+            "final_monthly_price": item.final_monthly_price,
+        } for item in subscription.items.all()]
+        monthly_total = sum((item.final_monthly_price or 0 for item in subscription.items.all()), 0)
+        if not items:
+            monthly_total = subscription.plan.yearly_price / 12 if subscription.billing_cycle == "yearly" and subscription.plan.yearly_price else subscription.plan.monthly_price
         return {
             "plan_name": subscription.plan.name,
             "plan_code": subscription.plan.code,
@@ -56,4 +70,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
             "discount_value": subscription.discount_value,
             "discount_ends_at": subscription.discount_ends_at,
             "has_active_discount": subscription.has_active_discount,
+            "monthly_total": monthly_total,
+            "billing_total": monthly_total * (12 if subscription.billing_cycle == "yearly" else 1),
+            "items": items,
         }

@@ -131,6 +131,26 @@ class SubscriptionQuoteItem(BaseModel):
         ordering = ("created_at",)
 
 
+class SubscriptionItem(BaseModel):
+    """A price snapshot for each segment currently contracted by an organization."""
+
+    subscription = models.ForeignKey("Subscription", on_delete=models.CASCADE, related_name="items")
+    tier = models.ForeignKey(PlanTier, on_delete=models.PROTECT, related_name="subscription_items")
+    segment_code = models.SlugField(max_length=80)
+    segment_name = models.CharField(max_length=120)
+    segment_subtitle = models.CharField(max_length=160)
+    tier_label = models.CharField(max_length=120)
+    monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    final_monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("created_at",)
+        constraints = [
+            models.UniqueConstraint(fields=("subscription", "segment_code"), name="unique_subscription_segment"),
+        ]
+
+
 class PaymentGatewayConfiguration(BaseModel):
     class Environment(models.TextChoices):
         SANDBOX = "sandbox", "Homologação"
