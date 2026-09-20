@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, CheckCheck, Trash2, Loader2, AlertTriangle, Package, Beef, Receipt, FileText } from "lucide-react";
+import Link from "next/link";
 import useNotifications from "@/hooks/useNotifications";
 
 interface Props {
@@ -113,9 +114,9 @@ export default function NotificationDropdown({ onClose }: Props) {
         </div>
 
         <div className="p-2 border-top text-center">
-          <a href="/home/notifications" className="small text-decoration-none">
+          <Link href="/home/notifications" onClick={onClose} className="small text-decoration-none">
             Ver todas as notificações
-          </a>
+          </Link>
         </div>
       </div>
 

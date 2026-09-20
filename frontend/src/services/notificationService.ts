@@ -33,7 +33,8 @@ export interface NotificationPreference {
 export const notificationService = {
   getAll: async (params?: Record<string, string | number | boolean>): Promise<Notification[]> => {
     const response = await apiClient.get<NotificationPage | Notification[]>("/notifications/", { params });
-    return Array.isArray(response.data) ? response.data : response.data.results;
+    if (Array.isArray(response.data)) return response.data;
+    return Array.isArray(response.data?.results) ? response.data.results : [];
   },
 
   getUnreadCount: async (): Promise<{ unread_count: number }> => {

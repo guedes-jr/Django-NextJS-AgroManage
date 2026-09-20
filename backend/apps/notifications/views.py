@@ -78,11 +78,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def unread_count_view(request):
     """Retorna a contagem de notificações não lidas"""
-    from .services import NotificationService
-    if getattr(request.user, 'organization', None):
-        NotificationService.create_due_reproductive_vaccine_notifications(
-            request.user.organization
-        )
     count = Notification.objects.filter(user=request.user, is_read=False, is_archived=False).count()
     return Response({"unread_count": count})
 

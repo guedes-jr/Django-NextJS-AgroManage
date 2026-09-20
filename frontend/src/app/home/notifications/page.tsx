@@ -42,7 +42,7 @@ export default function NotificationsPage() {
       if (status === "unread" && notification.is_read) return false;
       if (status === "read" && !notification.is_read) return false;
       if (type !== "all" && notification.type !== type) return false;
-      const created = notification.created_at.slice(0, 10);
+      const created = notification.created_at?.slice(0, 10) || "";
       if (dateFrom && created < dateFrom) return false;
       if (dateTo && created > dateTo) return false;
       return !term || `${notification.title} ${notification.message}`.toLocaleLowerCase("pt-BR").includes(term);
@@ -103,7 +103,7 @@ export default function NotificationsPage() {
         return <article className={`${styles.item} ${!notification.is_read ? styles.unread : ""}`} key={notification.id}>
           <button className={styles.open} onClick={() => void openNotification(notification)} disabled={busyId === notification.id}>
             <span className={styles.icon} data-type={notification.type}><Icon size={20}/></span>
-            <span className={styles.content}><span className={styles.itemTop}><strong>{notification.title}{notification.occurrence_count > 1 && <b className="badge bg-primary-subtle text-primary ms-2">×{notification.occurrence_count}</b>}</strong><small>{new Date(notification.last_occurred_at || notification.created_at).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" })}</small></span><span className={styles.message}>{notification.message}</span><span className={styles.meta}><i data-priority={notification.priority}/>{meta.label} · Prioridade {priorityLabel[notification.priority] || notification.priority}</span></span>
+            <span className={styles.content}><span className={styles.itemTop}><strong>{notification.title}{notification.occurrence_count > 1 && <b className="badge bg-primary-subtle text-primary ms-2">×{notification.occurrence_count}</b>}</strong><small>{notification.last_occurred_at || notification.created_at ? new Date(notification.last_occurred_at || notification.created_at).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" }) : "Data não informada"}</small></span><span className={styles.message}>{notification.message}</span><span className={styles.meta}><i data-priority={notification.priority}/>{meta.label} · Prioridade {priorityLabel[notification.priority] || notification.priority}</span></span>
             {notification.link && <ChevronRight className={styles.chevron} size={20}/>} 
           </button>
           <div className={styles.actions}>
