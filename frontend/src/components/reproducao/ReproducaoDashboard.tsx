@@ -1006,7 +1006,12 @@ export function ReproducaoDashboard({
         });
         break;
       }
-      case 'mortality':
+      case 'mortality': {
+        const availableLitters = rows.length > 0 ? rows : (currentTab?.rows || []);
+        const mortalityOptions = availableLitters.map((row) => ({
+          value: String(row.id || row.pk || ""),
+          label: `Matriz ${row.identifier || row.name || row.id}`,
+        })).filter((option) => option.value);
         setActionModal({
           open: true,
           title: "Registrar Mortalidade (Maternidade)",
@@ -1014,9 +1019,9 @@ export function ReproducaoDashboard({
             { 
               name: "id", 
               label: "Leitegada / Matriz", 
-              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
-              options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              type: rows.length > 1 ? "text" : (mortalityOptions.length > 0 ? "select" : "text"), 
+              options: mortalityOptions,
+              initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? "Múltiplos selecionados" : mortalityOptions[0]?.value),
               disabled: rows.length >= 1,
               required: true 
             },
@@ -1038,11 +1043,13 @@ export function ReproducaoDashboard({
             } else {
               await registerMortality(data.id, data);
             }
+            showToast("Mortalidade registrada e saldo da leitegada atualizado.", "success");
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
         });
         break;
+      }
       case 'birth': {
         const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
           value: String(v.id),

@@ -892,6 +892,10 @@ class LivestockTenantIsolationTestCase(APITestCase):
         )
         self.assertEqual(alert["time"], "Em 1 dia")
         self.assertEqual(len(alert["alert_key"]), 64)
+        detail = self.client.get(reverse("animalbatch-detail", args=[batch.id]))
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["age_days"], 70)
+        self.assertEqual(detail.data["report_date"], date.today().isoformat())
 
     def test_batch_history_includes_litter_vaccinations(self):
         batch = AnimalBatch.objects.create(

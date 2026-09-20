@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.db import transaction
+from django.utils import timezone
 from decimal import Decimal
 from .models import AnimalBatch, Species, Breed, Animal, Mating, Pregnancy, Birth, Litter, Incubation, VaccinationRecord, WeightRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HealthRecord, HistoricoEvento, HeatRecord, LitterMedication
 from collections import Counter
@@ -189,6 +190,24 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             ret['avg_weaning_weight_kg'] = None
             ret['weaning_date'] = None
             ret['maternity_mortality'] = None
+
+        # A idade deve seguir o calendário oficial do servidor, não o relógio
+        # ou o fuso horário do navegador que abriu a ficha.
+        birth_date_value = ret.get('birth_date')
+        if birth_date_value:
+            try:
+                import datetime
+                parsed_birth_date = datetime.date.fromisoformat(birth_date_value)
+                # Idade zootécnica em dias de vida: o nascimento corresponde
+                # ao 1º dia, em vez de exibir zero durante todo o primeiro dia.
+                ret['age_days'] = max(1, (timezone.localdate() - parsed_birth_date).days + 1)
+            except (TypeError, ValueError):
+                ret['age_days'] = None
+        else:
+            ret['age_days'] = None
+        local_now = timezone.localtime()
+        ret['report_date'] = local_now.date().isoformat()
+        ret['report_time'] = local_now.strftime('%H:%M')
 
         # Mortes calculadas (diferença entre quantidade inicial e atual)
         initial_qty = ret.get('initial_quantity')

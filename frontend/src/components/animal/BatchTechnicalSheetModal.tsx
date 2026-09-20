@@ -52,7 +52,8 @@ const daysBetween = (start: string | null, end: string | Date) => {
 };
 
 const calcAge = (birthDate: string | null, referenceDate = new Date()) => {
-  return daysBetween(birthDate, referenceDate);
+  const elapsedDays = daysBetween(birthDate, referenceDate);
+  return elapsedDays == null ? null : Math.max(1, elapsedDays + 1);
 };
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
@@ -309,7 +310,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   if (!isOpen) return null;
 
   // ── Derived data — usa APENAS dados reais do histórico do lote ──
-  const ageInDays = calcAge(animal?.birth_date, currentDate);
+  const ageInDays = animal?.age_days != null
+    ? Number(animal.age_days)
+    : calcAge(animal?.birth_date, currentDate);
 
   // Quantidades — sem fallback fictício
   const qtdAtual: number | null = animal?.quantity ?? null;
@@ -467,8 +470,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   })();
 
   const now = new Date();
-  const reportDate = now.toLocaleDateString("pt-BR");
-  const reportTime = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const reportDate = animal?.report_date ? fmtDate(animal.report_date) : now.toLocaleDateString("pt-BR");
+  const reportTime = animal?.report_time || now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   const cellBase: React.CSSProperties = {
     fontSize: "0.6rem",
@@ -616,7 +619,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               <div style={{ padding: "8px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
                 <InfoRow icon={<IconPig />} label="Raça:" value={animal?.breed_name || "-"} />
                 <InfoRow icon={<IconCal />} label="Nascimento:" value={fmtDate(animal?.birth_date)} />
-                <InfoRow icon={<IconClock />} label="Idade Atual:" value={ageInDays != null ? `${ageInDays} dias` : "-"} />
+                <InfoRow icon={<IconClock />} label="Idade Atual:" value={ageInDays != null ? `${ageInDays} ${ageInDays === 1 ? "dia" : "dias"}` : "-"} />
                 {categoria && categoria !== "-" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
                     <span style={{ display: "flex", alignItems: "center" }}><IconTag /></span>

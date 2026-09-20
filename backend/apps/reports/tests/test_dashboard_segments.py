@@ -6,7 +6,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.inventory.models import ItemEstoque, LoteEstoque
+from apps.inventory.models import ItemEstoque, LoteEstoque, MovimentacaoEstoque
 from apps.finance.models import FinancialCategory, Transaction
 from apps.farms.models import Farm
 from apps.livestock.models import AnimalBatch, Species
@@ -160,4 +160,40 @@ class DashboardSegmentTestCase(APITestCase):
         self.assertEqual(
             swine_segment["cost_breakdown"],
             [{"name": "Compra de Insumos", "value": 150.0}],
+        )
+
+    def test_used_vaccine_value_appears_in_swine_dashboard(self):
+        Species.objects.create(name="Suínos", code="suinos")
+        item = ItemEstoque.objects.create(
+            organization=self.organization,
+            nome="Literguard",
+            categoria="vacina",
+            categorias=["vacina"],
+            especie_animal="suino",
+            unidade_medida="ml",
+        )
+        lot = LoteEstoque.objects.create(
+            item=item,
+            numero_lote="LITER-001",
+            quantidade_inicial=Decimal("50.00"),
+            quantidade_atual=Decimal("48.00"),
+            custo_unitario=Decimal("3.00"),
+            data_entrada=date.today(),
+        )
+        MovimentacaoEstoque.objects.create(
+            item=item,
+            lote=lot,
+            tipo="consumo",
+            quantidade=Decimal("2.00"),
+            responsavel=self.user,
+        )
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        swine_segment = response.data["segments"]["livestock_by_species"][0]
+        self.assertEqual(swine_segment["cost"], 156.0)
+        self.assertIn(
+            {"name": "Vacina: Literguard", "value": 6.0},
+            swine_segment["cost_breakdown"],
         )
