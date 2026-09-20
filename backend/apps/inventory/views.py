@@ -909,8 +909,11 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
             # Filter by species (e.g. ?especie=suino)
             especie = self.request.query_params.get("especie")
             if especie:
-                # We filter by the species code in the related AnimalBatch
-                qs = qs.filter(Q(lote_animal__species__code=especie) | Q(animais__species__code=especie)).distinct()
+                species_codes = ["suino", "suinos"] if especie in {"suino", "suinos"} else [especie]
+                qs = qs.filter(
+                    Q(lote_animal__species__code__in=species_codes)
+                    | Q(animais__species__code__in=species_codes)
+                ).distinct()
                 
             return qs
         return ConsumoRacao.objects.none()
@@ -1001,7 +1004,11 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
         categoria = request.query_params.get("categoria")
         qs = ConsumoRacao.objects.filter(organization=organization)
         if especie:
-            qs = qs.filter(Q(lote_animal__species__code=especie) | Q(animais__species__code=especie)).distinct()
+            species_codes = ["suino", "suinos"] if especie in {"suino", "suinos"} else [especie]
+            qs = qs.filter(
+                Q(lote_animal__species__code__in=species_codes)
+                | Q(animais__species__code__in=species_codes)
+            ).distinct()
         if categoria and categoria != "lotes":
             qs = qs.filter(categoria_destino=categoria)
             

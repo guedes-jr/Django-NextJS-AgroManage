@@ -32,6 +32,10 @@ interface SpeciesSummary {
   total_animals: number;
   active_females: number;
   active_alerts: number;
+  feed_consumed_month: number;
+  feed_cost_month: number;
+  semen_doses_month: number;
+  semen_cost_month: number;
 }
 
 const PigIcon: ModuleIcon = (props) => <Icon iconNode={pig} {...props} />;
@@ -139,6 +143,30 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
       icon: BellRing,
       tone: "amber",
     },
+    {
+      label: "Ração consumida no mês (kg)",
+      value: summary?.feed_consumed_month,
+      icon: Wheat,
+      tone: "blue",
+    },
+    {
+      label: "Custo da alimentação no mês",
+      value: summary ? summary.feed_cost_month.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
+      icon: BadgeDollarSign,
+      tone: "emerald",
+    },
+    {
+      label: "Sêmen utilizado no mês (doses)",
+      value: summary?.semen_doses_month,
+      icon: MarsStroke,
+      tone: "purple",
+    },
+    {
+      label: "Valor do sêmen utilizado no mês",
+      value: summary ? summary.semen_cost_month.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
+      icon: BadgeDollarSign,
+      tone: "cyan",
+    },
   ];
 
   return (
@@ -172,7 +200,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
                 {loading ? (
                   <span className={styles.valueSkeleton} />
                 ) : (
-                  <strong>{numberFormatter.format(metric.value ?? 0)}</strong>
+                  <strong>{typeof metric.value === "number" ? numberFormatter.format(metric.value) : metric.value ?? "0"}</strong>
                 )}
                 <span>{metric.label}</span>
               </div>

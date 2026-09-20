@@ -21,13 +21,38 @@ const fmt = (v: any, decimals = 2) =>
 const fmtInt = (v: any) =>
   v != null && !isNaN(Number(v)) ? Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "-";
 
-const fmtDate = (d: any) =>
-  d ? new Date(d).toLocaleDateString("pt-BR") : "-";
+const fmtDate = (d: any) => {
+  if (!d) return "-";
+  const dateOnly = typeof d === "string" && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  if (dateOnly) {
+    return new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+    ).toLocaleDateString("pt-BR");
+  }
+  return new Date(d).toLocaleDateString("pt-BR");
+};
 
-const calcAge = (birthDate: string | null) => {
-  if (!birthDate) return null;
-  const diff = Date.now() - new Date(birthDate).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
+const calendarDay = (value: string | Date) => {
+  if (value instanceof Date) {
+    return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const parts = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!parts) return null;
+  return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+};
+
+const daysBetween = (start: string | null, end: string | Date) => {
+  if (!start) return null;
+  const startDay = calendarDay(start);
+  const endDay = calendarDay(end);
+  if (startDay == null || endDay == null) return null;
+  return Math.max(0, Math.floor((endDay - startDay) / 86_400_000));
+};
+
+const calcAge = (birthDate: string | null, referenceDate = new Date()) => {
+  return daysBetween(birthDate, referenceDate);
 };
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
@@ -254,6 +279,14 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCurrentDate(new Date());
+    const timer = window.setInterval(() => setCurrentDate(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && batchId) {
@@ -276,7 +309,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   if (!isOpen) return null;
 
   // ── Derived data — usa APENAS dados reais do histórico do lote ──
-  const ageInDays = calcAge(animal?.birth_date);
+  const ageInDays = calcAge(animal?.birth_date, currentDate);
 
   // Quantidades — sem fallback fictício
   const qtdAtual: number | null = animal?.quantity ?? null;
@@ -294,9 +327,15 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   // Mortes: somente dado real (calculado no serializer)
   const saldoMortes: number | null = animal?.deaths_count ?? null;
 
-  // Pesos — sem fallback fictício
+  const weightRows = history
+    .filter((event: any) => event.type === "weight" && event.weight_kg != null && event.date)
+    .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+  const latestWeight = weightRows.at(-1);
+
+  // Pesos — prioriza a pesagem mais recente registrada para o lote.
   const pesoMedioAtual: number | null =
-    animal?.current_weight_kg != null ? Number(animal.current_weight_kg)
+    latestWeight?.weight_kg != null ? Number(latestWeight.weight_kg)
+    : animal?.current_weight_kg != null ? Number(animal.current_weight_kg)
     : animal?.avg_weight_kg != null ? Number(animal.avg_weight_kg)
     : null;
   const pesoTotalLote: number | null =
@@ -304,11 +343,37 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   const pesoMedioNasc: number | null =
     animal?.birth_weight_kg != null ? Number(animal.birth_weight_kg) : null;
 
-  // GPD — calculado apenas quando existem dados reais de peso e nascimento
+  const currentPhaseRecord = history.find(
+    (event: any) => event.type === "phase" && event.is_current && event.entry_date,
+  );
+  const performanceBaseline = (() => {
+    if (animal?.avg_weaning_weight_kg != null && animal?.weaning_date) {
+      return { weight: Number(animal.avg_weaning_weight_kg), date: String(animal.weaning_date) };
+    }
+    if (pesoMedioNasc != null && animal?.birth_date) {
+      return { weight: pesoMedioNasc, date: String(animal.birth_date) };
+    }
+    if (currentPhaseRecord?.avg_weight_kg != null && currentPhaseRecord?.entry_date) {
+      return { weight: Number(currentPhaseRecord.avg_weight_kg), date: String(currentPhaseRecord.entry_date) };
+    }
+    if (weightRows.length > 1) {
+      return { weight: Number(weightRows[0].weight_kg), date: String(weightRows[0].date) };
+    }
+    return null;
+  })();
+  const performanceEndDate: string | Date = latestWeight?.date || currentDate;
+  const performanceDays = performanceBaseline
+    ? daysBetween(performanceBaseline.date, performanceEndDate)
+    : null;
+  const performanceWeightGain = performanceBaseline && pesoMedioAtual != null
+    ? pesoMedioAtual - performanceBaseline.weight
+    : null;
+
+  // GPD — usa o peso de entrada da fase/desmame e a pesagem mais recente.
   const gpd: number | null = (() => {
     if (animal?.daily_weight_gain != null) return Number(animal.daily_weight_gain);
-    if (pesoMedioAtual != null && pesoMedioNasc != null && ageInDays != null && ageInDays > 0) {
-      return (pesoMedioAtual - pesoMedioNasc) / ageInDays;
+    if (performanceWeightGain != null && performanceDays != null && performanceDays > 0) {
+      return performanceWeightGain / performanceDays;
     }
     return null;
   })();
@@ -343,10 +408,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   // Conversão Alimentar — somente quando há ração E peso reais
   const conversaoAlimentar: number | null = (() => {
     if (animal?.feed_conversion != null) return Number(animal.feed_conversion);
-    if (hasFeed && gpd != null && gpd > 0 && qtdAtual != null && qtdAtual > 0 && ageInDays != null) {
+    if (hasFeed && performanceWeightGain != null && performanceWeightGain > 0 && qtdAtual != null && qtdAtual > 0) {
       const consumoMedioAnimal = totalConsumo / qtdAtual;
-      const ganhoTotal = gpd * ageInDays;
-      if (ganhoTotal > 0) return consumoMedioAnimal / ganhoTotal;
+      return consumoMedioAnimal / performanceWeightGain;
     }
     return null;
   })();
@@ -357,8 +421,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
       ? ((saldoMortes / totalNascidos) * 100).toFixed(2)
       : null;
 
-  // Sales
-  const salesRows = history.filter((e: any) => e.type === "sale").slice(0, 10);
+  // Vacinas aplicadas coletivamente na leitegada/lote
+  const vaccineRows = history.filter((e: any) => e.type === "vaccine").slice(0, 10);
 
   // Deaths — somente registros reais
   const deathRows = history.filter((e: any) => e.type === "death" || e.type === "discard").slice(0, 20);
@@ -965,44 +1029,41 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 </table>
               </div>
 
-              {/* Section 3 — Vendas */}
+              {/* Section 3 — Vacinas */}
               <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
-                <SectionHeader number={3} title="VENDAS" />
+                <SectionHeader number={3} title="VACINAS APLICADAS" />
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
                       <Th>Data</Th>
-                      <Th>Idade<br />(dias)</Th>
-                      <Th>Qtd</Th>
-                      <Th>Peso Total<br />(Kg)</Th>
-                      <Th>GPD (Kg)</Th>
+                      <Th>Vacina</Th>
+                      <Th>Dose por<br />animal</Th>
+                      <Th>Qtd.<br />leitões</Th>
+                      <Th>Responsável</Th>
                     </tr>
                   </thead>
                   <tbody>
-                    {salesRows.length > 0 ? salesRows.map((s: any, i: number) => (
+                    {vaccineRows.length > 0 ? vaccineRows.map((vaccine: any, i: number) => (
                       <TR key={i} even={i % 2 === 1}>
-                        <Td>{fmtDate(s.date)}</Td>
-                        <Td>{s.age_days ?? "-"}</Td>
-                        <Td>{s.quantity ?? "-"}</Td>
-                        <Td>{s.total_weight ? fmt(s.total_weight) : "-"}</Td>
-                        <Td>{s.gpd ? fmt(s.gpd, 3) : "-"}</Td>
+                        <Td>{fmtDate(vaccine.date)}</Td>
+                        <Td>{vaccine.name || "-"}</Td>
+                        <Td>{vaccine.dosage || "-"}</Td>
+                        <Td>{vaccine.animal_count ?? "-"}</Td>
+                        <Td>{vaccine.responsible || "-"}</Td>
                       </TR>
                     )) : (
                       <tr>
-                        <Td style={{ color: "#aaa" }}>-</Td>
-                        <Td style={{ color: "#aaa" }}>-</Td>
-                        <Td style={{ color: "#aaa" }}>-</Td>
-                        <Td style={{ color: "#aaa" }}>-</Td>
-                        <Td style={{ color: "#aaa" }}>-</Td>
+                        <td colSpan={5} style={{
+                          textAlign: "center",
+                          padding: "10px 6px",
+                          color: "#aaa",
+                          fontSize: "0.6rem",
+                          fontStyle: "italic",
+                        }}>
+                          Sem registros de vacinação no lote.
+                        </td>
                       </tr>
                     )}
-                    <tr style={{ background: GREEN_LIGHT }}>
-                      <Td bold>TOTAL</Td>
-                      <Td bold>{salesRows.length > 0 ? salesRows.reduce((a: number, s: any) => a + (s.age_days || 0), 0) : 0}</Td>
-                      <Td bold>{salesRows.reduce((a: number, s: any) => a + (s.quantity || 0), 0) || 0}</Td>
-                      <Td bold>{salesRows.reduce((a: number, s: any) => a + (s.total_weight || 0), 0) || 0}</Td>
-                      <Td bold>0</Td>
-                    </tr>
                   </tbody>
                 </table>
               </div>

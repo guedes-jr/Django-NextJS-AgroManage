@@ -426,7 +426,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: "Registrar Procedimento / Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Transferir leitões ou medicação", type: 'procedure' },
           { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito", type: 'mortality' },
-          { label: "Registrar Pesagem", icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: "Pesar leitões", type: 'weight' },
+          { label: "Registrar Vacina Pós-parto", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinar a leitegada", type: 'postpartum_vaccine' },
           { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche", type: 'wean' },
         ],
         tabAlerts: tab.maternidade?.alerts || [],
@@ -488,6 +488,7 @@ function ReproducaoPageContent() {
           { key: "entrada", label: "Entrada", render: formatDateCell },
           { key: "qtd", label: "Qtd. Atual" },
           { key: "peso", label: "Peso Médio" },
+          { key: "prev_crescimento", label: "Prev. Crescimento", render: formatDateCell },
         ],
         actions: [
           {

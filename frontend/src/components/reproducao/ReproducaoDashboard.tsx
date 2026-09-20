@@ -62,7 +62,7 @@ export interface TabConfig {
     icon: string; 
     color: string; 
     desc: string; 
-    type?: 'primary' | 'weight' | 'vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet' | 'batch_mortality' | 'sale_redirect';
+    type?: 'primary' | 'weight' | 'vaccine' | 'postpartum_vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet' | 'batch_mortality' | 'sale_redirect';
     onClick?: () => void;
   }[];
   tabAlerts?: AlertItem[];
@@ -206,6 +206,7 @@ function RefetchOverlay() {
 
 import { 
   registerWeight, 
+  registerBatchWeight,
   registerVaccination, 
   diagnosePregnancy, 
   promoteToMating, 
@@ -627,7 +628,12 @@ export function ReproducaoDashboard({
             { name: "notes", label: "Observações", type: "textarea" },
           ],
           onConfirm: async (data) => {
-            await registerWeight(data.id, { weight_kg: parseFloat(data.weight_kg), weighing_date: data.weighing_date, notes: data.notes });
+            const payload = { weight_kg: parseFloat(data.weight_kg), weighing_date: data.weighing_date, notes: data.notes };
+            if (["creche", "crescimento", "engorda"].includes(currentTab?.id || "")) {
+              await registerBatchWeight(data.id, payload);
+            } else {
+              await registerWeight(data.id, payload);
+            }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -918,6 +924,88 @@ export function ReproducaoDashboard({
           }
         });
         break;
+      case 'postpartum_vaccine': {
+        const availableLitters = rows.length > 0 ? rows : (currentTab?.rows || []);
+        const litterOptions = availableLitters.map((row) => ({
+          value: String(row.id || row.pk || ""),
+          label: `Matriz ${row.identifier || row.name || row.id}`,
+        })).filter((option) => option.value);
+        const selectedLitter = rows.length === 1 ? rows[0] : undefined;
+        setActionModal({
+          open: true,
+          title: "Registrar Vacinação Pós-parto",
+          subtitle: vaccineItems.length === 0
+            ? "Nenhuma vacina disponível no estoque."
+            : "A quantidade aplicada será descontada automaticamente do estoque.",
+          fields: [
+            {
+              name: "id",
+              label: "Leitegada / Matriz",
+              type: litterOptions.length > 0 ? "select" : "text",
+              options: litterOptions,
+              initialValue: selectedLitter ? String(selectedLitter.id) : undefined,
+              disabled: rows.length === 1,
+              required: true,
+            },
+            {
+              name: "vaccine_applications",
+              label: "Vacina e dose por leitão",
+              type: "inventory-list",
+              required: true,
+              colSpan: "full",
+              initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
+              options: vaccineItems.map((item) => ({
+                value: String(item.id),
+                label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
+              })),
+            },
+            {
+              name: "animal_count",
+              label: "Quantidade de Leitões",
+              type: "number",
+              required: true,
+              min: 1,
+              initialValue: selectedLitter?.vivos_atual ?? selectedLitter?.vivos ?? "",
+            },
+            {
+              name: "data",
+              label: "Data da Aplicação",
+              type: "date",
+              required: true,
+              initialValue: new Date().toISOString().split('T')[0],
+            },
+            {
+              name: "motivo",
+              label: "Motivo",
+              type: "text",
+              placeholder: "Ex: protocolo pós-parto",
+            },
+            {
+              name: "responsavel",
+              label: "Responsável",
+              type: "text",
+              placeholder: "Nome do responsável",
+            },
+            { name: "observacao", label: "Observações", type: "textarea", colSpan: "full" },
+          ],
+          onConfirm: async (data) => {
+            const payload = {
+              ...data,
+              tipo: "APLICACAO_VACINA",
+              applications: JSON.parse(data.vaccine_applications),
+            };
+            if (rows.length > 1) {
+              await Promise.all(rows.map((row) => registerProcedure(row.id as number, payload)));
+            } else {
+              await registerProcedure(data.id, payload);
+            }
+            showToast("Vacinação pós-parto registrada e estoque atualizado.", "success");
+            onSuccess?.();
+            setActionModal((previous) => ({ ...previous, open: false }));
+          },
+        });
+        break;
+      }
       case 'mortality':
         setActionModal({
           open: true,
@@ -1193,26 +1281,14 @@ export function ReproducaoDashboard({
                 : `L-CRECHE-LOTE-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
             },
             {
-              name: "schedule_next_mating",
-              label: "Agendar aviso da próxima cobertura?",
-              type: "select",
-              required: true,
-              initialValue: "no",
-              options: [
-                { value: "no", label: "Não agendar" },
-                { value: "yes", label: "Agendar aviso" },
-              ],
-              showIf: (values) => values.weaning_type === "total",
-            },
-            {
               name: "next_mating_notice_days",
-              label: "Avisar após o desmame (dias)",
+              label: "Dias após o desmame para o próximo cio",
               type: "number",
               required: true,
               initialValue: 7,
               min: 1,
               max: 365,
-              showIf: (values) => values.weaning_type === "total" && values.schedule_next_mating === "yes",
+              showIf: (values) => values.weaning_type === "total",
             }
           ],
           onConfirm: async (data) => {
@@ -1229,7 +1305,7 @@ export function ReproducaoDashboard({
                   weaning_date: data.weaning_date,
                   weaning_type: data.weaning_type,
                   avg_weaning_weight_kg: data.avg_weaning_weight_kg ? parseFloat(data.avg_weaning_weight_kg) : null,
-                  next_mating_notice_days: data.weaning_type === "total" && data.schedule_next_mating === "yes"
+                  next_mating_notice_days: data.weaning_type === "total"
                     ? Number(data.next_mating_notice_days)
                     : null,
                 });

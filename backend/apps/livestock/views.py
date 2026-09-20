@@ -110,6 +110,39 @@ def _scheduled_reproductive_alerts(organization, species_code, include_birth_vac
             text = f"Diagnóstico de prenhez de {mating.female.identifier} previsto para {due_date.strftime('%d/%m/%Y')}."
         alerts.append({"type": alert_type, "icon": "🔬", "text": text, "time": time_label})
 
+    scheduled_heats = Litter.objects.filter(
+        birth__female__farm__organization=organization,
+        birth__female__species__code=species_code,
+        birth__female__status=AnimalBatch.Status.ACTIVE,
+        weaning_date__isnull=False,
+        next_mating_notice_date__isnull=False,
+    ).select_related("birth__female")
+    for litter in scheduled_heats:
+        due_date = litter.next_mating_notice_date
+        days = (due_date - today).days
+        identifier = litter.birth.female.identifier
+        if days < 0:
+            alert_type = "danger"
+            time_label = f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}"
+            text = f"Próximo cio da matriz {identifier} está atrasado desde {due_date.strftime('%d/%m/%Y')}."
+        elif days == 0:
+            alert_type = "warning"
+            time_label = "Hoje"
+            text = f"Próximo cio da matriz {identifier} previsto para hoje."
+        else:
+            alert_type = "info"
+            time_label = f"Em {days} dia{'s' if days != 1 else ''}"
+            text = f"Próximo cio da matriz {identifier} previsto para {due_date.strftime('%d/%m/%Y')}."
+        alerts.append({
+            "type": alert_type,
+            "icon": "🔴",
+            "text": text,
+            "time": time_label,
+            "alert_key": _operational_alert_key(
+                species_code, "post-weaning-heat", text, str(litter.id)
+            ),
+        })
+
     vaccine_matings = Mating.objects.filter(
         female__farm__organization=organization,
         female__species__code=species_code,
@@ -173,6 +206,48 @@ def _scheduled_birth_vaccine_alerts(organization, species_code):
         text = f"Vacina {birth.reproductive_vaccine_item.nome} de {birth.female.identifier} {state} {due_date.strftime('%d/%m/%Y')}."
         alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label})
 
+    return alerts
+
+
+def _piglet_iron_alerts(organization, species_code):
+    """Schedule iron supplementation for swine litters three days after birth."""
+    if species_code != "suinos":
+        return []
+
+    today = timezone.localdate()
+    recent_births = Birth.objects.filter(
+        female__farm__organization=organization,
+        female__species__code=species_code,
+        birth_date__gte=today - datetime.timedelta(days=14),
+        birth_date__lte=today,
+    ).exclude(
+        litter__weaning_date__isnull=False,
+    ).select_related("female")
+
+    alerts = []
+    for birth in recent_births.order_by("birth_date", "female__identifier"):
+        due_date = birth.birth_date + datetime.timedelta(days=3)
+        days = (due_date - today).days
+        if days < 0:
+            alert_type = "danger"
+            time_label = f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}"
+        elif days == 0:
+            alert_type = "warning"
+            time_label = "Hoje"
+        else:
+            alert_type = "info"
+            time_label = f"Em {days} dia{'s' if days != 1 else ''}"
+
+        text = f"Leitegada da matriz {birth.female.identifier}: aplicar ferro."
+        alerts.append({
+            "type": alert_type,
+            "icon": "💉",
+            "text": text,
+            "time": time_label,
+            "alert_key": _operational_alert_key(
+                species_code, "piglet-iron", text, str(birth.id)
+            ),
+        })
     return alerts
 
 
@@ -530,10 +605,11 @@ class MaternidadeView(BasePhaseView):
         total_desmamados = sum(b.litter.weaned_quantity or 0 for b in desmamados_mes_qs)
 
         total_born_lactating = sum(b.total_born for b in lactating_qs)
-        total_dead_birth = sum(b.stillborn + b.mummified for b in lactating_qs)
+        total_dead_birth = sum(b.stillborn + b.mummified + b.mortality for b in lactating_qs)
         mortalidade_pct = round((total_dead_birth / total_born_lactating * 100), 1) if total_born_lactating else 0
 
         alerts = _scheduled_birth_vaccine_alerts(request.user.organization, species)
+        alerts.extend(_piglet_iron_alerts(request.user.organization, species))
         pendentes_desmame = sum(
             1
             for birth in lactating_qs
@@ -616,9 +692,51 @@ class CrecheView(BasePhaseView):
         pesos = [float(b.avg_weight_kg) for b in qs if b.avg_weight_kg]
         peso_medio = round(sum(pesos) / len(pesos), 1) if pesos else None
 
+        today = timezone.localdate()
+        growth_dates = {}
+        for batch in qs.prefetch_related('source_batches', 'mother'):
+            birth = Birth.objects.filter(batch=batch).order_by('-birth_date').first()
+            if birth is None:
+                source_ids = batch.source_batches.values_list('id', flat=True)
+                birth = Birth.objects.filter(batch_id__in=source_ids).order_by('-birth_date').first()
+            if birth is None and batch.mother_id:
+                birth = Birth.objects.filter(
+                    female_id=batch.mother_id,
+                    birth_date__lte=batch.entry_date,
+                ).order_by('-birth_date').first()
+            if birth and birth.birth_date:
+                growth_dates[batch.id] = birth.birth_date + datetime.timedelta(days=70)
+
         alerts = []
         if prontos.exists():
             alerts.append({"type": "info", "icon": "ℹ️", "text": f"{prontos.count()} lote{'s' if prontos.count() > 1 else ''} pronto{'s' if prontos.count() > 1 else ''} para transferência ao crescimento.", "time": "Hoje"})
+        for batch in qs:
+            due_date = growth_dates.get(batch.id)
+            if not due_date:
+                continue
+            days = (due_date - today).days
+            formatted_date = due_date.strftime('%d/%m/%Y')
+            if days < 0:
+                alert_type = "danger"
+                time_label = f"Há {abs(days)} dia{'s' if abs(days) != 1 else ''}"
+                text = f"Transferência do lote {batch.batch_code} para crescimento está atrasada desde {formatted_date}."
+            elif days == 0:
+                alert_type = "warning"
+                time_label = "Hoje"
+                text = f"Transferir o lote {batch.batch_code} para crescimento hoje."
+            else:
+                alert_type = "info"
+                time_label = f"Em {days} dia{'s' if days != 1 else ''}"
+                text = f"Transferir o lote {batch.batch_code} para crescimento em {formatted_date}."
+            alerts.append({
+                "type": alert_type,
+                "icon": "🔄",
+                "text": text,
+                "time": time_label,
+                "alert_key": _operational_alert_key(
+                    species, "nursery-to-growth", text, str(batch.id)
+                ),
+            })
 
         ai_suggestions = []
         if peso_medio and peso_medio >= 15:
@@ -633,6 +751,7 @@ class CrecheView(BasePhaseView):
                 "entrada": b.entry_date.isoformat() if b.entry_date else None,
                 "qtd": b.quantity,
                 "peso": f"{float(b.avg_weight_kg):.0f} kg" if b.avg_weight_kg else "—",
+                "prev_crescimento": growth_dates[b.id].isoformat() if b.id in growth_dates else None,
                 "status": b.status,
             })
 
@@ -886,6 +1005,8 @@ def build_reproductive_cycles(animal):
                         
                         if b.birth_date:
                             cycle["lactation_days"] = (l.weaning_date - b.birth_date).days
+                        if l.next_mating_notice_date:
+                            cycle["heat_return_date"] = l.next_mating_notice_date.isoformat()
                             
         # Se a gestação ou a cobertura falhou, pode haver um evento de perda gestacional ou retorno ao cio
         next_mating = matings[idx+1] if idx + 1 < len(matings) else None
@@ -1112,6 +1233,39 @@ def build_animal_history(animal):
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalBatchSerializer
 
+    @action(detail=True, methods=['post'], url_path='register-weight')
+    @transaction.atomic
+    def register_weight(self, request, pk=None):
+        batch = self.get_object()
+        try:
+            weight = Decimal(str(request.data.get('weight_kg')))
+        except (TypeError, ValueError, ArithmeticError):
+            return Response({"error": "Informe um peso válido."}, status=status.HTTP_400_BAD_REQUEST)
+        if weight <= 0:
+            return Response({"error": "O peso deve ser maior que zero."}, status=status.HTTP_400_BAD_REQUEST)
+        weighing_date = request.data.get('weighing_date') or timezone.localdate()
+        record = WeightRecord.objects.create(
+            farm=batch.farm,
+            species=batch.species,
+            batch=batch,
+            weight_kg=weight,
+            weighing_date=weighing_date,
+            notes=request.data.get('notes', ''),
+        )
+        HistoricoEvento.objects.create(
+            farm=batch.farm,
+            tipo_evento='Pesagem de Lote',
+            descricao=f'Peso médio: {weight} kg',
+            data_evento=weighing_date,
+            lote=batch,
+            metadata={'weight_kg': str(weight), 'weight_record_id': str(record.id)},
+        )
+        return Response({
+            "message": "Pesagem do lote registrada.",
+            "weight_kg": float(weight),
+            "weighing_date": str(weighing_date),
+        }, status=status.HTTP_201_CREATED)
+
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
@@ -1306,6 +1460,27 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     'date': wr.weighing_date.isoformat() if wr.weighing_date else None,
                     'entry_date': wr.weighing_date.isoformat() if wr.weighing_date else None,
                     'notes': wr.notes,
+                })
+
+            # 6. Vacinas aplicadas coletivamente na leitegada/lote.
+            for application in b.litter_medications.select_related('inventory_item').all():
+                item = application.inventory_item
+                categories = set(item.categorias or []) | {item.categoria} if item else set()
+                if not categories.intersection({'vacina', 'medicamento_vacina'}):
+                    continue
+                history_list.append({
+                    'type': 'vaccine',
+                    'batch_id': str(b.id),
+                    'name': application.medicamento,
+                    'dosage': application.dosagem,
+                    'animal_count': application.animal_count,
+                    'inventory_quantity': float(application.inventory_quantity) if application.inventory_quantity is not None else None,
+                    'inventory_unit': item.unidade_medida if item else None,
+                    'date': application.data_aplicacao.isoformat() if application.data_aplicacao else None,
+                    'entry_date': application.data_aplicacao.isoformat() if application.data_aplicacao else None,
+                    'reason': application.motivo,
+                    'responsible': application.responsavel,
+                    'notes': application.notes,
                 })
 
             return history_list
@@ -2010,10 +2185,19 @@ class BirthViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
+    @transaction.atomic
     def registrar_mortalidade(self, request, pk=None):
-        birth = self.get_object()
+        birth = Birth.objects.select_for_update().select_related(
+            'female__farm', 'batch'
+        ).get(pk=self.get_object().pk)
         data = request.data.get('data', timezone.now().date())
-        quantidade = int(request.data.get('quantidade', 1))
+        try:
+            quantidade = int(request.data.get('quantidade', 1))
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Informe uma quantidade válida."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         causa = request.data.get('causa', 'DESCONHECIDA')
         observacao = request.data.get('observacao', '')
 
@@ -2029,13 +2213,19 @@ class BirthViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        with transaction.atomic():
-            birth.mortality += quantidade
-            birth.save(update_fields=['mortality'])
-            if birth.batch_id and birth.batch.phase == AnimalBatch.Phase.GESTACAO_MATERNIDADE:
-                batch = AnimalBatch.objects.select_for_update().get(pk=birth.batch_id)
-                batch.quantity = max(0, batch.quantity - quantidade)
-                batch.save(update_fields=['quantity'])
+        from .services import ensure_birth_batch
+        batch = ensure_birth_batch(birth)
+        batch = AnimalBatch.objects.select_for_update().get(pk=batch.pk)
+        if quantidade > batch.quantity:
+            return Response(
+                {"error": f"Mortalidade ({quantidade}) não pode ser maior que o saldo da leitegada ({batch.quantity})."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        birth.mortality += quantidade
+        birth.save(update_fields=['mortality'])
+        batch.quantity -= quantidade
+        batch.save(update_fields=['quantity'])
 
         HistoricoEvento.objects.create(
             farm=birth.female.farm,
@@ -2045,7 +2235,12 @@ class BirthViewSet(viewsets.ModelViewSet):
             matriz=birth.female,
             metadata={'quantidade': quantidade, 'causa': causa}
         )
-        return Response({"message": "Mortalidade registrada."})
+        return Response({
+            "message": "Mortalidade registrada.",
+            "mortality": birth.mortality,
+            "live_piglets": max(0, birth.live_born - birth.mortality),
+            "batch_quantity": batch.quantity,
+        })
 
     @action(detail=True, methods=['post'], url_path='registrar-procedimento')
     @transaction.atomic
@@ -2395,6 +2590,7 @@ class ReproductionDashboardView(APIView):
         alerts = _heat_prediction_alerts(user.organization, species_code)
         alerts.extend(_scheduled_reproductive_alerts(user.organization, species_code))
         alerts.extend(_expected_birth_alerts(user.organization, species_code))
+        alerts.extend(_piglet_iron_alerts(user.organization, species_code))
         ai_suggestions = []
         
         # Check close births
@@ -2544,11 +2740,47 @@ class SpeciesSummaryView(APIView):
             ).exists():
                 reproductive_actions += 1
 
+        from apps.inventory.models import ConsumoRacao, MovimentacaoEstoque
+        month_start = timezone.localdate().replace(day=1)
+        species_codes = ["suino", "suinos"] if species_code in {"suino", "suinos"} else [species_code]
+        feed_consumption = ConsumoRacao.objects.filter(
+            organization=organization,
+            data_inicio__gte=month_start,
+            data_inicio__lte=timezone.localdate(),
+        ).filter(
+            Q(lote_animal__species__code__in=species_codes)
+            | Q(animais__species__code__in=species_codes)
+        ).distinct()
+        feed_totals = feed_consumption.aggregate(
+            quantity=Sum("quantidade"), cost=Sum("custo_total")
+        )
+        semen_movements = MovimentacaoEstoque.objects.filter(
+            item__organization=organization,
+            item__categoria="semen",
+            tipo="consumo",
+            data_movimentacao__date__gte=month_start,
+            data_movimentacao__date__lte=timezone.localdate(),
+        ).select_related("item", "lote")
+        semen_quantity = Decimal("0")
+        semen_cost = Decimal("0")
+        for movement in semen_movements:
+            unit_cost = (
+                movement.lote.custo_unitario
+                if movement.lote and movement.lote.custo_unitario is not None
+                else movement.item.custo_medio
+            ) or Decimal("0")
+            semen_quantity += movement.quantidade
+            semen_cost += movement.quantidade * unit_cost
+
         return Response({
             "species": species_code,
             "total_animals": int(batch_total) + standalone_animals.count(),
             "active_females": int(active_females),
             "active_alerts": sanitary_alerts + reproductive_actions,
+            "feed_consumed_month": float(feed_totals["quantity"] or 0),
+            "feed_cost_month": float(feed_totals["cost"] or 0),
+            "semen_doses_month": float(semen_quantity),
+            "semen_cost_month": float(semen_cost),
         })
 
 

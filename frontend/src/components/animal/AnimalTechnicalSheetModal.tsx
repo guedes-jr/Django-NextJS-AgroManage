@@ -452,7 +452,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               <Th>Qtd.<br/>Desm.</Th>
               <Th>Peso Desm.<br/>(kg)</Th>
               <Th>Dias<br/>Lact.</Th>
-              <Th>Data<br/>Ret. Cio</Th>
+              <Th>Data<br/>Próx. Cio</Th>
               <Th>Observações</Th>
             </tr>
 

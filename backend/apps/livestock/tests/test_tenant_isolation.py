@@ -7,10 +7,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.farms.models import Farm
-from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque
+from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque, MovimentacaoEstoque
 from apps.livestock.models import (
     Animal, AnimalBatch, Birth, ClinicalRecord, HeatRecord, HistoricoEvento,
-    LitterMedication, Mating, Pregnancy, Species,
+    Litter, LitterMedication, Mating, Pregnancy, Species,
 )
 from apps.organizations.models import Organization
 
@@ -395,6 +395,144 @@ class LivestockTenantIsolationTestCase(APITestCase):
             item["alert_key"] for item in refreshed.data["alerts"]
         })
 
+    def test_swine_birth_schedules_piglet_iron_alert_for_third_day(self):
+        swine = Species.objects.create(code="suinos", name="Suínos")
+        sow = Animal.objects.create(
+            farm=self.farm_a,
+            species=swine,
+            identifier="026",
+            gender=Animal.Gender.FEMALE,
+            category=AnimalBatch.Category.MATRIZ,
+        )
+        mating = Mating.objects.create(
+            female=sow,
+            mating_date=date.today() - timedelta(days=114),
+            status=Mating.Status.CONFIRMED,
+        )
+        pregnancy = Pregnancy.objects.create(
+            mating=mating,
+            female=sow,
+            start_date=mating.mating_date,
+            expected_birth_date=date.today(),
+            status=Pregnancy.Status.COMPLETED,
+        )
+        Birth.objects.create(
+            pregnancy=pregnancy,
+            female=sow,
+            birth_date=date.today(),
+            live_born=10,
+        )
+
+        response = self.client.get(
+            reverse("reproduction_dashboard"), {"species": "suinos"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        alert = next(
+            item for item in response.data["alerts"]
+            if item["text"] == "Leitegada da matriz 026: aplicar ferro."
+        )
+        self.assertEqual(alert["time"], "Em 3 dias")
+        self.assertEqual(alert["type"], "info")
+        self.assertEqual(len(alert["alert_key"]), 64)
+
+    def test_maternity_mortality_creates_batch_and_reduces_live_piglets(self):
+        mating = Mating.objects.create(
+            female=self.animal_a,
+            mating_date=date.today() - timedelta(days=114),
+            status=Mating.Status.CONFIRMED,
+        )
+        pregnancy = Pregnancy.objects.create(
+            mating=mating,
+            female=self.animal_a,
+            start_date=mating.mating_date,
+            expected_birth_date=date.today(),
+            status=Pregnancy.Status.COMPLETED,
+        )
+        birth = Birth.objects.create(
+            pregnancy=pregnancy,
+            female=self.animal_a,
+            birth_date=date.today(),
+            live_born=10,
+        )
+
+        response = self.client.post(
+            reverse("birth-registrar-mortalidade", args=[birth.id]),
+            {
+                "data": date.today().isoformat(),
+                "quantidade": 1,
+                "causa": "ESMAGAMENTO",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["mortality"], 1)
+        self.assertEqual(response.data["live_piglets"], 9)
+        self.assertEqual(response.data["batch_quantity"], 9)
+        birth.refresh_from_db()
+        self.assertEqual(birth.mortality, 1)
+        self.assertIsNotNone(birth.batch_id)
+        birth.batch.refresh_from_db()
+        self.assertEqual(birth.batch.quantity, 9)
+        self.assertTrue(
+            HistoricoEvento.objects.filter(
+                matriz=self.animal_a,
+                tipo_evento="Mortalidade Maternidade",
+            ).exists()
+        )
+
+    def test_weaning_days_and_next_heat_appear_in_sheet_and_alerts(self):
+        swine = Species.objects.create(code="suinos", name="Suínos ficha reprodutiva")
+        sow = Animal.objects.create(
+            farm=self.farm_a,
+            species=swine,
+            identifier="TN-026",
+            gender=Animal.Gender.FEMALE,
+            category=AnimalBatch.Category.MATRIZ,
+        )
+        mating = Mating.objects.create(
+            female=sow,
+            mating_date=date.today() - timedelta(days=135),
+            status=Mating.Status.CONFIRMED,
+        )
+        pregnancy = Pregnancy.objects.create(
+            mating=mating,
+            female=sow,
+            start_date=mating.mating_date,
+            expected_birth_date=date.today() - timedelta(days=21),
+            status=Pregnancy.Status.COMPLETED,
+        )
+        birth = Birth.objects.create(
+            pregnancy=pregnancy,
+            female=sow,
+            birth_date=date.today() - timedelta(days=21),
+            live_born=10,
+        )
+        next_heat = date.today() + timedelta(days=7)
+        Litter.objects.create(
+            birth=birth,
+            weaning_date=date.today(),
+            weaned_quantity=10,
+            next_mating_notice_days=7,
+            next_mating_notice_date=next_heat,
+        )
+
+        sheet = self.client.get(reverse("animal-detail", args=[sow.id]))
+        self.assertEqual(sheet.status_code, status.HTTP_200_OK)
+        cycle = sheet.data["reproductive_cycles"][0]
+        self.assertEqual(cycle["lactation_days"], 21)
+        self.assertEqual(cycle["heat_return_date"], next_heat.isoformat())
+
+        dashboard = self.client.get(
+            reverse("reproduction_dashboard"), {"species": "suinos"}
+        )
+        self.assertEqual(dashboard.status_code, status.HTTP_200_OK)
+        heat_alert = next(
+            alert for alert in dashboard.data["alerts"]
+            if "Próximo cio da matriz TN-026" in alert["text"]
+        )
+        self.assertEqual(heat_alert["time"], "Em 7 dias")
+        self.assertEqual(len(heat_alert["alert_key"]), 64)
     def test_confirmed_pregnancy_expected_birth_is_shown_in_alerts(self):
         mating = Mating.objects.create(
             female=self.animal_a,
@@ -424,6 +562,80 @@ class LivestockTenantIsolationTestCase(APITestCase):
         )
         self.assertEqual(summary_response.status_code, status.HTTP_200_OK)
         self.assertEqual(summary_response.data["active_alerts"], 1)
+
+    def test_maternity_batch_feed_consumption_appears_in_swine_summary(self):
+        swine = Species.objects.create(code="suinos", name="Suínos para alimentação")
+        maternity_batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=swine,
+            batch_code="MAT-TN-026-1",
+            quantity=10,
+            entry_date=date.today(),
+            status=AnimalBatch.Status.ACTIVE,
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+        )
+        feed = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Ração maternidade",
+            categoria="racao",
+            unidade_medida="kg",
+        )
+        ConsumoRacao.objects.create(
+            organization=self.org_a,
+            farm=self.farm_a,
+            lote_animal=maternity_batch,
+            categoria_destino="lotes",
+            fase_destino="maternidade",
+            item_estoque=feed,
+            data_inicio=date.today(),
+            data_fim=date.today(),
+            quantidade=Decimal("12.50"),
+            custo_unitario=Decimal("2.00"),
+            custo_total=Decimal("25.00"),
+            usuario=self.user_a,
+        )
+
+        summary = self.client.get(reverse("species_summary"), {"species": "suinos"})
+        self.assertEqual(summary.status_code, status.HTTP_200_OK)
+        self.assertEqual(summary.data["feed_consumed_month"], 12.5)
+        self.assertEqual(summary.data["feed_cost_month"], 25.0)
+
+        for alias in ("suino", "suinos"):
+            consumptions = self.client.get(
+                reverse("inventory-consumos-list"), {"especie": alias}
+            )
+            self.assertEqual(consumptions.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(consumptions.data["results"]), 1)
+
+    def test_semen_consumption_value_appears_in_swine_summary(self):
+        semen = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Sêmen suíno convencional",
+            categoria="semen",
+            unidade_medida="dose",
+        )
+        lot = LoteEstoque.objects.create(
+            item=semen,
+            numero_lote="SEMEN-TN-026",
+            quantidade_inicial=Decimal("10.00"),
+            quantidade_atual=Decimal("8.00"),
+            custo_unitario=Decimal("25.00"),
+            data_entrada=date.today(),
+        )
+        MovimentacaoEstoque.objects.create(
+            item=semen,
+            lote=lot,
+            tipo="consumo",
+            quantidade=Decimal("2.00"),
+            responsavel=self.user_a,
+        )
+
+        summary = self.client.get(reverse("species_summary"), {"species": "suinos"})
+
+        self.assertEqual(summary.status_code, status.HTTP_200_OK)
+        self.assertEqual(summary.data["semen_doses_month"], 2.0)
+        self.assertEqual(summary.data["semen_cost_month"], 50.0)
 
     def test_birth_accepts_scheduled_combined_category_vaccine_uuid(self):
         vaccine = ItemEstoque.objects.create(
@@ -613,6 +825,119 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(feed_event["total_kg"], 1.0)
         self.assertEqual(feed_event["cost"], 10.0)
         self.assertEqual(feed_event["avg_per_animal"], 0.1)
+
+    def test_batch_weight_updates_average_and_history(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="PESO-LOTE-01",
+            quantity=10,
+            entry_date=date.today() - timedelta(days=7),
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.CRECHE,
+            avg_weight_kg=Decimal("6.00"),
+        )
+
+        response = self.client.post(
+            reverse("animalbatch-register-weight", args=[batch.id]),
+            {"weight_kg": "8.50", "weighing_date": date.today().isoformat()},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        batch.refresh_from_db()
+        self.assertEqual(batch.avg_weight_kg, Decimal("8.500"))
+        history = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+        weight = next(item for item in history.data if item["type"] == "weight")
+        self.assertEqual(weight["weight_kg"], 8.5)
+
+    def test_nursery_shows_growth_date_at_seventy_days_and_alerts(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="MAT-TN-0104-2",
+            quantity=12,
+            entry_date=date.today() - timedelta(days=48),
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.CRECHE,
+            origin=AnimalBatch.Origin.BORN,
+        )
+        mating = Mating.objects.create(
+            female=self.animal_a,
+            mating_date=date.today() - timedelta(days=183),
+        )
+        pregnancy = Pregnancy.objects.create(
+            mating=mating,
+            female=self.animal_a,
+            start_date=mating.mating_date,
+            expected_birth_date=date.today() - timedelta(days=69),
+        )
+        birth_date = date.today() - timedelta(days=69)
+        Birth.objects.create(
+            pregnancy=pregnancy,
+            female=self.animal_a,
+            birth_date=birth_date,
+            live_born=12,
+            batch=batch,
+        )
+
+        response = self.client.get(reverse("creches"), {"species": self.species.code})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(item for item in response.data["rows"] if item["lote"] == batch.batch_code)
+        self.assertEqual(row["prev_crescimento"], (birth_date + timedelta(days=70)).isoformat())
+        alert = next(
+            item for item in response.data["alerts"]
+            if batch.batch_code in item["text"] and "crescimento" in item["text"]
+        )
+        self.assertEqual(alert["time"], "Em 1 dia")
+        self.assertEqual(len(alert["alert_key"]), 64)
+
+    def test_batch_history_includes_litter_vaccinations(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="MAT-VAC-026",
+            quantity=9,
+            entry_date=date.today(),
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+        )
+        mating = Mating.objects.create(female=self.animal_a, mating_date=date.today())
+        pregnancy = Pregnancy.objects.create(
+            mating=mating, female=self.animal_a, start_date=date.today(),
+            expected_birth_date=date.today(),
+        )
+        birth = Birth.objects.create(
+            pregnancy=pregnancy, female=self.animal_a,
+            birth_date=date.today(), live_born=9, batch=batch,
+        )
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Vacina pós-parto",
+            categoria="vacina",
+            unidade_medida="ml",
+        )
+        LitterMedication.objects.create(
+            birth=birth,
+            batch=batch,
+            inventory_item=vaccine,
+            medicamento=vaccine.nome,
+            dosagem="2 ml/animal",
+            animal_count=9,
+            inventory_quantity=Decimal("18.00"),
+            data_aplicacao=date.today(),
+            responsavel="Produtor",
+        )
+
+        response = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        vaccination = next(item for item in response.data if item["type"] == "vaccine")
+        self.assertEqual(vaccination["name"], "Vacina pós-parto")
+        self.assertEqual(vaccination["dosage"], "2 ml/animal")
+        self.assertEqual(vaccination["animal_count"], 9)
+        self.assertEqual(vaccination["responsible"], "Produtor")
 
     def test_maternity_technical_batch_is_only_listed_when_explicitly_requested(self):
         batch = AnimalBatch.objects.create(
