@@ -659,10 +659,17 @@ export function ReproducaoDashboard({
             { name: "dosage_ml", label: "Dosagem (ml)", type: "number" },
           ],
           onConfirm: async (data) => {
-            await registerVaccination(data.id, data);
-            showToast("Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
-            onSuccess?.();
-            setActionModal(prev => ({ ...prev, open: false }));
+            try {
+              await registerVaccination(data.id, data);
+              showToast("Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
+              onSuccess?.();
+              setActionModal(prev => ({ ...prev, open: false }));
+            } catch (error: any) {
+              const response = error?.response?.data;
+              const detail = response?.error || response?.detail || response?.dosage_ml?.[0];
+              showToast(detail || "Não foi possível registrar a vacina.", "error");
+              throw error;
+            }
           }
         });
         break;

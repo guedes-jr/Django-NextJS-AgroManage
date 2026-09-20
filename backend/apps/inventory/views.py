@@ -786,6 +786,28 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
         # Validar estoque de todos os ingredientes antes de abater
         from django.db import transaction
         with transaction.atomic():
+            formula = FormulaRacao.objects.select_for_update().get(
+                id=formula.id, organization=organization
+            )
+            # Toda produção precisa gerar um item consumível. Fórmulas antigas
+            # podiam ser produzidas sem produto final e, por isso, a ração não
+            # aparecia no lançamento de alimentação.
+            if not formula.item_final_id:
+                formula.item_final = ItemEstoque.objects.create(
+                    organization=organization,
+                    nome=formula.nome,
+                    categoria="racao",
+                    categorias=["racao"],
+                    unidade_medida="kg",
+                    especie_animal=formula.especie_animal,
+                    descricao=f"Ração produzida pela fórmula {formula.nome}",
+                    ativo=True,
+                )
+                formula.save(update_fields=["item_final", "updated_at"])
+            elif not formula.item_final.ativo:
+                formula.item_final.ativo = True
+                formula.item_final.save(update_fields=["ativo", "updated_at"])
+
             for ingrediente in formula.ingredientes.all():
                 qtde_necessaria = (quantidade_teorica * ingrediente.percentual) / Decimal("100")
                 item = ingrediente.item

@@ -177,6 +177,36 @@ class InventoryTenantIsolationTestCase(APITestCase):
         self.assertIn(str(self.item_a.id), ids)
         self.assertNotIn(str(self.item_b.id), ids)
 
+    def test_production_without_final_item_materializes_consumable_feed(self):
+        formula = FormulaRacao.objects.create(
+            organization=self.org_a,
+            nome="Ração automática de gestação",
+            especie_animal="suino",
+            ativa=True,
+        )
+
+        response = self.client.post(
+            reverse("inventory-producoes-produzir"),
+            {
+                "formula_id": str(formula.id),
+                "quantidade_teorica": "120.00",
+                "quantidade_real": "120.00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        formula.refresh_from_db()
+        self.assertIsNotNone(formula.item_final_id)
+        self.assertEqual(formula.item_final.categoria, "racao")
+        self.assertEqual(formula.item_final.especie_animal, "suino")
+        self.assertEqual(formula.item_final.estoque_atual, Decimal("120.00"))
+
+        feeds = self.client.get(
+            reverse("inventory-items-all-items"), {"categoria": "racao"}
+        )
+        self.assertIn(str(formula.item_final_id), {str(item["id"]) for item in feeds.data})
+
     def test_vaccine_filter_includes_combined_medicine_vaccine_category(self):
         combined = ItemEstoque.objects.create(
             organization=self.org_a,

@@ -189,7 +189,7 @@ class LivestockTenantIsolationTestCase(APITestCase):
         )
 
         response = self.client.post(
-            reverse("animal-register-vaccination", args=[self.animal_a.id]),
+            reverse("animal-register-vaccination", args=[self.animal_a.identifier.lower()]),
             {
                 "vaccine_item_id": str(vaccine.id),
                 "application_date": date.today().isoformat(),

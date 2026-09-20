@@ -8,6 +8,8 @@ from django.utils import timezone
 import datetime
 import hashlib
 import json
+import uuid
+from django.shortcuts import get_object_or_404
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication, AcknowledgedOperationalAlert
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
@@ -1542,6 +1544,20 @@ class AnimalViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(species__code=species)
             return queryset
         return Animal.objects.none()
+
+    def get_object(self):
+        """Resolve tanto o UUID interno quanto o brinco informado nos formulários."""
+        lookup = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        try:
+            uuid.UUID(str(lookup))
+        except (TypeError, ValueError, AttributeError):
+            animal = get_object_or_404(
+                self.filter_queryset(self.get_queryset()),
+                identifier__iexact=str(lookup).strip(),
+            )
+            self.check_object_permissions(self.request, animal)
+            return animal
+        return super().get_object()
 
     @action(detail=False, methods=['get'], url_path='reproducers')
     def reproducers(self, request):
