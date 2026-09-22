@@ -9,6 +9,7 @@ from apps.inventory.models import ItemEstoque
 from apps.organizations.models import Organization
 
 from ..models import Fertigation, Field, PlantingCycle
+from ..selectors import get_crops_dashboard
 
 
 class PlantationInvestmentTotalTestCase(TestCase):
@@ -84,3 +85,10 @@ class PlantationInvestmentTotalTestCase(TestCase):
         )
 
         self.assertEqual(self.plantation.investment_total, Decimal("100.00"))
+
+    def test_crops_dashboard_aggregates_calculated_investment(self):
+        self.create_transaction("125.00", self.expense_category, reference="NOTA-PAINEL")
+
+        dashboard = get_crops_dashboard(self.organization)
+
+        self.assertEqual(dashboard["total_investment"], "125.00")

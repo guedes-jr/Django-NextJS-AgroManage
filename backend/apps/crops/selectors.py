@@ -76,7 +76,7 @@ def get_plantation_dashboard(plantation):
 def get_crops_dashboard(organization):
     """Return aggregated KPIs for all plantations in the organization."""
     from decimal import Decimal
-    from django.db.models import Sum, Count, Q
+    from django.db.models import Sum, Count
     from django.utils import timezone
     from .models import PlantingCycle
 
@@ -88,8 +88,12 @@ def get_crops_dashboard(organization):
     total_area = (
         qs.aggregate(total=Sum("planted_area_ha"))["total"] or Decimal("0")
     )
-    total_investment = (
-        qs.aggregate(total=Sum("investment_total"))["total"] or Decimal("0")
+    # investment_total é uma propriedade calculada a partir de transações e
+    # operações relacionadas, não um campo do banco que possa receber Sum().
+    plantations = list(qs)
+    investments = [(plantation, plantation.investment_total) for plantation in plantations]
+    total_investment = sum(
+        (investment for _, investment in investments), Decimal("0")
     )
     total_estimated_revenue = (
         qs.aggregate(total=Sum("estimated_revenue"))["total"] or Decimal("0")
@@ -113,13 +117,20 @@ def get_crops_dashboard(organization):
     )
 
     avg_roi = Decimal("0")
-    plantations_with_investment = qs.filter(investment_total__gt=0)
-    if plantations_with_investment.exists():
+    plantations_with_investment = [
+        (plantation, investment)
+        for plantation, investment in investments
+        if investment > 0
+    ]
+    if plantations_with_investment:
         total_profit = sum(
-            (p.estimated_revenue or Decimal("0")) - p.investment_total
-            for p in plantations_with_investment
+            (plantation.estimated_revenue or Decimal("0")) - investment
+            for plantation, investment in plantations_with_investment
         )
-        total_inv = sum(p.investment_total for p in plantations_with_investment)
+        total_inv = sum(
+            (investment for _, investment in plantations_with_investment),
+            Decimal("0"),
+        )
         if total_inv:
             avg_roi = (total_profit / total_inv * 100).quantize(Decimal("0.01"))
 

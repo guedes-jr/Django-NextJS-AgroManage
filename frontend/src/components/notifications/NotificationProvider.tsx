@@ -59,29 +59,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [fetchNotifications]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const connect = async () => {
-      const token = localStorage.getItem("support_access_token") || localStorage.getItem("access_token");
-      if (!token) return;
-      const apiRoot = (process.env.NEXT_PUBLIC_API_URL || "/api/v1").replace(/\/$/, "");
-      try {
-        const response = await fetch(`${apiRoot}/notifications/stream/`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
-        const reader = response.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        while (!controller.signal.aborted) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (decoder.decode(value).includes("event: notifications")) await fetchNotifications();
-        }
-        if (!controller.signal.aborted) window.setTimeout(() => void connect(), 1500);
-      } catch {
-        if (!controller.signal.aborted) window.setTimeout(() => void connect(), 5000);
-      }
-    };
-    void connect();
-    return () => controller.abort();
-  }, [fetchNotifications]);
+    // O backend de produção usa workers síncronos. Uma conexão SSE aberta
+    // ocupa um worker inteiro e pode bloquear as demais APIs do sistema.
+    // A contagem é leve e mantém o indicador atualizado sem conexão persistente.
+    const interval = window.setInterval(() => void fetchUnreadCount(), 60_000);
+    return () => window.clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   const markAsRead = useCallback(async (id: string) => {
     await notificationService.markAsRead(id);

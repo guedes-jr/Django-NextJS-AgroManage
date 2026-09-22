@@ -2188,8 +2188,10 @@ class BirthViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
     @transaction.atomic
     def registrar_mortalidade(self, request, pk=None):
+        # ``batch`` é opcional. No PostgreSQL, FOR UPDATE não pode bloquear o
+        # lado anulável do LEFT JOIN criado por select_related('batch').
         birth = Birth.objects.select_for_update().select_related(
-            'female__farm', 'batch'
+            'female__farm'
         ).get(pk=self.get_object().pk)
         data = request.data.get('data', timezone.now().date())
         try:
