@@ -143,6 +143,31 @@ export default function LoginPage() {
     });
   }, []);
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("view") === "register" || searchParams.get("ref")) return;
+
+    const platformAccess = localStorage.getItem("platform_access_token");
+    const access = localStorage.getItem("access_token");
+    if (!platformAccess && !access) return;
+
+    if (platformAccess) {
+      router.replace("/platform");
+      return;
+    }
+
+    let isAffiliatePortalOnly = false;
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        isAffiliatePortalOnly = Boolean(JSON.parse(storedUser).affiliate_portal_only);
+      } catch {
+        // usuário inválido no storage; segue para o login.
+      }
+    }
+    router.replace(isAffiliatePortalOnly ? "/afiliados/painel" : "/home");
+  }, [router]);
+
   const goTo = (next: View) => {
     setView(next);
     setError("");
