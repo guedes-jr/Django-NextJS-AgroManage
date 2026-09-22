@@ -426,7 +426,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: "Registrar Procedimento / Manejo", icon: "📝", color: "oklch(0.55 0.16 145)", desc: "Transferir leitões ou medicação", type: 'procedure' },
           { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.6 0.22 27)", desc: "Registrar óbito", type: 'mortality' },
-          { label: "Registrar Vacina Pós-parto", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinar a leitegada", type: 'postpartum_vaccine' },
+          { label: "Registrar Vacina Pós-parto", icon: "💉", color: "oklch(0.55 0.16 230)", desc: "Vacinar a matriz", type: 'postpartum_vaccine' },
           { label: "Confirmar Desmame", icon: "🔄", color: "oklch(0.78 0.15 85)", desc: "Avançar para creche", type: 'wean' },
         ],
         tabAlerts: tab.maternidade?.alerts || [],

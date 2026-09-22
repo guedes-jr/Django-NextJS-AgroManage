@@ -284,9 +284,10 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     prevParto: fmtDate(c.expected_birth_date) || "-",
     dataParto: fmtDate(c.birth_date) || "-",
     totalNasc: c.total_born !== null ? c.total_born : "-",
-    vivos: c.live_born !== null ? c.live_born : "-",
+    vivos: c.live_born !== null ? Math.max(0, c.live_born - (c.mortality || 0)) : "-",
     mortos: c.stillborn !== null ? c.stillborn : "-",
     natimortos: c.mummified !== null ? c.mummified : "-",
+    mortalidadePos: c.mortality ?? 0,
     pesoNasc: c.avg_birth_weight_kg ? fmt(c.avg_birth_weight_kg) : "-",
     dataDesm: fmtDate(c.weaning_date) || "-",
     desmamados: c.weaned_quantity !== null ? c.weaned_quantity : "-",
@@ -306,16 +307,21 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       obs: v.details?.notes || v.subtitle || "-"
     }));
 
-  // Dynamic Treatments / Medical records
-  const tratamentos = history
-    .filter((e: any) => e.type === "health")
-    .map((h: any) => ({
-      prod: h.details?.description || h.subtitle || "",
-      motivo: h.details?.treatment_type_display || h.title.replace("Clínico: ", "") || "Tratamento",
-      data: fmtDate(h.details?.application_date || h.date),
-      dose: h.details?.notes || "-",
-      resp: h.details?.veterinary || "Vet"
-    }));
+  const transferencias = history
+    .filter((event: any) => {
+      const tipo = event.details?.metadata?.tipo;
+      return tipo === "TRANSFERENCIA_LEITAO" || tipo === "RECEBIMENTO_TRANSFERENCIA";
+    })
+    .map((event: any) => {
+      const metadata = event.details?.metadata || {};
+      const recebimento = metadata.tipo === "RECEBIMENTO_TRANSFERENCIA";
+      return {
+        origem: metadata.origem_identifier || (recebimento ? "-" : animal?.identifier) || "-",
+        destino: metadata.destino_identifier || (recebimento ? animal?.identifier : "-") || "-",
+        quantidade: metadata.quantidade ?? "-",
+        data: fmtDate(event.details?.data_evento || event.date) || "-",
+      };
+    });
 
   // Dynamic Heat Records
   const cios = history
@@ -446,7 +452,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               <Th>Macho<br/>(Tipo)</Th>
               <Th>Prev.<br/>Parto</Th>
               <Th>Data<br/>Parto</Th>
-              <Th>Nascidos<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 | 🔴 | ⚫)</span></Th>
+              <Th>Nascidos / saldo<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 | 🔴 | ⚫ | ⚠️)</span></Th>
               <Th>Peso Nasc.<br/>(kg)</Th>
               <Th>Data<br/>Desmame</Th>
               <Th>Qtd.<br/>Desm.</Th>
@@ -478,6 +484,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
                           <span title="Vivos">🟢 {r.vivos}</span>
                           <span title="Natimortos">🔴 {r.mortos}</span>
                           <span title="Mumificados">⚫ {r.natimortos}</span>
+                          <span title="Óbitos pós-parto">⚠️ {r.mortalidadePos}</span>
                         </div>
                       </div>
                     ) : "-"}
@@ -529,32 +536,30 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
           </table>
         </div>
 
-        {/* Medicações */}
+        {/* Transferências entre matrizes */}
         <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden" }}>
-          <SectionHeader number={5} title="TRATAMENTOS / MEDICAÇÕES" />
+          <SectionHeader number={5} title="TRANSFERÊNCIAS DE LEITÕES" />
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>Produto</Th>
-                <Th>Motivo</Th>
+                <Th>Origem</Th>
+                <Th>Destino</Th>
+                <Th>Quantidade</Th>
                 <Th>Data</Th>
-                <Th>Dosagem</Th>
-                <Th>Responsável</Th>
               </tr>
             </thead>
             <tbody>
-              {tratamentos.length === 0 ? (
+              {transferencias.length === 0 ? (
                 <TR>
-                  <Td colSpan={5} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhum tratamento registrado</Td>
+                  <Td colSpan={4} style={{ color: GRAY_TEXT, fontStyle: "italic", padding: "10px" }}>Nenhuma transferência de leitões registrada</Td>
                 </TR>
               ) : (
-                tratamentos.map((t: any, i: number) => (
+                transferencias.map((transferencia: any, i: number) => (
                   <TR key={i} even={i % 2 !== 0}>
-                    <Td>{t.prod}</Td>
-                    <Td>{t.motivo}</Td>
-                    <Td>{t.data}</Td>
-                    <Td>{t.dose}</Td>
-                    <Td>{t.resp}</Td>
+                    <Td>Matriz {transferencia.origem}</Td>
+                    <Td>Matriz {transferencia.destino}</Td>
+                    <Td>{transferencia.quantidade}</Td>
+                    <Td>{transferencia.data}</Td>
                   </TR>
                 ))
               )}

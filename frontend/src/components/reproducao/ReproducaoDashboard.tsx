@@ -272,6 +272,7 @@ export function ReproducaoDashboard({
     vaccination: '💉',
     health: '🩺',
     feeding: '🌾',
+    mortality: '⚠️',
     historico_evento: '📌',
   };
 
@@ -283,6 +284,7 @@ export function ReproducaoDashboard({
     vaccination: 'info',
     health: 'warning',
     feeding: 'system',
+    mortality: 'warning',
     historico_evento: 'warning',
   };
 
@@ -791,7 +793,28 @@ export function ReproducaoDashboard({
           }
         });
         break;
-      case 'procedure':
+      case 'procedure': {
+        const availableLitters = rows.length > 0 ? rows : (currentTab?.rows || []);
+        const litterOptions = availableLitters.map((row) => ({
+          value: String(row.id || row.pk || ""),
+          label: `Matriz ${row.identifier || row.name || row.id}`,
+        })).filter((option) => option.value);
+        const selectedSourceIdentifiers = new Set(
+          rows.map((row) => String(row.identifier || "")).filter(Boolean)
+        );
+        const destinationOptions = Array.from(
+          new Map(
+            (currentTab?.rows || [])
+              .filter((row) => row.identifier && !selectedSourceIdentifiers.has(String(row.identifier)))
+              .map((row) => [
+                String(row.identifier),
+                {
+                  value: String(row.identifier),
+                  label: `Matriz ${row.identifier}`,
+                },
+              ])
+          ).values()
+        );
         setActionModal({
           open: true,
           title: "Registrar Procedimento / Manejo",
@@ -800,9 +823,9 @@ export function ReproducaoDashboard({
             { 
               name: "id", 
               label: "Leitegada / Matriz", 
-              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
-              options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              type: rows.length > 1 ? "text" : (litterOptions.length > 0 ? "select" : "text"), 
+              options: litterOptions,
+              initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? "Múltiplos selecionados" : litterOptions[0]?.value),
               disabled: rows.length >= 1,
               required: true 
             },
@@ -829,10 +852,10 @@ export function ReproducaoDashboard({
             },
             { 
               name: "destino_identifier", 
-              label: "Brinco da Matriz Destino", 
-              type: "text", 
+              label: "Matriz de Destino (Maternidade)", 
+              type: "select", 
+              options: destinationOptions,
               required: true,
-              placeholder: "Ex: 062",
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
             { 
@@ -924,82 +947,81 @@ export function ReproducaoDashboard({
           }
         });
         break;
+      }
       case 'postpartum_vaccine': {
-        const availableLitters = rows.length > 0 ? rows : (currentTab?.rows || []);
-        const litterOptions = availableLitters.map((row) => ({
-          value: String(row.id || row.pk || ""),
-          label: `Matriz ${row.identifier || row.name || row.id}`,
-        })).filter((option) => option.value);
-        const selectedLitter = rows.length === 1 ? rows[0] : undefined;
+        const availableMothers = rows.length > 0 ? rows : (currentTab?.rows || []);
+        const motherOptions = Array.from(
+          new Map(availableMothers.map((row) => [
+            String(row.animal_id || ""),
+            {
+              value: String(row.animal_id || ""),
+              label: `Matriz ${row.identifier || row.name || row.animal_id}`,
+            },
+          ])).values()
+        ).filter((option) => option.value);
+        const selectedMother = rows.length === 1 ? rows[0] : undefined;
+        const vaccineOpts = (vaccineItems || []).map((item) => ({
+          value: String(item.id),
+          label: `${item.nome}${item.estoque_atual != null ? ` (Estoque: ${item.estoque_atual} ${item.unidade_display || item.unidade_medida || "un"})` : ""}`,
+        }));
         setActionModal({
           open: true,
           title: "Registrar Vacinação Pós-parto",
           subtitle: vaccineItems.length === 0
             ? "Nenhuma vacina disponível no estoque."
-            : "A quantidade aplicada será descontada automaticamente do estoque.",
+            : "A vacina será registrada na ficha da matriz e descontada automaticamente do estoque.",
           fields: [
             {
               name: "id",
-              label: "Leitegada / Matriz",
-              type: litterOptions.length > 0 ? "select" : "text",
-              options: litterOptions,
-              initialValue: selectedLitter ? String(selectedLitter.id) : undefined,
+              label: "Matriz",
+              type: motherOptions.length > 0 ? "select" : "text",
+              options: motherOptions,
+              initialValue: selectedMother ? String(selectedMother.animal_id) : undefined,
               disabled: rows.length === 1,
               required: true,
             },
             {
-              name: "vaccine_applications",
-              label: "Vacina e dose por leitão",
-              type: "inventory-list",
+              name: "vaccine_item_id",
+              label: "Vacina",
+              type: "select",
               required: true,
-              colSpan: "full",
-              initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
-              options: vaccineItems.map((item) => ({
-                value: String(item.id),
-                label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
-              })),
+              options: vaccineOpts,
+              placeholder: "Selecione a vacina...",
             },
             {
-              name: "animal_count",
-              label: "Quantidade de Leitões",
-              type: "number",
-              required: true,
-              min: 1,
-              initialValue: selectedLitter?.vivos_atual ?? selectedLitter?.vivos ?? "",
-            },
-            {
-              name: "data",
+              name: "application_date",
               label: "Data da Aplicação",
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0],
             },
             {
-              name: "motivo",
-              label: "Motivo",
-              type: "text",
-              placeholder: "Ex: protocolo pós-parto",
+              name: "dose_type",
+              label: "Tipo de Dose",
+              type: "select",
+              options: [
+                { value: "unica", label: "Dose Única" },
+                { value: "reforco", label: "Reforço" },
+              ],
+              initialValue: "unica",
             },
             {
-              name: "responsavel",
-              label: "Responsável",
-              type: "text",
-              placeholder: "Nome do responsável",
+              name: "dosage_ml",
+              label: "Dosagem (ml)",
+              type: "number",
             },
-            { name: "observacao", label: "Observações", type: "textarea", colSpan: "full" },
+            { name: "notes", label: "Observações", type: "textarea", colSpan: "full" },
           ],
           onConfirm: async (data) => {
-            const payload = {
-              ...data,
-              tipo: "APLICACAO_VACINA",
-              applications: JSON.parse(data.vaccine_applications),
-            };
+            const targetMotherIds = rows.length > 1
+              ? Array.from(new Set(rows.map((row) => row.animal_id).filter(Boolean)))
+              : [data.id];
             if (rows.length > 1) {
-              await Promise.all(rows.map((row) => registerProcedure(row.id as number, payload)));
+              await Promise.all(targetMotherIds.map((animalId) => registerVaccination(animalId, data)));
             } else {
-              await registerProcedure(data.id, payload);
+              await registerVaccination(data.id, data);
             }
-            showToast("Vacinação pós-parto registrada e estoque atualizado.", "success");
+            showToast("Vacinação pós-parto registrada na matriz e estoque atualizado.", "success");
             onSuccess?.();
             setActionModal((previous) => ({ ...previous, open: false }));
           },

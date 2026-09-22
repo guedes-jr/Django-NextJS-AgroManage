@@ -197,3 +197,74 @@ class DashboardSegmentTestCase(APITestCase):
             {"name": "Vacina: Literguard", "value": 6.0},
             swine_segment["cost_breakdown"],
         )
+
+    def test_used_semen_value_and_doses_appear_in_swine_dashboard(self):
+        Species.objects.create(name="Suínos", code="suinos")
+        item = ItemEstoque.objects.create(
+            organization=self.organization,
+            nome="AgroGen Convencional",
+            categoria="semen",
+            categorias=["semen"],
+            especie_animal="suino",
+            unidade_medida="dose",
+        )
+        lot = LoteEstoque.objects.create(
+            item=item,
+            numero_lote="SEM-SU-001",
+            quantidade_inicial=Decimal("10.00"),
+            quantidade_atual=Decimal("8.00"),
+            custo_unitario=Decimal("25.00"),
+            data_entrada=date.today(),
+        )
+        MovimentacaoEstoque.objects.create(
+            item=item,
+            lote=lot,
+            tipo="consumo",
+            quantidade=Decimal("2.00"),
+            responsavel=self.user,
+        )
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        swine_segment = response.data["segments"]["livestock_by_species"][0]
+        self.assertEqual(swine_segment["cost"], 300.0)
+        self.assertIn(
+            {"name": "Sêmen: AgroGen Convencional — 2 doses", "value": 50.0},
+            swine_segment["cost_breakdown"],
+        )
+
+    def test_used_semen_in_secondary_category_appears_in_swine_dashboard(self):
+        Species.objects.create(name="Suínos", code="suinos")
+        item = ItemEstoque.objects.create(
+            organization=self.organization,
+            nome="Dose genética multiuso",
+            categoria="material",
+            categorias=["material", "semen"],
+            especie_animal="suino",
+            unidade_medida="dose",
+        )
+        lot = LoteEstoque.objects.create(
+            item=item,
+            numero_lote="SEM-MULTI-001",
+            quantidade_inicial=Decimal("5.00"),
+            quantidade_atual=Decimal("4.00"),
+            custo_unitario=Decimal("30.00"),
+            data_entrada=date.today(),
+        )
+        MovimentacaoEstoque.objects.create(
+            item=item,
+            lote=lot,
+            tipo="consumo",
+            quantidade=Decimal("1.00"),
+            responsavel=self.user,
+        )
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        swine_segment = response.data["segments"]["livestock_by_species"][0]
+        self.assertIn(
+            {"name": "Sêmen: Dose genética multiuso — 1 dose", "value": 30.0},
+            swine_segment["cost_breakdown"],
+        )

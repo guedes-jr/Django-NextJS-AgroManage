@@ -152,6 +152,32 @@ class InventoryTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.data["results"][0]["quantidade"], "1.00")
         self.assertEqual(response.data["results"][0]["custo_total"], "25.0000")
 
+    def test_movement_category_filter_includes_secondary_semen_category(self):
+        semen = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Material reprodutivo",
+            categoria="material",
+            categorias=["material", "semen"],
+            unidade_medida="dose",
+        )
+        movement = MovimentacaoEstoque.objects.create(
+            item=semen,
+            tipo="consumo",
+            quantidade=Decimal("1.00"),
+            responsavel=self.user_a,
+        )
+
+        response = self.client.get(
+            reverse("inventory-movimentacoes-list"),
+            {"tipo": "consumo", "categoria": "semen"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [row["id"] for row in response.data["results"]],
+            [str(movement.id)],
+        )
+
     def test_feed_filter_includes_product_generated_by_active_formula(self):
         produced_feed = ItemEstoque.objects.create(
             organization=self.org_a,

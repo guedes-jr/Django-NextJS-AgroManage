@@ -1209,12 +1209,13 @@ def build_animal_history(animal):
 
     # 9. Histórico Genérico (Descartes, Perdas, etc)
     for he in animal.historicos.all():
+        is_maternity_mortality = he.tipo_evento == 'Mortalidade Maternidade'
         events.append({
-            "type": "historico_evento",
+            "type": "mortality" if is_maternity_mortality else "historico_evento",
             "date": he.data_evento.isoformat() if he.data_evento else None,
-            "title": he.tipo_evento,
+            "title": "Óbito de leitão na maternidade" if is_maternity_mortality else he.tipo_evento,
             "subtitle": he.descricao,
-            "status": "Evento",
+            "status": "Mortalidade" if is_maternity_mortality else "Evento",
             "details": {
                 "id": str(he.id),
                 "tipo_evento": he.tipo_evento,
@@ -2256,33 +2257,48 @@ class BirthViewSet(viewsets.ModelViewSet):
             destino_identifier = request.data.get('destino_identifier', '')
             qtd = int(quantidade or 0)
             vivos_origem = birth.live_born - birth.mortality
+            if qtd < 1:
+                return Response(
+                    {"error": "A quantidade transferida deve ser maior que zero."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if qtd > vivos_origem:
                 return Response(
                     {"error": f"Transferência ({qtd}) excede leitões vivos na origem ({vivos_origem})."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            destino_birth = Birth.objects.filter(
+                female__identifier=destino_identifier,
+                female__farm=birth.female.farm,
+                female__status=AnimalBatch.Status.ACTIVE,
+            ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date').first()
+            if not destino_birth:
+                return Response(
+                    {"error": "Selecione uma matriz de destino que esteja na maternidade."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if destino_birth.pk == birth.pk:
+                return Response(
+                    {"error": "A matriz de destino deve ser diferente da matriz de origem."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             birth.mortality += qtd
             birth.save(update_fields=['mortality'])
 
-            # Registrar na matriz destino se fornecida
-            if destino_identifier:
-                destino_birth = Birth.objects.filter(
-                    female__identifier=destino_identifier,
-                    female__farm=birth.female.farm,
-                ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date').first()
-                if destino_birth:
-                    HistoricoEvento.objects.create(
-                        farm=destino_birth.female.farm,
-                        tipo_evento='Procedimento Maternidade',
-                        descricao=f"Recebimento de {qtd} leitões transferidos da matriz {origem_identifier}",
-                        data_evento=data,
-                        matriz=destino_birth.female,
-                        metadata={
-                            'tipo': 'RECEBIMENTO_TRANSFERENCIA',
-                            'quantidade': qtd,
-                            'origem_identifier': origem_identifier,
-                        }
-                    )
+            HistoricoEvento.objects.create(
+                farm=destino_birth.female.farm,
+                tipo_evento='Procedimento Maternidade',
+                descricao=f"Recebimento de {qtd} leitões transferidos da matriz {origem_identifier}",
+                data_evento=data,
+                matriz=destino_birth.female,
+                metadata={
+                    'tipo': 'RECEBIMENTO_TRANSFERENCIA',
+                    'quantidade': qtd,
+                    'origem_identifier': origem_identifier,
+                    'destino_identifier': destino_identifier,
+                }
+            )
 
             HistoricoEvento.objects.create(
                 farm=birth.female.farm,
@@ -2388,7 +2404,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                         'tipo': tipo, 'medicamento': item.nome, 'dosagem': dosagem,
                         'inventory_item_id': str(item.id), 'animal_count': animal_count,
                         'inventory_quantity': str(quantidade_estoque), 'motivo': motivo,
-                        'responsavel': responsavel, 'litter_medication_id': med.id,
+                        'responsavel': responsavel, 'litter_medication_id': str(med.id),
                     },
                 )
                 results.append({

@@ -41,10 +41,12 @@ export function ReproducaoModal({
 }: ReproducaoModalProps) {
   const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState("");
 
   // Reset/Initialize values when modal opens or fields change
   useEffect(() => {
     if (open) {
+      setSubmitError("");
       const initial: Record<string, string> = {};
       fields.forEach((f) => {
         initial[f.name] = String(f.initialValue ?? "");
@@ -84,13 +86,23 @@ export function ReproducaoModal({
     });
 
     setLoading(true);
+    setSubmitError("");
     try {
       await onConfirm(data);
-    } catch {
-      // error handled upstream via toast
+      onClose();
+    } catch (error: unknown) {
+      const response = (error as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      const firstFieldError = response && Object.values(response).find((value) => value);
+      const message = response?.error || response?.detail || firstFieldError;
+      setSubmitError(
+        Array.isArray(message)
+          ? String(message[0])
+          : typeof message === "string"
+            ? message
+            : "Não foi possível concluir o registro. Revise os dados e tente novamente."
+      );
     } finally {
       setLoading(false);
-      onClose();
     }
   }
 
@@ -109,6 +121,11 @@ export function ReproducaoModal({
 
         <form onSubmit={handleSubmit}>
           <div className="repro-modal-body">
+            {submitError && (
+              <div role="alert" className="alert alert-danger mb-3">
+                {submitError}
+              </div>
+            )}
             <div className="repro-fields-grid">
               {visibleFields.map((field) => (
                 <div

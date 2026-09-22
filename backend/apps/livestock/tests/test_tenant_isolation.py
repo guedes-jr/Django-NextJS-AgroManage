@@ -480,6 +480,15 @@ class LivestockTenantIsolationTestCase(APITestCase):
                 tipo_evento="Mortalidade Maternidade",
             ).exists()
         )
+        history = self.client.get(
+            reverse("animal-full-history", args=[self.animal_a.id])
+        )
+        self.assertEqual(history.status_code, status.HTTP_200_OK)
+        mortality_event = next(
+            event for event in history.data if event["type"] == "mortality"
+        )
+        self.assertEqual(mortality_event["title"], "Óbito de leitão na maternidade")
+        self.assertEqual(mortality_event["details"]["metadata"]["quantidade"], 1)
 
     def test_weaning_days_and_next_heat_appear_in_sheet_and_alerts(self):
         swine = Species.objects.create(code="suinos", name="Suínos ficha reprodutiva")

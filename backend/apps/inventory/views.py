@@ -321,7 +321,15 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             qs = qs.filter(tipo=tipo)
         categoria = self.request.query_params.get("categoria")
         if categoria:
-            qs = qs.filter(item__categoria=categoria)
+            category_item_ids = [
+                item["id"]
+                for item in ItemEstoque.objects.filter(
+                    organization=self.request.user.organization
+                ).values("id", "categoria", "categorias")
+                if item["categoria"] == categoria
+                or categoria in (item["categorias"] or [])
+            ]
+            qs = qs.filter(item_id__in=category_item_ids)
         item_filter = self.request.query_params.get("item_id")
         if item_filter:
             qs = qs.filter(item_id=item_filter)

@@ -451,8 +451,22 @@ def dashboard_summary(request):
         data_movimentacao__date__gte=month_start,
         data_movimentacao__date__lte=today,
     ).select_related("item", "lote")
+    semen_item_ids = [
+        item["id"]
+        for item in ItemEstoque.objects.filter(organization=org).values(
+            "id", "categoria", "categorias"
+        )
+        if item["categoria"] == "semen" or "semen" in (item["categorias"] or [])
+    ]
+    semen_consumption = MovimentacaoEstoque.objects.filter(
+        item_id__in=semen_item_ids,
+        item__organization=org,
+        tipo="consumo",
+        data_movimentacao__date__gte=month_start,
+        data_movimentacao__date__lte=today,
+    ).select_related("item", "lote")
 
-    def inventory_consumption_breakdown(movements):
+    def inventory_consumption_breakdown(movements, label="Vacina", show_quantity=False):
         totals = {}
         for movement in movements:
             unit_cost = (
@@ -461,16 +475,35 @@ def dashboard_summary(request):
                 else movement.item.custo_medio
             ) or Decimal("0")
             value = movement.quantidade * unit_cost
-            totals[movement.item.nome] = totals.get(movement.item.nome, Decimal("0")) + value
+            current = totals.setdefault(
+                movement.item.nome,
+                {"value": Decimal("0"), "quantity": Decimal("0")},
+            )
+            current["value"] += value
+            current["quantity"] += movement.quantidade
         return [
-            {"name": f"Vacina: {name}", "value": float(value)}
-            for name, value in sorted(totals.items(), key=lambda item: item[1], reverse=True)
-            if value
+            {
+                "name": (
+                    f"{label}: {name} — {float(total['quantity']):g} dose"
+                    f"{'s' if total['quantity'] != 1 else ''}"
+                    if show_quantity
+                    else f"{label}: {name}"
+                ),
+                "value": float(total["value"]),
+            }
+            for name, total in sorted(
+                totals.items(), key=lambda item: item[1]["value"], reverse=True
+            )
+            if total["value"]
         ]
 
     vaccine_breakdown = inventory_consumption_breakdown(vaccine_consumption)
     vaccine_cost = sum((Decimal(str(item["value"])) for item in vaccine_breakdown), Decimal("0"))
-    livestock_cost = livestock_finance_cost + feed_cost + vaccine_cost
+    semen_breakdown = inventory_consumption_breakdown(
+        semen_consumption, label="Sêmen", show_quantity=True
+    )
+    semen_cost = sum((Decimal(str(item["value"])) for item in semen_breakdown), Decimal("0"))
+    livestock_cost = livestock_finance_cost + feed_cost + vaccine_cost + semen_cost
 
     def segment_payload(cost, revenue, costs, revenues):
         profit = revenue - cost
@@ -493,7 +526,9 @@ def dashboard_summary(request):
         .annotate(total=Sum("custo_total")).order_by("-total")[:5]
         if row["total"]
     ]
-    livestock_cost_breakdown = feed_breakdown + vaccine_breakdown + livestock_cost_breakdown
+    livestock_cost_breakdown = (
+        feed_breakdown + vaccine_breakdown + semen_breakdown + livestock_cost_breakdown
+    )
 
     # Cada atividade pecuária ganha seu próprio card na dashboard. Suinocultura
     # permanece disponível mesmo antes do primeiro lote ser cadastrado.
@@ -544,15 +579,30 @@ def dashboard_summary(request):
             species_vaccines = vaccine_consumption.filter(
                 item__especie_animal__in=[species.code, "multiplo"]
             )
+        if species.code.lower() in {"suino", "suinos"}:
+            species_semen = semen_consumption.filter(
+                item__especie_animal__in=["", "suino", "suinos", "multiplo"]
+            )
+        else:
+            species_semen = semen_consumption.filter(
+                item__especie_animal__in=[species.code, "multiplo"]
+            )
         species_vaccine_breakdown = inventory_consumption_breakdown(species_vaccines)
         species_vaccine_cost = sum(
             (Decimal(str(item["value"])) for item in species_vaccine_breakdown),
             Decimal("0"),
         )
+        species_semen_breakdown = inventory_consumption_breakdown(
+            species_semen, label="Sêmen", show_quantity=True
+        )
+        species_semen_cost = sum(
+            (Decimal(str(item["value"])) for item in species_semen_breakdown),
+            Decimal("0"),
+        )
         species_cost = (
             species_transactions.filter(category__category_type=FinancialCategory.CategoryType.EXPENSE)
             .aggregate(total=Sum("amount"))["total"] or Decimal("0")
-        ) + (species_feed.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")) + species_vaccine_cost
+        ) + (species_feed.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")) + species_vaccine_cost + species_semen_cost
         species_revenue = species_transactions.filter(
             category__category_type=FinancialCategory.CategoryType.REVENUE
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
@@ -563,7 +613,7 @@ def dashboard_summary(request):
             {"name": row["item_estoque__nome"] or "Ração", "value": float(row["total"])}
             for row in species_feed.values("item_estoque__nome").annotate(total=Sum("custo_total")).order_by("-total")[:5]
             if row["total"]
-        ] + species_vaccine_breakdown + species_costs
+        ] + species_vaccine_breakdown + species_semen_breakdown + species_costs
         livestock_by_species.append({
             "code": species.code,
             "name": species_title(species),

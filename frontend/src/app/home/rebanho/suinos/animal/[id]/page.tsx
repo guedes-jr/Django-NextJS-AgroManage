@@ -61,6 +61,7 @@ const TimelineItem = ({ event }: { event: any }) => {
       case 'pregnancy': return <Microscope size={16} />;
       case 'birth': return <Baby size={16} />;
       case 'health': return <Activity size={16} />;
+      case 'mortality': return <Baby size={16} />;
       default: return <History size={16} />;
     }
   };
@@ -73,6 +74,7 @@ const TimelineItem = ({ event }: { event: any }) => {
       case 'pregnancy': return 'oklch(0.6 0.15 280)';
       case 'birth': return 'oklch(0.6 0.15 110)';
       case 'health': return 'oklch(0.6 0.22 27)';
+      case 'mortality': return 'oklch(0.58 0.22 27)';
       default: return 'var(--muted-foreground)';
     }
   };
