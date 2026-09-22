@@ -799,17 +799,17 @@ export function ReproducaoDashboard({
           value: String(row.id || row.pk || ""),
           label: `Matriz ${row.identifier || row.name || row.id}`,
         })).filter((option) => option.value);
-        const selectedSourceIdentifiers = new Set(
-          rows.map((row) => String(row.identifier || "")).filter(Boolean)
+        const selectedSourceIds = new Set(
+          rows.map((row) => String(row.id || row.pk || "")).filter(Boolean)
         );
         const destinationOptions = Array.from(
           new Map(
             (currentTab?.rows || [])
-              .filter((row) => row.identifier && !selectedSourceIdentifiers.has(String(row.identifier)))
+              .filter((row) => row.identifier && !selectedSourceIds.has(String(row.id || row.pk || "")))
               .map((row) => [
-                String(row.identifier),
+                String(row.id || row.pk),
                 {
-                  value: String(row.identifier),
+                  value: String(row.id || row.pk),
                   label: `Matriz ${row.identifier}`,
                 },
               ])
@@ -851,7 +851,7 @@ export function ReproducaoDashboard({
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
             { 
-              name: "destino_identifier", 
+              name: "destino_birth_id",
               label: "Matriz de Destino (Maternidade)", 
               type: "select", 
               options: destinationOptions,

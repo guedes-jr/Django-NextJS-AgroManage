@@ -261,7 +261,7 @@ export const transferLeitoes = async (
   birthId: string | number,
   data: {
     quantidade: number;
-    destino_identifier: string;
+    destino_birth_id: string;
     data: string;
     observacao?: string;
   }

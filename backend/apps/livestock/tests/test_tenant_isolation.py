@@ -764,6 +764,65 @@ class LivestockTenantIsolationTestCase(APITestCase):
                 self.assertEqual(vaccination["animal_count"], 10)
                 self.assertEqual(vaccination["dosage"], "2 ml/animal")
 
+    def test_piglet_transfer_uses_destination_birth_id(self):
+        destination_female = Animal.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            identifier="TN-026",
+            gender=Animal.Gender.FEMALE,
+        )
+        source_mating = Mating.objects.create(
+            female=self.animal_a, mating_date=date.today()
+        )
+        destination_mating = Mating.objects.create(
+            female=destination_female, mating_date=date.today()
+        )
+        source_birth = Birth.objects.create(
+            pregnancy=Pregnancy.objects.create(
+                mating=source_mating,
+                female=self.animal_a,
+                start_date=date.today(),
+                expected_birth_date=date.today(),
+            ),
+            female=self.animal_a,
+            birth_date=date.today(),
+            live_born=10,
+        )
+        destination_birth = Birth.objects.create(
+            pregnancy=Pregnancy.objects.create(
+                mating=destination_mating,
+                female=destination_female,
+                start_date=date.today(),
+                expected_birth_date=date.today(),
+            ),
+            female=destination_female,
+            birth_date=date.today(),
+            live_born=8,
+        )
+
+        response = self.client.post(
+            reverse("birth-registrar-procedimento", args=[source_birth.id]),
+            {
+                "tipo": "TRANSFERENCIA_LEITAO",
+                "quantidade": 1,
+                "destino_birth_id": str(destination_birth.id),
+                "data": date.today().isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        source_birth.refresh_from_db()
+        self.assertEqual(source_birth.mortality, 1)
+        outgoing = HistoricoEvento.objects.get(
+            matriz=self.animal_a, metadata__tipo="TRANSFERENCIA_LEITAO"
+        )
+        incoming = HistoricoEvento.objects.get(
+            matriz=destination_female, metadata__tipo="RECEBIMENTO_TRANSFERENCIA"
+        )
+        self.assertEqual(outgoing.metadata["destino_identifier"], "TN-026")
+        self.assertEqual(incoming.metadata["quantidade"], 1)
+
     def test_litter_accepts_multiple_medications_in_one_transaction(self):
         mating = Mating.objects.create(female=self.animal_a, mating_date=date.today())
         pregnancy = Pregnancy.objects.create(

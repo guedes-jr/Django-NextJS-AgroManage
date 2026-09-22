@@ -2261,6 +2261,7 @@ class BirthViewSet(viewsets.ModelViewSet):
         if tipo == 'TRANSFERENCIA_LEITAO':
             quantidade = request.data.get('quantidade')
             origem_identifier = request.data.get('origem_identifier', birth.female.identifier)
+            destino_birth_id = request.data.get('destino_birth_id')
             destino_identifier = request.data.get('destino_identifier', '')
             qtd = int(quantidade or 0)
             vivos_origem = birth.live_born - birth.mortality
@@ -2274,11 +2275,16 @@ class BirthViewSet(viewsets.ModelViewSet):
                     {"error": f"Transferência ({qtd}) excede leitões vivos na origem ({vivos_origem})."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            destino_birth = Birth.objects.filter(
-                female__identifier=destino_identifier,
+            destino_queryset = Birth.objects.filter(
                 female__farm=birth.female.farm,
                 female__status=AnimalBatch.Status.ACTIVE,
-            ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date').first()
+            ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date')
+            if destino_birth_id:
+                destino_birth = destino_queryset.filter(pk=destino_birth_id).first()
+            else:
+                destino_birth = destino_queryset.filter(
+                    female__identifier__iexact=str(destino_identifier).strip()
+                ).first()
             if not destino_birth:
                 return Response(
                     {"error": "Selecione uma matriz de destino que esteja na maternidade."},
@@ -2290,6 +2296,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            destino_identifier = destino_birth.female.identifier
             birth.mortality += qtd
             birth.save(update_fields=['mortality'])
 
