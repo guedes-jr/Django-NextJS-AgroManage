@@ -1,7 +1,7 @@
 self.addEventListener("push", event => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(self.registration.showNotification(data.title || "Fazenda Mais", {
-    body: data.body || "Você recebeu uma nova notificação.", icon: "/pwa-192x192.png", badge: "/pwa-192x192.png",
+    body: data.body || "Você recebeu uma nova notificação.", icon: "/pwa-leaf-v2-192x192.png", badge: "/pwa-leaf-v2-192x192.png",
     data: { link: data.link || "/home/notifications" },
   }));
 });

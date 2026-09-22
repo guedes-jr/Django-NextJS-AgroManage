@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CheckCheck, Trash2, Loader2, AlertTriangle, Package, Beef, Receipt, FileText } from "lucide-react";
+import { Bell, CheckCheck, Trash2, Loader2, Package, Beef, Receipt, FileText } from "lucide-react";
 import Link from "next/link";
 import useNotifications from "@/hooks/useNotifications";
 
@@ -14,13 +14,6 @@ const typeIcons: Record<string, React.ReactNode> = {
   animal: <Beef size={16} />,
   finance: <Receipt size={16} />,
   report: <FileText size={16} />,
-};
-
-const priorityColors: Record<string, string> = {
-  low: "text-muted",
-  medium: "text-primary",
-  high: "text-warning",
-  urgent: "text-danger",
 };
 
 export default function NotificationDropdown({ onClose }: Props) {
@@ -50,7 +43,7 @@ export default function NotificationDropdown({ onClose }: Props) {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="btn btn-link btn-sm p-0 text-decoration-none small"
+              className="btn btn-link btn-sm p-0 text-decoration-none small text-success"
             >
               <CheckCheck size={14} className="me-1" />
               Marcar todas como lidas
@@ -61,7 +54,7 @@ export default function NotificationDropdown({ onClose }: Props) {
         <div style={{ overflowY: "auto", maxHeight: "380px" }}>
           {loading ? (
             <div className="d-flex justify-content-center align-items-center py-5">
-              <Loader2 className="animate-spin text-primary" size={24} />
+              <Loader2 className="animate-spin text-success" size={24} />
             </div>
           ) : activeNotifications.length === 0 ? (
             <div className="text-center py-5 text-muted">
@@ -72,12 +65,12 @@ export default function NotificationDropdown({ onClose }: Props) {
             activeNotifications.slice(0, 20).map((notification) => (
               <div
                 key={notification.id}
-                className={`p-3 border-bottom notification-item ${!notification.is_read ? "bg-primary/5" : ""}`}
+                className={`p-3 border-bottom notification-item ${!notification.is_read ? "notification-unread" : ""}`}
                 style={{ cursor: "pointer" }}
                 onClick={() => !notification.is_read && markAsRead(notification.id)}
               >
                 <div className="d-flex gap-2">
-                  <div className={`mt-1 ${priorityColors[notification.priority]}`}>
+                  <div className="mt-1 notification-icon">
                     {typeIcons[notification.type] || <Bell size={16} />}
                   </div>
                   <div className="flex-grow-1 overflow-hidden">
@@ -114,7 +107,7 @@ export default function NotificationDropdown({ onClose }: Props) {
         </div>
 
         <div className="p-2 border-top text-center">
-          <Link href="/home/notifications" onClick={onClose} className="small text-decoration-none">
+          <Link href="/home/notifications" onClick={onClose} className="small text-decoration-none text-success">
             Ver todas as notificações
           </Link>
         </div>
@@ -123,6 +116,12 @@ export default function NotificationDropdown({ onClose }: Props) {
       <style jsx>{`
         .notification-item:hover {
           background: oklch(0.98 0.02 145);
+        }
+        .notification-unread {
+          background: oklch(0.97 0.035 145);
+        }
+        .notification-icon {
+          color: #176b3a;
         }
       `}</style>
     </>

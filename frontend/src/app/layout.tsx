@@ -19,7 +19,18 @@ export const metadata: Metadata = {
     siteName: "Fazenda Mais",
     title: "Fazenda Mais | Gestão rural em um só lugar",
     description: "Fazendas, produção, rebanhos, estoque e finanças em uma única plataforma.",
-    images: [{ url: "/farm-hero.jpg", width: 1200, height: 630 }],
+    images: [{
+      url: "/og-fazenda-mais-v2.png?v=2",
+      width: 1730,
+      height: 909,
+      alt: "Fazenda Mais — gestão rural em um só lugar",
+    }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fazenda Mais | Gestão rural em um só lugar",
+    description: "Fazendas, produção, rebanhos, estoque e finanças em uma única plataforma.",
+    images: ["/og-fazenda-mais-v2.png?v=2"],
   },
   icons: {
     icon: [
