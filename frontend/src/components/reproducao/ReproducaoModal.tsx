@@ -121,11 +121,6 @@ export function ReproducaoModal({
 
         <form onSubmit={handleSubmit}>
           <div className="repro-modal-body">
-            {submitError && (
-              <div role="alert" className="alert alert-danger mb-3">
-                {submitError}
-              </div>
-            )}
             <div className="repro-fields-grid">
               {visibleFields.map((field) => (
                 <div
@@ -231,6 +226,11 @@ export function ReproducaoModal({
                 </div>
               ))}
             </div>
+            {submitError && (
+              <div role="alert" className="alert alert-danger mt-3 mb-0">
+                {submitError}
+              </div>
+            )}
           </div>
 
           <div className="repro-modal-footer">

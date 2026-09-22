@@ -1464,7 +1464,12 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 })
 
             # 6. Vacinas aplicadas coletivamente na leitegada/lote.
-            for application in b.litter_medications.select_related('inventory_item').all():
+            # Registros antigos podem ter sido gravados antes de o lote técnico da
+            # maternidade ser vinculado diretamente à aplicação. Consultar também
+            # pelo lote do parto mantém essas vacinações visíveis na ficha.
+            for application in LitterMedication.objects.filter(
+                Q(batch=b) | Q(batch__isnull=True, birth__batch=b)
+            ).select_related('inventory_item').distinct():
                 item = application.inventory_item
                 categories = set(item.categorias or []) | {item.categoria} if item else set()
                 if not categories.intersection({'vacina', 'medicamento_vacina'}):
@@ -2319,6 +2324,7 @@ class BirthViewSet(viewsets.ModelViewSet):
 
         elif tipo in ('APLICACAO_MEDICAMENTO', 'APLICACAO_VACINA'):
             from apps.inventory.models import ItemEstoque
+            from .services import ensure_birth_batch
             permitidas = ({'vacina', 'medicamento_vacina'} if tipo == 'APLICACAO_VACINA'
                           else {'medicamento', 'medicamento_vacina'})
             vivos_atual = max(0, birth.live_born - birth.mortality)
@@ -2382,6 +2388,7 @@ class BirthViewSet(viewsets.ModelViewSet):
 
             motivo = request.data.get('motivo', '')
             responsavel = request.data.get('responsavel', '')
+            batch = ensure_birth_batch(birth)
             results = []
             for item, dose_per_animal in applications:
                 quantidade_estoque = (dose_per_animal * animal_count).quantize(Decimal("0.01"))
@@ -2391,7 +2398,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                     f"{item.nome} aplicado em {animal_count} leitões da matriz {birth.female.identifier}",
                 )
                 med = LitterMedication.objects.create(
-                    birth=birth, batch=birth.batch, inventory_item=item,
+                    birth=birth, batch=batch, inventory_item=item,
                     medicamento=item.nome, dosagem=dosagem,
                     animal_count=animal_count, inventory_quantity=quantidade_estoque,
                     data_aplicacao=data, motivo=motivo, responsavel=responsavel,
@@ -2401,7 +2408,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                     farm=birth.female.farm,
                     tipo_evento='Vacinação Maternidade' if tipo == 'APLICACAO_VACINA' else 'Medicação Maternidade',
                     descricao=f"Produto: {item.nome} | Dosagem: {dosagem} | Motivo: {motivo} | Responsável: {responsavel}",
-                    data_evento=data, matriz=birth.female, lote=birth.batch,
+                    data_evento=data, matriz=birth.female, lote=batch,
                     metadata={
                         'tipo': tipo, 'medicamento': item.nome, 'dosagem': dosagem,
                         'inventory_item_id': str(item.id), 'animal_count': animal_count,

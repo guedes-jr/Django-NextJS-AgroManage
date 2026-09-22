@@ -749,6 +749,20 @@ class LivestockTenantIsolationTestCase(APITestCase):
             )
             self.assertEqual(application.animal_count, 10)
             self.assertEqual(application.inventory_quantity, Decimal("20.00"))
+            self.assertIsNotNone(application.batch_id)
+
+            if procedure_type == "APLICACAO_VACINA":
+                history_response = self.client.get(
+                    reverse("animalbatch-history", args=[application.batch_id]),
+                    {"include_maternity": "true"},
+                )
+                self.assertEqual(history_response.status_code, status.HTTP_200_OK)
+                vaccination = next(
+                    entry for entry in history_response.data
+                    if entry["type"] == "vaccine" and entry["name"] == name
+                )
+                self.assertEqual(vaccination["animal_count"], 10)
+                self.assertEqual(vaccination["dosage"], "2 ml/animal")
 
     def test_litter_accepts_multiple_medications_in_one_transaction(self):
         mating = Mating.objects.create(female=self.animal_a, mating_date=date.today())

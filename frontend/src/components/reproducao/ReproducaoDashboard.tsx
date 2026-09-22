@@ -939,8 +939,10 @@ export function ReproducaoDashboard({
             );
             if (rows.length > 1) {
               await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
+              showToast(`Procedimento registrado para ${rows.length} leitegadas.`, "success");
             } else {
-              await registerProcedure(data.id, data);
+              const result = await registerProcedure(data.id, data);
+              showToast(result?.message || "Procedimento registrado com sucesso.", "success");
             }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
