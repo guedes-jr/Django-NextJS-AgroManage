@@ -2297,8 +2297,23 @@ class BirthViewSet(viewsets.ModelViewSet):
                 )
 
             destino_identifier = destino_birth.female.identifier
-            birth.mortality += qtd
-            birth.save(update_fields=['mortality'])
+            
+            birth.live_born -= qtd
+            birth.save(update_fields=['live_born'])
+            
+            destino_birth.live_born += qtd
+            destino_birth.save(update_fields=['live_born'])
+            
+            from .services import ensure_birth_batch
+            batch_origem = ensure_birth_batch(birth)
+            batch_origem = AnimalBatch.objects.select_for_update().get(pk=batch_origem.pk)
+            batch_origem.quantity -= qtd
+            batch_origem.save(update_fields=['quantity'])
+            
+            batch_destino = ensure_birth_batch(destino_birth)
+            batch_destino = AnimalBatch.objects.select_for_update().get(pk=batch_destino.pk)
+            batch_destino.quantity += qtd
+            batch_destino.save(update_fields=['quantity'])
 
             HistoricoEvento.objects.create(
                 farm=destino_birth.female.farm,
