@@ -35,14 +35,14 @@ def vaccination_inventory_quantity(vaccine_item, dosage_ml=None) -> Decimal:
     elif unit == "dose":
         match = re.search(r"\d+(?:[.,]\d+)?", vaccine_item.volume_por_dose or "")
         volume_per_dose = Decimal(match.group(0).replace(",", ".")) if match else Decimal("0")
-        quantity = dosage / volume_per_dose if volume_per_dose > 0 else Decimal("1")
+        quantity = dosage / volume_per_dose if volume_per_dose > 0 else dosage
     elif unit == "unidade" and vaccine_item.doses_por_embalagem:
         match = re.search(r"\d+(?:[.,]\d+)?", vaccine_item.volume_por_dose or "")
         volume_per_dose = Decimal(match.group(0).replace(",", ".")) if match else Decimal("0")
         package_volume = volume_per_dose * vaccine_item.doses_por_embalagem
-        quantity = dosage / package_volume if package_volume > 0 else Decimal("1")
+        quantity = dosage / package_volume if package_volume > 0 else dosage
     else:
-        quantity = Decimal("1")
+        quantity = dosage
 
     return quantity.quantize(Decimal("0.01"))
 
