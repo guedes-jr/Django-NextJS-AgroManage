@@ -432,7 +432,7 @@ def dashboard_summary(request):
     livestock_terms |= Q(category__name__icontains="pecuária") | Q(category__name__icontains="pecuaria")
     livestock_terms |= Q(category__name__icontains="granja") | Q(category__name__icontains="criação")
     # Catch transactions linked to any farm of the organization (not linked to crop cycle)
-    org_farm_q = Q(farm__in=farm_ids) if farm_ids else Q()
+    org_farm_q = Q(farm__in=farm_ids) | Q(farm__isnull=True)
     livestock_transactions = paid_month.filter(planting_cycle__isnull=True).filter(
         livestock_terms | Q(species__isnull=False) | Q(animal_batch__isnull=False) | org_farm_q
     ).distinct()
@@ -568,9 +568,9 @@ def dashboard_summary(request):
             species_terms |= Q(description__icontains="suin") | Q(category__name__icontains="suin")
             species_terms |= Q(category__name__icontains="pecuária") | Q(category__name__icontains="pecuaria")
             species_terms |= Q(category__name__icontains="granja") | Q(category__name__icontains="criação")
-        # For single-species organizations: capture all farm transactions not linked to a crop cycle
+        # For single-species organizations: capture all non-crop transactions
         is_single_species_org = len(organization_species) == 1
-        if is_single_species_org and farm_ids:
+        if is_single_species_org:
             species_transactions = paid_month.filter(
                 planting_cycle__isnull=True
             ).filter(
@@ -579,6 +579,7 @@ def dashboard_summary(request):
                 | species_references
                 | species_terms
                 | Q(farm__in=farm_ids)
+                | Q(farm__isnull=True)
             ).distinct()
         else:
             species_transactions = paid_month.filter(
