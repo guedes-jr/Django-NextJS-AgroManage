@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.farms.models import Farm
-from apps.livestock.models import AnimalBatch, Species
+from apps.livestock.models import AnimalBatch, Species, VaccinationRecord
 from apps.crops.models import Field, PlantingCycle
 from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque, MovimentacaoEstoque
 from apps.finance.models import Transaction, FinancialCategory
@@ -450,7 +450,7 @@ def dashboard_summary(request):
     feed_cost = feed_consumption.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")
     vaccine_consumption = MovimentacaoEstoque.objects.filter(
         item__organization=org,
-        item__categoria__in=["vacina", "medicamento_vacina"],
+        item__categoria__in=["vacina", "medicamento_vacina", "medicamento"],
         tipo="consumo",
         data_movimentacao__date__gte=month_start,
         data_movimentacao__date__lte=today,
@@ -590,27 +590,24 @@ def dashboard_summary(request):
         species_feed = feed_consumption.filter(
             Q(lote_animal__species=species) | Q(animais__species=species)
         ).distinct()
-        if species.code.lower() in {"suino", "suinos"}:
-            species_vaccines = vaccine_consumption.filter(
-                item__especie_animal__in=["", "suino", "suinos", "multiplo"]
-            )
-        else:
-            species_vaccines = vaccine_consumption.filter(
-                item__especie_animal__in=[species.code, "multiplo"]
-            )
-        if species.code.lower() in {"suino", "suinos"}:
-            species_semen = semen_consumption.filter(
-                item__especie_animal__in=["", "suino", "suinos", "multiplo"]
-            )
-        else:
-            species_semen = semen_consumption.filter(
-                item__especie_animal__in=[species.code, "multiplo"]
-            )
-        species_vaccine_breakdown = inventory_consumption_breakdown(species_vaccines)
-        species_vaccine_cost = sum(
-            (Decimal(str(item["value"])) for item in species_vaccine_breakdown),
-            Decimal("0"),
+        species_vaccine_records = VaccinationRecord.objects.filter(
+            farm__organization=org,
+            species=species,
+            application_date__gte=month_start,
+            application_date__lte=today
         )
+        species_vaccine_cost = species_vaccine_records.aggregate(
+            total=Sum("inventory_cost_snapshot")
+        )["total"] or Decimal("0")
+        
+        species_vaccine_breakdown = [
+            {"name": f"Tratamento/Vacina: {row['vaccine_name']}", "value": float(row["total"])}
+            for row in species_vaccine_records.values("vaccine_name").annotate(
+                total=Sum("inventory_cost_snapshot")
+            ).order_by("-total")
+            if row["total"]
+        ]
+
         species_semen_breakdown = inventory_consumption_breakdown(
             species_semen, label="Sêmen", show_quantity=True
         )
