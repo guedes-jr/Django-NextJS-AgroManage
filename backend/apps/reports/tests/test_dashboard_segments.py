@@ -187,6 +187,15 @@ class DashboardSegmentTestCase(APITestCase):
             quantidade=Decimal("2.00"),
             responsavel=self.user,
         )
+        from apps.livestock.models import VaccinationRecord
+        VaccinationRecord.objects.create(
+            farm=self.farm,
+            species=Species.objects.get(code="suinos"),
+            vaccine_name="Literguard",
+            vaccine_item=item,
+            application_date=date.today(),
+            inventory_cost_snapshot=Decimal("6.00"),
+        )
 
         response = self.client.get(reverse("dashboard-summary"))
 
@@ -194,7 +203,7 @@ class DashboardSegmentTestCase(APITestCase):
         swine_segment = response.data["segments"]["livestock_by_species"][0]
         self.assertEqual(swine_segment["cost"], 156.0)
         self.assertIn(
-            {"name": "Vacina: Literguard", "value": 6.0},
+            {"name": "Tratamento/Vacina: Literguard", "value": 6.0},
             swine_segment["cost_breakdown"],
         )
 

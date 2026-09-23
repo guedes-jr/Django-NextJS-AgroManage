@@ -14,9 +14,21 @@ def _species_codes(inventory_species):
         "ave": ["ave", "aves"],
     }.get(inventory_species, [inventory_species] if inventory_species else [])
 
+def _is_feed_transformation_lot(instance) -> bool:
+    """Lots created by feed manufacturing are stock transformations, not purchases."""
+    if getattr(instance, "_skip_finance_transaction", False):
+        return True
+    lot_number = str(instance.numero_lote or "")
+    return lot_number.startswith("PROD-")
+
+
 @receiver(post_save, sender=LoteEstoque)
 def create_inventory_transaction(sender, instance, created, **kwargs):
     """Cria uma despesa no financeiro quando um lote de estoque com custo é criado."""
+    if not created:
+        return
+    if _is_feed_transformation_lot(instance):
+        return
     if created and instance.custo_unitario and instance.custo_unitario > 0:
         total_cost = instance.custo_unitario * instance.quantidade_inicial
         

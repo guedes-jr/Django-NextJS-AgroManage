@@ -19,7 +19,14 @@ from rest_framework.response import Response
 from apps.farms.models import Farm
 from apps.livestock.models import AnimalBatch, Species, VaccinationRecord
 from apps.crops.models import Field, PlantingCycle
-from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque, MovimentacaoEstoque
+from apps.inventory.models import (
+    ConsumoRacao,
+    FormulaIngrediente,
+    ItemEstoque,
+    LoteEstoque,
+    MovimentacaoEstoque,
+    ProducaoRacao,
+)
 from apps.finance.models import Transaction, FinancialCategory
 from apps.tasks.models import Task
 from common.permissions import OrganizationRolePermission
@@ -248,6 +255,80 @@ def crops_general_report(request):
     })
 
 
+# Categorias de itens de estoque que são insumos alimentares (ingredientes de ração).
+# Compras desses itens são despesa geral e NÃO devem aparecer como custo de segmento pecuário.
+# A transformação em ração (fabricação) é uma operação de estoque sem nova despesa.
+# O custo do segmento pecuário vem exclusivamente do ConsumoRacao (uso real na criação).
+FEED_STOCK_CATEGORIES = {"racao", "nucleo", "suplemento"}
+
+# Categorias de insumos agrícolas que também não devem ser atribuídas ao pecuário.
+AGRICULTURAL_STOCK_CATEGORIES = {
+    "semente", "fertilizante", "fertirrigacao", "defensivo", "foliar", "corretivo",
+}
+
+
+def _item_categories(item):
+    categories = set(item.get("categorias") or [])
+    if item.get("categoria"):
+        categories.add(item["categoria"])
+    return categories
+
+
+def _lot_purchase_references(lot_ids):
+    return [f"LOTE-{lot_id}" for lot_id in lot_ids]
+
+
+def _production_lot_references(organization):
+    """Retorna as referências de transações que NÃO devem aparecer no dashboard.
+    Lotes com prefixo PROD- são criados pela fabricação de ração — uma transformação
+    de estoque, não uma compra. O sinal create_inventory_transaction já evita criar
+    a transação, mas esta lista garante a exclusão caso alguma tenha escapado.
+    """
+    return _lot_purchase_references(
+        LoteEstoque.objects.filter(
+            item__organization=organization,
+            numero_lote__startswith="PROD-",
+        ).values_list("id", flat=True)
+    )
+
+
+def _feed_stock_purchase_references(organization):
+    """Retorna referências de compras de ingredientes de ração e insumos alimentares.
+
+    Essas compras já entram como DESPESA GERAL no KPI total da dashboard.
+    Elas NÃO devem ser atribuídas como custo do segmento pecuário, pois:
+    - São compras independentes (gasto no momento da aquisição)
+    - A fabricação de ração é uma transformação de estoque (sem nova despesa)
+    - O custo real da suinocultura vem do ConsumoRacao (uso na criação)
+    """
+    item_rows = ItemEstoque.objects.filter(organization=organization).values(
+        "id", "categoria", "categorias", "especie_animal"
+    )
+    feed_item_ids = set()
+    for item in item_rows:
+        cats = _item_categories(item)
+        # Itens de categoria alimentar (ração, núcleo, suplemento) sem vínculo com espécie
+        if cats & FEED_STOCK_CATEGORIES:
+            feed_item_ids.add(item["id"])
+        # Itens sem espécie animal definida e que não são de categoria agrícola nem pecuária
+        # (ex: milho, soja comprados como ingredientes de fórmula)
+        elif not item.get("especie_animal") and not (cats & AGRICULTURAL_STOCK_CATEGORIES):
+            # Verificar se é ingrediente de alguma fórmula (grão para ração)
+            pass  # Será adicionado abaixo via FormulaIngrediente
+
+    # Todos os itens usados como ingredientes de fórmulas de ração
+    feed_item_ids.update(
+        FormulaIngrediente.objects.filter(
+            formula__organization=organization
+        ).values_list("item_id", flat=True)
+    )
+    if not feed_item_ids:
+        return []
+    return _lot_purchase_references(
+        LoteEstoque.objects.filter(item_id__in=feed_item_ids).values_list("id", flat=True)
+    )
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_summary(request):
@@ -335,7 +416,11 @@ def dashboard_summary(request):
         .count()
     )
     # ── Finance ───────────────────────────────────────────────────────────────
-    transactions_qs = Transaction.objects.filter(organization=org)
+    production_lot_references = _production_lot_references(org)
+    feed_stock_purchase_references = _feed_stock_purchase_references(org)
+    transactions_qs = Transaction.objects.filter(organization=org).exclude(
+        reference__in=production_lot_references
+    )
 
     # KPI: receita do mês atual
     month_revenue = (
@@ -427,14 +512,25 @@ def dashboard_summary(request):
         category__category_type=FinancialCategory.CategoryType.REVENUE
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
+    # ── Transações do segmento pecuário ──────────────────────────────────────
+    # REGRA DE NEGÓCIO:
+    #   Compra de insumos (grãos, núcleo, ração) = despesa geral (KPI total)
+    #   Fabricação de ração                       = transformação de estoque (sem nova despesa)
+    #   Uso de ração nos animais (ConsumoRacao)   = custo do segmento pecuário
+    #
+    # Por isso, as livestock_transactions capturam apenas transações DIRETAMENTE
+    # vinculadas a animais (compra/venda de lote, espécie explícita, etc.).
+    # O custo de alimentação vem exclusivamente do modelo ConsumoRacao.
     livestock_terms = Q(category__name__icontains="suín") | Q(category__name__icontains="suin")
     livestock_terms |= Q(category__name__icontains="animal") | Q(category__name__icontains="rebanho")
     livestock_terms |= Q(category__name__icontains="pecuária") | Q(category__name__icontains="pecuaria")
     livestock_terms |= Q(category__name__icontains="granja") | Q(category__name__icontains="criação")
-    # Catch transactions linked to any farm of the organization (not linked to crop cycle)
-    org_farm_q = Q(farm__in=farm_ids) | Q(farm__isnull=True)
+    # Captura apenas transações com vínculo explícito a animal ou espécie.
+    # NÃO usa org_farm_q (catch-all de fazenda) para evitar incluir compras de grãos.
     livestock_transactions = paid_month.filter(planting_cycle__isnull=True).filter(
-        livestock_terms | Q(species__isnull=False) | Q(animal_batch__isnull=False) | org_farm_q
+        livestock_terms | Q(species__isnull=False) | Q(animal_batch__isnull=False)
+    ).exclude(
+        reference__in=feed_stock_purchase_references
     ).distinct()
     livestock_finance_cost = livestock_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.EXPENSE
@@ -568,26 +664,20 @@ def dashboard_summary(request):
             species_terms |= Q(description__icontains="suin") | Q(category__name__icontains="suin")
             species_terms |= Q(category__name__icontains="pecuária") | Q(category__name__icontains="pecuaria")
             species_terms |= Q(category__name__icontains="granja") | Q(category__name__icontains="criação")
-        # For single-species organizations: capture all non-crop transactions
-        is_single_species_org = len(organization_species) == 1
-        if is_single_species_org:
-            species_transactions = paid_month.filter(
-                planting_cycle__isnull=True
-            ).filter(
-                Q(species=species)
-                | Q(animal_batch__species=species)
-                | species_references
-                | species_terms
-                | Q(farm__in=farm_ids)
-                | Q(farm__isnull=True)
-            ).distinct()
-        else:
-            species_transactions = paid_month.filter(
-                Q(species=species)
-                | Q(animal_batch__species=species)
-                | species_references
-                | species_terms
-            ).distinct()
+        # Captura transações com vínculo explícito à espécie ou ao lote animal.
+        # REGRA: mesmo em org de espécie única, não usamos catch-all de fazenda.
+        # Compras de grãos/ingredientes de ração ficam no KPI geral (despesa),
+        # e não como custo do segmento. O custo de alimentação vem do ConsumoRacao.
+        species_transactions = paid_month.filter(
+            planting_cycle__isnull=True
+        ).filter(
+            Q(species=species)
+            | Q(animal_batch__species=species)
+            | species_references
+            | species_terms
+        ).exclude(
+            reference__in=feed_stock_purchase_references
+        ).distinct()
         species_feed = feed_consumption.filter(
             Q(lote_animal__species=species) | Q(animais__species=species)
         ).distinct()

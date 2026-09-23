@@ -875,7 +875,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
             if formula.item_final and quantidade_real > 0:
                 from django.utils import timezone
                 custo_unitario_final = custo_total_producao / quantidade_real
-                novo_lote = LoteEstoque.objects.create(
+                novo_lote = LoteEstoque(
                     item=formula.item_final,
                     numero_lote=f"PROD-{producao.id}",
                     quantidade_inicial=quantidade_real,
@@ -884,6 +884,8 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                     data_entrada=timezone.now().date(),
                     ativo=True
                 )
+                novo_lote._skip_finance_transaction = True
+                novo_lote.save()
                 MovimentacaoEstoque.objects.create(
                     item=formula.item_final,
                     lote=novo_lote,
