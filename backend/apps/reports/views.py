@@ -608,6 +608,16 @@ def dashboard_summary(request):
             if row["total"]
         ]
 
+        # Sêmen
+        if species.code.lower() in {"suino", "suinos"}:
+            species_semen = semen_consumption.filter(
+                item__especie_animal__in=["", "suino", "suinos", "multiplo"]
+            )
+        else:
+            species_semen = semen_consumption.filter(
+                item__especie_animal__in=[species.code, "multiplo"]
+            )
+
         species_semen_breakdown = inventory_consumption_breakdown(
             species_semen, label="Sêmen", show_quantity=True
         )
