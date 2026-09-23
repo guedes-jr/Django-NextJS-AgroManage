@@ -285,8 +285,12 @@ def _expected_birth_alerts(organization, species_code):
 
 @transaction.atomic
 def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
-                       observacao: str = "", destino: str = "Pecuária") -> Decimal:
-    """Dá baixa da quantidade aplicada, convertida para a unidade do estoque."""
+                       observacao: str = "", destino: str = "Pecuária") -> tuple:
+    """Dá baixa da quantidade aplicada, convertida para a unidade do estoque.
+    
+    Returns:
+        tuple: (quantidade baixada, custo_total calculado em Decimal)
+    """
     from apps.inventory.choices import TipoMovimentacao
     from apps.inventory.services import registrar_movimentacao
     from .services import vaccination_inventory_quantity
@@ -305,10 +309,13 @@ def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
         })
 
     restante = quantidade
+    custo_total = Decimal("0")
     for lote in lotes:
         if restante <= 0:
             break
         retirada = min(restante, lote.quantidade_atual)
+        custo_unitario = lote.custo_unitario or Decimal("0")
+        custo_total += retirada * custo_unitario
         registrar_movimentacao(
             item=vaccine_item,
             lote=lote,
@@ -319,7 +326,7 @@ def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
             observacao=observacao or "Consumo por vacinação",
         )
         restante -= retirada
-    return quantidade
+    return quantidade, custo_total
 
 
 def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao):
@@ -1901,10 +1908,14 @@ class AnimalViewSet(viewsets.ModelViewSet):
             }
         )
 
-        # Baixa de estoque
+        # Baixa de estoque e snapshot do custo real
         if vaccine_item:
-            _dar_baixa_vacina(vaccine_item, request.user, record.dosage_ml,
-                              observacao=f"Vacinação do animal {animal.identifier}")
+            _, custo_real = _dar_baixa_vacina(
+                vaccine_item, request.user, record.dosage_ml,
+                observacao=f"Vacinação do animal {animal.identifier}"
+            )
+            record.inventory_cost_snapshot = custo_real
+            record.save(update_fields=['inventory_cost_snapshot'])
 
         return Response({"message": "Vacina registrada com sucesso"}, status=status.HTTP_201_CREATED)
 
@@ -2933,11 +2944,13 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        # Baixa de estoque
+        # Baixa de estoque e snapshot do custo real
         if record.vaccine_item:
             target_desc = record.animal.identifier if record.animal else record.batch.batch_code if record.batch else "desconhecido"
-            _dar_baixa_vacina(record.vaccine_item, request.user, record.dosage_ml,
+            _, custo_real = _dar_baixa_vacina(record.vaccine_item, request.user, record.dosage_ml,
                               observacao=f"Vacinação de {target_desc}")
+            record.inventory_cost_snapshot = custo_real
+            record.save(update_fields=['inventory_cost_snapshot'])
 
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 

@@ -760,7 +760,16 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
         }
 
     def get_inventory_cost(self, record):
-        """Custo da unidade efetivamente baixada do estoque na vacinação."""
+        """Custo real descontado do estoque na vacinação.
+        
+        Usa o snapshot salvo no momento da vacinação quando disponível.
+        Para registros antigos (sem snapshot), recalcula usando custo médio como fallback.
+        """
+        # Prefer the stored snapshot (exact cost at time of vaccination)
+        if record.inventory_cost_snapshot is not None:
+            return str(record.inventory_cost_snapshot.quantize(Decimal("0.01")))
+
+        # Fallback: dynamic calculation for older records
         item = record.vaccine_item
         if not item:
             return "0.00"
@@ -771,6 +780,7 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
             unit_cost = last_costed_lot.custo_unitario if last_costed_lot else 0
         quantity = vaccination_inventory_quantity(item, record.dosage_ml)
         return str((Decimal(str(unit_cost)) * quantity).quantize(Decimal("0.01")))
+
 
     def validate_vaccine_item_id(self, value):
         if value is None:

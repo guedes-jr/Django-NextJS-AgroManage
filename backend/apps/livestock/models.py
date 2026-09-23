@@ -439,6 +439,13 @@ class VaccinationRecord(BaseModel):
     batch_number = models.CharField(max_length=50, blank=True, help_text="Número do lote da vacina")
     applicator = models.CharField(max_length=100, blank=True, help_text="Responsável pela aplicação")
     notes = models.TextField(blank=True)
+    inventory_cost_snapshot = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Custo real descontado do estoque no momento da vacinação (snapshot)"
+    )
 
     class Meta(BaseModel.Meta):
         verbose_name = "Vaccination Record"
