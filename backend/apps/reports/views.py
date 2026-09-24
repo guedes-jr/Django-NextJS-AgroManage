@@ -715,9 +715,21 @@ def dashboard_summary(request):
         ).exclude(
             reference__in=feed_stock_purchase_references
         ).distinct()
-        species_feed = feed_consumption.filter(
+        # Registros de ração atribuídos à espécie via lote_animal ou animais M2M.
+        _attributed_feed = feed_consumption.filter(
             Q(lote_animal__species=species) | Q(animais__species=species)
         ).distinct()
+        # Registros sem nenhum vínculo animal (lote_animal=null, M2M vazio).
+        # São absorvidos pela espécie principal ou quando a org tem espécie única.
+        _unattributed_feed = feed_consumption.filter(
+            lote_animal__isnull=True
+        ).annotate(
+            animais_count=Count("animais")
+        ).filter(animais_count=0)
+        if len(organization_species) == 1 or species == organization_species[0]:
+            species_feed = (_attributed_feed | _unattributed_feed).distinct()
+        else:
+            species_feed = _attributed_feed
         species_vaccine_records = VaccinationRecord.objects.filter(
             farm__organization=org,
             species=species,
