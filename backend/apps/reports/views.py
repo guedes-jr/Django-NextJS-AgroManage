@@ -432,7 +432,7 @@ def dashboard_summary(request):
         ).aggregate(total=Sum("amount"))["total"]
         or 0
     )
-    month_expense = (
+    month_expense_from_transactions = (
         transactions_qs.filter(
             category__category_type=FinancialCategory.CategoryType.EXPENSE,
             payment_date__gte=month_start,
@@ -441,6 +441,43 @@ def dashboard_summary(request):
         ).aggregate(total=Sum("amount"))["total"]
         or 0
     )
+    # ConsumoRacao, VaccinationRecord e sêmen não geram transação financeira.
+    # Precisam ser somados ao KPI geral do mês separadamente.
+    _feed_kpi = ConsumoRacao.objects.filter(
+        organization=org,
+        data_inicio__gte=month_start,
+        data_inicio__lte=today,
+    ).aggregate(total=Sum("custo_total"))["total"] or Decimal("0")
+    _vaccine_kpi = (
+        VaccinationRecord.objects.filter(
+            farm__organization=org,
+            application_date__gte=month_start,
+            application_date__lte=today,
+        ).aggregate(total=Sum("inventory_cost_snapshot"))["total"] or Decimal("0")
+    )
+    _semen_item_ids = [
+        item["id"]
+        for item in ItemEstoque.objects.filter(organization=org).values(
+            "id", "categoria", "categorias"
+        )
+        if item["categoria"] == "semen" or "semen" in (item["categorias"] or [])
+    ]
+    _semen_kpi_qs = MovimentacaoEstoque.objects.filter(
+        item_id__in=_semen_item_ids,
+        item__organization=org,
+        tipo="consumo",
+        data_movimentacao__date__gte=month_start,
+        data_movimentacao__date__lte=today,
+    ).select_related("item", "lote")
+    _semen_kpi = sum(
+        (
+            (m.lote.custo_unitario if m.lote and m.lote.custo_unitario is not None else m.item.custo_medio or Decimal("0"))
+            * m.quantidade
+            for m in _semen_kpi_qs
+        ),
+        Decimal("0"),
+    )
+    month_expense = month_expense_from_transactions + _feed_kpi + _vaccine_kpi + _semen_kpi
 
     def financial_breakdown(queryset, category_type, label_field="category__name"):
         return [
