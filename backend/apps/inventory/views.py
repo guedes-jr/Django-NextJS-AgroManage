@@ -836,7 +836,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                         break
                         
                     qtde_deste_lote = min(lote.quantidade_atual, qtde_restante_abater)
-                    custo_lote = lote.custo_unitario or Decimal("0")
+                    custo_lote = lote.custo_unitario if lote.custo_unitario is not None else (item.custo_medio or Decimal("0"))
                     custo_total_producao += qtde_deste_lote * custo_lote
                     
                     lote.quantidade_atual -= qtde_deste_lote
@@ -964,7 +964,7 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
                 
                 qtde_abater = min(lote.quantidade_atual, qtde_restante)
                 
-                custo_lote = lote.custo_unitario or Decimal("0")
+                custo_lote = lote.custo_unitario if lote.custo_unitario is not None else (item.custo_medio or Decimal("0"))
                 custo_total += qtde_abater * custo_lote
                 
                 lote.quantidade_atual -= qtde_abater
