@@ -31,7 +31,9 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
         nascimento: animal.birth_date || (animal.origin === 'born' ? animal.entry_date : ""),
         dataCompra: animal.entry_date || "",
         peso: animal.avg_weight_kg || "",
-        valor: animal.purchase_value || "",
+        valor: animal.purchase_value && animal.quantity
+          ? String(parseFloat(String(animal.purchase_value)) / (animal.quantity || 1))
+          : animal.purchase_value || "",
         quantidade: animal.quantity?.toString() || "1",
       });
     }
@@ -58,7 +60,7 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
       category: formData.categoria,
       gender: formData.sexo,
       origin: formData.origem === "Comprado" ? "purchased" : formData.origem === "Nascido" ? "born" : "donated",
-      purchase_value: parseFloat(formData.valor) || null,
+      purchase_value: formData.valor ? (parseFloat(formData.valor) * (parseInt(formData.quantidade, 10) || 1)) || null : null,
       avg_weight_kg: parseFloat(formData.peso) || null,
       entry_date: formData.dataCompra || formData.nascimento || new Date().toISOString().split('T')[0],
       birth_date: formData.nascimento || null,

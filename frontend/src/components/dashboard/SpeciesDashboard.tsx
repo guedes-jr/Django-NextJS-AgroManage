@@ -47,7 +47,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialData, setModalInitialData] = useState<{ categoria: string; sexo: string; isMatrixShortcut?: boolean; isSireShortcut?: boolean } | undefined>();
-  
+
   // States for List and Edit/Delete
   const [searchTerm, setSearchTerm] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -103,7 +103,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         category: row.categoria,
         gender: row.sexo === "Macho" ? "M" : (row.sexo === "Femea" || row.sexo === "Fêmea") ? "F" : row.sexo,
         origin: row.origem === "Comprado" ? "purchased" : row.origem === "Nascido" ? "born" : "donated",
-        purchase_value: parseFloat(row.valor) || null,
+        purchase_value: row.valor ? (parseFloat(row.valor) * (parseInt(row.quantidade, 10) || 1)) || null : null,
         avg_weight_kg: parseFloat(row.peso) || null,
         entry_date: row.dataCompra || row.nascimento || new Date().toISOString().split('T')[0],
         birth_date: row.nascimento || null,
@@ -135,10 +135,10 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         data: err.response?.data,
         message: err.message,
       });
-      
+
       // Extract error message from response
       let errorMessage = "Erro ao salvar os registros. Verifique os dados e tente novamente.";
-      
+
       // Try to extract error from different response formats
       if (err.response?.data?.non_field_errors) {
         errorMessage = err.response.data.non_field_errors[0];
@@ -153,14 +153,14 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
             const message = Array.isArray(val) ? val[0] : val;
             return `${key}: ${message}`;
           });
-        
+
         if (errorEntries.length > 0) {
           errorMessage = errorEntries.join('\n');
         }
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       showToast(errorMessage, "error", 15000);
     }
   };
@@ -224,9 +224,9 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
     const lower = searchTerm.toLowerCase();
-    return data.filter(a => 
-      a.batch_code?.toLowerCase().includes(lower) || 
-      a.name?.toLowerCase().includes(lower) || 
+    return data.filter(a =>
+      a.batch_code?.toLowerCase().includes(lower) ||
+      a.name?.toLowerCase().includes(lower) ||
       a.category?.toLowerCase().includes(lower)
     );
   }, [data, searchTerm]);
@@ -234,16 +234,16 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   const kpis: KPICard[] = useMemo(() => {
     const totalBatches = data.length;
     const totalAnimals = data.reduce((acc, a) => acc + (a.quantity || 1), 0);
-    
+
     if (species === "suinos") {
         const matrizesData = data.filter(a => a.category?.toLowerCase() === 'matriz' || a.category?.toLowerCase() === 'matrizes' || a.category?.toLowerCase() === 'marrã');
         const reprodutoresData = data.filter(a => a.category?.toLowerCase() === 'reprodutor' || a.category?.toLowerCase() === 'reprodutores' || a.category?.toLowerCase() === 'cachaço' || a.category?.toLowerCase() === 'touro');
         const lotesData = data.filter(a => a.category?.toLowerCase().includes('lote') || a.category?.toLowerCase() === 'terminação');
-        
+
         const matrizesCount = matrizesData.reduce((acc, a) => acc + (a.quantity || 1), 0);
         const reprodutoresCount = reprodutoresData.reduce((acc, a) => acc + (a.quantity || 1), 0);
         const lotesCount = lotesData.length; // Mantém a contagem de lotes em si, não os animais do lote
-        
+
         return [
             { label: "Matrizes", value: matrizesCount, icon: "🐷", color: "oklch(0.6 0.22 27)", link: "/home/relatorios/rebanho?species=suinos&category=Matriz" },
             { label: "Reprodutores", value: reprodutoresCount, icon: "♂️", color: "oklch(0.55 0.16 230)", link: "/home/relatorios/rebanho?species=suinos&category=Reprodutor" },
@@ -251,7 +251,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
             { label: "Total de Suínos", value: totalAnimals, icon: "📈", color: "oklch(0.55 0.14 145)", link: "/home/relatorios/rebanho?species=suinos" },
         ];
     }
-    
+
     if (species === "bovinos") {
         return [
             { label: "Total Bovinos", value: totalAnimals, icon: "🐄", color: "oklch(0.55 0.16 145)", link: "/home/relatorios/rebanho?species=bovinos" },
@@ -260,7 +260,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
             { label: "Quarentena", value: data.filter(a => a.status === 'quarantine').length, icon: "🕒", color: "oklch(0.78 0.15 75)", link: "/home/relatorios/rebanho?species=bovinos&status=quarantine" },
         ];
     }
-    
+
     return [
         { label: "Total Aves", value: totalAnimals, icon: "🐔", color: "oklch(0.62 0.14 50)", link: "/home/relatorios/rebanho?species=aves" },
         { label: "Lotes", value: totalBatches, icon: "✅", color: "oklch(0.60 0.16 150)", link: "/home/relatorios/rebanho?species=aves" },
@@ -276,7 +276,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
   }[species];
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
@@ -298,7 +298,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
           Cadastro de {speciesName}
         </h1>
         <p className="mb-0 text-muted-foreground fw-medium">
-          {species === 'suinos' 
+          {species === 'suinos'
             ? 'Cadastre matrizes, reprodutores ou lotes de leitões adquiridos'
             : 'Gerencie as informações de registro e produção do seu plantel'}
         </p>
@@ -316,20 +316,20 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
           <div className="mb-5">
             <div className="row g-4">
               {[
-                { 
-                  title: species === 'suinos' ? 'Matrizes' : 'Fêmeas', 
+                {
+                  title: species === 'suinos' ? 'Matrizes' : 'Fêmeas',
                   desc: 'Cadastre fêmeas para reprodução.',
                   icon: <div className="reg-card-icon" style={{ background: 'oklch(0.68 0.18 27 / 0.14)' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐷' : '🐄'}</span></div>,
                   features: ['Controle de ciclo reprodutivo', 'Histórico de partos', 'Desempenho reprodutivo']
                 },
-                { 
-                  title: species === 'suinos' ? 'Reprodutores' : 'Machos', 
+                {
+                  title: species === 'suinos' ? 'Reprodutores' : 'Machos',
                   desc: 'Cadastre machos para reprodução.',
                   icon: <div className="reg-card-icon" style={{ background: 'oklch(0.62 0.16 230 / 0.14)' }}><span style={{ fontSize: '1.75rem' }}>♂️</span></div>,
                   features: ['Controle de cobertura', 'Avaliação de desempenho', 'Histórico reprodutivo']
                 },
-                { 
-                  title: species === 'suinos' ? 'Lotes em Terminação' : 'Novos Lotes', 
+                {
+                  title: species === 'suinos' ? 'Lotes em Terminação' : 'Novos Lotes',
                   desc: 'Cadastre lotes de animais adquiridos.',
                   icon: <div className="reg-card-icon" style={{ background: 'oklch(0.78 0.15 85 / 0.16)' }}><span style={{ fontSize: '1.75rem' }}>{species === 'suinos' ? '🐖' : '📦'}</span></div>,
                   features: ['Controle de crescimento', 'Conversão alimentar', 'Desempenho do lote']
@@ -340,7 +340,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                     {card.icon}
                     <div className="reg-card-title">{card.title}</div>
                     <p className="text-muted-foreground small mb-0">{card.desc}</p>
-                    
+
                     <ul className="reg-feature-list">
                       {card.features.map((f, j) => (
                         <li key={j} className="reg-feature-item">
@@ -349,7 +349,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                         </li>
                       ))}
                     </ul>
-                    
+
                     <button onClick={() => handleOpenModal(card.title)} className="btn-reg-outline">
                       Cadastrar {card.title}
                     </button>
@@ -363,7 +363,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
           <div className="mb-5">
             <h3 className="fw-bold mb-1" style={{ fontSize: '1.25rem' }}>Resumo do Plantel</h3>
             <p className="text-muted-foreground small mb-4">Visão geral do seu plantel de {speciesName.toLowerCase()}</p>
-            
+
             <div className="row g-4">
               {kpis.map((kpi, idx) => (
                 <div key={idx} className="col-12 col-sm-6 col-lg-3">
@@ -414,7 +414,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
           </div>
 
           {/* Section: Últimas Movimentações */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
@@ -425,22 +425,22 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
               <div className="p-4 p-md-5 border-bottom border-border d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 bg-muted/10">
                 <div>
                   <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.35rem', color: 'var(--foreground)' }}>
-                    <Activity size={22} className="text-primary" /> 
+                    <Activity size={22} className="text-primary" />
                     Últimas Movimentações
                   </h3>
                   <p className="text-muted-foreground small mb-0 fw-medium">Gerencie e visualize os cadastros recentes do seu rebanho.</p>
                 </div>
                 <div className="position-relative" style={{ maxWidth: '340px', width: '100%' }}>
                   <Search className="position-absolute text-muted-foreground" size={18} style={{ left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input 
-                    type="text" 
-                    className="form-control shadow-none transition-all focus-ring" 
-                    placeholder="Buscar por lote, identificação..." 
-                    style={{ 
-                      paddingLeft: '44px', 
+                  <input
+                    type="text"
+                    className="form-control shadow-none transition-all focus-ring"
+                    placeholder="Buscar por lote, identificação..."
+                    style={{
+                      paddingLeft: '44px',
                       height: '46px',
                       borderRadius: '2rem',
-                      border: '1px solid var(--border)', 
+                      border: '1px solid var(--border)',
                       backgroundColor: 'var(--card)',
                       color: 'var(--foreground)'
                     }}
@@ -477,12 +477,12 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                     ) : (
                       <AnimatePresence>
                         {filteredData.slice(0, 10).map((row, idx) => (
-                          <motion.tr 
+                          <motion.tr
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.2, delay: idx * 0.05 }}
-                            key={row.id || idx} 
+                            key={row.id || idx}
                             style={{ borderBottom: '1px solid var(--border)' }}
                             className="bg-background hover-bg-muted/50 transition-colors"
                           >
@@ -518,7 +518,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                               </span>
                             </td>
                             <td className="py-3 text-end pe-4">
-                              <button 
+                              <button
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
                                 onClick={() => openTechnicalSheet(row)}
                                 title="Visualizar Ficha Técnica"
@@ -526,7 +526,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                               >
                                 <Eye size={16} />
                               </button>
-                              <button 
+                              <button
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
                                 onClick={() => router.push(`/home/rebanho/suinos/animal/${row.id}`)}
                                 title="Ver detalhes do animal"
@@ -534,7 +534,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                               >
                                 <Search size={16} />
                               </button>
-                              <button 
+                              <button
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
                                 onClick={() => handleEditAnimal(row)}
                                 title="Editar"
@@ -542,7 +542,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                               >
                                 <Edit2 size={16} />
                               </button>
-                              <button 
+                              <button
                                 className="btn btn-sm btn-light rounded-circle p-2 text-muted-foreground hover-text-danger hover-bg-danger/10 transition-colors border-0"
                                 onClick={() => handleDeleteAnimal(row.id)}
                                 title="Remover"
@@ -562,7 +562,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
           </motion.div>
         </>
       )}
-      <AnimalFormModal 
+      <AnimalFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         type={species}

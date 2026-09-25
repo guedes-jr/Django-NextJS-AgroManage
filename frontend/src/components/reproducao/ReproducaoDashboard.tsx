@@ -1,5 +1,5 @@
 "use client";
- 
+
 import { useState, useEffect } from "react";
 import { ChevronRight, Grid2X2, List, Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
@@ -57,11 +57,11 @@ export interface TabConfig {
   primaryActionModalSubtitle?: string;
   onSave?: (data: Record<string, string>) => Promise<void>;
   kpis?: KpiCard[];
-  tabActions?: { 
-    label: string; 
-    icon: string; 
-    color: string; 
-    desc: string; 
+  tabActions?: {
+    label: string;
+    icon: string;
+    color: string;
+    desc: string;
     type?: 'primary' | 'weight' | 'vaccine' | 'postpartum_vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet' | 'batch_mortality' | 'sale_redirect';
     onClick?: () => void;
   }[];
@@ -204,12 +204,12 @@ function RefetchOverlay() {
   );
 }
 
-import { 
-  registerWeight, 
+import {
+  registerWeight,
   registerBatchWeight,
-  registerVaccination, 
-  diagnosePregnancy, 
-  promoteToMating, 
+  registerVaccination,
+  diagnosePregnancy,
+  promoteToMating,
   discardAnimal,
   registerLoss,
   registerMortality,
@@ -302,9 +302,9 @@ export function ReproducaoDashboard({
           params: { categoria: "semen" }
         });
         setAllSemenItems(allData || []);
-        const filtered = (allData || []).filter((s: any) => 
-          s.especie_animal === mappedSp || 
-          s.especie_animal === "multiplo" || 
+        const filtered = (allData || []).filter((s: any) =>
+          s.especie_animal === mappedSp ||
+          s.especie_animal === "multiplo" ||
           !s.especie_animal
         );
         setSemenItems(filtered);
@@ -351,12 +351,12 @@ export function ReproducaoDashboard({
   useEffect(() => {
     setSelectedRows([]);
   }, [activeTab]);
-  const [actionModal, setActionModal] = useState<{ 
-    open: boolean; 
-    title: string; 
-    subtitle?: string; 
-    fields: ModalField[]; 
-    onConfirm: (data: any) => Promise<void> 
+  const [actionModal, setActionModal] = useState<{
+    open: boolean;
+    title: string;
+    subtitle?: string;
+    fields: ModalField[];
+    onConfirm: (data: any) => Promise<void>
   }>({
     open: false,
     title: "",
@@ -379,7 +379,7 @@ export function ReproducaoDashboard({
     const firstRow = targetRows[0];
     const initialBatchCode = firstRow?.lote || firstRow?.batch_code || "";
     const initialQty = targetRows.reduce((sum, r) => sum + (parseInt(r.qtd || r.quantity) || 0), 0);
-    
+
     const parseWeight = (val: any) => {
       if (!val) return 0;
       return parseFloat(String(val).replace(/[^\d.]/g, "")) || 0;
@@ -399,7 +399,7 @@ export function ReproducaoDashboard({
     const initialAvgWeight = avgWeight > 0 ? Math.round(avgWeight * 100) / 100 : (parseWeight(firstRow?.peso || firstRow?.avg_weight_kg) || "");
 
     const title = targetPhase === "crescimento" ? "Transferir para Crescimento" : "Transferir para Engorda";
-    const subtitle = targetRows.length > 1 
+    const subtitle = targetRows.length > 1
       ? `Transferindo ${targetRows.length} lotes selecionados`
       : `Transferindo lote ${initialBatchCode}`;
 
@@ -409,7 +409,7 @@ export function ReproducaoDashboard({
       name: "batch_code_display",
       label: targetRows.length > 1 ? "Lotes Selecionados" : "Lote",
       type: "text",
-      initialValue: targetRows.length > 1 
+      initialValue: targetRows.length > 1
         ? targetRows.map(r => r.lote || r.batch_code).join(", ")
         : initialBatchCode,
       disabled: true,
@@ -486,7 +486,7 @@ export function ReproducaoDashboard({
             // Merging selected batches
             // 1. Get full details of the first batch to copy organization/farm/category
             const firstBatchDetail = await apiClient.get(`/livestock/batches/${targetRows[0].id}/`).then(res => res.data);
-            
+
             // 2. Create the new merged batch
             await createAnimalBatch({
               batch_code: data.new_batch_code,
@@ -503,7 +503,7 @@ export function ReproducaoDashboard({
             });
 
             // 3. Mark the source batches as finished (phase already frozen on merge endpoint)
-            await Promise.all(targetRows.map(r => 
+            await Promise.all(targetRows.map(r =>
               updateAnimalBatch(r.id as number, { status: "finished" })
             ));
 
@@ -544,7 +544,7 @@ export function ReproducaoDashboard({
   const handleAction = (action: any, rows: any[] = []) => {
     const currentTab = config.tabs.find((t) => t.id === activeTab);
     const isMatingAction = action.type === 'mating_marra' || (action.type === 'primary' && currentTab?.primaryActionLabel === "Registrar Cobertura");
-    
+
     if (isMatingAction && !hasReproducers && !hasSemenStock) {
       setNoReproducersWarningOpen(true);
       return;
@@ -555,11 +555,11 @@ export function ReproducaoDashboard({
       return;
     }
 
-    const animalOptions = rows.map(r => ({ 
+    const animalOptions = rows.map(r => ({
       // Em Gestação/Maternidade, `id` pertence ao evento reprodutivo.
       // As ações sanitárias devem sempre apontar para a matriz vinculada.
       value: String(r.animal_id || r.id || r.pk || r.identifier || ""),
-      label: String(r.identifier || r.batch_code || r.name || r.id || r.pk || "Sem ID") 
+      label: String(r.identifier || r.batch_code || r.name || r.id || r.pk || "Sem ID")
     })).filter(o => o.value);
 
     switch (action.type) {
@@ -618,12 +618,12 @@ export function ReproducaoDashboard({
           subtitle: "Informe o peso atual do animal ou lote",
           fields: [
             {
-              name: "id", 
-              label: "Animal / Lote", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+              name: "id",
+              label: "Animal / Lote",
+              type: animalOptions.length > 0 ? "select" : "text",
               options: animalOptions,
-              placeholder: "Brinco ou Lote", 
-              required: true 
+              placeholder: "Brinco ou Lote",
+              required: true
             },
             { name: "weight_kg", label: "Peso (kg)", type: "number", placeholder: "0.00", required: true },
             { name: "weighing_date", label: "Data da Pesagem", type: "date", required: true },
@@ -651,12 +651,12 @@ export function ReproducaoDashboard({
           title: "Registrar Vacina",
           subtitle: vaccineItems.length === 0 ? "Nenhuma vacina cadastrada no estoque." : undefined,
           fields: [
-            { 
-              name: "id", 
-              label: "Identificador", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+            {
+              name: "id",
+              label: "Identificador",
+              type: animalOptions.length > 0 ? "select" : "text",
               options: animalOptions,
-              required: true 
+              required: true
             },
             { name: "vaccine_item_id", label: "Vacina", type: "select", options: vaccineOpts, required: true, placeholder: "Selecione a vacina..." },
             { name: "application_date", label: "Data de Aplicação", type: "date", required: true },
@@ -687,23 +687,23 @@ export function ReproducaoDashboard({
           open: true,
           title: rows.length > 1 ? `Diagnóstico em Lote (${rows.length})` : "Diagnóstico de Prenhez",
           fields: [
-            { 
-              name: "id", 
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)", 
-              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
+            {
+              name: "id",
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)",
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
               initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
               disabled: rows.length >= 1,
-              required: true 
+              required: true
             },
             { name: "result", label: "Resultado", type: "select", required: true, options: [
               { value: "positive", label: "Positivo (Gestante)" },
               { value: "negative", label: "Negativo (Vazia)" },
             ]},
-            { 
-              name: "diagnosis_date", 
-              label: "Data do Diagnóstico", 
-              type: "date", 
+            {
+              name: "diagnosis_date",
+              label: "Data do Diagnóstico",
+              type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
             },
@@ -726,14 +726,14 @@ export function ReproducaoDashboard({
           open: true,
           title: "Descartar Matriz",
           fields: [
-            { 
-              name: "id", 
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)", 
-              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
+            {
+              name: "id",
+              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)",
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
               initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
               disabled: rows.length >= 1,
-              required: true 
+              required: true
             },
             { name: "data_descarte", label: "Data do Descarte", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
             { name: "motivo", label: "Motivo / Justificativa", type: "text", required: true },
@@ -764,14 +764,14 @@ export function ReproducaoDashboard({
           open: true,
           title: "Registrar Perda na Gestação",
           fields: [
-            { 
-              name: "id", 
-              label: rows.length > 1 ? "Gestação / Matriz" : "Gestação / Matriz", 
-              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
+            {
+              name: "id",
+              label: rows.length > 1 ? "Gestação / Matriz" : "Gestação / Matriz",
+              type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
               initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
               disabled: rows.length >= 1,
-              required: true 
+              required: true
             },
             { name: "data", label: "Data da Perda", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
             { name: "tipo_perda", label: "Tipo de Perda", type: "select", required: true, options: [
@@ -820,19 +820,19 @@ export function ReproducaoDashboard({
           title: "Registrar Procedimento / Manejo",
           subtitle: "Selecione o tipo de manejo para a leitegada",
           fields: [
-            { 
-              name: "id", 
-              label: "Leitegada / Matriz", 
-              type: rows.length > 1 ? "text" : (litterOptions.length > 0 ? "select" : "text"), 
+            {
+              name: "id",
+              label: "Leitegada / Matriz",
+              type: rows.length > 1 ? "text" : (litterOptions.length > 0 ? "select" : "text"),
               options: litterOptions,
               initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? "Múltiplos selecionados" : litterOptions[0]?.value),
               disabled: rows.length >= 1,
-              required: true 
+              required: true
             },
-            { 
-              name: "tipo", 
-              label: "Tipo de Procedimento", 
-              type: "select", 
+            {
+              name: "tipo",
+              label: "Tipo de Procedimento",
+              type: "select",
               required: true,
               options: [
                 { value: "TRANSFERENCIA_LEITAO", label: "🔄 Transferência de Leitões" },
@@ -843,32 +843,32 @@ export function ReproducaoDashboard({
               colSpan: "full"
             },
             // Campos para Transferência de Leitões
-            { 
-              name: "quantidade", 
-              label: "Quantidade de Leitões", 
-              type: "number", 
+            {
+              name: "quantidade",
+              label: "Quantidade de Leitões",
+              type: "number",
               required: true,
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
-            { 
+            {
               name: "destino_birth_id",
-              label: "Matriz de Destino (Maternidade)", 
-              type: "select", 
+              label: "Matriz de Destino (Maternidade)",
+              type: "select",
               options: destinationOptions,
               required: true,
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
-            { 
-              name: "data", 
-              label: "Data", 
-              type: "date", 
-              required: true, 
+            {
+              name: "data",
+              label: "Data",
+              type: "date",
+              required: true,
               initialValue: new Date().toISOString().split('T')[0],
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
-            { 
-              name: "observacao", 
-              label: "Observação", 
+            {
+              name: "observacao",
+              label: "Observação",
               type: "textarea",
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
@@ -908,35 +908,42 @@ export function ReproducaoDashboard({
               initialValue: rows.length === 1 ? (rows[0].vivos ?? rows[0].live_born ?? "") : "",
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
-            { 
-              name: "data", 
-              label: "Data de Aplicação", 
-              type: "date", 
-              required: true, 
+            {
+              name: "data",
+              label: "Data de Aplicação",
+              type: "date",
+              required: true,
               initialValue: new Date().toISOString().split('T')[0],
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
-            { 
-              name: "motivo", 
-              label: "Motivo", 
+            {
+              name: "motivo",
+              label: "Motivo",
               type: "text",
               placeholder: "Ex: Prevenção de anemia",
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
-            { 
-              name: "responsavel", 
-              label: "Responsável", 
+            {
+              name: "responsavel",
+              label: "Responsável",
               type: "text",
               placeholder: "Nome do responsável",
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
           ],
           onConfirm: async (data) => {
-            data.applications = JSON.parse(
-              data.tipo === "APLICACAO_VACINA"
-                ? data.vaccine_applications
-                : data.medication_applications
-            );
+            // Parse applications only for medication/vaccine procedures
+            if (data.tipo === "APLICACAO_VACINA" || data.tipo === "APLICACAO_MEDICAMENTO") {
+              try {
+                data.applications = JSON.parse(
+                  data.tipo === "APLICACAO_VACINA"
+                    ? data.vaccine_applications
+                    : data.medication_applications
+                );
+              } catch {
+                data.applications = [];
+              }
+            }
             if (rows.length > 1) {
               await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
               showToast(`Procedimento registrado para ${rows.length} leitegadas.`, "success");
@@ -1040,14 +1047,14 @@ export function ReproducaoDashboard({
           open: true,
           title: "Registrar Mortalidade (Maternidade)",
           fields: [
-            { 
-              name: "id", 
-              label: "Leitegada / Matriz", 
-              type: rows.length > 1 ? "text" : (mortalityOptions.length > 0 ? "select" : "text"), 
+            {
+              name: "id",
+              label: "Leitegada / Matriz",
+              type: rows.length > 1 ? "text" : (mortalityOptions.length > 0 ? "select" : "text"),
               options: mortalityOptions,
               initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? "Múltiplos selecionados" : mortalityOptions[0]?.value),
               disabled: rows.length >= 1,
-              required: true 
+              required: true
             },
             { name: "data", label: "Data do Óbito", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
             { name: "quantidade", label: "Qtd de Leitões Mortos", type: "number", required: true },
@@ -1083,19 +1090,19 @@ export function ReproducaoDashboard({
             open: true,
             title: rows.length > 1 ? `Confirmar Parto em Lote (${rows.length})` : "Confirmar Parto",
             fields: [
-              { 
-                name: "female_identifier", 
-                label: rows.length > 1 ? `Matrizes Selecionadas` : "Matriz (Brinco)", 
-                type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"), 
+              {
+                name: "female_identifier",
+                label: rows.length > 1 ? `Matrizes Selecionadas` : "Matriz (Brinco)",
+                type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
                 options: animalOptions,
                 initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
                 disabled: rows.length >= 1,
-                required: true 
+                required: true
               },
-              { 
-                name: "birth_date", 
-                label: "Data do Parto", 
-                type: "date", 
+              {
+                name: "birth_date",
+                label: "Data do Parto",
+                type: "date",
                 required: true,
                 initialValue: new Date().toISOString().split('T')[0]
               },
@@ -1149,28 +1156,28 @@ export function ReproducaoDashboard({
                 max: 365,
                 showIf: (values) => values.schedule_reproductive_vaccine === "yes",
               },
-              { 
-                name: "live_born", 
-                label: "Nascidos Vivos", 
-                type: "number", 
+              {
+                name: "live_born",
+                label: "Nascidos Vivos",
+                type: "number",
                 required: true,
                 initialValue: 12
               },
-              { 
-                name: "stillborn", 
-                label: "Óbitos", 
+              {
+                name: "stillborn",
+                label: "Óbitos",
                 type: "number",
                 initialValue: 0
               },
-              { 
-                name: "mummified", 
-                label: "Mumificados", 
+              {
+                name: "mummified",
+                label: "Mumificados",
                 type: "number",
                 initialValue: 0
               },
-              { 
-                name: "avg_weight_kg", 
-                label: "Peso Médio dos Leitões (kg)", 
+              {
+                name: "avg_weight_kg",
+                label: "Peso Médio dos Leitões (kg)",
                 type: "number",
                 required: true,
                 initialValue: 1.4
@@ -1183,7 +1190,7 @@ export function ReproducaoDashboard({
                 const identifier = animalRow.identifier;
 
                 try {
-                  await createBirth({ 
+                  await createBirth({
                     pregnancy: pregnancyId,
                     female: animalId,
                     birth_date: data.birth_date,
@@ -1205,8 +1212,8 @@ export function ReproducaoDashboard({
 
                   await updatePregnancy(pregnancyId, { status: 'completed' });
 
-                  await updateAnimal(animalId, { 
-                    reproductive_status: "lactante" 
+                  await updateAnimal(animalId, {
+                    reproductive_status: "lactante"
                   });
                 } catch (err) {
                   console.error(`Erro no processamento da matriz ${identifier}:`, err);
@@ -1307,7 +1314,7 @@ export function ReproducaoDashboard({
               label: "Código do Novo Lote na Creche",
               type: "text",
               required: true,
-              initialValue: rows.length === 1 
+              initialValue: rows.length === 1
                 ? `L-CRECHE-${rows[0].identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
                 : `L-CRECHE-LOTE-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
             },
@@ -1393,10 +1400,10 @@ export function ReproducaoDashboard({
               placeholder: "Selecione a marrã",
               required: true,
             },
-            { 
-              name: "mating_date", 
-              label: "Data da Cobertura", 
-              type: "date", 
+            {
+              name: "mating_date",
+              label: "Data da Cobertura",
+              type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
             },
@@ -1526,7 +1533,7 @@ export function ReproducaoDashboard({
             };
 
             const targetRows = rows.length > 0 ? rows : [data];
-            const animalIds = rows.length > 1 
+            const animalIds = rows.length > 1
               ? rows.map(r => r.animal_id || r.id || r.pk || r.identifier)
               : [data.id || (rows.length === 1 ? (rows[0].animal_id || rows[0].id || rows[0].pk || rows[0].identifier) : null)];
 
@@ -1658,12 +1665,12 @@ export function ReproducaoDashboard({
           title: "Promover para Cobertura",
           subtitle: "Confirme se o animal está pronto para o ciclo reprodutivo",
           fields: [
-            { 
-              name: "id", 
-              label: "Identificador", 
-              type: animalOptions.length > 0 ? "select" : "text", 
+            {
+              name: "id",
+              label: "Identificador",
+              type: animalOptions.length > 0 ? "select" : "text",
               options: animalOptions,
-              required: true 
+              required: true
             },
           ],
           onConfirm: async (data) => {
@@ -1743,10 +1750,10 @@ export function ReproducaoDashboard({
           type: "text",
           required: true,
         },
-        { 
-          name: "data_cobertura", 
-          label: "Data da Cobertura", 
-          type: "date", 
+        {
+          name: "data_cobertura",
+          label: "Data da Cobertura",
+          type: "date",
           required: true,
           initialValue: new Date().toISOString().split('T')[0]
         },
@@ -2143,7 +2150,7 @@ export function ReproducaoDashboard({
                 <X size={16} />
               </button>
             </div>
-            
+
             <div className="repro-modal-body text-center py-4">
               <div className="mb-3 d-inline-flex align-items-center justify-content-center animate-bounce" style={{ width: "64px", height: "64px", borderRadius: "50%", background: "oklch(0.96 0.04 25)", color: "oklch(0.5 0.15 25)", fontSize: "2rem" }}>
                 🧪
@@ -2151,15 +2158,15 @@ export function ReproducaoDashboard({
               <h5 className="fw-black text-foreground mb-3 text-uppercase small" style={{ letterSpacing: '0.05em' }}>
                 Diagnóstico de Disponibilidade
               </h5>
-              
+
               <div className="text-start px-3 py-3 bg-muted/10 rounded-xl mb-4 border border-border/40" style={{ fontSize: '0.85rem' }}>
                 <div className="mb-3 d-flex align-items-center gap-2">
                   <span className={hasReproducers ? "text-success" : "text-danger"} style={{ fontSize: '1.1rem' }}>
                     {hasReproducers ? "✔" : "❌"}
                   </span>
                   <div>
-                    <strong>Reprodutores:</strong> {hasReproducers 
-                      ? `${reproducerOptions.length} ativos.` 
+                    <strong>Reprodutores:</strong> {hasReproducers
+                      ? `${reproducerOptions.length} ativos.`
                       : "Nenhum macho reprodutor ativo cadastrado."}
                   </div>
                 </div>
