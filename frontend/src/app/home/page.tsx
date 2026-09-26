@@ -1,7 +1,7 @@
 "use client";
 
 import "@/components/dashboard/dashboard.css";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, AlertTriangle, Beef, Building2, CalendarDays, CircleDollarSign, Package, PiggyBank, Sprout, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -42,8 +42,9 @@ function SegmentCard({type,title,segment}:{type:"agriculture"|"livestock";title:
 
 export default function HomePage(){
   const router=useRouter(); const [user,setUser]=useState<User|null>(null); const [dashboard,setDashboard]=useState<DashboardData|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null); const isClient=useSyncExternalStore(subscribeToHydration,()=>true,()=>false);
+  const loadDashboard=useCallback(async(silent=false)=>{try{const response=await apiClient.get<DashboardData>("/reports/dashboard/",{params:{_t:Date.now()}});setDashboard(response.data);setError(null)}catch{if(!silent)setError("Não foi possível carregar os dados do painel.")}finally{if(!silent)setLoading(false)}},[]);
   useEffect(()=>{const stored=localStorage.getItem("user");if(stored){try{queueMicrotask(()=>setUser(JSON.parse(stored)))}catch{localStorage.removeItem("user")}}else apiClient.get("/auth/me/").then(r=>{setUser(r.data);localStorage.setItem("user",JSON.stringify(r.data))}).catch(()=>router.push("/login"))},[router]);
-  useEffect(()=>{apiClient.get<DashboardData>("/reports/dashboard/").then(r=>setDashboard(r.data)).catch(()=>setError("Não foi possível carregar os dados do painel.")).finally(()=>setLoading(false))},[]);
+  useEffect(()=>{queueMicrotask(()=>void loadDashboard());const refresh=()=>{if(document.visibilityState==="visible")void loadDashboard(true)};const interval=window.setInterval(refresh,15000);window.addEventListener("focus",refresh);document.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(interval);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh)}},[loadDashboard]);
   if(loading)return <Skeleton/>;
   const kpis=dashboard?.kpis??EMPTY_KPIS; const balance=kpis.month_revenue-kpis.month_expense; const margin=kpis.month_revenue?balance/kpis.month_revenue*100:0; const revenueData=dashboard?.charts.revenue_vs_expense??[]; const previous=revenueData.length>1?revenueData.at(-2):undefined; const current=revenueData.at(-1); const revenueTrend=previous?.receita?((current?.receita??0)-previous.receita)/previous.receita*100:0; const userName=user?.full_name?.split(" ")[0]||"Produtor";
   const livestockSegments=dashboard?.segments?.livestock_by_species?.length?dashboard.segments.livestock_by_species:[{code:"suinos",name:"Suinocultura",...(dashboard?.segments?.livestock??EMPTY_SEGMENT)}];

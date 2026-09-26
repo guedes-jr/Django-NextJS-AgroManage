@@ -6,7 +6,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.inventory.models import ItemEstoque, LoteEstoque, MovimentacaoEstoque
+from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque, MovimentacaoEstoque
 from apps.finance.models import FinancialCategory, Transaction
 from apps.farms.models import Farm
 from apps.livestock.models import AnimalBatch, Species
@@ -133,7 +133,7 @@ class DashboardSegmentTestCase(APITestCase):
             [{"name": "Compra de Animais", "value": 1500.0}],
         )
 
-    def test_swine_inventory_purchase_appears_in_swine_segment(self):
+    def test_swine_inventory_purchase_is_general_expense_not_production_cost(self):
         Species.objects.create(name="Suínos", code="suinos")
         item = ItemEstoque.objects.create(
             organization=self.organization,
@@ -156,11 +156,9 @@ class DashboardSegmentTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         swine_segment = response.data["segments"]["livestock_by_species"][0]
-        self.assertEqual(swine_segment["cost"], 150.0)
-        self.assertEqual(
-            swine_segment["cost_breakdown"],
-            [{"name": "Compra de Insumos", "value": 150.0}],
-        )
+        self.assertEqual(response.data["kpis"]["month_expense"], 150.0)
+        self.assertEqual(swine_segment["cost"], 0.0)
+        self.assertEqual(swine_segment["cost_breakdown"], [])
 
     def test_used_vaccine_value_appears_in_swine_dashboard(self):
         Species.objects.create(name="Suínos", code="suinos")
@@ -201,7 +199,8 @@ class DashboardSegmentTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         swine_segment = response.data["segments"]["livestock_by_species"][0]
-        self.assertEqual(swine_segment["cost"], 156.0)
+        self.assertEqual(response.data["kpis"]["month_expense"], 150.0)
+        self.assertEqual(swine_segment["cost"], 6.0)
         self.assertIn(
             {"name": "Tratamento/Vacina: Literguard", "value": 6.0},
             swine_segment["cost_breakdown"],
@@ -237,7 +236,8 @@ class DashboardSegmentTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         swine_segment = response.data["segments"]["livestock_by_species"][0]
-        self.assertEqual(swine_segment["cost"], 300.0)
+        self.assertEqual(response.data["kpis"]["month_expense"], 250.0)
+        self.assertEqual(swine_segment["cost"], 50.0)
         self.assertIn(
             {"name": "Sêmen: AgroGen Convencional — 2 doses", "value": 50.0},
             swine_segment["cost_breakdown"],
@@ -276,4 +276,53 @@ class DashboardSegmentTestCase(APITestCase):
         self.assertIn(
             {"name": "Sêmen: Dose genética multiuso — 1 dose", "value": 30.0},
             swine_segment["cost_breakdown"],
+        )
+
+    def test_feed_purchase_and_consumption_are_not_double_counted(self):
+        swine = Species.objects.create(name="Suínos", code="suinos")
+        batch = AnimalBatch.objects.create(
+            farm=self.farm,
+            species=swine,
+            batch_code="SU-FEED-001",
+            quantity=10,
+            entry_date=date.today(),
+        )
+        feed = ItemEstoque.objects.create(
+            organization=self.organization,
+            nome="Ração crescimento",
+            categoria="racao",
+            categorias=["racao"],
+            especie_animal="suino",
+            unidade_medida="kg",
+        )
+        LoteEstoque.objects.create(
+            item=feed,
+            numero_lote="RACAO-001",
+            quantidade_inicial=Decimal("1000.00"),
+            quantidade_atual=Decimal("900.00"),
+            custo_unitario=Decimal("9.00"),
+            data_entrada=date.today(),
+        )
+        ConsumoRacao.objects.create(
+            organization=self.organization,
+            farm=self.farm,
+            lote_animal=batch,
+            item_estoque=feed,
+            data_inicio=date.today(),
+            data_fim=date.today(),
+            quantidade=Decimal("100.00"),
+            custo_unitario=Decimal("9.00"),
+            custo_total=Decimal("900.00"),
+            usuario=self.user,
+        )
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["kpis"]["month_expense"], 9000.0)
+        swine_segment = response.data["segments"]["livestock_by_species"][0]
+        self.assertEqual(swine_segment["cost"], 900.0)
+        self.assertEqual(
+            swine_segment["cost_breakdown"],
+            [{"name": "Ração crescimento", "value": 900.0}],
         )
