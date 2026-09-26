@@ -668,16 +668,16 @@ export function ReproducaoDashboard({
               required: true
             },
             { name: "vaccine_item_id", label: "Vacina", type: "select", options: vaccineOpts, required: true, placeholder: "Selecione a vacina..." },
-            { name: "application_date", label: "Data de Aplicação", type: "date", required: true },
+            { name: "application_date", label: "Data de Aplicação", type: "date", required: true, initialValue: new Date().toISOString().split("T")[0] },
             { name: "dose_type", label: "Tipo de Dose", type: "select", options: [
               { value: "unica", label: "Dose Única" },
               { value: "reforco", label: "Reforço" },
-            ]},
-            { name: "dosage_ml", label: isBatchVaccination ? "Dose por animal (ml)" : "Dosagem (ml)", type: "number", required: isBatchVaccination, min: 0.01 },
+            ] , initialValue: "unica"},
+            { name: "dosage_ml", label: isBatchVaccination ? "Dose por animal (ml)" : "Dosagem (ml)", type: "number", required: isBatchVaccination, min: 0.01, step: 0.01, placeholder: "0,00" },
           ],
           onConfirm: async (data) => {
             try {
-              await (isBatchVaccination ? registerBatchVaccination(data.id, { ...data, dosage_ml: data.dosage_ml ? Number(data.dosage_ml) : undefined }) : registerVaccination(data.id, data));
+              await (isBatchVaccination ? registerBatchVaccination(data.id, { ...data, dosage_ml: data.dosage_ml ? Number(String(data.dosage_ml).replace(",", ".")) : undefined }) : registerVaccination(data.id, data));
               showToast("Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
               onSuccess?.();
               setActionModal(prev => ({ ...prev, open: false }));
