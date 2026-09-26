@@ -1,0 +1,19 @@
+# Suggested additions to merge into the existing .gitignore
+
+# Python/tool caches
+.ruff_cache/
+.pyright/
+.pytype/
+
+# Frontend/build tooling
+frontend/.next/
+frontend/.turbo/
+.turbo/
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Local agent/editor state (only if not intentionally versioned)
+.codex/
+.cursor/

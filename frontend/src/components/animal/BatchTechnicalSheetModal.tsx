@@ -767,10 +767,29 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 return (Number(ph.avg_weight_kg) - Number(pesoEntrada)) / diasFase;
               };
 
+              // Mortalidades registradas dentro de uma fase. A ficha usa o
+              // histórico real, inclusive para lotes antigos sem quantidade de
+              // entrada disponível no cadastro.
+              const mortalityForPhase = (phaseRecord: any): number | null => {
+                if (!phaseRecord?.entry_date) return null;
+                const start = new Date(phaseRecord.entry_date).getTime();
+                const end = phaseRecord.exit_date ? new Date(phaseRecord.exit_date).getTime() : Infinity;
+                const events = history.filter((event: any) => {
+                  if (event.type !== "death" || !event.date) return false;
+                  if (phaseRecord.batch_id && String(event.batch_id) !== String(phaseRecord.batch_id)) return false;
+                  const eventDate = new Date(event.date).getTime();
+                  return eventDate >= start && eventDate <= end;
+                });
+                if (!events.length) return null;
+                return events.reduce((total: number, event: any) => total + (Number(event.quantity) || 0), 0);
+              };
+
               // Mortalidade absoluta de uma fase concluída
               const calcFaseMort = (phaseKey: string): string => {
                 const ph = getCompletedPhase(phaseKey);
                 if (!ph) return "-";
+                const registeredDeaths = mortalityForPhase(ph);
+                if (registeredDeaths != null) return String(registeredDeaths);
                 const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                 const prevKey = prevPhaseMap[phaseKey];
                 const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
@@ -901,9 +920,10 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   const conversion = ganhoPorAnimal != null && ganhoPorAnimal > 0 && qtdAtual && feedTotal > 0
                     ? (feedTotal / qtdAtual) / ganhoPorAnimal
                     : null;
-                  const deaths = qtdEntrada != null && qtdAtual != null
+                  const registeredDeaths = mortalityForPhase(currentRecord);
+                  const deaths = registeredDeaths ?? (qtdEntrada != null && qtdAtual != null
                     ? Math.max(0, Number(qtdEntrada) - Number(qtdAtual))
-                    : null;
+                    : null);
                   return {
                     fase: faseLabel,
                     status: "andamento",

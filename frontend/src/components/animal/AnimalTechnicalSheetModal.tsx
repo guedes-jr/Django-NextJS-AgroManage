@@ -229,11 +229,48 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     avgInterval = `${Math.round(totalDays / (dates.length - 1))} dias`;
   }
   
-  const nascidosVivos = partos.reduce((acc: number, p: any) => acc + (p.details?.live_born || 0), 0);
+  const transferEvents = history.filter((event: any) => {
+    const tipo = event.details?.metadata?.tipo;
+    return tipo === "TRANSFERENCIA_LEITAO" || tipo === "RECEBIMENTO_TRANSFERENCIA";
+  });
+
+  const numericValue = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const cycleMetrics = cycles.map((cycle: any, index: number) => {
+    if (cycle.live_born === null || cycle.live_born === undefined || !cycle.birth_date) {
+      return { bornAlive: null, currentBalance: null };
+    }
+
+    const nextBirth = cycles.slice(index + 1).find((nextCycle: any) => nextCycle.birth_date);
+    const start = new Date(cycle.birth_date).getTime();
+    const end = nextBirth?.birth_date ? new Date(nextBirth.birth_date).getTime() : Number.POSITIVE_INFINITY;
+    const relevantTransfers = transferEvents.filter((event: any) => {
+      const metadata = event.details?.metadata || {};
+      if (metadata.birth_id) {
+        return String(metadata.birth_id) === String(cycle.birth_id);
+      }
+      const eventDate = new Date(event.details?.data_evento || event.date).getTime();
+      return Number.isFinite(eventDate) && eventDate >= start && eventDate < end;
+    });
+    const transferredOut = relevantTransfers
+      .filter((event: any) => event.details?.metadata?.tipo === "TRANSFERENCIA_LEITAO")
+      .reduce((total: number, event: any) => total + numericValue(event.details?.metadata?.quantidade), 0);
+    const received = relevantTransfers
+      .filter((event: any) => event.details?.metadata?.tipo === "RECEBIMENTO_TRANSFERENCIA")
+      .reduce((total: number, event: any) => total + numericValue(event.details?.metadata?.quantidade), 0);
+    const bornAlive = numericValue(cycle.live_born) + transferredOut - received;
+    const currentBalance = Math.max(0, bornAlive - transferredOut + received - numericValue(cycle.mortality));
+
+    return { bornAlive, currentBalance };
+  });
+
+  const nascidosVivos = cycleMetrics.reduce((total: number, metrics: any) => total + (metrics.bornAlive || 0), 0);
   const produtividade = numPartos > 0 ? (nascidosVivos / numPartos).toFixed(1) : "0";
   const taxaPrenhez = numCoberturas > 0 ? ((numPrenhezes / numCoberturas) * 100).toFixed(1) : "0";
 
-  // ── Novas Métricas ────────────────────────────────────────────────────────────
   // Total e média de desmamados
   const totalDesmamados = cycles
     .filter((c: any) => c.weaned_quantity != null)
@@ -248,7 +285,6 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     ? ((totalMortos / denominadorMort) * 100).toFixed(1)
     : "0";
 
-  // Média de dias de lactação
   const lactDays = cycles
     .filter((c: any) => c.lactation_days != null)
     .map((c: any) => c.lactation_days as number);
@@ -256,7 +292,6 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     ? Math.round(lactDays.reduce((a: number, b: number) => a + b, 0) / lactDays.length)
     : "-";
 
-  // Média de dias de gestação
   const gestDays = cycles
     .filter((c: any) => c.gestation_days != null)
     .map((c: any) => c.gestation_days as number);
@@ -264,38 +299,52 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     ? Math.round(gestDays.reduce((a: number, b: number) => a + b, 0) / gestDays.length)
     : "-";
 
-  // Peso médio dos leitões ao nascimento
   const birthWeights = cycles
     .filter((c: any) => c.avg_birth_weight_kg != null)
     .map((c: any) => c.avg_birth_weight_kg as number);
   const avgPesoNascimento = birthWeights.length > 0
     ? (birthWeights.reduce((a: number, b: number) => a + b, 0) / birthWeights.length).toFixed(2)
     : "-";
-  // ──────────────────────────────────────────────────────────────────────────────
 
+  const histRow = cycles.map((c: any, index: number) => {
+    const metrics = cycleMetrics[index];
+    const originalTotal = metrics.bornAlive === null
+      ? "-"
+      : metrics.bornAlive + numericValue(c.stillborn) + numericValue(c.mummified);
+    return {
+      n: c.cycle_number,
+      dataCob: fmtDate(c.mating_date) || "-",
+      tipo: c.mating_type_display || c.mating_type || "-",
+      rep: c.sire_name || c.sire_info || c.sire_identifier || "-",
+      dataConf: c.pregnancy_confirmed ? "Confirmada" : (c.pregnancy_status === "failed" ? "Falhou" : "-"),
+      prevParto: fmtDate(c.expected_birth_date) || "-",
+      dataParto: fmtDate(c.birth_date) || "-",
+      totalNasc: originalTotal,
+      nascidosVivos: metrics.bornAlive,
+      saldoAtual: metrics.currentBalance,
+      mortos: c.stillborn !== null ? c.stillborn : "-",
+      natimortos: c.mummified !== null ? c.mummified : "-",
+      mortalidadePos: c.mortality ?? 0,
+      pesoNasc: c.avg_birth_weight_kg ? fmt(c.avg_birth_weight_kg) : "-",
+      dataDesm: fmtDate(c.weaning_date) || "-",
+      desmamados: c.weaned_quantity !== null ? c.weaned_quantity : "-",
+      pesoDesm: c.avg_weaning_weight_kg ? fmt(c.avg_weaning_weight_kg) : "-",
+      diasLact: c.lactation_days || "-",
+      retCio: fmtDate(c.heat_return_date) || "-",
+      obs: c.notes || "-"
+    };
+  });
 
-  // Dynamic cycle table rows
-  const histRow = cycles.map((c: any) => ({
-    n: c.cycle_number,
-    dataCob: fmtDate(c.mating_date) || "-",
-    tipo: c.mating_type_display || c.mating_type || "-",
-    rep: c.sire_name || c.sire_info || c.sire_identifier || "-",
-    dataConf: c.pregnancy_confirmed ? "Confirmada" : (c.pregnancy_status === "failed" ? "Falhou" : "-"),
-    prevParto: fmtDate(c.expected_birth_date) || "-",
-    dataParto: fmtDate(c.birth_date) || "-",
-    totalNasc: c.total_born !== null ? c.total_born : "-",
-    vivos: c.live_born !== null ? Math.max(0, c.live_born - (c.mortality || 0)) : "-",
-    mortos: c.stillborn !== null ? c.stillborn : "-",
-    natimortos: c.mummified !== null ? c.mummified : "-",
-    mortalidadePos: c.mortality ?? 0,
-    pesoNasc: c.avg_birth_weight_kg ? fmt(c.avg_birth_weight_kg) : "-",
-    dataDesm: fmtDate(c.weaning_date) || "-",
-    desmamados: c.weaned_quantity !== null ? c.weaned_quantity : "-",
-    pesoDesm: c.avg_weaning_weight_kg ? fmt(c.avg_weaning_weight_kg) : "-",
-    diasLact: c.lactation_days || "-",
-    retCio: fmtDate(c.heat_return_date) || "-",
-    obs: c.notes || "-"
-  }));
+  const transferencias = transferEvents.map((event: any) => {
+    const metadata = event.details?.metadata || {};
+    const recebimento = metadata.tipo === "RECEBIMENTO_TRANSFERENCIA";
+    return {
+      origem: metadata.origem_identifier || (recebimento ? "-" : animal?.identifier) || "-",
+      destino: metadata.destino_identifier || (recebimento ? animal?.identifier : "-") || "-",
+      quantidade: metadata.quantidade ?? "-",
+      data: fmtDate(event.details?.data_evento || event.date) || "-",
+    };
+  });
 
   // Dynamic Vaccinations
   const vacinas = history
@@ -306,22 +355,6 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       prox: fmtDate(v.details?.next_dose_date) || "-",
       obs: v.details?.notes || v.subtitle || "-"
     }));
-
-  const transferencias = history
-    .filter((event: any) => {
-      const tipo = event.details?.metadata?.tipo;
-      return tipo === "TRANSFERENCIA_LEITAO" || tipo === "RECEBIMENTO_TRANSFERENCIA";
-    })
-    .map((event: any) => {
-      const metadata = event.details?.metadata || {};
-      const recebimento = metadata.tipo === "RECEBIMENTO_TRANSFERENCIA";
-      return {
-        origem: metadata.origem_identifier || (recebimento ? "-" : animal?.identifier) || "-",
-        destino: metadata.destino_identifier || (recebimento ? animal?.identifier : "-") || "-",
-        quantidade: metadata.quantidade ?? "-",
-        data: fmtDate(event.details?.data_evento || event.date) || "-",
-      };
-    });
 
   // Dynamic Heat Records
   const cios = history
@@ -452,7 +485,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               <Th>Macho<br/>(Tipo)</Th>
               <Th>Prev.<br/>Parto</Th>
               <Th>Data<br/>Parto</Th>
-              <Th>Nascidos / saldo<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 | 🔴 | ⚫ | ⚠️)</span></Th>
+              <Th>Nascidos / saldo<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 Parto | 🔵 Atual | 🔴 | ⚫ | ⚠️)</span></Th>
               <Th>Peso Nasc.<br/>(kg)</Th>
               <Th>Data<br/>Desmame</Th>
               <Th>Qtd.<br/>Desm.</Th>
@@ -477,11 +510,12 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
                   <Td>{r.prevParto}</Td>
                   <Td>{r.dataParto}</Td>
                   <Td>
-                    {r.vivos !== "-" ? (
+                    {r.nascidosVivos !== null ? (
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: "1.2" }}>
                         <strong>{r.totalNasc}</strong>
                         <div style={{ fontSize: "0.65rem", display: "flex", gap: "6px", marginTop: "2px" }}>
-                          <span title="Vivos">🟢 {r.vivos}</span>
+                          <span title="Nascidos vivos no parto">🟢 {r.nascidosVivos}</span>
+                          <span title="Saldo atual após transferências e óbitos">🔵 {r.saldoAtual}</span>
                           <span title="Natimortos">🔴 {r.mortos}</span>
                           <span title="Mumificados">⚫ {r.natimortos}</span>
                           <span title="Óbitos pós-parto">⚠️ {r.mortalidadePos}</span>

@@ -1,18 +1,4 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Frontend agent notes
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
-
-<!-- BEGIN:dev-server -->
-# Dev Server — CPU fix
-
-Turbopack (default bundler) causes high CPU usage (~500%) with Tailwind v4.
-Always use webpack instead:
-
-```bash
-npx next dev --webpack
-# or
-npm run dev -- --webpack
-```
-<!-- END:dev-server -->
+- This project uses a nonstandard Next.js version. Consult only the relevant local Next.js documentation when framework behavior, an API, or a deprecation is uncertain.
+- Start the development server with webpack: `npm run dev -- --webpack`.

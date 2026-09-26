@@ -329,7 +329,7 @@ def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
     return quantidade, custo_total
 
 
-def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao):
+def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao, destino="Maternidade"):
     """Consume an exact inventory quantity from active lots using FEFO."""
     from apps.inventory.choices import TipoMovimentacao
     from apps.inventory.services import registrar_movimentacao
@@ -347,16 +347,19 @@ def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao):
         })
 
     restante = quantidade
+    custo_total = Decimal("0")
     for lote in lotes:
         if restante <= 0:
             break
         retirada = min(restante, lote.quantidade_atual)
+        custo_total += retirada * (lote.custo_unitario or Decimal("0"))
         registrar_movimentacao(
             item=item, lote=lote, tipo=TipoMovimentacao.CONSUMO,
-            quantidade=retirada, responsavel=user, destino="Maternidade",
+            quantidade=retirada, responsavel=user, destino=destino,
             observacao=observacao,
         )
         restante -= retirada
+    return quantidade, custo_total
 
 # ─── Phase Dashboard Views ────────────────────────────────────────────────────
 
@@ -964,6 +967,7 @@ def build_reproductive_cycles(animal):
             "pregnancy_status": None,
             # Campos de Parto
             "birth_date": None,
+            "birth_id": None,
             "total_born": None,
             "live_born": None,
             "stillborn": None,
@@ -991,6 +995,7 @@ def build_reproductive_cycles(animal):
             # Verificar se há parto associado à gestação
             if hasattr(p, 'birth'):
                 b = p.birth
+                cycle["birth_id"] = str(b.id)
                 cycle["birth_date"] = b.birth_date.isoformat() if b.birth_date else None
                 cycle["total_born"] = b.total_born
                 cycle["live_born"] = b.live_born
@@ -1310,6 +1315,114 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 )
             raise
 
+    @action(detail=True, methods=["post"], url_path="registrar-vacinacao")
+    @transaction.atomic
+    def registrar_vacinacao(self, request, pk=None):
+        """Registra vacinação coletiva e baixa o estoque proporcional ao lote."""
+        batch = self.get_queryset().select_for_update().filter(pk=pk).first()
+        if batch is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if batch.quantity < 1:
+            return Response(
+                {"error": "O lote não possui animais ativos para vacinar."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        vaccine_item_id = request.data.get("vaccine_item_id")
+        if not vaccine_item_id:
+            return Response(
+                {"vaccine_item_id": "Selecione uma vacina."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.inventory.models import ItemEstoque
+        from apps.inventory.selectors import vaccine_category_q
+        try:
+            vaccine_item = ItemEstoque.objects.get(
+                vaccine_category_q(),
+                id=vaccine_item_id,
+                organization=request.user.organization,
+                ativo=True,
+            )
+        except ItemEstoque.DoesNotExist:
+            return Response(
+                {"vaccine_item_id": "Vacina não encontrada no estoque."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        dosage_raw = request.data.get("dosage_ml")
+        try:
+            dosage_ml = Decimal(str(dosage_raw)) if dosage_raw not in (None, "") else None
+        except (TypeError, ValueError, ArithmeticError):
+            return Response(
+                {"dosage_ml": "Informe uma dosagem válida."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if dosage_ml is not None and dosage_ml <= 0:
+            return Response(
+                {"dosage_ml": "A dosagem deve ser maior que zero."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        application_date_raw = request.data.get("application_date")
+        try:
+            application_date = (
+                datetime.date.fromisoformat(application_date_raw)
+                if application_date_raw
+                else timezone.localdate()
+            )
+        except (TypeError, ValueError):
+            return Response(
+                {"application_date": "Informe uma data válida."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .services import vaccination_inventory_quantity
+        quantity_per_animal = vaccination_inventory_quantity(vaccine_item, dosage_ml)
+        inventory_quantity = quantity_per_animal * batch.quantity
+        _, inventory_cost = _dar_baixa_aplicacao_coletiva(
+            vaccine_item,
+            inventory_quantity,
+            request.user,
+            f"Vacinação coletiva do lote {batch.batch_code}",
+            destino=f"Lote {batch.batch_code}",
+        )
+        vaccine_name = request.data.get("vaccine_name") or vaccine_item.nome
+        record = VaccinationRecord.objects.create(
+            farm=batch.farm,
+            species=batch.species,
+            batch=batch,
+            vaccine_name=vaccine_name,
+            vaccine_item=vaccine_item,
+            application_date=application_date,
+            dose_type=request.data.get("dose_type") or VaccinationRecord.DoseType.UNICA,
+            dosage_ml=dosage_ml,
+            notes=request.data.get("notes", ""),
+            inventory_cost_snapshot=inventory_cost,
+        )
+        HistoricoEvento.objects.create(
+            farm=batch.farm,
+            lote=batch,
+            tipo_evento="Vacinação de Lote",
+            descricao=f"Vacina: {vaccine_name} | {batch.quantity} animais",
+            data_evento=application_date,
+            metadata={
+                "vaccine_item_id": str(vaccine_item.id),
+                "vaccine_name": vaccine_name,
+                "animal_count": batch.quantity,
+                "inventory_quantity": str(inventory_quantity),
+                "inventory_unit": vaccine_item.unidade_medida,
+            },
+        )
+        return Response(
+            {
+                "message": "Vacinação do lote registrada com sucesso.",
+                "id": str(record.id),
+                "inventory_quantity": str(inventory_quantity),
+                "inventory_unit": vaccine_item.unidade_medida,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
     def registrar_mortalidade(self, request, pk=None):
         """Registra mortes em um lote e baixa a quantidade disponível."""
@@ -1470,7 +1583,39 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     'notes': wr.notes,
                 })
 
-            # 6. Vacinas aplicadas coletivamente na leitegada/lote.
+            # 6. Mortalidades registradas diretamente no lote.
+            # A ficha técnica espera eventos `death` para preencher a seção de
+            # mortalidade e seus totais.
+            for event in b.historicos.filter(tipo_evento="Mortalidade de Lote").order_by("data_evento"):
+                metadata = event.metadata or {}
+                history_list.append({
+                    "type": "death",
+                    "batch_id": str(b.id),
+                    "date": event.data_evento.isoformat() if event.data_evento else None,
+                    "entry_date": event.data_evento.isoformat() if event.data_evento else None,
+                    "quantity": metadata.get("quantidade_mortes", 0),
+                    "cause": metadata.get("causa") or "Não informada",
+                    "notes": metadata.get("observacao") or "",
+                    "subtitle": event.descricao,
+                })
+
+            # 7. Vacinas aplicadas diretamente ao lote.
+            for vaccination in b.vaccinations.select_related("vaccine_item").all().order_by("application_date"):
+                history_list.append({
+                    "type": "vaccine",
+                    "batch_id": str(b.id),
+                    "name": vaccination.vaccine_name,
+                    "dosage": str(vaccination.dosage_ml) if vaccination.dosage_ml is not None else None,
+                    "animal_count": b.quantity,
+                    "inventory_quantity": None,
+                    "inventory_unit": vaccination.vaccine_item.unidade_medida if vaccination.vaccine_item else None,
+                    "date": vaccination.application_date.isoformat() if vaccination.application_date else None,
+                    "entry_date": vaccination.application_date.isoformat() if vaccination.application_date else None,
+                    "reason": "Vacinação coletiva do lote",
+                    "notes": vaccination.notes,
+                })
+
+            # 8. Vacinas aplicadas coletivamente na leitegada/lote.
             # Registros antigos podem ter sido gravados antes de o lote técnico da
             # maternidade ser vinculado diretamente à aplicação. Consultar também
             # pelo lote do parto mantém essas vacinações visíveis na ficha.
@@ -2162,6 +2307,7 @@ class BirthViewSet(viewsets.ModelViewSet):
             data_evento=birth.birth_date,
             matriz=birth.female,
             metadata={
+                'birth_id': str(birth.id),
                 'live_born': birth.live_born,
                 'stillborn': birth.stillborn,
                 'mummified': birth.mummified,
@@ -2334,6 +2480,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                 matriz=destino_birth.female,
                 metadata={
                     'tipo': 'RECEBIMENTO_TRANSFERENCIA',
+                    'birth_id': str(destino_birth.id),
                     'quantidade': qtd,
                     'origem_identifier': origem_identifier,
                     'destino_identifier': destino_identifier,
@@ -2348,6 +2495,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                 matriz=birth.female,
                 metadata={
                     'tipo': tipo,
+                    'birth_id': str(birth.id),
                     'quantidade': qtd,
                     'destino_identifier': destino_identifier,
                     'origem_identifier': origem_identifier,

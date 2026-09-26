@@ -154,6 +154,11 @@ export const registerVaccination = async (animalId: number | string, data: { vac
   return response.data;
 };
 
+export const registerBatchVaccination = async (batchId: number | string, data: { vaccine_name?: string; vaccine_item_id: string; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
+  const response = await apiClient.post(`/livestock/batches/${batchId}/registrar-vacinacao/`, data);
+  return response.data;
+};
+
 export const fetchVaccines = async (): Promise<any[]> => {
   const { data } = await apiClient.get("/inventory/items/all_items/", { params: { categoria: "vacina" } });
   return data || [];
@@ -276,7 +281,7 @@ export const transferLeitoes = async (
 /**
  * Transfere um lote para uma nova fase produtiva, consolidando os dados finais
  * da fase anterior (quantidade de saída, peso médio de saída, data da transição).
- * Isso congela os dados da fase antiga no histórico conforme a regra do ajuste.md.
+ * Isso congela os dados da fase antiga no histórico conforme a regra de transição consolidada.
  */
 export const changeBatchPhase = async (
   batchId: string | number,

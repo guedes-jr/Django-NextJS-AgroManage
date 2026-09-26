@@ -208,6 +208,7 @@ import {
   registerWeight,
   registerBatchWeight,
   registerVaccination,
+  registerBatchVaccination,
   diagnosePregnancy,
   promoteToMating,
   discardAnimal,
@@ -642,6 +643,7 @@ export function ReproducaoDashboard({
         });
         break;
       case 'vaccine': {
+        const isBatchVaccination = ["creche", "crescimento", "engorda"].includes(currentTab?.id || "");
         const vaccineOpts = (vaccineItems || []).map(v => ({
           value: String(v.id),
           label: `${v.nome}${v.estoque_atual != null ? ` (Estoque: ${v.estoque_atual} ${v.unidade_display || v.unidade_medida || 'un'})` : ''}`,
@@ -653,7 +655,7 @@ export function ReproducaoDashboard({
           fields: [
             {
               name: "id",
-              label: "Identificador",
+              label: isBatchVaccination ? "Lote" : "Identificador",
               type: animalOptions.length > 0 ? "select" : "text",
               options: animalOptions,
               required: true
@@ -664,11 +666,11 @@ export function ReproducaoDashboard({
               { value: "unica", label: "Dose Única" },
               { value: "reforco", label: "Reforço" },
             ]},
-            { name: "dosage_ml", label: "Dosagem (ml)", type: "number" },
+            { name: "dosage_ml", label: isBatchVaccination ? "Dose por animal (ml)" : "Dosagem (ml)", type: "number" },
           ],
           onConfirm: async (data) => {
             try {
-              await registerVaccination(data.id, data);
+              await (isBatchVaccination ? registerBatchVaccination(data.id, { ...data, dosage_ml: data.dosage_ml ? Number(data.dosage_ml) : undefined }) : registerVaccination(data.id, data));
               showToast("Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
               onSuccess?.();
               setActionModal(prev => ({ ...prev, open: false }));

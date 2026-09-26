@@ -1,0 +1,34 @@
+# API Guide
+
+Read this document only for REST API, authentication or frontend/backend contract work.
+
+## Base approach
+
+The backend uses Django REST Framework and the frontend consumes the API through its existing service/client layer.
+
+## Contract rules
+
+- Treat request/response shape as a contract.
+- Preserve backwards compatibility unless the requested change intentionally breaks it.
+- Keep validation errors predictable.
+- Keep pagination consistent with the existing project standard.
+- Preserve authentication and organization/tenant authorization.
+- Do not expose internal fields or secrets.
+
+## When changing an endpoint
+
+Check:
+1. route/router,
+2. permissions,
+3. serializer/request validation,
+4. service/business logic,
+5. queryset/selectors,
+6. response shape,
+7. frontend types/client usage,
+8. targeted tests.
+
+## Authentication
+
+The repository documentation indicates JWT-based authentication and optional Google OAuth. Confirm current implementation before changing auth flows.
+
+Security-sensitive auth changes require targeted tests and should not be bundled with unrelated refactors.

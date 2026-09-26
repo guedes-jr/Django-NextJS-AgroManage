@@ -10,7 +10,7 @@ from apps.farms.models import Farm
 from apps.inventory.models import ConsumoRacao, ItemEstoque, LoteEstoque, MovimentacaoEstoque
 from apps.livestock.models import (
     Animal, AnimalBatch, Birth, ClinicalRecord, HeatRecord, HistoricoEvento,
-    Litter, LitterMedication, Mating, Pregnancy, Species,
+    Litter, LitterMedication, Mating, Pregnancy, Species, VaccinationRecord,
 )
 from apps.organizations.models import Organization
 
@@ -244,14 +244,59 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.data["total_animals"], 11)
         self.assertEqual(response.data["active_females"], 11)
 
+    def test_batch_vaccination_consumes_stock_and_appears_in_history(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a,
+            species=self.species,
+            batch_code="CRECHE-VAC-01",
+            quantity=10,
+            entry_date=date.today(),
+            phase=AnimalBatch.Phase.CRECHE,
+        )
+        vaccine = ItemEstoque.objects.create(
+            organization=self.org_a,
+            nome="Vacina coletiva",
+            categoria="vacina",
+            unidade_medida="ml",
+        )
+        lot = LoteEstoque.objects.create(
+            item=vaccine,
+            numero_lote="VAC-LOTE-01",
+            quantidade_inicial=Decimal("100.00"),
+            quantidade_atual=Decimal("100.00"),
+            custo_unitario=Decimal("2.00"),
+            data_entrada=date.today(),
+        )
+
+        response = self.client.post(
+            reverse("animalbatch-registrar-vacinacao", args=[batch.id]),
+            {
+                "vaccine_item_id": str(vaccine.id),
+                "application_date": date.today().isoformat(),
+                "dosage_ml": "2.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        lot.refresh_from_db()
+        self.assertEqual(lot.quantidade_atual, Decimal("80.00"))
+        vaccination = VaccinationRecord.objects.get(batch=batch)
+        self.assertEqual(vaccination.inventory_cost_snapshot, Decimal("40.00"))
+
+        history_response = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+        vaccine_event = next(event for event in history_response.data if event["type"] == "vaccine")
+        self.assertEqual(vaccine_event["name"], vaccine.nome)
+        self.assertEqual(vaccine_event["animal_count"], 10)
+
     def test_batch_mortality_reduces_quantity_and_records_history(self):
         batch = AnimalBatch.objects.create(
             farm=self.farm_a,
             species=self.species,
-            batch_code="CRECHE-01",
+            batch_code="ENGORDA-01",
             quantity=10,
             entry_date=date.today(),
-            phase=AnimalBatch.Phase.CRECHE,
+            phase=AnimalBatch.Phase.ENGORDA,
         )
 
         response = self.client.post(
@@ -271,6 +316,12 @@ class LivestockTenantIsolationTestCase(APITestCase):
         history = HistoricoEvento.objects.get(lote=batch, tipo_evento="Mortalidade de Lote")
         self.assertEqual(history.metadata["quantidade_mortes"], 2)
         self.assertEqual(history.metadata["quantidade_atual"], 8)
+
+        history_response = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+        self.assertEqual(history_response.status_code, status.HTTP_200_OK)
+        death_event = next(event for event in history_response.data if event["type"] == "death")
+        self.assertEqual(death_event["quantity"], 2)
+        self.assertEqual(death_event["cause"], "DOENCA")
 
     def test_batch_mortality_rejects_quantity_above_available(self):
         batch = AnimalBatch.objects.create(
@@ -813,7 +864,10 @@ class LivestockTenantIsolationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         source_birth.refresh_from_db()
-        self.assertEqual(source_birth.mortality, 1)
+        destination_birth.refresh_from_db()
+        self.assertEqual(source_birth.live_born, 9)
+        self.assertEqual(source_birth.mortality, 0)
+        self.assertEqual(destination_birth.live_born, 9)
         outgoing = HistoricoEvento.objects.get(
             matriz=self.animal_a, metadata__tipo="TRANSFERENCIA_LEITAO"
         )
@@ -821,6 +875,8 @@ class LivestockTenantIsolationTestCase(APITestCase):
             matriz=destination_female, metadata__tipo="RECEBIMENTO_TRANSFERENCIA"
         )
         self.assertEqual(outgoing.metadata["destino_identifier"], "TN-026")
+        self.assertEqual(outgoing.metadata["birth_id"], str(source_birth.id))
+        self.assertEqual(incoming.metadata["birth_id"], str(destination_birth.id))
         self.assertEqual(incoming.metadata["quantidade"], 1)
 
     def test_litter_accepts_multiple_medications_in_one_transaction(self):
