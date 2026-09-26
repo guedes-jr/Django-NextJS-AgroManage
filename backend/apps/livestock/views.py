@@ -1357,6 +1357,12 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         dosage_raw = request.data.get("dosage_ml")
         try:
             dosage_ml = Decimal(str(dosage_raw)) if dosage_raw not in (None, "") else None
+            if (dosage_ml is None):
+                return Response(
+                    {"dosage_ml": "Informe a dose por animal para calcular a baixa do estoque."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         except (TypeError, ValueError, ArithmeticError):
             return Response(
                 {"dosage_ml": "Informe uma dosagem válida."},
@@ -1384,13 +1390,17 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         from .services import vaccination_inventory_quantity
         quantity_per_animal = vaccination_inventory_quantity(vaccine_item, dosage_ml)
         inventory_quantity = quantity_per_animal * batch.quantity
-        _, inventory_cost = _dar_baixa_aplicacao_coletiva(
-            vaccine_item,
-            inventory_quantity,
-            request.user,
-            f"Vacinação coletiva do lote {batch.batch_code}",
-            destino=f"Lote {batch.batch_code}",
-        )
+        try:
+            _, inventory_cost = _dar_baixa_aplicacao_coletiva(
+                vaccine_item,
+                inventory_quantity,
+                request.user,
+                f"Vacinação coletiva do lote {batch.batch_code}",
+                destino=f"Lote {batch.batch_code}",
+            )
+        except serializers.ValidationError as exc:
+            message = exc.detail.get("dose_per_animal", ["Estoque insuficiente para a aplicação."])[0]
+            return Response({"dosage_ml": message}, status=status.HTTP_400_BAD_REQUEST)
         vaccine_name = request.data.get("vaccine_name") or vaccine_item.nome
         record = VaccinationRecord.objects.create(
             farm=batch.farm,
