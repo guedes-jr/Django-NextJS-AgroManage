@@ -648,6 +648,13 @@ export function ReproducaoDashboard({
           value: String(v.id),
           label: `${v.nome}${v.estoque_atual != null ? ` (Estoque: ${v.estoque_atual} ${v.unidade_display || v.unidade_medida || 'un'})` : ''}`,
         }));
+        const targetRows = isBatchVaccination
+          ? (rows.length > 0 ? rows : (currentTab?.rows || []))
+          : rows;
+        const targetOptions = targetRows.map((row: any) => ({
+          value: String(row.id || row.pk || ""),
+          label: String(row.lote || row.batch_code || row.identifier || row.name || "Lote"),
+        })).filter((option: { value: string }) => option.value);
         setActionModal({
           open: true,
           title: "Registrar Vacina",
@@ -656,8 +663,8 @@ export function ReproducaoDashboard({
             {
               name: "id",
               label: isBatchVaccination ? "Lote" : "Identificador",
-              type: animalOptions.length > 0 ? "select" : "text",
-              options: animalOptions,
+              type: targetOptions.length > 0 ? "select" : "text",
+              options: targetOptions,
               required: true
             },
             { name: "vaccine_item_id", label: "Vacina", type: "select", options: vaccineOpts, required: true, placeholder: "Selecione a vacina..." },

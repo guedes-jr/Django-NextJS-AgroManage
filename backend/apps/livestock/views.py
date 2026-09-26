@@ -1319,7 +1319,12 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def registrar_vacinacao(self, request, pk=None):
         """Registra vacinação coletiva e baixa o estoque proporcional ao lote."""
-        batch = self.get_queryset().select_for_update().filter(pk=pk).first()
+        batches = self.get_queryset().select_for_update()
+        try:
+            uuid.UUID(str(pk))
+            batch = batches.filter(pk=pk).first()
+        except (TypeError, ValueError, AttributeError):
+            batch = batches.filter(batch_code__iexact=str(pk).strip()).first()
         if batch is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if batch.quantity < 1:
