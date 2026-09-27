@@ -15,7 +15,7 @@ export interface ModalField {
   initialValue?: string | number;
   min?: number;
   max?: number;
-  decimalMask?: boolean;
+  decimalMask?: boolean | ((values: Record<string, string>) => boolean);
   step?: number;
   disabled?: boolean;
   showIf?: (values: Record<string, string>) => boolean;
@@ -133,7 +133,11 @@ export function ReproducaoModal({
         <form onSubmit={handleSubmit}>
           <div className="repro-modal-body">
             <div className="repro-fields-grid">
-              {visibleFields.map((field) => (
+              {visibleFields.map((field) => {
+                const isDecimalMask = typeof field.decimalMask === "function"
+                  ? field.decimalMask(formValues)
+                  : Boolean(field.decimalMask);
+                return (
                 <div
                   key={field.name}
                   className="repro-field"
@@ -200,8 +204,8 @@ export function ReproducaoModal({
                       required={field.required} 
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
-                      onChange={(e) => handleFieldChange(field.name, field.decimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
-                      onBlur={(e) => { if (field.decimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
+                      onChange={(e) => handleFieldChange(field.name, isDecimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
+                      onBlur={(e) => { if (isDecimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     >
                       <option value="">Selecione...</option>
                       {field.options?.map((opt) => (
@@ -218,15 +222,15 @@ export function ReproducaoModal({
                       required={field.required}
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
-                      onChange={(e) => handleFieldChange(field.name, field.decimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
-                      onBlur={(e) => { if (field.decimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
+                      onChange={(e) => handleFieldChange(field.name, isDecimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
+                      onBlur={(e) => { if (isDecimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     />
                   ) : (
                     <input
                       id={`modal-${field.name}`}
                       name={field.name}
-                      type={field.decimalMask ? "text" : field.type}
-                      inputMode={field.decimalMask ? "decimal" : undefined}
+                      type={isDecimalMask ? "text" : field.type}
+                      inputMode={isDecimalMask ? "decimal" : undefined}
                       placeholder={field.placeholder}
                       required={field.required}
                       min={field.min}
@@ -234,12 +238,13 @@ export function ReproducaoModal({
                       step={field.step}
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
-                      onChange={(e) => handleFieldChange(field.name, field.decimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
-                      onBlur={(e) => { if (field.decimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
+                      onChange={(e) => handleFieldChange(field.name, isDecimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
+                      onBlur={(e) => { if (isDecimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     />
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
             {submitError && (
               <div role="alert" className="alert alert-danger mt-3 mb-0">
