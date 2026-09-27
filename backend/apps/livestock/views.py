@@ -1403,7 +1403,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             )
         except serializers.ValidationError:
             available_inventory = sum(
-                (lot.quantity_atual for lot in vaccine_item.lotes.filter(
+                (lot.quantidade_atual for lot in vaccine_item.lotes.filter(
                     ativo=True, quantidade_atual__gt=0
                 )),
                 Decimal("0"),
