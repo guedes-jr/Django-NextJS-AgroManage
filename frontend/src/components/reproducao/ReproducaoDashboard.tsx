@@ -673,7 +673,7 @@ export function ReproducaoDashboard({
               { value: "unica", label: "Dose Única" },
               { value: "reforco", label: "Reforço" },
             ] , initialValue: "unica"},
-            { name: "dosage_ml", label: isBatchVaccination ? "Dose por animal (ml)" : "Dosagem (ml)", type: "number", required: isBatchVaccination, min: 0.01, step: 0.01, placeholder: "0,00" },
+            { name: "dosage_ml", label: isBatchVaccination ? "Dose por animal (ml)" : "Dosagem (ml)", type: "number", required: isBatchVaccination, min: 0.01, step: 0.01, placeholder: "0,00", decimalMask: isBatchVaccination },
           ],
           onConfirm: async (data) => {
             try {

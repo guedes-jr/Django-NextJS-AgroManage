@@ -15,6 +15,7 @@ export interface ModalField {
   initialValue?: string | number;
   min?: number;
   max?: number;
+  decimalMask?: boolean;
   step?: number;
   disabled?: boolean;
   showIf?: (values: Record<string, string>) => boolean;
@@ -61,6 +62,16 @@ export function ReproducaoModal({
     setFormValues((prev) => ({ ...prev, [name]: val }));
   };
 
+  const normalizeDecimalInput = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) return "";
+    return (Number(digits) / 100).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const formatDecimalInput = normalizeDecimalInput;
   const inventoryRows = (field: ModalField) => {
     try {
       const parsed = JSON.parse(formValues[field.name] || "[]");
@@ -189,7 +200,8 @@ export function ReproducaoModal({
                       required={field.required} 
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
-                      onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                      onChange={(e) => handleFieldChange(field.name, field.decimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
+                      onBlur={(e) => { if (field.decimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     >
                       <option value="">Selecione...</option>
                       {field.options?.map((opt) => (
@@ -206,13 +218,15 @@ export function ReproducaoModal({
                       required={field.required}
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
-                      onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                      onChange={(e) => handleFieldChange(field.name, field.decimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
+                      onBlur={(e) => { if (field.decimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     />
                   ) : (
                     <input
                       id={`modal-${field.name}`}
                       name={field.name}
-                      type={field.type}
+                      type={field.decimalMask ? "text" : field.type}
+                      inputMode={field.decimalMask ? "decimal" : undefined}
                       placeholder={field.placeholder}
                       required={field.required}
                       min={field.min}
@@ -220,7 +234,8 @@ export function ReproducaoModal({
                       step={field.step}
                       disabled={loading || field.disabled}
                       value={formValues[field.name] ?? ""}
-                      onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                      onChange={(e) => handleFieldChange(field.name, field.decimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
+                      onBlur={(e) => { if (field.decimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     />
                   )}
                 </div>
