@@ -426,6 +426,14 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
   // Vacinas aplicadas coletivamente na leitegada/lote
   const vaccineRows = history.filter((e: any) => e.type === "vaccine").slice(0, 10);
+  const totalVaccineQuantity = (vaccine: any) => {
+    const dosePerAnimal = Number(String(vaccine.dosage ?? "").replace(",", "."));
+    const animalCount = Number(vaccine.animal_count);
+    if (!Number.isFinite(dosePerAnimal) || !Number.isFinite(animalCount)) return "-";
+    const total = dosePerAnimal * animalCount;
+    const unit = vaccine.inventory_unit || "dose";
+    return fmt(total, Number.isInteger(total) ? 0 : 2) + " " + unit;
+  };
 
   // Deaths — somente registros reais
   const deathRows = history.filter((e: any) => e.type === "death" || e.type === "discard").slice(0, 20);
@@ -1060,7 +1068,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     <tr>
                       <Th>Data</Th>
                       <Th>Vacina</Th>
-                      <Th>Dose por<br />animal</Th>
+                      <Th>Total<br />aplicado</Th>
                       <Th>Qtd.<br />leitões</Th>
                       <Th>Responsável</Th>
                     </tr>
@@ -1070,7 +1078,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                       <TR key={i} even={i % 2 === 1}>
                         <Td>{fmtDate(vaccine.date)}</Td>
                         <Td>{vaccine.name || "-"}</Td>
-                        <Td>{vaccine.dosage || "-"}</Td>
+                        <Td>{totalVaccineQuantity(vaccine)}</Td>
                         <Td>{vaccine.animal_count ?? "-"}</Td>
                         <Td>{vaccine.responsible || "-"}</Td>
                       </TR>

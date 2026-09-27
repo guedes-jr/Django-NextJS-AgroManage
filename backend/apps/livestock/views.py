@@ -1436,6 +1436,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             descricao=f"Vacina: {vaccine_name} | {batch.quantity} animais",
             data_evento=application_date,
             metadata={
+                "vaccination_record_id": str(record.id),
                 "vaccine_item_id": str(vaccine_item.id),
                 "vaccine_name": vaccine_name,
                 "animal_count": batch.quantity,
@@ -1630,14 +1631,20 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 })
 
             # 7. Vacinas aplicadas diretamente ao lote.
+            vaccination_events = {
+                str((event.metadata or {}).get("vaccination_record_id")): event.metadata or {}
+                for event in b.historicos.filter(tipo_evento="Vacinação de Lote")
+                if (event.metadata or {}).get("vaccination_record_id")
+            }
             for vaccination in b.vaccinations.select_related("vaccine_item").all().order_by("application_date"):
+                vaccination_metadata = vaccination_events.get(str(vaccination.id), {})
                 history_list.append({
                     "type": "vaccine",
                     "batch_id": str(b.id),
                     "name": vaccination.vaccine_name,
                     "dosage": str(vaccination.dosage_ml) if vaccination.dosage_ml is not None else None,
-                    "animal_count": b.quantity,
-                    "inventory_quantity": None,
+                    "animal_count": vaccination_metadata.get("animal_count", b.quantity),
+                    "inventory_quantity": vaccination_metadata.get("inventory_quantity"),
                     "inventory_unit": vaccination.vaccine_item.unidade_medida if vaccination.vaccine_item else None,
                     "date": vaccination.application_date.isoformat() if vaccination.application_date else None,
                     "entry_date": vaccination.application_date.isoformat() if vaccination.application_date else None,
