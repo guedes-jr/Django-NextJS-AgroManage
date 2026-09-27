@@ -1326,7 +1326,10 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError, AttributeError):
             batch = batches.filter(batch_code__iexact=str(pk).strip()).first()
         if batch is None:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Lote não encontrado ou sem permissão de acesso."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         if batch.quantity < 1:
             return Response(
                 {"error": "O lote não possui animais ativos para vacinar."},
@@ -1398,9 +1401,21 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 f"Vacinação coletiva do lote {batch.batch_code}",
                 destino=f"Lote {batch.batch_code}",
             )
-        except serializers.ValidationError as exc:
-            message = exc.detail.get("dose_per_animal", ["Estoque insuficiente para a aplicação."])[0]
-            return Response({"dosage_ml": message}, status=status.HTTP_400_BAD_REQUEST)
+        except serializers.ValidationError:
+            available_inventory = sum(
+                (lot.quantity_atual for lot in vaccine_item.lotes.filter(
+                    ativo=True, quantidade_atual__gt=0
+                )),
+                Decimal("0"),
+            )
+            message = (
+                f"Estoque insuficiente para vacinar o lote {batch.batch_code}. "
+                f"Produto: {vaccine_item.nome}. Necessário: {inventory_quantity} "
+                f"{vaccine_item.unidade_medida} ({quantity_per_animal} por animal × "
+                f"{batch.quantity} animais); disponível: {available_inventory} "
+                f"{vaccine_item.unidade_medida}. Reduza a dose ou registre uma reposição."
+            )
+            return Response({"dosage_ml": [message]}, status=status.HTTP_400_BAD_REQUEST)
         vaccine_name = request.data.get("vaccine_name") or vaccine_item.nome
         record = VaccinationRecord.objects.create(
             farm=batch.farm,

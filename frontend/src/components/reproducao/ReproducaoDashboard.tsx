@@ -683,7 +683,8 @@ export function ReproducaoDashboard({
               setActionModal(prev => ({ ...prev, open: false }));
             } catch (error: any) {
               const response = error?.response?.data;
-              const detail = response?.error || response?.detail || response?.dosage_ml?.[0];
+              const dosageError = response?.dosage_ml;
+              const detail = (Array.isArray(dosageError) ? dosageError[0] : dosageError) || response?.error || response?.detail;
               showToast(detail || "Não foi possível registrar a vacina.", "error");
               throw error;
             }
