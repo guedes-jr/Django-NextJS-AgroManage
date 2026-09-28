@@ -2,7 +2,7 @@
 Reports app views — dashboard summary scoped by organization.
 """
 
-from datetime import date
+from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
 from decimal import Decimal
@@ -293,7 +293,28 @@ def dashboard_summary(request):
     """
     org = _org(request)
     today = date.today()
-    month_start = today.replace(day=1)
+    period = request.query_params.get("period", "month")
+    period_value = request.query_params.get("period_value")
+
+    try:
+        if period == "year":
+            selected_year = int(period_value or today.year)
+            period_start = date(selected_year, 1, 1)
+            period_end = date(selected_year, 12, 31)
+        elif period == "month":
+            selected_month = datetime.strptime(
+                period_value or today.strftime("%Y-%m"), "%Y-%m"
+            ).date()
+            period_start = selected_month.replace(day=1)
+            period_end = period_start + relativedelta(months=1, days=-1)
+        else:
+            raise ValueError
+    except (TypeError, ValueError):
+        return Response(
+            {"detail": "Informe um período mensal (AAAA-MM) ou anual (AAAA) válido."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
 
     # ── Farms ─────────────────────────────────────────────────────────────────
     farms_qs = Farm.objects.filter(organization=org, is_active=True)
@@ -382,8 +403,8 @@ def dashboard_summary(request):
     month_revenue = (
         transactions_qs.filter(
             category__category_type=FinancialCategory.CategoryType.REVENUE,
-            payment_date__gte=month_start,
-            payment_date__lte=today,
+            payment_date__gte=period_start,
+            payment_date__lte=period_end,
             status=Transaction.Status.PAID,
         ).aggregate(total=Sum("amount"))["total"]
         or 0
@@ -391,8 +412,8 @@ def dashboard_summary(request):
     month_expense_from_transactions = (
         transactions_qs.filter(
             category__category_type=FinancialCategory.CategoryType.EXPENSE,
-            payment_date__gte=month_start,
-            payment_date__lte=today,
+            payment_date__gte=period_start,
+            payment_date__lte=period_end,
             status=Transaction.Status.PAID,
         ).aggregate(total=Sum("amount"))["total"]
         or 0
@@ -412,8 +433,8 @@ def dashboard_summary(request):
         ]
 
     paid_month = transactions_qs.filter(
-        payment_date__gte=month_start,
-        payment_date__lte=today,
+        payment_date__gte=period_start,
+        payment_date__lte=period_end,
         status=Transaction.Status.PAID,
     )
     # Stock purchases do not belong to a planting cycle yet, but agricultural
@@ -442,8 +463,8 @@ def dashboard_summary(request):
         f"LOTE-{lot_id}"
         for lot_id in LoteEstoque.objects.filter(
             item_id__in=agricultural_item_ids,
-            data_entrada__gte=month_start,
-            data_entrada__lte=today,
+            data_entrada__gte=period_start,
+            data_entrada__lte=period_end,
         ).values_list("id", flat=True)
     ]
     agricultural_finance_terms = (
@@ -499,16 +520,16 @@ def dashboard_summary(request):
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
     feed_consumption = ConsumoRacao.objects.filter(
         organization=org,
-        data_inicio__gte=month_start,
-        data_inicio__lte=today,
+        data_inicio__gte=period_start,
+        data_inicio__lte=period_end,
     )
     feed_cost = feed_consumption.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")
     vaccine_consumption = MovimentacaoEstoque.objects.filter(
         item__organization=org,
         item__categoria__in=["vacina", "medicamento_vacina", "medicamento"],
         tipo="consumo",
-        data_movimentacao__date__gte=month_start,
-        data_movimentacao__date__lte=today,
+        data_movimentacao__date__gte=period_start,
+        data_movimentacao__date__lte=period_end,
     ).select_related("item", "lote")
     semen_item_ids = [
         item["id"]
@@ -521,8 +542,8 @@ def dashboard_summary(request):
         item_id__in=semen_item_ids,
         item__organization=org,
         tipo="consumo",
-        data_movimentacao__date__gte=month_start,
-        data_movimentacao__date__lte=today,
+        data_movimentacao__date__gte=period_start,
+        data_movimentacao__date__lte=period_end,
     ).select_related("item", "lote")
 
     def inventory_consumption_breakdown(movements, label="Vacina", show_quantity=False):
@@ -660,8 +681,8 @@ def dashboard_summary(request):
         species_vaccine_records = VaccinationRecord.objects.filter(
             farm__organization=org,
             species=species,
-            application_date__gte=month_start,
-            application_date__lte=today
+            application_date__gte=period_start,
+            application_date__lte=period_end
         )
         species_vaccine_cost = species_vaccine_records.aggregate(
             total=Sum("inventory_cost_snapshot")
@@ -729,15 +750,17 @@ def dashboard_summary(request):
         for transaction in transactions_qs.filter(
             status=Transaction.Status.PAID,
             payment_date__isnull=False,
+            payment_date__gte=period_start,
+            payment_date__lte=period_end,
         ).select_related("category").order_by("-payment_date", "-created_at")[:4]
     ]
 
     # Chart: last 7 months revenue vs expense
-    seven_months_ago = (today - relativedelta(months=6)).replace(day=1)
+    seven_months_ago = (period_end - relativedelta(months=6)).replace(day=1)
     monthly_finance = list(
         transactions_qs.filter(
             payment_date__gte=seven_months_ago,
-            payment_date__lte=today,
+            payment_date__lte=period_end,
             status=Transaction.Status.PAID,
         )
         .annotate(month=TruncMonth("payment_date"))
@@ -791,6 +814,11 @@ def dashboard_summary(request):
     return Response(
         {
             "organization": org.name if org else None,
+            "period": {
+                "type": period,
+                "start": period_start.isoformat(),
+                "end": period_end.isoformat(),
+            },
             "kpis": {
                 "month_revenue": float(month_revenue),
                 "month_expense": float(month_expense),

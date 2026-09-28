@@ -667,18 +667,41 @@ export function ReproducaoDashboard({
               options: targetOptions,
               required: true
             },
-            { name: "vaccine_item_id", label: "Vacina", type: "select", options: vaccineOpts, required: true, placeholder: "Selecione a vacina..." },
+            {
+              name: "vaccine_applications",
+              label: "Vacinas",
+              type: "inventory-list",
+              required: true,
+              colSpan: "full",
+              initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
+              options: vaccineOpts,
+            },
             { name: "application_date", label: "Data de Aplicação", type: "date", required: true, initialValue: new Date().toISOString().split("T")[0] },
             { name: "dose_type", label: "Tipo de Dose", type: "select", options: [
               { value: "unica", label: "Dose Única" },
               { value: "reforco", label: "Reforço" },
             ] , initialValue: "unica"},
-            { name: "dosage_ml", label: isBatchVaccination ? "Quantidade por animal (ml ou dose)" : "Dosagem (ml)", type: "number", required: isBatchVaccination, min: 0.01, step: 0.01, placeholder: "0,00", decimalMask: (values) => { const item = vaccineItems.find((v) => String(v.id) === values.vaccine_item_id); return isBatchVaccination && ["ml", "l"].includes(item?.unidade_medida); } },
           ],
           onConfirm: async (data) => {
             try {
-              await (isBatchVaccination ? registerBatchVaccination(data.id, { ...data, dosage_ml: data.dosage_ml ? Number(String(data.dosage_ml).replace(",", ".")) : undefined }) : registerVaccination(data.id, data));
-              showToast("Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
+              const applications = JSON.parse(data.vaccine_applications) as Array<{
+                inventory_item: string;
+                dose_per_animal: string;
+              }>;
+              for (const application of applications) {
+                const payload = {
+                  application_date: data.application_date,
+                  dose_type: data.dose_type,
+                  vaccine_item_id: application.inventory_item,
+                  dosage_ml: Number(application.dose_per_animal.replace(",", ".")),
+                };
+                if (isBatchVaccination) {
+                  await registerBatchVaccination(data.id, payload);
+                } else {
+                  await registerVaccination(data.id, payload);
+                }
+              }
+              showToast(applications.length > 1 ? "Vacinas registradas. Estoque, ficha e relatório atualizados." : "Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
               onSuccess?.();
               setActionModal(prev => ({ ...prev, open: false }));
             } catch (error: any) {
@@ -1000,12 +1023,13 @@ export function ReproducaoDashboard({
               required: true,
             },
             {
-              name: "vaccine_item_id",
-              label: "Vacina",
-              type: "select",
+              name: "vaccine_applications",
+              label: "Vacinas",
+              type: "inventory-list",
               required: true,
+              colSpan: "full",
+              initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
               options: vaccineOpts,
-              placeholder: "Selecione a vacina...",
             },
             {
               name: "application_date",
@@ -1024,23 +1048,28 @@ export function ReproducaoDashboard({
               ],
               initialValue: "unica",
             },
-            {
-              name: "dosage_ml",
-              label: "Dosagem (ml)",
-              type: "number",
-            },
             { name: "notes", label: "Observações", type: "textarea", colSpan: "full" },
           ],
           onConfirm: async (data) => {
             const targetMotherIds = rows.length > 1
               ? Array.from(new Set(rows.map((row) => row.animal_id).filter(Boolean)))
               : [data.id];
-            if (rows.length > 1) {
-              await Promise.all(targetMotherIds.map((animalId) => registerVaccination(animalId, data)));
-            } else {
-              await registerVaccination(data.id, data);
+            const applications = JSON.parse(data.vaccine_applications) as Array<{
+              inventory_item: string;
+              dose_per_animal: string;
+            }>;
+            for (const animalId of targetMotherIds) {
+              for (const application of applications) {
+                await registerVaccination(animalId, {
+                  application_date: data.application_date,
+                  dose_type: data.dose_type,
+                  notes: data.notes,
+                  vaccine_item_id: application.inventory_item,
+                  dosage_ml: Number(application.dose_per_animal.replace(",", ".")),
+                });
+              }
             }
-            showToast("Vacinação pós-parto registrada na matriz e estoque atualizado.", "success");
+            showToast(applications.length > 1 ? "Vacinas pós-parto registradas na matriz e estoque atualizado." : "Vacinação pós-parto registrada na matriz e estoque atualizado.", "success");
             onSuccess?.();
             setActionModal((previous) => ({ ...previous, open: false }));
           },
