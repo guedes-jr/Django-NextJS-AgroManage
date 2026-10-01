@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Printer, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { TechnicalSheetPreview } from "./TechnicalSheetPreview";
 import { apiClient } from "@/services/api";
 import { Loader2 } from "lucide-react";
 
@@ -494,7 +495,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
       title={`Ficha de Controle de Lote — Lote Nº ${loteNum}`}
       maxWidth="max-w-5xl"
       footer={
-        <div className="d-flex justify-content-end gap-2 w-100">
+        <div className="d-flex flex-wrap justify-content-end gap-2 w-100">
           <button className="btn btn-light rounded-pill px-4 d-flex align-items-center gap-2" onClick={onClose}>
             <X size={16} /> Fechar
           </button>
@@ -510,7 +511,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
           <span className="text-muted">Carregando ficha de controle...</span>
         </div>
       ) : (
-        <div className="bg-light d-flex justify-content-center p-0 p-md-3 print-container-wrapper">
+        <TechnicalSheetPreview>
           {/* ───── Paper ───── */}
           <div
             className="ficha-lote-paper bg-white mx-auto shadow unique-lote-print-sheet"
@@ -1380,7 +1381,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               .ficha-lote-paper { box-sizing: border-box; }
             `}</style>
           </div>
-        </div>
+        </TechnicalSheetPreview>
       )}
     </Modal>
   );

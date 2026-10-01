@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Printer, Loader2, CheckCircle2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { TechnicalSheetPreview } from "./TechnicalSheetPreview";
 import { apiClient } from "@/services/api";
 
 interface AnimalTechnicalSheetModalProps {
@@ -1033,7 +1034,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "b
       title={`Ficha Técnica — ${animal?.identifier || ""}`}
       maxWidth="max-w-5xl"
       footer={
-        <div className="d-flex justify-content-end gap-2 w-100">
+        <div className="d-flex flex-wrap justify-content-end gap-2 w-100">
           <button className="btn btn-light rounded-pill px-4 d-flex align-items-center gap-2" onClick={onClose}>
             <X size={16} /> Fechar
           </button>
@@ -1049,7 +1050,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "b
           <span className="text-muted">Carregando ficha técnica...</span>
         </div>
       ) : (
-        <div className="bg-light d-flex justify-content-center p-0 p-md-3 print-container-wrapper">
+        <TechnicalSheetPreview>
           {/* ───── Paper ───── */}
           <div
             className="ficha-lote-paper bg-white mx-auto shadow unique-lote-print-sheet"
@@ -1116,7 +1117,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "b
             }
             .ficha-lote-paper { box-sizing: border-box; }
           `}</style>
-        </div>
+        </TechnicalSheetPreview>
       )}
     </Modal>
   );
