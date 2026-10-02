@@ -307,3 +307,52 @@ def finalize_batch_current_phase(batch: AnimalBatch, exit_date: Optional[date] =
         exit_quantity=batch.quantity,
         exit_weight_kg=batch.avg_weight_kg,
     )
+
+
+@transaction.atomic
+def register_batch_sale(batch, data):
+    """Lock stock and record a full or partial sale and its revenue atomically."""
+    from rest_framework.exceptions import ValidationError
+    from apps.finance.models import FinancialCategory, Transaction
+    import uuid
+
+    batch = AnimalBatch.objects.select_for_update().select_related('farm', 'species').get(pk=batch.pk)
+    if batch.status != AnimalBatch.Status.ACTIVE or batch.quantity < 1:
+        raise ValidationError({'batch': 'Selecione um lote ativo com animais disponíveis.'})
+    quantity = batch.quantity if data['mode'] == 'whole' else data['quantity']
+    if quantity > batch.quantity or (data['mode'] == 'partial' and quantity == batch.quantity):
+        raise ValidationError({'quantity': 'A venda parcial deve ser menor que a quantidade disponível.'})
+    amount = (data['weight_kg'] * data['price_per_kg']).quantize(Decimal('0.01'))
+    if amount <= 0 or amount > Decimal('9999999999.99'):
+        raise ValidationError({'price_per_kg': 'Valor total da venda fora do limite permitido.'})
+    metadata = {
+        'batch_code': batch.batch_code, 'quantity': quantity,
+        'weight_kg': str(data['weight_kg']), 'price_per_kg': str(data['price_per_kg']),
+        'buyer': data['buyer'], 'responsible': data.get('responsible', ''),
+        'notes': data.get('notes', ''), 'amount': str(amount), 'mode': data['mode'],
+    }
+    category, _ = FinancialCategory.objects.get_or_create(
+        organization=batch.farm.organization, name='Venda de Animais', category_type='revenue',
+    )
+    # Create revenue before saving sold status so the legacy signal cannot duplicate it.
+    reference = f'SALE-BATCH-{batch.pk}' if data['mode'] == 'whole' else f'SALE-BATCH-{batch.pk}-{uuid.uuid4()}'
+    revenue = Transaction.objects.create(
+        organization=batch.farm.organization, farm=batch.farm, animal_batch=batch,
+        species=batch.species, category=category,
+        description=f'Venda de animais: {batch.batch_code} ({quantity} animais)',
+        amount=amount, due_date=data['date'], payment_date=data['date'],
+        status='paid', reference=reference, notes=data.get('notes', ''),
+    )
+    metadata['transaction_reference'] = revenue.reference
+    if data['mode'] == 'whole':
+        batch.status = AnimalBatch.Status.SOLD
+        batch.exit_date = data['date']
+        batch.sale_value = amount
+    else:
+        batch.quantity -= quantity
+    batch.save()
+    HistoricoEvento.objects.create(
+        farm=batch.farm, lote=batch, tipo_evento='Venda de Animais',
+        descricao=revenue.description, data_evento=data['date'], metadata=metadata,
+    )
+    return metadata

@@ -70,3 +70,15 @@ these baselines for GPD and feed conversion; missing baselines remain unknown.
 The repository documentation indicates JWT-based authentication and optional Google OAuth. Confirm current implementation before changing auth flows.
 
 Security-sensitive auth changes require targeted tests and should not be bundled with unrelated refactors.
+
+## Animal batch sales
+
+`POST /livestock/batches/{id}/register-sale/` accepts `mode` (`whole` or
+`partial`), `quantity` (required for partial), manual `weight_kg` (total kg),
+`price_per_kg`, `date`, `buyer`, optional `responsible` and `notes`. Whole sales
+use the locked batch quantity; partial sales require fewer animals than the
+available quantity. Stock, operational history and paid revenue are updated
+atomically. Whole sales mark the batch sold; partial sales retain active status
+and decrease its quantity. Total revenue is weight × price, rounded to cents.
+`GET /livestock/batches/sales/` returns the latest 100 pig sales in the current
+organization, including historical revenue entries whose weight/price are unknown.

@@ -978,3 +978,21 @@ class LitterMedicationSerializer(serializers.ModelSerializer):
             'data_aplicacao', 'motivo', 'responsavel', 'notes', 'created_at'
         ]
         read_only_fields = ['created_at']
+
+
+class BatchSaleSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(choices=['whole', 'partial'])
+    quantity = serializers.IntegerField(min_value=1, required=False)
+    weight_kg = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal('0.001'))
+    price_per_kg = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    date = serializers.DateField()
+    buyer = serializers.CharField(max_length=200)
+    responsible = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs['mode'] == 'partial' and 'quantity' not in attrs:
+            raise serializers.ValidationError({'quantity': 'Informe a quantidade de animais.'})
+        if attrs['date'] < self.context['batch'].entry_date:
+            raise serializers.ValidationError({'date': 'A venda não pode ocorrer antes da entrada do lote.'})
+        return attrs

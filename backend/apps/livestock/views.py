@@ -1241,6 +1241,39 @@ def build_animal_history(animal):
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalBatchSerializer
 
+    @action(detail=False, methods=['get'], url_path='sales')
+    def sales(self, request):
+        events = HistoricoEvento.objects.filter(
+            lote__in=self.get_queryset().filter(species__code='suinos'),
+            tipo_evento='Venda de Animais',
+        ).order_by('-data_evento', '-created_at')[:100]
+        rows = [dict(event.metadata, id=str(event.pk), date=str(event.data_evento)) for event in events]
+        # Keep sales recorded before the detailed sale workflow visible.
+        from apps.finance.models import Transaction
+        legacy = Transaction.objects.filter(
+            organization=request.user.organization,
+            animal_batch__in=self.get_queryset().filter(species__code='suinos'),
+            reference__startswith='SALE-BATCH-',
+        ).exclude(reference__in=HistoricoEvento.objects.filter(
+            farm__organization=request.user.organization, tipo_evento='Venda de Animais',
+        ).values_list('metadata__transaction_reference', flat=True)).select_related('animal_batch').order_by('-due_date')[:100]
+        rows.extend({
+            'id': str(item.pk), 'date': str(item.due_date),
+            'batch_code': item.animal_batch.batch_code, 'quantity': item.animal_batch.quantity,
+            'weight_kg': None, 'price_per_kg': None, 'amount': str(item.amount),
+            'buyer': 'Não informado', 'responsible': '',
+        } for item in legacy)
+        return Response(sorted(rows, key=lambda row: row['date'], reverse=True)[:100])
+
+    @action(detail=True, methods=['post'], url_path='register-sale')
+    def register_sale(self, request, pk=None):
+        from .serializers import BatchSaleSerializer
+        from .services import register_batch_sale
+        batch = self.get_object()
+        serializer = BatchSaleSerializer(data=request.data, context={'batch': batch})
+        serializer.is_valid(raise_exception=True)
+        return Response(register_batch_sale(batch, serializer.validated_data), status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'], url_path='register-weight')
     @transaction.atomic
     def register_weight(self, request, pk=None):
