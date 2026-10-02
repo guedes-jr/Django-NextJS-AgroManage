@@ -537,7 +537,7 @@ function ReproducaoPageContent() {
           { key: "dias", label: "Dias" },
           { key: "qtd", label: "Qtd." },
           { key: "peso", label: "Peso (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
-          { key: "gpd", label: "GPD (kg)", render: (v: any) => v != null ? `${v} kg` : "—" },
+          { key: "idade", label: "Idade do Lote", render: (value: number | null) => value == null ? "—" : `${value} dias` },
           { key: "previsao", label: "Prev. Engorda", render: formatDateCell },
         ],
         actions: [

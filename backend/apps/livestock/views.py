@@ -772,10 +772,10 @@ class CrescimentoView(BasePhaseView):
         if filters is None:
             return Response({"error": "Unauthorized"}, status=401)
 
-        qs = AnimalBatch.objects.filter(**filters, phase='crescimento', status='active')
+        qs = with_batch_birth_date(AnimalBatch.objects.filter(**filters, phase='crescimento', status='active'))
         total = qs.count()
         total_animais = sum(b.quantity for b in qs)
-        now = timezone.now().date()
+        now = timezone.localdate()
 
         pesos = []
         ganhos = []
@@ -810,7 +810,7 @@ class CrescimentoView(BasePhaseView):
             dias = (now - b.entry_date).days if b.entry_date else None
             peso = float(b.avg_weight_kg) if b.avg_weight_kg else None
             gpd = round(peso / dias, 2) if peso and dias and dias > 0 else None
-            dias_restantes = round((60 - peso) / (gpd or 0.7)) if peso and peso < 60 else 0
+            dias_restantes = max(0, round((60 - peso) / (gpd or 0.7))) if peso is not None else None
 
             rows.append({
                 "id": b.id,
@@ -820,7 +820,8 @@ class CrescimentoView(BasePhaseView):
                 "qtd": b.quantity,
                 "peso": peso,
                 "gpd": gpd,
-                "previsao": f"{dias_restantes}d" if dias_restantes and dias_restantes > 0 else "Pronto",
+                "idade": max(0, (now - b.resolved_birth_date).days) if b.resolved_birth_date else None,
+                "previsao": (now + datetime.timedelta(days=dias_restantes)).isoformat() if dias_restantes is not None else None,
                 "status": "Pronto p/ engorda" if peso and peso >= 60 else "Em crescimento",
             })
 

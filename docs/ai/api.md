@@ -37,6 +37,14 @@ transfer operation. Unknown birth dates produce null age and forecast; arrival
 date is not a substitute. Older manually registered lots whose birth date was
 discarded must have that date entered again.
 
+## Growth batch dates
+
+Growth rows expose `idade` as elapsed days since birth, independently of `dias`
+(days in the growth phase). `previsao` is an ISO date derived from the existing
+estimated days to reach 60 kg. Batches at or above that weight use today's date;
+unknown weight produces a null forecast. The growth table displays age in place
+of GPD and formats the forecast as a calendar date.
+
 ## Authentication
 
 The repository documentation indicates JWT-based authentication and optional Google OAuth. Confirm current implementation before changing auth flows.

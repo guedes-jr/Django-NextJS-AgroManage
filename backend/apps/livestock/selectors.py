@@ -5,7 +5,7 @@ from .models import Animal, Birth
 
 
 def with_batch_birth_date(queryset):
-    """Resolve nursery birth dates in one query, including manually registered lots."""
+    """Resolve batch birth dates in one query, including manually registered lots."""
     births = Birth.objects.filter(female__farm_id=OuterRef("farm_id"))
     direct = births.filter(batch_id=OuterRef("pk")).order_by("-birth_date")
     source = births.filter(batch__merged_into__id=OuterRef("pk")).order_by("-birth_date")

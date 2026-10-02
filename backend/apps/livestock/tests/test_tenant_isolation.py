@@ -1079,6 +1079,31 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(row["status"], "active")
         self.assertFalse(any("pronto" in alert["text"] for alert in response.data["alerts"]))
 
+    def test_growth_forecast_returns_dates_and_age_since_birth(self):
+        today = date.today()
+        for code, weight, phase_days, remaining in (
+            ("GROWTH-NEW", "40", 0, 29),
+            ("GROWTH-OLDER", "30", 3, 3),
+            ("GROWTH-READY", "60", 10, 0),
+            ("GROWTH-UNKNOWN", None, 10, None),
+        ):
+            with self.subTest(code=code):
+                batch = AnimalBatch.objects.create(
+                    farm=self.farm_a, species=self.species, batch_code=code,
+                    quantity=10, phase="crescimento", avg_weight_kg=weight,
+                    entry_date=today - timedelta(days=phase_days),
+                    birth_date=today - timedelta(days=80) if weight else None,
+                )
+                response = self.client.get(reverse("crescimentos"), {"species": self.species.code})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                row = next(item for item in response.data["rows"] if item["lote"] == code)
+                self.assertEqual(row["dias"], phase_days)
+                self.assertEqual(row["idade"], 80 if weight else None)
+                expected = (today + timedelta(days=remaining)).isoformat() if remaining is not None else None
+                self.assertEqual(row["previsao"], expected)
+                self.assertEqual(row["status"], "Pronto p/ engorda" if remaining == 0 else "Em crescimento")
+                batch.delete()
+
     def test_batch_history_includes_litter_vaccinations(self):
         batch = AnimalBatch.objects.create(
             farm=self.farm_a,
