@@ -1,14 +1,64 @@
 "use client";
-import {FormEvent,useEffect,useMemo,useState} from "react";
+
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import {CheckCircle2,LoaderCircle,UsersRound} from "lucide-react";
-import apiClient from "@/services/api";
+import { CheckCircle2, LoaderCircle, UsersRound } from "lucide-react";
+import { calculateLaborTotal, createSwineLabor, getSwineLaborBatches, getSwineLaborHistory, laborSectors, laborTypes, readLaborDetails, LaborBatch, LaborTransaction, LaborType } from "@/services/swineLaborService";
 import styles from "../operations.module.css";
-type Category={id:string;name:string;category_type:string};type Transaction={id:string;description:string;amount:string;due_date:string;notes?:string;reference?:string};
-const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
-export default function LaborPage(){const [history,setHistory]=useState<Transaction[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");const [form,setForm]=useState({date:new Date().toISOString().slice(0,10),worker:"",activity:"",people:"1",hours:"8",hourValue:"",notes:""});
- const load=()=>apiClient.get("/finance/transactions/",{params:{page_size:100}}).then(({data})=>setHistory((data.results||data||[]).filter((x:Transaction)=>x.reference?.startsWith("LABOR-SWINE-")))).finally(()=>setLoading(false));useEffect(()=>{load().catch(()=>setError("Não foi possível carregar os lançamentos."))},[]);
- const total=useMemo(()=>(Number(form.people)||0)*(Number(form.hours.replace(",","."))||0)*(Number(form.hourValue.replace(",","."))||0),[form]);
- const getCategory=async()=>{const {data}=await apiClient.get("/finance/categories/",{params:{page_size:200}});const list:Category[]=data.results||data||[];const found=list.find(x=>x.name.toLowerCase()==="mão de obra - suinocultura"&&x.category_type==="expense");if(found)return found.id;const created=await apiClient.post("/finance/categories/",{name:"Mão de Obra - Suinocultura",category_type:"expense",is_active:true});return created.data.id};
- const submit=async(e:FormEvent)=>{e.preventDefault();if(total<=0)return;setSaving(true);setError("");setMessage("");try{const category=await getCategory();await apiClient.post("/finance/transactions/",{category,description:`Mão de obra: ${form.activity} — ${form.worker}`,amount:total.toFixed(2),due_date:form.date,payment_date:form.date,status:"paid",reference:`LABOR-SWINE-${Date.now()}`,notes:`${form.people} pessoa(s), ${form.hours} hora(s). ${form.notes}`.trim()});setMessage("Mão de obra registrada e custo lançado no financeiro.");setForm({date:new Date().toISOString().slice(0,10),worker:"",activity:"",people:"1",hours:"8",hourValue:"",notes:""});await load()}catch{setError("Não foi possível salvar o lançamento. Confira os dados.")}finally{setSaving(false)}};
- return <div className={`${styles.page} ${styles.labor}`}><header className={styles.header}><div><span className={styles.headerIcon}><UsersRound size={27}/></span><div><h1>Mão de Obra</h1><p>Registre serviços, equipe, horas trabalhadas e custos da suinocultura.</p></div></div><Link className={styles.back} href="/home/rebanho/suinos">← Voltar para Suínos</Link></header><div className={styles.layout}><form className={styles.card} onSubmit={submit}><h2>Novo lançamento</h2><p>O valor calculado será registrado como despesa no financeiro.</p>{message&&<div className={styles.success}><CheckCircle2 size={17}/>{message}</div>}{error&&<div className={styles.error}>{error}</div>}<div className={styles.grid}><div className={styles.field}><label>Data do serviço</label><input required type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div><div className={styles.field}><label>Responsável ou equipe</label><input required value={form.worker} onChange={e=>setForm({...form,worker:e.target.value})} placeholder="Nome do funcionário ou prestador"/></div><div className={`${styles.field} ${styles.wide}`}><label>Atividade realizada</label><input required value={form.activity} onChange={e=>setForm({...form,activity:e.target.value})} placeholder="Ex.: limpeza das baias, vacinação, manejo"/></div><div className={styles.field}><label>Quantidade de pessoas</label><input required min="1" type="number" value={form.people} onChange={e=>setForm({...form,people:e.target.value})}/></div><div className={styles.field}><label>Horas por pessoa</label><input required min="0.1" step="0.1" type="number" value={form.hours} onChange={e=>setForm({...form,hours:e.target.value})}/></div><div className={`${styles.field} ${styles.wide}`}><label>Valor por hora/pessoa (R$)</label><input required inputMode="decimal" value={form.hourValue} onChange={e=>setForm({...form,hourValue:e.target.value})} placeholder="0,00"/></div><div className={styles.summary}><div><span>Total de horas</span><strong>{((Number(form.people)||0)*(Number(form.hours)||0)).toLocaleString("pt-BR")}</strong></div><div><span>Custo calculado</span><strong>{money.format(total)}</strong></div></div><div className={`${styles.field} ${styles.wide}`}><label>Observações</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div><button className={styles.submit} disabled={saving||total<=0}>{saving?<LoaderCircle size={18}/>:<UsersRound size={18}/>}Registrar mão de obra</button></div></form><section className={styles.card}><h2>Lançamentos recentes</h2><p>Custos de mão de obra vinculados à suinocultura.</p><div className={styles.history}>{loading?<div className={styles.empty}>Carregando…</div>:history.length?history.slice(0,8).map(x=><div className={styles.row} key={x.id}><div><strong>{x.description}</strong><small>{new Date(`${x.due_date}T00:00:00`).toLocaleDateString("pt-BR")}</small></div><span className={styles.amount}>{money.format(Number(x.amount))}</span></div>):<div className={styles.empty}>Nenhum lançamento registrado.</div>}</div></section></div></div>}
+import local from "./page.module.css";
+
+const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const today = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; };
+const initialForm = () => ({ date: today(), sector: "Geral", batch: "", worker: "", activity: "", type: "daily" as LaborType, people: "1", quantity: "1", rate: "", notes: "" });
+const number = (value: string) => Number(value.replace(",", "."));
+export default function LaborPage() {
+  const [history, setHistory] = useState<LaborTransaction[]>([]);
+  const [batches, setBatches] = useState<LaborBatch[]>([]);
+  const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(""), [error, setError] = useState("");
+  const [form, setForm] = useState(initialForm);
+  const [period, setPeriod] = useState({ from: `${today().slice(0, 7)}-01`, to: today() });
+  const [filter, setFilter] = useState(period);
+  useEffect(() => {
+    Promise.all([getSwineLaborHistory(), getSwineLaborBatches()]).then(([records, lots]) => { setHistory(records); setBatches(lots); })
+      .catch(() => setError("Não foi possível carregar os lançamentos e lotes. Recarregue a página para tentar novamente."))
+      .finally(() => setLoading(false));
+  }, []);
+  const total = calculateLaborTotal(form.type, number(form.people), number(form.quantity), number(form.rate));
+  const records = history.filter(item => (!filter.from || item.due_date >= filter.from) && (!filter.to || item.due_date <= filter.to));
+  const field = (key: keyof typeof form, value: string) => setForm(current => ({ ...current, [key]: value }));
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const batch = batches.find(item => item.id === form.batch);
+    if (!total || !batch || !form.worker.trim() || !form.activity.trim()) return;
+    setSaving(true); setError(""); setMessage("");
+    try {
+      await createSwineLabor(form.date, batch, { sector: form.sector, worker: form.worker.trim(), activity: form.activity.trim(), type: form.type, people: number(form.people), quantity: form.type === "monthly" ? 1 : number(form.quantity), rate: number(form.rate), observations: form.notes });
+      setForm(initialForm()); setMessage("Lançamento registrado no financeiro e nos gastos do lote.");
+      try { setHistory(await getSwineLaborHistory()); } catch { setError("Lançamento salvo. Recarregue a página para atualizar o histórico."); }
+    } catch { setError("Não foi possível salvar o lançamento. Confira os dados."); }
+    finally { setSaving(false); }
+  };
+  return <div className={`${styles.page} ${local.page}`}>
+    <header className={styles.header}><div><span className={styles.headerIcon}><UsersRound size={27} /></span><div><h1>Mão de Obra</h1><p>Registre os custos de mão de obra por setor da granja.</p></div></div><Link className={styles.back} href="/home/rebanho/suinos">← Voltar para Suínos</Link></header>
+    {message && <div className={styles.success} role="status"><CheckCircle2 size={17} />{message}</div>}{error && <div className={styles.error} role="alert">{error}</div>}
+    <div className={local.layout}><form className={styles.card} onSubmit={submit}><h2>Novo lançamento</h2><p>Escolha o lote que receberá o custo deste serviço.</p><fieldset className={local.formFields} disabled={saving || loading}><div className={styles.grid}>
+      <div className={styles.field}><label htmlFor="date">Data</label><input id="date" required type="date" value={form.date} onChange={e => field("date", e.target.value)} /></div>
+      <div className={styles.field}><label htmlFor="sector">Setor</label><select id="sector" value={form.sector} onChange={e => field("sector", e.target.value)}>{laborSectors.map(sector => <option key={sector}>{sector}</option>)}</select></div>
+      <div className={`${styles.field} ${styles.wide}`}><label htmlFor="batch">Lote responsável pelo custo</label><select id="batch" required value={form.batch} onChange={e => field("batch", e.target.value)}><option value="">Selecione o lote</option>{batches.map(batch => <option key={batch.id} value={batch.id}>{batch.batch_code} — {batch.farm_name}</option>)}</select>{!loading && !batches.length && <small>Cadastre um lote de suínos para registrar a mão de obra.</small>}</div>
+      <div className={styles.field}><label htmlFor="worker">Funcionário / Equipe</label><input id="worker" required value={form.worker} onChange={e => field("worker", e.target.value)} placeholder="Nome do funcionário ou equipe" /></div>
+      <div className={styles.field}><label htmlFor="activity">Atividade realizada</label><input id="activity" required value={form.activity} onChange={e => field("activity", e.target.value)} placeholder="Ex.: manejo, limpeza, alimentação" /></div>
+      <fieldset className={local.types}><legend>Tipo de lançamento</legend>{(Object.keys(laborTypes) as LaborType[]).map(type => <label key={type} className={form.type === type ? local.selected : ""}><input type="radio" name="type" checked={form.type === type} onChange={() => setForm(current => ({ ...current, type, quantity: "1" }))} />{laborTypes[type]}</label>)}</fieldset>
+      <div className={styles.field}><label htmlFor="people">Quantidade de pessoas</label><input id="people" required type="number" min="1" step="1" value={form.people} onChange={e => field("people", e.target.value)} /></div>
+      {form.type !== "monthly" && <div className={styles.field}><label htmlFor="quantity">{form.type === "daily" ? "Dias trabalhados" : "Horas por pessoa"}</label><input id="quantity" required type="number" min={form.type === "daily" ? "1" : "0.01"} step={form.type === "daily" ? "1" : "0.01"} value={form.quantity} onChange={e => field("quantity", e.target.value)} /></div>}
+      <div className={styles.field}><label htmlFor="rate">Valor {form.type === "daily" ? "por dia" : form.type === "monthly" ? "mensal" : "por hora"} / pessoa (R$)</label><input id="rate" required inputMode="decimal" value={form.rate} onChange={e => field("rate", e.target.value)} placeholder="0,00" /></div>
+      <div className={local.total}><span>Custo total (R$)</span><strong>{money.format(total)}</strong>{form.type === "monthly" && <small>Um mês por lançamento: pessoas × valor mensal.</small>}</div>
+      <div className={`${styles.field} ${styles.wide}`}><label htmlFor="notes">Observações (opcional)</label><textarea id="notes" value={form.notes} onChange={e => field("notes", e.target.value)} placeholder="Informações adicionais…" /></div>
+      <div className={local.actions}><button type="button" onClick={() => { setForm(initialForm()); setMessage(""); }}>Limpar</button><button className={styles.submit} disabled={!total || !form.batch || saving}>{saving && <LoaderCircle size={18} />}Registrar lançamento</button></div>
+    </div></fieldset></form>
+    <section className={`${styles.card} ${local.history}`}><h2>Lançamentos recentes</h2><p>Custos de mão de obra registrados na granja.</p><form className={local.filters} onSubmit={e => { e.preventDefault(); setFilter(period); }}><div className={styles.field}><label htmlFor="from">De</label><input id="from" type="date" value={period.from} onChange={e => setPeriod({ ...period, from: e.target.value })} /></div><div className={styles.field}><label htmlFor="to">Até</label><input id="to" type="date" min={period.from} value={period.to} onChange={e => setPeriod({ ...period, to: e.target.value })} /></div><button type="submit">Filtrar</button></form>
+      <div className={local.tableScroll}><table><thead><tr>{["Data", "Setor / Lote", "Funcionário", "Tipo", "Pessoas", "Dias/Horas", "Valor unitário", "Custo total"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={8}>Carregando…</td></tr> : records.length ? records.map(item => { const detail = readLaborDetails(item.notes); const batch = batches.find(batch => batch.id === item.animal_batch); return <tr key={item.id}><td>{new Date(`${item.due_date}T00:00:00`).toLocaleDateString("pt-BR")}</td><td>{detail?.sector || "Não informado"}<small>{batch?.batch_code || "Sem lote"}</small></td><td>{detail?.worker || item.description}</td><td>{detail ? laborTypes[detail.type] : "Não informado"}</td><td>{detail?.people ?? "—"}</td><td>{detail && detail.type !== "monthly" ? detail.quantity : "—"}</td><td>{detail ? money.format(detail.rate) : "—"}</td><td><strong>{money.format(Number(item.amount))}</strong></td></tr>; }) : <tr><td colSpan={8}>Nenhum lançamento no período.</td></tr>}</tbody></table></div>
+      <div className={local.periodTotal}><span>Total no período (R$)</span><strong>{money.format(records.reduce((sum, item) => sum + Number(item.amount), 0))}</strong></div>
+    </section></div>
+  </div>;
+}
