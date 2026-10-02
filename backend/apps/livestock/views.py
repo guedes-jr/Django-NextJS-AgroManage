@@ -1534,29 +1534,43 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             for source in b.source_batches.all():
                 history_list.extend(get_batch_history(source))
 
-            # 2. Fases anteriores deste lote
-            for ph in b.phase_histories.all().order_by('entry_date'):
+            # Fases: o registro aberto preserva o peso e a quantidade de entrada.
+            # Não duplicar a fase atual com um snapshot do peso já atualizado.
+            phases = list(b.phase_histories.all().order_by('entry_date', 'created_at'))
+            entry_event = b.historicos.filter(tipo_evento="Entrada de Lote").order_by("data_evento", "created_at").first()
+            entry_metadata = (entry_event.metadata or {}) if entry_event else {}
+            for index, ph in enumerate(phases):
+                previous = phases[index - 1] if index else None
+                entry_weight = (
+                    ph.avg_weight_kg if not ph.exit_date else
+                    previous.avg_weight_kg if previous else
+                    entry_metadata.get("peso_medio_entrada")
+                )
+                entry_quantity = (
+                    ph.quantity if not ph.exit_date else
+                    previous.quantity if previous else
+                    entry_metadata.get("quantidade")
+                )
                 history_list.append({
                     'type': 'phase',
                     'batch_id': str(b.id),
                     'batch_code': b.batch_code,
                     'phase': ph.phase,
                     'quantity': ph.quantity,
-                    'avg_weight_kg': float(ph.avg_weight_kg) if ph.avg_weight_kg else None,
-                    'entry_date': ph.entry_date.isoformat() if ph.entry_date else None,
+                    'avg_weight_kg': float(ph.avg_weight_kg) if ph.avg_weight_kg is not None else None,
+                    'entry_weight_kg': float(entry_weight) if entry_weight is not None else None,
+                    'entry_quantity': entry_quantity,
+                    'entry_date': ph.entry_date.isoformat(),
                     'exit_date': ph.exit_date.isoformat() if ph.exit_date else None,
-                    'is_current': False,
+                    'is_current': not ph.exit_date and b.status == 'active' and ph.phase == b.phase,
                 })
 
-            # 3. Fase atual ativa
-            if b.phase:
+            if b.phase and not any(ph.phase == b.phase and not ph.exit_date for ph in phases):
                 history_list.append({
-                    'type': 'phase',
-                    'batch_id': str(b.id),
-                    'batch_code': b.batch_code,
-                    'phase': b.phase,
-                    'quantity': b.quantity,
-                    'avg_weight_kg': float(b.avg_weight_kg) if b.avg_weight_kg else None,
+                    'type': 'phase', 'batch_id': str(b.id), 'batch_code': b.batch_code,
+                    'phase': b.phase, 'quantity': b.quantity,
+                    'avg_weight_kg': float(b.avg_weight_kg) if b.avg_weight_kg is not None else None,
+                    'entry_weight_kg': None, 'entry_quantity': None,
                     'entry_date': b.entry_date.isoformat() if b.entry_date else None,
                     'exit_date': b.exit_date.isoformat() if b.exit_date else None,
                     'is_current': b.status == 'active',

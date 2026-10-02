@@ -1104,6 +1104,45 @@ class LivestockTenantIsolationTestCase(APITestCase):
                 self.assertEqual(row["status"], "Pronto p/ engorda" if remaining == 0 else "Em crescimento")
                 batch.delete()
 
+    def test_manual_batch_sheet_has_birth_age_deaths_and_phase_entry_metrics(self):
+        today = date.today()
+        response = self.client.post(reverse("animalbatch-list"), {
+            "farm_id": str(self.farm_a.id), "species_code_input": self.species.code,
+            "batch_code": "FICHA-MANUAL", "category": "Terminação",
+            "phase": "creche", "origin": "purchased", "quantity": 15,
+            "avg_weight_kg": "25", "entry_date": (today - timedelta(days=20)).isoformat(),
+            "birth_date": (today - timedelta(days=80)).isoformat(),
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        batch = AnimalBatch.objects.get(pk=response.data["id"])
+        batch.quantity = 10
+        batch.avg_weight_kg = Decimal("40")
+        batch.save()
+        HistoricoEvento.objects.create(
+            farm=self.farm_a, lote=batch, tipo_evento="Mortalidade de Lote",
+            descricao="5 mortes", data_evento=today,
+            metadata={"quantidade_mortes": 5},
+        )
+        detail = self.client.get(reverse("animalbatch-detail", args=[batch.id]))
+        self.assertEqual(detail.data["birth_date"], batch.birth_date.isoformat())
+        self.assertEqual(detail.data["age_days"], 81)
+        self.assertEqual(detail.data["status"], "active")
+        self.assertEqual(detail.data["initial_quantity"], 15)
+        self.assertEqual(detail.data["deaths_count"], 5)
+        history = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+        phases = [item for item in history.data if item["type"] == "phase"]
+        self.assertEqual(len(phases), 1)
+        self.assertTrue(phases[0]["is_current"])
+        self.assertEqual(phases[0]["entry_weight_kg"], 25)
+        self.assertEqual(phases[0]["entry_quantity"], 15)
+        from apps.livestock.services import transfer_batch_phase
+        transfer_batch_phase(batch, "crescimento", today, exit_weight_kg=Decimal("40"), exit_quantity=10)
+        history = self.client.get(reverse("animalbatch-history", args=[batch.id]))
+        completed = next(item for item in history.data if item["type"] == "phase" and item["exit_date"])
+        self.assertEqual(completed["entry_weight_kg"], 25)
+        self.assertEqual(completed["avg_weight_kg"], 40)
+        self.assertEqual(completed["entry_quantity"], 15)
+
     def test_batch_history_includes_litter_vaccinations(self):
         batch = AnimalBatch.objects.create(
             farm=self.farm_a,

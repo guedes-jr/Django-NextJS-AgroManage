@@ -121,7 +121,10 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         # Obter o animal individual associado e retornar a data de nascimento
         animal = Animal.objects.filter(batch=instance).first()
+        from .selectors import with_batch_birth_date
         birth_date = instance.birth_date or (animal.birth_date if animal else None)
+        if birth_date is None:
+            birth_date = with_batch_birth_date(AnimalBatch.objects.filter(pk=instance.pk)).values_list('resolved_birth_date', flat=True).first()
         ret['birth_date'] = birth_date.isoformat() if birth_date else None
 
         # ── Dados do parto vinculado a este lote (Birth.batch FK) ────────────
@@ -192,6 +195,15 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             ret['weaning_date'] = None
             ret['maternity_mortality'] = None
 
+        if ret['initial_quantity'] is None:
+            entry_event = instance.historicos.filter(tipo_evento='Entrada de Lote').order_by('data_evento', 'created_at').first()
+            if entry_event:
+                ret['initial_quantity'] = (entry_event.metadata or {}).get('quantidade')
+            if ret['initial_quantity'] is None:
+                initial_phase = instance.phase_histories.order_by('entry_date', 'created_at').first()
+                if initial_phase:
+                    ret['initial_quantity'] = initial_phase.quantity
+
         # A idade deve seguir o calendário oficial do servidor, não o relógio
         # ou o fuso horário do navegador que abriu a ficha.
         birth_date_value = ret.get('birth_date')
@@ -210,13 +222,12 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         ret['report_date'] = local_now.date().isoformat()
         ret['report_time'] = local_now.strftime('%H:%M')
 
-        # Mortes calculadas (diferença entre quantidade inicial e atual)
-        initial_qty = ret.get('initial_quantity')
-        current_qty = instance.quantity
-        if initial_qty is not None and current_qty is not None:
-            ret['deaths_count'] = max(0, int(initial_qty) - int(current_qty))
-        else:
-            ret['deaths_count'] = None
+        # A redução de quantidade pode vir de transferências; contar mortes reais.
+        death_events = instance.historicos.filter(tipo_evento='Mortalidade de Lote')
+        ret['deaths_count'] = sum(
+            int((event.metadata or {}).get('quantidade_mortes') or 0)
+            for event in death_events
+        ) + (birth.mortality if birth else 0)
 
         return ret
 
@@ -377,6 +388,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                             'fase': batch.phase,
                             'categoria': batch.category,
                             'quantidade': batch.quantity,
+                            'peso_medio_entrada': float(batch.avg_weight_kg) if batch.avg_weight_kg is not None else None,
                             'origem': batch.origin,
                         }
                     )

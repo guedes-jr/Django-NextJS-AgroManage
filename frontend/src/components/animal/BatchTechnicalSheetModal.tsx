@@ -317,7 +317,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
   // Quantidades — sem fallback fictício
   const qtdAtual: number | null = animal?.quantity ?? null;
-  const qtdInicial: number | null = animal?.initial_quantity ?? null;
+  const qtdInicial: number | null = animal?.initial_quantity ?? history.find((event: any) => event.type === "phase" && event.entry_quantity != null)?.entry_quantity ?? null;
 
   // Dados do parto (oriundos do Birth record, via serializer aprimorado)
   const nascidosVivos: number | null = animal?.born_alive ?? null;
@@ -347,9 +347,6 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   const pesoMedioNasc: number | null =
     animal?.birth_weight_kg != null ? Number(animal.birth_weight_kg) : null;
 
-  const currentPhaseRecord = history.find(
-    (event: any) => event.type === "phase" && event.is_current && event.entry_date,
-  );
   const performanceBaseline = (() => {
     if (animal?.avg_weaning_weight_kg != null && animal?.weaning_date) {
       return { weight: Number(animal.avg_weaning_weight_kg), date: String(animal.weaning_date) };
@@ -357,11 +354,12 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
     if (pesoMedioNasc != null && animal?.birth_date) {
       return { weight: pesoMedioNasc, date: String(animal.birth_date) };
     }
-    if (currentPhaseRecord?.avg_weight_kg != null && currentPhaseRecord?.entry_date) {
-      return { weight: Number(currentPhaseRecord.avg_weight_kg), date: String(currentPhaseRecord.entry_date) };
-    }
-    if (weightRows.length > 1) {
+    const initialPhase = history.find((event: any) => event.type === "phase" && event.entry_weight_kg != null && event.entry_date);
+    if (weightRows.length > 1 && (!initialPhase || String(weightRows[0].date) < String(initialPhase.entry_date))) {
       return { weight: Number(weightRows[0].weight_kg), date: String(weightRows[0].date) };
+    }
+    if (initialPhase) {
+      return { weight: Number(initialPhase.entry_weight_kg), date: String(initialPhase.entry_date) };
     }
     return null;
   })();
@@ -398,7 +396,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   const pai: string | null = animal?.sire_identifier ?? null;
 
   // ── Consumo de Ração — SOMENTE registros reais (sem feedDefault fictício) ──
-  const feedRows = history.filter((e: any) => e.type === "feed").slice(0, 20);
+  const feedRows = history.filter((e: any) => e.type === "feed");
   const hasFeed = feedRows.length > 0;
   const feedData = feedRows.map((e: any) => ({
     tipo: e.title,
@@ -419,10 +417,11 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
     return null;
   })();
 
-  // Mortalidade % — somente quando há deaths_count real e total nascidos
+  // Mortalidade usa a população inicial real, inclusive para lotes comprados.
+  const mortalityPopulation = nascidosVivos ?? qtdInicial;
   const mortalidadePct: string | null =
-    totalNascidos != null && totalNascidos > 0 && saldoMortes != null && saldoMortes > 0
-      ? ((saldoMortes / totalNascidos) * 100).toFixed(2)
+    mortalityPopulation != null && mortalityPopulation > 0 && saldoMortes != null
+      ? ((saldoMortes / mortalityPopulation) * 100).toFixed(2)
       : null;
 
   // Vacinas aplicadas coletivamente na leitegada/lote
@@ -649,16 +648,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   <IconCheck />
                   Situação do Lote:
                 </div>
-                {desempenhoGeral ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, color: desempenhoGeral.color, fontSize: "0.62rem" }}>
-                    <CheckCircle2 size={14} color={desempenhoGeral.color} />
-                    {desempenhoGeral.label} DESEMPENHO
-                  </div>
-                ) : (
-                  <div style={{ fontSize: "0.6rem", color: GRAY_TEXT, fontStyle: "italic" }}>
-                    Aguardando dados...
-                  </div>
-                )}
+                <div style={{ fontSize: "0.62rem", color: GREEN_DARK, fontWeight: 700 }}>
+                  {({ active: "Ativo", sold: "Vendido", finished: "Finalizado", dead: "Encerrado por mortalidade" } as Record<string, string>)[animal?.status] || "Não informada"}
+                </div>
               </div>
 
               {/* Col 2 — Origem/Genética */}
@@ -769,9 +761,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                 const prevKey = prevPhaseMap[phaseKey];
                 const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
-                const pesoEntrada = prevKey === "maternidade"
+                const pesoEntrada = ph.entry_weight_kg ?? (prevKey === "maternidade"
                   ? (weanedPeso ?? pesoMedioNasc ?? null)
-                  : (prevPh?.avg_weight_kg ?? (pesoMedioNasc ?? null));
+                  : (prevPh?.avg_weight_kg ?? (pesoMedioNasc ?? null)));
                 if (pesoEntrada == null) return null;
                 return (Number(ph.avg_weight_kg) - Number(pesoEntrada)) / diasFase;
               };
@@ -814,10 +806,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               const calcIdadeFimFase = (phaseKey: string): string => {
                 const ph = getCompletedPhase(phaseKey);
                 if (!ph?.exit_date || !animal?.birth_date) return "-";
-                const dias = Math.floor(
-                  (new Date(ph.exit_date).getTime() - new Date(animal.birth_date).getTime()) / (1000 * 60 * 60 * 24)
-                );
-                return dias > 0 ? String(dias) : "-";
+                const dias = calcAge(animal.birth_date, new Date(`${ph.exit_date}T12:00:00`));
+                return dias != null ? String(dias) : "-";
               };
 
               // Conversão alimentar de uma fase concluída
@@ -828,6 +818,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 // Filtrar os consumos de ração ocorridos no período desta fase
                 const feedInPhase = history.filter((e: any) => {
                   if (e.type !== "feed" || !e.date) return false;
+                  if (ph.batch_id && String(e.batch_id) !== String(ph.batch_id)) return false;
                   const d = new Date(e.date).getTime();
                   return d >= new Date(ph.entry_date).getTime() && d <= new Date(ph.exit_date).getTime();
                 });
@@ -885,9 +876,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                   const prevKey = prevPhaseMap[phaseKey];
                   const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
-                  const qtdEntrada = prevKey === "maternidade"
+                  const qtdEntrada = ph.entry_quantity ?? (prevKey === "maternidade"
                     ? (weanedQty ?? nascidosVivos ?? qtdInicial)
-                    : (prevPh?.quantity ?? null);
+                    : (prevPh?.quantity ?? null));
                   return {
                     fase: faseLabel, status: "concluida",
                     qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada) : "-",
@@ -904,17 +895,17 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   const currentRecord = phaseHistory.find((p: any) => p.phase === phaseKey && p.is_current);
                   const phaseEntryDate = currentRecord?.entry_date || animal?.entry_date;
                   const daysInPhase = phaseEntryDate
-                    ? Math.max(0, Math.floor((Date.now() - new Date(phaseEntryDate).getTime()) / 86400000))
+                    ? daysBetween(phaseEntryDate, performanceEndDate)
                     : null;
                   const prevPhaseMap: Record<string, string> = { creche: "maternidade", crescimento: "creche", engorda: "crescimento" };
                   const prevKey = prevPhaseMap[phaseKey];
                   const prevPh = prevKey ? phaseHistory.find((p: any) => p.phase === prevKey && p.exit_date) : null;
-                  const qtdEntrada = prevKey === "maternidade"
+                  const qtdEntrada = currentRecord?.entry_quantity ?? (prevKey === "maternidade"
                     ? (weanedQty ?? nascidosVivos ?? qtdInicial)
-                    : (prevPh?.quantity ?? qtdInicial);
-                  const pesoEntrada = prevKey === "maternidade"
+                    : (prevPh?.quantity ?? qtdInicial));
+                  const pesoEntrada = currentRecord?.entry_weight_kg ?? (prevKey === "maternidade"
                     ? (weanedPeso ?? pesoMedioNasc)
-                    : (prevPh?.avg_weight_kg ?? pesoMedioNasc);
+                    : (prevPh?.avg_weight_kg ?? pesoMedioNasc));
                   const pesoAtual = pesoMedioAtual;
                   const ganhoPorAnimal = pesoAtual != null && pesoEntrada != null
                     ? pesoAtual - Number(pesoEntrada)
@@ -923,7 +914,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     ? ganhoPorAnimal / daysInPhase
                     : null;
                   const feedInPhase = phaseEntryDate ? history.filter((e: any) =>
-                    e.type === "feed" && e.date && new Date(e.date).getTime() >= new Date(phaseEntryDate).getTime()
+                    e.type === "feed" && e.date && (!currentRecord?.batch_id || String(e.batch_id) === String(currentRecord.batch_id)) && new Date(e.date).getTime() >= new Date(phaseEntryDate).getTime()
                   ) : [];
                   const feedTotal = feedInPhase.reduce((sum: number, event: any) => sum + Number(event.total_kg || 0), 0);
                   const conversion = ganhoPorAnimal != null && ganhoPorAnimal > 0 && qtdAtual && feedTotal > 0

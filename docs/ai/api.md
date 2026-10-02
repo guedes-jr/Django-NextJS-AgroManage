@@ -45,6 +45,18 @@ estimated days to reach 60 kg. Batches at or above that weight use today's date;
 unknown weight produces a null forecast. The growth table displays age in place
 of GPD and formats the forecast as a calendar date.
 
+## Batch technical sheet
+
+Batch details resolve birth dates from the lot and its linked birth/animal/source
+records. Manually entered birth dates that were previously discarded still need
+to be entered again. `initial_quantity` also uses the registration event for
+manually registered lots. `deaths_count` counts recorded batch deaths and linked
+maternity mortality, rather than interpreting every quantity reduction as death.
+Phase history exposes `entry_weight_kg` and `entry_quantity`, and represents an
+open phase once with `is_current=true`. Closed phases recover entry metrics from
+the preceding phase or the registration event when available. The sheet uses
+these baselines for GPD and feed conversion; missing baselines remain unknown.
+
 ## Authentication
 
 The repository documentation indicates JWT-based authentication and optional Google OAuth. Confirm current implementation before changing auth flows.
