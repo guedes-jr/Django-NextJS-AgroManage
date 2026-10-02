@@ -113,3 +113,17 @@ class BatchSalesTests(APITestCase):
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.status, 'active')
         self.assertEqual(Transaction.objects.filter(animal_batch=self.batch).count(), 1)
+
+    def test_sales_history_keeps_legacy_sales_when_events_lack_reference(self):
+        from apps.finance.models import FinancialCategory
+        category = FinancialCategory.objects.create(organization=self.org, name='Venda de Animais', category_type='revenue')
+        legacy = Transaction.objects.create(organization=self.org, animal_batch=self.batch,
+            category=category, description='Venda antiga', amount=Decimal('800'), due_date=date(2026, 1, 2),
+            reference=f'SALE-BATCH-{self.batch.pk}', status='paid')
+        HistoricoEvento.objects.create(farm=self.batch.farm, lote=self.batch, tipo_evento='Venda de Animais',
+            descricao='Venda sem referência', data_evento=date(2026, 1, 3),
+            metadata={'batch_code': '007', 'quantity': 1, 'weight_kg': '100', 'amount': '900'})
+        response = self.client.get(reverse('animalbatch-sales'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+        self.assertIn(str(legacy.pk), [item['id'] for item in response.data])

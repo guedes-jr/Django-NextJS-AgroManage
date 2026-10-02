@@ -1255,13 +1255,17 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         rows = [dict(event.metadata, id=str(event.pk), date=str(event.data_evento)) for event in events]
         # Keep sales recorded before the detailed sale workflow visible.
         from apps.finance.models import Transaction
+        from django.db.models.fields.json import KeyTextTransform
+        recorded_references = HistoricoEvento.objects.filter(
+            farm__organization=request.user.organization, tipo_evento='Venda de Animais',
+        ).annotate(sale_reference=KeyTextTransform('transaction_reference', 'metadata')).filter(
+            sale_reference__isnull=False,
+        ).values_list('sale_reference', flat=True)
         legacy = Transaction.objects.filter(
             organization=request.user.organization,
             animal_batch__in=self.get_queryset().filter(species__code='suinos'),
             reference__startswith='SALE-BATCH-',
-        ).exclude(reference__in=HistoricoEvento.objects.filter(
-            farm__organization=request.user.organization, tipo_evento='Venda de Animais',
-        ).values_list('metadata__transaction_reference', flat=True)).select_related('animal_batch').order_by('-due_date')[:100]
+        ).exclude(reference__in=recorded_references).select_related('animal_batch').order_by('-due_date')[:100]
         rows.extend({
             'id': str(item.pk), 'date': str(item.due_date),
             'batch_code': item.animal_batch.batch_code, 'quantity': item.animal_batch.quantity,
