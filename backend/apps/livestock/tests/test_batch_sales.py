@@ -148,3 +148,41 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(Decimal(detail['sale_summary']['total_weight_kg']), Decimal('1000'))
         self.assertEqual(Transaction.objects.filter(animal_batch=self.batch).count(), 2)
         self.assertEqual(self.batch.phase_histories.get().exit_date, date(2026, 10, 1))
+
+    def test_financial_details_list_actual_batch_costs_and_hide_foreign_lots(self):
+        from apps.finance.models import FinancialCategory
+        from apps.inventory.models import ConsumoRacao, ItemEstoque
+        category = FinancialCategory.objects.create(organization=self.org, name='Compra de Animais', category_type='expense')
+        Transaction.objects.create(organization=self.org, animal_batch=self.batch,
+            category=category, description='Compra do lote', amount=Decimal('1000'), due_date=date(2026, 1, 1), status='paid')
+        Transaction.objects.create(organization=self.org, animal_batch=self.batch,
+            category=category, description='Cancelado', amount=Decimal('9000'), due_date=date(2026, 1, 1), status='cancelled')
+        feed = ItemEstoque.objects.create(organization=self.org, nome='Ração', categoria='racao', unidade_medida='kg')
+        ConsumoRacao.objects.create(organization=self.org, farm=self.batch.farm, lote_animal=self.batch,
+            item_estoque=feed, data_inicio=date(2026, 1, 2), data_fim=date(2026, 1, 3), quantidade=Decimal('200'), custo_total=Decimal('354'))
+        url = reverse('animalbatch-financial-details', args=[self.batch.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Decimal(response.data['total']), Decimal('1354'))
+        self.assertEqual(response.data['totals']['Ração'], '354.00')
+        self.assertEqual(len(response.data['entries']), 2)
+        other = Organization.objects.create(name='Outra custos', slug='other-costs')
+        user = get_user_model().objects.create_user(email='other-costs@example.com', password='test-password', organization=other)
+        self.client.force_authenticate(user)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_financial_details_preserve_source_costs_and_missing_costs(self):
+        from apps.livestock.models import VaccinationRecord
+        source = AnimalBatch.objects.create(farm=self.batch.farm, species=self.batch.species,
+            batch_code='ORIGEM', quantity=120, entry_date=date(2026, 1, 1), status='finished')
+        self.batch.source_batches.add(source)
+        VaccinationRecord.objects.create(farm=self.batch.farm, species=self.batch.species,
+            batch=source, vaccine_name='Vacina origem', application_date=date(2026, 1, 2), inventory_cost_snapshot=Decimal('12'))
+        VaccinationRecord.objects.create(farm=self.batch.farm, species=self.batch.species,
+            batch=self.batch, vaccine_name='Vacina sem custo', application_date=date(2026, 1, 3))
+        response = self.client.get(reverse('animalbatch-financial-details', args=[self.batch.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Decimal(response.data['total']), Decimal('12'))
+        self.assertEqual(response.data['missing_cost_count'], 1)
+        self.assertEqual(len(response.data['entries']), 2)
+        self.assertEqual(Decimal(response.data['cost_per_animal']), Decimal('0.1'))

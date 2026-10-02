@@ -405,11 +405,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   const feedData = feedRows.map((e: any) => ({
     tipo: e.title,
     consumoTotal: e.total_kg ?? null,
-    custo: e.cost ?? null,
     consumoMedio: e.avg_per_animal ?? null,
   }));
   const totalConsumo = feedData.reduce((a, r) => a + (r.consumoTotal ?? 0), 0);
-  const totalCusto = feedData.reduce((a, r) => a + (r.custo ?? 0), 0);
 
   // Conversão Alimentar — somente quando há ração E peso reais
   const conversaoAlimentar: number | null = (() => {
@@ -447,25 +445,6 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   const transferRows = history.filter((e: any) => e.type === "transfer").slice(0, 10);
   const hasTransfer = transferRows.length > 0;
   const totalTransferido = transferRows.reduce((a: number, t: any) => a + (Number(t.qty ?? t.quantity) || 0), 0);
-
-  // Financeiro — sem valores fictícios
-  const custoRacao: number | null = hasFeed && totalCusto > 0 ? totalCusto : null;
-  const custoMedicamentos: number | null = animal?.medication_cost ?? null;
-  const custoOperacional: number | null = animal?.operational_cost ?? null;
-  const hasFinancial = custoRacao != null || custoMedicamentos != null || custoOperacional != null;
-  const custoTotal: number | null = hasFinancial
-    ? (custoRacao ?? 0) + (custoMedicamentos ?? 0) + (custoOperacional ?? 0)
-    : null;
-  const custoPorAnimal: number | null =
-    custoTotal != null && qtdAtual != null && qtdAtual > 0 ? custoTotal / qtdAtual : null;
-  const pesoTotalProduzido: number | null =
-    pesoTotalLote != null && pesoMedioNasc != null && qtdAtual != null
-      ? pesoTotalLote - pesoMedioNasc * qtdAtual
-      : null;
-  const custoPorKg: number | null =
-    custoTotal != null && pesoTotalProduzido != null && pesoTotalProduzido > 0
-      ? custoTotal / pesoTotalProduzido
-      : null;
 
   // Desempenho Geral — somente quando há indicadores reais
   const hasEnoughPerformanceData = gpd != null || conversaoAlimentar != null || mortalidadePct != null;
@@ -1025,7 +1004,6 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     <tr>
                       <Th style={{ textAlign: "left", paddingLeft: 6 }}>Tipo de Ração</Th>
                       <Th>Consumo<br />Total (Kg)</Th>
-                      <Th>Custo<br />(R$)</Th>
                       <Th>Consumo<br />Médio/Animal</Th>
                     </tr>
                   </thead>
@@ -1036,20 +1014,18 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                           <TR key={i} even={i % 2 === 1}>
                             <Td style={{ textAlign: "left", paddingLeft: 6 }}>{row.tipo}</Td>
                             <Td>{row.consumoTotal != null ? fmt(row.consumoTotal) : "-"}</Td>
-                            <Td>{row.custo != null ? fmt(row.custo) : "-"}</Td>
                             <Td>{row.consumoMedio != null ? fmt(row.consumoMedio) : "-"}</Td>
                           </TR>
                         ))}
                         <tr style={{ background: GREEN_LIGHT }}>
                           <Td bold style={{ textAlign: "left", paddingLeft: 6 }}>TOTAL</Td>
                           <Td bold>{fmt(totalConsumo)}</Td>
-                          <Td bold>{totalCusto > 0 ? fmt(totalCusto) : "-"}</Td>
                           <Td bold>{qtdAtual != null && qtdAtual > 0 ? fmt(totalConsumo / qtdAtual) : "-"}</Td>
                         </tr>
                       </>
                     ) : (
                       <tr>
-                        <td colSpan={4} style={{
+                        <td colSpan={3} style={{
                           textAlign: "center",
                           padding: "10px 6px",
                           color: "#aaa",
@@ -1154,11 +1130,11 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               </div>
             </div>
 
-            {/* ══════════ SECTIONS 5, 6 ══════════ */}
-            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `2px solid ${GREEN_DARK}` }}>
+            {/* ══════════ SECTION 5 ══════════ */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", borderTop: `2px solid ${GREEN_DARK}` }}>
 
               {/* Section 5 — Transferências */}
-              <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
+              <div>
                 <SectionHeader number={5} title="TRANSFERÊNCIAS" />
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -1211,33 +1187,14 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 )}
               </div>
 
-              {/* Section 6 — Análise Financeira */}
-              <div>
-                <SectionHeader number={6} title="ANÁLISE FINANCEIRA" />
-                <div style={{ padding: "5px 10px" }}>
-                  <FinRow label="Custo Total com Ração:" value={custoRacao != null ? `R$ ${fmt(custoRacao)}` : "-"} />
-                  <FinRow label="Custo com Medicamentos:" value={custoMedicamentos != null ? `R$ ${fmt(custoMedicamentos)}` : "-"} />
-                  <FinRow label="Custo Operacional:" value={custoOperacional != null ? `R$ ${fmt(custoOperacional)}` : "-"} />
-                  <div style={{ borderTop: `1.5px solid ${GREEN_DARK}`, marginTop: 5, paddingTop: 5 }}>
-                    <FinRow label="CUSTO TOTAL DO LOTE:" value={custoTotal != null ? `R$ ${fmt(custoTotal)}` : "-"} bold />
-                    <FinRow label="Custo por Animal:" value={custoPorAnimal != null ? `R$ ${fmt(custoPorAnimal)}` : "-"} />
-                    <FinRow label="Custo por Kg Produzido:" value={custoPorKg != null ? `R$ ${fmt(custoPorKg)}` : "-"} />
-                  </div>
-                  {!hasFinancial && (
-                    <div style={{ textAlign: "center", color: "#aaa", fontSize: "0.6rem", fontStyle: "italic", paddingTop: 4 }}>
-                      Sem lançamentos financeiros registrados.
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
 
-            {/* ══════════ SECTIONS 7, 8 ══════════ */}
+            {/* ══════════ SECTIONS 6, 7 ══════════ */}
             <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", borderTop: `2px solid ${GREEN_DARK}` }}>
 
-              {/* Section 7 — Resumo dos Indicadores */}
+              {/* Section 6 — Resumo dos Indicadores */}
               <div style={{ borderRight: `1.5px solid ${GREEN_DARK}` }}>
-                <SectionHeader number={7} title="RESUMO DOS INDICADORES" />
+                <SectionHeader number={6} title="RESUMO DOS INDICADORES" />
                 <div style={{
                   display: "flex",
                   padding: "6px 4px",
@@ -1294,9 +1251,9 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 </div>
               </div>
 
-              {/* Section 8 — Observações */}
+              {/* Section 7 — Observações */}
               <div>
-                <SectionHeader number={8} title="OBSERVAÇÕES" />
+                <SectionHeader number={7} title="OBSERVAÇÕES" />
                 <div style={{ padding: "6px 10px", fontSize: "0.6rem", color: "#333", lineHeight: 1.5 }}>
                   {animal?.notes || animal?.observations || "Nenhuma observação registrada para este lote."}
                 </div>
@@ -1427,15 +1384,6 @@ function KpiIcon({ icon, label, value }: { icon: React.ReactNode; label: string;
       <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{icon}</span>
       <span style={{ color: "#555", flex: 1 }}>{label}</span>
       <span style={{ fontWeight: 700 }}>{value}</span>
-    </div>
-  );
-}
-
-function FinRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: "0.62rem" }}>
-      <span style={{ color: bold ? "#1a1a1a" : "#555", fontWeight: bold ? 800 : 400 }}>{label}</span>
-      <span style={{ fontWeight: bold ? 800 : 600, color: bold ? "#1b5e20" : "#1a1a1a" }}>{value}</span>
     </div>
   );
 }

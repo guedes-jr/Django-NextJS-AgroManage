@@ -93,3 +93,12 @@ Batch detail exposes this summary and phase history uses its preserved entry
 metrics. Batches with sales cannot be deleted through the batch endpoint; sold
 batches remain in the inventory report and their sheets open from the general
 batch report. Prior sales without a closure event retain their existing history.
+
+Printed batch sheets contain operational data only: no feed prices or financial
+analysis. The general batch report opens a separate cost detail via
+`GET /livestock/batches/{id}/financial-details/`. This tenant-scoped endpoint
+lists recorded feed costs, vaccination cost snapshots, clinical treatment costs,
+non-cancelled batch expenses and applications without stored costs, including
+source batches once. It returns category totals, total recorded cost, per-animal
+and per-kg-of-total-weight costs, and a count of missing costs. Missing costs are
+not imputed and are excluded from the total. This does not change permissions.

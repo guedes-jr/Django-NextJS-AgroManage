@@ -1241,6 +1241,11 @@ def build_animal_history(animal):
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalBatchSerializer
 
+    @action(detail=True, methods=['get'], url_path='financial-details')
+    def financial_details(self, request, pk=None):
+        from .services import batch_financial_details
+        return Response(batch_financial_details(self.get_object()))
+
     def perform_destroy(self, instance):
         if instance.status == AnimalBatch.Status.SOLD or instance.historicos.filter(tipo_evento='Venda de Animais').exists():
             raise serializers.ValidationError({'detail': 'Lotes com vendas devem permanecer disponíveis no relatório geral.'})

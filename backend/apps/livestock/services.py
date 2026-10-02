@@ -403,3 +403,45 @@ def register_batch_sale(batch, data):
         descricao=revenue.description, data_evento=data['date'], metadata=metadata,
     )
     return metadata
+
+
+def batch_financial_details(batch):
+    """Recorded batch costs, including source lots, without imputing missing prices."""
+    from apps.finance.models import Transaction
+    from .models import ClinicalRecord, LitterMedication, VaccinationRecord
+    from django.db.models import Q
+    batch_ids = {batch.pk}
+    frontier = batch_ids
+    while frontier:
+        sources = set(AnimalBatch.objects.filter(pk__in=frontier).values_list('source_batches__pk', flat=True)) - {None} - batch_ids
+        batch_ids.update(sources)
+        frontier = sources
+    entries = []
+    def add(key, group, description, date, amount, quantity=None, unit=None):
+        entries.append(dict(id=key, category=group, description=description, date=str(date),
+            amount=str(amount) if amount is not None else None, quantity=str(quantity) if quantity is not None else None, unit=unit))
+    from apps.inventory.models import ConsumoRacao
+    for item in ConsumoRacao.objects.filter(lote_animal_id__in=batch_ids, organization=batch.farm.organization).select_related('item_estoque'):
+        add(f'feed-{item.pk}', 'Ração', item.item_estoque.nome, item.data_inicio, item.custo_total, item.quantidade, 'kg')
+    for item in VaccinationRecord.objects.filter(batch_id__in=batch_ids, farm__organization=batch.farm.organization):
+        add(f'vaccine-{item.pk}', 'Vacinas', item.vaccine_name, item.application_date, item.inventory_cost_snapshot)
+    for item in ClinicalRecord.objects.filter(batch_id__in=batch_ids, farm__organization=batch.farm.organization):
+        add(f'clinical-{item.pk}', 'Tratamentos', item.clinical_notes or 'Tratamento clínico', item.record_date, item.treatment_cost)
+    for item in LitterMedication.objects.filter(Q(batch_id__in=batch_ids) | Q(batch__isnull=True, birth__batch_id__in=batch_ids), birth__female__farm__organization=batch.farm.organization):
+        add(f'medication-{item.pk}', 'Medicamentos / vacinas da leitegada', item.medicamento, item.data_aplicacao, None, item.inventory_quantity)
+    for item in Transaction.objects.filter(animal_batch_id__in=batch_ids, organization=batch.farm.organization,
+        category__category_type='expense').exclude(status='cancelled').select_related('category'):
+        add(f'transaction-{item.pk}', item.category.name, item.description, item.due_date, item.amount)
+    totals = {}
+    for item in entries:
+        if item['amount'] is not None:
+            totals[item['category']] = totals.get(item['category'], Decimal('0')) + Decimal(item['amount'])
+    total = sum(totals.values(), Decimal('0'))
+    summary = batch_sale_summary(batch)
+    quantity = summary['quantity'] if summary else batch.quantity
+    weight = Decimal(summary['total_weight_kg']) if summary else (batch.avg_weight_kg * quantity if batch.avg_weight_kg else None)
+    return dict(batch_code=batch.batch_code, entries=sorted(entries, key=lambda item: item['date'], reverse=True),
+        totals={key: str(value) for key, value in totals.items()}, total=str(total),
+        cost_per_animal=str(total / quantity) if quantity else None,
+        cost_per_kg=str(total / weight) if weight else None,
+        missing_cost_count=sum(item['amount'] is None for item in entries))
