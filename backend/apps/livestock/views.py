@@ -1241,6 +1241,11 @@ def build_animal_history(animal):
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     serializer_class = AnimalBatchSerializer
 
+    def perform_destroy(self, instance):
+        if instance.status == AnimalBatch.Status.SOLD or instance.historicos.filter(tipo_evento='Venda de Animais').exists():
+            raise serializers.ValidationError({'detail': 'Lotes com vendas devem permanecer disponíveis no relatório geral.'})
+        super().perform_destroy(instance)
+
     @action(detail=False, methods=['get'], url_path='sales')
     def sales(self, request):
         events = HistoricoEvento.objects.filter(
@@ -1310,7 +1315,11 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
-            queryset = AnimalBatch.objects.filter(farm__organization=user.organization)
+            queryset = AnimalBatch.objects.filter(farm__organization=user.organization).prefetch_related(
+                Prefetch('historicos', queryset=HistoricoEvento.objects.filter(
+                    tipo_evento='Fechamento de Venda do Lote',
+                ).order_by('-created_at'), to_attr='sale_closures')
+            )
             include_maternity = self.request.query_params.get('include_maternity') == 'true'
             if not include_maternity:
                 queryset = queryset.exclude(
@@ -1570,6 +1579,8 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
             # Fases: o registro aberto preserva o peso e a quantidade de entrada.
             # Não duplicar a fase atual com um snapshot do peso já atualizado.
+            from .services import batch_sale_summary
+            sale_summary = batch_sale_summary(b)
             phases = list(b.phase_histories.all().order_by('entry_date', 'created_at'))
             entry_event = b.historicos.filter(tipo_evento="Entrada de Lote").order_by("data_evento", "created_at").first()
             entry_metadata = (entry_event.metadata or {}) if entry_event else {}
@@ -1585,13 +1596,18 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     previous.quantity if previous else
                     entry_metadata.get("quantidade")
                 )
+                final_sale = sale_summary if sale_summary and sale_summary['phase'] == ph.phase and sale_summary['exit_date'] == str(ph.exit_date) else None
+                if final_sale:
+                    entry_weight = final_sale['entry_weight_kg']
+                    entry_quantity = final_sale['entry_quantity']
                 history_list.append({
+                    'sale_summary': final_sale,
                     'type': 'phase',
                     'batch_id': str(b.id),
                     'batch_code': b.batch_code,
                     'phase': ph.phase,
                     'quantity': ph.quantity,
-                    'avg_weight_kg': float(ph.avg_weight_kg) if ph.avg_weight_kg is not None else None,
+                    'avg_weight_kg': float(final_sale['avg_weight_kg']) if final_sale else float(ph.avg_weight_kg) if ph.avg_weight_kg is not None else None,
                     'entry_weight_kg': float(entry_weight) if entry_weight is not None else None,
                     'entry_quantity': entry_quantity,
                     'entry_date': ph.entry_date.isoformat(),
@@ -1599,7 +1615,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     'is_current': not ph.exit_date and b.status == 'active' and ph.phase == b.phase,
                 })
 
-            if b.phase and not any(ph.phase == b.phase and not ph.exit_date for ph in phases):
+            if b.phase and not any(ph.phase == b.phase and (not ph.exit_date or b.status == 'sold') for ph in phases):
                 history_list.append({
                     'type': 'phase', 'batch_id': str(b.id), 'batch_code': b.batch_code,
                     'phase': b.phase, 'quantity': b.quantity,
@@ -1612,7 +1628,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
             # 4. Registros reais de consumo de ração vinculados ao lote
             for fr in b.feeding_records.all().order_by('date'):
-                qty = b.quantity if b.quantity and b.quantity > 0 else None
+                qty = sale_summary['quantity'] if sale_summary else b.quantity if b.quantity and b.quantity > 0 else None
                 history_list.append({
                     'type': 'feed',
                     'batch_id': str(b.id),
@@ -1629,7 +1645,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             # Incluí-los aqui mantém a ficha técnica alinhada ao histórico exibido
             # no módulo de alimentação.
             for consumption in b.consumos.select_related('item_estoque').all().order_by('data_inicio'):
-                qty = b.quantity if b.quantity and b.quantity > 0 else None
+                qty = sale_summary['quantity'] if sale_summary else b.quantity if b.quantity and b.quantity > 0 else None
                 total_kg = float(consumption.quantidade)
                 history_list.append({
                     'type': 'feed',
@@ -1655,6 +1671,9 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     'entry_date': wr.weighing_date.isoformat() if wr.weighing_date else None,
                     'notes': wr.notes,
                 })
+
+            for event in b.historicos.filter(tipo_evento='Venda de Animais').order_by('data_evento'):
+                history_list.append(dict(event.metadata, type='sale', batch_id=str(b.id), date=str(event.data_evento)))
 
             # 6. Mortalidades registradas diretamente no lote.
             # A ficha técnica espera eventos `death` para preencher a seção de

@@ -229,6 +229,11 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             for event in death_events
         ) + (birth.mortality if birth else 0)
 
+        from .services import batch_sale_summary
+        ret['sale_summary'] = batch_sale_summary(instance)
+        if ret['sale_summary'] and ret['age_days'] is not None and instance.exit_date:
+            ret['age_days'] = max(1, (instance.exit_date - parsed_birth_date).days + 1)
+
         return ret
 
     def validate_entry_date(self, value):

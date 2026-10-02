@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from apps.farms.models import Farm
 from apps.finance.models import Transaction
-from apps.livestock.models import AnimalBatch, HistoricoEvento, Species
+from apps.livestock.models import AnimalBatch, BatchPhaseHistory, FeedingRecord, HistoricoEvento, Species
 from apps.organizations.models import Organization
 
 
@@ -62,3 +62,54 @@ class BatchSalesTests(APITestCase):
         for field, value in [('weight_kg', '0'), ('price_per_kg', '-1'), ('date', '2025-01-01')]:
             data = dict(self.data, **{field: value})
             self.assertEqual(self.client.post(self.url, data, format='json').status_code, 400)
+
+    def test_partial_sales_keep_phase_open_and_final_sale_freezes_aggregated_sheet(self):
+        phase = BatchPhaseHistory.objects.create(batch=self.batch, phase='engorda', quantity=120,
+            avg_weight_kg=Decimal('60'), entry_date=date(2026, 1, 1))
+        FeedingRecord.objects.create(batch=self.batch, farm=self.batch.farm,
+            date=date(2026, 5, 1), quantity_kg=Decimal('5600'), feed_type='Ração')
+        self.assertEqual(self.client.post(self.url, self.data, format='json').status_code, 201)
+        phase.refresh_from_db()
+        self.assertIsNone(phase.exit_date)
+        self.assertEqual(phase.avg_weight_kg, Decimal('60'))
+        self.assertFalse(self.batch.historicos.filter(tipo_evento='Fechamento de Venda do Lote').exists())
+        data = dict(self.data, mode='whole', weight_kg='8400', date='2026-10-02')
+        self.assertEqual(self.client.post(self.url, data, format='json').status_code, 201)
+        detail = self.client.get(reverse('animalbatch-detail', args=[self.batch.pk]))
+        summary = detail.data['sale_summary']
+        self.assertEqual(summary['quantity'], 120)
+        self.assertEqual(Decimal(summary['total_weight_kg']), Decimal('10000'))
+        self.assertEqual(Decimal(summary['amount']), Decimal('85000'))
+        self.assertAlmostEqual(float(summary['avg_weight_kg']), 10000 / 120)
+        self.assertAlmostEqual(float(summary['feed_conversion']), 2)
+        self.assertAlmostEqual(float(summary['daily_weight_gain']), (10000 / 120 - 60) / 274)
+        phase.refresh_from_db()
+        self.assertEqual(phase.exit_date, date(2026, 10, 2))
+        self.assertEqual(phase.quantity, 120)
+        rows = self.client.get(reverse('animalbatch-history', args=[self.batch.pk])).data
+        phase_rows = [row for row in rows if row['type'] == 'phase' and row['phase'] == 'engorda']
+        self.assertEqual(len(phase_rows), 1)
+        self.assertEqual(phase_rows[0]['entry_quantity'], 120)
+        self.assertEqual(phase_rows[0]['entry_weight_kg'], 60)
+        self.assertFalse(phase_rows[0]['is_current'])
+        self.assertEqual(self.client.delete(reverse('animalbatch-detail', args=[self.batch.pk])).status_code, 400)
+        from apps.reports.services import LivestockReportService
+        report = LivestockReportService.get_inventory(self.org, {'species': 'suinos'})
+        self.assertIn(str(self.batch.pk), [str(item['id']) for item in report['items']])
+
+    def test_whole_sale_without_partials_closes_phase_on_sale_date(self):
+        BatchPhaseHistory.objects.create(batch=self.batch, phase='engorda', quantity=120,
+            avg_weight_kg=Decimal('60'), entry_date=date(2026, 1, 1))
+        data = dict(self.data, mode='whole', weight_kg='12000')
+        self.assertEqual(self.client.post(self.url, data, format='json').status_code, 201)
+        detail = self.client.get(reverse('animalbatch-detail', args=[self.batch.pk])).data
+        self.assertEqual(detail['sale_summary']['exit_date'], '2026-10-01')
+        self.assertEqual(Decimal(detail['sale_summary']['avg_weight_kg']), Decimal('100'))
+
+    def test_final_sale_cannot_predate_partial_sale(self):
+        self.client.post(self.url, self.data, format='json')
+        data = dict(self.data, mode='whole', date='2026-09-30')
+        self.assertEqual(self.client.post(self.url, data, format='json').status_code, 400)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.status, 'active')
+        self.assertEqual(Transaction.objects.filter(animal_batch=self.batch).count(), 1)

@@ -309,6 +309,52 @@ def finalize_batch_current_phase(batch: AnimalBatch, exit_date: Optional[date] =
     )
 
 
+def batch_sale_summary(batch):
+    if hasattr(batch, 'sale_closures'):
+        return batch.sale_closures[0].metadata if batch.sale_closures else None
+    event = batch.historicos.filter(tipo_evento='Fechamento de Venda do Lote').order_by('-created_at').first()
+    return event.metadata if event else None
+
+
+def finalize_batch_sale(batch, data, quantity, amount):
+    from django.db.models import Sum
+    sales = list(batch.historicos.filter(tipo_evento='Venda de Animais'))
+    if any(event.data_evento > data['date'] for event in sales):
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({'date': 'O fechamento não pode ocorrer antes das vendas anteriores.'})
+    sold_quantity = quantity + sum(int(event.metadata['quantity']) for event in sales)
+    total_weight = data['weight_kg'] + sum((Decimal(event.metadata['weight_kg']) for event in sales), Decimal('0'))
+    total_amount = amount + sum((Decimal(event.metadata['amount']) for event in sales), Decimal('0'))
+    average = total_weight / sold_quantity
+    if total_amount > Decimal('9999999999.99') or average > Decimal('999999.99'):
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({'weight_kg': 'Os totais do lote excedem os limites permitidos.'})
+    phase = batch.phase_histories.filter(phase=batch.phase, exit_date__isnull=True).first()
+    entry_event = batch.historicos.filter(tipo_evento='Entrada de Lote').order_by('data_evento').first()
+    entry = entry_event.metadata if entry_event else {}
+    entry_weight = phase.avg_weight_kg if phase else entry.get('peso_medio_entrada')
+    entry_quantity = phase.quantity if phase else entry.get('quantidade')
+    start = phase.entry_date if phase else batch.entry_date
+    days = (data['date'] - start).days
+    gain = average - Decimal(str(entry_weight)) if entry_weight is not None else None
+    feed = (batch.feeding_records.filter(date__range=(start, data['date'])).aggregate(total=Sum('quantity_kg'))['total'] or Decimal('0'))
+    feed += (batch.consumos.filter(data_inicio__range=(start, data['date'])).aggregate(total=Sum('quantidade'))['total'] or Decimal('0'))
+    summary = {
+        'phase': batch.phase, 'quantity': sold_quantity, 'total_weight_kg': str(total_weight),
+        'avg_weight_kg': str(average), 'amount': str(total_amount),
+        'entry_quantity': entry_quantity, 'entry_weight_kg': str(entry_weight) if entry_weight is not None else None,
+        'entry_date': start.isoformat(), 'exit_date': data['date'].isoformat(),
+        'daily_weight_gain': str(gain / days) if gain is not None and days > 0 else None,
+        'feed_conversion': str(feed / (gain * sold_quantity)) if gain is not None and gain > 0 and feed > 0 else None,
+    }
+    consolidate_batch_phase_exit(batch, data['date'], exit_quantity=sold_quantity, exit_weight_kg=average)
+    HistoricoEvento.objects.create(farm=batch.farm, lote=batch, tipo_evento='Fechamento de Venda do Lote',
+        descricao=f'Venda finalizada: {sold_quantity} animais, {total_weight} kg.', data_evento=data['date'], metadata=summary)
+    batch.avg_weight_kg = average.quantize(Decimal('0.01'))
+    batch.sale_value = total_amount
+    return summary
+
+
 @transaction.atomic
 def register_batch_sale(batch, data):
     """Lock stock and record a full or partial sale and its revenue atomically."""
@@ -347,7 +393,7 @@ def register_batch_sale(batch, data):
     if data['mode'] == 'whole':
         batch.status = AnimalBatch.Status.SOLD
         batch.exit_date = data['date']
-        batch.sale_value = amount
+        finalize_batch_sale(batch, data, quantity, amount)
     else:
         batch.quantity -= quantity
     batch.save()

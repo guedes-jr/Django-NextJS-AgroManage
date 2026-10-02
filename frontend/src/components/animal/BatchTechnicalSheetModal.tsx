@@ -311,12 +311,13 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   if (!isOpen) return null;
 
   // ── Derived data — usa APENAS dados reais do histórico do lote ──
+  const saleSummary = animal?.sale_summary;
   const ageInDays = animal?.age_days != null
     ? Number(animal.age_days)
     : calcAge(animal?.birth_date, currentDate);
 
   // Quantidades — sem fallback fictício
-  const qtdAtual: number | null = animal?.quantity ?? null;
+  const qtdAtual: number | null = saleSummary?.quantity ?? animal?.quantity ?? null;
   const qtdInicial: number | null = animal?.initial_quantity ?? history.find((event: any) => event.type === "phase" && event.entry_quantity != null)?.entry_quantity ?? null;
 
   // Dados do parto (oriundos do Birth record, via serializer aprimorado)
@@ -338,12 +339,14 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
   // Pesos — prioriza a pesagem mais recente registrada para o lote.
   const pesoMedioAtual: number | null =
-    latestWeight?.weight_kg != null ? Number(latestWeight.weight_kg)
+    saleSummary?.avg_weight_kg != null ? Number(saleSummary.avg_weight_kg)
+    : latestWeight?.weight_kg != null ? Number(latestWeight.weight_kg)
     : animal?.current_weight_kg != null ? Number(animal.current_weight_kg)
     : animal?.avg_weight_kg != null ? Number(animal.avg_weight_kg)
     : null;
   const pesoTotalLote: number | null =
-    pesoMedioAtual != null && qtdAtual != null ? pesoMedioAtual * qtdAtual : null;
+    saleSummary?.total_weight_kg != null ? Number(saleSummary.total_weight_kg)
+    : pesoMedioAtual != null && qtdAtual != null ? pesoMedioAtual * qtdAtual : null;
   const pesoMedioNasc: number | null =
     animal?.birth_weight_kg != null ? Number(animal.birth_weight_kg) : null;
 
@@ -363,7 +366,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
     }
     return null;
   })();
-  const performanceEndDate: string | Date = latestWeight?.date || currentDate;
+  const performanceEndDate: string | Date = saleSummary?.exit_date || latestWeight?.date || currentDate;
   const performanceDays = performanceBaseline
     ? daysBetween(performanceBaseline.date, performanceEndDate)
     : null;
@@ -373,6 +376,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
   // GPD — usa o peso de entrada da fase/desmame e a pesagem mais recente.
   const gpd: number | null = (() => {
+    if (saleSummary) return saleSummary.daily_weight_gain != null ? Number(saleSummary.daily_weight_gain) : null;
     if (animal?.daily_weight_gain != null) return Number(animal.daily_weight_gain);
     if (performanceWeightGain != null && performanceDays != null && performanceDays > 0) {
       return performanceWeightGain / performanceDays;
@@ -409,6 +413,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
   // Conversão Alimentar — somente quando há ração E peso reais
   const conversaoAlimentar: number | null = (() => {
+    if (saleSummary) return saleSummary.feed_conversion != null ? Number(saleSummary.feed_conversion) : null;
     if (animal?.feed_conversion != null) return Number(animal.feed_conversion);
     if (hasFeed && performanceWeightGain != null && performanceWeightGain > 0 && qtdAtual != null && qtdAtual > 0) {
       const consumoMedioAnimal = totalConsumo / qtdAtual;
@@ -755,6 +760,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               // Cálculo de GPD para uma fase concluída usando pesos do history
               const calcFaseGpd = (phaseKey: string): number | null => {
                 const ph = getCompletedPhase(phaseKey);
+                if (ph?.sale_summary) return ph.sale_summary.daily_weight_gain != null ? Number(ph.sale_summary.daily_weight_gain) : null;
                 if (!ph || !ph.entry_date || !ph.exit_date) return null;
                 const diasFase = (new Date(ph.exit_date).getTime() - new Date(ph.entry_date).getTime()) / (1000 * 60 * 60 * 24);
                 if (diasFase <= 0 || ph.avg_weight_kg == null) return null;
@@ -813,6 +819,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               // Conversão alimentar de uma fase concluída
               const calcFaseConv = (phaseKey: string): string => {
                 const ph = getCompletedPhase(phaseKey);
+                if (ph?.sale_summary) return fmt(ph.sale_summary.feed_conversion);
                 if (!ph || !ph.entry_date || !ph.exit_date) return "-";
                 
                 // Filtrar os consumos de ração ocorridos no período desta fase
@@ -885,7 +892,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     qtdAtual: qtdSaida != null ? fmtInt(qtdSaida) : "-",
                     idade: calcIdadeFimFase(phaseKey),
                     pesoMedio: pesoSaida != null ? fmt(pesoSaida) : "-",
-                    pesoTotal: pesoSaida != null && qtdSaida != null ? fmt(pesoSaida * qtdSaida) : "-",
+                    pesoTotal: ph.sale_summary ? fmt(ph.sale_summary.total_weight_kg) : pesoSaida != null && qtdSaida != null ? fmt(pesoSaida * qtdSaida) : "-",
                     gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
                     conv: calcFaseConv(phaseKey),
                     mort: calcFaseMort(phaseKey),
@@ -893,6 +900,11 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 }
                 if (isCurrentPhase(phaseKey)) {
                   const currentRecord = phaseHistory.find((p: any) => p.phase === phaseKey && p.is_current);
+                  // Partial sales affect available stock, while the phase remains unconsolidated.
+                  const partialSoldQuantity = phaseKey === "engorda" ? history.filter(event =>
+                    event.type === "sale" && String(event.batch_id) === String(currentRecord?.batch_id || batchId)
+                  ).reduce((total, event) => total + Number(event.quantity || 0), 0) : 0;
+                  const phaseQuantity = qtdAtual != null ? qtdAtual + partialSoldQuantity : null;
                   const phaseEntryDate = currentRecord?.entry_date || animal?.entry_date;
                   const daysInPhase = phaseEntryDate
                     ? daysBetween(phaseEntryDate, performanceEndDate)
@@ -917,21 +929,21 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     e.type === "feed" && e.date && (!currentRecord?.batch_id || String(e.batch_id) === String(currentRecord.batch_id)) && new Date(e.date).getTime() >= new Date(phaseEntryDate).getTime()
                   ) : [];
                   const feedTotal = feedInPhase.reduce((sum: number, event: any) => sum + Number(event.total_kg || 0), 0);
-                  const conversion = ganhoPorAnimal != null && ganhoPorAnimal > 0 && qtdAtual && feedTotal > 0
-                    ? (feedTotal / qtdAtual) / ganhoPorAnimal
+                  const conversion = ganhoPorAnimal != null && ganhoPorAnimal > 0 && phaseQuantity && feedTotal > 0
+                    ? (feedTotal / phaseQuantity) / ganhoPorAnimal
                     : null;
                   const registeredDeaths = mortalityForPhase(currentRecord);
-                  const deaths = registeredDeaths ?? (qtdEntrada != null && qtdAtual != null
-                    ? Math.max(0, Number(qtdEntrada) - Number(qtdAtual))
+                  const deaths = registeredDeaths ?? (qtdEntrada != null && phaseQuantity != null
+                    ? Math.max(0, Number(qtdEntrada) - Number(phaseQuantity))
                     : null);
                   return {
                     fase: faseLabel,
                     status: "andamento",
                     qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada) : "-",
-                    qtdAtual: qtdAtual != null ? fmtInt(qtdAtual) : "-",
+                    qtdAtual: phaseQuantity != null ? fmtInt(phaseQuantity) : "-",
                     idade: ageInDays != null ? String(ageInDays) : "-",
                     pesoMedio: pesoAtual != null ? fmt(pesoAtual) : "-",
-                    pesoTotal: pesoAtual != null && qtdAtual != null ? fmt(pesoAtual * qtdAtual) : "-",
+                    pesoTotal: pesoAtual != null && phaseQuantity != null ? fmt(pesoAtual * phaseQuantity) : "-",
                     gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
                     conv: conversion != null ? fmt(conversion) : "-",
                     mort: deaths != null ? String(deaths) : "-",

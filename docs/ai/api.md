@@ -82,3 +82,14 @@ atomically. Whole sales mark the batch sold; partial sales retain active status
 and decrease its quantity. Total revenue is weight × price, rounded to cents.
 `GET /livestock/batches/sales/` returns the latest 100 pig sales in the current
 organization, including historical revenue entries whose weight/price are unknown.
+
+On the final whole sale, the current phase closes on the sale date. A persistent
+`Fechamento de Venda do Lote` event freezes `sale_summary`: combined sold quantity,
+total sale weight, weighted average weight (total kg / animals sold), revenue,
+phase entry baselines, GPD ((final average − entry average) / phase days) and
+feed conversion (phase feed kg / total live-weight gain). Missing input records
+produce null indicators. Partial sales do not close or overwrite phase metrics.
+Batch detail exposes this summary and phase history uses its preserved entry
+metrics. Batches with sales cannot be deleted through the batch endpoint; sold
+batches remain in the inventory report and their sheets open from the general
+batch report. Prior sales without a closure event retain their existing history.
