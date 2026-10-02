@@ -102,3 +102,21 @@ non-cancelled batch expenses and applications without stored costs, including
 source batches once. It returns category totals, total recorded cost, per-animal
 and per-kg-of-total-weight costs, and a count of missing costs. Missing costs are
 not imputed and are excluded from the total. This does not change permissions.
+
+## Swine productive indicators
+
+`GET /api/v1/reports/livestock/productivity/?year=2026&farm=<uuid>` returns
+`phases` (`creche`, `crescimento`, `engorda`), `feed_conversion`,
+`profit_per_matrix`, current `distribution`, tenant-owned `farms`, and
+`missing_reasons`. The optional farm must belong to the authenticated organization.
+A missing measurement is `null`, while recorded/countable zero remains `0`.
+Phase attribution uses phase history and feed destination, rather than category.
+Daily gain uses weights from the same phase and selected year. Feed conversion
+uses only batch-linked feed recorded between those weight measurements; unmatched
+feed still contributes to consumption totals. Phase entry/exit snapshots and sale
+closures preserve entry quantities and sold quantities even after a zero balance.
+Profit uses paid swine expenses and revenue in the selected year, plus recorded
+feed, vaccination and semen costs, plus animal purchases missing a financial entry. A farm filter excludes financial entries without a
+farm/batch link. Crushing mortality uses the recorded death cause and stays null when deaths lack classification. DNP and indicator targets are not inferred.
+The report UI counts births and weanings by their own dates, includes records from
+inactive mothers, and uses only known outcomes for pregnancy/farrowing rates.

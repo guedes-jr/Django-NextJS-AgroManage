@@ -1181,3 +1181,25 @@ def livestock_inventory_report(request):
 
     data = LivestockReportService.get_inventory(org, filters)
     return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def livestock_productivity_report(request):
+    from uuid import UUID
+    from .productivity import swine_phase_indicators
+    organization = getattr(request.user, "organization", None)
+    if not organization:
+        return Response({"detail": "Organização não encontrada."}, status=404)
+    try:
+        year = int(request.query_params.get("year", timezone.localdate().year))
+        if not 1900 <= year <= timezone.localdate().year:
+            raise ValueError
+        farm_id = request.query_params.get("farm") or None
+        if farm_id:
+            UUID(farm_id)
+    except (ValueError, TypeError):
+        return Response({"detail": "Informe um ano e uma fazenda válidos."}, status=400)
+    if farm_id and not Farm.objects.filter(pk=farm_id, organization=organization).exists():
+        return Response({"detail": "Fazenda não encontrada."}, status=404)
+    return Response(swine_phase_indicators(organization, year, farm_id))
