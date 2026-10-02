@@ -16,7 +16,6 @@ import {
   getEngordas,
   createAnimal,
   createMating,
-  updateAnimalBatch,
   updateAnimal,
   updateLitter,
   batchWean,
@@ -564,7 +563,6 @@ function ReproducaoPageContent() {
         rowKey: "lote",
         batchActions: [
           { label: "Registrar Venda", icon: "💰", variant: "primary", onClick: () => router.push("/home/rebanho/suinos/vendas") },
-          { label: "Encerrar Lotes", icon: "🔒", variant: "danger", onClick: async (rows: any[]) => { await Promise.all(rows.map(r => updateAnimalBatch(r.id as number, { status: "finished" }))); refetchTabs(["engorda", "dashboard"], false, true); showToast(`${rows.length} lotes encerrados.`, "success"); } },
         ],
         kpis: [
           { label: "Total Lotes", value: eng.total ?? 0, icon: "📦", color: "oklch(0.94 0.04 230)", trend: "neutral" },
@@ -577,8 +575,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: "Registrar Venda", icon: "💰", color: "oklch(0.55 0.16 145)", desc: "Ir para vendas de animais", type: 'sale_redirect' },
           { label: "Registrar Mortalidade", icon: "⚠️", color: "oklch(0.58 0.2 25)", desc: "Dar baixa no lote", type: 'batch_mortality' },
-          { label: "Encerrar Lote", icon: "🔒", color: "oklch(0.6 0.22 27)", desc: "Finalizar lote" },
-          { label: "Resumo Financeiro", icon: "📊", color: "oklch(0.78 0.15 85)", desc: "Ver resultados" },
+          { label: "Resumo Financeiro", icon: "📊", color: "oklch(0.78 0.15 85)", desc: "Ver relatórios dos lotes", onClick: () => router.push("/home/relatorios/rebanho?tab=batches") },
         ],
         tabAlerts: tab.engorda?.alerts || [],
         tabAiSuggestions: tab.engorda?.aiSuggestions || [],
