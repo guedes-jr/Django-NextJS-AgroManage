@@ -366,8 +366,9 @@ def register_batch_sale(batch, data):
     if batch.status != AnimalBatch.Status.ACTIVE or batch.quantity < 1:
         raise ValidationError({'batch': 'Selecione um lote ativo com animais disponíveis.'})
     quantity = batch.quantity if data['mode'] == 'whole' else data['quantity']
-    if quantity > batch.quantity or (data['mode'] == 'partial' and quantity == batch.quantity):
-        raise ValidationError({'quantity': 'A venda parcial deve ser menor que a quantidade disponível.'})
+    if quantity > batch.quantity:
+        raise ValidationError({'quantity': 'A quantidade vendida não pode exceder o saldo disponível.'})
+    closes_batch = quantity == batch.quantity
     amount = (data['weight_kg'] * data['price_per_kg']).quantize(Decimal('0.01'))
     if amount <= 0 or amount > Decimal('9999999999.99'):
         raise ValidationError({'price_per_kg': 'Valor total da venda fora do limite permitido.'})
@@ -375,13 +376,13 @@ def register_batch_sale(batch, data):
         'batch_code': batch.batch_code, 'quantity': quantity,
         'weight_kg': str(data['weight_kg']), 'price_per_kg': str(data['price_per_kg']),
         'buyer': data['buyer'], 'responsible': data.get('responsible', ''),
-        'notes': data.get('notes', ''), 'amount': str(amount), 'mode': data['mode'],
+        'notes': data.get('notes', ''), 'amount': str(amount), 'mode': 'whole' if closes_batch else 'partial',
     }
     category, _ = FinancialCategory.objects.get_or_create(
         organization=batch.farm.organization, name='Venda de Animais', category_type='revenue',
     )
     # Create revenue before saving sold status so the legacy signal cannot duplicate it.
-    reference = f'SALE-BATCH-{batch.pk}' if data['mode'] == 'whole' else f'SALE-BATCH-{batch.pk}-{uuid.uuid4()}'
+    reference = f'SALE-BATCH-{batch.pk}' if closes_batch else f'SALE-BATCH-{batch.pk}-{uuid.uuid4()}'
     revenue = Transaction.objects.create(
         organization=batch.farm.organization, farm=batch.farm, animal_batch=batch,
         species=batch.species, category=category,
@@ -390,7 +391,7 @@ def register_batch_sale(batch, data):
         status='paid', reference=reference, notes=data.get('notes', ''),
     )
     metadata['transaction_reference'] = revenue.reference
-    if data['mode'] == 'whole':
+    if closes_batch:
         batch.status = AnimalBatch.Status.SOLD
         batch.exit_date = data['date']
         finalize_batch_sale(batch, data, quantity, amount)

@@ -70,7 +70,7 @@ export default function SalesPage() {
   const weight = Number(form.weight);
   const price = Number(form.price);
   const amount = Math.round(weight * price * 100) / 100;
-  const valid = !!chosen && Number.isInteger(quantity) && quantity > 0 && quantity <= chosen.quantity && (form.mode === "whole" || quantity < chosen.quantity) && weight > 0 && price > 0 && Number.isFinite(amount);
+  const valid = !!chosen && Number.isInteger(quantity) && quantity > 0 && quantity <= chosen.quantity && weight > 0 && price > 0 && Number.isFinite(amount);
   const update = (key: keyof typeof form, value: string) => setForm(current => ({ ...current, [key]: value }));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -97,7 +97,7 @@ export default function SalesPage() {
           <div className={styles.grid}>
             <div className={`${styles.field} ${styles.wide}`}><label htmlFor="batch">Lote</label><select id="batch" required value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value, quantity: "", weight: "", price: "" })}><option value="">{loading ? "Carregando lotes…" : "Selecione um lote"}</option>{batches.map(x => <option key={x.id} value={x.id}>{x.batch_code} — {x.quantity} animais</option>)}</select>{!loading && !batchError && !batches.length && <small>Nenhum lote ativo disponível.</small>}</div>
             <fieldset className={`${saleStyles.choices} ${styles.wide}`}><legend>O que será vendido?</legend>{[["whole", "Lote inteiro"], ["partial", "Parte do lote"]].map(([value, label]) => <label key={value} className={form.mode === value ? saleStyles.selected : ""}><input type="radio" name="sale-mode" checked={form.mode === value} onChange={() => setForm({ ...form, mode: value, quantity: "" })} />{label}</label>)}</fieldset>
-            <div className={styles.field}><label htmlFor="quantity">Quantidade de animais</label><input id="quantity" type="number" required min="1" max={form.mode === "partial" ? (chosen?.quantity || 0) - 1 : chosen?.quantity} step="1" readOnly={form.mode === "whole"} value={form.mode === "whole" ? chosen?.quantity ?? "" : form.quantity} onChange={e => update("quantity", e.target.value)} /></div>
+            <div className={styles.field}><label htmlFor="quantity">Quantidade de animais</label><input id="quantity" type="number" required min="1" max={chosen?.quantity} step="1" readOnly={form.mode === "whole"} value={form.mode === "whole" ? chosen?.quantity ?? "" : form.quantity} onChange={e => update("quantity", e.target.value)} /></div>
             <div className={styles.field}><label htmlFor="weight">Peso total (kg)</label><input id="weight" type="number" required min="0.001" step="0.001" value={form.weight} placeholder="Informe o peso total" onChange={e => update("weight", e.target.value)} /></div>
             <div className={styles.field}><label htmlFor="price">Valor por kg (R$)</label><input id="price" type="number" required min="0.01" step="0.01" value={form.price} placeholder="0,00" onChange={e => update("price", e.target.value)} /></div>
             <div className={styles.field}><label htmlFor="total">Valor total da venda (R$)</label><output id="total" className={saleStyles.total}>{money.format(Number.isFinite(amount) ? amount : 0)}</output></div>

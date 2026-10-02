@@ -43,7 +43,7 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(len(history.data), 2)
 
     def test_invalid_partial_quantity_does_not_change_stock_or_finance(self):
-        for quantity in [0, 120, 121]:
+        for quantity in [0, 121]:
             self.data['quantity'] = quantity
             self.assertEqual(self.client.post(self.url, self.data, format='json').status_code, 400)
         self.batch.refresh_from_db()
@@ -127,3 +127,24 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 2)
         self.assertIn(str(legacy.pk), [item['id'] for item in response.data])
+
+    def test_selling_remaining_balance_in_partial_mode_finalizes_batch(self):
+        self.batch.quantity = 10
+        self.batch.save()
+        BatchPhaseHistory.objects.create(batch=self.batch, phase='engorda', quantity=10,
+            avg_weight_kg=Decimal('60'), entry_date=date(2026, 1, 1))
+        data = dict(self.data, quantity=5, weight_kg='500')
+        self.assertEqual(self.client.post(self.url, data, format='json').status_code, 201)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.quantity, 5)
+        self.assertEqual(self.batch.status, 'active')
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['mode'], 'whole')
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.status, 'sold')
+        detail = self.client.get(reverse('animalbatch-detail', args=[self.batch.pk])).data
+        self.assertEqual(detail['sale_summary']['quantity'], 10)
+        self.assertEqual(Decimal(detail['sale_summary']['total_weight_kg']), Decimal('1000'))
+        self.assertEqual(Transaction.objects.filter(animal_batch=self.batch).count(), 2)
+        self.assertEqual(self.batch.phase_histories.get().exit_date, date(2026, 10, 1))
