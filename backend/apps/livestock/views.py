@@ -28,6 +28,13 @@ def _operational_alert_key(species_code, kind, text, context=""):
     payload = f"{species_code}|{kind}|{text}|{context}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
+def _event_alert_metadata(species_code, kind, event_id, due_date):
+    return {
+        "due_date": due_date.isoformat(),
+        "alert_key": _operational_alert_key(species_code, kind, "", f"{event_id}|{due_date.isoformat()}"),
+    }
+
+
 def _heat_prediction_alerts(organization, species_code, horizon_days=45):
     """Build alerts for predicted heats that are overdue or approaching."""
     today = timezone.localdate()
@@ -64,6 +71,7 @@ def _heat_prediction_alerts(organization, species_code, horizon_days=45):
 
         if days < 0:
             alerts.append({
+                **_event_alert_metadata(species_code, "predicted-heat", prediction["heat_number"], heat_date),
                 "type": "danger",
                 "icon": "⚠️",
                 "text": f"{total} {subject_label} com {event} previsto em atraso ({formatted_date}).",
@@ -71,6 +79,7 @@ def _heat_prediction_alerts(organization, species_code, horizon_days=45):
             })
         elif days == 0:
             alerts.append({
+                **_event_alert_metadata(species_code, "predicted-heat", prediction["heat_number"], heat_date),
                 "type": "warning",
                 "icon": "🎯" if is_coverage else "🔴",
                 "text": f"{total} {subject_label} com {event} previsto para hoje.",
@@ -78,6 +87,7 @@ def _heat_prediction_alerts(organization, species_code, horizon_days=45):
             })
         else:
             alerts.append({
+                **_event_alert_metadata(species_code, "predicted-heat", prediction["heat_number"], heat_date),
                 "type": "warning" if is_coverage else "info",
                 "icon": "🎯" if is_coverage else "📅",
                 "text": f"{total} {subject_label} com {event} previsto para {formatted_date}.",
@@ -109,7 +119,7 @@ def _scheduled_reproductive_alerts(organization, species_code, include_birth_vac
         else:
             alert_type, time_label = "info", f"Em {days} dia{'s' if days != 1 else ''}"
             text = f"Diagnóstico de prenhez de {mating.female.identifier} previsto para {due_date.strftime('%d/%m/%Y')}."
-        alerts.append({"type": alert_type, "icon": "🔬", "text": text, "time": time_label})
+        alerts.append({"type": alert_type, "icon": "🔬", "text": text, "time": time_label, **_event_alert_metadata(species_code, "diagnosis", mating.id, due_date)})
 
     scheduled_heats = Litter.objects.filter(
         birth__female__farm__organization=organization,
@@ -139,9 +149,7 @@ def _scheduled_reproductive_alerts(organization, species_code, include_birth_vac
             "icon": "🔴",
             "text": text,
             "time": time_label,
-            "alert_key": _operational_alert_key(
-                species_code, "post-weaning-heat", text, str(litter.id)
-            ),
+            **_event_alert_metadata(species_code, "post-weaning-heat", litter.id, due_date),
         })
 
     vaccine_matings = Mating.objects.filter(
@@ -169,7 +177,7 @@ def _scheduled_reproductive_alerts(organization, species_code, include_birth_vac
             f"Vacina {mating.reproductive_vaccine_item.nome} de {mating.female.identifier} "
             f"{state} {due_date.strftime('%d/%m/%Y')}."
         )
-        alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label})
+        alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label, **_event_alert_metadata(species_code, "mating-vaccine", mating.id, due_date)})
 
     if include_birth_vaccines:
         alerts.extend(_scheduled_birth_vaccine_alerts(organization, species_code))
@@ -205,7 +213,7 @@ def _scheduled_birth_vaccine_alerts(organization, species_code):
         else:
             state = "agendada para"
         text = f"Vacina {birth.reproductive_vaccine_item.nome} de {birth.female.identifier} {state} {due_date.strftime('%d/%m/%Y')}."
-        alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label})
+        alerts.append({"type": alert_type, "icon": "💉", "text": text, "time": time_label, **_event_alert_metadata(species_code, "birth-vaccine", birth.id, due_date)})
 
     return alerts
 
@@ -245,9 +253,7 @@ def _piglet_iron_alerts(organization, species_code):
             "icon": "💉",
             "text": text,
             "time": time_label,
-            "alert_key": _operational_alert_key(
-                species_code, "piglet-iron", text, str(birth.id)
-            ),
+            **_event_alert_metadata(species_code, "piglet-iron", birth.id, due_date),
         })
     return alerts
 
@@ -279,7 +285,7 @@ def _expected_birth_alerts(organization, species_code):
             alert_type = "warning" if days <= 7 else "info"
             time_label = f"Em {days} dia{'s' if days != 1 else ''}"
             text = f"Parto da matriz {pregnancy.female.identifier} previsto para {formatted_date}."
-        alerts.append({"type": alert_type, "icon": "🐷", "text": text, "time": time_label})
+        alerts.append({"type": alert_type, "icon": "🐷", "text": text, "time": time_label, **_event_alert_metadata(species_code, "expected-birth", pregnancy.id, due_date)})
 
     return alerts
 
@@ -2904,6 +2910,8 @@ class ReproductionDashboardView(APIView):
         alerts.extend(_scheduled_reproductive_alerts(user.organization, species_code))
         alerts.extend(_expected_birth_alerts(user.organization, species_code))
         alerts.extend(_piglet_iron_alerts(user.organization, species_code))
+        alert_deadline = (timezone.localdate() + datetime.timedelta(days=3)).isoformat()
+        alerts = [alert for alert in alerts if alert.get("due_date") and alert["due_date"] <= alert_deadline]
         ai_suggestions = []
         
         # Check close births
@@ -2911,7 +2919,7 @@ class ReproductionDashboardView(APIView):
             female__farm__organization=user.organization, 
             female__species__code=species_code,
             status='ongoing',
-            expected_birth_date__lte=now.date() + datetime.timedelta(days=7)
+            expected_birth_date__lte=timezone.localdate() + datetime.timedelta(days=3)
         )
         if close_pregnancies.exists():
             text = "Prepare o setor de maternidade para os partos iminentes."
@@ -2929,14 +2937,6 @@ class ReproductionDashboardView(APIView):
         empty_matrizes = animals.filter(reproductive_status=Animal.ReproductiveStatus.VAZIA)
         if empty_matrizes.count() > 5:
              ai_suggestions.append({"text": f"Há {empty_matrizes.count()} matrizes vazias. Revise o manejo reprodutivo."})
-
-        if aguardando_cobertura > 0:
-            alerts.append({
-                "type": "info",
-                "icon": "🔄",
-                "text": f"{aguardando_cobertura} matriz{'es' if aguardando_cobertura > 1 else ''} aguardando cobertura.",
-                "time": "Hoje"
-            })
 
         for alert in alerts:
             alert.setdefault(

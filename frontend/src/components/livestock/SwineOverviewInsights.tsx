@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, BellRing, CalendarDays, CheckCircle2, ChevronRight, Loader2, Sparkles, Syringe } from "lucide-react";
 import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
+import useNotifications from "@/hooks/useNotifications";
 import styles from "./swine-overview-insights.module.css";
 
 type AlertItem = { alert_key?: string; text?: string; time?: string; type?: string };
@@ -14,6 +15,8 @@ type ReproductionOverview = {
 };
 
 export function SwineOverviewInsights() {
+  const { operationalAlerts, confirmOperationalAlert } = useNotifications();
+  const [error, setError] = useState("");
   const [data, setData] = useState<ReproductionOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -38,19 +41,26 @@ export function SwineOverviewInsights() {
     { text: "Revisar leitões e desmames programados", sector: "Maternidade" },
     { text: "Conferir lotes na creche", sector: "Creche" },
   ];
-  const alerts = data?.alerts || [];
+  const alerts = operationalAlerts;
   const suggestions = data?.aiSuggestions || [];
 
   const confirmAlert = async (item: AlertItem | SuggestionItem) => {
     if (!item.alert_key || confirming) return;
     setConfirming(item.alert_key);
     try {
-      await acknowledgeOperationalAlert(item.alert_key, item.text || "");
+      setError("");
+      if (alerts.some(alert => alert.alert_key === item.alert_key)) {
+        await confirmOperationalAlert({ alert_key: item.alert_key, text: item.text || "" });
+      } else {
+        await acknowledgeOperationalAlert(item.alert_key, item.text || "");
+      }
       setData((current) => current ? {
         ...current,
         alerts: (current.alerts || []).filter((alert) => alert.alert_key !== item.alert_key),
         aiSuggestions: (current.aiSuggestions || []).filter((suggestion) => suggestion.alert_key !== item.alert_key),
       } : current);
+    } catch {
+      setError("Não foi possível confirmar o alerta. Tente novamente.");
     } finally {
       setConfirming(null);
     }
@@ -59,6 +69,7 @@ export function SwineOverviewInsights() {
   return (
     <section className={styles.section} aria-labelledby="swine-attention-title">
       <div className={styles.heading}><div><span>Acompanhamento</span><h2 id="swine-attention-title">Agenda, atividades e alertas</h2></div><p>Informações prioritárias do manejo reprodutivo.</p></div>
+      {error && <p role="alert" className="text-danger">{error}</p>}
       {loading ? <div className={styles.loading}><Loader2 size={20} /> Atualizando acompanhamento...</div> : (
         <div className={styles.grid}>
           <article className={styles.card}>

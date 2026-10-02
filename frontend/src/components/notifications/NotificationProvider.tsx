@@ -1,9 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import notificationService, { Notification } from "@/services/notificationService";
 
+import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
+
+export type OperationalAlert = { alert_key: string; text: string; time?: string; type?: string };
 type NotificationContextValue = {
+  operationalAlerts: OperationalAlert[];
+  confirmOperationalAlert: (alert: OperationalAlert) => Promise<void>;
+  fetchOperationalAlerts: () => Promise<void>;
   notifications: Notification[];
   unreadCount: number;
   loading: boolean;
@@ -20,10 +26,31 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const confirmedAlerts = useRef(new Set<string>());
+  const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchOperationalAlerts = useCallback(async () => {
+    try {
+      const data = await getReproductionDashboard("suinos");
+      setOperationalAlerts((data.alerts || []).filter((item: OperationalAlert) => !confirmedAlerts.current.has(item.alert_key)));
+    } catch { /* Retain pending alerts if the refresh fails. */ }
+  }, []);
+  const confirmOperationalAlert = useCallback(async (alert: OperationalAlert) => {
+    await acknowledgeOperationalAlert(alert.alert_key, alert.text);
+    confirmedAlerts.current.add(alert.alert_key);
+    setOperationalAlerts(current => current.filter(item => item.alert_key !== alert.alert_key));
+  }, []);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") void fetchOperationalAlerts(); };
+    const timeout = window.setTimeout(refresh, 0);
+    const interval = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    return () => { window.clearTimeout(timeout); window.clearInterval(interval); window.removeEventListener("focus", refresh); };
+  }, [fetchOperationalAlerts]);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -102,6 +129,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const value = useMemo<NotificationContextValue>(() => ({
+    operationalAlerts,
+    confirmOperationalAlert,
+    fetchOperationalAlerts,
     notifications,
     unreadCount,
     loading,
@@ -113,7 +143,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     deleteNotification,
     archiveNotification,
     unarchiveNotification,
-  }), [notifications, unreadCount, loading, error, fetchNotifications, fetchUnreadCount, markAsRead, markAllAsRead, deleteNotification, archiveNotification, unarchiveNotification]);
+  }), [operationalAlerts, confirmOperationalAlert, fetchOperationalAlerts, notifications, unreadCount, loading, error, fetchNotifications, fetchUnreadCount, markAsRead, markAllAsRead, deleteNotification, archiveNotification, unarchiveNotification]);
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }

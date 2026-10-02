@@ -2,6 +2,7 @@
 
 import { Bell, CheckCheck, Trash2, Loader2, Package, Beef, Receipt, FileText } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import useNotifications from "@/hooks/useNotifications";
 
 interface Props {
@@ -18,6 +19,8 @@ const typeIcons: Record<string, React.ReactNode> = {
 
 export default function NotificationDropdown({ onClose }: Props) {
   const {
+    operationalAlerts,
+    confirmOperationalAlert,
     notifications,
     unreadCount,
     loading,
@@ -25,6 +28,8 @@ export default function NotificationDropdown({ onClose }: Props) {
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [alertError, setAlertError] = useState("");
   const activeNotifications = notifications.filter(notification => !notification.is_archived);
 
   return (
@@ -52,11 +57,13 @@ export default function NotificationDropdown({ onClose }: Props) {
         </div>
 
         <div style={{ overflowY: "auto", maxHeight: "380px" }}>
+          {alertError && <p className="text-danger p-3" role="alert">{alertError}</p>}
+          {operationalAlerts.map(alert => <div key={alert.alert_key} className="p-3 border-bottom notification-unread"><div className="d-flex align-items-start gap-2"><Beef size={18}/><div className="flex-grow-1"><p className="small fw-bold mb-1">{alert.text}</p><small>{alert.time}</small></div><button type="button" className="btn btn-sm btn-success" disabled={confirming !== null} onClick={async () => { setConfirming(alert.alert_key); setAlertError(""); try { await confirmOperationalAlert(alert); } catch { setAlertError("Não foi possível confirmar o alerta. Tente novamente."); } finally { setConfirming(null); } }}>{confirming === alert.alert_key ? "…" : "OK"}</button></div></div>)}
           {loading ? (
             <div className="d-flex justify-content-center align-items-center py-5">
               <Loader2 className="animate-spin text-success" size={24} />
             </div>
-          ) : activeNotifications.length === 0 ? (
+          ) : activeNotifications.length === 0 && operationalAlerts.length === 0 ? (
             <div className="text-center py-5 text-muted">
               <Bell size={32} className="mb-2 opacity-50" />
               <p className="small mb-0">Nenhuma notificação</p>

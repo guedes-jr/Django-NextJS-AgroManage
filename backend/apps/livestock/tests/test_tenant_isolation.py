@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -364,9 +365,7 @@ class LivestockTenantIsolationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         heat_alerts = [alert for alert in response.data["alerts"] if "2º cio" in alert["text"]]
-        self.assertEqual(len(heat_alerts), 1)
-        self.assertIn("1 novilha", heat_alerts[0]["text"])
-        self.assertEqual(heat_alerts[0]["time"], "Em 15 dias")
+        self.assertEqual(heat_alerts, [])
 
         marras_response = self.client.get(
             reverse("marras"), {"species": self.species.code}
@@ -401,8 +400,8 @@ class LivestockTenantIsolationTestCase(APITestCase):
         )
         self.assertEqual(dashboard_response.status_code, status.HTTP_200_OK)
         alert_texts = [alert["text"] for alert in dashboard_response.data["alerts"]]
-        self.assertTrue(any("Diagnóstico de prenhez" in text for text in alert_texts))
-        self.assertTrue(any("Vacina Parvovirose" in text for text in alert_texts))
+        self.assertFalse(any("Diagnóstico de prenhez" in text for text in alert_texts))
+        self.assertFalse(any("Vacina Parvovirose" in text for text in alert_texts))
 
         gestation_response = self.client.get(
             reverse("gestacoes"), {"species": self.species.code}
@@ -445,6 +444,28 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertNotIn(alert["alert_key"], {
             item["alert_key"] for item in refreshed.data["alerts"]
         })
+
+    def test_alert_window_and_confirmation_persist_when_due_text_changes(self):
+        today = date.today()
+        for days in (3, 4, 0, -1):
+            Mating.objects.create(female=self.animal_a,
+                mating_date=today - timedelta(days=21-days), status=Mating.Status.PENDING_DG)
+        # Other tenants never contribute to the producer's alerts.
+        Mating.objects.create(female=self.animal_b,
+            mating_date=today - timedelta(days=18), status=Mating.Status.PENDING_DG)
+        url = reverse("reproduction_dashboard")
+        with patch("apps.livestock.views.timezone.localdate", return_value=today):
+            dashboard = self.client.get(url, {"species": self.species.code})
+        alerts = [item for item in dashboard.data["alerts"] if "Diagnóstico" in item["text"]]
+        self.assertEqual(len(alerts), 3)
+        self.assertEqual({item["time"] for item in alerts}, {"Em 3 dias", "Hoje", "Há 1 dia"})
+        alert = next(item for item in alerts if item["time"] == "Em 3 dias")
+        result = self.client.post(reverse("acknowledge_operational_alert"),
+            {"alert_key": alert["alert_key"], "alert_text": alert["text"]}, format="json")
+        self.assertEqual(result.status_code, 200)
+        with patch("apps.livestock.views.timezone.localdate", return_value=today + timedelta(days=3)):
+            dashboard = self.client.get(url, {"species": self.species.code})
+        self.assertNotIn(alert["alert_key"], {item["alert_key"] for item in dashboard.data["alerts"]})
 
     def test_swine_birth_schedules_piglet_iron_alert_for_third_day(self):
         swine = Species.objects.create(code="suinos", name="Suínos")
@@ -587,13 +608,11 @@ class LivestockTenantIsolationTestCase(APITestCase):
             reverse("reproduction_dashboard"), {"species": "suinos"}
         )
         self.assertEqual(dashboard.status_code, status.HTTP_200_OK)
-        heat_alert = next(
-            alert for alert in dashboard.data["alerts"]
-            if "Próximo cio da matriz TN-026" in alert["text"]
-        )
-        self.assertEqual(heat_alert["time"], "Em 7 dias")
-        self.assertEqual(len(heat_alert["alert_key"]), 64)
+        self.assertFalse(any("Próximo cio da matriz TN-026" in alert["text"]
+                             for alert in dashboard.data["alerts"]))
     def test_confirmed_pregnancy_expected_birth_is_shown_in_alerts(self):
+        self.species.code = "bovinos"
+        self.species.save(update_fields=["code"])
         mating = Mating.objects.create(
             female=self.animal_a,
             mating_date=date.today(),
@@ -610,6 +629,9 @@ class LivestockTenantIsolationTestCase(APITestCase):
         for endpoint in ("reproduction_dashboard", "gestacoes"):
             response = self.client.get(reverse(endpoint), {"species": self.species.code})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+            if endpoint == "reproduction_dashboard":
+                self.assertFalse(any("Parto da matriz" in alert["text"] for alert in response.data["alerts"]))
+                continue
             birth_alert = next(
                 alert for alert in response.data["alerts"]
                 if "Parto da matriz" in alert["text"]
