@@ -689,3 +689,23 @@
     grid-template-columns: minmax(0, 1fr) 105px auto;
   }
 }
+
+/* Shared phase navigation, metrics and operational actions. */
+.repro-phase-tabs{display:flex;gap:8px;list-style:none;padding:6px;margin:0;overflow-x:auto;border:1px solid var(--border);border-radius:16px;background:var(--card);scrollbar-width:thin}
+.repro-phase-tab{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 14px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--muted-foreground);font-size:.84rem;font-weight:700;white-space:nowrap;transition:background .18s,border-color .18s,color .18s}
+.repro-phase-tab:hover{background:var(--muted);color:var(--foreground)}
+.repro-phase-tab.is-active{background:color-mix(in srgb,var(--primary),transparent 90%);border-color:color-mix(in srgb,var(--primary),transparent 65%);color:var(--primary)}
+.repro-phase-tab-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:var(--muted);flex-shrink:0}
+.repro-phase-tab.is-active .repro-phase-tab-icon{background:color-mix(in srgb,var(--primary),transparent 85%)}
+.repro-tab-kpi-card,.repro-kpi-card{border-color:var(--border);padding:18px;border-radius:16px;min-height:100px;box-shadow:0 4px 16px rgba(20,36,27,.04)}
+.repro-tab-kpi-icon,.repro-kpi-icon{width:44px!important;height:44px!important;flex-basis:44px;border-radius:13px;border:1px solid color-mix(in srgb,currentColor,transparent 85%)}
+.repro-tab-kpi-card .h4,.repro-kpi-value{font-size:1.55rem;font-weight:850;letter-spacing:-.04em;line-height:1.15}
+.repro-tab-kpi-card .small,.repro-kpi-label{font-size:.8rem;line-height:1.4;margin-top:4px}
+.repro-tab-kpi-card .flex-grow-1,.repro-kpi-card .flex-grow-1{min-width:0}
+.repro-quick-actions .row>div{display:flex}
+.repro-quick-actions button{min-height:108px;border-radius:15px!important;border-width:1px!important;gap:14px!important;padding:18px!important;box-shadow:0 4px 16px rgba(20,36,27,.04)!important}
+.repro-quick-actions button>div:first-child{width:46px!important;height:46px!important;border-radius:12px;border:1px solid color-mix(in srgb,currentColor,transparent 85%)}
+.repro-quick-actions .small{font-size:.86rem;line-height:1.4}
+.repro-phase-tab:focus-visible,.repro-quick-actions button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+@media(max-width:600px){.repro-phase-tab{min-height:46px;padding:7px 10px;font-size:.78rem;gap:7px}.repro-phase-tab-icon{width:30px;height:30px}.repro-tab-kpi-card,.repro-kpi-card{padding:13px;min-height:92px}.repro-tab-kpi-icon,.repro-kpi-icon{width:38px!important;height:38px!important;flex-basis:38px}.repro-tab-kpi-card .h4,.repro-kpi-value{font-size:1.3rem}.repro-tab-kpi-card .small,.repro-kpi-label{font-size:.73rem}.repro-quick-actions button{min-height:90px}}
+@media(prefers-reduced-motion:reduce){.repro-phase-tab,.repro-quick-actions button{transition:none!important}.repro-quick-actions button{transform:none!important}}

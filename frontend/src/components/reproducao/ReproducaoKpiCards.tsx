@@ -89,6 +89,10 @@ const iconMap: Record<string, ComponentType<LucideProps>> = {
   "🔵": Circle,
 };
 
+export function kpiIconColor(color: string): string {
+  return color.startsWith("oklch(") ? color.replace(/^oklch\([\d.]+/, "oklch(0.42") : "var(--foreground)";
+}
+
 export function ReproductionIcon({ icon, size = 20 }: { icon: string; size?: number }) {
   const IconComponent = iconMap[icon] ?? Circle;
   return <IconComponent size={size} strokeWidth={2.1} aria-hidden="true" />;
@@ -105,7 +109,7 @@ export function ReproducaoKpiCards({ kpis }: ReproducaoKpiCardsProps) {
               <div className="d-flex align-items-center gap-3">
                 <div
                   className="repro-kpi-icon"
-                  style={{ background: k.color, color: k.color.replace('0.95', '0.45').replace('0.96', '0.5') }}
+                  style={{ background: k.color, color: kpiIconColor(k.color) }}
                 >
                   <ReproductionIcon icon={k.icon} size={20} />
                 </div>

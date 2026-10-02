@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 interface QuickAction {
@@ -14,13 +15,15 @@ interface QuickActionsCardProps {
   title?: string;
   subtitle?: string;
   actions: QuickAction[];
+  className?: string;
+  renderIcon?: (icon: string) => ReactNode;
 }
 
-export function QuickActionsCard({ title = "Ações Rápidas", subtitle, actions }: QuickActionsCardProps) {
+export function QuickActionsCard({ title = "Ações Rápidas", subtitle, actions, className = "", renderIcon }: QuickActionsCardProps) {
   if (!actions || actions.length === 0) return null;
 
   return (
-    <div className="mb-4">
+    <div className={`mb-4 ${className}`}>
       {title && (
         <div className="mb-3">
           <h3 className="fw-bold mb-0" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>
@@ -56,7 +59,7 @@ export function QuickActionsCard({ title = "Ações Rápidas", subtitle, actions
                   color: action.color,
                 }}
               >
-                <span style={{ fontSize: "1.1rem" }}>{action.icon}</span>
+                <span style={{ fontSize: "1.1rem", display: "flex" }}>{renderIcon ? renderIcon(action.icon) : action.icon}</span>
               </div>
               <div className="flex-grow-1 min-w-0">
                 <div className="fw-bold small text-foreground">{action.label}</div>

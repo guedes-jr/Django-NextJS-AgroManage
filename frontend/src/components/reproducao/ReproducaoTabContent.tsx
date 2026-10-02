@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KpiCard, ReproductionIcon } from "./ReproducaoKpiCards";
+import { KpiCard, ReproductionIcon, kpiIconColor } from "./ReproducaoKpiCards";
 import {
   DataTable,
   BatchAction,
@@ -129,7 +129,7 @@ export function ReproducaoTabContent({
                   <div className="d-flex align-items-center gap-3">
                     <div
                       className="repro-tab-kpi-icon"
-                      style={{ background: k.color, color: k.color.replace('0.95', '0.45').replace('0.96', '0.5'), width: 40, height: 40 }}
+                      style={{ background: k.color, color: kpiIconColor(k.color), width: 40, height: 40 }}
                     >
                       <ReproductionIcon icon={k.icon} size={20} />
                     </div>
@@ -161,7 +161,7 @@ export function ReproducaoTabContent({
       )}
 
       {tabActions && tabActions.length > 0 && (
-        <QuickActionsCard actions={tabActions} />
+        <QuickActionsCard actions={tabActions} className="repro-quick-actions" renderIcon={icon => <ReproductionIcon icon={icon} size={23} />} />
       )}
 
       <DataTable<TableRow>

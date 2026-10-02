@@ -7,7 +7,7 @@ import Image from "next/image";
 import "./reproducao.css";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
-import { ReproducaoKpiCards, KpiCard } from "./ReproducaoKpiCards";
+import { ReproducaoKpiCards, KpiCard, ReproductionIcon } from "./ReproducaoKpiCards";
 import { AlertItem, AiSuggestion } from "./ReproducaoAlerts";
 import { DesempenhoChart } from "./DesempenhoChart";
 import {
@@ -2005,21 +2005,17 @@ export function ReproducaoDashboard({
       </div>
 
       {/* As abas internas aparecem somente depois que o produtor entra em uma fase. */}
-      {activeTab !== "dashboard" && <ul className="nav nav-tabs mb-4 border-0 w-100 flex-nowrap overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: 'none' }}>
+      {activeTab !== "dashboard" && <ul className="repro-phase-tabs mb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: 'none' }}>
         {allTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <li className="nav-item" key={tab.id} style={{ flexShrink: 0 }}>
               <button
-                className={`nav-link d-flex align-items-center py-2.5 px-2 px-xl-3 fw-semibold border-0 border-bottom border-3 rounded-0 ${
-                  isActive
-                    ? "active text-success border-success bg-transparent"
-                    : "text-muted border-transparent hover-bg-light"
-                }`}
-                style={{ fontSize: '0.85rem', marginBottom: '-1px', gap: '6px' }}
+                className={`repro-phase-tab ${isActive ? "is-active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <span className={isActive ? "text-success" : "text-muted"}>{tab.icon}</span>
+                <span className="repro-phase-tab-icon"><ReproductionIcon icon={tab.icon} size={20} /></span>
                 {tab.label}
                 {tab.count !== undefined && (
                   <span className={`badge rounded-pill ms-1 ${isActive ? "bg-success" : "bg-light text-muted"}`}
