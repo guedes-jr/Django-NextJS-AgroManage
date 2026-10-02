@@ -27,6 +27,16 @@ Check:
 7. frontend types/client usage,
 8. targeted tests.
 
+## Nursery batch dates
+
+Batch create/update preserves nullable `birth_date`, including non-reproductive
+categories such as `Terminação`. Nursery rows expose `idade` as elapsed calendar
+days since birth and `prev_crescimento` as birth date plus 70 days. At that date,
+the display status is `ready_for_growth`; the phase changes through the existing
+transfer operation. Unknown birth dates produce null age and forecast; arrival
+date is not a substitute. Older manually registered lots whose birth date was
+discarded must have that date entered again.
+
 ## Authentication
 
 The repository documentation indicates JWT-based authentication and optional Google OAuth. Confirm current implementation before changing auth flows.

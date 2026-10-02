@@ -85,6 +85,9 @@ docker-compose.override.yml
 Thumbs.db
 
 # ─── Misc ─────────────────────────────────────────────────────────────────────
+# Project-local SSH keys
+/.ssh/
+
 *.bak
 *.tmp
 *.orig

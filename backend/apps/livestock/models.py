@@ -91,6 +91,7 @@ class AnimalBatch(BaseModel):
     breed = models.ForeignKey(Breed, on_delete=models.SET_NULL, null=True, blank=True)
     batch_code = models.CharField(max_length=50)
     quantity = models.PositiveIntegerField(default=0)
+    birth_date = models.DateField(null=True, blank=True)
     entry_date = models.DateField()
     exit_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)

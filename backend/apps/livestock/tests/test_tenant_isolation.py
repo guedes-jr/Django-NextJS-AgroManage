@@ -1024,6 +1024,8 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         row = next(item for item in response.data["rows"] if item["lote"] == batch.batch_code)
         self.assertEqual(row["prev_crescimento"], (birth_date + timedelta(days=70)).isoformat())
+        self.assertEqual(row["idade"], 69)
+        self.assertEqual(row["status"], "active")
         alert = next(
             item for item in response.data["alerts"]
             if batch.batch_code in item["text"] and "crescimento" in item["text"]
@@ -1034,6 +1036,48 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         self.assertEqual(detail.data["age_days"], 70)
         self.assertEqual(detail.data["report_date"], date.today().isoformat())
+
+    def test_manual_finishing_batch_preserves_birth_date_and_nursery_forecast(self):
+        birth_date = date.today() - timedelta(days=70)
+        response = self.client.post(reverse("animalbatch-list"), {
+            "farm_id": str(self.farm_a.id),
+            "species_code_input": self.species.code,
+            "batch_code": "MANUAL-CRECHE",
+            "category": "Terminação",
+            "phase": "creche",
+            "origin": "purchased",
+            "quantity": 10,
+            "entry_date": (date.today() - timedelta(days=10)).isoformat(),
+            "birth_date": birth_date.isoformat(),
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        batch = AnimalBatch.objects.get(pk=response.data["id"])
+        self.assertEqual(batch.birth_date, birth_date)
+        self.assertEqual(response.data["birth_date"], birth_date.isoformat())
+        nursery = self.client.get(reverse("creches"), {"species": self.species.code})
+        row = next(item for item in nursery.data["rows"] if item["lote"] == batch.batch_code)
+        self.assertEqual(row["prev_crescimento"], date.today().isoformat())
+        self.assertEqual(row["idade"], 70)
+        self.assertEqual(row["status"], "ready_for_growth")
+        updated_birth = date.today() - timedelta(days=60)
+        updated = self.client.patch(reverse("animalbatch-detail", args=[batch.id]), {
+            "birth_date": updated_birth.isoformat(),
+        }, format="json")
+        self.assertEqual(updated.status_code, status.HTTP_200_OK, updated.data)
+        batch.refresh_from_db()
+        self.assertEqual(batch.birth_date, updated_birth)
+
+    def test_nursery_unknown_birth_date_does_not_use_arrival_date_as_age(self):
+        batch = AnimalBatch.objects.create(
+            farm=self.farm_a, species=self.species, batch_code="SEM-NASCIMENTO",
+            quantity=50, entry_date=date.today() - timedelta(days=90), phase="creche",
+        )
+        response = self.client.get(reverse("creches"), {"species": self.species.code})
+        row = next(item for item in response.data["rows"] if item["lote"] == batch.batch_code)
+        self.assertIsNone(row["prev_crescimento"])
+        self.assertIsNone(row["idade"])
+        self.assertEqual(row["status"], "active")
+        self.assertFalse(any("pronto" in alert["text"] for alert in response.data["alerts"]))
 
     def test_batch_history_includes_litter_vaccinations(self):
         batch = AnimalBatch.objects.create(

@@ -486,6 +486,7 @@ function ReproducaoPageContent() {
         columns: [
           { key: "lote", label: "Lote" },
           { key: "entrada", label: "Entrada", render: formatDateCell },
+          { key: "idade", label: "Idade do Lote", render: (value: number | null) => value == null ? "—" : `${value} dias` },
           { key: "qtd", label: "Qtd. Atual" },
           { key: "peso", label: "Peso Médio" },
           { key: "prev_crescimento", label: "Prev. Crescimento", render: formatDateCell },
@@ -502,6 +503,7 @@ function ReproducaoPageContent() {
         statusKey: "status",
         statusMap: {
           "active": { label: "Alojado", variant: "blue" },
+          "ready_for_growth": { label: "Pronto p/ Crescimento", variant: "amber" },
         },
       },
       {

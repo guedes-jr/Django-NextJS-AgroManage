@@ -121,7 +121,8 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         # Obter o animal individual associado e retornar a data de nascimento
         animal = Animal.objects.filter(batch=instance).first()
-        ret['birth_date'] = animal.birth_date.isoformat() if animal and animal.birth_date else None
+        birth_date = instance.birth_date or (animal.birth_date if animal else None)
+        ret['birth_date'] = birth_date.isoformat() if birth_date else None
 
         # ── Dados do parto vinculado a este lote (Birth.batch FK) ────────────
         try:
@@ -253,7 +254,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         species_code = validated_data.pop('species_code_input', None)
         breed_name = validated_data.pop('breed_name_input', None)
         farm_id = validated_data.pop('farm_id', None)
-        birth_date = validated_data.pop('birth_date', None)
+        birth_date = validated_data.get('birth_date')
         
         # Ensure batch_code exists
         batch_code = validated_data.get('batch_code')
@@ -419,7 +420,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         new_phase = validated_data.get('phase', old_phase)
         old_status = instance.status
         new_status = validated_data.get('status', old_status)
-        birth_date = validated_data.pop('birth_date', None)
+        birth_date = validated_data.get('birth_date')
 
         phase_changed = 'phase' in validated_data and old_phase and new_phase != old_phase
         finishing = (

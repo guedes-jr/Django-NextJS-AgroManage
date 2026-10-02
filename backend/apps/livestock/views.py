@@ -11,6 +11,7 @@ import json
 import uuid
 from django.shortcuts import get_object_or_404
 from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication, AcknowledgedOperationalAlert
+from .selectors import with_batch_birth_date
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
     PregnancySerializer, BirthSerializer, LitterSerializer,
@@ -695,27 +696,18 @@ class CrecheView(BasePhaseView):
 
         # A leitegada da maternidade é um lote técnico para alimentação. Ela só
         # entra na creche depois que o desmame muda sua fase para ``creche``.
-        qs = AnimalBatch.objects.filter(**filters, status='active', phase='creche')
+        qs = with_batch_birth_date(AnimalBatch.objects.filter(**filters, status='active', phase='creche'))
         total = qs.count()
-        prontos = qs.filter(quantity__gte=40)
+        today = timezone.localdate()
+        prontos = qs.filter(resolved_birth_date__lte=today - datetime.timedelta(days=70))
         total_animais = sum(b.quantity for b in qs)
         pesos = [float(b.avg_weight_kg) for b in qs if b.avg_weight_kg]
         peso_medio = round(sum(pesos) / len(pesos), 1) if pesos else None
 
-        today = timezone.localdate()
-        growth_dates = {}
-        for batch in qs.prefetch_related('source_batches', 'mother'):
-            birth = Birth.objects.filter(batch=batch).order_by('-birth_date').first()
-            if birth is None:
-                source_ids = batch.source_batches.values_list('id', flat=True)
-                birth = Birth.objects.filter(batch_id__in=source_ids).order_by('-birth_date').first()
-            if birth is None and batch.mother_id:
-                birth = Birth.objects.filter(
-                    female_id=batch.mother_id,
-                    birth_date__lte=batch.entry_date,
-                ).order_by('-birth_date').first()
-            if birth and birth.birth_date:
-                growth_dates[batch.id] = birth.birth_date + datetime.timedelta(days=70)
+        growth_dates = {
+            batch.id: batch.resolved_birth_date + datetime.timedelta(days=70)
+            for batch in qs if batch.resolved_birth_date
+        }
 
         alerts = []
         if prontos.exists():
@@ -762,7 +754,8 @@ class CrecheView(BasePhaseView):
                 "qtd": b.quantity,
                 "peso": f"{float(b.avg_weight_kg):.0f} kg" if b.avg_weight_kg else "—",
                 "prev_crescimento": growth_dates[b.id].isoformat() if b.id in growth_dates else None,
-                "status": b.status,
+                "idade": max(0, (today - b.resolved_birth_date).days) if b.resolved_birth_date else None,
+                "status": "ready_for_growth" if b.id in growth_dates and growth_dates[b.id] <= today else b.status,
             })
 
         return Response({
