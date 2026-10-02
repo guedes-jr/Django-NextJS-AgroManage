@@ -45,6 +45,14 @@ estimated days to reach 60 kg. Batches at or above that weight use today's date;
 unknown weight produces a null forecast. The growth table displays age in place
 of GPD and formats the forecast as a calendar date.
 
+## Fattening batch dates
+
+Fattening rows expose `idade` as elapsed days since birth. `previsao` is an ISO
+date: the recorded `exit_date` takes precedence, otherwise the existing estimate
+to reach 110 kg is added to today's local date. Lots already at target weight
+use today's date; unknown weight produces a null estimate. The table displays
+age instead of GPD and formats the sale forecast as a calendar date.
+
 ## Batch technical sheet
 
 Batch details resolve birth dates from the lot and its linked birth/animal/source

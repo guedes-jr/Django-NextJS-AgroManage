@@ -846,10 +846,10 @@ class EngordaView(BasePhaseView):
             return Response({"error": "Unauthorized"}, status=401)
 
         TARGET_WEIGHT = 110
-        qs = AnimalBatch.objects.filter(**filters, phase='engorda', status='active')
+        qs = with_batch_birth_date(AnimalBatch.objects.filter(**filters, phase='engorda', status='active'))
         total = qs.count()
         total_animais = sum(b.quantity for b in qs)
-        now = timezone.now().date()
+        now = timezone.localdate()
 
         pesos = []
         ganhos = []
@@ -894,7 +894,7 @@ class EngordaView(BasePhaseView):
             peso = float(b.avg_weight_kg) if b.avg_weight_kg else None
             dias = (now - b.entry_date).days if b.entry_date else None
             gpd = round(peso / dias, 2) if peso and dias and dias > 0 else None
-            dias_restantes = round((TARGET_WEIGHT - peso) / (gpd or 0.85)) if peso and peso < TARGET_WEIGHT else 0
+            dias_restantes = max(0, round((TARGET_WEIGHT - peso) / (gpd or 0.85))) if peso is not None else None
             pronto = peso and peso >= TARGET_WEIGHT
 
             rows.append({
@@ -904,7 +904,8 @@ class EngordaView(BasePhaseView):
                 "dias": dias,
                 "peso": peso,
                 "gpd": gpd,
-                "previsao": b.exit_date.isoformat() if b.exit_date else (f"{dias_restantes}d" if dias_restantes > 0 else "—"),
+                "idade": max(0, (now - b.resolved_birth_date).days) if b.resolved_birth_date else None,
+                "previsao": b.exit_date.isoformat() if b.exit_date else ((now + datetime.timedelta(days=dias_restantes)).isoformat() if dias_restantes is not None else None),
                 "status": "Pronto para venda" if pronto else "Em engorda",
             })
 

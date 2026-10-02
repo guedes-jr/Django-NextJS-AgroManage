@@ -1104,6 +1104,33 @@ class LivestockTenantIsolationTestCase(APITestCase):
                 self.assertEqual(row["status"], "Pronto p/ engorda" if remaining == 0 else "Em crescimento")
                 batch.delete()
 
+    def test_fattening_forecast_returns_dates_and_lot_age(self):
+        today = date.today()
+        for code, weight, phase_days, remaining, planned in (
+            ("ENG-INITIAL", "70", 0, 47, None),
+            ("ENG-PROGRESS", "70", 20, 11, None),
+            ("ENG-READY", "110", 40, 0, None),
+            ("ENG-UNKNOWN", None, 5, None, None),
+            ("ENG-PLANNED", "70", 20, 11, today + timedelta(days=15)),
+        ):
+            with self.subTest(code=code):
+                batch = AnimalBatch.objects.create(
+                    farm=self.farm_a, species=self.species, batch_code=code,
+                    quantity=10, phase="engorda", avg_weight_kg=weight,
+                    entry_date=today - timedelta(days=phase_days), exit_date=planned,
+                    birth_date=today - timedelta(days=120) if weight else None,
+                )
+                response = self.client.get(reverse("engordas"), {"species": self.species.code})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                row = next(item for item in response.data["rows"] if item["lote"] == code)
+                self.assertEqual(row["dias"], phase_days)
+                self.assertEqual(row["idade"], 120 if weight else None)
+                expected = planned.isoformat() if planned else (
+                    (today + timedelta(days=remaining)).isoformat() if remaining is not None else None
+                )
+                self.assertEqual(row["previsao"], expected)
+                batch.delete()
+
     def test_manual_batch_sheet_has_birth_age_deaths_and_phase_entry_metrics(self):
         today = date.today()
         response = self.client.post(reverse("animalbatch-list"), {
