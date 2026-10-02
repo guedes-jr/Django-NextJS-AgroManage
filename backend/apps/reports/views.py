@@ -420,7 +420,27 @@ def dashboard_summary(request):
     )
     # Consumos de estoque são custos produtivos dos segmentos, não novos
     # desembolsos: a compra já gerou uma transação financeira na entrada.
-    month_expense = month_expense_from_transactions
+    # Legacy breeding purchases may predate their financial entry. Only add
+    # purchases without any matching transaction; pending/cancelled entries
+    # continue to follow the financial status rather than being counted again.
+    breeding_purchases = list(AnimalBatch.objects.filter(
+        farm__organization=org,
+        origin=AnimalBatch.Origin.PURCHASED,
+        category__in=[AnimalBatch.Category.MATRIZ, AnimalBatch.Category.MARRA,
+                      AnimalBatch.Category.REPRODUTOR, AnimalBatch.Category.CACHACO,
+                      AnimalBatch.Category.TOURO, AnimalBatch.Category.VACA],
+        purchase_value__gt=0,
+        entry_date__lte=period_end,
+    ).values("id", "species_id", "entry_date", "purchase_value"))
+    purchase_references = {f"PURCHASE-BATCH-{item['id']}" for item in breeding_purchases}
+    recorded_references = set(Transaction.objects.filter(
+        organization=org, reference__in=purchase_references,
+    ).values_list("reference", flat=True))
+    missing_purchases = [item for item in breeding_purchases
+                         if f"PURCHASE-BATCH-{item['id']}" not in recorded_references]
+    period_purchases = [item for item in missing_purchases if item["entry_date"] >= period_start]
+    missing_purchase_cost = sum((item["purchase_value"] for item in period_purchases), Decimal("0"))
+    month_expense = month_expense_from_transactions + missing_purchase_cost
 
     def financial_breakdown(queryset, category_type, label_field="category__name"):
         return [
@@ -583,7 +603,7 @@ def dashboard_summary(request):
         semen_consumption, label="Sêmen", show_quantity=True
     )
     semen_cost = sum((Decimal(str(item["value"])) for item in semen_breakdown), Decimal("0"))
-    livestock_cost = livestock_finance_cost + feed_cost + vaccine_cost + semen_cost
+    livestock_cost = livestock_finance_cost + feed_cost + vaccine_cost + semen_cost + missing_purchase_cost
 
     def segment_payload(cost, revenue, costs, revenues):
         profit = revenue - cost
@@ -600,6 +620,8 @@ def dashboard_summary(request):
     livestock_cost_breakdown = financial_breakdown(
         livestock_transactions, FinancialCategory.CategoryType.EXPENSE
     )
+    if missing_purchase_cost:
+        livestock_cost_breakdown.append({"name": "Compra de matrizes e reprodutores", "value": float(missing_purchase_cost)})
     feed_breakdown = [
         {"name": row["item_estoque__nome"] or "Ração", "value": float(row["total"])}
         for row in feed_consumption.values("item_estoque__nome")
@@ -717,12 +739,17 @@ def dashboard_summary(request):
             species_transactions.filter(category__category_type=FinancialCategory.CategoryType.EXPENSE)
             .aggregate(total=Sum("amount"))["total"] or Decimal("0")
         ) + (species_feed.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")) + species_vaccine_cost + species_semen_cost
+        species_missing_cost = sum((item["purchase_value"] for item in period_purchases
+                                    if item["species_id"] == species.pk), Decimal("0"))
+        species_cost += species_missing_cost
         species_revenue = species_transactions.filter(
             category__category_type=FinancialCategory.CategoryType.REVENUE
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
         species_costs = financial_breakdown(
             species_transactions, FinancialCategory.CategoryType.EXPENSE
         )
+        if species_missing_cost:
+            species_costs.append({"name": "Compra de matrizes e reprodutores", "value": float(species_missing_cost)})
         species_costs = [
             {"name": row["item_estoque__nome"] or "Ração", "value": float(row["total"])}
             for row in species_feed.values("item_estoque__nome").annotate(total=Sum("custo_total")).order_by("-total")[:5]
@@ -788,6 +815,10 @@ def dashboard_summary(request):
         else:
             finance_map[key]["despesa"] += float(row["total"])
 
+    for item in missing_purchases:
+        key = item["entry_date"].strftime("%Y-%m")
+        if key in finance_map:
+            finance_map[key]["despesa"] += float(item["purchase_value"])
     revenue_chart = list(finance_map.values())
 
     # ── Tasks ─────────────────────────────────────────────────────────────────

@@ -61,7 +61,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
     """Cria transações no financeiro para compra ou venda de lotes de animais."""
     
     # --- CASO 1: COMPRA DE ANIMAIS (Criação de lote com custo) ---
-    if created and instance.origin == AnimalBatch.Origin.PURCHASED and instance.purchase_value and instance.purchase_value > 0:
+    if instance.origin == AnimalBatch.Origin.PURCHASED and instance.purchase_value and instance.purchase_value > 0:
         ref_pur = f"PURCHASE-BATCH-{instance.id}"
         
         category_pur, _ = FinancialCategory.objects.get_or_create(
@@ -70,17 +70,28 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
             category_type="expense"
         )
         
-        Transaction.objects.create(
+        Transaction.objects.update_or_create(
             organization=instance.farm.organization,
-            description=f"Compra de animais: {instance.batch_code} ({instance.species.name})",
-            amount=instance.purchase_value,
-            category=category_pur,
-            due_date=instance.entry_date,
-            payment_date=instance.entry_date,
-            status="paid",
             reference=ref_pur,
-            animal_batch=instance,
-            species=instance.species,
+            defaults={
+                "description": f"Compra de animais: {instance.batch_code} ({instance.species.name})",
+                "amount": instance.purchase_value,
+                "category": category_pur,
+                "due_date": instance.entry_date,
+                "payment_date": instance.entry_date,
+                "animal_batch": instance,
+                "species": instance.species,
+            },
+            create_defaults={
+                "description": f"Compra de animais: {instance.batch_code} ({instance.species.name})",
+                "amount": instance.purchase_value,
+                "category": category_pur,
+                "due_date": instance.entry_date,
+                "payment_date": instance.entry_date,
+                "animal_batch": instance,
+                "species": instance.species,
+                "status": "paid",
+            },
         )
 
     # --- CASO 2: VENDA DE ANIMAIS (Status alterado para Vendido) ---

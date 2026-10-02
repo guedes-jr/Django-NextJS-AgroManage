@@ -133,6 +133,47 @@ class DashboardSegmentTestCase(APITestCase):
             [{"name": "Compra de Animais", "value": 1500.0}],
         )
 
+    def test_breeding_purchases_without_transactions_are_counted_once_in_period(self):
+        swine = Species.objects.create(name="Suínos", code="suinos")
+        for category, amount in [(AnimalBatch.Category.MATRIZ, "2000"),
+                                 (AnimalBatch.Category.REPRODUTOR, "3000")]:
+            batch = AnimalBatch.objects.create(
+                farm=self.farm, species=swine, batch_code=category,
+                category=category, quantity=1, entry_date=date.today(),
+                origin=AnimalBatch.Origin.PURCHASED, purchase_value=Decimal(amount),
+            )
+            Transaction.objects.filter(reference=f"PURCHASE-BATCH-{batch.id}").delete()
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.data["kpis"]["month_expense"], 5000.0)
+        self.assertEqual(response.data["segments"]["livestock_by_species"][0]["cost"], 5000.0)
+        self.assertEqual(response.data["charts"]["revenue_vs_expense"][-1]["despesa"], 5000.0)
+        response = self.client.get(reverse("dashboard-summary"), {"period": "month", "period_value": "2020-01"})
+        self.assertEqual(response.data["kpis"]["month_expense"], 0.0)
+
+    def test_breeding_purchase_added_later_updates_finance_without_duplicates(self):
+        swine = Species.objects.create(name="Suínos", code="suinos")
+        batch = AnimalBatch.objects.create(
+            farm=self.farm, species=swine, batch_code="MATRIZ-EDIT",
+            category=AnimalBatch.Category.MATRIZ, quantity=2,
+            entry_date=date.today(), origin=AnimalBatch.Origin.PURCHASED,
+        )
+        batch.purchase_value = Decimal("4000")
+        batch.save()
+        batch.purchase_value = Decimal("4500")
+        batch.save()
+        purchase = Transaction.objects.get(reference=f"PURCHASE-BATCH-{batch.id}")
+        self.assertEqual(purchase.amount, Decimal("4500"))
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.data["kpis"]["month_expense"], 4500.0)
+        self.assertEqual(response.data["segments"]["livestock_by_species"][0]["cost"], 4500.0)
+        purchase.status = Transaction.Status.CANCELLED
+        purchase.save()
+        batch.save()
+        purchase.refresh_from_db()
+        self.assertEqual(purchase.status, Transaction.Status.CANCELLED)
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.data["kpis"]["month_expense"], 0.0)
+
     def test_swine_inventory_purchase_is_general_expense_not_production_cost(self):
         Species.objects.create(name="Suínos", code="suinos")
         item = ItemEstoque.objects.create(
