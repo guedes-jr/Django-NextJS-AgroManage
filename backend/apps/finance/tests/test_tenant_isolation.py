@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from django.contrib.auth import get_user_model
@@ -47,6 +48,35 @@ class FinanceTenantIsolationTestCase(APITestCase):
         }
         payload.update(changes)
         return payload
+
+    def test_swine_labor_saves_by_sector_without_a_batch_and_updates_dashboard(self):
+        category = self.client.post(
+            reverse("financial-category-list"),
+            {"name": "Mão de Obra - Suinocultura", "category_type": "expense", "is_active": True},
+            format="json",
+        )
+        self.assertEqual(category.status_code, status.HTTP_201_CREATED)
+        labor = {"sector": "Geral", "worker": "João", "activity": "Manejo",
+                 "type": "daily", "people": 15, "quantity": 10, "rate": 120,
+                 "observations": ""}
+        response = self.client.post(
+            reverse("transaction-list"),
+            self.transaction_payload(
+                category=category.data["id"], amount="18000.00", status="paid",
+                payment_date=date.today().isoformat(), reference="LABOR-SWINE-test",
+                description="Mão de obra (Diária): Geral — Manejo — João",
+                notes=json.dumps({"version": 1, "labor": labor}),
+            ), format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        transaction = Transaction.objects.get(pk=response.data["id"])
+        self.assertIsNone(transaction.animal_batch_id)
+        self.assertEqual(transaction.organization_id, self.org_a.id)
+        self.assertEqual(json.loads(transaction.notes)["labor"]["sector"], "Geral")
+        dashboard = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(dashboard.status_code, status.HTTP_200_OK)
+        self.assertEqual(dashboard.data["kpis"]["month_expense"], 18000.0)
+        self.assertEqual(dashboard.data["segments"]["livestock"]["cost"], 18000.0)
 
     def test_lists_and_details_do_not_expose_foreign_transactions(self):
         response = self.client.get(reverse("transaction-list"))
