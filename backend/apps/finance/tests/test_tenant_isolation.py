@@ -116,7 +116,19 @@ class FinanceTenantIsolationTestCase(APITestCase):
         response = self.client.post(reverse("transaction-list"), self.transaction_payload(), format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_operator_creates_and_edits_only_own_transactions(self):
+    def test_operator_creates_categories_but_only_higher_roles_edit_and_delete(self):
+        operator = User.objects.create_user(email="category-operator@example.com", password="Password-8472", full_name="Operador", organization=self.org_a, role=User.Role.OPERATOR)
+        self.client.force_authenticate(operator)
+        create = self.client.post(reverse("financial-category-list"), {"name": "Mão de Obra", "category_type": "expense"}, format="json")
+        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
+        url = reverse("financial-category-detail", args=[create.data["id"]])
+        self.assertEqual(self.client.patch(url, {"name": "Editada"}, format="json").status_code, 403)
+        self.assertEqual(self.client.delete(url).status_code, 403)
+        self.client.force_authenticate(self.user_a)
+        self.assertEqual(self.client.patch(url, {"name": "Editada"}, format="json").status_code, 200)
+        self.assertEqual(self.client.delete(url).status_code, 204)
+
+    def test_operator_creates_but_cannot_edit_transactions(self):
         operator = User.objects.create_user(
             email="finance-operator@example.com", password="Password-8472", full_name="Operator",
             organization=self.org_a, role=User.Role.OPERATOR,
@@ -135,7 +147,7 @@ class FinanceTenantIsolationTestCase(APITestCase):
             self.client.patch(
                 reverse("transaction-detail", args=[own_id]), {"description": "Editada"}, format="json"
             ).status_code,
-            status.HTTP_200_OK,
+            status.HTTP_403_FORBIDDEN,
         )
         self.assertEqual(
             self.client.patch(

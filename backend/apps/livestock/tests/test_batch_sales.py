@@ -92,6 +92,9 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(phase_rows[0]['entry_quantity'], 120)
         self.assertEqual(phase_rows[0]['entry_weight_kg'], 60)
         self.assertFalse(phase_rows[0]['is_current'])
+        self.assertEqual(self.client.delete(reverse('animalbatch-detail', args=[self.batch.pk])).status_code, 403)
+        self.user.role = "manager"
+        self.user.save(update_fields=["role"])
         self.assertEqual(self.client.delete(reverse('animalbatch-detail', args=[self.batch.pk])).status_code, 400)
         from apps.reports.services import LivestockReportService
         report = LivestockReportService.get_inventory(self.org, {'species': 'suinos'})

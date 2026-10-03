@@ -1,3 +1,4 @@
+from common.permissions import OrganizationRolePermission
 """
 ViewSets for the crops app.
 """
@@ -78,7 +79,7 @@ def _consolidate_shared_equipments(applications):
 class FieldViewSet(viewsets.ModelViewSet):
     queryset = Field.objects.select_related("farm", "sector").all()
     serializer_class = FieldSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -102,7 +103,7 @@ class FieldViewSet(viewsets.ModelViewSet):
 
 
 class PlantingCycleViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -147,7 +148,7 @@ class PlantingCycleViewSet(viewsets.ModelViewSet):
 
 class SectorStructureItemViewSet(viewsets.ModelViewSet):
     serializer_class = SectorStructureItemSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         organization = getattr(self.request.user, "organization", None)
@@ -165,7 +166,7 @@ class SectorStructureItemViewSet(viewsets.ModelViewSet):
 class HarvestViewSet(viewsets.ModelViewSet):
     queryset = Harvest.objects.select_related("planting_cycle", "buyer", "created_by").all()
     serializer_class = HarvestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -197,7 +198,7 @@ class HarvestViewSet(viewsets.ModelViewSet):
 
 class HarvestBuyerViewSet(viewsets.ModelViewSet):
     serializer_class = HarvestBuyerSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -217,7 +218,7 @@ class HarvestBuyerViewSet(viewsets.ModelViewSet):
 
 class PlantingViewSet(viewsets.ModelViewSet):
     serializer_class = PlantingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -236,7 +237,7 @@ class PlantingViewSet(viewsets.ModelViewSet):
 
 class FertilizationViewSet(viewsets.ModelViewSet):
     serializer_class = FertilizationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -255,7 +256,7 @@ class FertilizationViewSet(viewsets.ModelViewSet):
 
 class FertigationViewSet(viewsets.ModelViewSet):
     serializer_class = FertigationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -307,7 +308,7 @@ class FertigationViewSet(viewsets.ModelViewSet):
 
 class PesticideApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = PesticideApplicationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -349,7 +350,7 @@ class PesticideApplicationViewSet(viewsets.ModelViewSet):
 
 class IrrigationViewSet(viewsets.ModelViewSet):
     serializer_class = IrrigationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -368,7 +369,7 @@ class IrrigationViewSet(viewsets.ModelViewSet):
 
 class IrrigationPumpViewSet(viewsets.ModelViewSet):
     serializer_class = IrrigationPumpSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -387,7 +388,7 @@ class IrrigationPumpViewSet(viewsets.ModelViewSet):
 
 class SoilAnalysisViewSet(viewsets.ModelViewSet):
     serializer_class = SoilAnalysisSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
@@ -419,7 +420,7 @@ class SoilAnalysisViewSet(viewsets.ModelViewSet):
 
 class AgronomistRecommendationViewSet(viewsets.ModelViewSet):
     serializer_class = AgronomistRecommendationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -449,7 +450,7 @@ class CropsDashboardView(APIView):
 
 class TractorViewSet(viewsets.ModelViewSet):
     serializer_class = TractorSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -465,7 +466,7 @@ class TractorViewSet(viewsets.ModelViewSet):
 
 class LandPreparationViewSet(viewsets.ModelViewSet):
     serializer_class = LandPreparationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -484,7 +485,7 @@ class LandPreparationViewSet(viewsets.ModelViewSet):
 
 class LaborWorkerViewSet(viewsets.ModelViewSet):
     serializer_class = LaborWorkerSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -504,7 +505,7 @@ class LaborWorkerViewSet(viewsets.ModelViewSet):
 
 class LaborRecordViewSet(viewsets.ModelViewSet):
     serializer_class = LaborRecordSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:

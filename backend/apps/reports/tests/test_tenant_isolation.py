@@ -61,7 +61,7 @@ class ReportsTenantIsolationTestCase(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_operator_edits_only_own_report_config_and_cannot_delete(self):
+    def test_operator_cannot_edit_or_delete_report_config(self):
         other = User.objects.create_user(
             email="reports-other@example.com", password="Password-8472", full_name="Outro",
             organization=self.org_a, role=User.Role.OPERATOR,
@@ -76,7 +76,7 @@ class ReportsTenantIsolationTestCase(APITestCase):
                 reverse("report-config-detail", args=[self.config_a.id]), {"description": "Própria"},
                 format="json",
             ).status_code,
-            status.HTTP_200_OK,
+            status.HTTP_403_FORBIDDEN,
         )
         self.assertEqual(
             self.client.patch(

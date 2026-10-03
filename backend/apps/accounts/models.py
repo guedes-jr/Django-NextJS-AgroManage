@@ -25,11 +25,11 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     class Role(models.TextChoices):
-        OWNER = "owner", "Owner"
-        ADMIN = "admin", "Admin"
-        MANAGER = "manager", "Manager"
-        OPERATOR = "operator", "Operator"
-        VIEWER = "viewer", "Viewer"
+        OWNER = "owner", "Proprietário"
+        ADMIN = "admin", "Administrador"
+        MANAGER = "manager", "Gerente"
+        OPERATOR = "operator", "Operador"
+        VIEWER = "viewer", "Visualizador"
 
     class Theme(models.TextChoices):
         LIGHT = "light", "Padrão"

@@ -90,33 +90,28 @@ class IsPlatformAuditor(IsPlatformStaff):
 
 
 class OrganizationRolePermission(BasePermission):
-    """Role matrix for tenant endpoints, configurable per view."""
+    """Tenant CRUD roles; operators may append records but never edit/delete."""
 
-    message = "Seu papel não permite executar esta operação."
+    message = "Seu cargo não permite executar esta operação."
+    default_create_roles = {"owner", "admin", "manager", "operator"}
     default_write_roles = {"owner", "admin", "manager"}
-    default_delete_roles = {"owner", "admin"}
+    default_delete_roles = {"owner", "admin", "manager"}
 
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
-        if not user or not user.is_authenticated or not getattr(user, "organization_id", None):
+        if not user or not user.is_authenticated or not user.is_active or not getattr(user, "organization_id", None):
             return False
         if request.method in SAFE_METHODS:
             return True
         role = getattr(user, "role", None)
-        if request.method == "DELETE":
+        operation = getattr(view, "action_operations", {}).get(getattr(view, "action", None))
+        if request.method == "DELETE" or operation == "delete":
             return role in getattr(view, "delete_roles", self.default_delete_roles)
-        return role in getattr(view, "write_roles", self.default_write_roles)
+        if request.method in {"PUT", "PATCH"} or operation == "edit":
+            return role in self.default_write_roles and role in getattr(view, "write_roles", self.default_write_roles)
+        if request.method == "POST":
+            return role in getattr(view, "create_roles", self.default_create_roles)
+        return False
 
     def has_object_permission(self, request, view, obj):
-        if request.method in SAFE_METHODS:
-            return True
-
-        role = getattr(request.user, "role", None)
-        if request.method == "DELETE":
-            return role in getattr(view, "delete_roles", self.default_delete_roles)
-
-        if role != "operator" or not getattr(view, "operator_edits_own_only", False):
-            return True
-
-        owner_field = getattr(view, "operator_owner_field", "created_by_id")
-        return getattr(obj, owner_field, None) == request.user.id
+        return self.has_permission(request, view)

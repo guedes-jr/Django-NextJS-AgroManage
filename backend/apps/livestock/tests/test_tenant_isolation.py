@@ -1060,6 +1060,8 @@ class LivestockTenantIsolationTestCase(APITestCase):
         self.assertEqual(detail.data["report_date"], date.today().isoformat())
 
     def test_manual_finishing_batch_preserves_birth_date_and_nursery_forecast(self):
+        self.user_a.role = User.Role.MANAGER
+        self.user_a.save(update_fields=["role"])
         birth_date = date.today() - timedelta(days=70)
         response = self.client.post(reverse("animalbatch-list"), {
             "farm_id": str(self.farm_a.id),

@@ -899,8 +899,6 @@ class ReportConfigViewSet(viewsets.ModelViewSet):
     serializer_class = ReportConfigSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -940,8 +938,6 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
     serializer_class = ReportScheduleSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -968,9 +964,6 @@ class GeneratedReportViewSet(viewsets.ModelViewSet):
     serializer_class = GeneratedReportSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
-    operator_owner_field = "generated_by_id"
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)

@@ -1,6 +1,6 @@
 from django.db.models import Count, DecimalField, F, Sum
 from django.db.models.functions import Coalesce
-from rest_framework import permissions, serializers, viewsets
+from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -19,7 +19,7 @@ from .serializers import (
 
 class FarmViewSet(viewsets.ModelViewSet):
     serializer_class = FarmSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         organization = getattr(self.request.user, "organization", None)
@@ -36,7 +36,7 @@ class FarmViewSet(viewsets.ModelViewSet):
 
 class SectorViewSet(viewsets.ModelViewSet):
     serializer_class = SectorSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         organization = getattr(self.request.user, "organization", None)
@@ -56,8 +56,6 @@ class FarmStructureViewSet(viewsets.ModelViewSet):
     serializer_class = FarmStructureSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
     filterset_fields = ("farm", "category", "is_active")
     search_fields = ("name", "description", "notes")
     ordering_fields = ("name", "category", "acquisition_value", "current_value", "created_at")
@@ -124,8 +122,6 @@ class FarmStructureItemViewSet(viewsets.ModelViewSet):
     serializer_class = FarmStructureItemSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
     operator_owner_field = "owner_id"
 
     def get_queryset(self):
@@ -147,8 +143,6 @@ class FarmAssetViewSet(viewsets.ModelViewSet):
     serializer_class = FarmAssetSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
     filterset_fields = ("farm", "asset_type", "is_active")
     search_fields = ("brand", "model", "serial_number", "description")
     ordering_fields = ("brand", "model", "manufacture_year", "acquisition_value", "current_value")
@@ -190,8 +184,6 @@ class FarmAssetImplementViewSet(viewsets.ModelViewSet):
     serializer_class = FarmAssetImplementSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
     operator_owner_field = "owner_id"
 
     def get_queryset(self):

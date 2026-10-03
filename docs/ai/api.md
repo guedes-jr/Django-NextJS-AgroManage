@@ -120,3 +120,29 @@ feed, vaccination and semen costs, plus animal purchases missing a financial ent
 farm/batch link. Crushing mortality uses the recorded death cause and stays null when deaths lack classification. DNP and indicator targets are not inferred.
 The report UI counts births and weanings by their own dates, includes records from
 inactive mothers, and uses only known outcomes for pregnancy/farrowing rates.
+
+## Tenant roles and operational writes
+
+Role codes stay stable (`owner`, `admin`, `manager`, `operator`, `viewer`);
+user role labels and member `role_display` are Portuguese.
+
+| Cargo | Consulta | Criar categorias/registros | Editar | Excluir | Gerenciar usuários |
+| --- | --- | --- | --- | --- | --- |
+| Proprietário | Sim | Sim | Sim | Sim | Sim |
+| Administrador | Sim | Sim | Sim | Sim | Sim, sem atribuir proprietário/administrador |
+| Gerente | Sim | Sim | Sim | Sim | Não |
+| Operador | Sim | Sim | Não | Não | Não |
+| Visualizador | Sim | Não | Não | Não | Não |
+
+`OrganizationRolePermission` enforces this matrix for finance, farms, inventory,
+crops, livestock, tasks and organization contacts/addresses. Appending operational
+events (weighing, vaccination, births, feed consumption) remains allowed for operators;
+PUT/PATCH and deletion, including POST bulk deletion, are blocked. Supplier image
+replacement and lot merging are edits; sow discard is a removal. Tenant filtering
+is unchanged. Personal profile/preferences and personal notification confirmation
+continue to use their existing self-service permissions.
+Member changes use `/auth/members/<uuid>/`: only owners/admins manage users, only
+owners assign/change owner/admin roles, and users cannot change their own role,
+deactivate themselves or remove themselves. Saving an unchanged admin role alongside
+profile fields is allowed. Apply accounts migration `0005_alter_user_role` for the
+translated role choices; persisted role codes do not change.

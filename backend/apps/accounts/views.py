@@ -48,6 +48,8 @@ def members_view(request):
 def member_detail_view(request, pk):
     """Update or remove a member from the organization."""
     org = getattr(request.user, "organization", None)
+    if not org:
+        return Response({"detail": "Você não pertence a uma organização."}, status=403)
     try:
         member = User.objects.get(pk=pk, organization=org)
     except User.DoesNotExist:
@@ -59,6 +61,15 @@ def member_detail_view(request, pk):
             {"detail": "Permissão negada."},
             status=status.HTTP_403_FORBIDDEN
         )
+
+    if member.role == "owner" and request.user.role != "owner":
+        return Response({"detail": "Apenas o proprietário pode alterar outro proprietário."}, status=403)
+    if request.method == "PATCH":
+        serializer = OrganizationMemberSerializer(member, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        changes = serializer.validated_data
+        if member == request.user and (changes.get("role", member.role) != member.role or changes.get("is_active") is False):
+            return Response({"detail": "Você não pode alterar seu próprio cargo ou desativar seu acesso."}, status=400)
 
     if request.method == "DELETE":
         if member == request.user:
@@ -73,15 +84,16 @@ def member_detail_view(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     if request.method == "PATCH":
-        # Only owners can promote/demote admins
-        if "role" in request.data and member.role == "admin" and request.user.role != "owner":
-            return Response(
-                {"detail": "Apenas owners podem alterar admins."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        serializer = OrganizationMemberSerializer(member, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
+        new_role = changes.get("role", member.role)
+        if new_role != member.role and request.user.role != "owner" and (
+            member.role in {"owner", "admin"} or new_role in {"owner", "admin"}
+        ):
+            return Response({"detail": "Apenas o proprietário pode atribuir ou alterar os cargos de proprietário e administrador."}, status=403)
+        if changes.get("is_active") is False and member.role == "owner" and not User.objects.filter(
+            organization=org, role="owner", is_active=True
+        ).exclude(pk=member.pk).exists():
+            return Response({"detail": "A organização precisa manter um proprietário ativo."}, status=400)
+
         serializer.save()
         return Response(serializer.data)
 
@@ -106,6 +118,9 @@ def create_member_view(request):
     serializer = CreateMemberSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+
+    if request.user.role != "owner" and data.get("role") in {"owner", "admin"}:
+        return Response({"detail": "Apenas o proprietário pode cadastrar proprietários e administradores."}, status=403)
 
     if User.objects.filter(email=data["email"]).exists():
         return Response(

@@ -12,8 +12,6 @@ class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
     filterset_fields = ("status", "priority", "farm", "assigned_to")
     search_fields = ("title", "description")
     ordering_fields = ("due_date", "priority", "created_at")

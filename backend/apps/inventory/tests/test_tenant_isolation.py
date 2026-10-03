@@ -81,7 +81,7 @@ class InventoryTenantIsolationTestCase(APITestCase):
         )
         self.assertEqual(foreign_lot.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_operator_creates_and_edits_only_own_movements(self):
+    def test_operator_creates_but_cannot_edit_movements(self):
         other_user = User.objects.create_user(
             email="inventory-other@example.com", password="Password-8472", full_name="Outro",
             organization=self.org_a, role=User.Role.OPERATOR,
@@ -103,7 +103,7 @@ class InventoryTenantIsolationTestCase(APITestCase):
                 reverse("inventory-movimentacoes-detail", args=[own.id]),
                 {"observacao": "Ajustada"}, format="json",
             ).status_code,
-            status.HTTP_200_OK,
+            status.HTTP_403_FORBIDDEN,
         )
         self.assertEqual(
             self.client.patch(

@@ -1,4 +1,5 @@
 "use client";
+import { Member, UserRole, roleLabels, canManageMembers, canChangeMemberRole, updateMemberRole, memberError } from "@/services/memberService";
 
 import { useState, useEffect } from "react";
 import { 
@@ -86,16 +87,6 @@ interface Organization {
 type PlanCatalogSegment = { code: string; name: string; subtitle: string; description: string; accent: "green" | "wine"; annual_discount_percent: string; tiers: Array<{ id: string; label: string; monthly_price: string | null; requires_quote: boolean }> };
 type ChangePreview = { quote: { public_token: string; billing_cycle: "monthly" | "yearly"; monthly_subtotal: string; monthly_discount: string; monthly_total: string; billing_total: string; requires_contact: boolean }; current_monthly_total: string; new_monthly_total: string; monthly_difference: string; prorated_difference: string; remaining_days: number; effective_at: "immediately" | "next_renewal" };
 
-interface Member {
-  id: string;
-  email: string;
-  full_name: string;
-  phone?: string;
-  role: string;
-  role_display: string;
-  is_active: boolean;
-}
-
 type Tab = "organization" | "members" | "subscription" | "security" | "preferences";
 
 interface CurrentUser {
@@ -170,6 +161,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("organization");
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => getStoredCurrentUser());
   const [org, setOrg] = useState<Organization | null>(null);
+  const [updatingMember, setUpdatingMember] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -604,19 +596,17 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateMemberRole = async (memberId: string, newRole: string) => {
+  const handleUpdateMemberRole = async (memberId: string, newRole: UserRole) => {
+    if (updatingMember) return;
+    setUpdatingMember(memberId); setError(null);
     try {
-      await apiClient.patch(`/auth/members/${memberId}/`, { role: newRole });
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+      const member = await updateMemberRole(memberId, newRole);
+      setMembers(prev => prev.map(item => item.id === memberId ? member : item));
       setSuccess("Cargo atualizado!");
-    } catch {
-      setError("Erro ao atualizar cargo.");
-    }
+    } catch (error) {
+      setError(memberError(error, "Não foi possível atualizar o cargo."));
+    } finally { setUpdatingMember(null); }
   };
-
-
-
-
 
   const openCreateMemberModal = () => {
     setMemberModalMode('create');
@@ -1068,10 +1058,11 @@ export default function SettingsPage() {
                     <div className="d-flex justify-content-between align-items-center mb-4">
                       <div>
                         <h2 className="fw-bold h5 mb-1">Membros da Equipe</h2>
-                        <p className="small text-muted-foreground">Gerencie quem tem acesso a esta organização</p>
+                        <p className="small text-muted-foreground">Proprietário, administrador e gerente podem criar, editar e excluir registros. Operador pode consultar e criar categorias e registros. Visualizador pode apenas consultar. Somente proprietário e administrador gerenciam usuários.</p>
                       </div>
                       <button 
                         onClick={openCreateMemberModal}
+                        disabled={!canManageMembers(currentUser?.role)}
                         className="btn-secondary-elegant py-2 px-3 fw-bold small"
                       >
                         + Novo Membro
@@ -1106,13 +1097,11 @@ export default function SettingsPage() {
                                 <select 
                                   className="form-select-minimal fw-semibold small"
                                   value={member.role}
-                                  onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
+                                  disabled={updatingMember !== null || !canChangeMemberRole(currentUser, member)}
+                                  aria-label={`Cargo de ${member.full_name}`}
+                                  onChange={(e) => void handleUpdateMemberRole(member.id, e.target.value as UserRole)}
                                 >
-                                  <option value="owner">Owner</option>
-                                  <option value="admin">Admin</option>
-                                  <option value="manager">Manager</option>
-                                  <option value="operator">Operator</option>
-                                  <option value="viewer">Viewer</option>
+                                  {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} disabled={currentUser?.role !== "owner" && ["owner", "admin"].includes(role)}>{roleLabels[role]}</option>)}
                                 </select>
                               </td>
                               <td>
@@ -1128,6 +1117,7 @@ export default function SettingsPage() {
                                 <div className="d-flex justify-content-end gap-1">
                                   <button 
                                     onClick={() => openEditMemberModal(member)}
+                                    disabled={!canManageMembers(currentUser?.role) || (member.role === "owner" && currentUser?.role !== "owner")}
                                     className="btn-icon-muted"
                                     title="Editar"
                                   >
@@ -1135,6 +1125,7 @@ export default function SettingsPage() {
                                   </button>
                                   <button 
                                     onClick={() => handleToggleMemberStatus(member.id, member.is_active)}
+                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || (member.role === "owner" && currentUser?.role !== "owner")}
                                     className={`btn-icon-${member.is_active ? 'warning' : 'success'}`}
                                     title={member.is_active ? "Inativar" : "Ativar"}
                                   >
@@ -1142,6 +1133,7 @@ export default function SettingsPage() {
                                   </button>
                                   <button 
                                     onClick={() => handleDeleteMember(member.id)}
+                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || (member.role === "owner" && currentUser?.role !== "owner")}
                                     className="btn-icon-danger"
                                     title="Excluir"
                                   >
@@ -1549,11 +1541,10 @@ export default function SettingsPage() {
                     <select
                       className="login-input login-input-icon-left bg-transparent text-foreground"
                       value={memberData.role}
+                      disabled={memberModalMode === "edit" && !canChangeMemberRole(currentUser, members.find(member => member.id === selectedMemberId) || { ...memberData, id: selectedMemberId || "", role: memberData.role as UserRole, role_display: "", is_active: true })}
                       onChange={e => setMemberData({...memberData, role: e.target.value})}
                     >
-                      <option value="operator">Operator</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
+                      {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} disabled={currentUser?.role !== "owner" && ["owner", "admin"].includes(role)}>{roleLabels[role]}</option>)}
                     </select>
                     <ShieldCheck className="login-input-icon text-muted-foreground" size={15} />
                   </div>

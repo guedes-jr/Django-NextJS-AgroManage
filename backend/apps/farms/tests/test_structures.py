@@ -47,7 +47,7 @@ class FarmStructureTestCase(APITestCase):
             status.HTTP_404_NOT_FOUND,
         )
 
-    def test_operator_creates_and_edits_only_own_structure(self):
+    def test_operator_creates_but_cannot_edit_structure(self):
         create = self.client.post(
             reverse("farm-structures-list"),
             {
@@ -68,7 +68,7 @@ class FarmStructureTestCase(APITestCase):
                 reverse("farm-structures-detail", args=[structure.id]), {"name": "Chiqueiro editado"},
                 format="json",
             ).status_code,
-            status.HTTP_200_OK,
+            status.HTTP_403_FORBIDDEN,
         )
         self.assertEqual(
             self.client.patch(

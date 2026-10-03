@@ -1,4 +1,5 @@
 from rest_framework import status, viewsets
+from common.permissions import OrganizationRolePermission
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -317,7 +318,7 @@ def calculate_progress_pct(log_content):
 
 
 class OrganizationBaseViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)

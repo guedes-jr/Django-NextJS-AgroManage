@@ -79,7 +79,7 @@ class TaskTenantIsolationTestCase(APITestCase):
             self.client.patch(
                 reverse("task-detail", args=[own_task.id]), {"title": "Editada"}, format="json"
             ).status_code,
-            status.HTTP_200_OK,
+            status.HTTP_403_FORBIDDEN,
         )
         self.assertEqual(
             self.client.patch(

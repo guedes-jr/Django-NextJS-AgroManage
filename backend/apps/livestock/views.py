@@ -1,3 +1,4 @@
+from common.permissions import OrganizationRolePermission
 from rest_framework import viewsets, status, serializers, filters
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -1245,6 +1246,8 @@ def build_animal_history(animal):
 
 
 class AnimalBatchViewSet(viewsets.ModelViewSet):
+    action_operations = {"merge_batches": "edit"}
+    permission_classes = [OrganizationRolePermission]
     serializer_class = AnimalBatchSerializer
 
     @action(detail=True, methods=['get'], url_path='financial-details')
@@ -1968,6 +1971,8 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
 
 class AnimalViewSet(viewsets.ModelViewSet):
+    action_operations = {"descartar_matriz": "delete"}
+    permission_classes = [OrganizationRolePermission]
     serializer_class = AnimalSerializer
 
     def get_queryset(self):
@@ -2356,6 +2361,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
 
 class MatingViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = MatingSerializer
 
     def get_queryset(self):
@@ -2366,6 +2372,7 @@ class MatingViewSet(viewsets.ModelViewSet):
 
 
 class PregnancyViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = PregnancySerializer
 
     def get_queryset(self):
@@ -2403,6 +2410,7 @@ class PregnancyViewSet(viewsets.ModelViewSet):
 
 
 class BirthViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = BirthSerializer
 
     def get_queryset(self):
@@ -2818,6 +2826,7 @@ class BirthViewSet(viewsets.ModelViewSet):
 
 
 class LitterViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = LitterSerializer
 
     def get_queryset(self):
@@ -2828,6 +2837,7 @@ class LitterViewSet(viewsets.ModelViewSet):
 
 
 class IncubationViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = IncubationSerializer
 
     def get_queryset(self):
@@ -3098,6 +3108,7 @@ class SpeciesSummaryView(APIView):
 
 
 class VaccinationRecordViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     def get_serializer_class(self):
         from .serializers import VaccinationRecordSerializer
         return VaccinationRecordSerializer
@@ -3211,6 +3222,7 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
 
 
 class WeightRecordViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     def get_serializer_class(self):
         from .serializers import WeightRecordSerializer
         return WeightRecordSerializer
@@ -3235,6 +3247,7 @@ class WeightRecordViewSet(viewsets.ModelViewSet):
 
 
 class ClinicalRecordViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = ClinicalRecordSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['farm', 'animal', 'disease', 'severity', 'record_type']
@@ -3298,6 +3311,7 @@ class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'code']
 
 class MedicationViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = MedicationSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['farm', 'is_available']
@@ -3322,6 +3336,7 @@ class MedicationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 class AlertViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = AlertSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['farm', 'status', 'severity']
@@ -3335,6 +3350,7 @@ class AlertViewSet(viewsets.ModelViewSet):
 
 
 class HealthRecordViewSet(viewsets.ModelViewSet):
+    permission_classes = [OrganizationRolePermission]
     serializer_class = HealthRecordSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['farm', 'treatment_type', 'animal']

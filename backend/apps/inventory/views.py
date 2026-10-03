@@ -4,7 +4,7 @@ ViewSets for the inventory app.
 from decimal import Decimal
 from django.db import models, transaction
 from django.db.models import Sum, Q
-from rest_framework import viewsets, status, exceptions, permissions
+from rest_framework import viewsets, status, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -45,6 +45,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
       POST /inventory/items/bulk_create/  — create multiple items at once
       GET  /inventory/items/choices/      — return all TextChoices for the front-end
     """
+    permission_classes = [OrganizationRolePermission]
 
     queryset = (
         ItemEstoque.objects.select_related()
@@ -272,6 +273,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
 class LoteEstoqueViewSet(viewsets.ModelViewSet):
     """CRUD for stock batches."""
+    permission_classes = [OrganizationRolePermission]
 
     queryset = LoteEstoque.objects.select_related("item").order_by("-data_entrada")
     serializer_class = LoteEstoqueSerializer
@@ -289,6 +291,7 @@ class LoteEstoqueViewSet(viewsets.ModelViewSet):
 
 
 class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
+    action_operations = {"bulk_delete": "delete"}
     """CRUD for stock movements (mostly read + create)."""
 
     queryset = (
@@ -298,9 +301,6 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
     serializer_class = MovimentacaoEstoqueSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
-    operator_owner_field = "responsavel_id"
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -576,7 +576,9 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
 
 
 class FornecedorViewSet(viewsets.ModelViewSet):
+    action_operations = {"upload_imagem": "edit"}
     """CRUD for suppliers."""
+    permission_classes = [OrganizationRolePermission]
 
     serializer_class = FornecedorSerializer
     parser_classes = [JSONParser, MultiPartParser, FormParser]
@@ -640,7 +642,7 @@ class FornecedorViewSet(viewsets.ModelViewSet):
 
 class AlertaEstoqueViewSet(viewsets.ModelViewSet):
     serializer_class = AlertaEstoqueSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def _get_user_organization(self):
         organization = getattr(self.request.user, "organization", None)
@@ -731,7 +733,7 @@ class AlertaEstoqueViewSet(viewsets.ModelViewSet):
 
 class FormulaRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = FormulaRacaoSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [OrganizationRolePermission]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
@@ -757,9 +759,6 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ProducaoRacaoSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
-    operator_owner_field = "responsavel_id"
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
@@ -906,8 +905,6 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ConsumoRacaoSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"owner", "admin", "manager", "operator"}
-    delete_roles = {"owner", "admin"}
-    operator_edits_own_only = True
     operator_owner_field = "usuario_id"
 
     def get_queryset(self):
