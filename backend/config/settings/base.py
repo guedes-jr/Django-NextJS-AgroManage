@@ -173,6 +173,11 @@ OPENCODE_ZEN_BASE_URL = env("OPENCODE_ZEN_BASE_URL", default="https://opencode.a
 OPENCODE_ZEN_MODEL = env("OPENCODE_ZEN_MODEL", default="mimo-v2.5-free")
 OPENCODE_ZEN_MAX_OUTPUT_TOKENS = env.int("OPENCODE_ZEN_MAX_OUTPUT_TOKENS", default=1200)
 OPENCODE_ZEN_TIMEOUT_SECONDS = env.int("OPENCODE_ZEN_TIMEOUT_SECONDS", default=45)
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
+OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = env("OPENROUTER_MODEL", default="openrouter/free")
+OPENROUTER_MAX_OUTPUT_TOKENS = env.int("OPENROUTER_MAX_OUTPUT_TOKENS", default=1200)
+OPENROUTER_TIMEOUT_SECONDS = env.int("OPENROUTER_TIMEOUT_SECONDS", default=45)
 
 # ---------------------------------------------------------------------------
 # Django REST Framework
@@ -255,6 +260,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(
             minute=AI_MODEL_SYNC_MINUTE,
             hour=AI_MODEL_SYNC_HOUR,
+            day_of_week=AI_MODEL_SYNC_DAY_OF_WEEK,
+        ),
+    },
+    "sync-openrouter-models-weekly": {
+        "task": "apps.ai_assistant.tasks.sync_openrouter_models_task",
+        "schedule": crontab(
+            minute=AI_MODEL_SYNC_MINUTE, hour=AI_MODEL_SYNC_HOUR,
             day_of_week=AI_MODEL_SYNC_DAY_OF_WEEK,
         ),
     },

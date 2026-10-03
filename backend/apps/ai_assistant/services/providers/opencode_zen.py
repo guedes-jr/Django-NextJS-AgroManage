@@ -4,7 +4,7 @@ from django.conf import settings
 from openai import OpenAI
 
 from ..prompt import build_system_prompt
-from .base import AIConfigurationError, AIProvider, AIProviderError, GeneratedAnswer, ProviderModel
+from .base import AIConfigurationError, AIFreeTierRestrictionError, AIProvider, AIProviderError, GeneratedAnswer, ProviderModel
 
 
 class OpenCodeZenProvider(AIProvider):
@@ -53,6 +53,18 @@ class OpenCodeZenProvider(AIProvider):
             "mode": "local_only",
         }
 
+    @staticmethod
+    def _generation_error(exc):
+        body = getattr(exc, "body", None)
+        error = body.get("error", body) if isinstance(body, dict) else None
+        if (
+            getattr(exc, "status_code", None) == 403
+            and isinstance(error, dict)
+            and error.get("type") == "FreeTierError"
+        ):
+            return AIFreeTierRestrictionError()
+        return AIProviderError("O OpenCode Zen está temporariamente indisponível.")
+
     def generate(self, *, user, conversation, question, history, context=""):
         system_prompt = build_system_prompt(
             subject=getattr(conversation, "subject", "general"), authorized_context=context
@@ -76,7 +88,7 @@ class OpenCodeZenProvider(AIProvider):
                 max_tokens=settings.OPENCODE_ZEN_MAX_OUTPUT_TOKENS,
             )
         except Exception as exc:
-            raise AIProviderError("O OpenCode Zen está temporariamente indisponível.") from exc
+            raise self._generation_error(exc) from exc
 
         choices = getattr(response, "choices", None) or []
         content = self._message_content(choices[0].message.content) if choices else ""
@@ -110,7 +122,7 @@ class OpenCodeZenProvider(AIProvider):
                 store=False,
             )
         except Exception as exc:
-            raise AIProviderError("O OpenCode Zen está temporariamente indisponível.") from exc
+            raise self._generation_error(exc) from exc
         text = (getattr(response, "output_text", "") or "").strip()
         if not text:
             raise AIProviderError("O OpenCode Zen não retornou uma resposta válida.")

@@ -37,6 +37,8 @@ class Command(BaseCommand):
         credential_ok = bool(provider and provider.get_api_key()) or (
             bool(settings.OPENCODE_ZEN_API_KEY)
             if default_provider == "opencode_zen"
+            else bool(settings.OPENROUTER_API_KEY)
+            if default_provider == "openrouter"
             else bool(settings.OPENAI_API_KEY)
         )
         check("Credencial", credential_ok, "configurada" if credential_ok else "ausente")
@@ -46,16 +48,16 @@ class Command(BaseCommand):
         ).first()
         check("Configuração no catálogo", provider is not None, "habilitada" if provider else "ausente")
         usable_free = AIModel.objects.filter(
-            provider__is_enabled=True, is_free=True, is_available=True, is_enabled=True
+            provider__provider=default_provider, provider__is_enabled=True, is_free=True, is_available=True, is_enabled=True
         ).count()
         check("Modelos gratuitos utilizáveis", usable_free > 0, str(usable_free))
         primary = AIModel.objects.filter(
-            provider__is_enabled=True, is_primary=True, is_available=True, is_enabled=True
+            provider__provider=default_provider, provider__is_enabled=True, is_primary=True, is_available=True, is_enabled=True
         ).first()
         check("Modelo principal", primary is not None, primary.external_id if primary else "ausente")
 
         last_success = AIModelSyncRun.objects.filter(
-            status=AIModelSyncRun.Status.SUCCESS
+            provider__provider=default_provider, status=AIModelSyncRun.Status.SUCCESS
         ).order_by("-finished_at").first()
         stale_limit = timezone.now() - timedelta(days=settings.AI_MODEL_CATALOG_STALE_DAYS)
         sync_ok = bool(

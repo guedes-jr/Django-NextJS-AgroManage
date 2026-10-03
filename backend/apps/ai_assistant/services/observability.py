@@ -2,19 +2,47 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db.models import Avg, Count, Q, Sum
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from ..models import AIMessage, AIModel, AIModelSyncRun, AIProviderConfiguration
+
+
+def consumption_aggregates():
+    return {
+        "requests": Count("id"), "answers": Count("id", filter=Q(status=AIMessage.Status.COMPLETED)),
+        "blocked_answers": Count("id", filter=Q(status=AIMessage.Status.BLOCKED)),
+        "input_tokens": Sum("input_tokens"), "output_tokens": Sum("output_tokens"),
+        "cached_tokens": Sum("cached_tokens"), "reasoning_tokens": Sum("reasoning_tokens"),
+        "known_cost": Sum("cost_usd"), "recorded_cost_requests": Count("cost_usd"),
+        "reported_cost_usd": Sum("cost_usd", filter=Q(cost_source="reported")),
+        "estimated_cost_usd": Sum("cost_usd", filter=Q(cost_source="estimated")),
+        "zero_cost_requests": Count("id", filter=Q(cost_usd=0)),
+        "paid_requests": Count("id", filter=Q(cost_usd__gt=0)),
+    }
+
+
+def consumption_row(row):
+    result = {key: row.get(key) or 0 for key in (
+        "requests", "answers", "blocked_answers", "input_tokens", "output_tokens",
+        "cached_tokens", "reasoning_tokens", "recorded_cost_requests", "zero_cost_requests", "paid_requests",
+    )}
+    for key in ("cost_usd", "reported_cost_usd", "estimated_cost_usd"):
+        source = "known_cost" if key == "cost_usd" else key
+        result[key] = float(row[source]) if row.get(source) is not None else None
+    result["unknown_cost_requests"] = result["requests"] - result["recorded_cost_requests"]
+    return result
 
 
 def get_ai_operations_snapshot(*, period_start):
     assistant_messages = AIMessage.objects.filter(
         created_at__date__gte=period_start,
         role=AIMessage.Role.ASSISTANT,
-        status=AIMessage.Status.COMPLETED,
+        status__in=[AIMessage.Status.COMPLETED, AIMessage.Status.BLOCKED],
     )
     usage_rows = [
         {
+            **consumption_row(row),
             "provider": row["provider"] or "legacy",
             "model": row["model"] or "Não informado",
             "answers": row["answers"],
@@ -25,20 +53,26 @@ def get_ai_operations_snapshot(*, period_start):
             "fallback_total": row["fallback_total"] or 0,
         }
         for row in assistant_messages.values("provider", "model").annotate(
-            answers=Count("id"),
-            input_tokens=Sum("input_tokens"),
-            output_tokens=Sum("output_tokens"),
+            **consumption_aggregates(),
             average_latency_ms=Avg("latency_ms"),
             fallback_answers=Count("id", filter=Q(fallback_count__gt=0)),
             fallback_total=Sum("fallback_count"),
         ).order_by("-answers", "provider", "model")
     ]
-    completed = assistant_messages.count()
-    fallback_answers = assistant_messages.filter(fallback_count__gt=0).count()
-    fallback_total = assistant_messages.aggregate(total=Sum("fallback_count"))["total"] or 0
+    completed_messages = assistant_messages.filter(status=AIMessage.Status.COMPLETED)
+    completed = completed_messages.count()
+    fallback_answers = completed_messages.filter(fallback_count__gt=0).count()
+    fallback_total = completed_messages.aggregate(total=Sum("fallback_count"))["total"] or 0
+    consumption = consumption_row(assistant_messages.aggregate(**consumption_aggregates()))
+    daily_usage = [
+        {"date": row["date"].isoformat(), **consumption_row(row)}
+        for row in assistant_messages.annotate(date=TruncDate("created_at")).values("date")
+        .annotate(**consumption_aggregates()).order_by("-date")
+    ]
 
     models = AIModel.objects.all()
     providers = AIProviderConfiguration.objects.all()
+    default_provider = providers.filter(is_enabled=True, is_default=True).first()
     last_run = AIModelSyncRun.objects.order_by("-started_at").first()
     last_success = AIModelSyncRun.objects.filter(
         status=AIModelSyncRun.Status.SUCCESS
@@ -106,8 +140,11 @@ def get_ai_operations_snapshot(*, period_start):
             "fallback_answers": fallback_answers,
             "fallback_total": fallback_total,
             "fallback_rate": round(fallback_answers / completed * 100, 1) if completed else 0,
-            "paid_fallback_allowed": settings.AI_ALLOW_PAID_FALLBACK,
+            "paid_fallback_allowed": default_provider.allow_paid_models
+            if default_provider and default_provider.provider == "openrouter" else settings.AI_ALLOW_PAID_FALLBACK,
         },
         "model_usage": usage_rows,
+        "consumption": consumption,
+        "daily_usage": daily_usage,
         "alerts": alerts,
     }

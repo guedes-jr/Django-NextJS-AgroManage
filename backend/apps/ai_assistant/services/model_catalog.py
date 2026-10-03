@@ -105,6 +105,35 @@ def get_or_create_opencode_zen_configuration():
 
 def sync_opencode_zen_models(*, trigger=AIModelSyncRun.Trigger.MANUAL, provider_client=None):
     provider_config = get_or_create_opencode_zen_configuration()
+    return _sync_models(
+        provider_config, trigger=trigger,
+        provider_client=provider_client,
+        client_factory=lambda: OpenCodeZenProvider(api_key=provider_config.get_api_key()),
+    )
+
+
+def get_or_create_openrouter_configuration():
+    from django.conf import settings
+
+    provider, _ = AIProviderConfiguration.objects.get_or_create(
+        provider="openrouter",
+        defaults={"display_name": "OpenRouter", "base_url": settings.OPENROUTER_BASE_URL,
+                  "api_key_env_var": "OPENROUTER_API_KEY", "is_enabled": False},
+    )
+    return provider
+
+
+def sync_openrouter_models(*, trigger=AIModelSyncRun.Trigger.MANUAL, provider_client=None):
+    from .provider_factory import create_provider_client
+
+    provider_config = get_or_create_openrouter_configuration()
+    return _sync_models(
+        provider_config, trigger=trigger, provider_client=provider_client,
+        client_factory=lambda: create_provider_client("openrouter"),
+    )
+
+
+def _sync_models(provider_config, *, trigger, provider_client, client_factory):
     started_at = timezone.now()
     run = AIModelSyncRun.objects.create(
         provider=provider_config,
@@ -114,11 +143,9 @@ def sync_opencode_zen_models(*, trigger=AIModelSyncRun.Trigger.MANUAL, provider_
     )
 
     try:
-        catalog = (
-            provider_client or OpenCodeZenProvider(api_key=provider_config.get_api_key())
-        ).list_models()
+        catalog = (provider_client or client_factory()).list_models()
         if not catalog:
-            raise AIProviderError("O OpenCode Zen retornou um catálogo vazio.")
+            raise AIProviderError(f"O {provider_config.display_name} retornou um catálogo vazio.")
         result = _persist_catalog(provider_config, run, catalog)
     except Exception as exc:
         finished_at = timezone.now()
@@ -135,7 +162,7 @@ def sync_opencode_zen_models(*, trigger=AIModelSyncRun.Trigger.MANUAL, provider_
         )
         if isinstance(exc, AIProviderError):
             raise
-        raise AIProviderError("Não foi possível sincronizar os modelos do OpenCode Zen.") from exc
+        raise AIProviderError(f"Não foi possível sincronizar os modelos do {provider_config.display_name}.") from exc
     return result
 
 
@@ -157,6 +184,10 @@ def _persist_catalog(provider_config, run, catalog: list[ProviderModel]):
         metadata = provider_model.metadata or {}
         input_price, output_price = _pricing(metadata)
         is_free = input_price == 0 and output_price == 0
+        pricing = metadata.get("pricing") or {}
+        if provider_config.provider == "openrouter" and isinstance(pricing, dict):
+            request_price = _decimal_price(pricing.get("request", 0))
+            is_free = is_free and request_price == 0
         free_count += int(is_free)
         defaults = {
             "display_name": provider_model.display_name or external_id,
@@ -181,9 +212,10 @@ def _persist_catalog(provider_config, run, catalog: list[ProviderModel]):
             created_count += 1
             added_ids.append(external_id)
             continue
+        was_free = model.is_free
         for field, value in defaults.items():
             setattr(model, field, value)
-        if not is_free:
+        if not is_free and (provider_config.provider != "openrouter" or was_free):
             model.is_enabled = False
             model.is_primary = False
         model.save()
@@ -213,7 +245,7 @@ def _persist_catalog(provider_config, run, catalog: list[ProviderModel]):
     run.added_model_ids = added_ids
     run.unavailable_model_ids = unavailable
     run.response_summary = {
-        "provider": OPENCODE_ZEN_PROVIDER_ID,
+        "provider": provider_config.provider,
         "catalog_items": len(catalog),
         "unique_models": len(seen_ids),
     }

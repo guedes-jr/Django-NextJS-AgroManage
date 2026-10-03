@@ -9,18 +9,24 @@ from rest_framework.response import Response
 
 from .models import AIConversation, AIFeedback, AIMessage
 from .serializers import (
-    AIConversationDetailSerializer, AIConversationSerializer, AIFeedbackSerializer,
-    AIMessageSerializer, AIQuestionSerializer,
+    AIConversationDetailSerializer,
+    AIConversationSerializer,
+    AIFeedbackSerializer,
+    AIMessageSerializer,
+    AIQuestionSerializer,
 )
+from .services.agro_context import AgroContextNotFound, build_agro_context
+from .services.consumption import generation_metadata, record_generation_usage
 from .services.provider_factory import get_ai_provider
 from .services.providers import AIConfigurationError, AIProviderError
-from .services.agro_context import AgroContextNotFound, build_agro_context
 from .services.quota import (
-    AIDisabledError, AIQuotaExceededError, add_token_usage, consume_question,
-    get_ai_quota, release_question,
+    AIDisabledError,
+    AIQuotaExceededError,
+    consume_question,
+    get_ai_quota,
+    release_question,
 )
 from .services.safety import classify_local_risk, emergency_prefix
-
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +114,16 @@ class AIConversationViewSet(viewsets.ModelViewSet):
             )
             output_safety = assistant.moderate(answer.text)
             if output_safety["flagged"]:
+                AIMessage.objects.create(
+                    conversation=conversation, role=AIMessage.Role.ASSISTANT,
+                    content="", status=AIMessage.Status.BLOCKED,
+                    provider=answer.provider, model=answer.model,
+                    input_tokens=answer.input_tokens, output_tokens=answer.output_tokens,
+                    latency_ms=answer.latency_ms,
+                    fallback_count=max(len(answer.attempts) - 1, 0),
+                    provider_attempts=list(answer.attempts), **generation_metadata(answer),
+                )
+                record_generation_usage(request.user, answer)
                 message.status = AIMessage.Status.BLOCKED
                 message.safety_classification["output"] = output_safety
                 message.save(update_fields=("status", "safety_classification", "updated_at"))
@@ -132,10 +148,9 @@ class AIConversationViewSet(viewsets.ModelViewSet):
                 latency_ms=answer.latency_ms,
                 safety_classification={"output": output_safety, "local": local_safety.to_dict()},
                 openai_response_id=answer.response_id,
+                **generation_metadata(answer),
             )
-            add_token_usage(
-                request.user, input_tokens=answer.input_tokens, output_tokens=answer.output_tokens
-            )
+            record_generation_usage(request.user, answer)
             if conversation.title == "Nova conversa":
                 conversation.title = question[:157] + ("..." if len(question) > 157 else "")
             if answer.response_id and settings.OPENAI_AI_STORE_RESPONSES:

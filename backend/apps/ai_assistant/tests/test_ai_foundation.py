@@ -241,17 +241,19 @@ class AIAssistantFoundationTests(APITestCase):
         provider.generate.return_value = GeneratedAnswer(
             text="Conteúdo que deve ser retido", response_id="blocked-output",
             model="test", provider="test", input_tokens=10, output_tokens=10, latency_ms=5,
+            cost_usd="0.000000123", cost_source="reported",
         )
         response = self.client.post(
             reverse("ai-conversation-ask", args=(conversation.id,)),
             {"question": "Faça uma avaliação"}, format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_422_UNPROCESSABLE_ENTITY)
-        self.assertFalse(
-            AIMessage.objects.filter(
-                conversation=conversation, role=AIMessage.Role.ASSISTANT
-            ).exists()
-        )
+        retained = AIMessage.objects.get(conversation=conversation, role=AIMessage.Role.ASSISTANT)
+        self.assertEqual(retained.content, "")
+        self.assertEqual(retained.status, AIMessage.Status.BLOCKED)
+        usage = AIUsage.objects.get(user=self.user)
+        self.assertEqual(usage.input_tokens, 10)
+        self.assertEqual(str(usage.estimated_cost_usd), "1.23E-7")
         self.assertEqual(get_ai_quota(self.user).used, 0)
 
     def test_partial_context_parameters_are_rejected_before_quota(self):

@@ -3,7 +3,6 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
-from django.utils import timezone
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -12,11 +11,11 @@ from rest_framework.throttling import UserRateThrottle
 from apps.platform_admin.services import record_platform_action
 from common.permissions import IsOrganizationMember, IsPlatformAdmin
 
-from .models import AIConversation, AIMessage, AIUsage, SupportArticle
+from .models import AIConversation, AIMessage, SupportArticle
 from .serializers import AIMessageSerializer, AIQuestionSerializer
+from .services.consumption import generation_metadata, record_generation_usage
 from .services.provider_factory import get_ai_provider
 from .services.providers import AIConfigurationError, AIProviderError
-from .services.quota import add_token_usage
 from .services.support import (
     configuration,
     consume_support_question,
@@ -194,6 +193,15 @@ class SupportConversationViewSet(
             )
             output_safety = provider.moderate(answer.text)
             if output_safety["flagged"]:
+                AIMessage.objects.create(
+                    conversation=conversation, role="assistant", content="", status="blocked",
+                    provider=answer.provider, model=answer.model,
+                    input_tokens=answer.input_tokens, output_tokens=answer.output_tokens,
+                    latency_ms=answer.latency_ms,
+                    fallback_count=max(len(answer.attempts) - 1, 0),
+                    provider_attempts=list(answer.attempts), **generation_metadata(answer),
+                )
+                record_generation_usage(request.user, answer)
                 message.status = AIMessage.Status.BLOCKED
                 message.save(update_fields=("status", "updated_at"))
                 refund_support_question(usage_id)
@@ -220,22 +228,14 @@ class SupportConversationViewSet(
                     fallback_count=max(len(answer.attempts) - 1, 0),
                     safety_classification={"output": output_safety},
                     openai_response_id=answer.response_id,
+                    **generation_metadata(answer),
                 )
                 if answer.response_id and settings.OPENAI_AI_STORE_RESPONSES:
                     conversation.openai_previous_response_id = answer.response_id
                 conversation.save(
                     update_fields=("openai_previous_response_id", "updated_at")
                 )
-                AIUsage.objects.get_or_create(
-                    organization=request.user.organization,
-                    user=request.user,
-                    period_start=timezone.localdate().replace(day=1),
-                )
-                add_token_usage(
-                    request.user,
-                    input_tokens=answer.input_tokens,
-                    output_tokens=answer.output_tokens,
-                )
+                record_generation_usage(request.user, answer)
             return Response({"message": AIMessageSerializer(response).data}, status=201)
         except (AIConfigurationError, AIProviderError):
             error_code = "provider_unavailable"

@@ -1,5 +1,6 @@
 from .base import (
     AIConfigurationError,
+    AIFreeTierRestrictionError,
     AIProvider,
     AIProviderError,
     AIProviderExhaustedError,
@@ -8,9 +9,11 @@ from .base import (
 )
 from .openai import OpenAIProvider
 from .opencode_zen import OpenCodeZenProvider
+from .openrouter import OpenRouterProvider
 
 __all__ = (
     "AIConfigurationError",
+    "AIFreeTierRestrictionError",
     "AIProvider",
     "AIProviderError",
     "AIProviderExhaustedError",
@@ -18,4 +21,5 @@ __all__ = (
     "ProviderModel",
     "OpenAIProvider",
     "OpenCodeZenProvider",
+    "OpenRouterProvider",
 )

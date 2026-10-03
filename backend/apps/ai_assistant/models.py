@@ -26,6 +26,10 @@ class AIProviderConfiguration(BaseModel):
     is_enabled = models.BooleanField(default=False)
     is_default = models.BooleanField(default=False)
     timeout_seconds = models.PositiveSmallIntegerField(default=45)
+    prefer_free_models = models.BooleanField(default=True)
+    allow_paid_models = models.BooleanField(default=False)
+    max_model_attempts = models.PositiveSmallIntegerField(default=3)
+    max_output_tokens = models.PositiveSmallIntegerField(default=1200)
     last_health_check_at = models.DateTimeField(null=True, blank=True)
     last_health_status = models.CharField(
         max_length=20, choices=HealthStatus.choices, default=HealthStatus.UNKNOWN
@@ -216,6 +220,11 @@ class AIMessage(BaseModel):
     provider_attempts = models.JSONField(default=list, blank=True)
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)
+    cached_tokens = models.PositiveBigIntegerField(default=0)
+    reasoning_tokens = models.PositiveBigIntegerField(default=0)
+    cost_usd = models.DecimalField(max_digits=18, decimal_places=9, null=True, blank=True)
+    cost_source = models.CharField(max_length=12, default="unknown", choices=[("unknown", "Não informado"), ("reported", "Informado pelo provedor"), ("estimated", "Estimado pelo catálogo")])
+    requested_model = models.CharField(max_length=150, blank=True)
     latency_ms = models.PositiveIntegerField(null=True, blank=True)
     safety_classification = models.JSONField(default=dict, blank=True)
     openai_response_id = models.CharField(max_length=255, blank=True)
@@ -237,7 +246,7 @@ class AIUsage(BaseModel):
     questions_used = models.PositiveIntegerField(default=0)
     input_tokens = models.PositiveBigIntegerField(default=0)
     output_tokens = models.PositiveBigIntegerField(default=0)
-    estimated_cost_usd = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    estimated_cost_usd = models.DecimalField(max_digits=18, decimal_places=9, default=0)
 
     class Meta(BaseModel.Meta):
         ordering = ("-period_start",)

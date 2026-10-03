@@ -71,6 +71,31 @@ The repository documentation indicates JWT-based authentication and optional Goo
 
 Security-sensitive auth changes require targeted tests and should not be bundled with unrelated refactors.
 
+## OpenRouter integration
+
+The rural assistant and system support use the shared provider router. OpenRouter
+uses its OpenAI-compatible Chat Completions API and imports text models and explicit
+prompt/completion prices from its models endpoint. Unknown prices and per-request
+charges prevent automatic classification as free. Paid models are disabled on first
+import; changing the primary model remains an explicit platform-admin operation.
+
+The platform AI panel exposes OpenRouter credentials (write-only, encrypted),
+provider selection, primary models, priorities, and catalogue synchronization.
+`POST /platform/ai/model-sync/` accepts `provider: "openrouter"` or `"opencode_zen"`;
+omitting it preserves the previous asynchronous Zen behavior. OpenRouter manual
+synchronization runs directly and returns `status: "completed"` with `run_id`,
+so the panel works without Redis/Celery. An optional Celery weekly schedule with
+bounded retries skips disabled OpenRouter configurations. `sync_openrouter_models`
+also supports manual server execution.
+No schema migration is required; the provider row is created on first panel access.
+
+The saved OpenRouter key takes precedence over `OPENROUTER_API_KEY`. Runtime settings
+include `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL` (default `openrouter/free`),
+`OPENROUTER_MAX_OUTPUT_TOKENS` and `OPENROUTER_TIMEOUT_SECONDS`. An empty catalogue
+respects the enabled default provider selected in the admin panel. OpenRouter uses
+the existing local agricultural risk checks; no remote moderation endpoint is used.
+Configure a key, synchronize, select a primary model, then switch the default provider.
+
 ## Animal batch sales
 
 `POST /livestock/batches/{id}/register-sale/` accepts `mode` (`whole` or
@@ -223,3 +248,25 @@ AI availability, daily allowance and welcome text. Article types are `faq` and
 optional HTTPS video/material URL. Migrations 0006/0007 add the models/subject
 and four editable published starter articles; apply them before enabling the pages.
 Frontend routes are `/home/suporte` and `/platform/support`.
+
+## OpenRouter routing and consumption
+
+Platform administrators can edit OpenRouter-specific `prefer_free_models`
+(default true), `allow_paid_models` (default false), `max_model_attempts`
+(1–10, default 3) and `max_output_tokens` (128–8192, default 1200) through the
+existing provider PATCH endpoint and `/platform/ai`. Other providers reject these
+fields. Paid OpenRouter models require explicit permission even when marked as
+primary. Free-only requests also send zero prompt/completion price ceilings to
+OpenRouter. When paid fallback is allowed, the final attempt can be reserved for
+a paid model after free alternatives, within the configured attempt limit.
+
+Migration `0008` records generation costs with nine decimal places, requested
+model, cached input tokens and reasoning output tokens. The platform dashboard
+groups consumption by actual model and day, covering rural and support answers,
+including generated answers subsequently blocked by moderation (without storing
+blocked content). Provider-reported costs take precedence; when unavailable,
+known catalogue prices may produce an estimate captured at generation time.
+Unknown prices and cached responses without reported costs remain unknown.
+Historical messages are not repriced or assumed free. Cache/reasoning counts are
+subsets of input/output tokens and must not be added to total tokens. Support
+keeps its separate question allowance while sharing the token/cost ledger.

@@ -5,7 +5,7 @@ from django.test import TestCase, override_settings
 
 from apps.ai_assistant.models import AIModel, AIProviderConfiguration
 from apps.ai_assistant.services.provider_router import AIProviderRouter
-from apps.ai_assistant.services.providers import AIConfigurationError, AIProviderError, GeneratedAnswer
+from apps.ai_assistant.services.providers import AIConfigurationError, AIFreeTierRestrictionError, AIProviderError, GeneratedAnswer
 
 
 def generated(model, provider):
@@ -130,6 +130,31 @@ class AIProviderRouterTests(TestCase):
         )
         self.assertEqual(answer.attempts[0]["status"], "configuration_error")
         self.assertNotIn("secret", str(answer.attempts))
+
+    @override_settings(AI_DEFAULT_PROVIDER="openai", OPENCODE_ZEN_MODEL="zen-default-free")
+    def test_empty_catalog_respects_platform_default_over_environment(self):
+        candidates = AIProviderRouter()._candidates()
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].provider_id, "opencode_zen")
+        self.assertEqual(candidates[0].model_id, "zen-default-free")
+        self.assertEqual(candidates[0].endpoint_type, "chat_completions")
+
+    @override_settings(AI_DEFAULT_PROVIDER="openai", OPENAI_AI_MODEL="openai-default")
+    def test_disabled_platform_default_does_not_override_environment(self):
+        self.zen.is_enabled = False
+        self.zen.save(update_fields=["is_enabled"])
+        self.assertEqual(AIProviderRouter()._candidates()[0].provider_id, "openai")
+
+    @patch("apps.ai_assistant.services.provider_factory.create_provider_client")
+    def test_free_tier_restriction_is_explained_when_every_model_is_restricted(self, create_client):
+        self.model(self.zen, "one-free", is_primary=True)
+        self.model(self.zen, "two-free")
+        create_client.return_value.generate.side_effect = AIFreeTierRestrictionError()
+        with self.assertRaisesMessage(AIProviderError, "apenas no aplicativo") as caught:
+            AIProviderRouter().generate(
+                user=SimpleNamespace(), conversation=SimpleNamespace(), question="Teste", history=[]
+            )
+        self.assertEqual(len(caught.exception.attempts), 2)
 
     @patch("apps.ai_assistant.services.provider_factory.create_provider_client")
     def test_moderation_falls_back_when_first_provider_is_unavailable(self, create_client):

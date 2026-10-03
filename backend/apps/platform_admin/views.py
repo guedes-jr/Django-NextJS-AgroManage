@@ -32,6 +32,8 @@ from apps.ai_assistant.models import (
     AIProviderConfiguration, AIUsage,
 )
 from apps.ai_assistant.tasks import sync_opencode_zen_models_task
+from apps.ai_assistant.services.model_catalog import sync_openrouter_models
+from apps.ai_assistant.services.providers import AIConfigurationError, AIProviderError
 from apps.ai_assistant.services.quota import (
     CUSTOM_ENABLED_KEY, CUSTOM_LIMIT_KEY, get_organization_ai_rules,
 )
@@ -122,9 +124,10 @@ def update_payment_gateway(request, gateway_id):
 @api_view(["GET"])
 @permission_classes([IsPlatformStaff])
 def ai_providers(request):
-    from apps.ai_assistant.services.model_catalog import get_or_create_opencode_zen_configuration
+    from apps.ai_assistant.services.model_catalog import get_or_create_opencode_zen_configuration, get_or_create_openrouter_configuration
 
     get_or_create_opencode_zen_configuration()
+    get_or_create_openrouter_configuration()
     queryset = AIProviderConfiguration.objects.all().order_by("display_name")
     return Response(AIProviderConfigurationSerializer(queryset, many=True).data)
 
@@ -209,13 +212,26 @@ def ai_model_sync_runs(request):
 @api_view(["POST"])
 @permission_classes([IsPlatformAdmin])
 def trigger_ai_model_sync(request):
+    provider = request.data.get("provider", "opencode_zen")
+    if provider not in {"opencode_zen", "openrouter"}:
+        return Response({"detail": "Escolha OpenRouter ou OpenCode Zen para sincronizar."}, status=400)
+    if provider == "openrouter":
+        try:
+            result = sync_openrouter_models(trigger=AIModelSyncRun.Trigger.MANUAL)
+        except (AIConfigurationError, AIProviderError) as exc:
+            return Response({"detail": str(exc)}, status=503)
+        record_platform_action(
+            request=request, action="ai.model_sync_requested", object_type="AIModelSyncRun",
+            object_id=result.run_id, description="Catálogo OpenRouter sincronizado manualmente.",
+        )
+        return Response({"run_id": result.run_id, "status": "completed", "models_found": result.models_found})
     result = sync_opencode_zen_models_task.apply_async(kwargs={"trigger": AIModelSyncRun.Trigger.MANUAL})
     record_platform_action(
         request=request,
         action="ai.model_sync_requested",
         object_type="BackgroundTaskRun",
         object_id=result.id,
-        description="Sincronização manual do catálogo OpenCode Zen solicitada.",
+        description=f"Sincronização manual do catálogo {provider} solicitada.",
     )
     return Response({"task_id": result.id, "status": "queued"}, status=status.HTTP_202_ACCEPTED)
 

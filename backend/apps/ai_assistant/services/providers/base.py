@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 
@@ -9,6 +10,16 @@ class AIConfigurationError(Exception):
 
 class AIProviderError(Exception):
     """Raised when an AI provider cannot complete a request."""
+
+
+class AIFreeTierRestrictionError(AIProviderError):
+    message = (
+        "O OpenCode Zen permite usar os modelos gratuitos apenas no aplicativo OpenCode. "
+        "Peça ao administrador para configurar um modelo liberado para uso pela API."
+    )
+
+    def __init__(self):
+        super().__init__(self.message)
 
 
 class AIProviderExhaustedError(AIProviderError):
@@ -29,6 +40,11 @@ class GeneratedAnswer:
     latency_ms: int
     provider: str = ""
     attempts: tuple[dict[str, str], ...] = ()
+    cost_usd: Decimal | None = None
+    cost_source: str = "unknown"
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0
+    requested_model: str = ""
 
 
 @dataclass(frozen=True)

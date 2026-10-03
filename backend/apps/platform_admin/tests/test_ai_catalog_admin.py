@@ -60,6 +60,46 @@ class PlatformAICatalogAdminTests(APITestCase):
         self.assertNotIn("api_key_env_var", response.data[0])
         self.assertNotIn("api_key", response.data[0])
 
+    def test_admin_configures_openrouter_without_exposing_credential(self):
+        response = self.client.get(reverse("platform-ai-providers"))
+        router = next(item for item in response.data if item["provider"] == "openrouter")
+        self.assertFalse(router["is_enabled"])
+        response = self.client.patch(
+            reverse("platform-ai-provider-detail", args=[router["id"]]),
+            {"api_key": "router-secret", "is_enabled": True, "is_default": True}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotIn("api_key", response.data)
+        provider = AIProviderConfiguration.objects.get(pk=router["id"])
+        self.assertEqual(provider.get_api_key(), "router-secret")
+        self.provider.refresh_from_db()
+        self.assertFalse(self.provider.is_default)
+
+    def test_openrouter_policy_is_validated_and_restricted_to_its_provider(self):
+        self.client.get(reverse("platform-ai-providers"))
+        router = AIProviderConfiguration.objects.get(provider="openrouter")
+        url = reverse("platform-ai-provider-detail", args=[router.pk])
+        response = self.client.patch(url, {
+            "prefer_free_models": True, "allow_paid_models": False,
+            "max_model_attempts": 2, "max_output_tokens": 500,
+        }, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        router.refresh_from_db()
+        self.assertEqual(router.max_model_attempts, 2)
+        for payload in [{"max_model_attempts": 0}, {"max_model_attempts": 11}, {"max_output_tokens": 999999}]:
+            self.assertEqual(self.client.patch(url, payload, format="json").status_code, 400)
+        self.assertEqual(self.client.patch(reverse("platform-ai-provider-detail", args=[self.provider.pk]), {"allow_paid_models": True}, format="json").status_code, 400)
+
+    @patch("apps.platform_admin.views.sync_openrouter_models", return_value=SimpleNamespace(run_id="router-sync", models_found=3))
+    def test_admin_syncs_selected_openrouter_provider(self, sync):
+        response = self.client.post(reverse("platform-ai-model-sync"), {"provider": "openrouter"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["run_id"], "router-sync")
+        sync.assert_called_once_with(trigger=AIModelSyncRun.Trigger.MANUAL)
+        self.assertEqual(
+            self.client.post(reverse("platform-ai-model-sync"), {"provider": "invalid"}, format="json").status_code, 400,
+        )
+
     def test_admin_saves_encrypted_credential_without_exposing_it(self):
         response = self.client.patch(
             reverse("platform-ai-provider-detail", args=(self.provider.id,)),

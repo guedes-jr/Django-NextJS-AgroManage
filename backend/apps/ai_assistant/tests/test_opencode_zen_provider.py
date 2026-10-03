@@ -6,6 +6,7 @@ from django.test import SimpleTestCase, override_settings
 from apps.ai_assistant.services.provider_factory import get_ai_provider
 from apps.ai_assistant.services.providers import (
     AIConfigurationError,
+    AIFreeTierRestrictionError,
     AIProviderError,
     OpenCodeZenProvider,
 )
@@ -81,6 +82,25 @@ class OpenCodeZenProviderTests(SimpleTestCase):
         result = OpenCodeZenProvider(client=self.make_client()).moderate("pergunta")
         self.assertFalse(result["flagged"])
         self.assertEqual(result["mode"], "local_only")
+
+    def test_free_tier_denial_has_clear_message_without_upstream_details(self):
+        client = self.make_client()
+        failure = RuntimeError("secret upstream detail")
+        failure.status_code = 403
+        failure.body = {"error": {"type": "FreeTierError", "message": "secret detail"}}
+        client.chat.completions.create.side_effect = failure
+        with self.assertRaisesMessage(AIFreeTierRestrictionError, "apenas no aplicativo"):
+            OpenCodeZenProvider(client=client).generate(
+                user=SimpleNamespace(), conversation=SimpleNamespace(), question="Teste", history=[]
+            )
+
+    def test_unrelated_forbidden_response_remains_sanitized(self):
+        failure = RuntimeError("secret upstream detail")
+        failure.status_code = 403
+        failure.body = {"error": {"type": "UnauthorizedError", "message": "secret detail"}}
+        error = OpenCodeZenProvider._generation_error(failure)
+        self.assertNotIsInstance(error, AIFreeTierRestrictionError)
+        self.assertNotIn("secret", str(error))
 
     @override_settings(
         OPENCODE_ZEN_MODEL="response-free-model",

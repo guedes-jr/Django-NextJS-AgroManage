@@ -71,6 +71,32 @@ class PlatformAIDashboardTests(APITestCase):
             PlatformAuditLog.objects.filter(action="ai.organization_limits_updated").exists()
         )
 
+    def test_consumption_distinguishes_unknown_cost_from_zero_and_tracks_daily_totals(self):
+        AIMessage.objects.create(
+            conversation=self.conversation, role="assistant", status="completed", content="Privado",
+            provider="openrouter", model="free", input_tokens=100, output_tokens=50,
+            cached_tokens=80, reasoning_tokens=25, cost_usd=0, cost_source="reported",
+        )
+        AIMessage.objects.create(
+            conversation=self.conversation, role="assistant", status="blocked", content="",
+            provider="openrouter", model="paid", input_tokens=10, output_tokens=5,
+            cost_usd="0.000000123", cost_source="reported",
+        )
+        response = self.client.get(reverse("platform-ai-dashboard"))
+        self.assertEqual(response.status_code, 200, response.data)
+        operations = response.data["model_operations"]
+        summary = operations["consumption"]
+        self.assertEqual(summary["requests"], 3)
+        self.assertEqual(summary["unknown_cost_requests"], 1)
+        self.assertEqual(summary["zero_cost_requests"], 1)
+        self.assertEqual(summary["cost_usd"], 0.000000123)
+        self.assertEqual(summary["cached_tokens"], 80)
+        self.assertEqual(summary["reasoning_tokens"], 25)
+        legacy = next(row for row in operations["model_usage"] if row["provider"] == "legacy")
+        self.assertIsNone(legacy["cost_usd"])
+        self.assertEqual(operations["daily_usage"][0]["requests"], 3)
+        self.assertNotIn("Privado", str(operations))
+
     def test_support_can_view_but_cannot_change_limits(self):
         support = User.objects.create_user(
             email="ai-support@platform.local", password="StrongPassword-123",

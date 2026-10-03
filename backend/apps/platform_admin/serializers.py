@@ -78,6 +78,11 @@ class PaymentGatewayConfigurationSerializer(serializers.ModelSerializer):
 
 
 class AIProviderConfigurationSerializer(serializers.ModelSerializer):
+    # The view switches the default atomically; DRF's generated unique validator
+    # would reject the new default before the previous one can be cleared.
+    is_default = serializers.BooleanField(required=False)
+    max_model_attempts = serializers.IntegerField(min_value=1, max_value=10, required=False)
+    max_output_tokens = serializers.IntegerField(min_value=128, max_value=8192, required=False)
     health_status_display = serializers.CharField(source="get_last_health_status_display", read_only=True)
     credential_configured = serializers.SerializerMethodField()
     api_key = serializers.CharField(write_only=True, required=False, allow_blank=True, trim_whitespace=True)
@@ -90,6 +95,7 @@ class AIProviderConfigurationSerializer(serializers.ModelSerializer):
             "timeout_seconds", "credential_configured", "last_health_status",
             "health_status_display", "last_health_check_at", "last_health_message",
             "created_at", "updated_at", "api_key", "clear_api_key",
+            "prefer_free_models", "allow_paid_models", "max_model_attempts", "max_output_tokens",
         )
         read_only_fields = (
             "id", "provider", "base_url", "credential_configured", "last_health_status",
@@ -115,6 +121,9 @@ class AIProviderConfigurationSerializer(serializers.ModelSerializer):
         return instance
 
     def validate(self, attrs):
+        openrouter_fields = {"prefer_free_models", "allow_paid_models", "max_model_attempts", "max_output_tokens"}
+        if self.instance and self.instance.provider != "openrouter" and openrouter_fields.intersection(attrs):
+            raise serializers.ValidationError("Essas opções são específicas do OpenRouter.")
         is_default = attrs.get("is_default", getattr(self.instance, "is_default", False))
         is_enabled = attrs.get("is_enabled", getattr(self.instance, "is_enabled", False))
         if is_default and not is_enabled:

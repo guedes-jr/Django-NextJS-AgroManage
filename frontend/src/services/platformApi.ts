@@ -172,7 +172,7 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformAIProvider[]>("platform/ai/providers/");
     return data;
   },
-  async updateAIProvider(id:string,payload:Partial<Pick<PlatformAIProvider,"display_name"|"is_enabled"|"is_default"|"timeout_seconds">> & {api_key?:string;clear_api_key?:boolean}) {
+  async updateAIProvider(id:string,payload:Partial<Pick<PlatformAIProvider,"display_name"|"is_enabled"|"is_default"|"timeout_seconds"|"prefer_free_models"|"allow_paid_models"|"max_model_attempts"|"max_output_tokens">> & {api_key?:string;clear_api_key?:boolean}) {
     const { data } = await platformApi.patch<PlatformAIProvider>(`platform/ai/providers/${id}/`,payload);
     return data;
   },
@@ -188,8 +188,8 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformAIModelSyncRun[]>("platform/ai/model-sync-runs/");
     return data;
   },
-  async syncAIModels() {
-    const { data } = await platformApi.post<{task_id:string;status:"queued"}>("platform/ai/model-sync/",{});
+  async syncAIModels(provider: "opencode_zen" | "openrouter" = "opencode_zen") {
+    const { data } = await platformApi.post<{task_id?:string;run_id?:string;status:"queued"|"completed"}>("platform/ai/model-sync/",{provider},{timeout:120000});
     return data;
   },
   async organizations(params?: Record<string, string | number | boolean>) {
