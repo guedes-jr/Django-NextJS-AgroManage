@@ -28,6 +28,12 @@ export interface LotReport {
   total_animals: number; total_active_animals: number; items: LotReportItem[];
   by_status: { status: string; total: number; batches: number }[];
 }
+export function isProductionLot(item: LotReportItem) {
+  const category = (item.category || "").trim().toLocaleLowerCase("pt-BR");
+  return !["matriz", "marrã", "marra", "reprodutor", "cachaço", "touro", "vaca", "novilha", "aguardando cobertura"].includes(category)
+    && !["reproducao", "aguardando_cobertura"].includes(item.phase || "")
+    && item.production_type !== "Reprodução";
+}
 const phaseNames: Record<string, string> = { creche: "Em creche", crescimento: "Em crescimento", engorda: "Em engorda", gestacao_maternidade: "Maternidade", reproducao: "Reprodução", aguardando_cobertura: "Aguardando cobertura" };
 const statusNames: Record<string, string> = { active: "Ativo", sold: "Vendido", finished: "Finalizado", dead: "Morto" };
 export function lotReportStatus(item: LotReportItem) {
