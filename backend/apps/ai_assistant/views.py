@@ -32,7 +32,7 @@ class AIConversationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = AIConversation.objects.filter(
             organization=self.request.user.organization, user=self.request.user
-        ).annotate(messages_count=Count("messages")).order_by("-updated_at")
+        ).exclude(subject=AIConversation.Subject.SUPPORT).annotate(messages_count=Count("messages")).order_by("-updated_at")
         if self.action == "retrieve":
             queryset = queryset.prefetch_related(Prefetch("messages", AIMessage.objects.all()))
         return queryset

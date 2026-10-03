@@ -19,6 +19,7 @@ api_v1_patterns = [
     path("public/", include("apps.billing.urls")),
     path("public/", include("apps.platform_admin.public_urls")),
     path("platform/", include("apps.affiliates.platform_urls")),
+    path("platform/support/", include("apps.ai_assistant.support_admin_urls")),
     path("platform/", include("apps.platform_admin.urls")),
     path("affiliates/", include("apps.affiliates.member_urls")),
     path("auth/", include("apps.accounts.urls")),
@@ -33,6 +34,7 @@ api_v1_patterns = [
     path("audit/", include("apps.audit.urls")),
     path("notifications/", include("apps.notifications.urls")),
     path("ai/", include("apps.ai_assistant.urls")),
+    path("support/", include("apps.ai_assistant.support_urls")),
 ]
 
 # ---------------------------------------------------------------------------

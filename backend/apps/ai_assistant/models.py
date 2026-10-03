@@ -174,6 +174,7 @@ class AIConversation(BaseModel):
         LIVESTOCK = "livestock", "Animais"
         FEEDING = "feeding", "Alimentação"
         MANAGEMENT = "management", "Gestão rural"
+        SUPPORT = "support", "Suporte do sistema"
 
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.CASCADE, related_name="ai_conversations"
@@ -257,3 +258,38 @@ class AIFeedback(BaseModel):
         constraints = [
             models.UniqueConstraint(fields=("message", "user"), name="unique_ai_message_feedback")
         ]
+
+
+class SupportConfiguration(BaseModel):
+    key = models.CharField(max_length=20, unique=True, default="global", editable=False)
+    whatsapp_number = models.CharField(max_length=15, blank=True)
+    ai_enabled = models.BooleanField(default=True)
+    daily_question_limit = models.PositiveSmallIntegerField(default=20)
+    welcome_message = models.CharField(max_length=500, default="Olá! Posso ajudar com cadastros, lançamentos e o uso do Fazenda Mais. Conte o que você está tentando fazer.")
+
+
+class SupportArticle(BaseModel):
+    class Kind(models.TextChoices):
+        FAQ = "faq", "Dúvida frequente"
+        TUTORIAL = "tutorial", "Tutorial"
+
+    title = models.CharField(max_length=200)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.FAQ)
+    category = models.CharField(max_length=80, blank=True)
+    content = models.TextField()
+    video_url = models.URLField(blank=True)
+    is_published = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("position", "title", "id")
+
+
+class SupportUsage(BaseModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    day = models.DateField()
+    questions_used = models.PositiveIntegerField(default=0)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=("organization", "user", "day"), name="unique_support_daily_usage")]

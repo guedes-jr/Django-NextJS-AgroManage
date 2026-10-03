@@ -13,6 +13,7 @@ import {
   Icon,
   PanelsTopLeft,
   Settings,
+  Headphones,
   Sprout,
   Stethoscope,
   UserRoundCog,
@@ -241,6 +242,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
           )}
         </div>
 
+        <Link href="/home/suporte" className={`sidebar-link sidebar-settings-link ${isActive("/home/suporte") ? "active" : ""}`} onClick={onClose} aria-current={isActive("/home/suporte") ? "page" : undefined}>
+          <span className="sidebar-link-icon" aria-hidden="true"><Headphones size={19} /></span><span>Suporte</span>
+        </Link>
         <Link
           href="/home/settings"
           className={`sidebar-link sidebar-settings-link ${isActive("/home/settings") ? "active" : ""}`}

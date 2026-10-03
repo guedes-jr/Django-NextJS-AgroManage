@@ -37,6 +37,11 @@ class AIConversationSerializer(serializers.ModelSerializer):
         fields = ("id", "title", "subject", "is_active", "messages_count", "created_at", "updated_at")
         read_only_fields = ("id", "is_active", "messages_count", "created_at", "updated_at")
 
+    def validate_subject(self, value):
+        if value == AIConversation.Subject.SUPPORT:
+            raise serializers.ValidationError("Use a página de suporte para esta conversa.")
+        return value
+
 
 class AIConversationDetailSerializer(AIConversationSerializer):
     messages = AIMessageSerializer(many=True, read_only=True)

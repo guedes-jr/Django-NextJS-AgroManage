@@ -191,3 +191,35 @@ owners assign/change owner/admin roles, and users cannot change their own role,
 deactivate themselves or remove themselves. Saving an unchanged admin role alongside
 profile fields is allowed. Apply accounts migration `0005_alter_user_role` for the
 translated role choices; persisted role codes do not change.
+
+
+## Global system support
+
+`/support/configuration/`, `/support/articles/` and `/support/conversations/`
+serve authenticated organization members, including all subscription plans.
+Only published articles are visible across organizations. Drafts and global
+configuration/content mutations are restricted to active platform owners/admins
+at `/platform/support/configuration/` (GET/PATCH) and
+`/platform/support/articles/` (CRUD); these mutations create platform audit records.
+Tenant administrators cannot change the global knowledge base.
+
+Support conversations use subject `support`, are private to their creator and
+organization, and are separate from `/ai/conversations/`. The dedicated endpoints
+provide creation/list/detail and POST actions `ask`, `resolve`, `handoff`.
+`ask` reuses the existing provider router, moderation, model fallback and token
+observability with a system-use prompt and published knowledge. Operational
+context IDs are rejected. Support uses an independent per-user daily allowance
+(default 20, configurable 1–100) and a 30/hour burst limit, preserving rural-assistant
+plan entitlements. Provider/moderation failures refund daily allowance. Concurrent
+pending questions and closed conversations return 409.
+
+`handoff` returns a reviewable problem/attempt summary and an encoded `wa.me` link;
+an optional edited `summary` (3–4000 characters) regenerates the link. Labelled
+passwords/tokens/keys are redacted. The message is sent by the user in WhatsApp,
+not automatically by the backend. A missing contact returns `whatsapp_url: null`.
+The platform admin configures the contact as 10–15 digits including DDI/DDD,
+AI availability, daily allowance and welcome text. Article types are `faq` and
+`tutorial`, with category, position, publish state, plain-text procedure and
+optional HTTPS video/material URL. Migrations 0006/0007 add the models/subject
+and four editable published starter articles; apply them before enabling the pages.
+Frontend routes are `/home/suporte` and `/platform/support`.
