@@ -1173,6 +1173,9 @@ def livestock_inventory_report(request):
         filters["search"] = request.GET.get("search")
 
     data = LivestockReportService.get_inventory(org, filters)
+    if request.GET.get("include_costs") == "true":
+        from .lot_costs import enrich_lot_costs
+        enrich_lot_costs(org, data["items"])
     return Response(data)
 
 

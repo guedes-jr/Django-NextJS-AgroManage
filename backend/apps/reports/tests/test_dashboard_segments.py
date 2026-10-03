@@ -133,6 +133,23 @@ class DashboardSegmentTestCase(APITestCase):
             [{"name": "Compra de Animais", "value": 1500.0}],
         )
 
+    def test_matrix_registration_updates_top_dashboard_cost_card(self):
+        response = self.client.post(
+            reverse("animalbatch-bulk-create-batches"),
+            [{
+                "batch_code": "MATRIZ-CADASTRO", "category": "Matriz",
+                "quantity": 1, "gender": "F", "origin": "purchased",
+                "purchase_value": "2800.00", "entry_date": date.today().isoformat(),
+                "species_code_input": "suinos", "status": "active",
+            }], format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["kpis"]["month_expense"], 2800.0)
+        self.assertEqual(response.data["segments"]["livestock"]["cost"], 2800.0)
+        self.assertEqual(response.data["segments"]["livestock_by_species"][0]["cost"], 2800.0)
+
     def test_breeding_purchases_without_transactions_are_counted_once_in_period(self):
         swine = Species.objects.create(name="Suínos", code="suinos")
         for category, amount in [(AnimalBatch.Category.MATRIZ, "2000"),

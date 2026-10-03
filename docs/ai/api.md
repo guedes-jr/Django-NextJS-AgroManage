@@ -94,6 +94,19 @@ metrics. Batches with sales cannot be deleted through the batch endpoint; sold
 batches remain in the inventory report and their sheets open from the general
 batch report. Prior sales without a closure event retain their existing history.
 
+`GET /reports/livestock/inventory/?species=suinos&include_costs=true` adds
+financial columns for the general batch table, without changing the default
+inventory response. Decimal strings (or null for unavailable breakdowns) include
+reproduction/feed, purchase, phase costs, medication, labor, total cost, paid
+sales, profit, margin, and cost per animal. Costs are cumulative direct records,
+including non-cancelled expenses and stored feed/vaccine/treatment snapshots.
+Phase attribution uses the recorded destination or dated phase history. Source
+lots supply mother identifiers but retain their own costs to avoid duplication.
+General expenses without a batch are not allocated. Missing prices are counted;
+zero sales produce a null margin. Closed sales use their preserved sale quantity
+for cost per animal. Purchase expenses use financial references, with a fallback
+to the recorded purchase value only when no matching transaction exists.
+
 Printed batch sheets contain operational data only: no feed prices or financial
 analysis. The general batch report opens a separate cost detail via
 `GET /livestock/batches/{id}/financial-details/`. This tenant-scoped endpoint
