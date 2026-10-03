@@ -13,6 +13,7 @@ type Details = {
   cost_per_animal: string | null;
   cost_per_kg: string | null;
   missing_cost_count: number;
+  reproduction_allocation_pending?: boolean;
 };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatMoney = (value: string | null) => value === null ? "Não informado" : money.format(Number(value));
@@ -40,6 +41,7 @@ export function BatchFinancialDetails({ batchId, onClose }: { batchId: string; o
       <p>Gastos registrados no lote e nos lotes de origem.</p>
       <div className={styles.tableScroll}><table><thead><tr><th>Categoria</th><th>Total registrado</th></tr></thead><tbody>{Object.entries(details.totals).map(([category, amount]) => <tr key={category}><td>{category}</td><td>{formatMoney(amount)}</td></tr>)}<tr><th>Total do lote</th><td><strong>{formatMoney(details.total)}</strong></td></tr><tr><th>Custo por animal</th><td>{formatMoney(details.cost_per_animal)}</td></tr><tr><th>Custo por kg de peso total</th><td>{formatMoney(details.cost_per_kg)}</td></tr></tbody></table></div>
       {details.missing_cost_count > 0 && <p>{details.missing_cost_count} registro(s) sem custo informado. O total considera os valores disponíveis.</p>}
+      {details.reproduction_allocation_pending && <p>O rateio do reprodutor está incompleto: há custos ou quantidades de transferência sem informação suficiente.</p>}
       <h3>Lançamentos detalhados</h3><div className={styles.tableScroll}><table><thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Quantidade</th><th>Valor</th></tr></thead><tbody>{details.entries.length ? details.entries.map(entry => <tr key={entry.id}><td>{new Date(`${entry.date}T00:00:00`).toLocaleDateString("pt-BR")}</td><td>{entry.category}</td><td>{entry.description}</td><td>{entry.quantity !== null ? `${Number(entry.quantity).toLocaleString("pt-BR")} ${entry.unit || ""}` : "—"}</td><td>{formatMoney(entry.amount)}</td></tr>) : <tr><td colSpan={5}>Nenhum gasto registrado para este lote.</td></tr>}</tbody></table></div>
     </>}
   </Modal>;

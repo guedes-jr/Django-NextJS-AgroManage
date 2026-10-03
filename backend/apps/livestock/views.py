@@ -1955,6 +1955,8 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     metadata={
                         'source_batch_ids': batch_ids,
                         'source_codes': source_codes,
+                        'source_quantities': {str(sb.pk): sb.quantity for sb in source_batches},
+                        'source_available_quantities': {str(sb.pk): sb.quantity for sb in source_batches},
                         'total_quantity': total_qty,
                         'avg_weight_kg': str(merged_weight) if merged_weight else None,
                     }

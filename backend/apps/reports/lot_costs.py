@@ -1,4 +1,4 @@
-"""Bulk, direct recorded costs for the general batch table. No implicit allocation."""
+"""Bulk direct batch costs plus the documented monthly sire allocation."""
 
 import unicodedata
 from collections import defaultdict
@@ -180,6 +180,13 @@ def enrich_lot_costs(organization, rows):
             key = phase_at(batch_id, tx.due_date)
         add(batch_id, tx.amount, key)
 
+    from .sire_costs import allocate_sire_costs
+
+    sire_allocation = allocate_sire_costs(organization, batches, sources)
+    for batch_id in ids:
+        for entry in sire_allocation["entries"].get(batch_id, []):
+            add(batch_id, Decimal(entry["amount"]), "reproduction")
+
     sale_quantities = {}
     for event in HistoricoEvento.objects.filter(
         farm__organization=organization,
@@ -235,6 +242,8 @@ def enrich_lot_costs(organization, rows):
             sale_quantities.get(batch_id) if batch.status == "sold" else batch.quantity
         )
         row.update(
+            reproduction_allocation_pending=batch_id
+            in sire_allocation["pending_batches"],
             phase=batch.phase,
             production_type=production,
             matrices=sorted(names),

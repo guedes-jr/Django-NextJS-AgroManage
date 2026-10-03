@@ -101,11 +101,43 @@ reproduction/feed, purchase, phase costs, medication, labor, total cost, paid
 sales, profit, margin, and cost per animal. Costs are cumulative direct records,
 including non-cancelled expenses and stored feed/vaccine/treatment snapshots.
 Phase attribution uses the recorded destination or dated phase history. Source
-lots supply mother identifiers but retain their own costs to avoid duplication.
+lots supply mother identifiers but retain their own direct costs to avoid duplication.
+Sire upkeep follows the allocation rule below instead of being duplicated on sources.
 General expenses without a batch are not allocated. Missing prices are counted;
 zero sales produce a null margin. Closed sales use their preserved sale quantity
 for cost per animal. Purchase expenses use financial references, with a fallback
 to the recorded purchase value only when no matching transaction exists.
+
+### Monthly sire allocation
+
+The `reproduction` column and batch financial details include monthly sire upkeep.
+Calendar months use feed start dates, vaccination/clinical/health application dates
+and expense due dates. Only recorded costs linked to the sire or its batch are used.
+Shared feed/batch expenses are split equally among their registered recipient animals;
+individual applications take precedence over a batch link. Acquisition purchases,
+revenues, cancelled expenses and unrelated farm costs are excluded from this rule.
+
+Each sire-month pool is divided equally among **all** its linked matings in that
+month, including pending and failed attempts. A share is attributed to a litter
+only through its recorded birth/pregnancy/mating chain; shares without a birth stay
+unallocated and are not shifted to successful matings. Monthly totals are recalculated
+from current recorded costs and matings, so adding/correcting records updates reports.
+
+`wean_birth` records a `Transferência de Leitões` event for partial weaning, with
+`source_batch_ids`, `source_quantities` and `source_available_quantities`. Each
+transfer takes the moved headcount's proportion of the source's remaining share.
+A same-ID phase change retains the share. Audited full `Junção de Lotes` events
+move each source share to the merged lot, leaving zero on the sources. New merge
+metadata also preserves each source headcount. Zero-headcount sources retain their
+cost. Transfers are replayed chronologically; each split distributes all cents once.
+
+Legacy partial/source links without audited quantities block attribution for the
+connected litter chain rather than estimating shares. Missing upkeep prices produce
+an incomplete-allocation warning while known prices remain usable.
+`reproduction_allocation_pending` flags these cases on inventory rows and batch
+financial details. Detail entries identify the sire, coverage month, monthly cost,
+number of matings, per-mating share and the value retained by the selected lot.
+No extra financial transaction is created by report calculation.
 
 Printed batch sheets contain operational data only: no feed prices or financial
 analysis. The general batch report opens a separate cost detail via

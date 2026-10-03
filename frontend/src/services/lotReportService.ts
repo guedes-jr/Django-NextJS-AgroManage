@@ -22,7 +22,7 @@ export type LotReportItem = Partial<Record<LotCostKey, string | null>> & {
   id: string; batch_code: string; name?: string; quantity: number; category?: string;
   breed?: string; farm: string; entry_date?: string; status: string; status_display?: string;
   avg_weight?: number; species_code: string; phase?: string; production_type?: string;
-  matrices?: string[]; missing_cost_count?: number; cost_quantity?: number | null;
+  matrices?: string[]; missing_cost_count?: number; cost_quantity?: number | null; reproduction_allocation_pending?: boolean;
 };
 export interface LotReport {
   total_animals: number; total_active_animals: number; items: LotReportItem[];

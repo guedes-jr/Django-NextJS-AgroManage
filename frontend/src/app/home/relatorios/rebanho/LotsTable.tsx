@@ -15,7 +15,7 @@ export function LotsTable({ items }: { items: LotReportItem[] }) {
   const totals = lotReportTotals(items);
   return <section className={styles.tablePanel}>
     <div className={styles.tableTitle}><div><span>LOTES</span><h2>Relatório Geral dos Lotes</h2></div><strong>{items.length} registros</strong></div>
-    <p className={styles.lotExplanation}>Custos acumulados registrados diretamente em cada lote. “—” indica valor ou vínculo não informado. Custos dos lotes de origem permanecem na linha de origem; gastos gerais sem lote não são rateados.</p>
+    <p className={styles.lotExplanation}>Custos acumulados do lote. Os gastos mensais do reprodutor são divididos entre suas coberturas e acompanham os leitões nas transferências registradas. “—” indica valor ou vínculo não informado.</p>
     <div className={styles.tableScroll}><table className={styles.lotTable}>
       <thead><tr>
         <th rowSpan={2}>Ações</th><th rowSpan={2}>Lote</th><th rowSpan={2}>Tipo de Produção</th><th rowSpan={2}>Matrizes<small>(mãe dos leitões)</small></th><th rowSpan={2}>Animais Atuais</th><th rowSpan={2}>Status do Lote</th>
@@ -30,6 +30,7 @@ export function LotsTable({ items }: { items: LotReportItem[] }) {
       </tr>) : <tr><td colSpan={21} className={styles.empty}>Nenhum lote encontrado.</td></tr>}</tbody>
       {!!items.length && <tfoot><tr><th scope="row" colSpan={4}>TOTAL</th><td>{count.format(items.reduce((sum, item) => sum + item.quantity, 0))}</td><td>—</td>{lotCostColumns.map(({ key }) => <td key={key}>{value(totals[key], key === "margin")}</td>)}</tr></tfoot>}
     </table></div>
+    {items.some(item => item.reproduction_allocation_pending) && <p className={styles.lotExplanation}>Há custos do reprodutor ou quantidades de transferências sem informação suficiente. O rateio considera somente os valores e vínculos comprovados.</p>}
     {items.some(item => item.missing_cost_count) && <p className={styles.lotExplanation}>Há registros sem custo informado. Os totais consideram somente os valores disponíveis.</p>}
     {selectedBatch && <BatchTechnicalSheetModal isOpen onClose={() => setSelectedBatch(null)} batchId={selectedBatch} />}
     {financialBatch && <BatchFinancialDetails batchId={financialBatch} onClose={() => setFinancialBatch(null)} />}

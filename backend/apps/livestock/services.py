@@ -144,6 +144,16 @@ def wean_birth(
             notes=f"Desmame parcial originado do lote {maternity_batch.batch_code}.",
         )
         nursery.source_batches.add(maternity_batch)
+        HistoricoEvento.objects.create(
+            farm=nursery.farm, lote=nursery, tipo_evento='Transferência de Leitões',
+            descricao=f'Desmame parcial: {weaned_quantity} leitões de {maternity_batch.batch_code}.',
+            data_evento=weaning_date,
+            metadata={
+                'source_batch_ids': [str(maternity_batch.pk)],
+                'source_quantities': {str(maternity_batch.pk): weaned_quantity},
+                'source_available_quantities': {str(maternity_batch.pk): available},
+            },
+        )
         open_batch_phase(nursery, nursery.phase, weaning_date)
     else:
         nursery = transfer_batch_phase(
@@ -432,6 +442,9 @@ def batch_financial_details(batch):
     for item in Transaction.objects.filter(animal_batch_id__in=batch_ids, organization=batch.farm.organization,
         category__category_type='expense').exclude(status='cancelled').select_related('category'):
         add(f'transaction-{item.pk}', item.category.name, item.description, item.due_date, item.amount)
+    from apps.reports.sire_costs import allocate_sire_costs
+    sire_allocation = allocate_sire_costs(batch.farm.organization)
+    entries.extend(sire_allocation['entries'].get(str(batch.pk), []))
     totals = {}
     for item in entries:
         if item['amount'] is not None:
@@ -444,4 +457,5 @@ def batch_financial_details(batch):
         totals={key: str(value) for key, value in totals.items()}, total=str(total),
         cost_per_animal=str(total / quantity) if quantity else None,
         cost_per_kg=str(total / weight) if weight else None,
-        missing_cost_count=sum(item['amount'] is None for item in entries))
+        missing_cost_count=sum(item['amount'] is None for item in entries),
+        reproduction_allocation_pending=str(batch.pk) in sire_allocation['pending_batches'])
