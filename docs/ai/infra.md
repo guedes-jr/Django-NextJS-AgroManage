@@ -22,3 +22,13 @@ Before changing infrastructure:
 - Pin or deliberately manage major runtime versions.
 
 If this document conflicts with actual `infra/` files, the current files are authoritative and this document should be updated.
+
+## Isolated Next.js builds
+
+Compile production updates in an isolated directory with local dependencies,
+not a `node_modules` symlink to another project directory. Exclude `.next` from
+the staging copy and discard `.next/cache` before moving a completed build into
+production: Webpack caches can retain relative paths to the staging directory.
+Never run `next build` against the `.next` directory used by an active server.
+Keep the previous build for rollback and stop the frontend only for the final
+artifact swap and restart.
