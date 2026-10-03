@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const exportsObject = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(`${__dirname}/reproductiveIndicators.ts`, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: exportsObject });
-const { reproductiveIndicators: calculate } = exportsObject;
+const { reproductiveIndicators: calculate, currentExpectedBirthDate } = exportsObject;
 const female = (cycles, changes={}) => ({ id: '1', farm: 'farm1', category: 'Matriz', status: 'active', reproductive_status: 'vazia', reproductive_cycles: cycles, ...changes });
 test('births and weanings use their own event year and include discarded mothers', () => {
   const result = calculate([female([{ mating_date: '2025-10-01', birth_date: '2026-01-20', weaning_date: '2026-02-10', live_born: 10, total_born: 12, weaned_quantity: 9 }], { status: 'sold' })], '2026', '');
@@ -50,4 +50,38 @@ test('empty datasets expose null for ratios and real zero for counts', () => {
   assert.equal(result.weaned, 0);
   assert.equal(result.pregnancyRate, null);
   assert.equal(result.birthWeight, null);
+});
+
+test('lactating females never show historical expected birth dates', () => {
+  const cycle = { mating_date: '2026-09-23', expected_birth_date: '2027-01-15' };
+  for (const reproductive_status of ['lactante', 'vazia', 'descanso', 'aguardando_cobertura']) {
+    assert.equal(currentExpectedBirthDate(female([cycle], { reproductive_status })), undefined);
+  }
+});
+test('a new ongoing mating supplies the expected birth date', () => {
+  const cycles = [
+    { mating_date: '2026-10-01', expected_birth_date: '2027-01-23', status: 'pending_dg' },
+    { mating_date: '2026-01-01', expected_birth_date: '2026-04-25', birth_date: '2026-04-24' },
+  ];
+  for (const reproductive_status of ['coberta', 'gestante']) {
+    assert.equal(currentExpectedBirthDate(female(cycles, { reproductive_status })), '2027-01-23');
+  }
+});
+test('closed latest cycles never fall back to older expected dates', () => {
+  const old = { mating_date: '2026-01-01', expected_birth_date: '2026-04-25' };
+  for (const closure of [
+    { birth_date: '2026-10-01' }, { weaning_date: '2026-10-01' },
+    { heat_return_date: '2026-10-01' }, { status: 'failed' },
+    { pregnancy_status: 'lost' }, { pregnancy_status: 'completed' }, { pregnancy_status: 'failed' },
+  ]) {
+    const latest = { mating_date: '2026-09-01', expected_birth_date: '2026-12-24', ...closure };
+    assert.equal(currentExpectedBirthDate(female([latest, old], { reproductive_status: 'gestante' })), undefined);
+  }
+});
+test('inactive females and cycles without a mating or prediction have no expected date', () => {
+  const cycle = { mating_date: '2026-09-01', expected_birth_date: '2026-12-24' };
+  assert.equal(currentExpectedBirthDate(female([cycle], { status: 'sold', reproductive_status: 'gestante' })), undefined);
+  for (const cycles of [[], [{ expected_birth_date: '2026-12-24' }], [{ mating_date: '2026-09-01' }]]) {
+    assert.equal(currentExpectedBirthDate(female(cycles, { reproductive_status: 'coberta' })), undefined);
+  }
 });

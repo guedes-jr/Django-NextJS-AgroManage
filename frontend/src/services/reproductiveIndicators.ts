@@ -1,5 +1,5 @@
 export interface ReproductiveCycle {
-  mating_date?: string; birth_date?: string; weaning_date?: string; heat_return_date?: string;
+  mating_date?: string; expected_birth_date?: string; birth_date?: string; weaning_date?: string; heat_return_date?: string;
   status?: string; pregnancy_status?: string; pregnancy_confirmed?: boolean;
   live_born?: number; stillborn?: number; mummified?: number; total_born?: number; mortality?: number;
   avg_birth_weight_kg?: number; weaned_quantity?: number; avg_weaning_weight_kg?: number; lactation_days?: number;
@@ -7,6 +7,15 @@ export interface ReproductiveCycle {
 export interface ReproductiveFemale {
   id: string; farm: string; category: string; status: string; reproductive_status: string;
   reproductive_cycles?: ReproductiveCycle[];
+}
+export function currentExpectedBirthDate(female: ReproductiveFemale): string | undefined {
+  if (female.status !== "active" || !["coberta", "gestante"].includes(female.reproductive_status)) return undefined;
+  const latest = (female.reproductive_cycles || []).filter(cycle => cycle.mating_date)
+    .reduce<ReproductiveCycle | undefined>((current, cycle) =>
+      !current || cycle.mating_date! >= current.mating_date! ? cycle : current, undefined);
+  if (!latest || latest.birth_date || latest.weaning_date || latest.heat_return_date || latest.status === "failed"
+    || ["failed", "lost", "completed"].includes(latest.pregnancy_status || "")) return undefined;
+  return latest.expected_birth_date;
 }
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 const daysBetween = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 86400000;
