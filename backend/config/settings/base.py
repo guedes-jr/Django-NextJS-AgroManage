@@ -161,7 +161,7 @@ DEMO_REQUEST_NOTIFICATION_EMAILS = env.list(
 # ---------------------------------------------------------------------------
 # Provedores / Assistente Rural IA (segredos apenas no backend)
 # ---------------------------------------------------------------------------
-AI_DEFAULT_PROVIDER = env("AI_DEFAULT_PROVIDER", default="openai")
+AI_DEFAULT_PROVIDER = env("AI_DEFAULT_PROVIDER", default="opencode_zen")
 AI_ALLOW_PAID_FALLBACK = env.bool("AI_ALLOW_PAID_FALLBACK", default=False)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_AI_MODEL = env("OPENAI_AI_MODEL", default="gpt-5.6-terra")

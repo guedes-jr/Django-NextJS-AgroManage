@@ -333,6 +333,13 @@ class Birth(BaseModel):
         super().save(*args, **kwargs)
         
         if is_new:
+            # A gestação deixa de estar ativa assim que seu parto é registrado.
+            # Isso mantém as fases Gestação e Maternidade mutuamente exclusivas.
+            Pregnancy.objects.filter(
+                pk=self.pregnancy_id,
+                status=Pregnancy.Status.ONGOING,
+            ).update(status=Pregnancy.Status.COMPLETED)
+
             female = self.female
             update_fields = []
 

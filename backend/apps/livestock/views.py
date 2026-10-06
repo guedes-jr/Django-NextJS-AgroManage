@@ -268,6 +268,7 @@ def _expected_birth_alerts(organization, species_code):
         female__species__code=species_code,
         female__status=AnimalBatch.Status.ACTIVE,
         status=Pregnancy.Status.ONGOING,
+        birth__isnull=True,
         expected_birth_date__isnull=False,
     ).select_related("female")
 
@@ -525,7 +526,8 @@ class GestacoesView(BasePhaseView):
         pregnancies = Pregnancy.objects.filter(
             female__farm__organization=request.user.organization,
             female__species__code=species,
-            status='ongoing'
+            status=Pregnancy.Status.ONGOING,
+            birth__isnull=True,
         ).select_related('female', 'mating')
 
         # 2. Cobertas aguardando diagnóstico (Animal status 'coberta')

@@ -13,6 +13,21 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const number = new Intl.NumberFormat("pt-BR");
 const initialForm = () => ({ batch: "", mode: "whole", quantity: "", weight: "", price: "", buyer: "", responsible: "", notes: "", date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}` });
 
+const saleErrorMessage = (error: unknown): string => {
+  const response = typeof error === "object" && error && "response" in error
+    ? (error as { response?: { data?: unknown } }).response
+    : undefined;
+  const findMessage = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) return value.map(findMessage).find(Boolean);
+    if (typeof value === "object" && value) {
+      return Object.values(value as Record<string, unknown>).map(findMessage).find(Boolean);
+    }
+    return undefined;
+  };
+  return findMessage(response?.data) || "Não foi possível registrar a venda. Tente novamente.";
+};
+
 const fetchSales = () => Promise.allSettled([
   apiClient.get("/livestock/batches/", { params: { page_size: 200 } }),
   apiClient.get("/livestock/batches/sales/"),
@@ -83,7 +98,10 @@ export default function SalesPage() {
       });
       setMessage("Venda registrada e receita lançada no financeiro."); setForm(initialForm());
       try { await load(); } catch { setError("Venda registrada. Não foi possível atualizar a lista; recarregue a página."); }
-    } catch { setError("Não foi possível registrar a venda. Confira os dados e a quantidade disponível no lote."); }
+    } catch (error) {
+      setError(saleErrorMessage(error));
+      await load();
+    }
     finally { setSaving(false); }
   };
   return <div className={`${styles.page} ${styles.sale}`}>
