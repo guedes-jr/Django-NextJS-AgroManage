@@ -110,7 +110,7 @@ def maternal_feed_costs(organization, batch_ids):
 def semen_costs(organization, batch_ids):
     """Recover semen stock consumption recorded with the female in its note."""
     semen_ids = [
-        item.pk
+        item["id"]
         for item in ItemEstoque.objects.filter(organization=organization).values("id", "categoria", "categorias")
         if item["categoria"] == "semen" or "semen" in (item["categorias"] or [])
     ]
