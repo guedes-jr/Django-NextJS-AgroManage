@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.db.models import Q
 
 from apps.finance.models import Transaction
-from apps.inventory.models import ConsumoRacao
+from apps.inventory.models import ConsumoRacao, ItemEstoque, MovimentacaoEstoque
 from apps.livestock.models import (
     AnimalBatch,
     BatchPhaseHistory,
@@ -16,6 +16,7 @@ from apps.livestock.models import (
     FeedingRecord,
     HistoricoEvento,
     LitterMedication,
+    Mating,
     VaccinationRecord,
 )
 
@@ -106,6 +107,46 @@ def maternal_feed_costs(organization, batch_ids):
     return allocations
 
 
+def semen_costs(organization, batch_ids):
+    """Recover semen stock consumption recorded with the female in its note."""
+    semen_ids = [
+        item.pk
+        for item in ItemEstoque.objects.filter(organization=organization).values("id", "categoria", "categorias")
+        if item["categoria"] == "semen" or "semen" in (item["categorias"] or [])
+    ]
+    if not semen_ids:
+        return {}
+    births = list(
+        Birth.objects.filter(batch_id__in=batch_ids, female__farm__organization=organization)
+        .select_related("pregnancy__mating", "female")
+    )
+    if not births:
+        return {}
+    movements = (
+        MovimentacaoEstoque.objects.filter(item_id__in=semen_ids, tipo="consumo")
+        .select_related("lote")
+    )
+    costs = defaultdict(Decimal)
+    for movement in movements:
+        unit_cost = movement.lote.custo_unitario if movement.lote else None
+        if unit_cost is None:
+            continue
+        note = movement.observacao or ""
+        targets = [
+            birth
+            for birth in births
+            if birth.pregnancy.mating.mating_type in {Mating.MatingType.AI, Mating.MatingType.IATF}
+            and any(key in note for key in (str(birth.female_id), birth.female.identifier))
+        ]
+        if not targets:
+            continue
+        amount = movement.quantidade * unit_cost
+        share, remainder = divmod(amount, len(targets))
+        for index, birth in enumerate(targets):
+            costs[str(birth.batch_id)] += share + (remainder if index == 0 else Decimal(0))
+    return costs
+
+
 def enrich_lot_costs(organization, rows):
     if not rows:
         return rows
@@ -169,6 +210,8 @@ def enrich_lot_costs(organization, rows):
     for batch_id, entries in maternal_feed_costs(organization, ids).items():
         for feed, amount, key in entries:
             add(batch_id, amount, key)
+    for batch_id, amount in semen_costs(organization, ids).items():
+        add(batch_id, amount, "reproduction")
     for vaccine in VaccinationRecord.objects.filter(
         farm__organization=organization, batch_id__in=ids
     ):

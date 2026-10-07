@@ -433,11 +433,13 @@ def batch_financial_details(batch):
     from apps.inventory.models import ConsumoRacao
     for item in ConsumoRacao.objects.filter(lote_animal_id__in=batch_ids, organization=batch.farm.organization).select_related('item_estoque'):
         add(f'feed-{item.pk}', 'Ração', item.item_estoque.nome, item.data_inicio, item.custo_total, item.quantidade, 'kg')
-    from apps.reports.lot_costs import maternal_feed_costs
+    from apps.reports.lot_costs import maternal_feed_costs, semen_costs
     for attributed_batch_id, entries in maternal_feed_costs(batch.farm.organization, batch_ids).items():
         for item, amount, phase in entries:
             label = 'Ração da matriz — gestação' if phase == 'gestation_feed' else 'Ração da matriz — lactação'
             add(f'maternal-feed-{item.pk}-{phase}-{attributed_batch_id}', label, item.item_estoque.nome, item.data_inicio, amount, item.quantidade, 'kg')
+    for attributed_batch_id, amount in semen_costs(batch.farm.organization, batch_ids).items():
+        add(f'semen-{attributed_batch_id}', 'Sêmen', 'Baixa de estoque vinculada à cobertura', batch.entry_date, amount)
     for item in VaccinationRecord.objects.filter(batch_id__in=batch_ids, farm__organization=batch.farm.organization):
         add(f'vaccine-{item.pk}', 'Vacinas', item.vaccine_name, item.application_date, item.inventory_cost_snapshot)
     for item in ClinicalRecord.objects.filter(batch_id__in=batch_ids, farm__organization=batch.farm.organization):
