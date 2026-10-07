@@ -19,10 +19,21 @@ export function PWAInstallPrompt() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    let removeServiceWorkerListener: (() => void) | undefined;
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {
+      let reloadingForUpdate = false;
+      const reloadForUpdate = () => {
+        if (reloadingForUpdate) return;
+        reloadingForUpdate = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", reloadForUpdate);
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(registration => {
+        void registration.update();
+      }).catch(() => {
         // A aplicação continua funcionando normalmente se o navegador bloquear o PWA.
       });
+      removeServiceWorkerListener = () => navigator.serviceWorker.removeEventListener("controllerchange", reloadForUpdate);
     }
 
     const standalone =
@@ -47,6 +58,7 @@ export function PWAInstallPrompt() {
     window.addEventListener("appinstalled", handleInstalled);
 
     return () => {
+      removeServiceWorkerListener?.();
       window.cancelAnimationFrame(iosHelpFrame);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
       window.removeEventListener("appinstalled", handleInstalled);

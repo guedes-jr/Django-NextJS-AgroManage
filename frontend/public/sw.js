@@ -1,4 +1,4 @@
-const CACHE_NAME = "fazenda-mais-static-v3";
+const CACHE_NAME = "fazenda-mais-static-v4";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [
   OFFLINE_URL,
@@ -40,24 +40,15 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_NAME);
-        const cacheKey = new Request(url.pathname, { headers: request.headers });
         const cached = await cache.match(request, { ignoreSearch: true });
-
-        const network = fetch(request)
-          .then((response) => {
-            if (response && response.ok) {
-              cache.put(cacheKey, response.clone());
-            }
-            return response;
-          })
-          .catch(() => (cached ? cached.clone() : caches.match(OFFLINE_URL)));
-
-        if (cached) {
-          // Entrega o shell salvo na hora e revalida em segundo plano.
-          event.waitUntil(network.then(() => undefined));
-          return cached;
+        try {
+          // Páginas Next.js mudam a cada publicação; sempre priorize o HTML atual.
+          const response = await fetch(request);
+          if (response && response.ok) await cache.put(request, response.clone());
+          return response;
+        } catch {
+          return cached ? cached.clone() : caches.match(OFFLINE_URL);
         }
-        return network;
       })(),
     );
     return;
