@@ -7,6 +7,12 @@ type MarkdownMessageProps = {
 
 const inlinePattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s)]+\)|\*[^*]+\*)/g;
 
+const tableCells = (line: string) => line.trim().replace(/^\||\|$/g, "").split("|").map(cell => cell.trim());
+const isTableSeparator = (line: string) => {
+  const cells = tableCells(line);
+  return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+};
+
 function renderInline(text: string): ReactNode[] {
   return text.split(inlinePattern).filter(Boolean).map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
@@ -33,6 +39,20 @@ export function MarkdownMessage({ text, className }: MarkdownMessageProps) {
       while (index < lines.length && !lines[index].startsWith("```")) code.push(lines[index++]);
       if (index < lines.length) index += 1;
       nodes.push(<pre key={nodes.length}><code>{code.join("\n")}</code></pre>);
+      continue;
+    }
+
+    if (line.includes("|") && index + 1 < lines.length && isTableSeparator(lines[index + 1])) {
+      const headers = tableCells(line);
+      const rows: string[][] = [];
+      index += 2;
+      while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+        const cells = tableCells(lines[index]);
+        if (cells.length !== headers.length) break;
+        rows.push(cells);
+        index += 1;
+      }
+      nodes.push(<div className="markdownTable" key={nodes.length}><table><thead><tr>{headers.map((header, headerIndex) => <th key={headerIndex}>{renderInline(header)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{renderInline(cell)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
 
