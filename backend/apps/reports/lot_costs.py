@@ -61,6 +61,51 @@ def normalize(value):
     )
 
 
+def maternal_feed_costs(organization, batch_ids):
+    """Return gestation/lactation feed allocated from each mother to her litter."""
+    births_by_female = defaultdict(list)
+    for birth in (
+        Birth.objects.filter(batch_id__in=batch_ids, female__farm__organization=organization)
+        .select_related("pregnancy", "litter")
+    ):
+        births_by_female[str(birth.female_id)].append(birth)
+    if not births_by_female:
+        return {}
+
+    allocations = defaultdict(list)
+    for feed in (
+        ConsumoRacao.objects.filter(
+            organization=organization, animais__id__in=births_by_female
+        )
+        .distinct()
+        .prefetch_related("animais")
+    ):
+        key = PHASE_KEYS.get(normalize(feed.fase_destino))
+        if key not in {"gestation_feed", "lactation_feed"}:
+            continue
+        targets = set()
+        for animal in feed.animais.all():
+            for birth in births_by_female.get(str(animal.pk), []):
+                if key == "gestation_feed":
+                    matches_period = birth.pregnancy.start_date <= feed.data_inicio <= birth.birth_date
+                else:
+                    weaning_date = getattr(birth.litter, "weaning_date", None)
+                    matches_period = birth.birth_date <= feed.data_inicio and (
+                        not weaning_date or feed.data_inicio <= weaning_date
+                    )
+                if matches_period:
+                    targets.add(str(birth.batch_id))
+        if not targets:
+            continue
+        # A single entry may cover more than one selected mother. Divide it once,
+        # instead of applying the whole value to every litter.
+        share = feed.custo_total / len(targets)
+        remainder = feed.custo_total - (share * len(targets))
+        for index, batch_id in enumerate(sorted(targets)):
+            allocations[batch_id].append((feed, share + (remainder if index == 0 else Decimal(0)), key))
+    return allocations
+
+
 def enrich_lot_costs(organization, rows):
     if not rows:
         return rows
@@ -121,6 +166,9 @@ def enrich_lot_costs(organization, rows):
             feed.custo_total,
             phase_at(feed.lote_animal_id, feed.data_inicio, feed.fase_destino),
         )
+    for batch_id, entries in maternal_feed_costs(organization, ids).items():
+        for feed, amount, key in entries:
+            add(batch_id, amount, key)
     for vaccine in VaccinationRecord.objects.filter(
         farm__organization=organization, batch_id__in=ids
     ):

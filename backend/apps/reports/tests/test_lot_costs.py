@@ -14,7 +14,10 @@ from apps.livestock.models import (
     Animal,
     AnimalBatch,
     BatchPhaseHistory,
+    Birth,
     HistoricoEvento,
+    Mating,
+    Pregnancy,
     Species,
     VaccinationRecord,
 )
@@ -171,6 +174,39 @@ class LotCostsTest(APITestCase):
         self.assertEqual(rows[str(target.pk)]["matrices"], ["M001"])
         self.assertEqual(Decimal(rows[str(target.pk)]["total_cost"]), 0)
         self.assertEqual(Decimal(rows[str(self.batch.pk)]["total_cost"]), 100)
+
+    def test_maternal_gestation_and_lactation_feed_are_assigned_to_birth_batch(self):
+        mother = Animal.objects.create(
+            farm=self.farm, species=self.species, identifier="TN-026", category="Matriz"
+        )
+        mating = Mating.objects.create(
+            female=mother, mating_date=self.start, mating_type="natural", status="confirmed"
+        )
+        pregnancy = Pregnancy.objects.create(
+            mating=mating, female=mother, start_date=self.start,
+            expected_birth_date=self.start + timedelta(days=114), status="completed",
+        )
+        birth_date = self.start + timedelta(days=114)
+        Birth.objects.create(
+            pregnancy=pregnancy, female=mother, batch=self.batch, birth_date=birth_date,
+            live_born=10,
+        )
+        gestation = ConsumoRacao.objects.create(
+            organization=self.org, farm=self.farm, item_estoque=self.feed,
+            data_inicio=self.start + timedelta(days=30), data_fim=self.start + timedelta(days=30),
+            quantidade=10, custo_total=Decimal("30"), categoria_destino="matrizes", fase_destino="gestante",
+        )
+        gestation.animais.add(mother)
+        lactation = ConsumoRacao.objects.create(
+            organization=self.org, farm=self.farm, item_estoque=self.feed,
+            data_inicio=birth_date + timedelta(days=5), data_fim=birth_date + timedelta(days=5),
+            quantidade=10, custo_total=Decimal("40"), categoria_destino="matrizes", fase_destino="lactante",
+        )
+        lactation.animais.add(mother)
+        row = self.report()[str(self.batch.pk)]
+        self.assertEqual(Decimal(row["gestation_feed"]), 30)
+        self.assertEqual(Decimal(row["lactation_feed"]), 40)
+        self.assertEqual(Decimal(row["total_cost"]), 170)
 
     def test_unknown_vaccine_cost_and_zero_quantity_are_not_fabricated(self):
         VaccinationRecord.objects.create(
