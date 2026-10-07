@@ -101,3 +101,13 @@
 @keyframes messageIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 @media(max-width:800px){.headerBadges .demoBadge{display:none}.contextCards{margin-top:15px}.quickPrompts{margin-bottom:6px}.welcome>.brandMark{width:60px;height:60px;flex-basis:60px}.actionMenu{right:0}}
 @media(prefers-reduced-motion:reduce){.message,.thinking i,.spin{animation:none!important}}
+
+/* Área de leitura ampla, com a ilustração decorativa em contraste muito baixo. */
+.shell{grid-template-columns:260px minmax(0,1fr);max-width:1720px;margin-inline:auto;height:calc(100dvh - 116px);min-height:700px}
+.messages{position:relative;isolation:isolate;padding-inline:clamp(24px,4vw,88px)}
+.messages::before{position:absolute;z-index:0;right:0;bottom:0;left:0;height:64%;content:"";pointer-events:none;background:url("/chat-farm-silhouettes.png") right bottom/680px auto no-repeat;opacity:.055}
+.messages>*{position:relative;z-index:1}
+.message{max-width:1120px}.bubble{max-width:min(920px,86%)}.composer,.subjects,.quickPrompts,.error,.planBlocked{max-width:1120px}
+.formatted h2{margin:1px 0 12px;font-size:1.15rem;font-weight:850}.formatted em{font-style:italic}.formatted code{padding:2px 5px;border-radius:5px;color:color-mix(in srgb,var(--primary),var(--foreground) 25%);background:color-mix(in srgb,var(--primary),transparent 91%);font-family:var(--font-geist-mono,monospace);font-size:.88em}.formatted pre{overflow:auto;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:10px;background:color-mix(in srgb,var(--foreground),transparent 96%)}.formatted pre code{padding:0;color:inherit;background:transparent}.formatted a{color:var(--primary);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+@media(max-width:1100px){.shell{grid-template-columns:245px minmax(0,1fr)}.messages::before{background-size:540px auto;opacity:.045}}
+@media(max-width:800px){.shell{height:calc(100dvh - 118px);min-height:560px}.messages{padding-inline:14px}.messages::before{background-size:420px auto;opacity:.035}.bubble{max-width:88%}}
