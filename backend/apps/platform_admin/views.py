@@ -124,7 +124,7 @@ def whatsapp_web_status(request):
 @permission_classes([IsPlatformAdmin])
 def whatsapp_web_start(request):
     data, detail = _wpp_request("start-session", method="POST", payload={"waitQrCode": False})
-    if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    if detail: return Response({"qrcode": None, "status": "generating", "detail": detail})
     record_platform_action(request=request, action="whatsapp.session_started", object_type="WhatsAppWeb", object_id="agromanage", description="Sessão do WhatsApp Web iniciada.")
     return Response({"status": data.get("status", "unknown")})
 
