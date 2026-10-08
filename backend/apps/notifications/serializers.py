@@ -19,6 +19,7 @@ class NotificationPreferenceSerializer(serializers.ModelSerializer):
         fields = [
             "id", "stock_alerts", "animal_alerts", "financial_alerts",
             "report_alerts", "email_notifications", "push_notifications",
+            "whatsapp_reproductive_alerts",
             "frequency", "updated_at"
         ]
         read_only_fields = ["id", "updated_at"]

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Loader2, Bell, Package, Beef, Receipt, FileText } from "lucide-react";
+import { Save, Loader2, Bell, Package, Beef, Receipt, FileText, MessageCircle } from "lucide-react";
 import notificationService, { NotificationPreference } from "@/services/notificationService";
 import pushService from "@/services/pushNotificationService";
 
@@ -84,6 +84,22 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
         <div className="form-check form-switch mt-3 pt-3 border-top">
           <input className="form-check-input" type="checkbox" id="push_notifications" checked={preferences.push_notifications} onChange={e => setPreferences({...preferences, push_notifications:e.target.checked})}/>
           <label className="form-check-label small" htmlFor="push_notifications"><strong>Notificações no navegador</strong><span className="d-block text-muted extra-small">Receba atualizações mesmo quando o sistema não estiver aberto.</span></label>
+        </div>
+      </div>
+
+      <div className="dashboard-card p-4 border-dashed mb-4">
+        <div className="d-flex align-items-center gap-3 mb-3">
+          <div className="icon-box bg-success/10 text-success rounded-xl p-2">
+            <MessageCircle size={20} />
+          </div>
+          <div>
+            <h4 className="fw-bold small mb-1">Alertas reprodutivos pelo WhatsApp</h4>
+            <p className="extra-small text-muted-foreground mb-0">Receba vacina e próxima cobertura no telefone cadastrado no seu perfil.</p>
+          </div>
+        </div>
+        <div className="form-check form-switch">
+          <input className="form-check-input" type="checkbox" id="whatsapp_reproductive_alerts" checked={preferences.whatsapp_reproductive_alerts} onChange={e => setPreferences({...preferences, whatsapp_reproductive_alerts: e.target.checked})}/>
+          <label className="form-check-label small" htmlFor="whatsapp_reproductive_alerts">Ativar alertas reprodutivos por WhatsApp</label>
         </div>
       </div>
 

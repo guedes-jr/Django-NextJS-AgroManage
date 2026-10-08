@@ -2,9 +2,11 @@ from django.contrib.auth import get_user_model
 from django.urls import resolve, reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from unittest.mock import patch
 
-from apps.notifications.models import Notification, NotificationPreference, NotificationType
+from apps.notifications.models import Notification, NotificationDelivery, NotificationPreference, NotificationType
 from apps.notifications.services import NotificationService
+from apps.notifications.tasks import _whatsapp_phone, dispatch_notification
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -124,6 +126,61 @@ class NotificationTenantIsolationTestCase(APITestCase):
         self.assertEqual(Notification.objects.filter(user=self.admin_a, event_key="inventory.low_stock:item-1").count(), 1)
         self.assertEqual(second.occurrence_count, 2)
         self.assertEqual(second.message, "Ocorrência atualizada")
+
+    def test_whatsapp_delivery_is_created_only_for_reproductive_alerts(self):
+        NotificationPreference.objects.update_or_create(
+            user=self.admin_a,
+            defaults={"whatsapp_reproductive_alerts": True},
+        )
+        reproductive = NotificationService.create(
+            user=self.admin_a,
+            title="Vacina reprodutiva",
+            message="Aplicar vacina.",
+            notif_type=NotificationType.ANIMAL,
+            event_key="livestock.reproductive_vaccine.birth:1",
+        )
+        non_reproductive = NotificationService.create(
+            user=self.admin_a,
+            title="Novo lote",
+            message="Lote cadastrado.",
+            notif_type=NotificationType.ANIMAL,
+            event_key="livestock.batch.created:1",
+        )
+
+        self.assertTrue(NotificationDelivery.objects.filter(
+            notification=reproductive,
+            channel=NotificationDelivery.Channel.WHATSAPP_WEB,
+        ).exists())
+        self.assertFalse(NotificationDelivery.objects.filter(
+            notification=non_reproductive,
+            channel=NotificationDelivery.Channel.WHATSAPP_WEB,
+        ).exists())
+
+    def test_whatsapp_delivery_records_success(self):
+        self.admin_a.phone = "+55 (81) 99999-0000"
+        self.admin_a.save(update_fields=["phone"])
+        notification = NotificationService.create(
+            user=self.admin_a,
+            title="Próxima cobertura",
+            message="Programada para amanhã.",
+            notif_type=NotificationType.ANIMAL,
+        )
+        delivery = NotificationDelivery.objects.create(
+            notification=notification,
+            channel=NotificationDelivery.Channel.WHATSAPP_WEB,
+        )
+
+        with patch("apps.notifications.tasks._send_whatsapp_web", return_value=(True, "")):
+            dispatch_notification.run(str(notification.id))
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, NotificationDelivery.Status.SENT)
+        self.assertEqual(delivery.attempts, 1)
+
+    def test_whatsapp_phone_accepts_only_brazilian_numbers(self):
+        self.assertEqual(_whatsapp_phone("(81) 99999-0000"), "5581999990000")
+        self.assertEqual(_whatsapp_phone("+55 81 99999-0000"), "5581999990000")
+        self.assertEqual(_whatsapp_phone("+1 555 123 4567"), "")
 
     def test_user_can_archive_and_restore_own_notification(self):
         notification = NotificationService.create(user=self.member_a, title="Aviso", message="Mensagem")

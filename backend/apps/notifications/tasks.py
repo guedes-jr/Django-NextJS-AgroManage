@@ -6,8 +6,54 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 import logging
+import re
+from urllib import error, request
 
 logger = logging.getLogger(__name__)
+
+
+def _whatsapp_phone(phone):
+    """Return a Brazilian phone number suitable for WPPConnect, or an empty value."""
+    raw_phone = (phone or "").strip()
+    digits = re.sub(r"\D", "", raw_phone)
+    if raw_phone.startswith("+") and not digits.startswith("55"):
+        return ""
+    if len(digits) in (10, 11):
+        digits = f"55{digits}"
+    return digits if len(digits) in (12, 13) and digits.startswith("55") else ""
+
+
+def _send_whatsapp_web(notification):
+    """Deliver a transactional reproductive alert through a local WPPConnect Server."""
+    from django.conf import settings
+
+    base_url = getattr(settings, "WPP_CONNECT_URL", "").rstrip("/")
+    token = getattr(settings, "WPP_CONNECT_TOKEN", "")
+    session = getattr(settings, "WPP_CONNECT_SESSION", "")
+    phone = _whatsapp_phone(notification.user.phone)
+    if not base_url or not token or not session or not phone:
+        return False, "Integração WhatsApp não configurada ou usuário sem telefone brasileiro válido."
+
+    payload = json.dumps({
+        "phone": phone,
+        "isGroup": False,
+        "message": f"*{notification.title}*\n{notification.message}",
+    }).encode("utf-8")
+    outbound = request.Request(
+        f"{base_url}/api/{session}/send-message",
+        data=payload,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(outbound, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
+            if 200 <= response.status < 300:
+                return True, ""
+            return False, f"WPPConnect respondeu HTTP {response.status}."
+    except error.HTTPError as exc:
+        return False, f"WPPConnect respondeu HTTP {exc.code}."
+    except error.URLError as exc:
+        return False, f"Não foi possível conectar ao WPPConnect: {exc.reason}"
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
@@ -21,6 +67,7 @@ def dispatch_notification(self, notification_id):
     deliveries = notification.deliveries.filter(status__in=[NotificationDelivery.Status.PENDING, NotificationDelivery.Status.FAILED])
     for delivery in deliveries:
         delivery.attempts += 1
+        delivery.last_error = ""
         try:
             if delivery.channel == NotificationDelivery.Channel.EMAIL:
                 sent = EmailNotificationService.send_notification_email(notification.user, notification)
@@ -56,7 +103,16 @@ def dispatch_notification(self, notification_id):
                                 raise
                     delivery.status = NotificationDelivery.Status.SENT if sent_any else NotificationDelivery.Status.SKIPPED
                     delivery.delivered_at = timezone.now() if sent_any else None
-            delivery.last_error = ""
+            elif delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+                sent, detail = _send_whatsapp_web(notification)
+                if sent:
+                    delivery.status = NotificationDelivery.Status.SENT
+                    delivery.delivered_at = timezone.now()
+                elif detail.startswith("Integração WhatsApp"):
+                    delivery.status = NotificationDelivery.Status.SKIPPED
+                    delivery.last_error = detail
+                else:
+                    raise RuntimeError(detail)
         except Exception as exc:
             delivery.status = NotificationDelivery.Status.FAILED
             delivery.last_error = str(exc)[:2000]

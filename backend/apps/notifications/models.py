@@ -72,6 +72,7 @@ class NotificationPreference(models.Model):
     report_alerts = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
+    whatsapp_reproductive_alerts = models.BooleanField(default=False)
     frequency = models.CharField(
         max_length=20,
         choices=[
@@ -106,6 +107,7 @@ class NotificationDelivery(models.Model):
     class Channel(models.TextChoices):
         EMAIL = "email", "E-mail"
         WEB_PUSH = "web_push", "Web Push"
+        WHATSAPP_WEB = "whatsapp_web", "WhatsApp Web"
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pendente"

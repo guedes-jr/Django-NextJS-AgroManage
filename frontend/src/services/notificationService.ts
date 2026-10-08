@@ -26,6 +26,7 @@ export interface NotificationPreference {
   report_alerts: boolean;
   email_notifications: boolean;
   push_notifications: boolean;
+  whatsapp_reproductive_alerts: boolean;
   frequency: string;
   updated_at: string;
 }

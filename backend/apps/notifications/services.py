@@ -59,6 +59,12 @@ class NotificationService:
             channels.append(NotificationDelivery.Channel.EMAIL)
         if pref.push_notifications:
             channels.append(NotificationDelivery.Channel.WEB_PUSH)
+        if (
+            pref.whatsapp_reproductive_alerts
+            and notification.type == NotificationType.ANIMAL
+            and NotificationService.is_reproductive_whatsapp_alert(notification)
+        ):
+            channels.append(NotificationDelivery.Channel.WHATSAPP_WEB)
         for channel in channels:
             NotificationDelivery.objects.get_or_create(notification=notification, channel=channel)
         if channels:
@@ -68,6 +74,14 @@ class NotificationService:
                 except Exception:
                     logger.exception("Não foi possível enfileirar a entrega da notificação %s", notification.id)
             transaction.on_commit(enqueue)
+
+    @staticmethod
+    def is_reproductive_whatsapp_alert(notification):
+        """Only explicitly approved reproductive events may reach WhatsApp."""
+        return notification.event_key.startswith((
+            "livestock.reproductive_vaccine.",
+            "livestock.next_mating:",
+        ))
 
     @staticmethod
     def create_for_organization(organization, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, roles=None, event_key=""):
