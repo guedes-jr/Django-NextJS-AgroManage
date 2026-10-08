@@ -4,6 +4,7 @@ import csv
 import json
 import hashlib
 import time
+from urllib import error as urlerror, request as urlrequest
 
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
@@ -89,6 +90,49 @@ from .approved_queries import available_queries, run_approved_query
 from .sandbox_client import SandboxClient, SandboxUnavailable
 
 User = get_user_model()
+
+def _wpp_request(path, method="GET", payload=None):
+    base_url = getattr(settings, "WPP_CONNECT_URL", "").rstrip("/")
+    token = getattr(settings, "WPP_CONNECT_TOKEN", "")
+    session = getattr(settings, "WPP_CONNECT_SESSION", "")
+    if not base_url or not token or not session:
+        return None, "WhatsApp Web não está configurado no servidor."
+    outbound = urlrequest.Request(f"{base_url}/api/{session}/{path}", data=json.dumps(payload).encode() if payload is not None else None, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method=method)
+    try:
+        with urlrequest.urlopen(outbound, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
+            return json.loads(response.read().decode()), None
+    except (urlerror.URLError, urlerror.HTTPError, ValueError):
+        return None, "Não foi possível comunicar com o WhatsApp Web."
+
+@api_view(["GET"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_status(request):
+    data, detail = _wpp_request("check-connection-session")
+    if detail: return Response({"configured": bool(getattr(settings, "WPP_CONNECT_URL", "")), "status": "unavailable", "detail": detail})
+    return Response({"configured": True, "status": data.get("status", "unknown"), "connected": data.get("status") in ("CONNECTED", "isLogged"), "detail": ""})
+
+@api_view(["POST"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_start(request):
+    data, detail = _wpp_request("start-session", method="POST", payload={"waitQrCode": False})
+    if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    record_platform_action(request=request, action="whatsapp.session_started", object_type="WhatsAppWeb", object_id="agromanage", description="Sessão do WhatsApp Web iniciada.")
+    return Response({"status": data.get("status", "unknown")})
+
+@api_view(["GET"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_qrcode(request):
+    data, detail = _wpp_request("qrcode-session")
+    if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    return Response({"qrcode": data.get("qrcode"), "status": data.get("status", "unknown")})
+
+@api_view(["POST"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_disconnect(request):
+    data, detail = _wpp_request("logout-session", method="POST", payload={})
+    if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    record_platform_action(request=request, action="whatsapp.session_disconnected", object_type="WhatsAppWeb", object_id="agromanage", description="Sessão do WhatsApp Web desconectada.")
+    return Response({"status": data.get("status", "disconnected")})
 
 
 @api_view(["GET"])

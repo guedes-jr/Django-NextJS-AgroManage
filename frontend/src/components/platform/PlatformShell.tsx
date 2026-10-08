@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Bot, Building2, ClipboardList, CreditCard, Eye, Handshake, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards, BookOpen } from "lucide-react";
+import { Activity, Bot, Building2, ClipboardList, CreditCard, Eye, Handshake, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards, BookOpen, MessageCircle } from "lucide-react";
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
@@ -75,6 +75,9 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
           )}
           {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
             <Link href="/platform/support" className={pathname.startsWith("/platform/support") && !pathname.startsWith("/platform/support-access") ? "active" : ""}><BookOpen size={19} /><span className="nav-label">Central de suporte</span></Link>
+          )}
+          {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
+            <Link href="/platform/whatsapp-web" className={pathname.startsWith("/platform/whatsapp-web") ? "active" : ""}><MessageCircle size={19} /><span className="nav-label">WhatsApp Web</span></Link>
           )}
           {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
             <Link href="/platform/system-update" className={pathname.startsWith("/platform/system-update") ? "active" : ""}>
