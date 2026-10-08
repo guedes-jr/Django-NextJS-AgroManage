@@ -133,6 +133,8 @@ export const platformService = {
   async startWhatsappWeb() { return (await platformApi.post<{status:string}>("platform/whatsapp-web/start/", {})).data; },
   async whatsappWebQrCode() { return (await platformApi.get<{qrcode:string|null;status:string}>("platform/whatsapp-web/qrcode/")).data; },
   async disconnectWhatsappWeb() { return (await platformApi.post<{status:string}>("platform/whatsapp-web/disconnect/", {})).data; },
+  async whatsappContacts() { return (await platformApi.get<{id:string;name:string;phone:string;organization:string}[]>("platform/whatsapp-web/messages/")).data; },
+  async sendWhatsappMessage(phone:string,message:string) { return (await platformApi.post("platform/whatsapp-web/messages/",{phone,message})).data; },
   async login(email: string, password: string) {
     const { data } = await axios.post<{
       access: string;

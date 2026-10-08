@@ -31,6 +31,7 @@ urlpatterns = [
     path("whatsapp-web/start/", views.whatsapp_web_start, name="platform-whatsapp-web-start"),
     path("whatsapp-web/qrcode/", views.whatsapp_web_qrcode, name="platform-whatsapp-web-qrcode"),
     path("whatsapp-web/disconnect/", views.whatsapp_web_disconnect, name="platform-whatsapp-web-disconnect"),
+    path("whatsapp-web/messages/", views.whatsapp_web_messages, name="platform-whatsapp-web-messages"),
     path("commercial/dashboard/", views.commercial_dashboard, name="platform-commercial-dashboard"),
     path("payment-gateways/", views.payment_gateways, name="platform-payment-gateways"),
     path("payment-gateways/<uuid:gateway_id>/", views.update_payment_gateway, name="platform-payment-gateway-detail"),

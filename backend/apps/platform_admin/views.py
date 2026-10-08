@@ -26,6 +26,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from celery import current_app
 
 from apps.organizations.models import Organization
+from apps.organizations.models import OrganizationContact
 from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, Subscription
 from apps.billing.services import create_manual_invoice, record_manual_payment
 from apps.ai_assistant.models import (
@@ -133,6 +134,21 @@ def whatsapp_web_disconnect(request):
     if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     record_platform_action(request=request, action="whatsapp.session_disconnected", object_type="WhatsAppWeb", object_id="agromanage", description="Sessão do WhatsApp Web desconectada.")
     return Response({"status": data.get("status", "disconnected")})
+
+@api_view(["GET", "POST"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_messages(request):
+    if request.method == "GET":
+        contacts = OrganizationContact.objects.filter(contact_type=OrganizationContact.ContactType.WHATSAPP).select_related("organization").order_by("organization__name", "name")
+        return Response([{"id": str(item.id), "name": item.name, "phone": item.value, "organization": item.organization.name} for item in contacts])
+    phone = "".join(char for char in str(request.data.get("phone", "")) if char.isdigit())
+    message = str(request.data.get("message", "")).strip()
+    if len(phone) not in (12, 13) or not phone.startswith("55") or not message or len(message) > 4096:
+        return Response({"detail": "Informe um número brasileiro com DDI e uma mensagem de até 4096 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+    data, detail = _wpp_request("send-message", method="POST", payload={"phone": phone, "isGroup": False, "message": message})
+    if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    record_platform_action(request=request, action="whatsapp.individual_message_sent", object_type="WhatsAppWeb", object_id=phone, description="Mensagem individual enviada pelo WhatsApp Web.")
+    return Response({"status": data.get("status", "sent")})
 
 
 @api_view(["GET"])
