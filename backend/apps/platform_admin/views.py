@@ -95,9 +95,17 @@ User = get_user_model()
 def _wpp_request(path, method="GET", payload=None):
     base_url = getattr(settings, "WPP_CONNECT_URL", "").rstrip("/")
     token = getattr(settings, "WPP_CONNECT_TOKEN", "")
+    secret = getattr(settings, "WPP_CONNECT_SECRET", "")
     session = getattr(settings, "WPP_CONNECT_SESSION", "")
-    if not base_url or not token or not session:
+    if not base_url or not session or (not token and not secret):
         return None, "WhatsApp Web não está configurado no servidor."
+    if secret:
+        try:
+            generated = urlrequest.Request(f"{base_url}/api/{session}/{secret}/generate-token", method="POST")
+            with urlrequest.urlopen(generated, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
+                token = json.loads(response.read().decode())["token"]
+        except (urlerror.URLError, urlerror.HTTPError, ValueError, KeyError):
+            return None, "Não foi possível autenticar no WhatsApp Web."
     outbound = urlrequest.Request(f"{base_url}/api/{session}/{path}", data=json.dumps(payload).encode() if payload is not None else None, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method=method)
     try:
         with urlrequest.urlopen(outbound, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
