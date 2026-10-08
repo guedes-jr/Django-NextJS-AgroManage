@@ -211,6 +211,11 @@ fi
 
 echo "[DEPLOY] Instalando dependências do frontend..."
 
+# Next.js can keep files in node_modules open while it is running. Stop it
+# before npm replaces dependencies, otherwise npm may fail with ENOTEMPTY.
+require_sudo_access
+run_sudo systemctl stop "$FRONTEND_SERVICE"
+
 if [ -f "package-lock.json" ]; then
   npm ci
 else
