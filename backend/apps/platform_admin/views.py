@@ -19,6 +19,9 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+from apps.notifications.models import NotificationDelivery
+from .whatsapp import connected_account, alert_overview, alert_deliveries, delivery_row
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
@@ -96,8 +99,20 @@ User = get_user_model()
 @permission_classes([IsPlatformAdmin])
 def whatsapp_web_status(request):
     data, detail = _wpp_request("check-connection-session")
-    if detail: return Response({"configured": is_configured(), "status": "unavailable", "detail": detail})
-    return Response({"configured": True, "status": "CONNECTED" if is_connected(data) else "DISCONNECTED", "connected": is_connected(data), "detail": ""})
+    checked_at = timezone.now().isoformat()
+    if detail:
+        return Response({"configured": is_configured(), "status": "unavailable", "connected": False, "detail": detail, "checked_at": checked_at})
+    connected = is_connected(data)
+    state = "CONNECTED" if connected else "DISCONNECTED"
+    qr = None
+    if not connected:
+        session, state_error = _wpp_request("status-session")
+        if state_error:
+            return Response({"configured": True, "status": "unavailable", "connected": False, "detail": state_error, "checked_at": checked_at, "qrcode": None})
+        raw_state = session.get("status")
+        state = raw_state if isinstance(raw_state, str) and raw_state else "CLOSED"
+        qr = session.get("qrcode")
+    return Response({"configured": True, "status": state, "connected": connected, "detail": "", "checked_at": checked_at, "qrcode": qr})
 
 @api_view(["POST"])
 @permission_classes([IsPlatformAdmin])
@@ -121,6 +136,40 @@ def whatsapp_web_disconnect(request):
     if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     record_platform_action(request=request, action="whatsapp.session_disconnected", object_type="WhatsAppWeb", object_id="agromanage", description="Sessão do WhatsApp Web desconectada.")
     return Response({"status": data.get("status", "disconnected")})
+
+@api_view(["GET"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_account(request):
+    return Response(connected_account())
+
+
+@api_view(["POST"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_reconnect(request):
+    # Close the browser session without deleting the paired device credentials.
+    _, detail = _wpp_request("close-session", method="POST", payload={})
+    if detail:
+        return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    data, detail = _wpp_request("start-session", method="POST", payload={"waitQrCode": False})
+    if detail:
+        return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    record_platform_action(request=request, action="whatsapp.session_reconnected", object_type="WhatsAppWeb", object_id=settings.WPP_CONNECT_SESSION, description="Reconexão da sessão WhatsApp solicitada.")
+    return Response({"status": data.get("status"), "qrcode": data.get("qrcode")})
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_alerts(request):
+    delivery_status = request.query_params.get("status", "")
+    if delivery_status and delivery_status not in NotificationDelivery.Status.values:
+        return Response({"detail": "Status de entrega inválido."}, status=status.HTTP_400_BAD_REQUEST)
+    pagination = PageNumberPagination()
+    pagination.page_size = 20
+    page = pagination.paginate_queryset(alert_deliveries(delivery_status), request)
+    response = pagination.get_paginated_response([delivery_row(item) for item in page])
+    response.data["overview"] = alert_overview()
+    return response
+
 
 @api_view(["GET", "POST"])
 @permission_classes([IsPlatformAdmin])

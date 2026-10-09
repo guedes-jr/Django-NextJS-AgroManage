@@ -287,3 +287,21 @@ otherwise `WPP_CONNECT_TOKEN` is used. HTTP 200 with an explicit send failure
 is not recorded as delivered. Alert eligibility and tenant permissions remain
 unchanged: opted-in users receive eligible reproductive alerts at their user
 profile phone through Celery.
+
+The status response also includes `checked_at`, the pairing stage and optional
+`qrcode`, allowing a single panel request per polling cycle. GET `/account/`
+returns only `{account: {name, phone} | null, detail}` from `host-device`; unavailable
+profile data does not invalidate an otherwise connected session. POST `/reconnect/`
+closes and starts the browser session while retaining paired credentials and
+records an audit event; `/disconnect/` logs out and requires a new QR pairing.
+
+GET `/alerts/?page=1&status=failed` is restricted to platform owners/admins,
+like all WhatsApp management routes. It paginates 20 WhatsApp deliveries with
+recipient, organization, status, attempts, timestamps and failure reason. Its
+`overview` reports global counts for `pending`, `sent`, `failed`, `skipped`,
+eligible event types, active opted-in users with animal alerts enabled, and
+Brazilian-phone eligibility. Eligible recipients also require an owner/admin
+organization role, matching the scheduled events. Counts are not filtered by history status. These
+are potential recipients, subject to the existing event authorization rules.
+The UI refreshes history every 30 seconds. Manual tests use the existing audited
+message endpoint; they do not create an automatic-alert delivery record.

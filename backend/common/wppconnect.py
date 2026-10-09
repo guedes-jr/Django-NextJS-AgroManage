@@ -33,8 +33,13 @@ def wpp_request(path, method="GET", payload=None):
             data = json.loads(response.read().decode())
             if not isinstance(data, dict):
                 return None, "Resposta inválida do WhatsApp Web."
-            if path == "send-message" and (data.get("status") is False or data.get("status") in ("error", "ERROR") or data.get("response") is False):
-                return None, "O WhatsApp Web recusou o envio da mensagem."
+            if path in ("send-message", "start-session", "close-session", "logout-session") and (
+                data.get("status") is False
+                or str(data.get("status", "")).lower() == "error"
+                or data.get("response") is False
+            ):
+                detail = "O WhatsApp Web recusou o envio da mensagem." if path == "send-message" else "O WhatsApp Web não conseguiu concluir a operação da sessão."
+                return None, detail
             return data, None
     except urlerror.HTTPError as exc:
         return None, f"WhatsApp Web respondeu HTTP {exc.code}."

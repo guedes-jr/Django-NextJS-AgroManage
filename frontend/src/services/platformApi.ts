@@ -128,11 +128,25 @@ export function setPlatformSession(access: string, refresh: string) {
   localStorage.setItem(PLATFORM_REFRESH_TOKEN, refresh);
 }
 
+export type WhatsAppSession = {
+  configured: boolean; status: string; connected: boolean; detail: string; checked_at: string; qrcode?: string | null;
+};
+export type WhatsAppAccount = { name: string; phone: string };
+export type WhatsAppDeliveryStatus = "pending" | "sent" | "failed" | "skipped";
+export type WhatsAppAlerts = {
+  count: number; next: string | null; previous: string | null;
+  overview: { checked_at: string; opted_in_users: number; eligible_users: number; invalid_phone_users: number; alert_types: string[]; counts: Record<WhatsAppDeliveryStatus, number> };
+  results: { id: string; title: string; recipient: string; phone: string; organization: string; status: WhatsAppDeliveryStatus; attempts: number; last_error: string; created_at: string; updated_at: string; delivered_at: string | null }[];
+};
+
 export const platformService = {
-  async whatsappWebStatus() { return (await platformApi.get<{configured:boolean;status:string;connected?:boolean;detail:string}>("platform/whatsapp-web/status/")).data; },
+  async whatsappWebStatus() { return (await platformApi.get<WhatsAppSession>("platform/whatsapp-web/status/")).data; },
   async startWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/start/", {})).data; },
   async whatsappWebQrCode() { return (await platformApi.get<{qrcode:string|null;status:string|null}>("platform/whatsapp-web/qrcode/")).data; },
   async disconnectWhatsappWeb() { return (await platformApi.post<{status:string}>("platform/whatsapp-web/disconnect/", {})).data; },
+  async whatsappAccount() { return (await platformApi.get<{account:WhatsAppAccount|null;detail:string}>("platform/whatsapp-web/account/")).data; },
+  async reconnectWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/reconnect/", {})).data; },
+  async whatsappAlerts(page = 1, status: WhatsAppDeliveryStatus | "" = "") { return (await platformApi.get<WhatsAppAlerts>("platform/whatsapp-web/alerts/", {params: {page, status}})).data; },
   async whatsappContacts() { return (await platformApi.get<{id:string;name:string;phone:string;organization:string}[]>("platform/whatsapp-web/messages/")).data; },
   async sendWhatsappMessage(phone:string,message:string) { return (await platformApi.post("platform/whatsapp-web/messages/",{phone,message})).data; },
   async login(email: string, password: string) {
