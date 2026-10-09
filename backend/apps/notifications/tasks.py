@@ -4,10 +4,9 @@ Tarefas Celery para notificações.
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
-import json
 import logging
 import re
-from urllib import error, request
+from common.wppconnect import is_configured, wpp_request
 
 logger = logging.getLogger(__name__)
 
@@ -25,35 +24,15 @@ def _whatsapp_phone(phone):
 
 def _send_whatsapp_web(notification):
     """Deliver a transactional reproductive alert through a local WPPConnect Server."""
-    from django.conf import settings
-
-    base_url = getattr(settings, "WPP_CONNECT_URL", "").rstrip("/")
-    token = getattr(settings, "WPP_CONNECT_TOKEN", "")
-    session = getattr(settings, "WPP_CONNECT_SESSION", "")
     phone = _whatsapp_phone(notification.user.phone)
-    if not base_url or not token or not session or not phone:
+    if not is_configured() or not phone:
         return False, "Integração WhatsApp não configurada ou usuário sem telefone brasileiro válido."
-
-    payload = json.dumps({
+    _, detail = wpp_request("send-message", method="POST", payload={
         "phone": phone,
         "isGroup": False,
         "message": f"*{notification.title}*\n{notification.message}",
-    }).encode("utf-8")
-    outbound = request.Request(
-        f"{base_url}/api/{session}/send-message",
-        data=payload,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=utf-8"},
-        method="POST",
-    )
-    try:
-        with request.urlopen(outbound, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
-            if 200 <= response.status < 300:
-                return True, ""
-            return False, f"WPPConnect respondeu HTTP {response.status}."
-    except error.HTTPError as exc:
-        return False, f"WPPConnect respondeu HTTP {exc.code}."
-    except error.URLError as exc:
-        return False, f"Não foi possível conectar ao WPPConnect: {exc.reason}"
+    })
+    return detail is None, detail or ""
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})

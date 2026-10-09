@@ -4,7 +4,7 @@ import csv
 import json
 import hashlib
 import time
-from urllib import error as urlerror, request as urlrequest
+from common.wppconnect import wpp_request as _wpp_request, is_configured, is_connected
 
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
@@ -92,46 +92,25 @@ from .sandbox_client import SandboxClient, SandboxUnavailable
 
 User = get_user_model()
 
-def _wpp_request(path, method="GET", payload=None):
-    base_url = getattr(settings, "WPP_CONNECT_URL", "").rstrip("/")
-    token = getattr(settings, "WPP_CONNECT_TOKEN", "")
-    secret = getattr(settings, "WPP_CONNECT_SECRET", "")
-    session = getattr(settings, "WPP_CONNECT_SESSION", "")
-    if not base_url or not session or (not token and not secret):
-        return None, "WhatsApp Web não está configurado no servidor."
-    if secret:
-        try:
-            generated = urlrequest.Request(f"{base_url}/api/{session}/{secret}/generate-token", method="POST")
-            with urlrequest.urlopen(generated, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
-                token = json.loads(response.read().decode())["token"]
-        except (urlerror.URLError, urlerror.HTTPError, ValueError, KeyError):
-            return None, "Não foi possível autenticar no WhatsApp Web."
-    outbound = urlrequest.Request(f"{base_url}/api/{session}/{path}", data=json.dumps(payload).encode() if payload is not None else None, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method=method)
-    try:
-        with urlrequest.urlopen(outbound, timeout=getattr(settings, "WPP_CONNECT_TIMEOUT_SECONDS", 15)) as response:
-            return json.loads(response.read().decode()), None
-    except (urlerror.URLError, urlerror.HTTPError, ValueError):
-        return None, "Não foi possível comunicar com o WhatsApp Web."
-
 @api_view(["GET"])
 @permission_classes([IsPlatformAdmin])
 def whatsapp_web_status(request):
     data, detail = _wpp_request("check-connection-session")
-    if detail: return Response({"configured": bool(getattr(settings, "WPP_CONNECT_URL", "")), "status": "unavailable", "detail": detail})
-    return Response({"configured": True, "status": data.get("status", "unknown"), "connected": data.get("status") in ("CONNECTED", "isLogged"), "detail": ""})
+    if detail: return Response({"configured": is_configured(), "status": "unavailable", "detail": detail})
+    return Response({"configured": True, "status": "CONNECTED" if is_connected(data) else "DISCONNECTED", "connected": is_connected(data), "detail": ""})
 
 @api_view(["POST"])
 @permission_classes([IsPlatformAdmin])
 def whatsapp_web_start(request):
-    data, detail = _wpp_request("start-session", method="POST", payload={"waitQrCode": True})
-    if detail: return Response({"qrcode": None, "status": "generating", "detail": detail})
+    data, detail = _wpp_request("start-session", method="POST", payload={"waitQrCode": False})
+    if detail: return Response({"qrcode": None, "status": "unavailable", "detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     record_platform_action(request=request, action="whatsapp.session_started", object_type="WhatsAppWeb", object_id="agromanage", description="Sessão do WhatsApp Web iniciada.")
     return Response({"status": data.get("status", "unknown"), "qrcode": data.get("qrcode")})
 
 @api_view(["GET"])
 @permission_classes([IsPlatformAdmin])
 def whatsapp_web_qrcode(request):
-    data, detail = _wpp_request("qrcode-session")
+    data, detail = _wpp_request("status-session")
     if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     return Response({"qrcode": data.get("qrcode"), "status": data.get("status", "unknown")})
 

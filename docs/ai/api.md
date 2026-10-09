@@ -270,3 +270,20 @@ Unknown prices and cached responses without reported costs remain unknown.
 Historical messages are not repriced or assumed free. Cache/reasoning counts are
 subsets of input/output tokens and must not be added to total tokens. Support
 keeps its separate question allowance while sharing the token/cost ledger.
+
+## WhatsApp pairing and alerts
+
+Platform-admin-only `/platform/whatsapp-web/status/` normalizes WPPConnect
+connection responses to a string status and boolean `connected`. Session start
+returns promptly (`waitQrCode: false`); transport/authentication failures return
+503 instead of a successful generating state. `/qrcode/` reads WPPConnect
+`status-session` JSON and returns nullable `qrcode` and `status`, avoiding the
+PNG response from `qrcode-session`. The panel polls every four seconds and
+clears the QR after connection.
+
+Pairing, manual messages and reproductive alerts use the same WPPConnect
+authentication: `WPP_CONNECT_SECRET` generates a session token when configured,
+otherwise `WPP_CONNECT_TOKEN` is used. HTTP 200 with an explicit send failure
+is not recorded as delivered. Alert eligibility and tenant permissions remain
+unchanged: opted-in users receive eligible reproductive alerts at their user
+profile phone through Celery.

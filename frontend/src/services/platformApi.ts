@@ -130,8 +130,8 @@ export function setPlatformSession(access: string, refresh: string) {
 
 export const platformService = {
   async whatsappWebStatus() { return (await platformApi.get<{configured:boolean;status:string;connected?:boolean;detail:string}>("platform/whatsapp-web/status/")).data; },
-  async startWhatsappWeb() { return (await platformApi.post<{status:string;qrcode?:string|null}>("platform/whatsapp-web/start/", {})).data; },
-  async whatsappWebQrCode() { return (await platformApi.get<{qrcode:string|null;status:string}>("platform/whatsapp-web/qrcode/")).data; },
+  async startWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/start/", {})).data; },
+  async whatsappWebQrCode() { return (await platformApi.get<{qrcode:string|null;status:string|null}>("platform/whatsapp-web/qrcode/")).data; },
   async disconnectWhatsappWeb() { return (await platformApi.post<{status:string}>("platform/whatsapp-web/disconnect/", {})).data; },
   async whatsappContacts() { return (await platformApi.get<{id:string;name:string;phone:string;organization:string}[]>("platform/whatsapp-web/messages/")).data; },
   async sendWhatsappMessage(phone:string,message:string) { return (await platformApi.post("platform/whatsapp-web/messages/",{phone,message})).data; },
