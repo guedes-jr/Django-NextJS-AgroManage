@@ -39,6 +39,8 @@ export interface User {
   organization: string | null;
   avatar: string | null;
   phone: string;
+  phone_is_whatsapp: boolean;
+  receive_system_alerts: boolean;
   is_active: boolean;
   force_password_change?: boolean;
   created_at: string;

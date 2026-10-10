@@ -128,6 +128,8 @@ class NotificationTenantIsolationTestCase(APITestCase):
         self.assertEqual(second.message, "Ocorrência atualizada")
 
     def test_whatsapp_delivery_is_created_only_for_reproductive_alerts(self):
+        self.admin_a.phone_is_whatsapp = True
+        self.admin_a.save(update_fields=["phone_is_whatsapp"])
         NotificationPreference.objects.update_or_create(
             user=self.admin_a,
             defaults={"whatsapp_reproductive_alerts": True},

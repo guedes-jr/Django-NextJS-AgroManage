@@ -1,9 +1,10 @@
 """
 Accounts app serializers — auth, user, profile.
 """
+from common.authentication import is_active_platform_staff
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
-from common.authentication import is_active_platform_staff
+
 from .models import User
 
 
@@ -43,7 +44,43 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
-class UserSerializer(serializers.ModelSerializer):
+class WhatsAppContactMixin:
+    """Keep profile consent in the existing notification preference."""
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = getattr(self, "instance", None)
+        phone = attrs.get("phone", getattr(instance, "phone", ""))
+        enabled = attrs.get("phone_is_whatsapp", getattr(instance, "phone_is_whatsapp", False))
+        preference = attrs.get("notification_preference", {})
+        if enabled and not phone.strip():
+            raise serializers.ValidationError({"phone": "Informe o telefone que possui WhatsApp."})
+        if preference.get("whatsapp_reproductive_alerts") and not enabled:
+            raise serializers.ValidationError({"whatsapp_reproductive_alerts": "Marque que este contato possui WhatsApp para receber alertas."})
+        if "phone_is_whatsapp" in attrs:
+            # The contact checkbox authorizes the available WhatsApp alert channel;
+            # the master preference gates every channel independently.
+            if enabled:
+                attrs.setdefault("notification_preference", {}).setdefault("whatsapp_reproductive_alerts", True)
+            else:
+                attrs.setdefault("notification_preference", {})["whatsapp_reproductive_alerts"] = False
+        return attrs
+
+    def update(self, instance, validated_data):
+        from django.db import transaction
+
+        from apps.notifications.models import NotificationPreference
+
+        preference = validated_data.pop("notification_preference", None)
+        with transaction.atomic():
+            user = super().update(instance, validated_data)
+            if preference is not None:
+                user.notification_preference, _ = NotificationPreference.objects.update_or_create(user=user, defaults=preference)
+        return user
+
+
+class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
+    whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False, default=False)
     avatar = serializers.ImageField(required=False, allow_null=True)
     is_platform_staff = serializers.SerializerMethodField()
     is_affiliate = serializers.SerializerMethodField()
@@ -72,6 +109,9 @@ class UserSerializer(serializers.ModelSerializer):
             "full_name",
             "role",
             "phone",
+            "phone_is_whatsapp",
+            "receive_system_alerts",
+            "whatsapp_reproductive_alerts",
             "avatar",
             "theme",
             "email_notifications",
@@ -92,7 +132,9 @@ class UserSerializer(serializers.ModelSerializer):
         }
 
 
-class UserCreateSerializer(serializers.ModelSerializer):
+class UserCreateSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
+    receive_system_alerts = serializers.BooleanField(required=False, default=False)
+    whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False)
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
     referral_token = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -106,19 +148,30 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "password_confirm",
             "role",
             "phone",
+            "phone_is_whatsapp",
+            "receive_system_alerts",
+            "whatsapp_reproductive_alerts",
             "referral_token",
         ]
 
     def validate(self, data):
         if data.get("password") != data.get("password_confirm"):
             raise serializers.ValidationError({"password_confirm": "As senhas não conferem."})
-        return data
+        return super().validate(data)
 
     def create(self, validated_data):
         validated_data.pop("password_confirm")
         validated_data.pop("referral_token", None)
         password = validated_data.pop("password")
-        user = User.objects.create_user(password=password, **validated_data)
+        from django.db import transaction
+
+        from apps.notifications.models import NotificationPreference
+
+        preference = validated_data.pop("notification_preference", {})
+        with transaction.atomic():
+            user = User.objects.create_user(password=password, **validated_data)
+            if preference is not None:
+                user.notification_preference, _ = NotificationPreference.objects.update_or_create(user=user, defaults=preference)
         return user
 
 
@@ -150,19 +203,20 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Unidade padrão inválida.")
         return value
 
-class OrganizationMemberSerializer(serializers.ModelSerializer):
+class OrganizationMemberSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
+    whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False, default=False)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'full_name', 'role', 'role_display', 
-            'phone', 'avatar', 'is_active', 'created_at'
+            'phone', 'phone_is_whatsapp', 'receive_system_alerts', 'whatsapp_reproductive_alerts', 'avatar', 'is_active', 'created_at'
         ]
         read_only_fields = ['id', 'email', 'created_at']
 
 
-class CreateMemberSerializer(serializers.Serializer):
+class CreateMemberSerializer(UserCreateSerializer):
     email = serializers.EmailField()
     full_name = serializers.CharField(max_length=150)
     role = serializers.ChoiceField(choices=User.Role.choices, default='operator')
@@ -173,4 +227,4 @@ class CreateMemberSerializer(serializers.Serializer):
     def validate(self, data):
         if data.get("password") != data.get("password_confirm"):
             raise serializers.ValidationError({"password_confirm": "As senhas não conferem."})
-        return data
+        return super().validate(data)

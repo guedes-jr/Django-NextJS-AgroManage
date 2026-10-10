@@ -28,7 +28,7 @@ def connected_account():
 
 def alert_overview():
     users = get_user_model().objects.filter(
-        is_active=True, organization__isnull=False,
+        is_active=True, organization__isnull=False, phone_is_whatsapp=True, receive_system_alerts=True,
         notification_preference__whatsapp_reproductive_alerts=True,
         notification_preference__animal_alerts=True,
     )

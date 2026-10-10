@@ -49,6 +49,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    phone_is_whatsapp = models.BooleanField(default=False)
+    receive_system_alerts = models.BooleanField(default=True)
     theme = models.CharField(max_length=20, choices=Theme.choices, default=Theme.LIGHT)
     email_notifications = models.BooleanField(default=True)
     stock_alerts = models.BooleanField(default=True)

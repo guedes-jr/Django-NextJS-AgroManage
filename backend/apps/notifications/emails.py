@@ -18,6 +18,8 @@ class EmailNotificationService:
         """
         Envia uma notificação individual por email.
         """
+        if not user.receive_system_alerts:
+            return False
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         
         if not pref.email_notifications:
@@ -57,6 +59,8 @@ class EmailNotificationService:
         """
         Envia resumo diário de notificações.
         """
+        if not user.receive_system_alerts:
+            return False
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         
         if not pref.email_notifications or pref.frequency != "daily":
@@ -97,6 +101,8 @@ class EmailNotificationService:
         """
         Envia resumo semanal de notificações.
         """
+        if not user.receive_system_alerts:
+            return False
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         
         if not pref.email_notifications or pref.frequency != "weekly":

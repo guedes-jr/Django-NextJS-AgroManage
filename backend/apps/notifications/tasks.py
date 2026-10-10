@@ -24,6 +24,10 @@ def _whatsapp_phone(phone):
 
 def _send_whatsapp_web(notification):
     """Deliver a transactional reproductive alert through a local WPPConnect Server."""
+    from .models import NotificationPreference
+
+    if not notification.user.receive_system_alerts or not notification.user.phone_is_whatsapp or not NotificationPreference.objects.filter(user=notification.user, whatsapp_reproductive_alerts=True).exists():
+        return False, "Integração WhatsApp: o usuário não autorizou alertas neste contato."
     phone = _whatsapp_phone(notification.user.phone)
     if not is_configured() or not phone:
         return False, "Integração WhatsApp não configurada ou usuário sem telefone brasileiro válido."
@@ -48,6 +52,11 @@ def dispatch_notification(self, notification_id):
         delivery.attempts += 1
         delivery.last_error = ""
         try:
+            if not notification.user.receive_system_alerts:
+                delivery.status = NotificationDelivery.Status.SKIPPED
+                delivery.last_error = "O usuário desativou as notificações de alerta do sistema."
+                delivery.save(update_fields=("attempts", "status", "last_error", "updated_at"))
+                continue
             if delivery.channel == NotificationDelivery.Channel.EMAIL:
                 sent = EmailNotificationService.send_notification_email(notification.user, notification)
                 if not sent:
@@ -110,6 +119,7 @@ def send_daily_notifications_digest():
     from .emails import EmailNotificationService
 
     users = User.objects.filter(
+        receive_system_alerts=True,
         notification_preference__frequency="daily",
         notification_preference__email_notifications=True
     )
@@ -129,6 +139,7 @@ def send_weekly_notifications_digest():
     from .emails import EmailNotificationService
 
     users = User.objects.filter(
+        receive_system_alerts=True,
         notification_preference__frequency="weekly",
         notification_preference__email_notifications=True
     )

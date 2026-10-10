@@ -48,15 +48,17 @@ class WhatsAppFlowTests(SimpleTestCase):
         self.assertEqual(result.data["status"], "unavailable")
         transport.assert_called_once_with("start-session", method="POST", payload={"waitQrCode": False})
 
+    @patch("apps.notifications.models.NotificationPreference.objects.filter")
     @override_settings(WPP_CONNECT_TOKEN="", WPP_CONNECT_SECRET="test-secret")
     @patch("common.wppconnect.urlrequest.urlopen")
-    def test_alert_authenticates_with_secret_without_fixed_token(self, open_url):
+    def test_alert_authenticates_with_secret_without_fixed_token(self, open_url, preference_filter):
+        preference_filter.return_value.exists.return_value = True
         token_response = MagicMock()
         token_response.__enter__.return_value.read.return_value = json.dumps({"token": "generated-test-token"}).encode()
         send_response = MagicMock()
         send_response.__enter__.return_value.read.return_value = b'{"status":"success"}'
         open_url.side_effect = [token_response, send_response]
-        notification = SimpleNamespace(user=SimpleNamespace(phone="81999990000"), title="Vacina", message="Hoje")
+        notification = SimpleNamespace(user=SimpleNamespace(phone="81999990000", phone_is_whatsapp=True, receive_system_alerts=True), title="Vacina", message="Hoje")
         self.assertEqual(_send_whatsapp_web(notification), (True, ""))
         outbound = open_url.call_args_list[1].args[0]
         self.assertEqual(outbound.get_header("Authorization"), "Bearer generated-test-token")
@@ -211,8 +213,8 @@ class WhatsAppAlertsTests(APITestCase):
         self.other_org = Organization.objects.create(name="Fazenda B", slug="whatsapp-fazenda-b")
         self.admin = user_model.objects.create_user(email="wa-admin@test.local", password="test", full_name="Admin")
         PlatformStaffProfile.objects.create(user=self.admin, role=PlatformStaffProfile.Role.ADMIN)
-        self.recipient = user_model.objects.create_user(email="wa-user@test.local", password="test", full_name="Responsável", organization=self.org, phone="81999990000", role="admin")
-        self.other = user_model.objects.create_user(email="wa-other@test.local", password="test", full_name="Outro", organization=self.other_org, phone="+1 555 123 4567", role="owner")
+        self.recipient = user_model.objects.create_user(email="wa-user@test.local", password="test", full_name="Responsável", organization=self.org, phone="81999990000", phone_is_whatsapp=True, role="admin")
+        self.other = user_model.objects.create_user(email="wa-other@test.local", password="test", full_name="Outro", organization=self.other_org, phone="+1 555 123 4567", phone_is_whatsapp=True, role="owner")
         for user in [self.recipient, self.other]:
             NotificationPreference.objects.update_or_create(user=user, defaults={"whatsapp_reproductive_alerts": True, "animal_alerts": True})
         self.client.force_authenticate(self.admin)

@@ -342,3 +342,20 @@ through a shared database control row. Request/result are audited. The helper mu
 be installed as documented in `docs/ai/infra.md`; the backend never accepts a
 container name, command, path or Docker flags from the client. The panel polls the
 list every 15 seconds and pauses while mutations run.
+
+## User contact and system alert consent
+
+Registration, `/auth/me/` and organization member create/update accept and return
+`phone_is_whatsapp` and `receive_system_alerts`. The checkboxes are independent:
+a WhatsApp contact requires a phone; system alert consent applies to in-app,
+email, push and WhatsApp notifications. The master preference gates notification
+creation, queued deliveries and daily/weekly email digests without overwriting
+category/email/push preferences. Existing authorization and reproductive WhatsApp
+event rules remain in force. The contact flag synchronizes the existing
+`whatsapp_reproductive_alerts` channel preference; disabling it stops WhatsApp
+while other channels continue if the master preference is enabled.
+
+Accounts migration 0006 adds both fields. Existing users retain system alerts and
+existing WhatsApp opt-ins become WhatsApp contacts. New registrations default to
+both unchecked. Profile multipart updates accept explicit `true`/`false`; omitted
+fields retain values on PATCH. Disabling alerts preserves historical notifications.

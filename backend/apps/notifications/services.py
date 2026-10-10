@@ -53,6 +53,8 @@ class NotificationService:
         from .models import NotificationDelivery
         from .tasks import dispatch_notification
 
+        if not notification.user.receive_system_alerts:
+            return
         pref = NotificationService.get_user_preferences(notification.user)
         channels = []
         if pref.email_notifications and pref.frequency == "instant":
@@ -61,6 +63,7 @@ class NotificationService:
             channels.append(NotificationDelivery.Channel.WEB_PUSH)
         if (
             pref.whatsapp_reproductive_alerts
+            and notification.user.phone_is_whatsapp
             and notification.type == NotificationType.ANIMAL
             and NotificationService.is_reproductive_whatsapp_alert(notification)
         ):
@@ -207,6 +210,8 @@ class NotificationService:
     @staticmethod
     def should_notify(user, notification_type):
         """Verifica se o usuário deve receber este tipo de notificação"""
+        if not user.receive_system_alerts:
+            return False
         pref = NotificationService.get_user_preferences(user)
 
         type_mapping = {

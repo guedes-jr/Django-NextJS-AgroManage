@@ -39,7 +39,7 @@ def members_view(request):
     if not org:
         return Response([])
     
-    members = User.objects.filter(organization=org).order_by("full_name")
+    members = User.objects.filter(organization=org).select_related("notification_preference").order_by("full_name")
     return Response(OrganizationMemberSerializer(members, many=True).data)
 
 
@@ -128,16 +128,7 @@ def create_member_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    user = User.objects.create_user(
-        email=data["email"],
-        password=data["password"],
-        full_name=data["full_name"],
-        role=data.get("role", "operator"),
-        phone=data.get("phone", ""),
-        force_password_change=True
-    )
-    user.organization = org
-    user.save(update_fields=["organization"])
+    user = serializer.save(organization=org, force_password_change=True)
 
     return Response(
         OrganizationMemberSerializer(user).data,
@@ -358,12 +349,12 @@ def me_view(request):
         
         data = {}
         
-        for key in ['full_name', 'email', 'phone', 'avatar']:
+        for key in ['full_name', 'email', 'phone', 'avatar', 'phone_is_whatsapp', 'receive_system_alerts', 'whatsapp_reproductive_alerts']:
             if key in request.data:
                 value = request.data[key]
                 if hasattr(value, 'name'):
                     data[key] = value
-                elif key == 'avatar' and (value is None or str(value) == ''):
+                elif key in ('avatar', 'phone') and (value is None or str(value) == ''):
                     data[key] = ''
                 elif value is not None and str(value) != '':
                     data[key] = str(value)
@@ -467,4 +458,4 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         organization = getattr(self.request.user, "organization", None)
         if not organization:
             return User.objects.filter(id=self.request.user.id)
-        return User.objects.filter(organization=organization)
+        return User.objects.filter(organization=organization).select_related("notification_preference")

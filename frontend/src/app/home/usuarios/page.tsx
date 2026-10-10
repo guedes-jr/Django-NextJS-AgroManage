@@ -1,5 +1,7 @@
 "use client";
 
+import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
+
 import { useEffect, useState } from "react";
 import { apiClient, getMediaUrl } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
@@ -34,6 +36,8 @@ export default function UsuariosPage() {
     full_name: "",
     email: "",
     phone: "",
+    phone_is_whatsapp: false,
+    receive_system_alerts: false,
     role: "operator",
     password: "",
     password_confirm: "",
@@ -62,6 +66,8 @@ export default function UsuariosPage() {
         full_name: "",
         email: "",
         phone: "",
+    phone_is_whatsapp: false,
+    receive_system_alerts: false,
         role: "operator",
         password: "",
         password_confirm: "",
@@ -234,12 +240,14 @@ export default function UsuariosPage() {
               </div>
 
               <div>
-                <label className="small fw-bold text-muted-foreground mb-1 d-block">WhatsApp / Telefone</label>
+                <label className="small fw-bold text-muted-foreground mb-1 d-block">Telefone</label>
                 <div className="position-relative">
                   <Phone size={18} className="position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
                   <input type="text" className="w-100" style={{ height: '48px', padding: '0 1rem 0 2.75rem', border: '1.5px solid var(--border)', borderRadius: '12px' }} placeholder="(00) 00000-0000" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                 </div>
               </div>
+
+              <WhatsAppContactOptions value={formData} onChange={value => setFormData({ ...formData, ...value })} />
 
               <div>
                 <label className="small fw-bold text-muted-foreground mb-1 d-block">Atribuição / Função</label>

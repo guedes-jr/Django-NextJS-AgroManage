@@ -1,5 +1,7 @@
 "use client";
 
+import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, getMediaUrl } from "@/services/api";
@@ -12,6 +14,8 @@ interface UserProfile {
   full_name: string;
   role: string;
   phone: string;
+  phone_is_whatsapp: boolean;
+  receive_system_alerts: boolean;
   avatar: string | null;
   is_active: boolean;
   created_at: string;
@@ -39,6 +43,8 @@ export default function ProfilePage() {
     full_name: "",
     email: "",
     phone: "",
+    phone_is_whatsapp: false,
+    receive_system_alerts: false,
   });
   const [isHovered, setIsHovered] = useState(false);
 
@@ -51,6 +57,8 @@ export default function ProfilePage() {
         full_name: userData.full_name || "",
         email: userData.email || "",
         phone: userData.phone || "",
+        phone_is_whatsapp: userData.phone_is_whatsapp ?? false,
+        receive_system_alerts: userData.receive_system_alerts ?? true,
       });
     }
 
@@ -63,6 +71,8 @@ export default function ProfilePage() {
           full_name: res.data.full_name || "",
           email: res.data.email || "",
           phone: res.data.phone || "",
+          phone_is_whatsapp: res.data.phone_is_whatsapp ?? false,
+          receive_system_alerts: res.data.receive_system_alerts ?? true,
         });
       })
       .catch(() => {
@@ -78,6 +88,8 @@ export default function ProfilePage() {
       formDataNew.append("full_name", formData.full_name);
       formDataNew.append("email", formData.email);
       formDataNew.append("phone", formData.phone);
+      formDataNew.append("phone_is_whatsapp", String(formData.phone_is_whatsapp));
+      formDataNew.append("receive_system_alerts", String(formData.receive_system_alerts));
       
       if (avatarFile) {
         formDataNew.append("avatar", avatarFile);
@@ -94,6 +106,7 @@ export default function ProfilePage() {
       showToast("Perfil salvo com sucesso! 🎉", "success", 15000);
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
+      showToast("Não foi possível salvar o perfil. Confira o telefone e tente novamente.", "error");
     } finally {
       setSaving(false);
     }
@@ -282,6 +295,8 @@ export default function ProfilePage() {
                         full_name: user?.full_name || "",
                         email: user?.email || "",
                         phone: user?.phone || "",
+                        phone_is_whatsapp: user?.phone_is_whatsapp ?? false,
+                        receive_system_alerts: user?.receive_system_alerts ?? true,
                       });
                     }}
                   >
@@ -363,6 +378,10 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div className="col-12">
+                <WhatsAppContactOptions value={editing ? formData : { phone_is_whatsapp: user?.phone_is_whatsapp ?? false, receive_system_alerts: user?.receive_system_alerts ?? true }} disabled={!editing || saving} onChange={value => setFormData({ ...formData, ...value })} />
               </div>
 
               <div className="col-12 col-md-6">

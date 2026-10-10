@@ -1,5 +1,7 @@
 "use client";
 
+import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
+
 import "./login.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -123,6 +125,9 @@ export default function LoginPage() {
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
   const [formData, setFormData] = useState({
     name: "",
+    phone: "",
+    phone_is_whatsapp: false,
+    receive_system_alerts: false,
     email: "",
     password: "",
     password_confirm: "",
@@ -265,6 +270,9 @@ export default function LoginPage() {
           password: formData.password,
           password_confirm: formData.password_confirm,
           full_name: formData.name,
+          phone: formData.phone,
+          phone_is_whatsapp: formData.phone_is_whatsapp,
+          receive_system_alerts: formData.receive_system_alerts,
           referral_token: getAttributionToken(),
         });
         // Uma nova pessoa usando o mesmo navegador precisa de um novo visitante.
@@ -360,6 +368,13 @@ export default function LoginPage() {
                       <Mail className="login-input-icon" size={20} />
                     </div>
                   </div>
+                  {view === "register" && <>
+                    <div className="login-input-group">
+                      <label htmlFor="contact-phone">Telefone</label>
+                      <input id="contact-phone" type="tel" autoComplete="tel" maxLength={30} className="login-input" placeholder="(00) 00000-0000" required={formData.phone_is_whatsapp} value={formData.phone} onChange={event => setFormData({ ...formData, phone: event.target.value })} />
+                    </div>
+                    <WhatsAppContactOptions value={formData} disabled={loading} onChange={value => setFormData({ ...formData, ...value })} />
+                  </>}
                   {view !== "forgot" && (
                     <div className={view === "register" ? "register-passwords" : ""}>
                       <div className="login-input-group">

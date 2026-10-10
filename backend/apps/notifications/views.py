@@ -177,7 +177,7 @@ def create_notification_view(request):
     )
     if notification is None:
         return Response(
-            {"detail": "O usuário desativou esta categoria de notificação."},
+            {"detail": "O usuário desativou as notificações de alerta do sistema." if not user.receive_system_alerts else "O usuário desativou esta categoria de notificação."},
             status=status.HTTP_200_OK,
         )
     return Response(NotificationSerializer(notification).data, status=status.HTTP_201_CREATED)

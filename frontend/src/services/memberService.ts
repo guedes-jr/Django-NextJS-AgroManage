@@ -3,7 +3,7 @@ import apiClient from "./api";
 export const roleLabels = { owner: "Proprietário", admin: "Administrador", manager: "Gerente", operator: "Operador", viewer: "Visualizador" };
 export type UserRole = keyof typeof roleLabels;
 export interface Member {
-  id: string; email: string; full_name: string; phone?: string;
+  id: string; email: string; full_name: string; phone?: string; phone_is_whatsapp: boolean; receive_system_alerts: boolean;
   role: UserRole; role_display: string; is_active: boolean;
 }
 export function canManageMembers(role?: string) { return role === "owner" || role === "admin"; }

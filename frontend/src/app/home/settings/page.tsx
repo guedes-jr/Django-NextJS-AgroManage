@@ -1,4 +1,6 @@
 "use client";
+
+import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 import { Member, UserRole, roleLabels, canManageMembers, canChangeMemberRole, updateMemberRole, memberError } from "@/services/memberService";
 
 import { useState, useEffect } from "react";
@@ -175,6 +177,8 @@ export default function SettingsPage() {
     full_name: '',
     role: 'operator',
     phone: '',
+    phone_is_whatsapp: false,
+    receive_system_alerts: false,
     password: '',
     password_confirm: ''
   });
@@ -611,7 +615,7 @@ export default function SettingsPage() {
   const openCreateMemberModal = () => {
     setMemberModalMode('create');
     setSelectedMemberId(null);
-    setMemberData({ email: '', full_name: '', role: 'operator', phone: '', password: '', password_confirm: '' });
+    setMemberData({ email: '', full_name: '', role: 'operator', phone: '', phone_is_whatsapp: false, receive_system_alerts: false, password: '', password_confirm: '' });
     setMemberModalOpen(true);
   };
 
@@ -623,6 +627,8 @@ export default function SettingsPage() {
       full_name: member.full_name,
       role: member.role,
       phone: member.phone || '',
+      phone_is_whatsapp: member.phone_is_whatsapp ?? false,
+      receive_system_alerts: member.receive_system_alerts ?? true,
       password: '',
       password_confirm: ''
     });
@@ -646,7 +652,9 @@ export default function SettingsPage() {
         const payload: any = {
           full_name: memberData.full_name,
           role: memberData.role,
-          phone: memberData.phone
+          phone: memberData.phone,
+          phone_is_whatsapp: memberData.phone_is_whatsapp,
+          receive_system_alerts: memberData.receive_system_alerts
         };
         // Para edição de e-mail e senha, dependemos do backend, mas vamos enviar.
         if (memberData.password && memberData.password === memberData.password_confirm) {
@@ -1550,6 +1558,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+
+              <div className="col-12"><WhatsAppContactOptions value={memberData} disabled={memberLoading} onChange={value => setMemberData({ ...memberData, ...value })} /></div>
 
               {memberModalMode === 'create' && (
                 <>
