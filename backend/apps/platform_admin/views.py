@@ -146,10 +146,18 @@ def whatsapp_web_account(request):
 @api_view(["POST"])
 @permission_classes([IsPlatformAdmin])
 def whatsapp_web_reconnect(request):
-    # Close the browser session without deleting the paired device credentials.
-    _, detail = _wpp_request("close-session", method="POST", payload={})
+    session, detail = _wpp_request("status-session")
     if detail:
         return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    session_state = session.get("status")
+    if session_state in ("INITIALIZING", "STARTING", "QRCODE", "CONNECTING", "SYNCING", "notLogged", "qrReadSuccess"):
+        return Response({"detail": "A sessão ainda está sendo preparada ou aguardando o QR Code. Atualize o status e conclua o pareamento antes de reconectar."}, status=status.HTTP_409_CONFLICT)
+    # WPPConnect may keep only a placeholder for closed/initializing sessions;
+    # calling close-session on it fails because there is no client.close method.
+    if session_state not in (None, "CLOSED"):
+        _, detail = _wpp_request("close-session", method="POST", payload={})
+        if detail:
+            return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     data, detail = _wpp_request("start-session", method="POST", payload={"waitQrCode": False})
     if detail:
         return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)

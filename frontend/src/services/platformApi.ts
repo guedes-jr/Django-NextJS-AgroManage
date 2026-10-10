@@ -145,7 +145,7 @@ export const platformService = {
   async whatsappWebQrCode() { return (await platformApi.get<{qrcode:string|null;status:string|null}>("platform/whatsapp-web/qrcode/")).data; },
   async disconnectWhatsappWeb() { return (await platformApi.post<{status:string}>("platform/whatsapp-web/disconnect/", {})).data; },
   async whatsappAccount() { return (await platformApi.get<{account:WhatsAppAccount|null;detail:string}>("platform/whatsapp-web/account/")).data; },
-  async reconnectWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/reconnect/", {}, {timeout: 65000})).data; },
+  async reconnectWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/reconnect/", {}, {timeout: 95000})).data; },
   async whatsappAlerts(page = 1, status: WhatsAppDeliveryStatus | "" = "") { return (await platformApi.get<WhatsAppAlerts>("platform/whatsapp-web/alerts/", {params: {page, status}})).data; },
   async whatsappContacts() { return (await platformApi.get<{id:string;name:string;phone:string;organization:string}[]>("platform/whatsapp-web/messages/")).data; },
   async sendWhatsappMessage(phone:string,message:string) { return (await platformApi.post("platform/whatsapp-web/messages/",{phone,message})).data; },

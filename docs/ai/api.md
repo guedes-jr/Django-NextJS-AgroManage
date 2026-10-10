@@ -292,7 +292,8 @@ The status response also includes `checked_at`, the pairing stage and optional
 `qrcode`, allowing a single panel request per polling cycle. GET `/account/`
 returns only `{account: {name, phone} | null, detail}` from `host-device`; unavailable
 profile data does not invalidate an otherwise connected session. POST `/reconnect/`
-closes and starts the browser session while retaining paired credentials and
+checks session state, starts closed sessions directly, and closes/restarts active
+browser sessions while retaining paired credentials and
 records an audit event; `/disconnect/` logs out and requires a new QR pairing.
 
 GET `/alerts/?page=1&status=failed` is restricted to platform owners/admins,
@@ -308,6 +309,11 @@ message endpoint; they do not create an automatic-alert delivery record.
 
 Connection diagnostics distinguish missing/invalid configuration, DNS, refused
 connections, timeouts, TLS, HTTP authentication failures and invalid upstream
-responses without including raw URLs, secrets or response bodies. Status/start/
-reconnect requests allow 65 seconds in the platform client, covering the default
-15-second WPPConnect timeout for sequential authentication/session calls.
+responses without including raw URLs, secrets or response bodies. Status/start requests allow 65 seconds and reconnect allows 95 seconds in the
+platform client, covering the default 15-second WPPConnect timeout for sequential
+authentication/session calls, including the reconnect state lookup.
+
+Reconnect returns 409 while a session is initializing, showing a QR or syncing.
+These states may still be placeholder clients in WPPConnect, without a `close`
+method. The panel must finish pairing before reconnecting; no session data is
+deleted to recover from this condition.

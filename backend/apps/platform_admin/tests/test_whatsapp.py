@@ -88,19 +88,19 @@ class WhatsAppFlowTests(SimpleTestCase):
         self.assertEqual(result.data["detail"], "Dados indisponíveis")
 
     @patch("apps.platform_admin.views.record_platform_action")
-    @patch("apps.platform_admin.views._wpp_request", side_effect=[({"status": True}, None), ({"status": "STARTING"}, None)])
+    @patch("apps.platform_admin.views._wpp_request", side_effect=[({"status": "CONNECTED"}, None), ({"status": True}, None), ({"status": "STARTING"}, None)])
     def test_reconnect_preserves_pairing_and_records_audit(self, transport, audit):
         result = self.call_view(views.whatsapp_web_reconnect, "post")
         self.assertEqual(result.status_code, 200)
-        self.assertEqual([call.args[0] for call in transport.call_args_list], ["close-session", "start-session"])
+        self.assertEqual([call.args[0] for call in transport.call_args_list], ["status-session", "close-session", "start-session"])
         audit.assert_called_once()
 
     @patch("apps.platform_admin.views.record_platform_action")
-    @patch("apps.platform_admin.views._wpp_request", return_value=(None, "Não foi possível fechar"))
+    @patch("apps.platform_admin.views._wpp_request", side_effect=[({"status": "CONNECTED"}, None), (None, "Não foi possível fechar")])
     def test_reconnect_does_not_start_after_close_failure(self, transport, audit):
         result = self.call_view(views.whatsapp_web_reconnect, "post")
         self.assertEqual(result.status_code, 503)
-        transport.assert_called_once_with("close-session", method="POST", payload={})
+        self.assertEqual([call.args[0] for call in transport.call_args_list], ["status-session", "close-session"])
         audit.assert_not_called()
 
     @patch("apps.platform_admin.views._wpp_request", side_effect=[({"status": False}, None), ({"status": "SYNCING"}, None)])
@@ -182,6 +182,26 @@ class WhatsAppFlowTests(SimpleTestCase):
         data, detail = wpp_request("status-session")
         self.assertIsNone(data)
         self.assertIn("resposta inválida", detail)
+
+    @patch("apps.platform_admin.views.record_platform_action")
+    @patch("apps.platform_admin.views._wpp_request", side_effect=[({"status": "CLOSED"}, None), ({"status": "STARTING"}, None)])
+    def test_reconnect_closed_session_starts_without_closing_placeholder(self, transport, audit):
+        response = self.call_view(views.whatsapp_web_reconnect, "post")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([call.args[0] for call in transport.call_args_list], ["status-session", "start-session"])
+        audit.assert_called_once()
+
+    @patch("apps.platform_admin.views.record_platform_action")
+    @patch("apps.platform_admin.views._wpp_request")
+    def test_reconnect_does_not_close_client_while_initializing(self, transport, audit):
+        for state in ["INITIALIZING", "QRCODE", "CONNECTING", "SYNCING"]:
+            with self.subTest(state=state):
+                transport.reset_mock()
+                transport.return_value = ({"status": state}, None)
+                response = self.call_view(views.whatsapp_web_reconnect, "post")
+                self.assertEqual(response.status_code, 409)
+                transport.assert_called_once_with("status-session")
+        audit.assert_not_called()
 
 
 class WhatsAppAlertsTests(APITestCase):
