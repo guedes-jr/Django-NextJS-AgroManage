@@ -1,6 +1,7 @@
 from common.models import BaseModel
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class PlatformStaffProfile(BaseModel):
@@ -335,3 +336,12 @@ class SandboxExecution(BaseModel):
 
     class Meta(BaseModel.Meta):
         ordering = ("-created_at",)
+
+
+class WhatsAppSessionObservation(models.Model):
+    """Platform-wide session health observations shared across web workers."""
+    name = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=50)
+    state_since = models.DateTimeField(default=timezone.now)
+    observed_at = models.DateTimeField()
+    last_error = models.CharField(max_length=500, blank=True)

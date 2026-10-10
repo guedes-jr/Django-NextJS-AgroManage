@@ -3,8 +3,9 @@ import errno
 import json
 import socket
 import ssl
-from urllib import error as urlerror, request as urlrequest
-from urllib.parse import urlsplit
+from urllib import error as urlerror
+from urllib import request as urlrequest
+from urllib.parse import quote, urlsplit
 
 from django.conf import settings
 
@@ -45,17 +46,19 @@ def _http_error(code, authenticating=False):
     return f"WhatsApp Web respondeu HTTP {code}."
 
 
-def wpp_request(path, method="GET", payload=None):
+def wpp_request(path, method="GET", payload=None, *, session_name=None):
     base_url = getattr(settings, "WPP_CONNECT_URL", "").rstrip("/")
     token = getattr(settings, "WPP_CONNECT_TOKEN", "")
     secret = getattr(settings, "WPP_CONNECT_SECRET", "")
-    session = getattr(settings, "WPP_CONNECT_SESSION", "")
+    session = session_name or getattr(settings, "WPP_CONNECT_SESSION", "")
+    if session_name and session_name != settings.WPP_CONNECT_SESSION and not secret:
+        return None, "A chave secreta é necessária para gerenciar outras sessões."
     if not base_url or not session or (not token and not secret):
         return None, "WhatsApp Web não está configurado no servidor. Configure WPP_CONNECT_URL, WPP_CONNECT_SESSION e WPP_CONNECT_SECRET ou WPP_CONNECT_TOKEN no backend."
     try:
         parsed_url = urlsplit(base_url)
         valid_url = parsed_url.scheme in ("http", "https") and bool(parsed_url.hostname)
-        parsed_url.port  # Validate the configured port without exposing the URL.
+        _port = parsed_url.port  # Validate without exposing the configured URL.
     except ValueError:
         valid_url = False
     if not valid_url:
@@ -94,3 +97,28 @@ def wpp_request(path, method="GET", payload=None):
         return None, _connection_error(exc)
     except ValueError:
         return None, "O WPPConnect retornou uma resposta inválida. Verifique o endereço e a compatibilidade da API do serviço."
+
+
+def wpp_session_names():
+    """Inventory stays server-side: never expose the secret-bearing API URL."""
+    base = settings.WPP_CONNECT_URL.rstrip("/")
+    secret = settings.WPP_CONNECT_SECRET
+    default = settings.WPP_CONNECT_SESSION
+    if not secret:
+        return [default] if default else [], "Somente a sessão configurada está disponível; a listagem completa exige a chave secreta no servidor."
+    if not base:
+        return [], "O serviço WhatsApp não está configurado."
+    try:
+        request = urlrequest.Request(f"{base}/api/{quote(secret, safe='')}/show-all-sessions")
+        with urlrequest.urlopen(request, timeout=settings.WPP_CONNECT_TIMEOUT_SECONDS) as response:
+            data = json.loads(response.read().decode())
+        names = data.get("response") if isinstance(data, dict) else None
+        if not isinstance(names, list):
+            return [], "O WPPConnect não disponibilizou a listagem de sessões."
+        return names, ""
+    except urlerror.HTTPError as exc:
+        return [], _http_error(exc.code, authenticating=True)
+    except (urlerror.URLError, TimeoutError, ConnectionError) as exc:
+        return [], _connection_error(exc)
+    except (ValueError, TypeError):
+        return [], "Resposta inválida na listagem de sessões do WPPConnect."

@@ -139,6 +139,16 @@ export type WhatsAppAlerts = {
   results: { id: string; title: string; recipient: string; phone: string; organization: string; status: WhatsAppDeliveryStatus; attempts: number; last_error: string; created_at: string; updated_at: string; delivered_at: string | null }[];
 };
 
+export type WhatsAppManagedSession = {
+  name: string; status: string; state_since: string; observed_at: string;
+  elapsed_seconds: number; suspected_stuck: boolean; last_error: string;
+  detail: string; configured_session: boolean; can_close: boolean; can_reconnect: boolean;
+};
+export type WhatsAppSessionList = {
+  results: WhatsAppManagedSession[]; count: number; page: number; has_next: boolean;
+  detail: string; checked_at: string; recovery_enabled: boolean;
+};
+
 export const platformService = {
   async whatsappWebStatus() { return (await platformApi.get<WhatsAppSession>("platform/whatsapp-web/status/", {timeout: 65000})).data; },
   async startWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/start/", {}, {timeout: 65000})).data; },
@@ -146,6 +156,9 @@ export const platformService = {
   async disconnectWhatsappWeb() { return (await platformApi.post<{status:string}>("platform/whatsapp-web/disconnect/", {})).data; },
   async whatsappAccount() { return (await platformApi.get<{account:WhatsAppAccount|null;detail:string}>("platform/whatsapp-web/account/")).data; },
   async reconnectWhatsappWeb() { return (await platformApi.post<{status:string|null;qrcode?:string|null}>("platform/whatsapp-web/reconnect/", {}, {timeout: 95000})).data; },
+  async whatsappSessions(page = 1) { return (await platformApi.get<WhatsAppSessionList>("platform/whatsapp-web/sessions/", {params: {page}, timeout: 65000})).data; },
+  async manageWhatsappSession(name: string, operation: "close" | "reconnect") { return (await platformApi.post<{status:string;detail:string}>(`platform/whatsapp-web/sessions/${encodeURIComponent(name)}/action/`, {operation, confirm: operation === "close"}, {timeout: 125000})).data; },
+  async restartWhatsappService() { return (await platformApi.post<{detail:string;succeeded:boolean}>("platform/whatsapp-web/restart-service/", {confirm_all_sessions:true}, {timeout: 45000})).data; },
   async whatsappAlerts(page = 1, status: WhatsAppDeliveryStatus | "" = "") { return (await platformApi.get<WhatsAppAlerts>("platform/whatsapp-web/alerts/", {params: {page, status}})).data; },
   async whatsappContacts() { return (await platformApi.get<{id:string;name:string;phone:string;organization:string}[]>("platform/whatsapp-web/messages/")).data; },
   async sendWhatsappMessage(phone:string,message:string) { return (await platformApi.post("platform/whatsapp-web/messages/",{phone,message})).data; },

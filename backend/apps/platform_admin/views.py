@@ -21,7 +21,8 @@ from rest_framework.decorators import action, api_view, permission_classes, thro
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from apps.notifications.models import NotificationDelivery
-from .whatsapp import connected_account, alert_overview, alert_deliveries, delivery_row
+from .whatsapp import (connected_account, alert_overview, alert_deliveries, delivery_row,
+                       session_names, observed_session, operate_session, restart_service, recovery_enabled, SESSION_NAME)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
@@ -163,6 +164,59 @@ def whatsapp_web_reconnect(request):
         return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     record_platform_action(request=request, action="whatsapp.session_reconnected", object_type="WhatsAppWeb", object_id=settings.WPP_CONNECT_SESSION, description="Reconexão da sessão WhatsApp solicitada.")
     return Response({"status": data.get("status"), "qrcode": data.get("qrcode")})
+
+
+@api_view(["GET"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_sessions(request):
+    from concurrent.futures import ThreadPoolExecutor
+    from common.wppconnect import wpp_request
+
+    names, detail = session_names()
+    try:
+        page = int(request.query_params.get("page", 1))
+    except (TypeError, ValueError):
+        page = 0
+    if page < 1 or (page > 1 and (page - 1) * 6 >= len(names)):
+        return Response({"detail": "Página de sessões inválida."}, status=status.HTTP_400_BAD_REQUEST)
+    selected = names[(page - 1) * 6:page * 6]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        snapshots = list(pool.map(lambda name: wpp_request("status-session", session_name=name), selected))
+    return Response({
+        "results": [observed_session(name, snapshot) for name, snapshot in zip(selected, snapshots)],
+        "count": len(names), "page": page, "has_next": len(names) > page * 6,
+        "detail": detail, "checked_at": timezone.now(),
+        "recovery_enabled": recovery_enabled(),
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_session_action(request, session_name):
+    operation = request.data.get("operation")
+    if not SESSION_NAME.fullmatch(session_name) or operation not in ("close", "reconnect"):
+        return Response({"detail": "Sessão ou operação inválida."}, status=status.HTTP_400_BAD_REQUEST)
+    if operation == "close" and request.data.get("confirm") is not True:
+        return Response({"detail": "Confirme o encerramento desta sessão."}, status=status.HTTP_400_BAD_REQUEST)
+    names, _ = session_names()
+    if session_name not in names:
+        return Response({"detail": "Sessão não encontrada no serviço configurado."}, status=status.HTTP_404_NOT_FOUND)
+    result, detail, recovery_required = operate_session(session_name, operation)
+    record_platform_action(request=request, action=f"whatsapp.session_{operation}" if not detail else "whatsapp.session_operation_failed", object_type="WhatsAppWeb", object_id=session_name, description=detail or result["detail"], extra_data={"operation": operation, "succeeded": not bool(detail), "recovery_required": recovery_required})
+    if detail:
+        return Response({"detail": detail, "recovery_required": recovery_required}, status=status.HTTP_409_CONFLICT if recovery_required else status.HTTP_503_SERVICE_UNAVAILABLE)
+    return Response(result)
+
+
+@api_view(["POST"])
+@permission_classes([IsPlatformAdmin])
+def whatsapp_web_restart_service(request):
+    if request.data.get("confirm_all_sessions") is not True:
+        return Response({"detail": "Confirme a interrupção de todas as sessões do WPPConnect."}, status=status.HTTP_400_BAD_REQUEST)
+    record_platform_action(request=request, action="whatsapp.service_restart_requested", object_type="WhatsAppWeb", description="Reinicialização do serviço solicitada; afeta todas as sessões.")
+    succeeded, detail = restart_service()
+    record_platform_action(request=request, action="whatsapp.service_restarted" if succeeded else "whatsapp.service_restart_failed", object_type="WhatsAppWeb", description=detail)
+    return Response({"detail": detail, "succeeded": succeeded}, status=status.HTTP_200_OK if succeeded else status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @api_view(["GET"])

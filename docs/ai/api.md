@@ -317,3 +317,28 @@ Reconnect returns 409 while a session is initializing, showing a QR or syncing.
 These states may still be placeholder clients in WPPConnect, without a `close`
 method. The panel must finish pairing before reconnecting; no session data is
 deleted to recover from this condition.
+
+## WhatsApp session management
+
+Platform owners/admins can GET `/platform/whatsapp-web/sessions/?page=1` to
+list service sessions (six per page), their state, observation timestamps, elapsed
+time, last sanitized error and operation availability. The server-only secret is
+used for inventory; token-only installations expose the configured session only.
+No token, QR payload, secret-bearing URL or raw provider error is returned.
+`WhatsAppSessionObservation` persists timing across web workers (migration 0013).
+A state observed unchanged for 120 seconds is marked `suspected_stuck` only while
+initializing/connecting/syncing; QR waiting is never classified as stuck.
+
+POST `/sessions/<name>/action/` accepts `operation: close|reconnect`; close also
+requires `confirm: true`. Names must belong to the configured service inventory.
+Close preserves paired credentials, unlike logout. Placeholder clients return 409
+with `recovery_required: true`; the API does not call their missing close method
+or silently restart every session. Success/failure is recorded in platform audit.
+
+POST `/restart-service/` requires `confirm_all_sessions: true`, a platform-admin
+role and server-side recovery enablement. It runs a fixed privileged helper,
+interrupts all sessions, preserves volumes, and permits one attempt per 60 seconds
+through a shared database control row. Request/result are audited. The helper must
+be installed as documented in `docs/ai/infra.md`; the backend never accepts a
+container name, command, path or Docker flags from the client. The panel polls the
+list every 15 seconds and pauses while mutations run.

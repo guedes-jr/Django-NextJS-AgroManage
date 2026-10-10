@@ -1,0 +1,2 @@
+# Install root-owned mode 0440 under /etc/sudoers.d/ and validate with visudo.
+deploy ALL=(root) NOPASSWD: /usr/local/sbin/agromanage-wppconnect-control restart

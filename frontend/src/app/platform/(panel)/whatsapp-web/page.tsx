@@ -6,6 +6,7 @@ import axios from "axios";
 import { Activity, ArrowRight, BellRing, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Link2, MessageCircle, QrCode, RefreshCw, Send, ShieldCheck, Smartphone, Unplug, Users, WifiOff } from "lucide-react";
 import { platformService, type WhatsAppAccount, type WhatsAppAlerts, type WhatsAppDeliveryStatus, type WhatsAppSession } from "@/services/platformApi";
 import styles from "./page.module.css";
+import SessionsPanel from "./SessionsPanel";
 
 type Contact = { id: string; name: string; phone: string; organization: string };
 const labels: Record<string, string> = {
@@ -48,6 +49,7 @@ export default function Page() {
   const [message, setMessage] = useState(testMessage);
   const [action, setAction] = useState<"start" | "reconnect" | "disconnect" | null>(null);
   const [sending, setSending] = useState(false);
+  const [managementBusy, setManagementBusy] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [checking, setChecking] = useState(false);
@@ -64,7 +66,7 @@ export default function Page() {
   const actionLock = useRef(false);
   const sendLock = useRef(false);
   const connected = Boolean(session?.connected);
-  const busy = Boolean(action);
+  const busy = Boolean(action) || managementBusy;
   const phoneValid = /^55\d{10,11}$/.test(normalizedPhone(phone));
   const status = action === "disconnect" ? "Desconectando…" : action ? "Preparando conexão…" : connected ? "Conectado" : qr ? "Aguardando leitura" : session ? labels[session.status] || "Conectando" : "Consultando sessão…";
   const unavailable = session?.status === "unavailable";
@@ -78,7 +80,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (action) return;
+    if (action || managementBusy) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -120,7 +122,7 @@ export default function Page() {
     };
     void poll();
     return () => { active = false; clearTimeout(timer); };
-  }, [action, refresh]);
+  }, [action, managementBusy, refresh]);
 
   useEffect(() => {
     let active = true;
@@ -141,7 +143,7 @@ export default function Page() {
   }, [page, filter, refresh]);
 
   const runAction = async (next: NonNullable<typeof action>) => {
-    if (actionLock.current || sendLock.current) return;
+    if (actionLock.current || sendLock.current || managementBusy) return;
     actionLock.current = true;
     setAction(next); setError(""); setFeedback(""); setConfirmDisconnect(false); setChecking(false);
     setQr(null); setAccount(null); accountCache.current = null;
@@ -163,7 +165,7 @@ export default function Page() {
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (!connected || !phoneValid || !message.trim() || sendLock.current || actionLock.current) return;
+    if (!connected || !phoneValid || !message.trim() || sendLock.current || actionLock.current || managementBusy) return;
     sendLock.current = true; setSending(true); setError(""); setFeedback("");
     try {
       await platformService.sendWhatsappMessage(normalizedPhone(phone), message.trim());
@@ -190,7 +192,7 @@ export default function Page() {
           <div className={styles.instructions}>{connected ? <><span className={styles.eyebrow}>Conta vinculada</span><h3>{account?.name || "WhatsApp empresarial"}</h3><p className={styles.accountPhone}>{account?.phone ? formatPhone(account.phone) : "Número não disponibilizado pelo serviço"}</p>{accountDetail && <p className={styles.muted}>{accountDetail}</p>}<div className={styles.tip}><ShieldCheck size={18} /><p>Confira o número antes de enviar. Os alertas usam o telefone cadastrado no perfil de cada usuário.</p></div></> : <><h3>Conecte em poucos passos</h3><ol><li>Abra o WhatsApp do número empresarial.</li><li>Acesse <strong>Dispositivos conectados</strong>.</li><li>Toque em <strong>Conectar dispositivo</strong> e leia o QR Code.</li><li>Aguarde a sincronização terminar.</li></ol><p className={styles.muted}>Mantenha a conexão com a internet durante o pareamento. O status é atualizado a cada 4 segundos.</p></>}</div>
         </div>
         {unavailable && <div className={styles.error} role="alert">{session?.detail || "O serviço de conexão está indisponível."}</div>}
-        {slow && !connected && !busy && <div className={styles.warning} role="status"><Clock3 size={18} /><div><strong>O pareamento está demorando</strong><p>Se já leu o QR, confira a internet e a lista de dispositivos no celular. Use Reconectar se a sincronização continuar parada.</p></div></div>}
+        {slow && !connected && !busy && <div className={styles.warning} role="status"><Clock3 size={18} /><div><strong>O pareamento está demorando</strong><p>Se já leu o QR, confira a internet e a lista de dispositivos no celular. Consulte as sessões abaixo para encerrar ou recuperar uma sincronização parada.</p></div></div>}
         <div className={styles.actions}><button className={styles.primary} disabled={busy || sending || connected || !session?.configured} onClick={() => void runAction("start")}><QrCode size={16} />{action === "start" ? "Preparando…" : "Gerar QR Code"}</button><button className={styles.secondary} disabled={busy || checking} onClick={() => { accountCache.current = null; setRefresh(value => value + 1); }}><RefreshCw size={16} className={checking ? styles.spin : ""} />Atualizar status</button><button className={styles.secondary} disabled={busy || sending || !session?.configured} onClick={() => void runAction("reconnect")}><Link2 size={16} />Reconectar</button>{connected && <button className={styles.dangerButton} disabled={busy || sending} onClick={() => setConfirmDisconnect(true)}><Unplug size={16} />Desconectar</button>}</div>
         {confirmDisconnect && <div className={styles.warning} role="alert"><div><strong>Desconectar esta conta?</strong><p>Os envios ficarão indisponíveis até um novo pareamento por QR Code.</p><div className={styles.actions}><button className={styles.dangerButton} disabled={busy || sending} onClick={() => void runAction("disconnect")}>Confirmar desconexão</button><button className={styles.secondary} onClick={() => setConfirmDisconnect(false)}>Cancelar</button></div></div></div>}
         <div className={styles.lastCheck}><Activity size={13} />Última consulta: {date(session?.checked_at || null, true)}<span>Atualização automática</span></div>
@@ -199,6 +201,7 @@ export default function Page() {
         <form onSubmit={send} className={styles.form}><label htmlFor="wa-contact">Contato cadastrado</label><select id="wa-contact" value={contacts.some(contact => contact.phone === phone) ? phone : ""} onChange={event => setPhone(event.target.value)}><option value="">Selecione um contato (opcional)</option>{contacts.map(contact => <option key={contact.id} value={contact.phone}>{contact.name} · {contact.organization}</option>)}</select>{contactsError && <p className={styles.muted}>{contactsError}</p>}<label htmlFor="wa-phone">Telefone de destino</label><input id="wa-phone" type="tel" autoComplete="tel" value={phone} placeholder="(81) 99999-0000" maxLength={30} onChange={event => setPhone(event.target.value)} onBlur={() => { if (phoneValid) setPhone(formatPhone(phone)); }} aria-describedby="wa-phone-help" aria-invalid={Boolean(phone && !phoneValid)} /><small id="wa-phone-help">{phone && !phoneValid ? "Informe DDD e número brasileiro válido." : "Aceita DDD e número, com ou sem +55."}</small><label htmlFor="wa-message">Mensagem</label><textarea id="wa-message" rows={4} maxLength={4096} value={message} onChange={event => setMessage(event.target.value)} /><div className={styles.messageMeta}><button type="button" onClick={() => setMessage(testMessage)}>Usar mensagem de teste</button><span>{message.length}/4096</span></div><button type="submit" className={styles.primary} disabled={!connected || !phoneValid || !message.trim() || busy || sending}><Send size={16} />{sending ? "Enviando…" : "Enviar mensagem"}<ArrowRight size={16} /></button></form><p className={styles.testFootnote}>O teste envia uma mensagem real para o telefone informado.</p>
       </section>
     </div>
+    <SessionsPanel disabled={Boolean(action) || sending} onBusyChange={setManagementBusy} onChanged={() => { accountCache.current = null; setRefresh(value => value + 1); }} />
     <section className={styles.card}><div className={styles.cardHeader}><div className={styles.title}><span className={styles.icon}><BellRing size={20} /></span><div><h2>Alertas automáticos</h2><p>Preferências e entregas do canal WhatsApp</p></div></div><span className={styles.meta}>Atualizado: {date(overview?.checked_at || null, true)} · a cada 30s</span></div>
       <div className={styles.alertInfo}><div><strong>Eventos disponíveis</strong><div className={styles.eventTags}>{(overview?.alert_types || ["Vacinas reprodutivas programadas", "Próxima cobertura"]).map(type => <span key={type}><CheckCircle2 size={14} />{type}</span>)}</div></div><p>Recebem os proprietários e administradores da organização com alertas de animais e WhatsApp ativados e telefone válido. {overview && overview.invalid_phone_users > 0 && <strong>{overview.invalid_phone_users} usuário(s) com adesão precisam corrigir o telefone.</strong>}</p></div>
       <div className={styles.historyToolbar}><h3>Últimas entregas <span>{alerts?.count ?? "—"}</span></h3><label>Filtrar por status<select value={filter} onChange={event => { setFilter(event.target.value as WhatsAppDeliveryStatus | ""); setPage(1); }}><option value="">Todos os status</option>{Object.entries(deliveryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
