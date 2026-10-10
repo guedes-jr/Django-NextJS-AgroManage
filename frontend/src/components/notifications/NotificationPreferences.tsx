@@ -59,6 +59,10 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
 
   return (
     <div className="notification-preferences">
+      <div className="dashboard-card p-4 mb-4">
+        <label className="form-check"><input type="checkbox" className="form-check-input" checked={preferences.marketing_alerts} onChange={event => setPreferences({ ...preferences, marketing_alerts: event.target.checked })} />Desejo receber propagandas e comunicações promocionais</label>
+        <p className="small text-muted mt-2 mb-0">Opcional. Depende também das notificações gerais ativadas no perfil.</p>
+      </div>
       <div className="dashboard-card p-4 border-dashed mb-4">
         <div className="d-flex align-items-center gap-3 mb-3">
           <div className="icon-box bg-primary/10 text-primary rounded-xl p-2">

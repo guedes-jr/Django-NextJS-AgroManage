@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from . import views
+from . import views, notification_views
 
 router = DefaultRouter()
 router.register("organizations", views.PlatformOrganizationViewSet, basename="platform-organization")
@@ -24,6 +24,9 @@ router.register("sandbox-grants", views.DeveloperSandboxGrantViewSet, basename="
 router.register("sandbox-executions", views.SandboxExecutionViewSet, basename="platform-sandbox-execution")
 
 urlpatterns = [
+    path("notifications/categories/", notification_views.notification_categories, name="platform-notification-categories"),
+    path("notifications/categories/<str:category>/", notification_views.notification_category_detail, name="platform-notification-category-detail"),
+    path("notifications/history/", notification_views.notification_history, name="platform-notification-history"),
     path("me/", views.platform_me, name="platform-me"),
     path("client-state/", views.client_state, name="platform-client-state"),
     path("dashboard/", views.dashboard_summary, name="platform-dashboard"),

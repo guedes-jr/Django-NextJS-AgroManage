@@ -1,11 +1,16 @@
 """
 Serviços de email para notificações.
 """
-from django.core.mail import send_mail
-from django.conf import settings
-from django.template.loader import render_to_string
-from .models import Notification, NotificationPreference
 import logging
+from datetime import timedelta
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils import timezone
+
+from .categories import channel_allowed, email_category_queryset
+from .models import Notification, NotificationPreference
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +27,7 @@ class EmailNotificationService:
             return False
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         
-        if not pref.email_notifications:
+        if not pref.email_notifications or not channel_allowed(notification, "email") or (notification.type == "marketing" and not pref.marketing_alerts):
             return False
         
         # Check if this notification type is enabled
@@ -72,6 +77,7 @@ class EmailNotificationService:
             created_at__gte=timezone.now() - timedelta(days=1)
         )
 
+        notifications = email_category_queryset(notifications, user)
         if not notifications.exists():
             return
 
@@ -114,6 +120,7 @@ class EmailNotificationService:
             created_at__gte=timezone.now() - timedelta(days=7)
         )
 
+        notifications = email_category_queryset(notifications, user)
         if not notifications.exists():
             return
 
@@ -137,8 +144,3 @@ class EmailNotificationService:
             )
         except Exception as e:
             logger.exception("Falha ao enviar resumo semanal para %s", user.email)
-
-
-# Import timezone after to avoid circular import
-from django.utils import timezone
-from datetime import timedelta

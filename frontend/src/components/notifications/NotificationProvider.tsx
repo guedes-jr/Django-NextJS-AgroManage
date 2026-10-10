@@ -36,7 +36,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const fetchOperationalAlerts = useCallback(async () => {
     try {
       const data = await getReproductionDashboard("suinos");
-      setOperationalAlerts((data.alerts || []).filter((item: OperationalAlert) => !confirmedAlerts.current.has(item.alert_key)));
+      setOperationalAlerts((data.notifications_enabled === false ? [] : data.alerts || []).filter((item: OperationalAlert) => !confirmedAlerts.current.has(item.alert_key)));
     } catch { /* Retain pending alerts if the refresh fails. */ }
   }, []);
   const confirmOperationalAlert = useCallback(async (alert: OperationalAlert) => {

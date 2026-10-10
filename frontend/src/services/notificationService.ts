@@ -3,6 +3,8 @@ import apiClient from "./api";
 export interface Notification {
   id: string;
   type: string;
+  category: string;
+  category_display: string;
   priority: string;
   title: string;
   message: string;
@@ -20,6 +22,7 @@ type NotificationPage = { count: number; next: string | null; previous: string |
 
 export interface NotificationPreference {
   id: string;
+  marketing_alerts: boolean;
   stock_alerts: boolean;
   animal_alerts: boolean;
   financial_alerts: boolean;

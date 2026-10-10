@@ -359,3 +359,38 @@ Accounts migration 0006 adds both fields. Existing users retain system alerts an
 existing WhatsApp opt-ins become WhatsApp contacts. New registrations default to
 both unchecked. Profile multipart updates accept explicit `true`/`false`; omitted
 fields retain values on PATCH. Disabling alerts preserves historical notifications.
+
+## Notification classification and platform controls
+
+Notifications retain the existing `type` contract and now expose `category` and
+`category_display`. Categories are system, animal cycles, overdue payments,
+marketing, stock, other animal alerts, other financial alerts and reports.
+Known reproductive event keys become `animal_cycle`; known overdue finance
+transaction keys become `overdue_payment`. Historical rows are classified by
+type/event key in notifications migration 0004; titles are not guessed.
+User-facing filters accept `category`, and recipients cannot alter classification.
+Manual notification creation accepts an explicit category compatible with type.
+
+Platform owners/admins use `/platform/notifications` and the following APIs:
+GET `/platform/notifications/categories/`, PATCH `/categories/<category>/` with
+`enabled`, `in_app_enabled`, `email_enabled`, `push_enabled`, `whatsapp_enabled`, and paginated GET
+`/platform/notifications/history/?category=animal_cycle&organization=<uuid>`.
+Category changes are atomic and audited; tenant users and other platform roles
+cannot read or edit these global controls. History includes classification,
+recipient, organization, title, timestamps, read/archive state and per-channel
+delivery status/attempts without raw provider diagnostics.
+
+Disabling a category blocks new notifications and queued external deliveries.
+Email digests honor category/channel policies. Rules limit delivery and never
+override the user's master consent or category/channel preferences. WhatsApp
+remains restricted to approved reproductive events; enabling unsupported WhatsApp
+categories is rejected. Marketing is disabled globally by default and requires
+separate `marketing_alerts` user opt-in, also unchecked by default.
+Operational reproductive dashboard alerts expose their category and
+`notifications_enabled`; the notification bell respects that flag while the
+reproduction dashboard keeps its operational information available.
+
+The in-app channel is recorded as `show_in_app` when an event is created or
+updated. External-only records stay in platform history but do not appear in the
+recipient notification list, unread count or SSE feed. Historical visibility is
+preserved unless the event recurs under the new policy.

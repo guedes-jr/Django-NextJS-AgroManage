@@ -34,7 +34,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     pagination_class = NotificationPagination
 
     def get_queryset(self):
-        queryset = Notification.objects.filter(user=self.request.user)
+        queryset = Notification.objects.filter(user=self.request.user, show_in_app=True)
         archived = self.request.query_params.get("archived", "false").lower() == "true"
         queryset = queryset.filter(is_archived=archived)
         status_filter = self.request.query_params.get("status")
@@ -42,6 +42,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
         if status_filter == "read": queryset = queryset.filter(is_read=True)
         if notification_type := self.request.query_params.get("type"):
             queryset = queryset.filter(type=notification_type)
+        if category := self.request.query_params.get("category"):
+            queryset = queryset.filter(category=category)
         if search := self.request.query_params.get("search"):
             queryset = queryset.filter(Q(title__icontains=search) | Q(message__icontains=search))
         if date_from := self.request.query_params.get("date_from"):
@@ -78,7 +80,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def unread_count_view(request):
     """Retorna a contagem de notificações não lidas"""
-    count = Notification.objects.filter(user=request.user, is_read=False, is_archived=False).count()
+    count = Notification.objects.filter(user=request.user, show_in_app=True, is_read=False, is_archived=False).count()
     return Response({"unread_count": count})
 
 
@@ -134,7 +136,7 @@ def notification_stream_view(request):
         previous = None
         for _ in range(12):
             close_old_connections()
-            queryset = Notification.objects.filter(user_id=user_id, is_archived=False)
+            queryset = Notification.objects.filter(user_id=user_id, show_in_app=True, is_archived=False)
             latest = queryset.order_by("-last_occurred_at", "-created_at").values("id", "occurrence_count", "last_occurred_at", "created_at").first()
             fingerprint = (queryset.filter(is_read=False).count(), str(latest["id"]) if latest else "", latest["occurrence_count"] if latest else 0, str(latest["last_occurred_at"] or latest["created_at"]) if latest else "")
             if fingerprint != previous:
@@ -173,11 +175,12 @@ def create_notification_view(request):
         priority=serializer.validated_data.get("priority", "medium"),
         title=serializer.validated_data["title"],
         message=serializer.validated_data["message"],
+        category=serializer.validated_data.get("category"),
         link=serializer.validated_data.get("link", "")
     )
     if notification is None:
         return Response(
-            {"detail": "O usuário desativou as notificações de alerta do sistema." if not user.receive_system_alerts else "O usuário desativou esta categoria de notificação."},
+            {"detail": "O usuário desativou as notificações de alerta do sistema." if not user.receive_system_alerts else "Esta notificação foi suspensa pelas preferências do usuário ou pelas regras da plataforma."},
             status=status.HTTP_200_OK,
         )
     return Response(NotificationSerializer(notification).data, status=status.HTTP_201_CREATED)

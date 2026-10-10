@@ -8,6 +8,7 @@ import logging
 from datetime import timedelta
 from .models import Notification, NotificationType, NotificationPriority
 from .models import NotificationPreference
+from .categories import classify_notification, category_policy, channel_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,13 @@ class NotificationService:
     """Serviço centralizado para criar notificações"""
 
     @staticmethod
-    def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key=""):
+    def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key="", category=None):
         """Cria uma notificação para o usuário"""
-        if not NotificationService.should_notify(user, notif_type):
+        category = classify_notification(notif_type, event_key, category)
+        policy = category_policy(category)
+        if not NotificationService.should_notify(user, notif_type, category, policy=policy):
             return None
+        show_in_app = policy.in_app_enabled
         now = timezone.now()
         if event_key:
             try:
@@ -27,14 +31,14 @@ class NotificationService:
                     user=user,
                     event_key=event_key,
                     is_archived=False,
-                    defaults={"type": notif_type, "priority": priority, "title": title, "message": message, "link": link or "", "last_occurred_at": now},
+                    defaults={"show_in_app": show_in_app, "category": category, "type": notif_type, "priority": priority, "title": title, "message": message, "link": link or "", "last_occurred_at": now},
                 )
             except IntegrityError:
                 notification = Notification.objects.get(user=user, event_key=event_key, is_archived=False)
                 created = False
             if not created:
                 Notification.objects.filter(pk=notification.pk).update(
-                    title=title, message=message, link=link or "", priority=priority,
+                    show_in_app=show_in_app, category=category, title=title, message=message, link=link or "", priority=priority,
                     occurrence_count=F("occurrence_count") + 1, last_occurred_at=now,
                     is_read=False, read_at=None,
                 )
@@ -42,14 +46,14 @@ class NotificationService:
                 return notification
         else:
             notification = Notification.objects.create(
-                user=user, type=notif_type, priority=priority, title=title,
+                user=user, type=notif_type, category=category, show_in_app=show_in_app, priority=priority, title=title,
                 message=message, link=link or "", last_occurred_at=now,
             )
-        NotificationService.schedule_external_delivery(notification)
+        NotificationService.schedule_external_delivery(notification, policy=policy)
         return notification
 
     @staticmethod
-    def schedule_external_delivery(notification):
+    def schedule_external_delivery(notification, policy=None):
         from .models import NotificationDelivery
         from .tasks import dispatch_notification
 
@@ -68,6 +72,8 @@ class NotificationService:
             and NotificationService.is_reproductive_whatsapp_alert(notification)
         ):
             channels.append(NotificationDelivery.Channel.WHATSAPP_WEB)
+        policy = policy or category_policy(notification.category)
+        channels = [channel for channel in channels if channel_allowed(notification, channel, policy)]
         for channel in channels:
             NotificationDelivery.objects.get_or_create(notification=notification, channel=channel)
         if channels:
@@ -87,7 +93,7 @@ class NotificationService:
         ))
 
     @staticmethod
-    def create_for_organization(organization, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, roles=None, event_key=""):
+    def create_for_organization(organization, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, roles=None, event_key="", category=None):
         """Cria notificações para todos os usuários de uma organização"""
         if roles is None:
             roles = ["owner", "admin"]
@@ -105,25 +111,31 @@ class NotificationService:
                 priority=priority,
                 link=link,
                 event_key=event_key,
+                category=category,
             )
             if notification is not None:
                 notifications.append(notification)
         return notifications
 
     @staticmethod
-    def create_bulk(users, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key=""):
+    def create_bulk(users, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key="", category=None):
         """Cria notificações em bulk para múltiplos usuários"""
         if event_key:
             return [notification for user in users if (notification := NotificationService.create(
-                user, title, message, notif_type, priority, link, event_key
+                user, title, message, notif_type, priority, link, event_key, category
             )) is not None]
+        category = classify_notification(notif_type, event_key, category)
+        policy = category_policy(category)
+        show_in_app = policy.in_app_enabled
         notifications = []
         for user in users:
-            if not NotificationService.should_notify(user, notif_type):
+            if not NotificationService.should_notify(user, notif_type, category, policy=policy):
                 continue
             notifications.append(Notification(
                 user=user,
                 type=notif_type,
+                category=category,
+                show_in_app=show_in_app,
                 priority=priority,
                 title=title,
                 message=message,
@@ -131,7 +143,7 @@ class NotificationService:
             ))
         created = Notification.objects.bulk_create(notifications)
         for notification in created:
-            NotificationService.schedule_external_delivery(notification)
+            NotificationService.schedule_external_delivery(notification, policy=policy)
         return created
 
     @staticmethod
@@ -208,13 +220,15 @@ class NotificationService:
         return pref
 
     @staticmethod
-    def should_notify(user, notification_type):
+    def should_notify(user, notification_type, category=None, *, policy=None):
         """Verifica se o usuário deve receber este tipo de notificação"""
-        if not user.receive_system_alerts:
+        category = classify_notification(notification_type, category=category)
+        if not user.receive_system_alerts or not (policy or category_policy(category)).enabled:
             return False
         pref = NotificationService.get_user_preferences(user)
 
         type_mapping = {
+            NotificationType.MARKETING: pref.marketing_alerts,
             NotificationType.STOCK: pref.stock_alerts,
             NotificationType.ANIMAL: pref.animal_alerts,
             NotificationType.FINANCE: pref.financial_alerts,

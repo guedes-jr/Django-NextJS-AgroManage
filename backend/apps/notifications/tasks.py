@@ -43,6 +43,8 @@ def _send_whatsapp_web(notification):
 def dispatch_notification(self, notification_id):
     """Entrega uma notificação pendente nos canais externos configurados."""
     from django.conf import settings
+    from .categories import channel_allowed
+    from .services import NotificationService
     from .emails import EmailNotificationService
     from .models import Notification, NotificationDelivery, PushSubscription
 
@@ -52,9 +54,9 @@ def dispatch_notification(self, notification_id):
         delivery.attempts += 1
         delivery.last_error = ""
         try:
-            if not notification.user.receive_system_alerts:
+            if not NotificationService.should_notify(notification.user, notification.type, notification.category) or not channel_allowed(notification, delivery.channel):
                 delivery.status = NotificationDelivery.Status.SKIPPED
-                delivery.last_error = "O usuário desativou as notificações de alerta do sistema."
+                delivery.last_error = "Entrega suspensa pelas preferências do usuário ou pela configuração da categoria."
                 delivery.save(update_fields=("attempts", "status", "last_error", "updated_at"))
                 continue
             if delivery.channel == NotificationDelivery.Channel.EMAIL:

@@ -10,6 +10,9 @@ import styles from "./notifications.module.css";
 
 const typeMeta: Record<string, { label: string; icon: typeof Bell }> = {
   system: { label: "Sistema", icon: Bell },
+  animal_cycle: { label: "Ciclos dos animais", icon: Beef },
+  overdue_payment: { label: "Pagamentos atrasados", icon: Receipt },
+  marketing: { label: "Propagandas", icon: Bell },
   stock: { label: "Estoque", icon: Package },
   animal: { label: "Animais", icon: Beef },
   finance: { label: "Financeiro", icon: Receipt },
@@ -41,7 +44,7 @@ export default function NotificationsPage() {
       if (status !== "archived" && notification.is_archived) return false;
       if (status === "unread" && notification.is_read) return false;
       if (status === "read" && !notification.is_read) return false;
-      if (type !== "all" && notification.type !== type) return false;
+      if (type !== "all" && (notification.category || notification.type) !== type) return false;
       const created = notification.created_at?.slice(0, 10) || "";
       if (dateFrom && created < dateFrom) return false;
       if (dateTo && created > dateTo) return false;
@@ -98,7 +101,7 @@ export default function NotificationsPage() {
       : error ? <div className={styles.empty}><Inbox size={36}/><strong>Não foi possível carregar</strong><p>{error}</p><button onClick={() => void fetchNotifications()}>Tentar novamente</button></div>
       : visible.length === 0 ? <div className={styles.empty}><Inbox size={38}/><strong>{notifications.length ? "Nenhuma notificação neste filtro" : "Tudo em dia por aqui"}</strong><p>{notifications.length ? "Altere os filtros ou faça uma nova busca." : "Novas atualizações aparecerão nesta central."}</p></div>
       : pageItems.map(notification => {
-        const meta = typeMeta[notification.type] || typeMeta.system;
+        const meta = typeMeta[notification.category || notification.type] || typeMeta.system;
         const Icon = meta.icon;
         return <article className={`${styles.item} ${!notification.is_read ? styles.unread : ""}`} key={notification.id}>
           <button className={styles.open} onClick={() => void openNotification(notification)} disabled={busyId === notification.id}>

@@ -2977,6 +2977,10 @@ class ReproductionDashboardView(APIView):
             item for item in ai_suggestions if item["alert_key"] not in acknowledged_keys
         ]
 
+        from apps.notifications.services import NotificationService
+        from apps.notifications.categories import category_policy
+        notifications_enabled = NotificationService.should_notify(user, "animal", "animal_cycle") and category_policy("animal_cycle").in_app_enabled
+
         return Response({
             "species": species_code,
             "status": "connected",
@@ -2989,7 +2993,8 @@ class ReproductionDashboardView(APIView):
                 "nascidos_mes": nascidos_mes,
                 "tx_prenhez": f"{tx_prenhez}%"
             },
-            "alerts": alerts,
+            "notifications_enabled": notifications_enabled,
+            "alerts": [{**item, "category": "animal_cycle"} for item in alerts],
             "aiSuggestions": ai_suggestions,
             "message": "Dashboard API is connected."
         }, status=status.HTTP_200_OK)

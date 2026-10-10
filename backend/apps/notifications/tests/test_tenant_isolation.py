@@ -166,6 +166,7 @@ class NotificationTenantIsolationTestCase(APITestCase):
             title="Próxima cobertura",
             message="Programada para amanhã.",
             notif_type=NotificationType.ANIMAL,
+            event_key="livestock.next_mating:test",
         )
         delivery = NotificationDelivery.objects.create(
             notification=notification,

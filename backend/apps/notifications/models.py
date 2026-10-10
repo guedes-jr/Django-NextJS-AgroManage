@@ -10,6 +10,28 @@ class NotificationType(models.TextChoices):
     ANIMAL = "animal", "Animais"
     FINANCE = "finance", "Financeiro"
     REPORT = "report", "Relatórios"
+    MARKETING = "marketing", "Propagandas"
+
+
+class NotificationCategory(models.TextChoices):
+    SYSTEM = "system", "Sistema"
+    ANIMAL_CYCLE = "animal_cycle", "Ciclos dos animais"
+    OVERDUE_PAYMENT = "overdue_payment", "Pagamentos atrasados"
+    MARKETING = "marketing", "Propagandas"
+    STOCK = "stock", "Estoque"
+    ANIMAL = "animal", "Outros avisos de animais"
+    FINANCE = "finance", "Outros avisos financeiros"
+    REPORT = "report", "Relatórios"
+
+
+class NotificationCategoryPolicy(models.Model):
+    category = models.CharField(max_length=30, choices=NotificationCategory.choices, unique=True)
+    enabled = models.BooleanField(default=True)
+    in_app_enabled = models.BooleanField(default=True)
+    email_enabled = models.BooleanField(default=True)
+    push_enabled = models.BooleanField(default=True)
+    whatsapp_enabled = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class NotificationPriority(models.TextChoices):
@@ -27,10 +49,12 @@ class Notification(models.Model):
         related_name="notifications"
     )
     type = models.CharField(max_length=20, choices=NotificationType.choices, default=NotificationType.SYSTEM)
+    category = models.CharField(max_length=30, choices=NotificationCategory.choices, default=NotificationCategory.SYSTEM, db_index=True)
     priority = models.CharField(max_length=10, choices=NotificationPriority.choices, default=NotificationPriority.MEDIUM)
     title = models.CharField(max_length=200)
     message = models.TextField()
     link = models.CharField(max_length=500, blank=True, null=True)
+    show_in_app = models.BooleanField(default=True)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(blank=True, null=True)
     event_key = models.CharField(max_length=255, blank=True, db_index=True)
@@ -66,6 +90,7 @@ class NotificationPreference(models.Model):
         on_delete=models.CASCADE,
         related_name="notification_preference"
     )
+    marketing_alerts = models.BooleanField(default=False)
     stock_alerts = models.BooleanField(default=True)
     animal_alerts = models.BooleanField(default=True)
     financial_alerts = models.BooleanField(default=True)
