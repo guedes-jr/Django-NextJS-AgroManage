@@ -28,7 +28,12 @@ function date(value: string | null, timeOnly = false) {
   return new Date(value).toLocaleString("pt-BR", timeOnly ? { hour: "2-digit", minute: "2-digit", second: "2-digit" } : { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 function errorMessage(error: unknown, fallback: string) {
-  if (axios.isAxiosError<{detail?: string}>(error) && error.response?.data.detail) return error.response.data.detail;
+  if (axios.isAxiosError<{detail?: string}>(error)) {
+    if (error.response?.data.detail) return error.response.data.detail;
+    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") return "A operação demorou para responder. Atualize o status antes de repetir a tentativa.";
+    if (error.response?.status === 502 || error.response?.status === 504) return "O servidor não conseguiu concluir a comunicação com a integração. Verifique os serviços e atualize o status.";
+    if (error.code === "ERR_NETWORK") return "Não foi possível acessar o backend. Confira a conexão e tente atualizar o status.";
+  }
   return fallback;
 }
 

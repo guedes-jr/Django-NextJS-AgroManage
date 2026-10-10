@@ -1,4 +1,6 @@
 import json
+import socket
+from urllib.error import HTTPError, URLError
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -121,6 +123,65 @@ class WhatsAppFlowTests(SimpleTestCase):
         self.assertEqual(result.data["status"], "unavailable")
         self.assertEqual(result.data["detail"], "Consulta do QR indisponível")
         self.assertIsNone(result.data["qrcode"])
+
+    @override_settings(WPP_CONNECT_URL="")
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_missing_configuration_reports_required_settings(self, transport):
+        data, detail = wpp_request("start-session", method="POST", payload={})
+        self.assertIsNone(data)
+        self.assertIn("WPP_CONNECT_URL", detail)
+        transport.assert_not_called()
+
+    @override_settings(WPP_CONNECT_URL="http://wpp.test:invalid")
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_invalid_url_reports_configuration_error(self, transport):
+        data, detail = wpp_request("start-session", method="POST", payload={})
+        self.assertIsNone(data)
+        self.assertIn("WPP_CONNECT_URL inválida", detail)
+        transport.assert_not_called()
+
+    @override_settings(WPP_CONNECT_TOKEN="", WPP_CONNECT_SECRET="secret-not-to-expose")
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_auth_connection_failure_is_not_misreported_as_credentials(self, transport):
+        transport.side_effect = URLError(ConnectionRefusedError())
+        data, detail = wpp_request("start-session", method="POST", payload={})
+        self.assertIsNone(data)
+        self.assertIn("recusou a conexão", detail)
+        self.assertNotIn("secret-not-to-expose", detail)
+
+    @override_settings(WPP_CONNECT_TOKEN="", WPP_CONNECT_SECRET="secret-not-to-expose")
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_auth_http_failures_are_actionable_and_do_not_expose_secret(self, transport):
+        for code, expected in [(401, "autenticação"), (404, "rota"), (500, "erro interno")]:
+            with self.subTest(code=code):
+                transport.side_effect = HTTPError("http://wpp.test/secret-not-to-expose", code, "secret-not-to-expose", {}, None)
+                data, detail = wpp_request("start-session", method="POST", payload={})
+                self.assertIsNone(data)
+                self.assertIn(expected, detail)
+                self.assertNotIn("secret-not-to-expose", detail)
+
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_dns_failure_is_actionable(self, transport):
+        transport.side_effect = URLError(socket.gaierror())
+        data, detail = wpp_request("status-session")
+        self.assertIsNone(data)
+        self.assertIn("DNS", detail)
+
+    @override_settings(WPP_CONNECT_TOKEN="", WPP_CONNECT_SECRET="test-secret")
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_missing_generated_token_does_not_continue_to_session_request(self, transport):
+        transport.return_value.__enter__.return_value.read.return_value = b'{"token":null}'
+        data, detail = wpp_request("start-session", method="POST", payload={})
+        self.assertIsNone(data)
+        self.assertIn("token válido", detail)
+        self.assertEqual(transport.call_count, 1)
+
+    @patch("common.wppconnect.urlrequest.urlopen")
+    def test_invalid_json_response_is_not_misreported_as_network(self, transport):
+        transport.return_value.__enter__.return_value.read.return_value = b'<html>invalid upstream</html>'
+        data, detail = wpp_request("status-session")
+        self.assertIsNone(data)
+        self.assertIn("resposta inválida", detail)
 
 
 class WhatsAppAlertsTests(APITestCase):

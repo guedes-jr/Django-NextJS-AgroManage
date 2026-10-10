@@ -305,3 +305,9 @@ organization role, matching the scheduled events. Counts are not filtered by his
 are potential recipients, subject to the existing event authorization rules.
 The UI refreshes history every 30 seconds. Manual tests use the existing audited
 message endpoint; they do not create an automatic-alert delivery record.
+
+Connection diagnostics distinguish missing/invalid configuration, DNS, refused
+connections, timeouts, TLS, HTTP authentication failures and invalid upstream
+responses without including raw URLs, secrets or response bodies. Status/start/
+reconnect requests allow 65 seconds in the platform client, covering the default
+15-second WPPConnect timeout for sequential authentication/session calls.
