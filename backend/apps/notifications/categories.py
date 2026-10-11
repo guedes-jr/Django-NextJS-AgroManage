@@ -46,4 +46,5 @@ def email_category_queryset(queryset, user):
             enabled, email_enabled = policy.enabled, policy.email_enabled
         if enabled and email_enabled and (category != NotificationCategory.MARKETING or user.notification_preference.marketing_alerts):
             allowed.append(category)
-    return queryset.filter(category__in=allowed)
+    from .operator_scope import visible_notifications
+    return visible_notifications(queryset.filter(category__in=allowed), user)

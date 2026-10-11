@@ -23,11 +23,9 @@ interface UserProfile {
 }
 
 const roleLabels: Record<string, string> = {
-  owner: "Proprietário",
   admin: "Administrador",
   manager: "Gerente",
   operator: "Operador",
-  viewer: "Visualizador",
 };
 
 export default function ProfilePage() {
@@ -391,7 +389,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
                     <div className="text-muted-foreground small fw-medium">Função</div>
-                    <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{roleLabels[user?.role || "viewer"] || user?.role}</div>
+                    <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{roleLabels[user?.role || "operator"] || user?.role}</div>
                   </div>
                 </div>
               </div>

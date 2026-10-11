@@ -15,7 +15,7 @@ class UpdateProjectAPITestCase(APITestCase):
             email="owner@test.com",
             password="password123",
             full_name="Org Owner",
-            role=User.Role.OWNER,
+            role=User.Role.ADMIN,
             organization=self.org
         )
         self.admin = User.objects.create_user(

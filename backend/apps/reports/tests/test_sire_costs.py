@@ -39,7 +39,7 @@ class SireCostsTests(APITestCase):
             email="sire-costs@example.com",
             password="test",
             organization=self.org,
-            role="owner",
+            role="admin",
         )
         self.client.force_authenticate(self.user)
         self.sire_batch = AnimalBatch.objects.create(

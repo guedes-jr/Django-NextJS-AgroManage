@@ -19,7 +19,7 @@ class SwineProductivityTests(APITestCase):
         self.farm = Farm.objects.create(organization=self.org, name="Granja")
         self.other_farm = Farm.objects.create(organization=self.other, name="Outra")
         self.species = Species.objects.create(code="suinos", name="Suínos")
-        self.user = get_user_model().objects.create_user(email="productive@example.com", password="test", organization=self.org)
+        self.user = get_user_model().objects.create_user(role="admin", email="productive@example.com", password="test", organization=self.org)
         self.client.force_authenticate(self.user)
         self.year = date.today().year - 1
         self.start = date(self.year, 1, 1)

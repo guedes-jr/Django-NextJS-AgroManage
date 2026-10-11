@@ -7,6 +7,7 @@ import { ForcePasswordModal } from "@/components/auth/ForcePasswordModal";
 import { ContextualBackButton } from "@/components/navigation/ContextualBackButton";
 import { NotificationBell } from "@/components/notifications";
 import Image from "next/image";
+import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 
 interface UserData {
   id: number;
@@ -31,11 +32,9 @@ const getStoredUser = (): UserData | null => {
 
 // Map technical roles to user-friendly Portuguese labels and colors
 const roleConfig: Record<string, { label: string; color: string; bg: string }> = {
-  owner: { label: "Proprietário", color: "#92400e", bg: "#fef3c7" }, // Amber
   admin: { label: "Administrador", color: "#1e40af", bg: "#dbeafe" }, // Blue
   manager: { label: "Gerente", color: "#166534", bg: "#dcfce7" }, // Green
   operator: { label: "Operador", color: "#374151", bg: "#f3f4f6" }, // Grey/Zinc
-  viewer: { label: "Consultor", color: "#155e75", bg: "#ecfeff" }, // Cyan
 };
 
 interface TopBarProps {
@@ -45,6 +44,7 @@ interface TopBarProps {
 
 export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
   const router = useRouter();
+  const access = useOrganizationAccess();
   const [user, setUser] = useState<UserData | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -61,7 +61,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
     router.push("/login");
   };
 
-  const roleAttr = roleConfig[user?.role?.toLowerCase() || "operator"] || roleConfig.operator;
+  const roleAttr = roleConfig[access?.role || user?.role?.toLowerCase() || "operator"] || roleConfig.operator;
 
   const handlePasswordChanged = () => {
     if (user) {

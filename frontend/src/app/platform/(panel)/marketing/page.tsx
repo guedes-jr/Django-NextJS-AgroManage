@@ -13,7 +13,7 @@ export default function MarketingPage() {
   const [audiences, setAudiences] = useState<Audience[]>([]), [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [options, setOptions] = useState<Awaited<ReturnType<typeof api.options>> | null>(null);
   const [audienceId, setAudienceId] = useState(''), [audienceName, setAudienceName] = useState('');
-  const [filters, setFilters] = useState<AudienceFilters>({roles: ['owner', 'admin']});
+  const [filters, setFilters] = useState<AudienceFilters>({roles: ['admin', 'manager']});
   const [draft, setDraft] = useState<CampaignInput>(blank), [draftId, setDraftId] = useState(''), [images, setImages] = useState<MarketingImage[]>([]);
   const [preview, setPreview] = useState<AudiencePreview | null>(null), [queryPreview, setQueryPreview] = useState<Awaited<ReturnType<typeof api.audiencePreview>> | null>(null);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -30,7 +30,7 @@ export default function MarketingPage() {
   return <div className="campaign-page"><header className="campaign-hero mb-4"><span className="platform-kicker">Comunicação com as organizações</span><h1 className="platform-title"><Megaphone className="me-2"/>Propagandas</h1><p className="mb-0">Crie públicos, prepare a mensagem e revise o alcance antes do envio.</p><Link href="/platform/notifications" className="btn btn-light btn-sm mt-3">Configurar canais e consultar indicadores</Link></header>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}{notice && <div className="alert alert-success" role="status">{notice}</div>}
     <div className="row g-4"><section className="col-12 col-xl-4"><div className="platform-card p-4"><span className="campaign-step">1 · Público</span><h2 className="h5 mt-2">Consulta de organizações</h2><fieldset disabled={busy}>
-      <label className="form-label w-100">Consulta salva<select className="form-select" value={audienceId} onChange={e => {const row = audiences.find(a => a.id === e.target.value); setAudienceId(row?.id || ''); setAudienceName(row?.name || ''); setFilters(row?.filters || {roles: ['owner','admin']}); setQueryPreview(null);}}><option value="">Nova consulta</option>{audiences.map(a => <option value={a.id} key={a.id}>{a.name}</option>)}</select></label>
+      <label className="form-label w-100">Consulta salva<select className="form-select" value={audienceId} onChange={e => {const row = audiences.find(a => a.id === e.target.value); setAudienceId(row?.id || ''); setAudienceName(row?.name || ''); setFilters(row?.filters || {roles: ['admin','manager']}); setQueryPreview(null);}}><option value="">Nova consulta</option>{audiences.map(a => <option value={a.id} key={a.id}>{a.name}</option>)}</select></label>
       <label className="form-label w-100">Nome da consulta<input required className="form-control" value={audienceName} maxLength={150} onChange={e => setAudienceName(e.target.value)}/></label>
       <label className="form-label w-100">Nome da organização contém<input className="form-control" value={filters.search || ''} onChange={e => {setFilters({...filters, search: e.target.value}); setQueryPreview(null);}}/></label>
       <label className="form-label w-100">Estado (UF)<input className="form-control" maxLength={2} value={filters.state || ''} onChange={e => {setFilters({...filters, state: e.target.value.toUpperCase()}); setQueryPreview(null);}}/></label>

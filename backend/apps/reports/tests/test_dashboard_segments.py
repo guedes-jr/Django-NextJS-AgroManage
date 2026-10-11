@@ -20,7 +20,7 @@ class DashboardSegmentTestCase(APITestCase):
         self.organization = Organization.objects.create(
             name="Dashboard Agrícola", slug="dashboard-agricola"
         )
-        self.user = User.objects.create_user(
+        self.user = User.objects.create_user(role="admin",
             email="dashboard-agricola@example.com",
             password="Password-8472",
             full_name="Dashboard Agrícola",

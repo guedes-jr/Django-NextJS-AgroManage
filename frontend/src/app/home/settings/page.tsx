@@ -1,6 +1,7 @@
 "use client";
 
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
+import OperatorScopeOptions, {emptyOperatorScope} from "@/components/auth/OperatorScopeOptions";
 import { Member, UserRole, roleLabels, canManageMembers, canChangeMemberRole, updateMemberRole, memberError } from "@/services/memberService";
 
 import { useState, useEffect } from "react";
@@ -176,6 +177,7 @@ export default function SettingsPage() {
     email: '',
     full_name: '',
     role: 'operator',
+    ...emptyOperatorScope,
     phone: '',
     phone_is_whatsapp: false,
     receive_system_alerts: false,
@@ -615,7 +617,7 @@ export default function SettingsPage() {
   const openCreateMemberModal = () => {
     setMemberModalMode('create');
     setSelectedMemberId(null);
-    setMemberData({ email: '', full_name: '', role: 'operator', phone: '', phone_is_whatsapp: false, receive_system_alerts: false, password: '', password_confirm: '' });
+    setMemberData({ ...emptyOperatorScope, email: '', full_name: '', role: 'operator', phone: '', phone_is_whatsapp: false, receive_system_alerts: false, password: '', password_confirm: '' });
     setMemberModalOpen(true);
   };
 
@@ -626,6 +628,7 @@ export default function SettingsPage() {
       email: member.email,
       full_name: member.full_name,
       role: member.role,
+      can_operate_crops: member.can_operate_crops, allowed_livestock: member.allowed_livestock, operator_read_only: member.operator_read_only,
       phone: member.phone || '',
       phone_is_whatsapp: member.phone_is_whatsapp ?? false,
       receive_system_alerts: member.receive_system_alerts ?? true,
@@ -652,6 +655,7 @@ export default function SettingsPage() {
         const payload: any = {
           full_name: memberData.full_name,
           role: memberData.role,
+          can_operate_crops: memberData.can_operate_crops, allowed_livestock: memberData.allowed_livestock, operator_read_only: memberData.operator_read_only,
           phone: memberData.phone,
           phone_is_whatsapp: memberData.phone_is_whatsapp,
           receive_system_alerts: memberData.receive_system_alerts
@@ -1109,7 +1113,7 @@ export default function SettingsPage() {
                                   aria-label={`Cargo de ${member.full_name}`}
                                   onChange={(e) => void handleUpdateMemberRole(member.id, e.target.value as UserRole)}
                                 >
-                                  {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} disabled={currentUser?.role !== "owner" && ["owner", "admin"].includes(role)}>{roleLabels[role]}</option>)}
+                                  {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{roleLabels[role]}</option>)}
                                 </select>
                               </td>
                               <td>
@@ -1125,7 +1129,7 @@ export default function SettingsPage() {
                                 <div className="d-flex justify-content-end gap-1">
                                   <button 
                                     onClick={() => openEditMemberModal(member)}
-                                    disabled={!canManageMembers(currentUser?.role) || (member.role === "owner" && currentUser?.role !== "owner")}
+                                    disabled={!canManageMembers(currentUser?.role) || member.organization_responsible}
                                     className="btn-icon-muted"
                                     title="Editar"
                                   >
@@ -1133,7 +1137,7 @@ export default function SettingsPage() {
                                   </button>
                                   <button 
                                     onClick={() => handleToggleMemberStatus(member.id, member.is_active)}
-                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || (member.role === "owner" && currentUser?.role !== "owner")}
+                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || member.organization_responsible}
                                     className={`btn-icon-${member.is_active ? 'warning' : 'success'}`}
                                     title={member.is_active ? "Inativar" : "Ativar"}
                                   >
@@ -1141,7 +1145,7 @@ export default function SettingsPage() {
                                   </button>
                                   <button 
                                     onClick={() => handleDeleteMember(member.id)}
-                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || (member.role === "owner" && currentUser?.role !== "owner")}
+                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || member.organization_responsible}
                                     className="btn-icon-danger"
                                     title="Excluir"
                                   >
@@ -1549,16 +1553,17 @@ export default function SettingsPage() {
                     <select
                       className="login-input login-input-icon-left bg-transparent text-foreground"
                       value={memberData.role}
-                      disabled={memberModalMode === "edit" && !canChangeMemberRole(currentUser, members.find(member => member.id === selectedMemberId) || { ...memberData, id: selectedMemberId || "", role: memberData.role as UserRole, role_display: "", is_active: true })}
-                      onChange={e => setMemberData({...memberData, role: e.target.value})}
+                      disabled={memberModalMode === "edit" && !canChangeMemberRole(currentUser, members.find(member => member.id === selectedMemberId) || { ...memberData, id: selectedMemberId || "", role: memberData.role as UserRole, role_display: "", is_active: true, organization_responsible: false })}
+                      onChange={e => setMemberData({...memberData, ...(e.target.value !== "operator" ? emptyOperatorScope : {}), role: e.target.value})}
                     >
-                      {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} disabled={currentUser?.role !== "owner" && ["owner", "admin"].includes(role)}>{roleLabels[role]}</option>)}
+                      {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{roleLabels[role]}</option>)}
                     </select>
                     <ShieldCheck className="login-input-icon text-muted-foreground" size={15} />
                   </div>
                 </div>
               </div>
 
+              {memberData.role === "operator" && <div className="col-12"><OperatorScopeOptions value={memberData} disabled={memberLoading} onChange={value => setMemberData({...memberData,...value})}/></div>}
               <div className="col-12"><WhatsAppContactOptions value={memberData} disabled={memberLoading} onChange={value => setMemberData({ ...memberData, ...value })} /></div>
 
               {memberModalMode === 'create' && (

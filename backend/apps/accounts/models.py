@@ -19,17 +19,15 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email: str, password: str, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("role", User.Role.OWNER)
+        extra_fields.setdefault("role", User.Role.ADMIN)
         return self.create_user(email, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
     class Role(models.TextChoices):
-        OWNER = "owner", "Proprietário"
         ADMIN = "admin", "Administrador"
         MANAGER = "manager", "Gerente"
         OPERATOR = "operator", "Operador"
-        VIEWER = "viewer", "Visualizador"
 
     class Theme(models.TextChoices):
         LIGHT = "light", "Padrão"
@@ -48,6 +46,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name="members",
     )
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+    organization_responsible = models.BooleanField(default=False)
+    can_operate_crops = models.BooleanField(default=False)
+    allowed_livestock = models.ManyToManyField("livestock.Species", blank=True, related_name="authorized_operators")
+    operator_read_only = models.BooleanField(default=False)
     phone = models.CharField(max_length=30, blank=True)
     phone_is_whatsapp = models.BooleanField(default=False)
     receive_system_alerts = models.BooleanField(default=True)
@@ -78,4 +80,14 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def is_admin(self) -> bool:
-        return self.role in (self.Role.ADMIN, self.Role.OWNER)
+        return self.role == self.Role.ADMIN
+
+
+class OperatorRecordOwnership(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    organization = models.ForeignKey('organizations.Organization', on_delete=models.CASCADE)
+    model_label = models.CharField(max_length=100)
+    object_id = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'model_label', 'object_id'], name='unique_operator_record_ownership')]

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { pig, pigHead } from "@lucide/lab";
 import apiClient from "@/services/api";
+import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import styles from "./species-module-home.module.css";
 import { SwineOverviewInsights } from "./SwineOverviewInsights";
 
@@ -102,6 +103,8 @@ const modules: Array<{
 const numberFormatter = new Intl.NumberFormat("pt-BR");
 
 export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
+  const access = useOrganizationAccess();
+  const operator = access?.role === "operator";
   const [summary, setSummary] = useState<SpeciesSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -151,7 +154,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
     },
     {
       label: "Custo da alimentação no mês",
-      value: summary ? summary.feed_cost_month.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
+      value: summary ? summary.feed_cost_month?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
       icon: BadgeDollarSign,
       tone: "emerald",
     },
@@ -163,7 +166,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
     },
     {
       label: "Valor do sêmen utilizado no mês",
-      value: summary ? summary.semen_cost_month.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
+      value: summary ? summary.semen_cost_month?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
       icon: BadgeDollarSign,
       tone: "cyan",
     },
@@ -191,7 +194,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
         </div>
 
         <div className={styles.metricsGrid} aria-busy={loading}>
-          {metrics.map((metric) => (
+          {metrics.filter((metric) => !operator || !["Custo da alimentação no mês", "Valor do sêmen utilizado no mês"].includes(metric.label)).map((metric) => (
             <article className={styles.metricCard} data-tone={metric.tone} key={metric.label}>
               <div className={styles.metricIcon} aria-hidden="true">
                 <metric.icon size={31} strokeWidth={1.9} />
@@ -219,7 +222,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
         </div>
 
         <div className={styles.moduleGrid}>
-          {modules.map((module) => (
+          {modules.filter((module) => !operator || ["Cadastro", "Reprodução", "Alimentação dos Animais"].includes(module.title)).map((module) => (
             <Link className={styles.moduleCard} data-tone={module.tone} href={module.href} key={module.title}>
               <div className={styles.moduleIcon} aria-hidden="true">
                 <module.icon size={39} strokeWidth={1.75} />
@@ -235,7 +238,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
           ))}
         </div>
       </section>
-      <SwineOverviewInsights />
+      {!operator && <SwineOverviewInsights />}
     </div>
   );
 }

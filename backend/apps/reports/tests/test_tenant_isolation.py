@@ -15,7 +15,7 @@ class ReportsTenantIsolationTestCase(APITestCase):
     def setUp(self):
         self.org_a = Organization.objects.create(name="Relatórios A", slug="reports-a-isolation")
         self.org_b = Organization.objects.create(name="Relatórios B", slug="reports-b-isolation")
-        self.user_a = User.objects.create_user(
+        self.user_a = User.objects.create_user(role="admin",
             email="reports-a@example.com", password="Password-8472", full_name="Relatórios A", organization=self.org_a
         )
         self.config_a = ReportConfig.objects.create(
@@ -66,6 +66,7 @@ class ReportsTenantIsolationTestCase(APITestCase):
             email="reports-other@example.com", password="Password-8472", full_name="Outro",
             organization=self.org_a, role=User.Role.OPERATOR,
         )
+        self.client.force_authenticate(other)
         other_config = ReportConfig.objects.create(
             organization=self.org_a, name="Config Outro", report_type=ReportType.FINANCE_CASHFLOW,
             created_by=other,

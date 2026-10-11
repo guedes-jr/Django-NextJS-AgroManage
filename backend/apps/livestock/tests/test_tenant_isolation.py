@@ -22,7 +22,7 @@ class LivestockTenantIsolationTestCase(APITestCase):
     def setUp(self):
         self.org_a = Organization.objects.create(name="Rebanho A", slug="livestock-a-isolation")
         self.org_b = Organization.objects.create(name="Rebanho B", slug="livestock-b-isolation")
-        self.user_a = User.objects.create_user(
+        self.user_a = User.objects.create_user(role="admin",
             email="livestock-a@example.com", password="Password-8472", full_name="Rebanho A", organization=self.org_a
         )
         self.farm_a = Farm.objects.create(organization=self.org_a, name="Fazenda A")

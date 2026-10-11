@@ -1,7 +1,7 @@
 from rest_framework import status, viewsets
 from common.permissions import OrganizationRolePermission
 from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.permissions import IsAuthenticated
+from common.permissions import IsTenantAccessAllowed as IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 import os
@@ -35,10 +35,12 @@ def my_organization_view(request):
         )
 
     if request.method == "GET":
+        if request.user.role == "operator":
+            return Response({"id": str(org.pk), "name": org.name, "subscription": None})
         return Response(OrganizationSerializer(org).data)
 
     # Permission check: Only Owners or Admins can edit organization data
-    if request.user.role not in ["owner", "admin"]:
+    if request.user.role not in ["admin"]:
         return Response(
             {"detail": "Apenas administradores podem editar dados da organização."},
             status=status.HTTP_403_FORBIDDEN
@@ -103,7 +105,7 @@ def subscription_change_preview_view(request):
 @permission_classes([IsAuthenticated])
 @transaction.atomic
 def subscription_change_confirm_view(request):
-    if request.user.role not in ["owner", "admin"]:
+    if request.user.role not in ["admin"]:
         return Response({"detail": "Apenas administradores podem alterar a assinatura."}, status=status.HTTP_403_FORBIDDEN)
     org = getattr(request.user, "organization", None)
     if not org or not hasattr(org, "subscription"):
@@ -332,7 +334,7 @@ class OrganizationBaseViewSet(viewsets.ModelViewSet):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if request.method not in ['GET'] and request.user.role not in ["owner", "admin"]:
+        if request.method not in ['GET'] and request.user.role not in ["admin"]:
             self.permission_denied(request, message="Apenas administradores podem editar.")
 
 

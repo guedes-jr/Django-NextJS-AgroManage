@@ -38,7 +38,7 @@ def alert_overview():
     for phone, role in users.values_list("phone", "role").iterator():
         if not _whatsapp_phone(phone):
             invalid_phone += 1
-        elif role in ("owner", "admin"):
+        elif role in ("admin"):
             # Scheduled reproductive events use create_for_organization's default roles.
             eligible += 1
     deliveries = NotificationDelivery.objects.filter(channel=NotificationDelivery.Channel.WHATSAPP_WEB)

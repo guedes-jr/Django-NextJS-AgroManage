@@ -13,10 +13,10 @@ class AuditTenantIsolationTestCase(APITestCase):
     def setUp(self):
         self.org_a = Organization.objects.create(name="Auditoria A", slug="audit-a-isolation")
         self.org_b = Organization.objects.create(name="Auditoria B", slug="audit-b-isolation")
-        self.user_a = User.objects.create_user(
+        self.user_a = User.objects.create_user(role="admin",
             email="audit-a@example.com", password="Password-8472", full_name="Auditoria A", organization=self.org_a
         )
-        self.user_b = User.objects.create_user(
+        self.user_b = User.objects.create_user(role="admin",
             email="audit-b@example.com", password="Password-8472", full_name="Auditoria B", organization=self.org_b
         )
         self.log_a = AuditLog.objects.create(

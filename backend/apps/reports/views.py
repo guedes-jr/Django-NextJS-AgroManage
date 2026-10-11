@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from common.permissions import IsTenantAccessAllowed as IsAuthenticated
 from rest_framework.response import Response
 
 from apps.farms.models import Farm
@@ -291,6 +291,9 @@ def dashboard_summary(request):
     """
     Aggregated KPIs and chart data scoped to the requesting user's organization.
     """
+    if request.user.role == "operator":
+        from apps.accounts.operator_dashboard import operator_dashboard
+        return Response(operator_dashboard(request.user))
     org = _org(request)
     today = date.today()
     period = request.query_params.get("period", "month")
@@ -898,7 +901,7 @@ def dashboard_summary(request):
 class ReportConfigViewSet(viewsets.ModelViewSet):
     serializer_class = ReportConfigSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -937,7 +940,7 @@ class ReportConfigViewSet(viewsets.ModelViewSet):
 class ReportScheduleViewSet(viewsets.ModelViewSet):
     serializer_class = ReportScheduleSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)
@@ -963,7 +966,7 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
 class GeneratedReportViewSet(viewsets.ModelViewSet):
     serializer_class = GeneratedReportSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         org = getattr(self.request.user, "organization", None)

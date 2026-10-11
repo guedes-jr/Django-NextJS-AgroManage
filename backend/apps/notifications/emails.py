@@ -23,7 +23,8 @@ class EmailNotificationService:
         """
         Envia uma notificação individual por email.
         """
-        if not user.receive_system_alerts:
+        from .operator_scope import event_allowed
+        if not user.receive_system_alerts or not event_allowed(user, notification.category, notification.event_key):
             return False
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         

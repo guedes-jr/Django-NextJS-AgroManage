@@ -1,3 +1,4 @@
+from common.operator_access import operator_scoped
 from common.permissions import OrganizationRolePermission
 """
 ViewSets for the crops app.
@@ -76,10 +77,12 @@ def _consolidate_shared_equipments(applications):
     return normalized
 
 
+@operator_scoped
 class FieldViewSet(viewsets.ModelViewSet):
     queryset = Field.objects.select_related("farm", "sector").all()
     serializer_class = FieldSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -102,8 +105,10 @@ class FieldViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 
+@operator_scoped
 class PlantingCycleViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -146,9 +151,11 @@ class PlantingCycleViewSet(viewsets.ModelViewSet):
         return Response(data)
 
 
+@operator_scoped
 class SectorStructureItemViewSet(viewsets.ModelViewSet):
     serializer_class = SectorStructureItemSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         organization = getattr(self.request.user, "organization", None)
@@ -163,10 +170,12 @@ class SectorStructureItemViewSet(viewsets.ModelViewSet):
         return queryset.order_by("group", "item_type")
 
 
+@operator_scoped
 class HarvestViewSet(viewsets.ModelViewSet):
     queryset = Harvest.objects.select_related("planting_cycle", "buyer", "created_by").all()
     serializer_class = HarvestSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -196,9 +205,11 @@ class HarvestViewSet(viewsets.ModelViewSet):
         delete_harvest(instance)
 
 
+@operator_scoped
 class HarvestBuyerViewSet(viewsets.ModelViewSet):
     serializer_class = HarvestBuyerSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -216,9 +227,11 @@ class HarvestBuyerViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
 
 
+@operator_scoped
 class PlantingViewSet(viewsets.ModelViewSet):
     serializer_class = PlantingSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -235,9 +248,11 @@ class PlantingViewSet(viewsets.ModelViewSet):
         create_planting(serializer, self.request)
 
 
+@operator_scoped
 class FertilizationViewSet(viewsets.ModelViewSet):
     serializer_class = FertilizationSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -254,9 +269,11 @@ class FertilizationViewSet(viewsets.ModelViewSet):
         create_fertilization(serializer, self.request)
 
 
+@operator_scoped
 class FertigationViewSet(viewsets.ModelViewSet):
     serializer_class = FertigationSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -298,7 +315,8 @@ class FertigationViewSet(viewsets.ModelViewSet):
         created = []
         with transaction.atomic():
             for serializer in serializers_to_save:
-                created.append(create_fertigation(serializer, request))
+                self.perform_create(serializer)
+                created.append(serializer.instance)
 
         return Response(
             self.get_serializer(created, many=True).data,
@@ -306,9 +324,11 @@ class FertigationViewSet(viewsets.ModelViewSet):
         )
 
 
+@operator_scoped
 class PesticideApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = PesticideApplicationSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -343,14 +363,17 @@ class PesticideApplicationViewSet(viewsets.ModelViewSet):
         created = []
         with transaction.atomic():
             for serializer in serializers_to_save:
-                created.append(create_pesticide_application(serializer, request))
+                self.perform_create(serializer)
+                created.append(serializer.instance)
 
         return Response(self.get_serializer(created, many=True).data, status=status.HTTP_201_CREATED)
 
 
+@operator_scoped
 class IrrigationViewSet(viewsets.ModelViewSet):
     serializer_class = IrrigationSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -367,9 +390,11 @@ class IrrigationViewSet(viewsets.ModelViewSet):
         create_irrigation(serializer, self.request)
 
 
+@operator_scoped
 class IrrigationPumpViewSet(viewsets.ModelViewSet):
     serializer_class = IrrigationPumpSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -386,9 +411,11 @@ class IrrigationPumpViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
 
 
+@operator_scoped
 class SoilAnalysisViewSet(viewsets.ModelViewSet):
     serializer_class = SoilAnalysisSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
@@ -418,9 +445,11 @@ class SoilAnalysisViewSet(viewsets.ModelViewSet):
         )
 
 
+@operator_scoped
 class AgronomistRecommendationViewSet(viewsets.ModelViewSet):
     serializer_class = AgronomistRecommendationSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -437,6 +466,7 @@ class AgronomistRecommendationViewSet(viewsets.ModelViewSet):
         return AgronomistRecommendation.objects.none()
 
 
+@operator_scoped
 class CropsDashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -448,9 +478,11 @@ class CropsDashboardView(APIView):
         return Response(data)
 
 
+@operator_scoped
 class TractorViewSet(viewsets.ModelViewSet):
     serializer_class = TractorSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -464,9 +496,11 @@ class TractorViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
 
 
+@operator_scoped
 class LandPreparationViewSet(viewsets.ModelViewSet):
     serializer_class = LandPreparationSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -483,9 +517,11 @@ class LandPreparationViewSet(viewsets.ModelViewSet):
         create_land_preparation(serializer, self.request)
 
 
+@operator_scoped
 class LaborWorkerViewSet(viewsets.ModelViewSet):
     serializer_class = LaborWorkerSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
@@ -503,9 +539,11 @@ class LaborWorkerViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
 
 
+@operator_scoped
 class LaborRecordViewSet(viewsets.ModelViewSet):
     serializer_class = LaborRecordSerializer
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:

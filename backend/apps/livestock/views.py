@@ -1,3 +1,4 @@
+from common.operator_access import operator_scoped, remember_operator_record
 from common.permissions import OrganizationRolePermission
 from rest_framework import viewsets, status, serializers, filters
 from rest_framework.response import Response
@@ -372,6 +373,7 @@ def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao, destino="M
 
 # ─── Phase Dashboard Views ────────────────────────────────────────────────────
 
+@operator_scoped
 class BasePhaseView(APIView):
     """Shared helper for phase endpoints — provides org filter + pagination."""
 
@@ -1247,9 +1249,11 @@ def build_animal_history(animal):
     return events
 
 
+@operator_scoped
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     action_operations = {"merge_batches": "edit"}
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = AnimalBatchSerializer
 
     @action(detail=True, methods=['get'], url_path='financial-details')
@@ -1318,6 +1322,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             weighing_date=weighing_date,
             notes=request.data.get('notes', ''),
         )
+        remember_operator_record(request.user, record)
         HistoricoEvento.objects.create(
             farm=batch.farm,
             tipo_evento='Pesagem de Lote',
@@ -1974,9 +1979,11 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             )
 
 
+@operator_scoped
 class AnimalViewSet(viewsets.ModelViewSet):
     action_operations = {"descartar_matriz": "delete"}
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = AnimalSerializer
 
     def get_queryset(self):
@@ -2021,8 +2028,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         if not (user.is_authenticated and hasattr(user, 'organization') and user.organization):
             return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         species = request.query_params.get('species', 'suinos')
-        qs = Animal.objects.filter(
-            farm__organization=user.organization,
+        qs = self.get_queryset().filter(
             species__code=species,
             gender='M',
             status='active'
@@ -2044,6 +2050,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         serializer = MatingSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             mating = serializer.save(female=animal)
+            remember_operator_record(request.user, mating)
 
             # Vincular reprodutor por FK se fornecido
             sire_id = request.data.get('sire_id')
@@ -2112,6 +2119,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
             weighing_date=date,
             notes=request.data.get('notes', '')
         )
+        remember_operator_record(request.user, record)
         HistoricoEvento.objects.create(
             farm=animal.farm,
             tipo_evento='Pesagem',
@@ -2161,6 +2169,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
             notes=request.data.get('notes', '')
         )
 
+        remember_operator_record(request.user, record)
         HistoricoEvento.objects.create(
             farm=animal.farm,
             tipo_evento='Vacinação',
@@ -2364,8 +2373,10 @@ class AnimalViewSet(viewsets.ModelViewSet):
         return Response(events)
 
 
+@operator_scoped
 class MatingViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = MatingSerializer
 
     def get_queryset(self):
@@ -2375,8 +2386,10 @@ class MatingViewSet(viewsets.ModelViewSet):
         return Mating.objects.none()
 
 
+@operator_scoped
 class PregnancyViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = PregnancySerializer
 
     def get_queryset(self):
@@ -2413,8 +2426,10 @@ class PregnancyViewSet(viewsets.ModelViewSet):
         return Response({"message": "Perda gestacional registrada."})
 
 
+@operator_scoped
 class BirthViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = BirthSerializer
 
     def get_queryset(self):
@@ -2557,7 +2572,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                     {"error": f"Transferência ({qtd}) excede leitões vivos na origem ({vivos_origem})."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            destino_queryset = Birth.objects.filter(
+            destino_queryset = self.get_queryset().filter(
                 female__farm=birth.female.farm,
                 female__status=AnimalBatch.Status.ACTIVE,
             ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date')
@@ -2829,8 +2844,10 @@ class BirthViewSet(viewsets.ModelViewSet):
         return Response({"message": f"{weaned} leitegada(s) desmamada(s) com sucesso."})
 
 
+@operator_scoped
 class LitterViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = LitterSerializer
 
     def get_queryset(self):
@@ -2840,8 +2857,10 @@ class LitterViewSet(viewsets.ModelViewSet):
         return Litter.objects.none()
 
 
+@operator_scoped
 class IncubationViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = IncubationSerializer
 
     def get_queryset(self):
@@ -2853,6 +2872,7 @@ class IncubationViewSet(viewsets.ModelViewSet):
         return Incubation.objects.none()
 
 
+@operator_scoped
 class ReproductionDashboardView(APIView):
     """
     Endpoint for reproduction dashboard data.
@@ -2869,7 +2889,7 @@ class ReproductionDashboardView(APIView):
         if species_code == 'aves':
             from .models import AnimalBatch, Incubation
             batches = AnimalBatch.objects.filter(**farm_filter, species__code='aves')
-            incubations = Incubation.objects.filter(batch__farm__organization=user.organization)
+            incubations = Incubation.objects.filter(batch__farm__organization=user.organization, batch__species__code=species_code)
             
             return Response({
                 "species": species_code,
@@ -3000,6 +3020,7 @@ class ReproductionDashboardView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+@operator_scoped
 class AcknowledgeOperationalAlertView(APIView):
     def post(self, request):
         organization = getattr(request.user, "organization", None)
@@ -3023,6 +3044,7 @@ class AcknowledgeOperationalAlertView(APIView):
         return Response({"detail": "Alerta confirmado."}, status=status.HTTP_200_OK)
 
 
+@operator_scoped
 class SpeciesSummaryView(APIView):
     """Small, tenant-safe summary used by each livestock module landing page."""
 
@@ -3116,8 +3138,10 @@ class SpeciesSummaryView(APIView):
         })
 
 
+@operator_scoped
 class VaccinationRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     def get_serializer_class(self):
         from .serializers import VaccinationRecordSerializer
         return VaccinationRecordSerializer
@@ -3230,8 +3254,10 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
+@operator_scoped
 class WeightRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     def get_serializer_class(self):
         from .serializers import WeightRecordSerializer
         return WeightRecordSerializer
@@ -3255,8 +3281,10 @@ class WeightRecordViewSet(viewsets.ModelViewSet):
             )
 
 
+@operator_scoped
 class ClinicalRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = ClinicalRecordSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['farm', 'animal', 'disease', 'severity', 'record_type']
@@ -3306,12 +3334,11 @@ class ClinicalRecordViewSet(viewsets.ModelViewSet):
     def history(self, request, pk=None):
         """Histórico clínico do animal"""
         record = self.get_object()
-        animal_records = ClinicalRecord.objects.filter(
-            animal=record.animal
-        ).order_by('-record_date')
+        animal_records = self.get_queryset().filter(animal=record.animal).order_by('-record_date')
         serializer = self.get_serializer(animal_records, many=True)
         return Response(serializer.data)
 
+@operator_scoped
 class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Disease.objects.all()
     serializer_class = DiseaseSerializer
@@ -3319,8 +3346,10 @@ class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['species']
     search_fields = ['name', 'code']
 
+@operator_scoped
 class MedicationViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = MedicationSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['farm', 'is_available']
@@ -3344,8 +3373,10 @@ class MedicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(expiring, many=True)
         return Response(serializer.data)
 
+@operator_scoped
 class AlertViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = AlertSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['farm', 'status', 'severity']
@@ -3358,8 +3389,10 @@ class AlertViewSet(viewsets.ModelViewSet):
         return SanitaryAlert.objects.none()
 
 
+@operator_scoped
 class HealthRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
     serializer_class = HealthRecordSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['farm', 'treatment_type', 'animal']
@@ -3402,6 +3435,7 @@ class HealthRecordViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+@operator_scoped
 class SymptomViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Symptom.objects.all()
     serializer_class = SymptomSerializer

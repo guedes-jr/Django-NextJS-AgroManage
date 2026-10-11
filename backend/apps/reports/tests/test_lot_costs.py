@@ -30,7 +30,7 @@ class LotCostsTest(APITestCase):
         self.org = Organization.objects.create(name="Lotes", slug="lot-costs")
         self.farm = Farm.objects.create(organization=self.org, name="Granja")
         self.species = Species.objects.create(name="Suínos", code="suinos")
-        self.user = get_user_model().objects.create_user(
+        self.user = get_user_model().objects.create_user(role="admin",
             email="lots@example.com", password="test", organization=self.org
         )
         self.client.force_authenticate(self.user)

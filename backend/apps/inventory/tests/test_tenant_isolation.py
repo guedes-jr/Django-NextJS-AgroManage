@@ -16,7 +16,7 @@ class InventoryTenantIsolationTestCase(APITestCase):
     def setUp(self):
         self.org_a = Organization.objects.create(name="Organização A", slug="org-a-isolation")
         self.org_b = Organization.objects.create(name="Organização B", slug="org-b-isolation")
-        self.user_a = User.objects.create_user(
+        self.user_a = User.objects.create_user(role="admin",
             email="inventory-a@example.com", password="Password-8472", full_name="Usuário A", organization=self.org_a
         )
         self.item_a = ItemEstoque.objects.create(
@@ -81,41 +81,11 @@ class InventoryTenantIsolationTestCase(APITestCase):
         )
         self.assertEqual(foreign_lot.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_operator_creates_but_cannot_edit_movements(self):
-        other_user = User.objects.create_user(
-            email="inventory-other@example.com", password="Password-8472", full_name="Outro",
-            organization=self.org_a, role=User.Role.OPERATOR,
-        )
-        other_movement = MovimentacaoEstoque.objects.create(
-            item=self.item_a, lote=self.lot_a, tipo="entrada", quantidade="1.00", responsavel=other_user,
-        )
-
-        create = self.client.post(
-            reverse("inventory-movimentacoes-list"),
-            {"item": self.item_a.id, "lote": self.lot_a.id, "tipo": "entrada", "quantidade": "1.00"},
-            format="json",
-        )
-        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
-        own = MovimentacaoEstoque.objects.get(id=create.data["id"])
-        self.assertEqual(own.responsavel, self.user_a)
-        self.assertEqual(
-            self.client.patch(
-                reverse("inventory-movimentacoes-detail", args=[own.id]),
-                {"observacao": "Ajustada"}, format="json",
-            ).status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-        self.assertEqual(
-            self.client.patch(
-                reverse("inventory-movimentacoes-detail", args=[other_movement.id]),
-                {"observacao": "Negada"}, format="json",
-            ).status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-        self.assertEqual(
-            self.client.delete(reverse("inventory-movimentacoes-detail", args=[own.id])).status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
+    def test_operator_cannot_access_or_write_stock_movements(self):
+        operator = User.objects.create_user(email="inventory-operator@example.com", full_name="Operador", organization=self.org_a, role=User.Role.OPERATOR)
+        self.client.force_authenticate(operator)
+        self.assertEqual(self.client.get(reverse("inventory-movimentacoes-list")).status_code, 403)
+        self.assertEqual(self.client.post(reverse("inventory-movimentacoes-list"), {"item": self.item_a.pk, "tipo": "entrada", "quantidade": "1.00"}, format="json").status_code, 403)
 
     def test_movement_category_filter_exposes_semen_quantity_and_cost(self):
         semen = ItemEstoque.objects.create(

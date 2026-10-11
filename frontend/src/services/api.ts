@@ -12,6 +12,23 @@ const computeBaseUrl = (): string => {
 
 const BASE_URL = computeBaseUrl();
 
+let organizationOperatorMode = false;
+export const setOrganizationOperatorMode = (enabled: boolean) => {
+  organizationOperatorMode = enabled;
+};
+
+// Operational forms share computed price fields with managerial forms. Prices
+// come from the server's inventory data when an operator records an operation.
+const operationalPayload = (data: unknown): unknown => {
+  if (Array.isArray(data)) return data.map(operationalPayload);
+  if (data && typeof data === "object" && !(data instanceof FormData)) {
+    return Object.fromEntries(Object.entries(data).filter(([key]) =>
+      !/(cost|price|revenue|expense|profit|margin|salary|payment|transaction|valor|preco|custo|lucro|receita|despesa|hourly_rate|daily_rate|purchase_value|sale_value|investment|kwh_value)/i.test(key)
+    ).map(([key, value]) => [key, operationalPayload(value)]));
+  }
+  return data;
+};
+
 const loginPath = (): string =>
   window.location.pathname.startsWith("/afiliados") ? "/afiliados/login" : "/login";
 
@@ -39,6 +56,10 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     let access: string | null = null;
+
+    if (organizationOperatorMode && /\/(crops|livestock|inventory)\//.test(config.url || "") && ["post", "patch", "put"].includes(config.method || "")) {
+      config.data = operationalPayload(config.data);
+    }
 
     if (typeof window !== "undefined") {
       access = localStorage.getItem("support_access_token") || localStorage.getItem("access_token");

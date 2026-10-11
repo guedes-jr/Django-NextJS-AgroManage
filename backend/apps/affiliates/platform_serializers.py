@@ -112,7 +112,7 @@ class PlatformAffiliateCreateSerializer(serializers.ModelSerializer):
                 email=email,
                 password=password,
                 full_name=full_name,
-                role=User.Role.VIEWER,
+                role=User.Role.OPERATOR, operator_read_only=True,
             )
             validated_data["user"] = user
         validated_data["created_by"] = self.context["request"].user

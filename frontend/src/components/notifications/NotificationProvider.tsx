@@ -1,11 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {getOrganizationAccess} from "@/services/organizationAccess";
 import notificationService, { Notification } from "@/services/notificationService";
 
 import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
 
-export type OperationalAlert = { alert_key: string; text: string; time?: string; type?: string };
+export type OperationalAlert = { alert_key: string; text: string; time?: string; type?: string; species?: string };
 type NotificationContextValue = {
   operationalAlerts: OperationalAlert[];
   confirmOperationalAlert: (alert: OperationalAlert) => Promise<void>;
@@ -35,12 +36,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const fetchOperationalAlerts = useCallback(async () => {
     try {
-      const data = await getReproductionDashboard("suinos");
-      setOperationalAlerts((data.notifications_enabled === false ? [] : data.alerts || []).filter((item: OperationalAlert) => !confirmedAlerts.current.has(item.alert_key)));
+      const access = await getOrganizationAccess();
+      const codes = access.role === "operator" ? access.livestock_species || [] : ["suinos"];
+      const dashboards = await Promise.all(codes.map(code => getReproductionDashboard(code)));
+      setOperationalAlerts(dashboards.flatMap((data,index) => data.notifications_enabled === false ? [] : (data.alerts || []).map((alert: OperationalAlert) => ({...alert,species:codes[index]}))).filter((item: OperationalAlert) => !confirmedAlerts.current.has(item.alert_key)));
     } catch { /* Retain pending alerts if the refresh fails. */ }
   }, []);
   const confirmOperationalAlert = useCallback(async (alert: OperationalAlert) => {
-    await acknowledgeOperationalAlert(alert.alert_key, alert.text);
+    await acknowledgeOperationalAlert(alert.alert_key, alert.text, alert.species);
     confirmedAlerts.current.add(alert.alert_key);
     setOperationalAlerts(current => current.filter(item => item.alert_key !== alert.alert_key));
   }, []);

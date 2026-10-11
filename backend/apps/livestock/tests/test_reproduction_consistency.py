@@ -18,7 +18,7 @@ class ReproductionConsistencyTestCase(APITestCase):
         self.organization = Organization.objects.create(
             name="Ciclo Reprodutivo", slug="ciclo-reprodutivo"
         )
-        self.user = User.objects.create_user(
+        self.user = User.objects.create_user(role="admin",
             email="reproducao@example.com",
             password="Password-8472",
             full_name="Gestor Reprodução",

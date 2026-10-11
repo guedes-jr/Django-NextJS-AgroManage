@@ -7,7 +7,8 @@ from django.db import transaction
 from django.utils.text import slugify
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
+from common.permissions import IsTenantAccessAllowed as IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -39,7 +40,7 @@ def members_view(request):
     if not org:
         return Response([])
     
-    members = User.objects.filter(organization=org).select_related("notification_preference").order_by("full_name")
+    members = User.objects.filter(organization=org).select_related("notification_preference").prefetch_related("allowed_livestock").order_by("full_name")
     return Response(OrganizationMemberSerializer(members, many=True).data)
 
 
@@ -50,52 +51,35 @@ def member_detail_view(request, pk):
     org = getattr(request.user, "organization", None)
     if not org:
         return Response({"detail": "Você não pertence a uma organização."}, status=403)
-    try:
-        member = User.objects.get(pk=pk, organization=org)
-    except User.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    # Permission: Only Owners/Admins
-    if request.user.role not in ["owner", "admin"]:
-        return Response(
-            {"detail": "Permissão negada."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
-    if member.role == "owner" and request.user.role != "owner":
-        return Response({"detail": "Apenas o proprietário pode alterar outro proprietário."}, status=403)
-    if request.method == "PATCH":
-        serializer = OrganizationMemberSerializer(member, data=request.data, partial=True)
+    if request.user.role != 'admin':
+        return Response({'detail': 'Somente administradores podem gerenciar usuários.'}, status=403)
+    with transaction.atomic():
+        Organization.objects.select_for_update().get(pk=org.pk)
+        try:
+            member = User.objects.select_for_update().get(pk=pk, organization=org)
+        except User.DoesNotExist:
+            return Response(status=404)
+        before = {'role': member.role, 'can_operate_crops': member.can_operate_crops, 'allowed_livestock': list(member.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': member.operator_read_only, 'is_active': member.is_active}
+        if request.method == 'DELETE':
+            changes = {'is_active': False}
+            serializer = OrganizationMemberSerializer(member, data=changes, partial=True)
+        else:
+            serializer = OrganizationMemberSerializer(member, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         changes = serializer.validated_data
-        if member == request.user and (changes.get("role", member.role) != member.role or changes.get("is_active") is False):
-            return Response({"detail": "Você não pode alterar seu próprio cargo ou desativar seu acesso."}, status=400)
-
-    if request.method == "DELETE":
-        if member == request.user:
-            return Response(
-                {"detail": "Você não pode se remover."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # We don't delete the user, just unbind from org or deactivate?
-        # Let's just unbind for now.
-        member.organization = None
-        member.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    if request.method == "PATCH":
-        new_role = changes.get("role", member.role)
-        if new_role != member.role and request.user.role != "owner" and (
-            member.role in {"owner", "admin"} or new_role in {"owner", "admin"}
-        ):
-            return Response({"detail": "Apenas o proprietário pode atribuir ou alterar os cargos de proprietário e administrador."}, status=403)
-        if changes.get("is_active") is False and member.role == "owner" and not User.objects.filter(
-            organization=org, role="owner", is_active=True
-        ).exclude(pk=member.pk).exists():
-            return Response({"detail": "A organização precisa manter um proprietário ativo."}, status=400)
-
+        new_role = changes.get('role', member.role)
+        removing_admin = member.role == 'admin' and (new_role != 'admin' or changes.get('is_active') is False)
+        if member.pk == request.user.pk and (new_role != member.role or changes.get('is_active') is False):
+            return Response({'detail': 'Você não pode remover ou rebaixar seu próprio acesso.'}, status=400)
+        if member.organization_responsible and removing_admin:
+            return Response({'detail': 'O responsável pela organização deve permanecer administrador ativo.'}, status=400)
+        if removing_admin and not User.objects.filter(organization=org, role='admin', is_active=True).exclude(pk=member.pk).exists():
+            return Response({'detail': 'A organização precisa manter um administrador ativo.'}, status=400)
         serializer.save()
-        return Response(serializer.data)
+        from apps.audit.services import record_client_action
+        from apps.audit.models import AuditLog
+        record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name='User', object_id=member.pk, description='Permissões de usuário atualizadas.', extra_data={'before': before, 'after': {'role': member.role, 'can_operate_crops': member.can_operate_crops, 'allowed_livestock': list(member.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': member.operator_read_only, 'is_active': member.is_active}})
+        return Response(status=204) if request.method == 'DELETE' else Response(serializer.data)
 
 
 @api_view(["POST"])
@@ -109,7 +93,7 @@ def create_member_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if request.user.role not in ["owner", "admin"]:
+    if request.user.role != "admin":
         return Response(
             {"detail": "Permissão negada."},
             status=status.HTTP_403_FORBIDDEN
@@ -119,16 +103,17 @@ def create_member_view(request):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
-    if request.user.role != "owner" and data.get("role") in {"owner", "admin"}:
-        return Response({"detail": "Apenas o proprietário pode cadastrar proprietários e administradores."}, status=403)
-
     if User.objects.filter(email=data["email"]).exists():
         return Response(
             {"detail": "Já existe um usuário com este email."},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    user = serializer.save(organization=org, force_password_change=True)
+    with transaction.atomic():
+        user = serializer.save(organization=org, force_password_change=True)
+        from apps.audit.services import record_client_action
+        from apps.audit.models import AuditLog
+        record_client_action(request=request, action=AuditLog.Action.CREATE, model_name='User', object_id=user.pk, description='Usuário da organização criado.', extra_data={'role': user.role, 'can_operate_crops': user.can_operate_crops, 'allowed_livestock': list(user.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': user.operator_read_only})
 
     return Response(
         OrganizationMemberSerializer(user).data,
@@ -163,7 +148,9 @@ def _ensure_user_organization(user):
 
     organization = Organization.objects.create(name=base_name[:255], slug=slug[:100])
     user.organization = organization
-    user.save(update_fields=["organization", "updated_at"])
+    user.role = User.Role.ADMIN
+    user.organization_responsible = True
+    user.save(update_fields=["organization", "role", "organization_responsible", "updated_at"])
     return organization
 
 
@@ -216,7 +203,7 @@ def google_login_view(request):
                 email=identity["email"],
                 password=None,
                 full_name=identity["name"],
-                role=User.Role.OWNER,
+                role=User.Role.ADMIN,
             )
 
         if not user.is_active:
@@ -458,4 +445,11 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         organization = getattr(self.request.user, "organization", None)
         if not organization:
             return User.objects.filter(id=self.request.user.id)
-        return User.objects.filter(organization=organization).select_related("notification_preference")
+        return User.objects.filter(organization=organization).select_related("notification_preference").prefetch_related("allowed_livestock")
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def operator_options(request):
+    from apps.livestock.models import Species
+    return Response({'roles': [{'value': value, 'label': label} for value, label in User.Role.choices], 'species': list(Species.objects.order_by('name').values('id', 'code', 'name'))})

@@ -214,7 +214,7 @@ class WhatsAppAlertsTests(APITestCase):
         self.admin = user_model.objects.create_user(email="wa-admin@test.local", password="test", full_name="Admin")
         PlatformStaffProfile.objects.create(user=self.admin, role=PlatformStaffProfile.Role.ADMIN)
         self.recipient = user_model.objects.create_user(email="wa-user@test.local", password="test", full_name="Responsável", organization=self.org, phone="81999990000", phone_is_whatsapp=True, role="admin")
-        self.other = user_model.objects.create_user(email="wa-other@test.local", password="test", full_name="Outro", organization=self.other_org, phone="+1 555 123 4567", phone_is_whatsapp=True, role="owner")
+        self.other = user_model.objects.create_user(email="wa-other@test.local", password="test", full_name="Outro", organization=self.other_org, phone="+1 555 123 4567", phone_is_whatsapp=True, role="admin")
         for user in [self.recipient, self.other]:
             NotificationPreference.objects.update_or_create(user=user, defaults={"whatsapp_reproductive_alerts": True, "animal_alerts": True})
         self.client.force_authenticate(self.admin)

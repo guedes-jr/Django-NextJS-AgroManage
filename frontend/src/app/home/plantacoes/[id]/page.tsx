@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Calendar, DollarSign, Ruler, Clock, Edit3, Trash2, Sprout, Warehouse, Target, CheckCircle2, ArrowRight, Plus, ClipboardList } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import apiClient from "@/services/api";
+import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import type { Plantation, PlantationDashboard, PlantationStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -393,6 +394,8 @@ function ShortcutCard({
 }
 
 export default function PlantacaoDetailPage() {
+  const access = useOrganizationAccess();
+  const financial = !!access?.can_view_financial;
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<PlantationDetail | null>(null);
@@ -994,12 +997,12 @@ export default function PlantacaoDetailPage() {
           <Badge style={{ background: statusColors[plantation.status] || "#6b7280", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", borderRadius: "8px" }}>
             {plantation.status_display}
           </Badge>
-          <Button variant="outline-secondary" size="sm" onClick={() => setShowEdit(true)}>
+          {financial && (<Button variant="outline-secondary" size="sm" onClick={() => setShowEdit(true)}>
             <Edit3 size={14} /> Editar
-          </Button>
-          <Button variant="outline-secondary" size="sm" onClick={handleDelete} title="Excluir">
+          </Button>)}
+          {financial && (<Button variant="outline-secondary" size="sm" onClick={handleDelete} title="Excluir">
             <Trash2 size={14} />
-          </Button>
+          </Button>)}
         </div>
       </div>
 
@@ -1159,7 +1162,7 @@ export default function PlantacaoDetailPage() {
               onClick: () => router.push(`/home/plantacoes/${id}/colheita`),
               featuredImage: true,
             },
-          ].map((shortcut) => (
+          ].filter(shortcut => access?.role !== "operator" || ![1, 8, 9, 10].includes(shortcut.number)).map((shortcut) => (
             <div key={shortcut.number} className="col-12 col-sm-6 col-lg-4 col-xl-3">
               <ShortcutCard
                 number={shortcut.number}
@@ -1182,16 +1185,16 @@ export default function PlantacaoDetailPage() {
         <div className="col-md-3 col-6">
           <MetricCard icon={<Clock size={14} />} label="Dias Restantes" value={plantation.days_remaining != null ? `${plantation.days_remaining} dias` : "-"} variant="warning" />
         </div>
-        <div className="col-md-3 col-6">
+        {financial && (<div className="col-md-3 col-6">
           <MetricCard icon={<DollarSign size={14} />} label="Investimento" value={money(investmentTotal)} variant="danger" />
-        </div>
+        </div>)}
         <div className="col-md-3 col-6">
           <MetricCard icon={<Ruler size={14} />} label="Área Plantada" value={plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"} variant="info" />
         </div>
       </div>
 
       {/* Second row — financial KPIs */}
-      <div className="row g-4 mb-4">
+      {financial && (<div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
           <MetricCard icon={<DollarSign size={14} />} label="Investimento Total" value={money(investmentTotal)} variant="danger" />
         </div>
@@ -1214,7 +1217,7 @@ export default function PlantacaoDetailPage() {
             variant={(estimatedProfit ?? realProfit) >= 0 ? "success" : "danger"}
           />
         </div>
-      </div>
+      </div>)}
 
       {/* Sections */}
       <div className="row g-4">
@@ -1251,7 +1254,7 @@ export default function PlantacaoDetailPage() {
         </div>
 
         {/* Financial Summary */}
-        <div className="col-md-6">
+        {financial && (<div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3"><DollarSign size={16} className="me-1" /> Resumo Financeiro</h6>
             <table className="table table-sm mb-0 agro-table">
@@ -1263,7 +1266,7 @@ export default function PlantacaoDetailPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </div>)}
 
         {/* Production Summary */}
         <div className="col-md-6">
@@ -1274,9 +1277,9 @@ export default function PlantacaoDetailPage() {
                 <tr><td className="text-muted small" style={{ width: "40%" }}>Quantidade produzida</td><td className="fw-medium">{harvestedKg > 0 ? `${fmt(harvestedKg, 0)} kg` : "-"}</td></tr>
                 <tr><td className="text-muted small">Quantidade vendida</td><td className="fw-medium">{soldKg > 0 ? `${fmt(soldKg, 0)} kg` : "-"}</td></tr>
                 <tr><td className="text-muted small">Área Plantada</td><td className="fw-medium">{plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"}</td></tr>
-                <tr><td className="text-muted small">Custo por kg</td><td className="fw-medium">{custoPorKg !== null ? money(custoPorKg) : "-"}</td></tr>
-                <tr><td className="text-muted small">Venda por kg</td><td className="fw-medium">{vendaPorKg !== null ? money(vendaPorKg) : "-"}</td></tr>
-                <tr><td className="text-muted small">Lucro por kg</td><td className={`fw-medium ${lucroPorKg !== null && lucroPorKg >= 0 ? "text-success" : lucroPorKg !== null ? "text-danger" : ""}`}>{lucroPorKg !== null ? money(lucroPorKg) : "-"}</td></tr>
+                {financial && (<tr><td className="text-muted small">Custo por kg</td><td className="fw-medium">{custoPorKg !== null ? money(custoPorKg) : "-"}</td></tr>)}
+                {financial && (<tr><td className="text-muted small">Venda por kg</td><td className="fw-medium">{vendaPorKg !== null ? money(vendaPorKg) : "-"}</td></tr>)}
+                {financial && (<tr><td className="text-muted small">Lucro por kg</td><td className={`fw-medium ${lucroPorKg !== null && lucroPorKg >= 0 ? "text-success" : lucroPorKg !== null ? "text-danger" : ""}`}>{lucroPorKg !== null ? money(lucroPorKg) : "-"}</td></tr>)}
               </tbody>
             </table>
           </div>
@@ -1294,7 +1297,7 @@ export default function PlantacaoDetailPage() {
 
       {/* Charts Row */}
       <div className="row g-4 mb-4 mt-0">
-        <div className="col-md-6">
+        {financial && (<div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
             <h6 className="fw-bold mb-3">Composição de Custos</h6>
             {costData.length > 0 ? (
@@ -1313,7 +1316,7 @@ export default function PlantacaoDetailPage() {
               <p className="text-muted small">Dados insuficientes para o gráfico.</p>
             )}
           </div>
-        </div>
+        </div>)}
 
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
@@ -1327,6 +1330,7 @@ export default function PlantacaoDetailPage() {
                 <div className="progress-bar bg-success" style={{ width: `${Math.min((harvestedKg / (estimatedProductionKg || 1)) * 100, 100)}%` }} />
               </div>
             </div>
+            {financial && (<>
             <div className="mb-3">
               <div className="d-flex justify-content-between small mb-1">
                 <span className="text-muted">Receita Real (R$)</span>
@@ -1341,6 +1345,7 @@ export default function PlantacaoDetailPage() {
                 Detalhes da Colheita
               </Button>
             </div>
+            </>)}
           </div>
         </div>
       </div>
@@ -1366,8 +1371,8 @@ export default function PlantacaoDetailPage() {
                   <th>Semente (Insumo)</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
                   <th style={{ minWidth: 120 }}>Unidade</th>
-                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
-                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
+                  {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
                   <th className="text-center">Ações</th>
                 </tr>
               </thead>
@@ -1392,10 +1397,10 @@ export default function PlantacaoDetailPage() {
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
-                    <td>
+                    {financial && (<td>
                       <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
-                    </td>
-                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    </td>)}
+                    {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
                       <Button variant="outline-danger" size="sm" onClick={() => setPlantioLines((prev) => prev.length === 1 ? [{ ...emptyPlantioLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
                     </td>
@@ -1409,7 +1414,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {plantioLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total das sementes: {money(plantioLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
+            {financial && (<strong className="text-success">Valor total das sementes: {money(plantioLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data do Plantio</label>
@@ -1445,8 +1450,8 @@ export default function PlantacaoDetailPage() {
                   <th>Fertilizante (Insumo)</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
                   <th style={{ minWidth: 120 }}>Unidade</th>
-                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
-                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
+                  {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
                   <th className="text-center">Ações</th>
                 </tr>
               </thead>
@@ -1471,10 +1476,10 @@ export default function PlantacaoDetailPage() {
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
-                    <td>
+                    {financial && (<td>
                       <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
-                    </td>
-                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    </td>)}
+                    {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
                       <Button variant="outline-danger" size="sm" onClick={() => setAdubacaoLines((prev) => prev.length === 1 ? [{ ...emptyAdubacaoLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
                     </td>
@@ -1488,7 +1493,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {adubacaoLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total da adubação: {money(adubacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
+            {financial && (<strong className="text-success">Valor total da adubação: {money(adubacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1522,8 +1527,8 @@ export default function PlantacaoDetailPage() {
                   <th>Insumo</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
                   <th style={{ minWidth: 120 }}>Unidade</th>
-                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
-                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
+                  {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
                   <th className="text-center">Ações</th>
                 </tr>
               </thead>
@@ -1548,10 +1553,10 @@ export default function PlantacaoDetailPage() {
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
-                    <td>
+                    {financial && (<td>
                       <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
-                    </td>
-                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    </td>)}
+                    {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
                       <Button variant="outline-danger" size="sm" onClick={() => setFertirrigacaoLines((prev) => prev.length === 1 ? [{ ...emptyFertirrigacaoLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
                     </td>
@@ -1565,7 +1570,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {fertirrigacaoLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total da fertirrigação: {money(fertirrigacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
+            {financial && (<strong className="text-success">Valor total da fertirrigação: {money(fertirrigacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1600,8 +1605,8 @@ export default function PlantacaoDetailPage() {
                   <th style={{ minWidth: 160 }}>Tipo</th>
                   <th style={{ minWidth: 130 }}>Quantidade</th>
                   <th style={{ minWidth: 120 }}>Unidade</th>
-                  <th style={{ minWidth: 140 }}>Preço (R$)</th>
-                  <th style={{ minWidth: 150 }}>Valor Total (R$)</th>
+                  {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
+                  {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
                   <th className="text-center">Ações</th>
                 </tr>
               </thead>
@@ -1631,10 +1636,10 @@ export default function PlantacaoDetailPage() {
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
-                    <td>
+                    {financial && (<td>
                       <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
-                    </td>
-                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                    </td>)}
+                    {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
                       <Button variant="outline-danger" size="sm" onClick={() => setDefensivoLines((prev) => prev.length === 1 ? [{ ...emptyDefensivoLine }] : prev.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={16} /></Button>
                     </td>
@@ -1648,7 +1653,7 @@ export default function PlantacaoDetailPage() {
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {defensivoLines.filter((line) => line.item).length}</span>
-            <strong className="text-success">Valor total da aplicação: {money(defensivoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
+            {financial && (<strong className="text-success">Valor total da aplicação: {money(defensivoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data</label>
@@ -1681,8 +1686,8 @@ export default function PlantacaoDetailPage() {
                   <tr>
                     <th>Equipamento</th>
                     <th style={{ minWidth: 160 }}>Quantidade utilizada</th>
-                    <th style={{ minWidth: 160 }}>Valor Unitário (R$)</th>
-                    <th style={{ minWidth: 160 }}>Valor Total (R$)</th>
+                    {financial && (<th style={{ minWidth: 160 }}>Valor Unitário (R$)</th>)}
+                    {financial && (<th style={{ minWidth: 160 }}>Valor Total (R$)</th>)}
                     <th className="text-center">Ações</th>
                   </tr>
                 </thead>

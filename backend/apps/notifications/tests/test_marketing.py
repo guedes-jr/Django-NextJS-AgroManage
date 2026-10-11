@@ -29,7 +29,7 @@ from apps.platform_admin.models import PlatformStaffProfile
 
 class MarketingTests(APITestCase):
     def setUp(self):
-        self.admin = User.objects.create_user(
+        self.admin = User.objects.create_user(role="admin",
             email="admin@marketing.test", full_name="Admin"
         )
         PlatformStaffProfile.objects.create(user=self.admin, role="platform_admin")
@@ -384,7 +384,7 @@ class MarketingTests(APITestCase):
 
 class NotificationNoiseTests(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = User.objects.create_user(role="admin",
             email="noise@test.example", full_name="Teste"
         )
         self.policy = NotificationCategoryPolicy.objects.get(category="system")

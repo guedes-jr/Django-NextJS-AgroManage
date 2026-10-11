@@ -38,7 +38,7 @@ class SupportTests(APITestCase):
             email="owner-support@example.com",
             password="test",
             organization=self.org,
-            role="owner",
+            role="admin",
         )
         self.other_user = User.objects.create_user(
             email="other-support@example.com", password="test", organization=self.other

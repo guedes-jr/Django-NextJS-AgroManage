@@ -14,7 +14,7 @@ from apps.organizations.models import Organization
 class BatchSalesTests(APITestCase):
     def setUp(self):
         self.org = Organization.objects.create(name='Vendas', slug='sales-test')
-        self.user = get_user_model().objects.create_user(email='sales@example.com', password='test-password', full_name='Produtor', organization=self.org)
+        self.user = get_user_model().objects.create_user(role="admin", email='sales@example.com', password='test-password', full_name='Produtor', organization=self.org)
         farm = Farm.objects.create(name='Fazenda', organization=self.org)
         species = Species.objects.create(name='Suínos', code='suinos')
         self.batch = AnimalBatch.objects.create(farm=farm, species=species, batch_code='007', quantity=120, entry_date=date(2026, 1, 1), status='active', phase='engorda')
@@ -53,7 +53,7 @@ class BatchSalesTests(APITestCase):
     def test_foreign_tenant_cannot_sell_or_list_sales(self):
         self.client.post(self.url, self.data, format='json')
         other = Organization.objects.create(name='Outra', slug='sales-other')
-        user = get_user_model().objects.create_user(email='other-sales@example.com', password='test-password', organization=other)
+        user = get_user_model().objects.create_user(role="admin", email='other-sales@example.com', password='test-password', organization=other)
         self.client.force_authenticate(user)
         self.assertEqual(self.client.post(self.url, self.data, format='json').status_code, 404)
         self.assertEqual(self.client.get(reverse('animalbatch-sales')).data, [])
@@ -92,7 +92,10 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(phase_rows[0]['entry_quantity'], 120)
         self.assertEqual(phase_rows[0]['entry_weight_kg'], 60)
         self.assertFalse(phase_rows[0]['is_current'])
+        self.user.role = 'operator'
+        self.user.allowed_livestock.add(self.batch.species)
         self.assertEqual(self.client.delete(reverse('animalbatch-detail', args=[self.batch.pk])).status_code, 403)
+        self.user.role = 'admin'
         self.user.role = "manager"
         self.user.save(update_fields=["role"])
         self.assertEqual(self.client.delete(reverse('animalbatch-detail', args=[self.batch.pk])).status_code, 400)
@@ -170,7 +173,7 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(response.data['totals']['Ração'], '354.00')
         self.assertEqual(len(response.data['entries']), 2)
         other = Organization.objects.create(name='Outra custos', slug='other-costs')
-        user = get_user_model().objects.create_user(email='other-costs@example.com', password='test-password', organization=other)
+        user = get_user_model().objects.create_user(role="admin", email='other-costs@example.com', password='test-password', organization=other)
         self.client.force_authenticate(user)
         self.assertEqual(self.client.get(url).status_code, 404)
 

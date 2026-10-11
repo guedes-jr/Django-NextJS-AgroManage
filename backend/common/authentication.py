@@ -66,4 +66,7 @@ class ActiveOrganizationJWTAuthentication(JWTAuthentication):
         result = super().authenticate(request)
         if result and hasattr(result[0], "support_access_grant") and request.method not in SAFE_METHODS:
             raise PermissionDenied("O acesso assistido permite somente leitura.")
+        if result and not is_active_platform_staff(result[0]):
+            from .operator_access import enforce_request
+            enforce_request(result[0], request)
         return result

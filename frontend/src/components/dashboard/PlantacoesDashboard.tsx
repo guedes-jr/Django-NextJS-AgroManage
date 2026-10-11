@@ -5,6 +5,7 @@ import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag,
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
+import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { cropService } from "@/services/cropService";
 import type { Plantation, PlantationStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
@@ -229,6 +230,7 @@ function CultureCard({ name, count, image, icon, color, onClick }: { name: strin
 }
 
 export default function PlantacoesDashboard() {
+  const access = useOrganizationAccess();
   const router = useRouter();
   const [plantations, setPlantations] = useState<Plantation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -614,6 +616,10 @@ export default function PlantacoesDashboard() {
   const calculatedPopulation = calculatePlantPopulation(form.planted_area_ha, form.row_spacing_m, form.plant_spacing_m);
   const displayedPopulation = calculatedPopulation || form.population;
   const formNextActivity = calculatedExpectedHarvestDate ? `Colheita em ${formatDate(calculatedExpectedHarvestDate)}` : "Informe os dias previstos";
+
+  if (access?.role === "operator") {
+    return <section><h1 className="h3">Plantações</h1><p className="text-muted">Acompanhe os ciclos e registre o manejo nas plantações liberadas.</p>{loading ? <p role="status">Carregando plantações…</p> : !plantations.length ? <div className="alert alert-info">Nenhuma plantação cadastrada.</div> : <div className="row g-3">{plantations.map(plantation => <div className="col-md-6 col-xl-4" key={plantation.id}><article className="dashboard-card p-4 h-100"><Sprout className="text-success mb-3"/><h2 className="h5">{plantation.name}</h2><p className="text-muted">{plantation.crop_name} · {plantation.field_name}</p><p>Área plantada: {plantation.planted_area_ha || "—"} ha</p><span className="badge bg-success-subtle text-success mb-3">{plantation.status_display || plantation.status}</span><Button variant="agro" className="d-block" onClick={() => router.push(`/home/plantacoes/${plantation.id}`)}>Acessar manejo</Button></article></div>)}</div>}</section>;
+  }
 
   return (
     <div style={{ maxWidth: 1500, margin: "0 auto" }}>

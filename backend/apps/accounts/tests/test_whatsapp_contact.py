@@ -22,7 +22,7 @@ User = get_user_model()
 class WhatsAppContactTests(APITestCase):
     def setUp(self):
         self.org = Organization.objects.create(name="Contatos", slug="whatsapp-contacts")
-        self.user = User.objects.create_user(email="contact@example.com", password="password123", full_name="Contato", organization=self.org, role="owner", phone="81999990000")
+        self.user = User.objects.create_user(email="contact@example.com", password="password123", full_name="Contato", organization=self.org, role="admin", phone="81999990000")
         self.client.force_authenticate(self.user)
 
     def test_registration_persists_flags_and_hashes_password(self):

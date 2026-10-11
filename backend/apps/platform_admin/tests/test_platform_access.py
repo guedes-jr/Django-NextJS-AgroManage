@@ -18,7 +18,7 @@ class PlatformAccessAPITestCase(APITestCase):
             email="owner@example.com",
             password="password123",
             full_name="Cliente Owner",
-            role=User.Role.OWNER,
+            role=User.Role.ADMIN,
             organization=self.org_a,
         )
         self.platform_admin = User.objects.create_user(

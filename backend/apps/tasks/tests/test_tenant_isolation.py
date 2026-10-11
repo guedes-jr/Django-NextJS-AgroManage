@@ -15,10 +15,10 @@ class TaskTenantIsolationTestCase(APITestCase):
     def setUp(self):
         self.org_a = Organization.objects.create(name="Tarefas A", slug="tasks-a-isolation")
         self.org_b = Organization.objects.create(name="Tarefas B", slug="tasks-b-isolation")
-        self.user_a = User.objects.create_user(
+        self.user_a = User.objects.create_user(role="admin",
             email="tasks-a@example.com", password="Password-8472", full_name="Tarefas A", organization=self.org_a
         )
-        self.user_b = User.objects.create_user(
+        self.user_b = User.objects.create_user(role="admin",
             email="tasks-b@example.com", password="Password-8472", full_name="Tarefas B", organization=self.org_b
         )
         self.farm_a = Farm.objects.create(organization=self.org_a, name="Fazenda A")
@@ -55,7 +55,7 @@ class TaskTenantIsolationTestCase(APITestCase):
     def test_viewer_is_read_only_and_operator_cannot_delete(self):
         viewer = User.objects.create_user(
             email="tasks-viewer@example.com", password="Password-8472", full_name="Viewer",
-            organization=self.org_a, role=User.Role.VIEWER,
+            organization=self.org_a, role=User.Role.OPERATOR, operator_read_only=True,
         )
         self.client.force_authenticate(viewer)
         self.assertEqual(self.client.get(reverse("task-list")).status_code, status.HTTP_200_OK)
@@ -79,13 +79,13 @@ class TaskTenantIsolationTestCase(APITestCase):
             self.client.patch(
                 reverse("task-detail", args=[own_task.id]), {"title": "Editada"}, format="json"
             ).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_200_OK,
         )
         self.assertEqual(
             self.client.patch(
                 reverse("task-detail", args=[task.id]), {"title": "Negada"}, format="json"
             ).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_404_NOT_FOUND,
         )
         self.assertEqual(
             self.client.delete(reverse("task-detail", args=[task.id])).status_code,

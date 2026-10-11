@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from common.permissions import IsTenantAccessAllowed as IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.pagination import PageNumberPagination
@@ -34,7 +34,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
     pagination_class = NotificationPagination
 
     def get_queryset(self):
-        queryset = Notification.objects.filter(user=self.request.user, show_in_app=True).select_related("campaign").prefetch_related("campaign__images")
+        from .operator_scope import visible_notifications
+        queryset = visible_notifications(Notification.objects.filter(user=self.request.user, show_in_app=True), self.request.user).select_related("campaign").prefetch_related("campaign__images")
         archived = self.request.query_params.get("archived", "false").lower() == "true"
         queryset = queryset.filter(is_archived=archived)
         status_filter = self.request.query_params.get("status")
@@ -68,7 +69,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def unarchive(self, request, pk=None):
-        notification = Notification.objects.filter(user=request.user, pk=pk, is_archived=True).first()
+        from .operator_scope import visible_notifications
+        notification = visible_notifications(Notification.objects.filter(user=request.user, pk=pk, is_archived=True), request.user).first()
         if not notification:
             return Response({"detail": "Notificação não encontrada."}, status=status.HTTP_404_NOT_FOUND)
         notification.is_archived = False
@@ -80,7 +82,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def unread_count_view(request):
     """Retorna a contagem de notificações não lidas"""
-    count = Notification.objects.filter(user=request.user, show_in_app=True, is_read=False, is_archived=False).count()
+    from .operator_scope import visible_notifications
+    count = visible_notifications(Notification.objects.filter(user=request.user, show_in_app=True, is_read=False, is_archived=False), request.user).count()
     return Response({"unread_count": count})
 
 
@@ -136,7 +139,12 @@ def notification_stream_view(request):
         previous = None
         for _ in range(12):
             close_old_connections()
-            queryset = Notification.objects.filter(user_id=user_id, show_in_app=True, is_archived=False)
+            from .operator_scope import visible_notifications
+            from apps.accounts.models import User
+            current_user = User.objects.get(pk=user_id)
+            if not current_user.is_active:
+                return
+            queryset = visible_notifications(Notification.objects.filter(user_id=user_id, show_in_app=True, is_archived=False), current_user)
             latest = queryset.order_by("-last_occurred_at", "-created_at").values("id", "occurrence_count", "last_occurred_at", "created_at").first()
             fingerprint = (queryset.filter(is_read=False).count(), str(latest["id"]) if latest else "", latest["occurrence_count"] if latest else 0, str(latest["last_occurred_at"] or latest["created_at"]) if latest else "")
             if fingerprint != previous:

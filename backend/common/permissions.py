@@ -25,7 +25,8 @@ class IsOrganizationAdmin(BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and request.user.role in ("admin", "owner")
+            and request.user.is_active
+            and request.user.role == "admin"
         )
 
 
@@ -90,16 +91,19 @@ class IsPlatformAuditor(IsPlatformStaff):
 
 
 class OrganizationRolePermission(BasePermission):
-    """Tenant CRUD roles; operators may append records but never edit/delete."""
+    """Tenant roles; domain scopes govern operator corrections."""
 
     message = "Seu cargo não permite executar esta operação."
-    default_create_roles = {"owner", "admin", "manager", "operator"}
-    default_write_roles = {"owner", "admin", "manager"}
-    default_delete_roles = {"owner", "admin", "manager"}
+    default_create_roles = {"admin", "manager", "operator"}
+    default_write_roles = {"admin", "manager"}
+    default_delete_roles = {"admin", "manager"}
 
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated or not user.is_active or not getattr(user, "organization_id", None):
+            return False
+        from .operator_access import request_allowed
+        if not request_allowed(user, request):
             return False
         if request.method in SAFE_METHODS:
             return True
@@ -108,10 +112,16 @@ class OrganizationRolePermission(BasePermission):
         if request.method == "DELETE" or operation == "delete":
             return role in getattr(view, "delete_roles", self.default_delete_roles)
         if request.method in {"PUT", "PATCH"} or operation == "edit":
-            return role in self.default_write_roles and role in getattr(view, "write_roles", self.default_write_roles)
+            return role in getattr(view, "write_roles", self.default_write_roles)
         if request.method == "POST":
             return role in getattr(view, "create_roles", self.default_create_roles)
         return False
 
     def has_object_permission(self, request, view, obj):
         return self.has_permission(request, view)
+
+
+class IsTenantAccessAllowed(BasePermission):
+    def has_permission(self, request, view):
+        from .operator_access import request_allowed
+        return bool(request.user and request.user.is_authenticated and request.user.is_active and request_allowed(request.user, request))

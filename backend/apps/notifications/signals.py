@@ -48,7 +48,7 @@ def check_stock_levels(sender, instance, created, **kwargs):
         from apps.accounts.models import User
         users = User.objects.filter(
             organization=organization,
-            role__in=["owner", "admin"]
+            role__in=["admin"]
         )
 
         title = f"Estoque baixo: {item.nome}"
@@ -77,7 +77,7 @@ def check_stock_levels(sender, instance, created, **kwargs):
 
         if 0 < days_until_expiry <= 30:
             from apps.accounts.models import User
-            users = User.objects.filter(organization=organization, role__in=["owner", "admin"])
+            users = User.objects.filter(organization=organization, role__in=["admin"])
 
             title = f"Validade próximo: {item.nome}"
             message = f"O medication {item.nome} vence em {days_until_expiry} dias ({instance.data_validade})"
@@ -116,7 +116,7 @@ def check_animal_vaccinations(sender, instance, created, **kwargs):
     # For now, we'll just notify on batch creation about setting up vaccinations
     if created:
         from apps.accounts.models import User
-        users = User.objects.filter(organization=organization, role__in=["owner", "admin"])
+        users = User.objects.filter(organization=organization, role__in=["admin"])
 
         title = f"Novo lote de animais: {instance.batch_code}"
         message = f"Lote de {instance.quantity} {instance.species.name} adicionado à fazenda {instance.farm.name}. Configure o cronograma de vaccinações."
@@ -144,7 +144,7 @@ def check_transaction_status(sender, instance, created, **kwargs):
     organization = instance.organization
 
     from apps.accounts.models import User
-    users = User.objects.filter(organization=organization, role__in=["owner", "admin"])
+    users = User.objects.filter(organization=organization, role__in=["admin"])
 
     if created:
         title = f"Nova transação: {instance.description}"

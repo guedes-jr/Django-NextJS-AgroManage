@@ -173,7 +173,7 @@ export interface PlatformUser {
   email: string;
   full_name: string;
   phone: string;
-  role: "owner" | "admin" | "manager" | "operator" | "viewer";
+  role: "admin" | "manager" | "operator";
   role_display: string;
   organization_id: string | null;
   organization_name: string | null;

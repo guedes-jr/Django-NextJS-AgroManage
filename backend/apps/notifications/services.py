@@ -21,6 +21,9 @@ class NotificationService:
 
         category = classify_notification(notif_type, event_key, category)
         policy = category_policy(category)
+        from .operator_scope import event_allowed
+        if not event_allowed(user, category, event_key):
+            return None
         if not NotificationService.should_notify(user, notif_type, category, policy=policy):
             return None
         notification, created = create_guarded(user, title, message, notif_type, priority, link, event_key, category, policy, campaign=campaign, in_app=in_app)
@@ -72,7 +75,7 @@ class NotificationService:
     def create_for_organization(organization, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, roles=None, event_key="", category=None):
         """Cria notificações para todos os usuários de uma organização"""
         if roles is None:
-            roles = ["owner", "admin"]
+            roles = ["admin", "manager"]
 
         from apps.accounts.models import User
         users = User.objects.filter(organization=organization, role__in=roles)
@@ -148,7 +151,7 @@ class NotificationService:
                 return None
 
             from apps.accounts.models import User
-            users = User.objects.filter(organization=organization, role__in=["owner", "admin"])
+            users = User.objects.filter(organization=organization, role__in=["admin"])
 
             title = f"Estoque baixo: {item.nome}"
             message = f"O item {item.nome} está com {total_qty} {item.unidade_medida} (mínimo: {item.estoque_minimo})"

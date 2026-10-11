@@ -8,7 +8,7 @@ from .serializers import AuditLogSerializer
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditLogSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator", "viewer"}
+    write_roles = {"admin", "manager", "operator"}
     delete_roles = write_roles
     filterset_fields = ("action", "model_name", "user")
     search_fields = ("description", "object_id")

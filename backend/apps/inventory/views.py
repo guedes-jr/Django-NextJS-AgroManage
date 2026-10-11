@@ -1,3 +1,4 @@
+from common.operator_access import operator_scoped
 """
 ViewSets for the inventory app.
 """
@@ -38,6 +39,7 @@ from .choices import (
 from .selectors import vaccine_category_q
 
 
+@operator_scoped
 class ItemEstoqueViewSet(viewsets.ModelViewSet):
     """
     CRUD for inventory items.
@@ -271,6 +273,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@operator_scoped
 class LoteEstoqueViewSet(viewsets.ModelViewSet):
     """CRUD for stock batches."""
     permission_classes = [OrganizationRolePermission]
@@ -290,6 +293,7 @@ class LoteEstoqueViewSet(viewsets.ModelViewSet):
         return qs
 
 
+@operator_scoped
 class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
     action_operations = {"bulk_delete": "delete"}
     """CRUD for stock movements (mostly read + create)."""
@@ -300,7 +304,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
     )
     serializer_class = MovimentacaoEstoqueSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -575,6 +579,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         })
 
 
+@operator_scoped
 class FornecedorViewSet(viewsets.ModelViewSet):
     action_operations = {"upload_imagem": "edit"}
     """CRUD for suppliers."""
@@ -640,6 +645,7 @@ class FornecedorViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@operator_scoped
 class AlertaEstoqueViewSet(viewsets.ModelViewSet):
     serializer_class = AlertaEstoqueSerializer
     permission_classes = [OrganizationRolePermission]
@@ -731,6 +737,7 @@ class AlertaEstoqueViewSet(viewsets.ModelViewSet):
 # Fórmulas e Produção
 # ---------------------------------------------------------------------------
 
+@operator_scoped
 class FormulaRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = FormulaRacaoSerializer
     permission_classes = [OrganizationRolePermission]
@@ -755,10 +762,11 @@ class FormulaRacaoViewSet(viewsets.ModelViewSet):
 
 
 
+@operator_scoped
 class ProducaoRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ProducaoRacaoSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
@@ -901,10 +909,11 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
         })
 
 
+@operator_scoped
 class ConsumoRacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ConsumoRacaoSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
     operator_owner_field = "usuario_id"
 
     def get_queryset(self):
@@ -1009,7 +1018,7 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
             
         especie = request.query_params.get("especie")
         categoria = request.query_params.get("categoria")
-        qs = ConsumoRacao.objects.filter(organization=organization)
+        qs = self.get_queryset()
         if especie:
             species_codes = ["suino", "suinos"] if especie in {"suino", "suinos"} else [especie]
             qs = qs.filter(

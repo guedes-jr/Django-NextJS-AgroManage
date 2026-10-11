@@ -67,6 +67,7 @@ def dispatch_notification(self, notification_id):
     """Entrega uma notificação pendente nos canais externos configurados."""
     from django.conf import settings
 
+    from .operator_scope import event_allowed
     from .categories import channel_allowed
     from .emails import EmailNotificationService
     from .models import Notification, NotificationDelivery, PushSubscription
@@ -90,7 +91,7 @@ def dispatch_notification(self, notification_id):
             delivery.save(update_fields=['processing_until', 'attempt_token', 'attempts', 'updated_at'])
         delivery.last_error = ""
         try:
-            if not notification.user.is_active or not NotificationService.should_notify(notification.user, notification.type, notification.category) or not channel_allowed(notification, delivery.channel):
+            if not event_allowed(notification.user, notification.category, notification.event_key) or not notification.user.is_active or not NotificationService.should_notify(notification.user, notification.type, notification.category) or not channel_allowed(notification, delivery.channel):
                 delivery.status = NotificationDelivery.Status.SKIPPED
                 delivery.last_error = "Entrega suspensa pelas preferências do usuário ou pela configuração da categoria."
                 delivery.save(update_fields=("attempts", "status", "last_error", "updated_at"))

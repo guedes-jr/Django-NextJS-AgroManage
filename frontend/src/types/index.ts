@@ -29,7 +29,7 @@ export interface AuthTokens {
   refresh: string;
 }
 
-export type UserRole = "owner" | "admin" | "manager" | "operator" | "viewer";
+export type UserRole = "admin" | "manager" | "operator";
 
 export interface User {
   id: string;

@@ -41,7 +41,7 @@ class PlatformUserManagementAPITestCase(APITestCase):
         self.assertEqual(response.data["results"][0]["email"], self.customer.email)
 
     def test_customer_owner_cannot_list_global_users(self):
-        self.customer.role = User.Role.OWNER
+        self.customer.role = User.Role.ADMIN
         self.customer.save(update_fields=["role", "updated_at"])
         self.client.force_authenticate(user=self.customer)
 

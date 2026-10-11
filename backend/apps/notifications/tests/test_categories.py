@@ -23,7 +23,7 @@ User = get_user_model()
 class NotificationCategoryTests(APITestCase):
     def setUp(self):
         self.org = Organization.objects.create(name="Categorias", slug="notification-categories")
-        self.user = User.objects.create_user(email="categories@example.com", password="password123", full_name="Categorias", organization=self.org, role="owner", phone_is_whatsapp=True)
+        self.user = User.objects.create_user(email="categories@example.com", password="password123", full_name="Categorias", organization=self.org, role="admin", phone_is_whatsapp=True)
         self.pref = NotificationPreference.objects.create(user=self.user, whatsapp_reproductive_alerts=True)
 
     def test_cycle_and_overdue_events_are_classified_without_guessing_titles(self):
@@ -138,7 +138,7 @@ class PlatformNotificationControlTests(APITestCase):
         PlatformStaffProfile.objects.create(user=self.admin, role="platform_admin")
         self.client.force_authenticate(self.admin)
         self.org = Organization.objects.create(name="Histórico", slug="notification-history")
-        self.member = User.objects.create_user(email="history@example.com", password="password123", full_name="Membro", organization=self.org, role="owner")
+        self.member = User.objects.create_user(email="history@example.com", password="password123", full_name="Membro", organization=self.org, role="admin")
 
     def test_admin_lists_categories_and_saves_audited_policy(self):
         response = self.client.get(reverse("platform-notification-categories"))

@@ -19,7 +19,7 @@ class FarmStructureTestCase(APITestCase):
         self.org_b = Organization.objects.create(name="Estruturas B", slug="structures-b")
         self.operator = User.objects.create_user(
             email="structures-operator@example.com", password="Password-8472", full_name="Operador",
-            organization=self.org_a, role=User.Role.OPERATOR,
+            organization=self.org_a, role=User.Role.ADMIN,
         )
         self.other = User.objects.create_user(
             email="structures-other@example.com", password="Password-8472", full_name="Outro",
@@ -47,7 +47,7 @@ class FarmStructureTestCase(APITestCase):
             status.HTTP_404_NOT_FOUND,
         )
 
-    def test_operator_creates_but_cannot_edit_structure(self):
+    def test_admin_creates_and_edits_structure(self):
         create = self.client.post(
             reverse("farm-structures-list"),
             {
@@ -68,18 +68,18 @@ class FarmStructureTestCase(APITestCase):
                 reverse("farm-structures-detail", args=[structure.id]), {"name": "Chiqueiro editado"},
                 format="json",
             ).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_200_OK,
         )
         self.assertEqual(
             self.client.patch(
                 reverse("farm-structures-detail", args=[self.other_structure.id]), {"name": "Negada"},
                 format="json",
             ).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_200_OK,
         )
         self.assertEqual(
             self.client.delete(reverse("farm-structures-detail", args=[structure.id])).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_204_NO_CONTENT,
         )
 
     def test_rejects_foreign_farm_and_returns_summary(self):
@@ -112,7 +112,7 @@ class FarmAssetTestCase(APITestCase):
         self.other_org = Organization.objects.create(name="Outra", slug="farm-assets-other")
         self.operator = User.objects.create_user(
             email="assets@example.com", password="Password-8472", full_name="Operador",
-            organization=self.org, role=User.Role.OPERATOR,
+            organization=self.org, role=User.Role.ADMIN,
         )
         self.other_user = User.objects.create_user(
             email="assets-other-user@example.com", password="Password-8472", full_name="Outro",
@@ -126,7 +126,7 @@ class FarmAssetTestCase(APITestCase):
         )
         self.client.force_authenticate(self.operator)
 
-    def test_operator_creates_own_asset_and_implement(self):
+    def test_admin_creates_asset_and_implement(self):
         response = self.client.post(
             reverse("farm-assets-list"),
             {
@@ -154,12 +154,12 @@ class FarmAssetTestCase(APITestCase):
         self.assertEqual(summary.data["implements_value"], 20000)
         self.assertEqual(summary.data["total_invested"], 485000)
 
-    def test_operator_cannot_edit_others_or_use_foreign_farm(self):
+    def test_admin_edits_tenant_asset_but_cannot_use_foreign_farm(self):
         self.assertEqual(
             self.client.patch(
                 reverse("farm-assets-detail", args=[self.other_asset.id]), {"model": "Alterado"}, format="json"
             ).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_200_OK,
         )
         self.assertEqual(
             self.client.post(
@@ -172,8 +172,14 @@ class FarmAssetTestCase(APITestCase):
         self.assertEqual(
             self.client.post(
                 reverse("farm-asset-implements-list"),
-                {"asset": self.other_asset.id, "name": "Negado", "quantity": 1, "acquisition_value": "1.00"},
+                {"asset": self.other_asset.id, "name": "Permitido", "quantity": 1, "acquisition_value": "1.00"},
                 format="json",
             ).status_code,
-            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_201_CREATED,
         )
+
+    def test_operator_cannot_manage_assets(self):
+        self.operator.role = User.Role.OPERATOR
+        self.client.force_authenticate(self.operator)
+        self.assertEqual(self.client.get(reverse("farm-assets-list")).status_code, 403)
+        self.assertEqual(self.client.post(reverse("farm-assets-list"), {}, format="json").status_code, 403)

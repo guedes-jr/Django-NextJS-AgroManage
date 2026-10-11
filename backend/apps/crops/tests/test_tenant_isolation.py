@@ -17,7 +17,7 @@ class CropsTenantIsolationTestCase(APITestCase):
     def setUp(self):
         self.org_a = Organization.objects.create(name="Cultivos A", slug="crops-a-isolation")
         self.org_b = Organization.objects.create(name="Cultivos B", slug="crops-b-isolation")
-        self.user_a = User.objects.create_user(
+        self.user_a = User.objects.create_user(role="admin",
             email="crops-a@example.com", password="Password-8472", full_name="Cultivos A", organization=self.org_a
         )
         self.plantation_a = self.make_plantation(self.org_a, "A")

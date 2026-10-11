@@ -90,7 +90,7 @@ def maternal_feed_costs(organization, batch_ids):
                 if key == "gestation_feed":
                     matches_period = birth.pregnancy.start_date <= feed.data_inicio <= birth.birth_date
                 else:
-                    weaning_date = getattr(birth.litter, "weaning_date", None)
+                    weaning_date = getattr(getattr(birth, "litter", None), "weaning_date", None)
                     matches_period = birth.birth_date <= feed.data_inicio and (
                         not weaning_date or feed.data_inicio <= weaning_date
                     )

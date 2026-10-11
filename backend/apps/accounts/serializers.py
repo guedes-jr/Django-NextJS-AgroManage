@@ -5,6 +5,8 @@ from common.authentication import is_active_platform_staff
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
+from apps.livestock.models import Species
+
 from .models import User
 
 
@@ -85,6 +87,11 @@ class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
     is_platform_staff = serializers.SerializerMethodField()
     is_affiliate = serializers.SerializerMethodField()
     affiliate_portal_only = serializers.SerializerMethodField()
+    access = serializers.SerializerMethodField()
+
+    def get_access(self, user):
+        from common.operator_access import effective_access
+        return effective_access(user)
 
     def get_is_platform_staff(self, user):
         return is_active_platform_staff(user)
@@ -107,7 +114,7 @@ class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
             "id",
             "email",
             "full_name",
-            "role",
+            "role", "can_operate_crops", "allowed_livestock", "operator_read_only", "organization_responsible", "access",
             "phone",
             "phone_is_whatsapp",
             "receive_system_alerts",
@@ -126,7 +133,7 @@ class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "role", "can_operate_crops", "allowed_livestock", "operator_read_only", "organization_responsible", "access", "is_active", "created_at", "updated_at"]
         extra_kwargs = {
             "avatar": {"required": False, "allow_null": True},
         }
@@ -169,7 +176,9 @@ class UserCreateSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
 
         preference = validated_data.pop("notification_preference", {})
         with transaction.atomic():
+            livestock = validated_data.pop("allowed_livestock", [])
             user = User.objects.create_user(password=password, **validated_data)
+            user.allowed_livestock.set(livestock)
             if preference is not None:
                 user.notification_preference, _ = NotificationPreference.objects.update_or_create(user=user, defaults=preference)
         return user
@@ -203,20 +212,37 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Unidade padrão inválida.")
         return value
 
-class OrganizationMemberSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
+class OperatorScopeValidationMixin:
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        role = attrs.get("role", getattr(self.instance, "role", "operator"))
+        if role != "operator" and (attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only")):
+            raise serializers.ValidationError("As restrições de área são exclusivas do operador.")
+        if role != "operator":
+            attrs.update(can_operate_crops=False, allowed_livestock=[], operator_read_only=False)
+        return attrs
+
+
+class OrganizationMemberSerializer(OperatorScopeValidationMixin, WhatsAppContactMixin, serializers.ModelSerializer):
     whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False, default=False)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
 
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'full_name', 'role', 'role_display', 
+            'id', 'email', 'full_name', 'role', 'role_display', 'can_operate_crops', 'allowed_livestock', 'operator_read_only', 'organization_responsible',
             'phone', 'phone_is_whatsapp', 'receive_system_alerts', 'whatsapp_reproductive_alerts', 'avatar', 'is_active', 'created_at'
         ]
-        read_only_fields = ['id', 'email', 'created_at']
+        read_only_fields = ['id', 'email', 'created_at', 'organization_responsible']
 
 
-class CreateMemberSerializer(UserCreateSerializer):
+class CreateMemberSerializer(OperatorScopeValidationMixin, UserCreateSerializer):
+    can_operate_crops = serializers.BooleanField(default=False)
+    operator_read_only = serializers.BooleanField(default=False)
+    allowed_livestock = serializers.PrimaryKeyRelatedField(queryset=Species.objects.all(), many=True, required=False)
+
+    class Meta(UserCreateSerializer.Meta):
+        fields = [*UserCreateSerializer.Meta.fields, "can_operate_crops", "allowed_livestock", "operator_read_only"]
     email = serializers.EmailField()
     full_name = serializers.CharField(max_length=150)
     role = serializers.ChoiceField(choices=User.Role.choices, default='operator')

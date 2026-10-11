@@ -109,53 +109,16 @@ class FinanceTenantIsolationTestCase(APITestCase):
     def test_viewer_cannot_write_financial_data(self):
         viewer = User.objects.create_user(
             email="finance-viewer@example.com", password="Password-8472", full_name="Viewer",
-            organization=self.org_a, role=User.Role.VIEWER,
+            organization=self.org_a, role=User.Role.OPERATOR, operator_read_only=True,
         )
         self.client.force_authenticate(viewer)
-        self.assertEqual(self.client.get(reverse("transaction-list")).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(reverse("transaction-list")).status_code, status.HTTP_403_FORBIDDEN)
         response = self.client.post(reverse("transaction-list"), self.transaction_payload(), format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_operator_creates_categories_but_only_higher_roles_edit_and_delete(self):
-        operator = User.objects.create_user(email="category-operator@example.com", password="Password-8472", full_name="Operador", organization=self.org_a, role=User.Role.OPERATOR)
+    def test_operator_cannot_access_categories_or_transactions(self):
+        operator = User.objects.create_user(email="blocked-operator@example.com", full_name="Operador", organization=self.org_a, role=User.Role.OPERATOR)
         self.client.force_authenticate(operator)
-        create = self.client.post(reverse("financial-category-list"), {"name": "Mão de Obra", "category_type": "expense"}, format="json")
-        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
-        url = reverse("financial-category-detail", args=[create.data["id"]])
-        self.assertEqual(self.client.patch(url, {"name": "Editada"}, format="json").status_code, 403)
-        self.assertEqual(self.client.delete(url).status_code, 403)
-        self.client.force_authenticate(self.user_a)
-        self.assertEqual(self.client.patch(url, {"name": "Editada"}, format="json").status_code, 200)
-        self.assertEqual(self.client.delete(url).status_code, 204)
-
-    def test_operator_creates_but_cannot_edit_transactions(self):
-        operator = User.objects.create_user(
-            email="finance-operator@example.com", password="Password-8472", full_name="Operator",
-            organization=self.org_a, role=User.Role.OPERATOR,
-        )
-        other = Transaction.objects.create(
-            organization=self.org_a, category=self.category_a, description="Outro usuário",
-            amount="50.00", due_date=date.today(), created_by=self.user_a,
-        )
-        self.client.force_authenticate(operator)
-
-        create = self.client.post(reverse("transaction-list"), self.transaction_payload(), format="json")
-        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
-        own_id = create.data["id"]
-        self.assertEqual(Transaction.objects.get(id=own_id).created_by, operator)
-        self.assertEqual(
-            self.client.patch(
-                reverse("transaction-detail", args=[own_id]), {"description": "Editada"}, format="json"
-            ).status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-        self.assertEqual(
-            self.client.patch(
-                reverse("transaction-detail", args=[other.id]), {"description": "Negada"}, format="json"
-            ).status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-        self.assertEqual(
-            self.client.delete(reverse("transaction-detail", args=[own_id])).status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
+        for resource in ("financial-category-list", "transaction-list"):
+            self.assertEqual(self.client.get(reverse(resource)).status_code, 403)
+            self.assertEqual(self.client.post(reverse(resource), self.transaction_payload(), format="json").status_code, 403)

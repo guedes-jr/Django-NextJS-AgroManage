@@ -5,11 +5,11 @@ export const getReproductionDashboard = async (species: string) => {
   return response.data;
 };
 
-export const acknowledgeOperationalAlert = async (alertKey: string, alertText: string) => {
+export const acknowledgeOperationalAlert = async (alertKey: string, alertText: string, species = "suinos") => {
   const response = await apiClient.post("/livestock/dashboard/reproduction/acknowledge-alert/", {
     alert_key: alertKey,
     alert_text: alertText,
-  });
+  }, {params: {species}});
   return response.data;
 };
 

@@ -191,32 +191,59 @@ farm/batch link. Crushing mortality uses the recorded death cause and stays null
 The report UI counts births and weanings by their own dates, includes records from
 inactive mothers, and uses only known outcomes for pregnancy/farrowing rates.
 
-## Tenant roles and operational writes
+## Tenant roles and operator scope
 
-Role codes stay stable (`owner`, `admin`, `manager`, `operator`, `viewer`);
-user role labels and member `role_display` are Portuguese.
+| Perfil | Operação | Financeiro | Usuários e permissões |
+| --- | --- | --- | --- |
+| `admin` | Completa | Sim | Sim |
+| `manager` | Gestão operacional | Sim | Não |
+| `operator` | Áreas autorizadas; opção somente consulta | Não | Não |
 
-| Cargo | Consulta | Criar categorias/registros | Editar | Excluir | Gerenciar usuários |
-| --- | --- | --- | --- | --- | --- |
-| Proprietário | Sim | Sim | Sim | Sim | Sim |
-| Administrador | Sim | Sim | Sim | Sim | Sim, sem atribuir proprietário/administrador |
-| Gerente | Sim | Sim | Sim | Sim | Não |
-| Operador | Sim | Sim | Não | Não | Não |
-| Visualizador | Sim | Não | Não | Não | Não |
+`User.Role.choices` and audience options expose these three organization roles;
+platform staff roles remain independent. `/auth/me/` returns read-only `access`,
+`can_operate_crops`, `allowed_livestock` (species UUIDs), `operator_read_only` and
+`organization_responsible`. Personal updates cannot change role, activity or scope.
+GET `/auth/operator-options/` returns roles and the current species catalog.
 
-`OrganizationRolePermission` enforces this matrix for finance, farms, inventory,
-crops, livestock, tasks and organization contacts/addresses. Appending operational
-events (weighing, vaccination, births, feed consumption) remains allowed for operators;
-PUT/PATCH and deletion, including POST bulk deletion, are blocked. Supplier image
-replacement and lot merging are edits; sow discard is a removal. Tenant filtering
-is unchanged. Personal profile/preferences and personal notification confirmation
-continue to use their existing self-service permissions.
-Member changes use `/auth/members/<uuid>/`: only owners/admins manage users, only
-owners assign/change owner/admin roles, and users cannot change their own role,
-deactivate themselves or remove themselves. Saving an unchanged admin role alongside
-profile fields is allowed. Apply accounts migration `0005_alter_user_role` for the
-translated role choices; persisted role codes do not change.
+Only administrators create/change members using `/auth/members/create/` and
+`/auth/members/<uuid>/`. New operators default to no areas. Scope changes and
+creation are atomic and audited. DELETE deactivates the account and preserves its
+organization/history. Self-demotion/deactivation, removal of the last active admin,
+and demotion/deactivation of the organization responsible are rejected. The
+responsible flag is separate from role and cannot be reassigned in a client payload.
+The legacy `/auth/users/` directory remains read-only.
 
+JWT requests and domain query/detail/mutations enforce scope, including related
+objects and custom actions. Existing tokens immediately respect revocations.
+Financial/admin/report APIs, sales, deletion and configuration writes are blocked.
+Livestock references require both an authorized species and the current tenant.
+Crop access requires `can_operate_crops`. Shared inventory lookups omit monetary
+fields; feed consumption requires authorized destinations. Financial fields,
+including nested fields, are rejected in operator mutations and removed from
+operational responses. Shared rural forms omit computed price fields for operators;
+normal server services derive inventory costs for accounting.
+
+Operator authorship is stored for new operational records. Operators correct their
+own still-open records without deleting them or changing finalized situations.
+Crop corrections affecting quantities/dates/stock, and changes to feed consumption,
+require a manager; crop notes and operator descriptions remain editable. Legacy
+records without reliable authorship are not claimed by operators. Assigned tasks
+allow status updates; tasks created by the operator allow other edits while open.
+
+`/reports/dashboard/` returns `mode: operational`, crop/herd counts and up to 20
+assigned open tasks for operators, without querying financial models. Financial
+KPIs, managerial charts, activity and billing are absent. Menus/module shortcuts
+follow scope. Notification history, email digests and queued deliveries exclude
+financial categories and reproductive events outside authorized tenant/species.
+System notifications and opted-in marketing remain available.
+
+Accounts migrations 0007/0008 convert owners to admins with the responsible flag.
+Existing operators retain crops and the species already in the catalog; new species
+require explicit authorization. Former viewers become read-only operators with no
+areas pending admin review. Saved campaign/audience role filters map to the new
+codes; published recipient snapshots remain immutable. Reversing 0008 maps
+responsible admins back to owner and read-only operators to viewer, without
+reconstructing previous marketing audience filters.
 
 ## Global system support
 

@@ -37,7 +37,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [OrganizationRolePermission]
-    write_roles = {"owner", "admin", "manager", "operator"}
+    write_roles = {"admin", "manager", "operator"}
 
     def get_queryset(self):
         qs = Transaction.objects.filter(organization=self.request.user.organization).select_related('category', 'bank_account')

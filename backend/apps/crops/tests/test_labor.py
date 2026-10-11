@@ -22,7 +22,7 @@ class LaborAPITestCase(APITestCase):
             email="labor@test.com",
             password="password123",
             full_name="Labor User",
-            role=User.Role.OWNER,
+            role=User.Role.ADMIN,
             organization=self.org,
         )
         self.client.force_authenticate(user=self.user)

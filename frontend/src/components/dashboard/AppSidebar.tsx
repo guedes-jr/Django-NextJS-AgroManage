@@ -22,6 +22,7 @@ import {
   type LucideProps,
 } from "lucide-react";
 import { barn, cowHead, pigHead } from "@lucide/lab";
+import {canAccessOrganizationPath, type OrganizationAccess} from "@/services/organizationAccess";
 import apiClient from "@/services/api";
 
 interface SidebarOrganization {
@@ -107,11 +108,12 @@ const subscriptionStatus: Record<string, string> = {
 };
 
 interface AppSidebarProps {
+  access?: OrganizationAccess | null;
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
+export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) {
   const pathname = usePathname();
   const [organization, setOrganization] = useState<SidebarOrganization | null>(null);
   const [isAffiliate, setIsAffiliate] = useState(false);
@@ -193,11 +195,11 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
 
       <div className="sidebar-nav-container">
         <nav className="sidebar-navigation" aria-label="Áreas do sistema">
-          {sidebarSections.map((section) => (
+          {sidebarSections.filter(section => section.items.some(item => canAccessOrganizationPath(access,item.href))).map((section) => (
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
               <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
               <div className="sidebar-section-items">
-                {section.items.filter((item) => !item.requiresAffiliate || isAffiliate).map((item) => {
+                {section.items.filter((item) => (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
                   const active = isActive(item.href);
                   return (
                     <Link
@@ -224,7 +226,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       </div>
 
       <footer className="sidebar-footer">
-        <div className="premium-badge-card">
+        {access && access.role !== "operator" && <div className="premium-badge-card">
           <div className="sidebar-plan-heading">
             <div className="badge-icon-yellow" aria-hidden="true">★</div>
             <strong>Plano {plan?.plan_name || "não informado"}</strong>
@@ -240,12 +242,12 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                 : " permanente"}
             </small>
           )}
-        </div>
+        </div>}
 
         <Link href="/home/suporte" className={`sidebar-link sidebar-settings-link ${isActive("/home/suporte") ? "active" : ""}`} onClick={onClose} aria-current={isActive("/home/suporte") ? "page" : undefined}>
           <span className="sidebar-link-icon" aria-hidden="true"><Headphones size={19} /></span><span>Suporte</span>
         </Link>
-        <Link
+        {access?.role !== "operator" && <Link
           href="/home/settings"
           className={`sidebar-link sidebar-settings-link ${isActive("/home/settings") ? "active" : ""}`}
           onClick={onClose}
@@ -255,7 +257,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
             <Settings size={19} strokeWidth={isActive("/home/settings") ? 2.3 : 2} />
           </span>
           <span>Configurações</span>
-        </Link>
+        </Link>}
       </footer>
     </aside>
   );

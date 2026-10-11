@@ -31,7 +31,7 @@ class GoogleLoginTests(APITestCase):
         self.assertIn("refresh", response.data)
         user = User.objects.get(email="produtor@example.com")
         self.assertEqual(user.full_name, "Produtor Rural")
-        self.assertEqual(user.role, User.Role.OWNER)
+        self.assertEqual(user.role, User.Role.ADMIN)
         self.assertIsNotNone(user.organization)
         self.assertFalse(user.has_usable_password())
 
