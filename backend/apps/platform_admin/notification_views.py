@@ -20,12 +20,15 @@ class CategoryPolicySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NotificationCategoryPolicy
-        fields = ("category", "label", "enabled", "in_app_enabled", "email_enabled", "push_enabled", "whatsapp_enabled", "updated_at")
+        fields = ("category", "label", "enabled", "in_app_enabled", "email_enabled", "push_enabled", "whatsapp_enabled", "repeat_cooldown_minutes", "group_similar_minutes", "max_per_day", "updated_at")
         read_only_fields = ("category", "label", "updated_at")
 
     def validate(self, attrs):
-        if attrs.get("whatsapp_enabled") and self.instance.category != NotificationCategory.ANIMAL_CYCLE:
-            raise serializers.ValidationError({"whatsapp_enabled": "O WhatsApp está disponível apenas para os eventos reprodutivos já autorizados."})
+        if attrs.get("whatsapp_enabled") and self.instance.category not in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.MARKETING):
+            raise serializers.ValidationError({"whatsapp_enabled": "O WhatsApp está disponível para ciclos reprodutivos e campanhas de propaganda com adesão."})
+        for field, maximum in (("repeat_cooldown_minutes", 10080), ("group_similar_minutes", 60), ("max_per_day", 5000)):
+            if field in attrs and attrs[field] > maximum:
+                raise serializers.ValidationError({field: f"O máximo permitido é {maximum}."})
         return attrs
 
 
@@ -81,3 +84,21 @@ def notification_history(request):
         "show_in_app": row.show_in_app, "is_read": row.is_read, "is_archived": row.is_archived,
         "deliveries": [{"channel": delivery.channel, "status": delivery.status, "attempts": delivery.attempts} for delivery in row.deliveries.all()],
     } for row in rows])
+
+
+@api_view(['GET'])
+@permission_classes([IsPlatformAdmin])
+def notification_metrics(request):
+    from apps.notifications.models import NotificationDelivery
+    try:
+        days = int(request.query_params.get('days', '30'))
+        if days not in (7, 30, 90):
+            raise ValueError
+    except ValueError:
+        return Response({'detail': 'Escolha 7, 30 ou 90 dias.'}, status=400)
+    category = request.query_params.get('category')
+    channel = request.query_params.get('channel')
+    if category and category not in NotificationCategory.values or channel and channel not in NotificationDelivery.Channel.values:
+        return Response({'detail': 'Filtro inválido.'}, status=400)
+    from apps.notifications.metrics import notification_metrics as metrics
+    return Response(metrics(days, category, channel))

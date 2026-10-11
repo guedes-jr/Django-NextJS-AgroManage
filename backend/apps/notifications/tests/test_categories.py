@@ -151,7 +151,7 @@ class PlatformNotificationControlTests(APITestCase):
 
     def test_unknown_categories_and_unsupported_whatsapp_are_rejected(self):
         self.assertEqual(self.client.patch(reverse("platform-notification-category-detail", args=["unknown"]), {"enabled": False}, format="json").status_code, 404)
-        response = self.client.patch(reverse("platform-notification-category-detail", args=["marketing"]), {"whatsapp_enabled": True}, format="json")
+        response = self.client.patch(reverse("platform-notification-category-detail", args=["system"]), {"whatsapp_enabled": True}, format="json")
         self.assertEqual(response.status_code, 400)
 
     def test_paginated_history_filters_categories_and_organizations(self):

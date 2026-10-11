@@ -1,0 +1,10 @@
+.campaign-hero {padding: 28px; border-radius: 20px; background: linear-gradient(120deg,#e7f3eb,#f4f8ea); border: 1px solid #d9e7dc;}
+.campaign-step {font-size:.76rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#397251;}
+.campaign-toolbar {display:flex; flex-wrap:wrap; gap:6px; padding:8px; background:#f1f5f2; border-radius:10px 10px 0 0;}
+.campaign-editor {border-radius:0 0 10px 10px; line-height:1.6;}
+.campaign-preview {padding:24px; background:#fafcfb; border:1px solid #e2eae5; border-radius:16px;}
+.campaign-confirm {padding:24px; background:#edf6ee; border:1px solid #bfdbc5; border-radius:16px;}
+.campaign-query {background:#f6f8f6; padding:16px; border-radius:12px; max-height:300px; overflow:auto;}
+.campaign-image {width:130px; padding:6px; border:1px solid #e0e8e2; border-radius:12px; display:flex; flex-direction:column; gap:6px;}
+.campaign-image img {width:100%; height:95px; object-fit:cover; border-radius:8px;}
+.campaign-page .form-label {font-size:.88rem; font-weight:500;}

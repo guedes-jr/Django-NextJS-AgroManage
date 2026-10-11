@@ -2,8 +2,7 @@
 Serviços para criação de notificações.
 """
 from django.utils import timezone
-from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db import transaction
 import logging
 from datetime import timedelta
 from .models import Notification, NotificationType, NotificationPriority
@@ -17,39 +16,16 @@ class NotificationService:
     """Serviço centralizado para criar notificações"""
 
     @staticmethod
-    def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key="", category=None):
-        """Cria uma notificação para o usuário"""
+    def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key="", category=None, *, campaign=None, in_app=None, schedule=True):
+        from .noise import create_guarded
+
         category = classify_notification(notif_type, event_key, category)
         policy = category_policy(category)
         if not NotificationService.should_notify(user, notif_type, category, policy=policy):
             return None
-        show_in_app = policy.in_app_enabled
-        now = timezone.now()
-        if event_key:
-            try:
-                notification, created = Notification.objects.get_or_create(
-                    user=user,
-                    event_key=event_key,
-                    is_archived=False,
-                    defaults={"show_in_app": show_in_app, "category": category, "type": notif_type, "priority": priority, "title": title, "message": message, "link": link or "", "last_occurred_at": now},
-                )
-            except IntegrityError:
-                notification = Notification.objects.get(user=user, event_key=event_key, is_archived=False)
-                created = False
-            if not created:
-                Notification.objects.filter(pk=notification.pk).update(
-                    show_in_app=show_in_app, category=category, title=title, message=message, link=link or "", priority=priority,
-                    occurrence_count=F("occurrence_count") + 1, last_occurred_at=now,
-                    is_read=False, read_at=None,
-                )
-                notification.refresh_from_db()
-                return notification
-        else:
-            notification = Notification.objects.create(
-                user=user, type=notif_type, category=category, show_in_app=show_in_app, priority=priority, title=title,
-                message=message, link=link or "", last_occurred_at=now,
-            )
-        NotificationService.schedule_external_delivery(notification, policy=policy)
+        notification, created = create_guarded(user, title, message, notif_type, priority, link, event_key, category, policy, campaign=campaign, in_app=in_app)
+        if created and schedule:
+            NotificationService.schedule_external_delivery(notification, policy=policy)
         return notification
 
     @staticmethod
@@ -79,7 +55,7 @@ class NotificationService:
         if channels:
             def enqueue():
                 try:
-                    dispatch_notification.delay(str(notification.id))
+                    dispatch_notification.apply_async(args=[str(notification.id)], countdown=policy.group_similar_minutes * 60 if notification.priority != "urgent" and notification.campaign_id is None else 0)
                 except Exception:
                     logger.exception("Não foi possível enfileirar a entrega da notificação %s", notification.id)
             transaction.on_commit(enqueue)
@@ -119,32 +95,7 @@ class NotificationService:
 
     @staticmethod
     def create_bulk(users, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key="", category=None):
-        """Cria notificações em bulk para múltiplos usuários"""
-        if event_key:
-            return [notification for user in users if (notification := NotificationService.create(
-                user, title, message, notif_type, priority, link, event_key, category
-            )) is not None]
-        category = classify_notification(notif_type, event_key, category)
-        policy = category_policy(category)
-        show_in_app = policy.in_app_enabled
-        notifications = []
-        for user in users:
-            if not NotificationService.should_notify(user, notif_type, category, policy=policy):
-                continue
-            notifications.append(Notification(
-                user=user,
-                type=notif_type,
-                category=category,
-                show_in_app=show_in_app,
-                priority=priority,
-                title=title,
-                message=message,
-                link=link or ""
-            ))
-        created = Notification.objects.bulk_create(notifications)
-        for notification in created:
-            NotificationService.schedule_external_delivery(notification, policy=policy)
-        return created
+        return [notification for user in users if (notification := NotificationService.create(user, title, message, notif_type, priority, link, event_key, category)) is not None]
 
     @staticmethod
     def notify_welcome(user):

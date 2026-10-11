@@ -255,6 +255,7 @@ AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
 AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
 AI_MODEL_CATALOG_STALE_DAYS = env.int("AI_MODEL_CATALOG_STALE_DAYS", default=14)
 CELERY_BEAT_SCHEDULE = {
+    "marketing-outbox": {"task": "apps.notifications.tasks.process_marketing_outbox", "schedule": 60.0},
     "notifications-daily-digest": {"task": "apps.notifications.tasks.send_daily_notifications_digest", "schedule": crontab(minute=0, hour=7)},
     "notifications-weekly-digest": {"task": "apps.notifications.tasks.send_weekly_notifications_digest", "schedule": crontab(minute=0, hour=7, day_of_week="monday")},
     "notifications-overdue-finance": {"task": "apps.notifications.tasks.check_overdue_transactions_notifications", "schedule": crontab(minute=10, hour=6)},

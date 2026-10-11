@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Archive, Bell, Beef, CheckCheck, ChevronLeft, ChevronRight, FileText, Inbox, Package, Receipt, RotateCcw, Search, Settings2, Trash2 } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { Notification } from "@/services/notificationService";
+import MarketingContent from "@/components/notifications/MarketingContent";
 import styles from "./notifications.module.css";
 
 const typeMeta: Record<string, { label: string; icon: typeof Bell }> = {
@@ -35,6 +36,7 @@ export default function NotificationsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [detail, setDetail] = useState<Notification | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const visible = useMemo(() => {
@@ -61,7 +63,8 @@ export default function NotificationsPage() {
     setBusyId(notification.id);
     try {
       if (!notification.is_read) await markAsRead(notification.id);
-      if (notification.link) router.push(notification.link);
+      if (notification.promotion || (notification.group_items?.length || 0) > 1) setDetail(notification);
+      else if (notification.link) router.push(notification.link);
     } finally {
       setBusyId(null);
     }
@@ -77,6 +80,7 @@ export default function NotificationsPage() {
   };
 
   return <div className={styles.page}>
+    {detail && <div className="platform-card border rounded-3 p-4 mb-3" role="region" aria-label="Detalhes da notificação"><div className="d-flex justify-content-between gap-2"><h2 className="h5">{detail.title}</h2><button className="btn btn-outline-secondary btn-sm" onClick={() => setDetail(null)}>Fechar</button></div>{detail.promotion ? <MarketingContent {...detail.promotion}/> : <ul>{detail.group_items?.map((item,i) => <li key={i}>{item.message}</li>)}</ul>}</div>}
     <header className={styles.header}>
       <div><span>Central de notificações</span><h1>Notificações</h1><p>Acompanhe as atualizações da sua conta e acesse rapidamente cada registro relacionado.</p></div>
       <div className="d-flex gap-2"><Link href="/home/notifications/preferences" className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"><Settings2 size={17}/> Preferências</Link>{unreadCount > 0 && <button onClick={() => void markAllAsRead()}><CheckCheck size={18}/> Marcar todas como lidas</button>}</div>

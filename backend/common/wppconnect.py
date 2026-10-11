@@ -83,7 +83,7 @@ def wpp_request(path, method="GET", payload=None, *, session_name=None):
             data = json.loads(response.read().decode())
             if not isinstance(data, dict):
                 return None, "Resposta inválida do WhatsApp Web."
-            if path in ("send-message", "start-session", "close-session", "logout-session") and (
+            if path in ("send-message", "send-file-base64", "start-session", "close-session", "logout-session") and (
                 data.get("status") is False
                 or str(data.get("status", "")).lower() == "error"
                 or data.get("response") is False

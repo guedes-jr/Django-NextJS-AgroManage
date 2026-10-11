@@ -42,8 +42,9 @@ class EmailNotificationService:
             return
 
         subject = f"[Fazenda Mais] {notification.title}"
-        message = notification.message
-        html_content = render_to_string("notifications/instant.html", {"user": user, "notification": notification})
+        from .noise import notification_text
+        message = notification_text(notification)
+        html_content = render_to_string("notifications/instant.html", {"user": user, "notification": notification, "message": message})
 
         try:
             send_mail(
@@ -73,6 +74,7 @@ class EmailNotificationService:
 
         notifications = Notification.objects.filter(
             user=user,
+            campaign__isnull=True,
             is_read=False,
             created_at__gte=timezone.now() - timedelta(days=1)
         )
@@ -116,6 +118,7 @@ class EmailNotificationService:
 
         notifications = Notification.objects.filter(
             user=user,
+            campaign__isnull=True,
             is_read=False,
             created_at__gte=timezone.now() - timedelta(days=7)
         )

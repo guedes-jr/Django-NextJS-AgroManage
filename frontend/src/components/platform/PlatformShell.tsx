@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Bot, Building2, ClipboardList, CreditCard, Eye, Handshake, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards, BookOpen, MessageCircle, Bell } from "lucide-react";
+import { Activity, Bot, Building2, ClipboardList, CreditCard, Eye, Handshake, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards, BookOpen, MessageCircle, Bell, Megaphone } from "lucide-react";
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
@@ -77,7 +77,8 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
             <Link href="/platform/support" className={pathname.startsWith("/platform/support") && !pathname.startsWith("/platform/support-access") ? "active" : ""}><BookOpen size={19} /><span className="nav-label">Central de suporte</span></Link>
           )}
           {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
-            <Link href="/platform/notifications" className={pathname.startsWith("/platform/notifications") ? "active" : ""}><Bell size={19} /><span className="nav-label">Notificações</span></Link>
+            <><Link href="/platform/marketing" className={pathname.startsWith("/platform/marketing") ? "active" : ""}><Megaphone size={19} /><span className="nav-label">Propagandas</span></Link>
+            <Link href="/platform/notifications" className={pathname.startsWith("/platform/notifications") ? "active" : ""}><Bell size={19} /><span className="nav-label">Notificações</span></Link></>
           )}
           {["platform_owner", "platform_admin"].includes(staff?.role || "") && (
             <Link href="/platform/whatsapp-web" className={pathname.startsWith("/platform/whatsapp-web") ? "active" : ""}><MessageCircle size={19} /><span className="nav-label">WhatsApp Web</span></Link>

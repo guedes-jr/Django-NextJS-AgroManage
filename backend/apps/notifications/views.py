@@ -34,7 +34,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     pagination_class = NotificationPagination
 
     def get_queryset(self):
-        queryset = Notification.objects.filter(user=self.request.user, show_in_app=True)
+        queryset = Notification.objects.filter(user=self.request.user, show_in_app=True).select_related("campaign").prefetch_related("campaign__images")
         archived = self.request.query_params.get("archived", "false").lower() == "true"
         queryset = queryset.filter(is_archived=archived)
         status_filter = self.request.query_params.get("status")

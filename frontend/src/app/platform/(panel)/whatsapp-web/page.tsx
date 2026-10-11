@@ -15,7 +15,7 @@ const labels: Record<string, string> = {
   qrReadSuccess: "Sincronizando", inChat: "Sincronizando", notLogged: "Aguardando leitura", browserClose: "Desconectado",
   autocloseCalled: "Sessão encerrada", unavailable: "Indisponível",
 };
-const deliveryLabels: Record<WhatsAppDeliveryStatus, string> = { pending: "Pendente", sent: "Enviado", failed: "Falhou", skipped: "Não enviado" };
+const deliveryLabels: Record<WhatsAppDeliveryStatus, string> = { pending: "Pendente", sent: "Enviado", failed: "Falhou", skipped: "Não enviado", unknown: "Resultado incerto" };
 const testMessage = "Olá! Esta é uma mensagem de teste da integração WhatsApp do Fazenda Mais.";
 function digits(value: string) { return value.replace(/\D/g, ""); }
 function normalizedPhone(value: string) { const number = digits(value); if (value.trim().startsWith("+") && !number.startsWith("55")) return number; return number.length === 10 || number.length === 11 ? `55${number}` : number; }

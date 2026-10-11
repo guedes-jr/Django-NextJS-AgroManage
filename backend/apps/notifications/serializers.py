@@ -3,15 +3,24 @@ from .models import Notification, NotificationPreference, NotificationTemplate, 
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    promotion = serializers.SerializerMethodField()
+    group_items = serializers.JSONField(read_only=True)
     category_display = serializers.CharField(source="get_category_display", read_only=True)
     class Meta:
         model = Notification
         fields = [
-            "id", "type", "category", "category_display", "priority", "title", "message",
+            "id", "type", "category", "category_display", "priority", "title", "message", "promotion", "group_items",
             "link", "is_read", "read_at", "event_key", "occurrence_count", "last_occurred_at",
             "is_archived", "archived_at", "created_at"
         ]
         read_only_fields = ["id", "type", "category", "event_key", "occurrence_count", "last_occurred_at", "archived_at", "created_at"]
+
+    def get_promotion(self, obj):
+        if not obj.campaign_id:
+            return None
+        campaign = obj.campaign
+        request = self.context.get('request')
+        return {'body': campaign.body, 'link_url': campaign.link_url, 'link_label': campaign.link_label, 'images': [{'id': str(image.pk), 'image': request.build_absolute_uri(image.image.url) if request else image.image.url} for image in campaign.images.all()]}
 
 
 class NotificationPreferenceSerializer(serializers.ModelSerializer):

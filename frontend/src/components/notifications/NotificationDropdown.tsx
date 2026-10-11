@@ -98,6 +98,7 @@ export default function NotificationDropdown({ onClose }: Props) {
                     <p className="small text-muted mb-1 text-truncate" style={{ maxWidth: "280px" }}>
                       {notification.message}
                     </p>
+                    {notification.promotion && <Link href="/home/notifications" className="small text-success" onClick={onClose}>Ver divulgação completa</Link>}
                     <p className="extra-small text-muted-foreground mb-0">
                       {new Date(notification.created_at).toLocaleDateString("pt-BR", {
                         day: "2-digit",

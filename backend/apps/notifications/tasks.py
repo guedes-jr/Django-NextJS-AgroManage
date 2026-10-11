@@ -1,12 +1,17 @@
 """
 Tarefas Celery para notificações.
 """
-from celery import shared_task
-from django.utils import timezone
-from datetime import timedelta
+import base64
+import json
 import logging
 import re
+import uuid
+from datetime import timedelta
+
+from celery import shared_task
 from common.wppconnect import is_configured, wpp_request
+from django.db import transaction as db_transaction
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -22,39 +27,70 @@ def _whatsapp_phone(phone):
     return digits if len(digits) in (12, 13) and digits.startswith("55") else ""
 
 
-def _send_whatsapp_web(notification):
-    """Deliver a transactional reproductive alert through a local WPPConnect Server."""
-    from .models import NotificationPreference
+def _send_whatsapp_web(notification, delivery=None):
+    from .marketing import plain_message
+    from .models import NotificationDelivery, NotificationPreference
+    from .noise import notification_text
 
-    if not notification.user.receive_system_alerts or not notification.user.phone_is_whatsapp or not NotificationPreference.objects.filter(user=notification.user, whatsapp_reproductive_alerts=True).exists():
+    marketing = getattr(notification, "campaign_id", None) is not None
+    allowed = NotificationPreference.objects.filter(user=notification.user, **({'marketing_alerts': True} if marketing else {'whatsapp_reproductive_alerts': True})).exists()
+    if not notification.user.receive_system_alerts or not notification.user.phone_is_whatsapp or not allowed:
         return False, "Integração WhatsApp: o usuário não autorizou alertas neste contato."
+    if marketing:
+        recipient = notification.marketing_recipient
+        if _whatsapp_phone(notification.user.phone) != recipient.whatsapp_phone or notification.campaign.status == 'cancelled' or not recipient.whatsapp or not recipient.organization or not recipient.organization.is_active or notification.user.organization_id != recipient.organization_id or notification.user.role not in notification.campaign.audience_filters.get('roles', []):
+            return False, "Integração WhatsApp: destinatário ou campanha não elegível."
     phone = _whatsapp_phone(notification.user.phone)
     if not is_configured() or not phone:
         return False, "Integração WhatsApp não configurada ou usuário sem telefone brasileiro válido."
-    _, detail = wpp_request("send-message", method="POST", payload={
-        "phone": phone,
-        "isGroup": False,
-        "message": f"*{notification.title}*\n{notification.message}",
-    })
-    return detail is None, detail or ""
+    message = plain_message(notification.campaign) if marketing else notification_text(notification)
+    parts = [('send-message', {'message': f"*{notification.title}*\n{message}"})]
+    if marketing:
+        for asset in notification.campaign.images.order_by('created_at', 'pk'):
+            with asset.image.open('rb') as source:
+                encoded = base64.b64encode(source.read()).decode('ascii')
+            parts.append(('send-file-base64', {'filename': asset.image.name.rsplit('/', 1)[-1], 'caption': '', 'base64': f'data:{asset.mime_type};base64,{encoded}'}))
+    for index, (endpoint, payload) in enumerate(parts):
+        if delivery and index < delivery.parts_sent:
+            continue
+        _, detail = wpp_request(endpoint, method="POST", payload={'phone': phone, 'isGroup': False, **payload})
+        if detail:
+            return False, detail
+        if delivery:
+            delivery.parts_sent = index + 1
+            NotificationDelivery.objects.filter(pk=delivery.pk, attempt_token=delivery.attempt_token).update(parts_sent=delivery.parts_sent)
+    return True, ""
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+@shared_task(bind=True)
 def dispatch_notification(self, notification_id):
     """Entrega uma notificação pendente nos canais externos configurados."""
     from django.conf import settings
+
     from .categories import channel_allowed
-    from .services import NotificationService
     from .emails import EmailNotificationService
     from .models import Notification, NotificationDelivery, PushSubscription
+    from .services import NotificationService
 
-    notification = Notification.objects.select_related("user").get(pk=notification_id)
+    notification = Notification.objects.select_related("user", "campaign", "marketing_recipient__organization").get(pk=notification_id)
     deliveries = notification.deliveries.filter(status__in=[NotificationDelivery.Status.PENDING, NotificationDelivery.Status.FAILED])
-    for delivery in deliveries:
-        delivery.attempts += 1
+    for candidate in deliveries:
+        with db_transaction.atomic():
+            delivery = NotificationDelivery.objects.select_for_update().get(pk=candidate.pk)
+            if delivery.status not in ('pending', 'failed') or delivery.processing_until and delivery.processing_until > timezone.now():
+                continue
+            if delivery.processing_until:
+                delivery.status = 'unknown'
+                delivery.last_error = 'Entrega interrompida: confirme o resultado antes de reenviar.'
+                delivery.save(update_fields=['status', 'last_error', 'updated_at'])
+                continue
+            delivery.processing_until = timezone.now() + timedelta(minutes=10)
+            delivery.attempt_token = uuid.uuid4()
+            delivery.attempts += 1
+            delivery.save(update_fields=['processing_until', 'attempt_token', 'attempts', 'updated_at'])
         delivery.last_error = ""
         try:
-            if not NotificationService.should_notify(notification.user, notification.type, notification.category) or not channel_allowed(notification, delivery.channel):
+            if not notification.user.is_active or not NotificationService.should_notify(notification.user, notification.type, notification.category) or not channel_allowed(notification, delivery.channel):
                 delivery.status = NotificationDelivery.Status.SKIPPED
                 delivery.last_error = "Entrega suspensa pelas preferências do usuário ou pela configuração da categoria."
                 delivery.save(update_fields=("attempts", "status", "last_error", "updated_at"))
@@ -94,7 +130,7 @@ def dispatch_notification(self, notification_id):
                     delivery.status = NotificationDelivery.Status.SENT if sent_any else NotificationDelivery.Status.SKIPPED
                     delivery.delivered_at = timezone.now() if sent_any else None
             elif delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
-                sent, detail = _send_whatsapp_web(notification)
+                sent, detail = _send_whatsapp_web(notification, delivery)
                 if sent:
                     delivery.status = NotificationDelivery.Status.SENT
                     delivery.delivered_at = timezone.now()
@@ -103,12 +139,15 @@ def dispatch_notification(self, notification_id):
                     delivery.last_error = detail
                 else:
                     raise RuntimeError(detail)
-        except Exception as exc:
-            delivery.status = NotificationDelivery.Status.FAILED
-            delivery.last_error = str(exc)[:2000]
-            delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "updated_at"))
-            raise
-        delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "updated_at"))
+        except Exception:  # noqa: BLE001 - transport outcome may be ambiguous; never resend blindly
+            delivery.status = NotificationDelivery.Status.UNKNOWN
+            delivery.processing_until = None
+            delivery.last_error = "Resultado não confirmado pelo serviço; reenvio automático suspenso."
+            delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "processing_until", "updated_at"))
+            logger.warning("Entrega %s sem confirmação", delivery.pk)
+            continue
+        delivery.processing_until = None
+        delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "processing_until", "updated_at"))
     return deliveries.count()
 
 
@@ -118,6 +157,7 @@ def send_daily_notifications_digest():
     Envia resumo diário para todos os usuários com preferência daily.
     """
     from apps.accounts.models import User
+
     from .emails import EmailNotificationService
 
     users = User.objects.filter(
@@ -138,6 +178,7 @@ def send_weekly_notifications_digest():
     Envia resumo semanal para todos os usuários com preferência weekly.
     """
     from apps.accounts.models import User
+
     from .emails import EmailNotificationService
 
     users = User.objects.filter(
@@ -157,13 +198,13 @@ def check_overdue_transactions_notifications():
     """
     Verifica faturas vencidas e cria notificações.
     """
-    from apps.finance.models import Transaction
-    from .services import NotificationService
 
-    from datetime import date
+    from apps.finance.models import Transaction
+
+    from .services import NotificationService
     overdue_transactions = Transaction.objects.filter(
         status="pending",
-        due_date__lt=date.today()
+        due_date__lt=timezone.localdate()
     )
 
     for transaction in overdue_transactions:
@@ -195,9 +236,11 @@ def check_stock_levels_notifications():
     """
     Verifica níveis de estoque e cria notificações.
     """
-    from apps.inventory.models import ItemEstoque, LoteEstoque
-    from .services import NotificationService
     from django.db.models import Sum
+
+    from apps.inventory.models import ItemEstoque, LoteEstoque
+
+    from .services import NotificationService
 
     items = ItemEstoque.objects.filter(estoque_minimo__gt=0)
 
@@ -251,3 +294,15 @@ def cleanup_old_notifications(days: int = 30):
     ).delete()[0]
 
     return f"Removidas {deleted_count} notificações antigas"
+
+
+@shared_task
+def process_marketing_outbox():
+    from .marketing import prepare_campaign
+    from .models import MarketingCampaign, NotificationDelivery
+    for campaign_id in MarketingCampaign.objects.filter(status__in=['queued', 'processing']).values_list('pk', flat=True)[:20]:
+        prepare_campaign(campaign_id)
+    # A fixed-size durable delivery queue also recovers broker interruptions.
+    ids = NotificationDelivery.objects.filter(notification__campaign__isnull=False, status='pending').values_list('notification_id', flat=True).distinct()[:50]
+    for notification_id in ids:
+        dispatch_notification.delay(str(notification_id))

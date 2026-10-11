@@ -382,9 +382,8 @@ delivery status/attempts without raw provider diagnostics.
 
 Disabling a category blocks new notifications and queued external deliveries.
 Email digests honor category/channel policies. Rules limit delivery and never
-override the user's master consent or category/channel preferences. WhatsApp
-remains restricted to approved reproductive events; enabling unsupported WhatsApp
-categories is rejected. Marketing is disabled globally by default and requires
+override the user's master consent or category/channel preferences. WhatsApp supports approved reproductive events and consent-aware marketing campaigns;
+enabling other WhatsApp categories is rejected. Marketing is disabled globally by default and requires
 separate `marketing_alerts` user opt-in, also unchecked by default.
 Operational reproductive dashboard alerts expose their category and
 `notifications_enabled`; the notification bell respects that flag while the
@@ -394,3 +393,52 @@ The in-app channel is recorded as `show_in_app` when an event is created or
 updated. External-only records stay in platform history but do not appear in the
 recipient notification list, unread count or SSE feed. Historical visibility is
 preserved unless the event recurs under the new policy.
+
+## Campaigns, notification volume and metrics
+
+Notifications migrations 0005/0006 add drafts, images, saved audiences, recipient
+snapshots, creation guards, grouped items and delivery leases. Category PATCH
+accepts `repeat_cooldown_minutes` (0–10080), `group_similar_minutes` (0–60;
+0 means immediate) and `max_per_day` (0–5000; 0 means unlimited), defaulting
+to 60, 0 and 50. Explicit event keys retain one record, including archived
+events. Other content repeats are suppressed during the cooldown. Grouping
+combines same-category/title/link events and delays external dispatch; urgent
+notifications are immediate and never grouped. GET
+`/platform/notifications/metrics/?days=7|30|90&category=&channel=` provides
+channel/category/day counts, service-confirmed success, delivery latency,
+in-app reads, old pending deliveries and suppression/grouping/limit counters.
+
+Owners/admins manage `/platform/marketing` through
+`/platform/marketing/audiences/` and `/campaigns/` (list/create/PATCH),
+GET `/options/` (roles from `User.Role.choices`, plans and subscription statuses)
+and POST `/images/` (multipart JPEG/PNG/WebP, up to 5 MB and 20 megapixels).
+Audience filters allow only search, organization UUIDs, plan codes, subscription
+statuses, state and a nonempty list of roles. Empty optional filters mean all
+active organizations. Plans use actual subscriptions, with legacy fallback for
+organizations without a subscription. Active platform staff are excluded.
+Master consent and marketing opt-in are required; WhatsApp also requires an
+authorized, valid Brazilian contact. Duplicate phone numbers receive one
+WhatsApp message per campaign.
+
+Drafts contain title, Markdown-style body, up to five uploaded images, HTTP(S)
+CTA URL/label, audience and `send_in_app`/`send_whatsapp`. Rendering escapes HTML
+and supports bold, italic, strike, lists and safe links. Campaign notifications
+expose read-only `promotion` content/images and `group_items`. GET
+`/audiences/{id}/preview/` returns an organization sample/count. GET
+`/campaigns/{id}/preview/` returns eligible counts and a signed 15-minute token.
+POST `/campaigns/{id}/publish/` requires `confirm: true` and that token; changed
+content, contacts, audience or channel policies require a fresh preview.
+Publication snapshots recipients, roles and authorized WhatsApp phones, locks
+editing and records an audit event. Shared audience edits do not change existing
+snapshots. POST `/campaigns/{id}/cancel/` stops remaining preparation and queued
+WhatsApp sends; prior deliveries remain in history.
+
+Celery Beat consumes the durable outbox every minute (50 recipients per campaign
+batch, up to 50 pending deliveries queued per pass). `completed` means recipient
+preparation completed; delivery states are separate. Consent, organization
+membership, role, activity and the original phone are checked before WhatsApp
+delivery. Images use WPPConnect `send-file-base64`; confirmed parts are tracked.
+Delivery leases prevent concurrent sends. Interrupted/ambiguous outcomes become
+`unknown` and are never automatically resent. Confirmation is not a read receipt.
+Campaigns use only selected system/WhatsApp channels and are excluded from email
+digests. Saving a draft never sends it.

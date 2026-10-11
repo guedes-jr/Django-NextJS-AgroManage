@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from . import views, notification_views
+from . import views, notification_views, marketing_views
 
 router = DefaultRouter()
 router.register("organizations", views.PlatformOrganizationViewSet, basename="platform-organization")
@@ -23,7 +23,13 @@ router.register("sql-history", views.PlatformSqlHistoryViewSet, basename="platfo
 router.register("sandbox-grants", views.DeveloperSandboxGrantViewSet, basename="platform-sandbox-grant")
 router.register("sandbox-executions", views.SandboxExecutionViewSet, basename="platform-sandbox-execution")
 
+router.register("marketing/audiences", marketing_views.MarketingAudienceViewSet, basename="marketing-audience")
+router.register("marketing/campaigns", marketing_views.MarketingCampaignViewSet, basename="marketing-campaign")
+
 urlpatterns = [
+    path("marketing/options/", marketing_views.marketing_options),
+    path("marketing/images/", marketing_views.marketing_images),
+    path("notifications/metrics/", notification_views.notification_metrics),
     path("notifications/categories/", notification_views.notification_categories, name="platform-notification-categories"),
     path("notifications/categories/<str:category>/", notification_views.notification_category_detail, name="platform-notification-category-detail"),
     path("notifications/history/", notification_views.notification_history, name="platform-notification-history"),

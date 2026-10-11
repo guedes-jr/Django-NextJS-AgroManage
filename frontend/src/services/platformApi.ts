@@ -132,7 +132,7 @@ export type WhatsAppSession = {
   configured: boolean; status: string; connected: boolean; detail: string; checked_at: string; qrcode?: string | null;
 };
 export type WhatsAppAccount = { name: string; phone: string };
-export type WhatsAppDeliveryStatus = "pending" | "sent" | "failed" | "skipped";
+export type WhatsAppDeliveryStatus = "pending" | "sent" | "failed" | "skipped" | "unknown";
 export type WhatsAppAlerts = {
   count: number; next: string | null; previous: string | null;
   overview: { checked_at: string; opted_in_users: number; eligible_users: number; invalid_phone_users: number; alert_types: string[]; counts: Record<WhatsAppDeliveryStatus, number> };

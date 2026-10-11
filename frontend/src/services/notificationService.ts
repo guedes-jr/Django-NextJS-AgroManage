@@ -8,6 +8,8 @@ export interface Notification {
   priority: string;
   title: string;
   message: string;
+  group_items?: {message: string; at: string}[];
+  promotion?: {body: string; images: {id: string; image: string}[]; link_url: string; link_label: string} | null;
   link: string | null;
   is_read: boolean;
   read_at: string | null;

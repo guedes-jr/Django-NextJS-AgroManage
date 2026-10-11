@@ -234,7 +234,7 @@ class WhatsAppAlertsTests(APITestCase):
         self.assertEqual(overview["eligible_users"], 1)
         self.assertEqual(overview["opted_in_users"], 2)
         self.assertEqual(overview["invalid_phone_users"], 1)
-        self.assertEqual(overview["counts"], {"sent": 1, "failed": 1, "pending": 0, "skipped": 0})
+        self.assertEqual(overview["counts"], {"sent": 1, "failed": 1, "pending": 0, "skipped": 0, "unknown": 0})
         self.assertEqual({row["organization"] for row in response.data["results"]}, {"Fazenda A", "Fazenda B"})
 
     def test_disabled_animal_preferences_and_inactive_users_are_excluded(self):
