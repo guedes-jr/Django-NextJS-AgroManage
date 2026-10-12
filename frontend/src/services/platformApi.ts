@@ -11,6 +11,8 @@ import type {
   PlatformPlanPage,
   PlatformSubscriptionPage,
   PlatformFinanceDashboard,
+  PlatformFinanceReport,
+  PlatformInvoiceDetails,
   PlatformInvoicePage,
   PlatformHealth,
   PlatformTaskRunPage,
@@ -390,19 +392,35 @@ export const platformService = {
     const { data } = await platformApi.post(`platform/subscriptions/${id}/discount/`, payload);
     return data;
   },
-  async financeDashboard() {
-    const { data } = await platformApi.get<PlatformFinanceDashboard>("platform/finance/dashboard/");
+  async financeDashboard(params?: Record<string, string | number>) {
+    const { data } = await platformApi.get<PlatformFinanceDashboard>("platform/finance/dashboard/", { params });
     return data;
   },
   async invoices(params?: Record<string, string | number>) {
     const { data } = await platformApi.get<PlatformInvoicePage>("platform/invoices/", { params });
     return data;
   },
+  async financeReport(params: Record<string,string|number>) {
+    return (await platformApi.get<PlatformFinanceReport>("platform/invoices/report/", {params})).data;
+  },
+  async invoiceDetails(id:string) {
+    return (await platformApi.get<PlatformInvoiceDetails>(`platform/invoices/${id}/details/`)).data;
+  },
+  async financeOrganizations() {
+    const results:PlatformOrganization[]=[];
+    let page=1;
+    while(true) {
+      const response=await this.organizations({page,page_size:100});
+      results.push(...response.results);
+      if(!response.next) return results;
+      page++;
+    }
+  },
   async createInvoice(payload: {organization_id:string; due_date:string; description:string; amount:string}) {
     await platformApi.post("platform/invoices/", payload);
   },
-  async recordInvoicePayment(id:string, amount:string, paymentMethod:string) {
-    await platformApi.post(`platform/invoices/${id}/record-payment/`, {amount, payment_method:paymentMethod});
+  async recordInvoicePayment(id:string, amount:string, paymentMethod:string, extra?: {paid_at:string;notes:string}) {
+    await platformApi.post(`platform/invoices/${id}/record-payment/`, {amount, payment_method:paymentMethod, ...extra});
   },
   async supportAccesses(params?: Record<string, string | number>) {
     const { data } = await platformApi.get<PlatformSupportAccessPage>("platform/support-access/", { params });

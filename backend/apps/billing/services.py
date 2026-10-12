@@ -104,10 +104,13 @@ def create_manual_invoice(*, organization, due_date, description, amount, notes=
 
 
 @transaction.atomic
-def record_manual_payment(*, invoice, amount, payment_method="manual", external_id=""):
+def record_manual_payment(*, invoice, amount, payment_method="manual", external_id="", paid_at=None, notes=""):
     invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
     remaining = invoice.total - invoice.amount_paid
-    amount = min(Decimal(amount), remaining)
+    amount = Decimal(amount)
+    if invoice.status in [Invoice.Status.PAID, Invoice.Status.VOID] or amount <= 0 or amount > remaining:
+        raise ValidationError({"amount": "Informe um valor positivo até o saldo em aberto da fatura."})
+    paid_at = paid_at or timezone.now()
     payment = Payment.objects.create(
         invoice=invoice,
         organization=invoice.organization,
@@ -116,13 +119,14 @@ def record_manual_payment(*, invoice, amount, payment_method="manual", external_
         payment_method=payment_method,
         provider="manual",
         external_id=external_id,
-        paid_at=timezone.now(),
+        paid_at=paid_at,
+        metadata={"notes": notes},
     )
     PaymentAttempt.objects.create(payment=payment, succeeded=True)
     invoice.amount_paid += amount
     if invoice.amount_paid >= invoice.total:
         invoice.status = Invoice.Status.PAID
-        invoice.paid_at = timezone.now()
+        invoice.paid_at = max(invoice.payments.filter(status=Payment.Status.SUCCEEDED).values_list("paid_at", flat=True))
     invoice.save(update_fields=["amount_paid", "status", "paid_at", "updated_at"])
     if invoice.status == Invoice.Status.PAID:
         from apps.affiliates.services import create_commission_for_paid_invoice

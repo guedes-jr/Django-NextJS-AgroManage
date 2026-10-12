@@ -1,3 +1,4 @@
+from django.utils import timezone
 from decimal import Decimal
 
 from rest_framework import serializers
@@ -560,6 +561,11 @@ class InvoiceSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(source="organization.name", read_only=True)
     plan_name = serializers.CharField(source="subscription.plan.name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    effective_status = serializers.SerializerMethodField()
+
+    def get_effective_status(self, obj):
+        return "overdue" if obj.status == "open" and obj.due_date < timezone.localdate() else obj.status
+
     amount_due = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
@@ -568,7 +574,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "id", "number", "organization", "organization_name", "subscription", "plan_name",
             "status", "status_display", "currency", "subtotal", "discount_total", "total",
             "amount_paid", "amount_due", "issued_at", "due_date", "paid_at", "external_id",
-            "notes", "created_at", "updated_at",
+            "notes", "created_at", "updated_at", "effective_status",
         )
 
 
@@ -581,6 +587,7 @@ class CreateInvoiceSerializer(serializers.Serializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
+    notes = serializers.CharField(source="metadata.notes", read_only=True, default="")
     invoice_number = serializers.CharField(source="invoice.number", read_only=True)
     organization_name = serializers.CharField(source="organization.name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -590,7 +597,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = (
             "id", "invoice", "invoice_number", "organization", "organization_name", "amount",
             "currency", "status", "status_display", "payment_method", "provider", "external_id",
-            "paid_at", "failure_code", "failure_message", "created_at",
+            "paid_at", "failure_code", "failure_message", "created_at", "notes",
         )
 
 
@@ -598,6 +605,14 @@ class RecordPaymentSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
     payment_method = serializers.CharField(max_length=40, default="manual")
     external_id = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+
+    paid_at = serializers.DateTimeField(required=False)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
+
+    def validate_paid_at(self, value):
+        if value > timezone.now():
+            raise serializers.ValidationError("A data do pagamento não pode ser futura.")
+        return value
 
 
 class SupportAccessGrantSerializer(serializers.ModelSerializer):

@@ -469,3 +469,31 @@ Delivery leases prevent concurrent sends. Interrupted/ambiguous outcomes become
 `unknown` and are never automatically resent. Confirmation is not a read receipt.
 Campaigns use only selected system/WhatsApp channels and are excluded from email
 digests. Saving a draft never sends it.
+
+### Financeiro SaaS da plataforma
+
+`GET /api/v1/platform/finance/dashboard/` e `GET /api/v1/platform/invoices/`
+compartilham `date_from`, `date_to`, `date_field` (`due_date`, `issued_at`, `paid_at`),
+`organization`, `plan`, `status` e `search`. Busca inclui número, organização e
+itens da cobrança. Faturas abertas com vencimento passado têm `effective_status=overdue`;
+o filtro `overdue` inclui essas faturas. Pagamentos parciais entram no filtro por
+data de pagamento sem duplicar faturas. Datas invertidas ou inválidas retornam 400.
+
+MRR/ARR representam assinaturas ativas atuais, considerando descontos vigentes e
+os filtros de organização/plano. Recebimentos consideram pagamentos confirmados
+nas datas selecionadas e vinculados às faturas filtradas; saldos e inadimplência
+consideram as faturas desse mesmo recorte. Inadimplência é a proporção de faturas
+vencidas entre as faturas com saldo em aberto. A resposta mantém `received_month`
+e acrescenta `received_period`, `overdue_amount`, `overdue_rate`, `distribution`,
+`receipts`, `billed` e `invoice_count`.
+
+`GET /api/v1/platform/invoices/{id}/details/` inclui itens e histórico de pagamentos.
+`GET /api/v1/platform/invoices/report/` fornece um snapshot com indicadores, todas
+as faturas filtradas e histórico completo dos seus pagamentos para PDF/Excel.
+Paginação não limita esse relatório; recortes acima de 10.000 faturas retornam 400
+para solicitar filtros mais específicos. Exportações geram auditoria.
+
+`POST /api/v1/platform/invoices/{id}/record-payment/` aceita `paid_at` e `notes`
+opcionais. Data futura, valores não positivos e pagamento superior ao saldo são
+rejeitados. Observações ficam em `Payment.metadata.notes`; nenhuma migração é
+necessária. Escrita permanece restrita aos administradores da plataforma.

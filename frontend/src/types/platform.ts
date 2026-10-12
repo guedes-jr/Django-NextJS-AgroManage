@@ -262,7 +262,7 @@ export interface PlatformSubscription {
 
 export type PlatformSubscriptionPage = PaginatedResponse<PlatformSubscription>;
 
-export interface PlatformFinanceDashboard { mrr:string; arr:string; received_month:string; outstanding:string; active_subscriptions:number; open_invoices:number; overdue_invoices:number; failed_payments:number; }
+export interface PlatformFinanceDashboard { mrr:string; arr:string; received_month:string; outstanding:string; active_subscriptions:number; open_invoices:number; overdue_invoices:number; failed_payments:number; received_period:string; overdue_amount:string; billed:string; overdue_rate:number; invoice_count:number; distribution:{status:string;count:number;total:string}[]; receipts:{month:string;amount:string}[]; }
 export interface PlatformAIOrganization { id:string; name:string; plan:string; enabled:boolean; limit:number|null; used:number; remaining:number|null; users:number; input_tokens:number; output_tokens:number; cost_usd:number; }
 export interface PlatformAIIncident { id:string; organization:string; subject:string; role:string; status:"blocked"|"failed"; error_code:string; created_at:string; }
 export interface PlatformAIConsumption {
@@ -282,7 +282,7 @@ export interface PlatformAIDashboard { period:{start:string;end:string}; metrics
 export interface PlatformAIProvider { id:string; provider:string; display_name:string; base_url:string; is_enabled:boolean; is_default:boolean; timeout_seconds:number; prefer_free_models:boolean; allow_paid_models:boolean; max_model_attempts:number; max_output_tokens:number; credential_configured:boolean; last_health_status:"unknown"|"healthy"|"degraded"|"unavailable"; health_status_display:string; last_health_check_at:string|null; last_health_message:string; created_at:string; updated_at:string; }
 export interface PlatformAIModel { id:string; provider:string; provider_name:string; provider_code:string; external_id:string; display_name:string; endpoint_type:"chat_completions"|"responses"; endpoint_type_display:string; is_free:boolean; is_available:boolean; is_enabled:boolean; is_primary:boolean; priority:number; supports_streaming:boolean; supports_tools:boolean; input_price:string|null; output_price:string|null; context_window:number|null; first_seen_at:string|null; last_seen_at:string|null; last_verified_at:string|null; created_at:string; updated_at:string; }
 export interface PlatformAIModelSyncRun { id:string; provider:string; provider_name:string; status:"running"|"success"|"failure"; status_display:string; trigger:"scheduled"|"manual"; trigger_display:string; started_at:string; finished_at:string|null; models_found:number; free_models_found:number; models_created:number; models_updated:number; models_unavailable:number; added_model_ids:string[]; unavailable_model_ids:string[]; error_class:string; error_message:string; response_summary:Record<string,unknown>; created_at:string; }
-export interface PlatformInvoice { id:string; number:string; organization:string; organization_name:string; plan_name:string; status:string; status_display:string; total:string; amount_paid:string; amount_due:string; due_date:string; paid_at:string|null; created_at:string; }
+export interface PlatformInvoice { effective_status:string; id:string; number:string; organization:string; organization_name:string; plan_name:string; status:string; status_display:string; total:string; amount_paid:string; amount_due:string; due_date:string; paid_at:string|null; created_at:string; }
 export type PlatformInvoicePage = PaginatedResponse<PlatformInvoice>;
 export interface PlatformHealth { status:string; checked_at:string; environment:string; checks:Record<string,{status:string;engine?:string;pending?:number}>; }
 export interface PlatformTaskRun { id:string; task_id:string; task_name:string; status:string; status_display:string; started_at:string|null; finished_at:string|null; duration_ms:number|null; result_summary:string; error_class:string; error_message:string; can_retry:boolean; created_at:string; }
@@ -382,3 +382,7 @@ export interface SandboxExecutionRecord {
 }
 
 export type SandboxExecutionPage = PaginatedResponse<SandboxExecutionRecord>;
+
+export interface PlatformPayment { id:string; invoice:string; invoice_number:string; organization_name:string; amount:string; status:string; status_display:string; payment_method:string; paid_at:string|null; notes:string; }
+export interface PlatformFinanceReport { dashboard:PlatformFinanceDashboard; invoices:PlatformInvoice[]; payments:PlatformPayment[]; generated_at:string; generated_by:string; }
+export interface PlatformInvoiceDetails { invoice:PlatformInvoice; items:{description:string;quantity:string;unit_amount:string;total:string}[]; payments:PlatformPayment[]; }

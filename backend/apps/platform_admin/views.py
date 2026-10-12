@@ -801,36 +801,8 @@ def dashboard_summary(request):
 @api_view(["GET"])
 @permission_classes([IsPlatformStaff])
 def finance_dashboard(request):
-    today = timezone.localdate()
-    month_start = today.replace(day=1)
-    active_subscriptions = Subscription.objects.filter(status=Subscription.Status.ACTIVE).select_related("plan")
-    mrr = Decimal("0")
-    for subscription in active_subscriptions:
-        if subscription.billing_cycle == Subscription.BillingCycle.YEARLY:
-            mrr += subscription.plan.yearly_price / Decimal("12")
-        else:
-            mrr += subscription.plan.monthly_price
-
-    payments = Payment.objects.filter(status=Payment.Status.SUCCEEDED)
-    received_month = sum(
-        payments.filter(paid_at__date__gte=month_start, paid_at__date__lte=today)
-        .values_list("amount", flat=True),
-        Decimal("0"),
-    )
-    open_invoices = Invoice.objects.filter(status__in=[Invoice.Status.OPEN, Invoice.Status.OVERDUE])
-    outstanding = sum((invoice.amount_due for invoice in open_invoices), Decimal("0"))
-    overdue = open_invoices.filter(due_date__lt=today)
-
-    return Response({
-        "mrr": mrr,
-        "arr": mrr * 12,
-        "received_month": received_month,
-        "outstanding": outstanding,
-        "active_subscriptions": active_subscriptions.count(),
-        "open_invoices": open_invoices.count(),
-        "overdue_invoices": overdue.count(),
-        "failed_payments": Payment.objects.filter(status=Payment.Status.FAILED).count(),
-    })
+    from .finance import finance_filters, finance_summary
+    return Response(finance_summary(finance_filters(request.query_params)))
 
 
 @api_view(["GET"])
@@ -1621,13 +1593,34 @@ class PlatformSubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
 
 class PlatformInvoiceViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsPlatformStaff]
-    search_fields = ("number", "organization__name", "organization__document", "external_id")
-    ordering_fields = ("due_date", "total", "status", "created_at")
+    search_fields = ()
+    ordering_fields = ("number", "organization__name", "due_date", "total", "amount_paid", "status", "created_at")
     ordering = ("-due_date",)
-    filterset_fields = ("status", "organization", "subscription")
+    filterset_fields = ()
 
     def get_queryset(self):
-        return Invoice.objects.select_related("organization", "subscription__plan")
+        from .finance import filter_invoices, finance_filters
+        return filter_invoices(Invoice.objects.select_related("organization", "subscription__plan"), finance_filters(self.request.query_params))
+
+    @action(detail=True, methods=["get"], url_path="details")
+    def details(self, request, pk=None):
+        invoice = self.get_object()
+        return Response({"invoice": InvoiceSerializer(invoice).data,
+                         "items": list(invoice.items.values("description", "quantity", "unit_amount", "total")),
+                         "payments": PaymentSerializer(invoice.payments.select_related("invoice", "organization"), many=True).data})
+
+    @action(detail=False, methods=["get"], url_path="report")
+    def report(self, request):
+        from .finance import finance_filters, finance_summary
+        invoices = self.filter_queryset(self.get_queryset())
+        if invoices.count() > 10000:
+            return Response({"detail": "O relatório ultrapassa 10.000 faturas. Refine os filtros para exportar."}, status=400)
+        payments = Payment.objects.filter(invoice__in=invoices).select_related("invoice", "organization")
+        record_platform_action(request=request, action="finance.report_exported", description="Relatório financeiro SaaS exportado.", extra_data={"filters": dict(request.query_params), "format": request.query_params.get("format_type", "report")})
+        return Response({"dashboard": finance_summary(finance_filters(request.query_params)),
+                         "invoices": InvoiceSerializer(invoices, many=True).data,
+                         "payments": PaymentSerializer(payments, many=True).data,
+                         "generated_at": timezone.now(), "generated_by": request.user.full_name})
 
     def get_serializer_class(self):
         if self.action == "create":
