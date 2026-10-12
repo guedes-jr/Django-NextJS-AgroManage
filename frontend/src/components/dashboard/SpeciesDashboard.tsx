@@ -105,7 +105,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
         origin: row.origem === "Comprado" ? "purchased" : row.origem === "Nascido" ? "born" : "donated",
         purchase_value: row.valor ? (parseFloat(row.valor) * (parseInt(row.quantidade, 10) || 1)) || null : null,
         avg_weight_kg: parseFloat(row.peso) || null,
-        entry_date: row.dataCompra || row.nascimento || new Date().toISOString().split('T')[0],
+        entry_date: (row.origem === "Comprado" ? row.dataCompra : row.nascimento) || new Date().toISOString().split('T')[0],
         birth_date: row.nascimento || null,
         status: "active",
         species_code_input: species,

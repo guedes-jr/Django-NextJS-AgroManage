@@ -159,8 +159,10 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
       if (!row.origem || !row.origem.trim()) {
         errors.push(`Registro #${index + 1}: Origem é obrigatória`);
       }
-      if (!row.dataCompra && !row.nascimento) {
-        errors.push(`Registro #${index + 1}: Data de compra ou nascimento é obrigatória`);
+      if (row.origem === "Comprado" && !row.dataCompra) {
+        errors.push(`Registro #${index + 1}: Informe a data de compra. O custo aparecerá nesse período da dashboard.`);
+      } else if (row.origem !== "Comprado" && !row.nascimento) {
+        errors.push(`Registro #${index + 1}: Data de nascimento é obrigatória`);
       }
       // Fase 2: validar fase produtiva para lotes comprados não-reprodutivos
       if (
@@ -465,11 +467,12 @@ export function AnimalFormModal({ isOpen, onClose, type, onSave, initialData }: 
                   </div>
                   <div className="col-12 col-md-3">
                      <div className="login-input-group mb-0">
-                        <label className="login-label">Data de Compra</label>
+                        <label className="login-label">Data de Compra{row.origem === "Comprado" ? " *" : ""}</label>
                         <div className="login-input-wrapper">
                           <input type="date" className={`login-input login-input-icon-left transition-colors ${row.origem !== 'Comprado' ? 'bg-muted opacity-50 cursor-not-allowed' : 'text-muted-foreground'}`} disabled={row.origem !== 'Comprado'} value={row.dataCompra} onChange={(e) => updateRow(row.id, "dataCompra", e.target.value)} />
                           <Calendar className={`login-input-icon ${row.origem !== 'Comprado' ? 'text-muted-foreground opacity-50' : 'text-muted-foreground'}`} size={16} />
                         </div>
+                        {row.origem === "Comprado" && <small className="text-muted-foreground">O valor será contabilizado na dashboard no período desta compra.</small>}
                      </div>
                   </div>
 
