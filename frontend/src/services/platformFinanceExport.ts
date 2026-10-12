@@ -125,10 +125,9 @@ export async function exportFinanceReport(report: PlatformFinanceReport, format:
                     paymentSheet[`C${row}`].z = 'dd/mm/yyyy hh:mm';
             }
             XLSX.utils.book_append_sheet(workbook, paymentSheet, "Pagamentos");
-            // Embed the brand image into the OOXML package; SheetJS already supplies ZIP utilities.
-            const cfb = (XLSX as unknown as {
-                CFB: CompoundTools;
-            }).CFB;
+            // Embed the brand image using the ZIP library already used by SheetJS.
+            const archiveModule = await import("cfb");
+            const cfb = ("default" in archiveModule ? archiveModule.default : archiveModule) as unknown as CompoundTools;
             const archive = cfb.read(new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" })), { type: "array" });
             const encoder = new TextEncoder();
             const decoder = new TextDecoder();
