@@ -102,7 +102,7 @@ def queue_detail(request, pk):
     with transaction.atomic():
         try:
             row = (
-                WhatsAppQueueMessage.objects.select_for_update()
+                WhatsAppQueueMessage.objects.select_for_update(of=("self",))
                 .select_related("organization", "delivery__notification__user")
                 .get(pk=pk)
             )
