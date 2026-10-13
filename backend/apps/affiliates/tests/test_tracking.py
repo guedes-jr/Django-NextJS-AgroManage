@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
+from apps.accounts.tokens import issue_tokens_for_user
 
 from ..models import AffiliateProfile, ReferralAttribution, ReferralVisit
 
@@ -123,6 +124,41 @@ class AffiliateTrackingAPITestCase(APITestCase):
         self.assertEqual(attribution.organization, customer.organization)
         self.assertEqual(attribution.status, ReferralAttribution.Status.REGISTERED)
         self.assertIsNotNone(attribution.registered_at)
+
+    def test_public_registration_ignores_previous_operator_session(self):
+        operator = User.objects.create_user(
+            email="previous-operator@example.com",
+            password="password123",
+            role="operator",
+            operator_read_only=True,
+        )
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {issue_tokens_for_user(operator).access_token}"
+        )
+        tracked = self.track()
+        self.assertEqual(tracked.status_code, status.HTTP_201_CREATED)
+        registered = self.register(
+            email="new-customer@example.com",
+            token=tracked.data["attribution_token"],
+        )
+        self.assertEqual(registered.status_code, status.HTTP_201_CREATED)
+        customer = User.objects.get(email="new-customer@example.com")
+        self.assertEqual(customer.referral_attribution.affiliate, self.affiliate)
+        self.assertEqual(customer.role, "admin")
+        self.assertEqual(
+            self.client.get("/api/v1/platform/whatsapp-web/queue/").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_public_registration_ignores_invalid_authorization_header(self):
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer expired-or-invalid")
+        tracked = self.track()
+        self.assertEqual(tracked.status_code, status.HTTP_201_CREATED)
+        registered = self.register(
+            email="invalid-session-customer@example.com",
+            token=tracked.data["attribution_token"],
+        )
+        self.assertEqual(registered.status_code, status.HTTP_201_CREATED)
 
     def test_invalid_token_does_not_block_registration(self):
         response = self.register(email="invalid-token@example.com", token="tampered-token")

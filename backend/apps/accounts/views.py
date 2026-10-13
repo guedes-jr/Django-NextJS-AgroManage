@@ -6,7 +6,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.text import slugify
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny
 from common.permissions import IsTenantAccessAllowed as IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -238,6 +238,7 @@ def google_login_view(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def register_view(request):
     """Register a new user."""
     # Map frontend 'name' to 'full_name' for the serializer

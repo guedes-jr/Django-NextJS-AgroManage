@@ -65,12 +65,17 @@ apiClient.interceptors.request.use(
       access = localStorage.getItem("support_access_token") || localStorage.getItem("access_token");
 
       const isPublicRoute = 
+        config.url?.startsWith("/public/") ||
         config.url?.includes("/auth/login") || 
         config.url?.includes("/auth/google") ||
         config.url?.includes("/auth/register") || 
         config.url?.includes("/auth/password-recovery") ||
         config.url?.includes("/auth/token/refresh");
       const isAffiliatePortalLogin = config.url?.includes("/affiliates/auth/login");
+
+      if (isPublicRoute || isAffiliatePortalLogin) {
+        config.headers.delete("Authorization");
+      }
 
       if (access && config.headers && !isPublicRoute && !isAffiliatePortalLogin) {
         config.headers["Authorization"] = `Bearer ${access}`;
