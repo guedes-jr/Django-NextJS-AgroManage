@@ -50,6 +50,13 @@ class InventoryTenantIsolationTestCase(APITestCase):
         detail = self.client.get(reverse("inventory-lotes-detail", args=[self.lot_b.id]))
         self.assertEqual(detail.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_navbar_item_search_preserves_tenant_isolation(self):
+        response = self.client.get("/api/v1/inventory/items/", {"search": "Ração A", "page_size": 5})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([str(item["id"]) for item in response.data["results"]], [str(self.item_a.pk)])
+        response = self.client.get("/api/v1/inventory/items/", {"search": "Ração B", "page_size": 5})
+        self.assertEqual(response.data["results"], [])
+
     def test_cannot_create_lot_for_foreign_item_or_supplier(self):
         payload = {
             "item": str(self.item_b.id),

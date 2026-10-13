@@ -63,6 +63,7 @@ class FarmStructureTestCase(APITestCase):
         self.assertEqual(create.status_code, status.HTTP_201_CREATED)
         structure = FarmStructure.objects.get(id=create.data["id"])
         self.assertEqual(structure.created_by, self.operator)
+
         self.assertEqual(
             self.client.patch(
                 reverse("farm-structures-detail", args=[structure.id]), {"name": "Chiqueiro editado"},
@@ -81,6 +82,13 @@ class FarmStructureTestCase(APITestCase):
             self.client.delete(reverse("farm-structures-detail", args=[structure.id])).status_code,
             status.HTTP_204_NO_CONTENT,
         )
+
+    def test_navbar_structure_search_preserves_tenant_isolation(self):
+        response = self.client.get(reverse("farm-structures-list"), {"search": "Curral", "page_size": 5})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([str(item["id"]) for item in response.data["results"]], [str(self.other_structure.pk)])
+        response = self.client.get(reverse("farm-structures-list"), {"search": "externo", "page_size": 5})
+        self.assertEqual(response.data["results"], [])
 
     def test_rejects_foreign_farm_and_returns_summary(self):
         create = self.client.post(

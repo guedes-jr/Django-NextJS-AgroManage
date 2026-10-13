@@ -222,9 +222,14 @@ export function ProdutosDashboard() {
   };
 
   useEffect(() => {
-    fetchItems(1);
+    const initialSearch = searchParams.get("search") || "";
+    let active = true;
+    fetchItems(1, { search: initialSearch }).then(() => {
+      if (active) setSearchTerm(initialSearch);
+    });
+    return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   // Refetch when category or status filter changes (reset to page 1)
   const isFirstRender = useRef(true);

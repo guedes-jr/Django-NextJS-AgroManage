@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
   ChevronRight, Info, Pencil, PiggyBank, Search, Trash2, Warehouse,
   Waves, PanelsTopLeft, Tractor, ListChecks, CircleAlert
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiClient } from "@/services/api";
 import { farmStructureService } from "@/services/farmStructureService";
@@ -58,6 +58,13 @@ const getCategoryPath = (cat: FarmStructureCategory) => {
 };
 
 export default function FarmStructurePage() {
+  return <Suspense fallback={<div className="p-5 text-center text-muted">Carregando estruturas...</div>}><FarmStructureContent /></Suspense>;
+}
+
+function FarmStructureContent() {
+  const searchParams = useSearchParams();
+  const requestedFarm = searchParams.get("farm") || "";
+  const requestedSearch = searchParams.get("search") || "";
   const router = useRouter();
   const { showToast } = useToast();
   const [farms, setFarms] = useState<Farm[]>([]);
@@ -97,16 +104,17 @@ export default function FarmStructurePage() {
     apiClient.get<PaginatedFarms>("/farms/", { params: { page_size: 100 } })
       .then(({ data }) => {
         if (!active) return;
+        setSearch(requestedSearch);
         const available = data.results || [];
         setFarms(available);
-        const initialFarmId = available[0]?.id || "";
+        const initialFarmId = available.find(farm => farm.id === requestedFarm)?.id || available[0]?.id || "";
         setFarmId(initialFarmId);
         if (initialFarmId) void loadStructures(initialFarmId);
         else setLoading(false);
       })
       .catch(() => { if (active) { setError("Não foi possível carregar as fazendas."); setLoading(false); } });
     return () => { active = false; };
-  }, [loadStructures]);
+  }, [loadStructures, requestedFarm, requestedSearch]);
 
   const reportRows = useMemo(() => items
     .flatMap((structure) => [

@@ -533,10 +533,16 @@ Entregas de notificações anteriores são importadas; o conteúdo histórico é
 reconstruído da notificação original. Mensagens individuais antigas cujo texto
 não era persistido não podem ser reconstruídas.
 
-## Navbar livestock search
+## Navbar search
 
 `GET /livestock/animals/?search=<term>&page_size=5` searches animal identifiers
 and the associated batch code/name. `GET /livestock/batches/?search=<term>&page_size=5`
 searches batch codes and names. Both retain existing pagination, tenant isolation
 and operator species restrictions. The dashboard navbar queries these endpoints
 after two characters and opens the existing technical sheet for a selected result.
+
+Navbar search also queries `/inventory/items/?search=<term>&page_size=5` and
+`/farms/structures/?search=<term>&page_size=5` for profiles authorized to open
+those sections. Selecting an inventory result opens `/home/estoque/produtos?search=...`;
+selecting a structure opens `/home/estrutura?farm=...&search=...`, resolving the
+requested farm against the authenticated organization's available farms.
