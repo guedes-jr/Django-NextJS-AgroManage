@@ -27,7 +27,12 @@ def collect_operational_notifications():
     )
     from apps.livestock.operational_alerts import operational_alerts
 
+    from .categories import category_policy
     from .services import NotificationService
+
+    policy = category_policy("animal_cycle")
+    if not policy.enabled or not policy.whatsapp_enabled:
+        return 0
 
     users = (
         User.objects.filter(
@@ -96,7 +101,12 @@ def collect_operational_notifications():
                 ):
                     continue
                 key = event_key(user.organization, code, alert)
-                if Notification.objects.filter(user=user, event_key=key).exists():
+                existing = Notification.objects.filter(user=user, event_key=key).first()
+                if existing:
+                    if not existing.deliveries.filter(channel="whatsapp_web").exists():
+                        NotificationService.schedule_external_delivery(
+                            existing, only_channels=["whatsapp_web"]
+                        )
                     continue
                 notification = NotificationService.create(
                     user,

@@ -385,3 +385,51 @@ class OperationalQueueTests(APITestCase):
                 ).status_code,
                 400,
             )
+
+    def test_restocked_item_cancels_pending_low_stock_message(self):
+        from apps.inventory.models import ItemEstoque, LoteEstoque
+        from apps.notifications.services import NotificationService
+
+        item = ItemEstoque.objects.create(
+            organization=self.org,
+            nome="Ração",
+            categoria="racao",
+            unidade_medida="kg",
+            estoque_minimo=10,
+        )
+        n = NotificationService.create(
+            user=self.user,
+            title="Estoque baixo",
+            message="Saldo baixo",
+            notif_type="stock",
+            event_key=f"inventory.low_stock:{item.pk}",
+        )
+        row = WhatsAppQueueMessage.objects.get(delivery__notification=n)
+        LoteEstoque.objects.create(
+            item=item,
+            numero_lote="REPOSICAO",
+            data_entrada=timezone.localdate(),
+            quantidade_inicial=20,
+            quantidade_atual=20,
+        )
+        with patch("common.wppconnect.wpp_request") as transport:
+            dispatch_queue_message(row.pk)
+        row.refresh_from_db()
+        self.assertEqual(row.status, "skipped")
+        transport.assert_not_called()
+
+    def test_category_off_then_on_queues_current_alerts_without_duplicates(self):
+        from apps.notifications.models import NotificationCategoryPolicy
+
+        policy = NotificationCategoryPolicy.objects.get(category="animal_cycle")
+        policy.whatsapp_enabled = False
+        policy.save()
+        collect_operational_notifications()
+        self.assertFalse(WhatsAppQueueMessage.objects.exists())
+        policy.whatsapp_enabled = True
+        policy.save()
+        collect_operational_notifications()
+        self.assertTrue(WhatsAppQueueMessage.objects.exists())
+        count = WhatsAppQueueMessage.objects.count()
+        collect_operational_notifications()
+        self.assertEqual(WhatsAppQueueMessage.objects.count(), count)

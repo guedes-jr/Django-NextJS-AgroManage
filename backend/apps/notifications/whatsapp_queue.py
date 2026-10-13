@@ -194,11 +194,37 @@ def operational_message_active(row):
         or not n.user.organization.is_active
     ):
         return False
-    if not n.event_key.startswith("livestock.operational:"):
-        return True
     # An administrator may explicitly resend historical content; consent and scope
     # are still enforced by dispatch_notification immediately before transport.
     if row.history and row.history[-1].get("action") == "resend":
+        return True
+    if n.type == "stock" and n.event_key.startswith("inventory.low_stock:"):
+        from uuid import UUID
+
+        from django.db.models import Sum
+
+        from apps.inventory.models import ItemEstoque
+
+        try:
+            item_id = UUID(n.event_key.split(":", 1)[1])
+        except (ValueError, TypeError):
+            return False
+        item = ItemEstoque.objects.filter(
+            pk=item_id,
+            organization_id=n.user.organization_id,
+            ativo=True,
+            estoque_minimo__gt=0,
+        ).first()
+        if not item:
+            return False
+        quantity = (
+            item.lotes.filter(ativo=True).aggregate(total=Sum("quantidade_atual"))[
+                "total"
+            ]
+            or 0
+        )
+        return quantity <= item.estoque_minimo
+    if not n.event_key.startswith("livestock.operational:"):
         return True
     from apps.livestock.models import AcknowledgedOperationalAlert
     from apps.livestock.operational_alerts import operational_alerts

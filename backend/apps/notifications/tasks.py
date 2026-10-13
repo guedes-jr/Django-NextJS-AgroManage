@@ -264,10 +264,10 @@ def check_stock_levels_notifications():
 
     from .services import NotificationService
 
-    items = ItemEstoque.objects.filter(estoque_minimo__gt=0)
+    items = ItemEstoque.objects.filter(estoque_minimo__gt=0, ativo=True)
 
     for item in items:
-        total_qty = LoteEstoque.objects.filter(item=item).aggregate(
+        total_qty = LoteEstoque.objects.filter(item=item, ativo=True).aggregate(
             total=Sum("quantidade_atual")
         )["total"] or 0
 
