@@ -8,7 +8,6 @@ import { useOrganizationAccess } from "@/components/auth/OrganizationAccessConte
 import { searchNavbar, type NavbarSearchResult } from "@/services/navbarSearch";
 import styles from "./NavbarSearch.module.css";
 
-const AnimalSheet = dynamic(() => import("@/components/animal/AnimalTechnicalSheetModal").then(module => module.AnimalTechnicalSheetModal));
 const BatchSheet = dynamic(() => import("@/components/animal/BatchTechnicalSheetModal").then(module => module.BatchTechnicalSheetModal));
 
 export function NavbarSearch() {
@@ -98,7 +97,6 @@ export function NavbarSearch() {
         <div className={styles.footer}>Selecione um resultado para consultar seus detalhes.</div>
       </div>}
     </div>
-    {selected?.kind === "animal" && <AnimalSheet isOpen animalId={selected.id} mode="animal" onClose={closeSheet} />}
     {selected?.kind === "batch" && <BatchSheet isOpen batchId={selected.id} onClose={closeSheet} />}
   </>;
 }

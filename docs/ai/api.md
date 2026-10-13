@@ -539,7 +539,8 @@ não era persistido não podem ser reconstruídas.
 and the associated batch code/name. `GET /livestock/batches/?search=<term>&page_size=5`
 searches batch codes and names. Both retain existing pagination, tenant isolation
 and operator species restrictions. The dashboard navbar queries these endpoints
-after two characters and opens the existing technical sheet for a selected result.
+after two characters. Animal results navigate to the individual pig page, or the
+species page for other species; batch results open the existing technical sheet.
 
 Navbar search also queries `/inventory/items/?search=<term>&page_size=5` and
 `/farms/structures/?search=<term>&page_size=5` for profiles authorized to open

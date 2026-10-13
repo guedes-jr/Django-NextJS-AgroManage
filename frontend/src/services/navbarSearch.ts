@@ -27,6 +27,9 @@ export async function searchNavbar(query: string, signal: AbortSignal, access: O
           id: animal.id, kind: "animal", label: animal.identifier,
           species: animal.species_name || speciesLabels[animal.species_code] || animal.species_code,
           farm: animal.farm_name,
+          href: animal.species_code === "suinos"
+            ? `/home/rebanho/suinos/animal/${encodeURIComponent(animal.id)}`
+            : `/home/rebanho/${encodeURIComponent(animal.species_code)}`,
         }))),
       apiClient.get<SearchPage<BatchHit> | BatchHit[]>("/livestock/batches/", { params, signal })
         .then(({ data }) => rows(data).map((batch): NavbarSearchResult => ({
