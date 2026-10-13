@@ -21,6 +21,8 @@ def visible_notifications(queryset, user):
     from apps.livestock.models import Birth, Litter, Mating
 
     allowed = Q(category__in=["system", "marketing"])
+    for code in user.allowed_livestock.values_list('code',flat=True):
+        allowed |= Q(category='animal_cycle',event_key__startswith=f'livestock.operational:{user.organization_id}:{code}:')
     for model, prefix in [
         (Birth, "livestock.reproductive_vaccine.birth:"),
         (Mating, "livestock.reproductive_vaccine.mating:"),
@@ -49,6 +51,9 @@ def event_allowed(user, category, event_key):
 
     from apps.livestock.models import Birth, Litter, Mating
 
+    if category == 'animal_cycle' and event_key.startswith('livestock.operational:'):
+        parts=event_key.split(':')
+        return len(parts)==5 and parts[1]==str(user.organization_id) and user.allowed_livestock.filter(code=parts[2]).exists()
     if category != "animal_cycle":
         return False
     for model, prefix in [

@@ -1,7 +1,7 @@
 """Classification and platform-wide delivery limits for notification categories."""
 from .models import NotificationCategory, NotificationCategoryPolicy, NotificationType
 
-CYCLE_PREFIXES = ("livestock.reproductive_vaccine.", "livestock.next_mating:")
+CYCLE_PREFIXES = ("livestock.reproductive_vaccine.", "livestock.next_mating:", "livestock.operational:")
 
 
 def classify_notification(notification_type, event_key="", category=None):
@@ -22,7 +22,7 @@ def category_policy(category):
     policy = NotificationCategoryPolicy.objects.filter(category=category).first()
     return policy or NotificationCategoryPolicy(
         category=category, enabled=category != NotificationCategory.MARKETING,
-        whatsapp_enabled=category == NotificationCategory.ANIMAL_CYCLE,
+        whatsapp_enabled=category in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.ANIMAL, NotificationCategory.STOCK),
     )
 
 

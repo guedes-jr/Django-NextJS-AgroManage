@@ -24,8 +24,8 @@ class CategoryPolicySerializer(serializers.ModelSerializer):
         read_only_fields = ("category", "label", "updated_at")
 
     def validate(self, attrs):
-        if attrs.get("whatsapp_enabled") and self.instance.category not in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.MARKETING):
-            raise serializers.ValidationError({"whatsapp_enabled": "O WhatsApp está disponível para ciclos reprodutivos e campanhas de propaganda com adesão."})
+        if attrs.get("whatsapp_enabled") and self.instance.category not in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.ANIMAL, NotificationCategory.STOCK, NotificationCategory.MARKETING):
+            raise serializers.ValidationError({"whatsapp_enabled": "O WhatsApp está disponível para alertas operacionais de animais, estoque e campanhas com adesão."})
         for field, maximum in (("repeat_cooldown_minutes", 10080), ("group_similar_minutes", 60), ("max_per_day", 5000)):
             if field in attrs and attrs[field] > maximum:
                 raise serializers.ValidationError({field: f"O máximo permitido é {maximum}."})
@@ -39,7 +39,7 @@ def notification_categories(request):
     policies = {row.category: row for row in NotificationCategoryPolicy.objects.all()}
     results = []
     for category, label in NotificationCategory.choices:
-        policy = policies.get(category) or NotificationCategoryPolicy(category=category, enabled=category != "marketing", whatsapp_enabled=category == "animal_cycle")
+        policy = policies.get(category) or NotificationCategoryPolicy(category=category, enabled=category != "marketing", whatsapp_enabled=category in ("animal_cycle", "animal", "stock"))
         results.append({**CategoryPolicySerializer(policy).data, "count": counts.get(category, 0)})
     return Response({"results": results})
 
@@ -50,7 +50,7 @@ def notification_category_detail(request, category):
     if category not in NotificationCategory.values:
         return Response({"detail": "Categoria não encontrada."}, status=404)
     with transaction.atomic():
-        policy, _ = NotificationCategoryPolicy.objects.get_or_create(category=category, defaults={"enabled": category != "marketing", "whatsapp_enabled": category == "animal_cycle"})
+        policy, _ = NotificationCategoryPolicy.objects.get_or_create(category=category, defaults={"enabled": category != "marketing", "whatsapp_enabled": category in ("animal_cycle", "animal", "stock")})
         policy = NotificationCategoryPolicy.objects.select_for_update().get(pk=policy.pk)
         serializer = CategoryPolicySerializer(policy, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

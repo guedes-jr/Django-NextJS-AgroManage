@@ -1,3 +1,4 @@
+from . import whatsapp_queue
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
@@ -45,6 +46,8 @@ urlpatterns = [
     path("whatsapp-web/sessions/", views.whatsapp_web_sessions, name="platform-whatsapp-web-sessions"),
     path("whatsapp-web/sessions/<str:session_name>/action/", views.whatsapp_web_session_action, name="platform-whatsapp-web-session-action"),
     path("whatsapp-web/restart-service/", views.whatsapp_web_restart_service, name="platform-whatsapp-web-restart-service"),
+    path("whatsapp-web/queue/", whatsapp_queue.queue_list),
+    path("whatsapp-web/queue/<uuid:pk>/", whatsapp_queue.queue_detail),
     path("whatsapp-web/alerts/", views.whatsapp_web_alerts, name="platform-whatsapp-web-alerts"),
     path("whatsapp-web/messages/", views.whatsapp_web_messages, name="platform-whatsapp-web-messages"),
     path("commercial/dashboard/", views.commercial_dashboard, name="platform-commercial-dashboard"),

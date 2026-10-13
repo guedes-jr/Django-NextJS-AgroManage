@@ -97,13 +97,13 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <MessageCircle size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Alertas reprodutivos pelo WhatsApp</h4>
-            <p className="extra-small text-muted-foreground mb-0">Receba vacina e próxima cobertura no telefone cadastrado no seu perfil.</p>
+            <h4 className="fw-bold small mb-1">Alertas operacionais pelo WhatsApp</h4>
+            <p className="extra-small text-muted-foreground mb-0">Receba avisos de manejo, vacinas, cobertura, parto, desmame, transferências e estoque no telefone cadastrado.</p>
           </div>
         </div>
         <div className="form-check form-switch">
           <input className="form-check-input" type="checkbox" id="whatsapp_reproductive_alerts" checked={preferences.whatsapp_reproductive_alerts} onChange={e => setPreferences({...preferences, whatsapp_reproductive_alerts: e.target.checked})}/>
-          <label className="form-check-label small" htmlFor="whatsapp_reproductive_alerts">Ativar alertas reprodutivos por WhatsApp</label>
+          <label className="form-check-label small" htmlFor="whatsapp_reproductive_alerts">Ativar alertas operacionais por WhatsApp</label>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from django.db.models import Q
 
 
@@ -255,3 +256,29 @@ class MarketingRecipient(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["campaign", "user"], name="unique_campaign_recipient")]
+
+
+class WhatsAppQueueMessage(models.Model):
+    """Durable outbox for notification deliveries and administrator messages."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    delivery = models.OneToOneField(NotificationDelivery, null=True, blank=True, on_delete=models.CASCADE, related_name='whatsapp_message')
+    organization = models.ForeignKey('organizations.Organization', null=True, blank=True, on_delete=models.SET_NULL)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    recipient = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=30)
+    title = models.CharField(max_length=200, blank=True)
+    body = models.TextField()
+    is_edited = models.BooleanField(default=False)
+    last_enqueued_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=NotificationDelivery.Status.choices, default='pending', db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    processing_until = models.DateTimeField(null=True, blank=True)
+    scheduled_for = models.DateTimeField(default=timezone.now, db_index=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    history = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-pk']

@@ -260,7 +260,8 @@ CELERY_BEAT_SCHEDULE = {
     "notifications-weekly-digest": {"task": "apps.notifications.tasks.send_weekly_notifications_digest", "schedule": crontab(minute=0, hour=7, day_of_week="monday")},
     "notifications-overdue-finance": {"task": "apps.notifications.tasks.check_overdue_transactions_notifications", "schedule": crontab(minute=10, hour=6)},
     "notifications-stock-levels": {"task": "apps.notifications.tasks.check_stock_levels_notifications", "schedule": crontab(minute=0, hour="*/6")},
-    "notifications-reproductive-vaccines": {"task": "apps.notifications.tasks.check_reproductive_vaccine_notifications", "schedule": crontab(minute=20, hour=6)},
+    "notifications-operational-alerts": {"task": "apps.notifications.tasks.check_operational_notifications", "schedule": 120.0},
+    "whatsapp-outbox": {"task": "apps.notifications.tasks.process_whatsapp_outbox", "schedule": 30.0},
     "notifications-cleanup": {"task": "apps.notifications.tasks.cleanup_old_notifications", "schedule": crontab(minute=30, hour=3, day_of_week="sunday")},
     "sync-opencode-zen-models-weekly": {
         "task": "apps.ai_assistant.tasks.sync_opencode_zen_models_task",

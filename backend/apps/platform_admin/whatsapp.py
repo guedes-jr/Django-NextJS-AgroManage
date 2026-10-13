@@ -35,10 +35,11 @@ def alert_overview():
     opted_in = users.count()
     eligible = 0
     invalid_phone = 0
-    for phone, role in users.values_list("phone", "role").iterator():
+    for user in users.prefetch_related("allowed_livestock").iterator(chunk_size=100):
+        phone,role=user.phone,user.role
         if not _whatsapp_phone(phone):
             invalid_phone += 1
-        elif role in ("admin"):
+        elif role in ("admin", "manager") or (role == "operator" and user.allowed_livestock.exists()):
             # Scheduled reproductive events use create_for_organization's default roles.
             eligible += 1
     deliveries = NotificationDelivery.objects.filter(channel=NotificationDelivery.Channel.WHATSAPP_WEB)
@@ -48,7 +49,7 @@ def alert_overview():
         "checked_at": timezone.now().isoformat(),
         "opted_in_users": opted_in, "eligible_users": eligible,
         "invalid_phone_users": invalid_phone,
-        "alert_types": ["Vacinas reprodutivas programadas", "Próxima cobertura"],
+        "alert_types": ["Vacinas e aplicação de ferro", "Cio e cobertura", "Diagnóstico de prenhez", "Parto e desmame", "Transferências e pesos", "Estoque baixo"],
         "counts": counts,
     }
 

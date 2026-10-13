@@ -44,7 +44,12 @@ def _send_whatsapp_web(notification, delivery=None):
     if not is_configured() or not phone:
         return False, "Integração WhatsApp não configurada ou usuário sem telefone brasileiro válido."
     message = plain_message(notification.campaign) if marketing else notification_text(notification)
-    parts = [('send-message', {'message': f"*{notification.title}*\n{message}"})]
+    from .whatsapp_queue import queue_notification
+    queued = queue_notification(delivery) if delivery else None
+    if queued and queued.phone != phone:
+        queued.phone=phone
+        queued.save(update_fields=['phone','updated_at'])
+    parts = [('send-message', {'message': queued.body if queued else f"*{notification.title}*\n{message}"})]
     if marketing:
         for asset in notification.campaign.images.order_by('created_at', 'pk'):
             with asset.image.open('rb') as source:
@@ -63,7 +68,7 @@ def _send_whatsapp_web(notification, delivery=None):
 
 
 @shared_task(bind=True)
-def dispatch_notification(self, notification_id):
+def dispatch_notification(self, notification_id, channels=None):
     """Entrega uma notificação pendente nos canais externos configurados."""
     from django.conf import settings
 
@@ -75,6 +80,8 @@ def dispatch_notification(self, notification_id):
 
     notification = Notification.objects.select_related("user", "campaign", "marketing_recipient__organization").get(pk=notification_id)
     deliveries = notification.deliveries.filter(status__in=[NotificationDelivery.Status.PENDING, NotificationDelivery.Status.FAILED])
+    if channels is not None:
+        deliveries = deliveries.filter(channel__in=channels)
     for candidate in deliveries:
         with db_transaction.atomic():
             delivery = NotificationDelivery.objects.select_for_update().get(pk=candidate.pk)
@@ -89,12 +96,20 @@ def dispatch_notification(self, notification_id):
             delivery.attempt_token = uuid.uuid4()
             delivery.attempts += 1
             delivery.save(update_fields=['processing_until', 'attempt_token', 'attempts', 'updated_at'])
+        if delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+            from .whatsapp_queue import queue_notification
+            from .models import WhatsAppQueueMessage
+            queued=queue_notification(delivery)
+            WhatsAppQueueMessage.objects.filter(pk=queued.pk).update(processing_until=delivery.processing_until)
         delivery.last_error = ""
         try:
             if not event_allowed(notification.user, notification.category, notification.event_key) or not notification.user.is_active or not NotificationService.should_notify(notification.user, notification.type, notification.category) or not channel_allowed(notification, delivery.channel):
                 delivery.status = NotificationDelivery.Status.SKIPPED
                 delivery.last_error = "Entrega suspensa pelas preferências do usuário ou pela configuração da categoria."
                 delivery.save(update_fields=("attempts", "status", "last_error", "updated_at"))
+                if delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+                    from .whatsapp_queue import sync_delivery
+                    sync_delivery(delivery)
                 continue
             if delivery.channel == NotificationDelivery.Channel.EMAIL:
                 sent = EmailNotificationService.send_notification_email(notification.user, notification)
@@ -146,9 +161,15 @@ def dispatch_notification(self, notification_id):
             delivery.last_error = "Resultado não confirmado pelo serviço; reenvio automático suspenso."
             delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "processing_until", "updated_at"))
             logger.warning("Entrega %s sem confirmação", delivery.pk)
+            if delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+                from .whatsapp_queue import sync_delivery
+                sync_delivery(delivery)
             continue
         delivery.processing_until = None
         delivery.save(update_fields=("attempts", "status", "last_error", "delivered_at", "processing_until", "updated_at"))
+        if delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+            from .whatsapp_queue import sync_delivery
+            sync_delivery(delivery)
     return deliveries.count()
 
 
@@ -307,3 +328,49 @@ def process_marketing_outbox():
     ids = NotificationDelivery.objects.filter(notification__campaign__isnull=False, status='pending').values_list('notification_id', flat=True).distinct()[:50]
     for notification_id in ids:
         dispatch_notification.delay(str(notification_id))
+
+
+@shared_task
+def check_operational_notifications():
+    from .operational import collect_operational_notifications
+    created=collect_operational_notifications()
+    check_stock_levels_notifications()
+    return {'created':created}
+
+
+@shared_task
+def send_whatsapp_queue_message(message_id):
+    from .whatsapp_queue import dispatch_queue_message
+    dispatch_queue_message(message_id)
+
+
+@shared_task
+def process_whatsapp_outbox():
+    from django.db.models import Q
+    from common.wppconnect import is_configured, is_connected, wpp_request
+    from .models import WhatsAppQueueMessage, NotificationDelivery
+    from .whatsapp_queue import queue_notification, dispatch_queue_message
+    now=timezone.now()
+    for delivery in NotificationDelivery.objects.filter(channel='whatsapp_web',status='pending',whatsapp_message__isnull=True).select_related('notification__user__organization','notification__campaign')[:100]:
+        queue_notification(delivery)
+    expired=WhatsAppQueueMessage.objects.filter(status='pending',processing_until__lte=now).values_list('pk',flat=True)[:100]
+    for pk in list(expired):
+        dispatch_queue_message(pk)
+    state,detail=wpp_request('status-session') if is_configured() else (None,'Integração não configurada')
+    if detail or not state or not is_connected(state):
+        return {'queued':0,'waiting_connection':True}
+    eligible=Q(last_enqueued_at__isnull=True)|Q(last_enqueued_at__lte=now-timedelta(minutes=2))
+    ids=list(WhatsAppQueueMessage.objects.filter(eligible,status='pending',processing_until__isnull=True,scheduled_for__lte=now).order_by('scheduled_for').values_list('pk',flat=True)[:100])
+    queued=0
+    for pk in ids:
+        with db_transaction.atomic():
+            row=WhatsAppQueueMessage.objects.select_for_update().get(pk=pk)
+            if row.status!='pending' or row.processing_until or (row.last_enqueued_at and row.last_enqueued_at>now-timedelta(minutes=2)):
+                continue
+            row.last_enqueued_at=now;row.save(update_fields=['last_enqueued_at','updated_at'])
+        try:
+            send_whatsapp_queue_message.delay(str(pk));queued+=1
+        except Exception:  # noqa: BLE001 -- durable queue recovers broker unavailability
+            WhatsAppQueueMessage.objects.filter(pk=pk,last_enqueued_at=now).update(last_enqueued_at=None)
+            logger.warning('Não foi possível enfileirar o processamento WhatsApp.')
+    return {'queued':queued}

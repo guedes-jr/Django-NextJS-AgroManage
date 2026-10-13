@@ -243,10 +243,10 @@ def whatsapp_web_messages(request):
     message = str(request.data.get("message", "")).strip()
     if len(phone) not in (12, 13) or not phone.startswith("55") or not message or len(message) > 4096:
         return Response({"detail": "Informe um número brasileiro com DDI e uma mensagem de até 4096 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
-    data, detail = _wpp_request("send-message", method="POST", payload={"phone": phone, "isGroup": False, "message": message})
-    if detail: return Response({"detail": detail}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    record_platform_action(request=request, action="whatsapp.individual_message_sent", object_type="WhatsAppWeb", object_id=phone, description="Mensagem individual enviada pelo WhatsApp Web.")
-    return Response({"status": data.get("status", "sent")})
+    from apps.notifications.models import WhatsAppQueueMessage
+    row=WhatsAppQueueMessage.objects.create(phone=phone,body=message,title="Mensagem individual",created_by=request.user)
+    record_platform_action(request=request, action="whatsapp.individual_message_queued", object_type="WhatsAppQueueMessage", object_id=row.pk, description="Mensagem individual adicionada à fila.")
+    return Response({"status": "queued", "id": str(row.pk)})
 
 
 @api_view(["GET"])

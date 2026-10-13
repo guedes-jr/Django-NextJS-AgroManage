@@ -497,3 +497,38 @@ para solicitar filtros mais específicos. Exportações geram auditoria.
 opcionais. Data futura, valores não positivos e pagamento superior ao saldo são
 rejeitados. Observações ficam em `Payment.metadata.notes`; nenhuma migração é
 necessária. Escrita permanece restrita aos administradores da plataforma.
+
+### Rotina e fila WhatsApp
+
+Alertas operacionais de animais são consultados a cada 120 segundos, sem depender
+que alguém abra a dashboard. Os seletores de datas são compartilhados com as
+views de manejo: vacinas, ferro, diagnóstico, cio/cobertura, parto e transferências;
+limiares operacionais incluem desmame, mortalidade, lotes aptos para mudança de
+fase e ausência de peso. Os avisos antecipados entram no envio. Cada evento tem
+uma chave por organização, espécie, identidade e etapa (`scheduled`, `due`,
+`overdue` ou `active`), evitando repetição a cada consulta. Confirmações do usuário
+suprimem novos envios e mensagens automáticas pendentes. Operadores só recebem
+sobre espécies autorizadas. Os controles globais, consentimento e telefone
+WhatsApp continuam obrigatórios; o campo legado `whatsapp_reproductive_alerts`
+passa a representar a adesão aos alertas operacionais.
+
+A consulta periódica também verifica estoque baixo. WhatsApp de estoque e
+animais fica disponível nos controles de categoria. Sistema, financeiro e
+propagandas não são habilitados por esta atualização.
+
+`GET /api/v1/platform/whatsapp-web/queue/` lista a fila persistente, com paginação,
+`status`, `search`, conteúdo, tentativas, erros e histórico. `GET/PATCH/POST
+/api/v1/platform/whatsapp-web/queue/{id}/` consulta, edita `body` (até 4096
+caracteres) ou solicita reenvio. Apenas administradores da plataforma acessam.
+Reenvio de resultado `sent` ou `unknown` exige `confirm_resend=true`. Tentativas
+em processamento bloqueiam edição/reenvio. Edição afeta somente aquela mensagem,
+não a configuração do evento ou conteúdo já recebido. Consentimento e acesso
+continuam revalidados no envio, inclusive em reenvios manuais.
+
+Mensagens individuais de `POST /platform/whatsapp-web/messages/` agora retornam
+`status=queued` e `id`: entram na mesma fila, processada a cada 30 segundos.
+A falta de conexão mantém mensagens pendentes. Falhas de resultado ambíguo ficam
+`unknown` sem reenvio automático. Cada tentativa e edição fica registrada.
+Entregas de notificações anteriores são importadas; o conteúdo histórico é
+reconstruído da notificação original. Mensagens individuais antigas cujo texto
+não era persistido não podem ser reconstruídas.

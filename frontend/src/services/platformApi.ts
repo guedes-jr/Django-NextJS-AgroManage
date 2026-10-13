@@ -146,6 +146,8 @@ export type WhatsAppManagedSession = {
   elapsed_seconds: number; suspected_stuck: boolean; last_error: string;
   detail: string; configured_session: boolean; can_close: boolean; can_reconnect: boolean;
 };
+export type WhatsAppQueueMessage = {id:string;title:string;recipient:string;phone:string;organization_name:string;category:string;body:string;status:WhatsAppDeliveryStatus;status_display:string;attempts:number;last_error:string;processing_until:string|null;scheduled_for:string;created_at:string;delivered_at:string|null;updated_at:string;is_edited:boolean;history:{at:string;action:string;status?:string;body?:string;previous_body?:string;actor?:string;error?:string;note?:string}[]};
+export type WhatsAppQueuePage = {count:number;next:string|null;previous:string|null;results:WhatsAppQueueMessage[];counts:Partial<Record<WhatsAppDeliveryStatus,number>>;routine:{check_seconds:number;dispatch_seconds:number;last_check?:{status:string;started_at:string|null;finished_at:string|null}|null}};
 export type WhatsAppSessionList = {
   results: WhatsAppManagedSession[]; count: number; page: number; has_next: boolean;
   detail: string; checked_at: string; recovery_enabled: boolean;
@@ -392,6 +394,9 @@ export const platformService = {
     const { data } = await platformApi.post(`platform/subscriptions/${id}/discount/`, payload);
     return data;
   },
+  async whatsappQueue(params?:Record<string,string|number>){return (await platformApi.get<WhatsAppQueuePage>("platform/whatsapp-web/queue/",{params})).data;},
+  async editWhatsAppQueue(id:string,body:string){return (await platformApi.patch<WhatsAppQueueMessage>(`platform/whatsapp-web/queue/${id}/`,{body})).data;},
+  async resendWhatsAppQueue(id:string){return (await platformApi.post<WhatsAppQueueMessage>(`platform/whatsapp-web/queue/${id}/`,{confirm_resend:true})).data;},
   async financeDashboard(params?: Record<string, string | number>) {
     const { data } = await platformApi.get<PlatformFinanceDashboard>("platform/finance/dashboard/", { params });
     return data;

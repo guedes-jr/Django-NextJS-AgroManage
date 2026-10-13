@@ -29,10 +29,12 @@ class NotificationService:
         notification, created = create_guarded(user, title, message, notif_type, priority, link, event_key, category, policy, campaign=campaign, in_app=in_app)
         if created and schedule:
             NotificationService.schedule_external_delivery(notification, policy=policy)
+        elif schedule and notification and not notification.deliveries.filter(channel='whatsapp_web').exists():
+            NotificationService.schedule_external_delivery(notification,policy=policy,only_channels=['whatsapp_web'])
         return notification
 
     @staticmethod
-    def schedule_external_delivery(notification, policy=None):
+    def schedule_external_delivery(notification, policy=None, only_channels=None):
         from .models import NotificationDelivery
         from .tasks import dispatch_notification
 
@@ -47,28 +49,34 @@ class NotificationService:
         if (
             pref.whatsapp_reproductive_alerts
             and notification.user.phone_is_whatsapp
-            and notification.type == NotificationType.ANIMAL
-            and NotificationService.is_reproductive_whatsapp_alert(notification)
+            and (notification.type == NotificationType.STOCK or NotificationService.is_reproductive_whatsapp_alert(notification))
         ):
             channels.append(NotificationDelivery.Channel.WHATSAPP_WEB)
         policy = policy or category_policy(notification.category)
         channels = [channel for channel in channels if channel_allowed(notification, channel, policy)]
+        if only_channels is not None:
+            channels = [channel for channel in channels if channel in only_channels]
         for channel in channels:
-            NotificationDelivery.objects.get_or_create(notification=notification, channel=channel)
-        if channels:
+            delivery, _ = NotificationDelivery.objects.get_or_create(notification=notification, channel=channel)
+            if channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+                from .whatsapp_queue import queue_notification
+                queue_notification(delivery)
+        immediate_channels = [c for c in channels if c != NotificationDelivery.Channel.WHATSAPP_WEB]
+        if immediate_channels:
             def enqueue():
                 try:
-                    dispatch_notification.apply_async(args=[str(notification.id)], countdown=policy.group_similar_minutes * 60 if notification.priority != "urgent" and notification.campaign_id is None else 0)
+                    dispatch_notification.apply_async(args=[str(notification.id)], kwargs={"channels": immediate_channels}, countdown=policy.group_similar_minutes * 60 if notification.priority != "urgent" and notification.campaign_id is None else 0)
                 except Exception:
                     logger.exception("Não foi possível enfileirar a entrega da notificação %s", notification.id)
             transaction.on_commit(enqueue)
 
     @staticmethod
     def is_reproductive_whatsapp_alert(notification):
-        """Only explicitly approved reproductive events may reach WhatsApp."""
+        """Only approved operational events may reach WhatsApp."""
         return notification.event_key.startswith((
             "livestock.reproductive_vaccine.",
             "livestock.next_mating:",
+            "livestock.operational:",
         ))
 
     @staticmethod
