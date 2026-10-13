@@ -1,0 +1,22 @@
+.wrapper { position:relative; width:100%; max-width:520px; min-width:0; }
+.input { width:100%; max-width:none; }
+.input input { border:0; background:transparent; width:100%; min-width:0; outline:none; color:var(--foreground); font-size:.9rem; }
+.input:focus-within { outline:2px solid #16a34a; outline-offset:2px; }
+.input input:disabled { cursor:not-allowed; opacity:.6; }
+.input input::-webkit-search-cancel-button { display:none; }
+.input button { border:0; background:transparent; color:var(--muted-foreground); display:flex; padding:4px; border-radius:6px; }
+.dropdown { position:absolute; top:calc(100% + 9px); left:0; right:0; min-width:280px; background:var(--background); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px #0002; z-index:50; overflow:hidden; }
+.heading { padding:12px 14px; font-size:.8rem; font-weight:700; border-bottom:1px solid var(--border); }
+.heading span { display:block; margin-top:2px; font-size:.7rem; font-weight:400; color:var(--muted-foreground); }
+.status { padding:18px 14px; font-size:.8rem; color:var(--muted-foreground); align-items:center; gap:8px; }
+.status:not([hidden]) { display:flex; }
+.dropdown [role=listbox] { max-height:320px; overflow:auto; }
+.result { display:flex; width:100%; align-items:center; gap:10px; text-align:left; border:0; border-bottom:1px solid var(--border); padding:11px 14px; background:transparent; color:var(--foreground); }
+.result:hover,.result:focus-visible,.highlight { background:color-mix(in srgb,#16a34a 10%,var(--background)); }
+.result strong { display:block; font-size:.83rem; overflow-wrap:anywhere; }
+.result small { display:block; color:var(--muted-foreground); font-size:.72rem; margin-top:3px; }
+.kind { background:color-mix(in srgb,#16a34a 12%,var(--background)); color:#15803d; font-size:.65rem; font-weight:700; padding:4px 6px; border-radius:6px; flex-shrink:0; }
+.footer { padding:10px 14px; font-size:.7rem; color:var(--muted-foreground); }
+.spinner { animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media(max-width:575px) { .input input { font-size:.75rem; } .dropdown { position:fixed; left:12px; right:12px; top:76px; min-width:0; } }

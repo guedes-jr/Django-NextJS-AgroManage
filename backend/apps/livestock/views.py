@@ -988,6 +988,7 @@ def build_animal_history(animal):
 
 @operator_scoped
 class AnimalBatchViewSet(viewsets.ModelViewSet):
+    search_fields = ['batch_code', 'name']
     action_operations = {"merge_batches": "edit"}
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -1718,6 +1719,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class AnimalViewSet(viewsets.ModelViewSet):
+    search_fields = ['identifier', 'batch__batch_code', 'batch__name']
     action_operations = {"descartar_matriz": "delete"}
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}

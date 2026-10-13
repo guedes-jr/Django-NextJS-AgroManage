@@ -61,6 +61,32 @@ class OperatorAccessTests(APITestCase):
         )
         self.client.force_authenticate(self.operator)
 
+    def test_navbar_search_filters_animals_and_preserves_scope(self):
+        response = self.client.get("/api/v1/livestock/animals/", {"search": "pig"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.data["results"]], [str(self.pig.pk)])
+        for term in ("COW1", "OTHER1", "missing"):
+            response = self.client.get("/api/v1/livestock/animals/", {"search": term})
+            self.assertEqual(response.data["results"], [])
+
+    def test_navbar_search_filters_batches_by_code_and_name(self):
+        self.batch.name = "Lote Primavera"
+        self.batch.save(update_fields=["name"])
+        AnimalBatch.objects.create(
+            farm=self.other_farm, species=self.pigs, batch_code="PIG-OTHER",
+            quantity=1, entry_date=timezone.localdate(),
+        )
+        AnimalBatch.objects.create(
+            farm=self.farm, species=self.cattle, batch_code="PIG-CATTLE",
+            quantity=1, entry_date=timezone.localdate(),
+        )
+        for term in ("pig", "primavera"):
+            response = self.client.get("/api/v1/livestock/batches/", {"search": term})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual([row["id"] for row in response.data["results"]], [str(self.batch.pk)])
+        response = self.client.get("/api/v1/livestock/batches/", {"search": "missing"})
+        self.assertEqual(response.data["results"], [])
+
     def test_only_three_role_choices_and_options_from_species_catalog(self):
         response = self.client.get("/api/v1/auth/operator-options/")
         self.assertEqual(response.status_code, 200)

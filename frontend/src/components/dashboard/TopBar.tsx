@@ -6,7 +6,7 @@ import { User, LogOut, ChevronDown, Menu } from "lucide-react";
 import { ForcePasswordModal } from "@/components/auth/ForcePasswordModal";
 import { ContextualBackButton } from "@/components/navigation/ContextualBackButton";
 import { NotificationBell } from "@/components/notifications";
-import Image from "next/image";
+import { NavbarSearch } from "./NavbarSearch";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 
 interface UserData {
@@ -98,16 +98,8 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
       </div>
 
       {/* Central Search Bar */}
-      <div className="flex-grow-1 d-flex justify-content-center px-4">
-        <div className="search-input-wrapper">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input 
-            type="text" 
-            placeholder="Buscar por código, brinco ou lote..." 
-            className="border-0 bg-transparent w-100 outline-none" 
-            style={{ outline: 'none', fontSize: '0.9rem' }}
-          />
-        </div>
+      <div className="flex-grow-1 d-flex justify-content-center px-2 px-md-4" style={{ minWidth: 0 }}>
+        <NavbarSearch />
       </div>
 
       <div className="d-flex align-items-center gap-3">
