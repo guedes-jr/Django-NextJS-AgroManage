@@ -1,5 +1,9 @@
 .campaign-hero {padding: 28px; border-radius: 20px; background: linear-gradient(120deg,#e7f3eb,#f4f8ea); border: 1px solid #d9e7dc;}
 .campaign-step {font-size:.76rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#397251;}
+.campaign-steps {display:flex; flex-wrap:wrap; gap:8px;}
+.campaign-steps span {flex:1 1 160px; padding:12px 16px; border-radius:12px; background:#eef2ee; color:#536158;}
+.campaign-steps .active {background:#dceee0; color:#205b35; font-weight:700; border:1px solid #94bb9f;}
+.campaign-page fieldset {min-width:0;}
 .campaign-toolbar {display:flex; flex-wrap:wrap; gap:6px; padding:8px; background:#f1f5f2; border-radius:10px 10px 0 0;}
 .campaign-editor {border-radius:0 0 10px 10px; line-height:1.6;}
 .campaign-preview {padding:24px; background:#fafcfb; border:1px solid #e2eae5; border-radius:16px;}
