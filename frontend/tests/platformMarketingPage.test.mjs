@@ -198,6 +198,77 @@ test("saving an audience succeeds without preview or list reload", async () => {
   assert.match(textOf(tree), /Público salvo/);
 });
 
+test("continuing saves an unnamed audience and opens review with the current selection", async () => {
+  let saved;
+  const page = mount({
+    queryOrganizations: async () => ({ count: 1, page: 1, has_next: false, results: [{ id: "org-1", name: "Fazenda" }] }),
+    saveAudience: async data => { saved = data; return { id: "audience-id", ...data }; },
+  });
+  await settle();
+  let tree = page.render();
+  nodes(tree).find(node => node.type === "textarea").props.onChange({ target: { value: "Novidades" } });
+  button(page.render(), "Continuar para organizações").props.onClick();
+  button(page.render(), "Consultar organizações").props.onClick();
+  await settle();
+  nodes(page.render()).find(node => node.props?.["aria-label"] === "Selecionar Fazenda")
+    .props.onChange({ target: { checked: true } });
+  tree = page.render();
+  assert.equal(button(tree, "Continuar para revisão").props.disabled, false);
+  button(tree, "Continuar para revisão").props.onClick();
+  await settle();
+  tree = page.render();
+  assert.deepEqual(Array.from(saved.filters.organizations), ["org-1"]);
+  assert.equal(saved.name, "Público da propaganda");
+  assert.deepEqual(nodes(tree).filter(node => node.type === "section" && "hidden" in node.props).map(node => node.props.hidden), [true, true, false]);
+});
+
+test("continuing with an empty explicit selection explains the problem", async () => {
+  let saves = 0;
+  const page = mount({ saveAudience: async () => { saves++; } });
+  await settle();
+  button(page.render(), "Voltar às organizações").props.onClick();
+  const choice = nodes(page.render()).find(node => node.type === "label" && textOf(node).startsWith("Somente as selecionadas"));
+  nodes(choice).find(node => node.type === "input").props.onChange();
+  button(page.render(), "Continuar para revisão").props.onClick();
+  await settle();
+  const tree = page.render();
+  assert.equal(saves, 0);
+  assert.deepEqual(nodes(tree).filter(node => node.type === "section" && "hidden" in node.props).map(node => node.props.hidden), [true, false, true]);
+  assert.match(textOf(nodes(tree).find(node => node.props?.role === "alert")), /Selecione ao menos uma organização/);
+});
+
+test("continuing updates a saved audience after its filters change", async () => {
+  let saved;
+  const page = mount({
+    audiences: async () => [{ id: "existing", name: "Clientes", filters: { roles: ["admin"] } }],
+    saveAudience: async (data, id) => { saved = { data, id }; return { id, ...data }; },
+  });
+  await settle();
+  button(page.render(), "Voltar às organizações").props.onClick();
+  let tree = page.render();
+  nodes(tree).find(node => node.type === "select" && node.props.value === "")
+    .props.onChange({ target: { value: "existing" } });
+  tree = page.render();
+  const label = nodes(tree).find(node => node.type === "label" && textOf(node).startsWith("Nome da organização contém"));
+  nodes(label).find(node => node.type === "input").props.onChange({ target: { value: "Fazenda" } });
+  button(page.render(), "Continuar para revisão").props.onClick();
+  await settle();
+  assert.equal(saved.id, "existing");
+  assert.equal(saved.data.filters.search, "Fazenda");
+  assert.deepEqual(nodes(page.render()).filter(node => node.type === "section" && "hidden" in node.props).map(node => node.props.hidden), [true, true, false]);
+});
+
+test("a failed audience save keeps the organization step and displays an error", async () => {
+  const page = mount({ saveAudience: async () => { throw new Error("Servidor indisponível"); } });
+  await settle();
+  button(page.render(), "Voltar às organizações").props.onClick();
+  button(page.render(), "Continuar para revisão").props.onClick();
+  await settle();
+  const tree = page.render();
+  assert.deepEqual(nodes(tree).filter(node => node.type === "section" && "hidden" in node.props).map(node => node.props.hidden), [true, false, true]);
+  assert.ok(nodes(tree).some(node => node.props?.role === "alert"));
+});
+
 test("a failed campaign listing preserves loaded audiences and the editor", async () => {
   const page = mount({
     audiences: async () => [{ id: "saved", name: "Público salvo", filters: { roles: ["admin"] } }],
