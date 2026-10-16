@@ -13,6 +13,18 @@ The backend uses Django REST Framework and the frontend consumes the API through
 - Keep validation errors predictable.
 - Keep pagination consistent with the existing project standard.
 - Preserve authentication and organization/tenant authorization.
+
+## Marketing campaign content
+
+Campaign create/update accepts any combination of title, body, link URL and
+images, requiring at least one nonempty item. Title and body may be omitted or
+blank. Partial updates validate the resulting content, including existing images;
+clearing all content is rejected. Supplied links must still be valid HTTP(S) URLs.
+
+POST `platform/marketing/audiences/query/` previews organization filters without
+creating or updating an audience. All filters are optional; an empty request
+matches active organizations. It uses the same platform administrator permission
+as saved audiences and returns `count` and up to 50 `results` with ID and name.
 - Do not expose internal fields or secrets.
 
 ## When changing an endpoint

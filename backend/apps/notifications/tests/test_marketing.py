@@ -228,6 +228,62 @@ class MarketingTests(APITestCase):
                 self.client.get(f"/api/v1/platform/marketing/{route}/").status_code, 403
             )
 
+    def test_organization_query_accepts_independent_filters_without_saving(self):
+        path = "/api/v1/platform/marketing/audiences/query/"
+        original_count = MarketingAudience.objects.count()
+        for filters in ({}, {"search": "Fazenda"}, {"organizations": [str(self.org.pk)]}):
+            with self.subTest(filters=filters):
+                response = self.client.post(path, filters, format="json")
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["count"], 1)
+        response = self.client.post(path, {"search": "Inexistente"}, format="json")
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(MarketingAudience.objects.count(), original_count)
+        self.assertEqual(
+            self.client.post(path, {"unknown": "value"}, format="json").status_code,
+            400,
+        )
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.post(path, {}, format="json").status_code, 403)
+
+    def test_campaign_requires_any_one_content_field(self):
+        image = MarketingImage.objects.create(
+            image="marketing/test.png", mime_type="image/png", uploaded_by=self.admin
+        )
+        path = "/api/v1/platform/marketing/campaigns/"
+        for content in (
+            {"title": "Oferta"},
+            {"body": "Novidade"},
+            {"link_url": "https://example.com"},
+            {"images": [str(image.pk)]},
+        ):
+            with self.subTest(content=content):
+                response = self.client.post(
+                    path, {"audience": str(self.audience.pk), **content}, format="json"
+                )
+                self.assertEqual(response.status_code, 201, response.data)
+        for content in ({}, {"title": "  ", "body": "\t", "images": []}):
+            with self.subTest(content=content):
+                response = self.client.post(
+                    path, {"audience": str(self.audience.pk), **content}, format="json"
+                )
+                self.assertEqual(response.status_code, 400, response.data)
+
+    def test_partial_campaign_updates_validate_remaining_content(self):
+        path = f"/api/v1/platform/marketing/campaigns/{self.campaign.pk}/"
+        response = self.client.patch(path, {"title": ""}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.patch(path, {"body": ""}, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        image = MarketingImage.objects.create(
+            image="marketing/test.png", mime_type="image/png", uploaded_by=self.admin
+        )
+        self.campaign.images.add(image)
+        response = self.client.patch(path, {"body": ""}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.patch(path, {"images": []}, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+
     def test_campaign_editing_locked_after_publish_and_url_is_validated(self):
         path = f"/api/v1/platform/marketing/campaigns/{self.campaign.pk}/"
         self.assertEqual(

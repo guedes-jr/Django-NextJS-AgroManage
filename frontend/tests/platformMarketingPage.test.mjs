@@ -64,6 +64,7 @@ function nodes(tree) {
 
 function textOf(tree) {
   if (typeof tree === "string") return tree;
+  if (typeof tree === "number") return String(tree);
   if (!tree || typeof tree !== "object") return "";
   return [tree?.props?.children].flat(Infinity).map(textOf).join("");
 }
@@ -73,6 +74,47 @@ function button(tree, label) {
 }
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+for (const field of ["title", "body", "link_url", "images"]) {
+  test(`a campaign can continue with only ${field}`, async () => {
+    const page = mount({ upload: async () => ({ id: "image-id", image: "/photo.png" }) });
+    await settle();
+    let tree = page.render();
+    if (field === "images") {
+      nodes(tree).find(node => node.type === "input" && node.props.type === "file")
+        .props.onChange({ target: { files: [{ size: 100 }], value: "photo.png" } });
+      await settle();
+    } else {
+      const input = nodes(tree).find(node => field === "body" ? node.type === "textarea"
+        : node.type === "input" && (field === "title" ? node.props.maxLength === 200 : node.props.type === "url"));
+      input.props.onChange({ target: { value: field === "link_url" ? "https://example.com" : "Novidade" } });
+    }
+    tree = page.render();
+    assert.equal(button(tree, "Continuar para organizações").props.disabled, false);
+  });
+}
+
+test("organization filters can be queried without a saved audience or name", async () => {
+  let queries = 0;
+  const page = mount({
+    queryOrganizations: async filters => {
+      queries++;
+      assert.equal(filters.search, "Fazenda");
+      return { count: 1, results: [{ id: "org-id", name: "Fazenda" }] };
+    },
+  });
+  await settle();
+  let tree = page.render();
+  const searchLabel = nodes(tree).find(node => node.type === "label" && textOf(node).startsWith("Nome da organização contém"));
+  nodes(searchLabel).find(node => node.type === "input").props.onChange({ target: { value: "Fazenda" } });
+  tree = page.render();
+  const query = button(tree, "Consultar organizações");
+  assert.ok(!query.props.disabled);
+  query.props.onClick();
+  await settle();
+  assert.equal(queries, 1);
+  assert.match(textOf(page.render()), /1 organizações encontradas/);
+});
 
 test("message comes first and survives navigation between steps", async () => {
   const page = mount();

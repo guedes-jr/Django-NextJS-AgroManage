@@ -43,7 +43,9 @@ class AudienceFiltersSerializer(serializers.Serializer):
     def to_internal_value(self, data):
         unknown = set(data) - set(self.fields) if isinstance(data, dict) else set()
         if unknown:
-            raise serializers.ValidationError("Filtros desconhecidos.")
+            raise serializers.ValidationError(
+                {"non_field_errors": ["Filtros desconhecidos."]}
+            )
         result = super().to_internal_value(data)
         result["organizations"] = [str(pk) for pk in result.get("organizations", [])]
         return result
@@ -126,6 +128,10 @@ class CampaignSerializer(serializers.ModelSerializer):
             "queued_at",
             "updated_at",
         )
+        extra_kwargs = {
+            "title": {"required": False, "allow_blank": True, "default": ""},
+            "body": {"required": False, "allow_blank": True, "default": ""},
+        }
 
     def get_summary(self, obj):
         if not hasattr(obj, "prepared_total"):
@@ -146,6 +152,17 @@ class CampaignSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         current = self.instance
+        content = [
+            attrs.get(field, getattr(current, field, "")).strip()
+            for field in ("title", "body", "link_url")
+        ]
+        images = attrs.get("images")
+        if images is None:
+            images = current.images.exists() if current else False
+        if not any(content) and not images:
+            raise serializers.ValidationError(
+                "Informe ao menos um título, texto, link ou foto."
+            )
         if not attrs.get(
             "send_in_app", current.send_in_app if current else True
         ) and not attrs.get(
@@ -203,6 +220,18 @@ class AuditedViewSet(viewsets.ModelViewSet):
 class MarketingAudienceViewSet(AuditedViewSet):
     queryset = MarketingAudience.objects.order_by("-updated_at")
     serializer_class = AudienceSerializer
+
+    @action(detail=False, methods=["post"], url_path="query")
+    def query(self, request):
+        serializer = AudienceFiltersSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        qs = organizations(serializer.validated_data)
+        return Response(
+            {
+                "count": qs.count(),
+                "results": list(qs.order_by("name").values("id", "name")[:50]),
+            }
+        )
 
     @action(detail=True, methods=["get"])
     def preview(self, request, pk=None):

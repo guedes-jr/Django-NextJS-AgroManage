@@ -11,6 +11,7 @@ export const platformMarketingService = {
   async audiences() { return (await platformApi.get<{results: Audience[]}>('platform/marketing/audiences/', {params: {page_size: 100}})).data.results; },
   async saveAudience(data: Pick<Audience, 'name' | 'filters'>, id?: string) { return (id ? await platformApi.patch<Audience>(`platform/marketing/audiences/${id}/`, data) : await platformApi.post<Audience>('platform/marketing/audiences/', data)).data; },
   async audiencePreview(id: string) { return (await platformApi.get<{count: number; results: {id: string; name: string}[]}>(`platform/marketing/audiences/${id}/preview/`)).data; },
+  async queryOrganizations(filters: AudienceFilters) { return (await platformApi.post<{count: number; results: {id: string; name: string}[]}>('platform/marketing/audiences/query/', {...filters, roles: undefined})).data; },
   async campaigns(page = 1) { return (await platformApi.get<{results: Campaign[]; next: string | null; previous: string | null}>('platform/marketing/campaigns/', {params: {page}})).data; },
   async saveCampaign(data: CampaignInput, id?: string) { return (id ? await platformApi.patch<Campaign>(`platform/marketing/campaigns/${id}/`, data) : await platformApi.post<Campaign>('platform/marketing/campaigns/', data)).data; },
   async upload(image: File) { const form = new FormData(); form.append('image', image); return (await platformApi.post<MarketingImage>('platform/marketing/images/', form, {headers: {'Content-Type': 'multipart/form-data'}})).data; },
