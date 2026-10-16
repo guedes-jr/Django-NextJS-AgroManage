@@ -31,6 +31,14 @@ explicit confirmation and a current preview token, and revalidates policy and
 recipient consent on the server. A failed publication requires a fresh review
 before retrying; the editor retains the draft.
 
+Preview includes an `eligibility` breakdown of users in the matching active
+organizations: total, eligible, inactive, excluded roles, excluded platform staff,
+disabled notifications and missing marketing authorization. Exclusion counts are
+mutually exclusive. Missing notification preferences count as not authorized;
+selecting an organization never grants marketing consent. Sample organizations
+also include their eligible-user count. In-app reach counts eligible users rather
+than selected organizations.
+
 The campaign list accepts optional `search` (title, body or saved audience name)
 and `status` (a campaign status value) alongside existing pagination. Invalid
 status filters return a validation error. Resuming a draft retrieves its own

@@ -545,3 +545,27 @@ test("campaign search and status filters are applied to server requests", async 
   await settle();
   assert.deepEqual(requests.at(-1), [1, "Oferta", "draft"]);
 });
+
+test("zero in-app recipients show counts and explain how users authorize marketing", async () => {
+  const page = mount({
+    saveAudience: async data => ({ id: "audience", ...data }),
+    preview: async () => ({
+      organizations: 1, recipients: 0, in_app: 0, whatsapp: 0, token: "token",
+      blockers: ["Nenhum destinatário elegível."],
+      sample: [{ id: "org", name: "Fazenda Teste", eligible_users: 0 }],
+      eligibility: { total_users: 3, eligible_users: 0, inactive_users: 0, roles_excluded: 1, platform_staff_excluded: 0, notifications_disabled: 0, marketing_not_authorized: 2 },
+    }),
+  });
+  await settle();
+  button(page.render(), "Nova propaganda").props.onClick();
+  writeMessage(page);
+  button(page.render(), "3Revisão e envio").props.onClick();
+  await settle();
+  const tree = page.render();
+  assert.match(textOf(tree), /Por que o total no sistema está zero/);
+  assert.match(textOf(tree), /Sem autorização para propagandas2/);
+  assert.match(textOf(tree), /Cargos fora da seleção1/);
+  assert.match(textOf(tree), /Cada destinatário precisa ativar/);
+  assert.equal(button(tree, "Confirmar envio da propaganda").props.disabled, true);
+  assert.ok(button(tree, "Revisar organizações e cargos"));
+});

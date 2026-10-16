@@ -72,6 +72,63 @@ class MarketingTests(APITestCase):
         self.user.save()
         self.assertEqual(resolve(self.campaign)[1], [])
 
+    def test_selected_organization_has_in_app_recipient_when_user_authorized(self):
+        self.audience.filters = {"roles": ["manager"], "organizations": [str(self.org.pk)]}
+        self.audience.save()
+        self.campaign.send_whatsapp = False
+        self.campaign.save()
+        result = preview(self.campaign)
+        self.assertEqual(result["organizations"], 1)
+        self.assertEqual(result["in_app"], 1)
+        self.assertEqual(result["eligibility"]["eligible_users"], 1)
+        self.assertEqual(result["sample"][0]["eligible_users"], 1)
+        publish(self.campaign.pk, result["token"])
+        prepare_campaign(self.campaign.pk)
+        notification = self.campaign.notifications.get()
+        self.assertEqual(notification.user_id, self.user.pk)
+        self.assertTrue(notification.show_in_app)
+
+    def test_preview_explains_user_exclusions_without_including_other_organizations(self):
+        self.audience.filters = {"roles": ["manager"], "organizations": [str(self.org.pk)]}
+        self.audience.save()
+        for name, fields in (
+            ("inactive", {"is_active": False}),
+            ("wrong-role", {"role": "operator"}),
+            ("staff", {}),
+            ("notifications-off", {"receive_system_alerts": False}),
+            ("marketing-off", {}),
+            ("missing-preferences", {}),
+        ):
+            user = User.objects.create_user(
+                email=f"{name}@marketing.test", full_name=name,
+                organization=self.org, **{"role": "manager", **fields},
+            )
+            if name != "missing-preferences":
+                NotificationPreference.objects.create(user=user, marketing_alerts=name != "marketing-off")
+            if name == "staff":
+                PlatformStaffProfile.objects.create(user=user, role="platform_admin")
+        other_org = Organization.objects.create(name="Fazenda externa", slug="external-preview")
+        User.objects.create_user(
+            email="outside@marketing.test", full_name="Outro", role="manager",
+            organization=other_org,
+        )
+        result = preview(self.campaign)
+        self.assertEqual(result["in_app"], 1)
+        self.assertEqual(result["eligibility"], {
+            "total_users": 7, "eligible_users": 1, "inactive_users": 1,
+            "roles_excluded": 1, "platform_staff_excluded": 1,
+            "notifications_disabled": 1, "marketing_not_authorized": 2,
+        })
+
+    def test_selected_organization_without_marketing_consent_explains_zero(self):
+        self.pref.marketing_alerts = False
+        self.pref.save()
+        result = preview(self.campaign)
+        self.assertEqual(result["organizations"], 1)
+        self.assertEqual(result["in_app"], 0)
+        self.assertEqual(result["eligibility"]["marketing_not_authorized"], 1)
+        self.assertTrue(any("ainda não autorizaram" in blocker for blocker in result["blockers"]))
+
     def test_master_opt_out_and_other_organization_are_excluded(self):
         self.user.receive_system_alerts = False
         self.user.save()

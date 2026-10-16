@@ -217,8 +217,17 @@ export default function MarketingPage() {
     <div className="campaign-confirm mt-4" role="region" aria-label="Confirmar campanha">
       <h3 className="h5">Confirmar envio</h3>
       {preview ? <><p><strong>{preview.recipients} destinatários</strong> em {preview.organizations} organizações</p><p>{preview.in_app} notificações no sistema · {preview.whatsapp} envios pelo WhatsApp</p>
+      {preview.eligibility && <div className="campaign-preview my-3"><h4 className="h6">{draft.send_in_app && !preview.in_app ? 'Por que o total no sistema está zero?' : 'Usuários das organizações escolhidas'}</h4><p className="small">Selecionar uma organização não autoriza automaticamente seus usuários a receber propagandas. O total considera os cargos escolhidos e as preferências individuais.</p><dl className="row small mb-2">{([
+        ['Usuários cadastrados', preview.eligibility.total_users],
+        ['Usuários elegíveis', preview.eligibility.eligible_users],
+        ['Sem autorização para propagandas', preview.eligibility.marketing_not_authorized],
+        ['Notificações desativadas', preview.eligibility.notifications_disabled],
+        ['Cargos fora da seleção', preview.eligibility.roles_excluded],
+        ['Usuários inativos', preview.eligibility.inactive_users],
+        ['Equipe do backoffice (excluída)', preview.eligibility.platform_staff_excluded],
+      ] as const).map(([label, count]) => <div className="col-12 col-md-6 d-flex justify-content-between gap-2" key={label}><dt className="fw-normal">{label}</dt><dd>{count}</dd></div>)}</dl>{preview.eligibility.marketing_not_authorized > 0 && <p className="small mb-2">Cada destinatário precisa ativar <strong>Propagandas</strong> na própria conta, em <strong>Notificações → Preferências</strong>. Depois, clique em Atualizar revisão.</p>}<div className="d-flex flex-wrap gap-2"><button className="btn btn-outline-secondary btn-sm" disabled={busy} onClick={() => navigateStep(2)}>Revisar organizações e cargos</button><Link href="/platform/users" target="_blank" rel="noopener noreferrer" className="btn btn-link btn-sm">Consultar usuários (nova aba)</Link></div></div>}
       {!!preview.blockers?.length && <div className="alert alert-warning" role="alert"><strong>Pendências para enviar</strong><ul className="mb-0">{preview.blockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul><Link href="/platform/notifications" target="_blank" rel="noopener noreferrer">Configurar canais (nova aba), depois atualizar revisão</Link></div>}
-      <details className="mb-3"><summary>Organizações da consulta</summary><ul>{preview.sample.map(organization => <li key={organization.id}>{organization.name}</li>)}</ul></details></> : <p role="status">{busy ? 'Preparando destinatários e verificando pendências…' : 'Atualize a revisão para verificar os destinatários e as permissões de envio.'}</p>}
+      <details className="mb-3"><summary>Organizações da consulta</summary><ul>{preview.sample.map(organization => <li key={organization.id}>{organization.name} · {organization.eligible_users ?? '—'} usuários elegíveis</li>)}</ul></details></> : <p role="status">{busy ? 'Preparando destinatários e verificando pendências…' : 'Atualize a revisão para verificar os destinatários e as permissões de envio.'}</p>}
       <p className="small">Ao confirmar, a campanha entra na fila de envio. Acompanhe os resultados na home de propagandas.</p>
       <button className="btn btn-success" disabled={busy || !preview?.recipients || !!preview?.blockers?.length} onClick={() => void publishCampaign()}><Send size={16} className="me-2"/>Confirmar envio da propaganda</button>
       <button className="btn btn-link" disabled={busy} onClick={() => goTo(1)}>Editar mensagem</button>
