@@ -369,14 +369,20 @@ class OperationalQueueTests(APITestCase):
         self.assertIsNone(row.last_enqueued_at)
         self.assertEqual(row.status, "pending")
 
-    def test_platform_can_enable_stock_whatsapp_but_not_system_or_finance(self):
+    def test_platform_can_enable_stock_and_system_whatsapp_but_not_tenant_finance(self):
         response = self.client.patch(
             "/api/v1/platform/notifications/categories/stock/",
             {"whatsapp_enabled": True},
             format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
-        for category in ["system", "finance", "overdue_payment"]:
+        self.assertEqual(
+            self.client.patch(
+                "/api/v1/platform/notifications/categories/system/",
+                {"whatsapp_enabled": True}, format="json",
+            ).status_code, 200,
+        )
+        for category in ["finance", "overdue_payment"]:
             self.assertEqual(
                 self.client.patch(
                     f"/api/v1/platform/notifications/categories/{category}/",

@@ -72,6 +72,97 @@ class MarketingTests(APITestCase):
         self.user.save()
         self.assertEqual(resolve(self.campaign)[1], [])
 
+    def test_system_campaign_does_not_require_marketing_consent_or_policy(self):
+        self.pref.marketing_alerts = False
+        self.pref.financial_alerts = False
+        self.pref.save()
+        NotificationCategoryPolicy.objects.filter(category="marketing").update(enabled=False)
+        self.user.role = "operator"
+        self.user.save()
+        self.audience.filters = {"roles": ["admin", "manager", "operator"], "organizations": [str(self.org.pk)]}
+        self.audience.save()
+        self.campaign.category = "system"
+        self.campaign.send_whatsapp = False
+        self.campaign.save()
+        result = preview(self.campaign)
+        self.assertEqual(result["in_app"], 1)
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(result["eligibility"]["marketing_not_authorized"], 0)
+        publish(self.campaign.pk, result["token"])
+        prepare_campaign(self.campaign.pk)
+        notification = self.campaign.notifications.get()
+        self.assertEqual(notification.category, "system")
+        self.assertEqual(notification.type, "system")
+        self.assertTrue(notification.show_in_app)
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.get("/api/v1/notifications/").data["count"], 1)
+
+    def test_system_campaign_still_respects_master_opt_out_and_selected_roles(self):
+        self.campaign.category = "system"
+        self.campaign.save()
+        self.user.receive_system_alerts = False
+        self.user.save()
+        self.assertEqual(preview(self.campaign)["in_app"], 0)
+        self.user.receive_system_alerts = True
+        self.user.role = "operator"
+        self.user.save()
+        self.assertEqual(preview(self.campaign)["in_app"], 0)
+
+    def test_system_campaign_reaches_users_without_notification_preferences(self):
+        self.pref.delete()
+        self.campaign.category = "system"
+        self.campaign.send_whatsapp = False
+        self.campaign.save()
+        result = preview(self.campaign)
+        self.assertEqual(result["in_app"], 1)
+        publish(self.campaign.pk, result["token"])
+        prepare_campaign(self.campaign.pk)
+        self.assertEqual(self.campaign.notifications.count(), 1)
+        self.assertFalse(NotificationPreference.objects.get(user=self.user).marketing_alerts)
+
+    def test_system_campaign_rechecks_whatsapp_contact_authorization(self):
+        NotificationCategoryPolicy.objects.filter(category="system").update(whatsapp_enabled=True)
+        self.campaign.category = "system"
+        self.campaign.save()
+        publish(self.campaign.pk, preview(self.campaign)["token"])
+        prepare_campaign(self.campaign.pk)
+        self.user.phone_is_whatsapp = False
+        self.user.save()
+        notification = self.campaign.notifications.get()
+        with patch("apps.notifications.tasks.wpp_request") as transport:
+            dispatch_notification.run(str(notification.pk))
+        transport.assert_not_called()
+        self.assertEqual(notification.deliveries.get().status, "skipped")
+
+    @override_settings(
+        WPP_CONNECT_URL="http://wpp.test", WPP_CONNECT_TOKEN="test",
+        WPP_CONNECT_SESSION="test",
+    )
+    @patch("apps.notifications.tasks.wpp_request", return_value=({"status": "success"}, None))
+    def test_system_campaign_whatsapp_does_not_require_marketing_opt_in(self, transport):
+        self.pref.marketing_alerts = False
+        self.pref.save()
+        NotificationCategoryPolicy.objects.filter(category="system").update(whatsapp_enabled=True)
+        self.campaign.category = "system"
+        self.campaign.save()
+        result = preview(self.campaign)
+        self.assertEqual(result["whatsapp"], 1)
+        publish(self.campaign.pk, result["token"])
+        prepare_campaign(self.campaign.pk)
+        notification = self.campaign.notifications.get()
+        dispatch_notification.run(str(notification.pk))
+        self.assertEqual(notification.deliveries.get().status, "sent")
+        transport.assert_called_once()
+
+    def test_campaign_category_is_validated_and_changes_invalidate_preview(self):
+        path = f"/api/v1/platform/marketing/campaigns/{self.campaign.pk}/"
+        self.assertEqual(self.client.patch(path, {"category": "finance"}, format="json").status_code, 400)
+        token = preview(self.campaign)["token"]
+        response = self.client.patch(path, {"category": "system", "send_whatsapp": False}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        with self.assertRaises(ValidationError):
+            publish(self.campaign.pk, token)
+
     def test_selected_organization_has_in_app_recipient_when_user_authorized(self):
         self.audience.filters = {"roles": ["manager"], "organizations": [str(self.org.pk)]}
         self.audience.save()

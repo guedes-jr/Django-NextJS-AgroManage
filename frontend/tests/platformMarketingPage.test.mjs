@@ -249,7 +249,7 @@ test("continuing saves an unnamed audience and opens review with the current sel
   await settle();
   tree = page.render();
   assert.deepEqual(Array.from(saved.filters.organizations), ["org-1"]);
-  assert.equal(saved.name, "Público da propaganda");
+  assert.equal(saved.name, "Público da comunicação");
   assert.deepEqual(nodes(tree).filter(node => node.type === "section" && "hidden" in node.props && node.props["aria-label"] !== "Campanhas e resultados").map(node => node.props.hidden), [true, true, false]);
 });
 
@@ -323,7 +323,7 @@ test("campaign home and creation are separate views", async () => {
   let wizard = nodes(tree).find(node => node.type === "div" && node.props.hidden === true);
   assert.equal(home.props.hidden, false);
   assert.ok(wizard);
-  button(tree, "Nova propaganda").props.onClick();
+  button(tree, "Nova comunicação").props.onClick();
   tree = page.render();
   home = nodes(tree).find(node => node.props?.["aria-label"] === "Campanhas e resultados");
   assert.equal(home.props.hidden, true);
@@ -349,7 +349,7 @@ test("review prepares recipients automatically and confirmation publishes its to
     },
   });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   nodes(page.render()).find(node => node.type === "input" && node.props.maxLength === 200)
     .props.onChange({ target: { value: "Novidades" } });
   button(page.render(), "Continuar para organizações").props.onClick();
@@ -357,8 +357,8 @@ test("review prepares recipients automatically and confirmation publishes its to
   await settle();
   let tree = page.render();
   assert.deepEqual(calls, [["save", "audience-id"], ["preview", "campaign-id"]]);
-  assert.equal(button(tree, "Confirmar envio da propaganda").props.disabled, false);
-  button(tree, "Confirmar envio da propaganda").props.onClick();
+  assert.equal(button(tree, "Confirmar envio").props.disabled, false);
+  button(tree, "Confirmar envio").props.onClick();
   await settle();
   tree = page.render();
   assert.deepEqual(calls[2], ["publish", "campaign-id", "fresh-token"]);
@@ -372,13 +372,13 @@ test("review shows policy blockers and disables publication", async () => {
     preview: async () => ({ recipients: 1, organizations: 1, in_app: 1, whatsapp: 0, sample: [], token: "token", blockers: ["Ative a categoria Propagandas em Notificações."] }),
   });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   writeMessage(page);
   button(page.render(), "Continuar para revisão").props.onClick();
   await settle();
   const tree = page.render();
   assert.match(textOf(tree), /Ative a categoria Propagandas/);
-  assert.equal(button(tree, "Confirmar envio da propaganda").props.disabled, true);
+  assert.equal(button(tree, "Confirmar envio").props.disabled, true);
 });
 
 test("a publish failure keeps the draft and requires a fresh review before retrying", async () => {
@@ -390,30 +390,30 @@ test("a publish failure keeps the draft and requires a fresh review before retry
     publish: async () => { publishes++; throw new Error("Prévia expirada"); },
   });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   nodes(page.render()).find(node => node.type === "textarea").props.onChange({ target: { value: "Mensagem preservada" } });
   button(page.render(), "Continuar para organizações").props.onClick();
   button(page.render(), "Continuar para revisão").props.onClick();
   await settle();
-  button(page.render(), "Confirmar envio da propaganda").props.onClick();
+  button(page.render(), "Confirmar envio").props.onClick();
   await settle();
   let tree = page.render();
   assert.equal(publishes, 1);
   assert.ok(nodes(tree).some(node => node.props?.role === "alert"));
-  assert.equal(button(tree, "Confirmar envio da propaganda").props.disabled, true);
+  assert.equal(button(tree, "Confirmar envio").props.disabled, true);
   assert.equal(nodes(tree).find(node => node.type === "textarea").props.value, "Mensagem preservada");
   button(tree, "Atualizar revisão").props.onClick();
   await settle();
   tree = page.render();
   assert.equal(previews, 2);
-  assert.equal(button(tree, "Confirmar envio da propaganda").props.disabled, false);
+  assert.equal(button(tree, "Confirmar envio").props.disabled, false);
 });
 
 test("opening organizations automatically queries and step shortcuts validate content", async () => {
   let queries = 0;
   const page = mount({ queryOrganizations: async () => { queries++; return { count: 0, page: 1, has_next: false, results: [] }; } });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   button(page.render(), "3Revisão e envio").props.onClick();
   assert.match(textOf(page.render()), /Preencha ao menos um título/);
   assert.equal(queries, 0);
@@ -427,12 +427,12 @@ test("opening organizations automatically queries and step shortcuts validate co
 test("unsaved edits survive home navigation and require a decision before a new campaign", async () => {
   const page = mount();
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   writeMessage(page, "Preservar esta mensagem");
   assert.equal(page.render().props.children[0].props.inert, false);
   assert.ok(page.listeners.has("beforeunload"));
   button(page.render(), "Voltar às campanhas").props.onClick();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   let tree = page.render();
   assert.ok(nodes(tree).some(node => node.props?.role === "dialog"));
   assert.equal(nodes(tree).find(node => node.type === "textarea").props.value, "Preservar esta mensagem");
@@ -442,7 +442,7 @@ test("unsaved edits survive home navigation and require a decision before a new 
   assert.equal(nodes(tree).find(node => node.props?.["aria-label"] === "Campanhas e resultados").props.hidden, true);
   button(tree, "Voltar às campanhas").props.onClick();
   tree = page.render();
-  button(tree, "Nova propaganda").props.onClick();
+  button(tree, "Nova comunicação").props.onClick();
   button(page.render(), "Descartar alterações e continuar").props.onClick();
   tree = page.render();
   assert.equal(nodes(tree).find(node => node.type === "textarea").props.value, "");
@@ -456,7 +456,7 @@ test("save and exit works from the message step and clears the unsaved warning",
     saveCampaign: async data => { saved = data; return { id: "draft", ...data, status: "draft", summary: { prepared: 0, skipped: 0, read: 0, deliveries: [] } }; },
   });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   writeMessage(page, "Salvar agora");
   button(page.render(), "Salvar e sair").props.onClick();
   await settle();
@@ -477,7 +477,7 @@ test("changing channels refreshes review automatically with the new channel", as
     },
   });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   writeMessage(page);
   button(page.render(), "3Revisão e envio").props.onClick();
   await settle();
@@ -485,7 +485,7 @@ test("changing channels refreshes review automatically with the new channel", as
   nodes(label).find(node => node.type === "input").props.onChange({ target: { checked: true } });
   await settle();
   assert.deepEqual(channels, [false, true]);
-  assert.equal(button(page.render(), "Confirmar envio da propaganda").props.disabled, false);
+  assert.equal(button(page.render(), "Confirmar envio").props.disabled, false);
 });
 
 function campaignRow(change = {}) {
@@ -546,6 +546,22 @@ test("campaign search and status filters are applied to server requests", async 
   assert.deepEqual(requests.at(-1), [1, "Oferta", "draft"]);
 });
 
+test("new communications default to system delivery and include every recipient role", async () => {
+  let audience;
+  let campaign;
+  const page = mount({
+    saveAudience: async data => { audience = data; return { id: "audience", ...data }; },
+    saveCampaign: async data => { campaign = data; return campaignRow({ ...data }); },
+  });
+  await settle();
+  button(page.render(), "Nova comunicação").props.onClick();
+  writeMessage(page, "Aviso de pagamento");
+  button(page.render(), "3Revisão e envio").props.onClick();
+  await settle();
+  assert.equal(campaign.category, "system");
+  assert.deepEqual(Array.from(audience.filters.roles), ["admin", "manager", "operator"]);
+});
+
 test("zero in-app recipients show counts and explain how users authorize marketing", async () => {
   const page = mount({
     saveAudience: async data => ({ id: "audience", ...data }),
@@ -557,8 +573,10 @@ test("zero in-app recipients show counts and explain how users authorize marketi
     }),
   });
   await settle();
-  button(page.render(), "Nova propaganda").props.onClick();
+  button(page.render(), "Nova comunicação").props.onClick();
   writeMessage(page);
+  const categoryLabel = nodes(page.render()).find(node => node.type === "label" && textOf(node).startsWith("Tipo de envio"));
+  nodes(categoryLabel).find(node => node.type === "select").props.onChange({ target: { value: "marketing" } });
   button(page.render(), "3Revisão e envio").props.onClick();
   await settle();
   const tree = page.render();
@@ -566,6 +584,6 @@ test("zero in-app recipients show counts and explain how users authorize marketi
   assert.match(textOf(tree), /Sem autorização para propagandas2/);
   assert.match(textOf(tree), /Cargos fora da seleção1/);
   assert.match(textOf(tree), /Cada destinatário precisa ativar/);
-  assert.equal(button(tree, "Confirmar envio da propaganda").props.disabled, true);
+  assert.equal(button(tree, "Confirmar envio").props.disabled, true);
   assert.ok(button(tree, "Revisar organizações e cargos"));
 });

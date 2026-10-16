@@ -218,6 +218,10 @@ class MarketingImage(models.Model):
 
 
 class MarketingCampaign(models.Model):
+    class Category(models.TextChoices):
+        SYSTEM = "system", "Comunicado / cobrança"
+        MARKETING = "marketing", "Propaganda"
+
     class Status(models.TextChoices):
         DRAFT = "draft", "Rascunho"
         QUEUED = "queued", "Na fila"
@@ -228,6 +232,7 @@ class MarketingCampaign(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=200)
     body = models.TextField()
+    category = models.CharField(max_length=30, choices=Category.choices, default=Category.MARKETING)
     link_url = models.URLField(max_length=500, blank=True)
     link_label = models.CharField(max_length=80, blank=True)
     images = models.ManyToManyField(MarketingImage, blank=True)

@@ -31,7 +31,7 @@ const navigationGroups: { id: string; label: string; icon: LucideIcon; items: Na
     { href: "/platform/affiliates", label: "Afiliados", icon: Handshake, roles: administrators },
   ] },
   { id: "communication", label: "Comunicação", icon: MessageCircle, items: [
-    { href: "/platform/marketing", label: "Propagandas", icon: Megaphone, roles: administrators },
+    { href: "/platform/marketing", label: "Comunicações", icon: Megaphone, roles: administrators },
     { href: "/platform/notifications", label: "Notificações", icon: Bell, roles: administrators },
     { href: "/platform/whatsapp-web", label: "WhatsApp Web", icon: MessageCircle, roles: administrators },
   ] },

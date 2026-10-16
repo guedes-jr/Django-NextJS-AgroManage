@@ -33,7 +33,10 @@ def _send_whatsapp_web(notification, delivery=None):
     from .noise import notification_text
 
     marketing = getattr(notification, "campaign_id", None) is not None
-    allowed = NotificationPreference.objects.filter(user=notification.user, **({'marketing_alerts': True} if marketing else {'whatsapp_reproductive_alerts': True})).exists()
+    if marketing:
+        allowed = notification.campaign.category != "marketing" or NotificationPreference.objects.filter(user=notification.user, marketing_alerts=True).exists()
+    else:
+        allowed = NotificationPreference.objects.filter(user=notification.user, whatsapp_reproductive_alerts=True).exists()
     if not notification.user.receive_system_alerts or not notification.user.phone_is_whatsapp or not allowed:
         return False, "Integração WhatsApp: o usuário não autorizou alertas neste contato."
     if marketing:

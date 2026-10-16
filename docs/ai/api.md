@@ -17,6 +17,16 @@ The backend uses Django REST Framework and the frontend consumes the API through
 
 ## Marketing campaign content
 
+Campaigns have a `category`: `system` (service communications and platform billing
+notices) or `marketing` (advertising). Existing campaigns and API requests omitting
+the field retain `marketing`; the UI starts new communications as `system` with
+all recipient roles selected. System campaigns create system notifications and do
+not require `marketing_alerts` or an active marketing category. They retain
+organization scope, selected roles, active-user checks, master notification
+opt-out, system category/channel policy, limits and WhatsApp contact authorization.
+Tenant financial notifications and their access controls remain unchanged.
+The System category now supports enabling WhatsApp for these communications.
+
 Campaign create/update accepts any combination of title, body, link URL and
 images, requiring at least one nonempty item. Title and body may be omitted or
 blank. Partial updates validate the resulting content, including existing images;
@@ -25,7 +35,7 @@ clearing all content is rejected. Supplied links must still be valid HTTP(S) URL
 Campaign responses include `created_at`, `updated_at` and nullable `queued_at`
 timestamps for management history. Campaign preview also returns `blockers`,
 a list of actionable reasons that currently prevent publication (disabled
-marketing category, disabled selected channels, or no eligible recipients).
+selected category, disabled selected channels, or no eligible recipients).
 The final review prepares this preview automatically. Publication still requires
 explicit confirmation and a current preview token, and revalidates policy and
 recipient consent on the server. A failed publication requires a fresh review
@@ -34,7 +44,7 @@ before retrying; the editor retains the draft.
 Preview includes an `eligibility` breakdown of users in the matching active
 organizations: total, eligible, inactive, excluded roles, excluded platform staff,
 disabled notifications and missing marketing authorization. Exclusion counts are
-mutually exclusive. Missing notification preferences count as not authorized;
+mutually exclusive. For marketing campaigns, missing notification preferences count as not authorized;
 selecting an organization never grants marketing consent. Sample organizations
 also include their eligible-user count. In-app reach counts eligible users rather
 than selected organizations.

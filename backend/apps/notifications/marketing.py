@@ -44,13 +44,15 @@ def organizations(filters):
     return qs.distinct()
 
 
-def eligible_user_filter(filters):
-    return Q(
+def eligible_user_filter(filters, category="marketing"):
+    allowed = Q(
         role__in=filters["roles"],
         is_active=True,
         receive_system_alerts=True,
-        notification_preference__marketing_alerts=True,
     ) & ~Q(platform_staff_profile__is_active=True)
+    if category == "marketing":
+        allowed &= Q(notification_preference__marketing_alerts=True)
+    return allowed
 
 
 def audience_eligibility(campaign, orgs):
@@ -65,8 +67,8 @@ def audience_eligibility(campaign, orgs):
         roles_excluded=Count("pk", filter=active & ~Q(role__in=campaign.audience.filters["roles"])),
         platform_staff_excluded=Count("pk", filter=matching_role & Q(platform_staff_profile__is_active=True)),
         notifications_disabled=Count("pk", filter=organization_user & Q(receive_system_alerts=False)),
-        marketing_not_authorized=Count("pk", filter=notifications_allowed & ~Q(notification_preference__marketing_alerts=True)),
-        eligible_users=Count("pk", filter=eligible_user_filter(campaign.audience.filters)),
+        marketing_not_authorized=Count("pk", filter=notifications_allowed & ~Q(notification_preference__marketing_alerts=True) if campaign.category == "marketing" else Q(pk__in=[])),
+        eligible_users=Count("pk", filter=eligible_user_filter(campaign.audience.filters, campaign.category)),
     )
 
 
@@ -75,7 +77,7 @@ def resolve(campaign):
     orgs = organizations(filters)
     users = (
         User.objects.filter(organization__in=orgs)
-        .filter(eligible_user_filter(filters))
+        .filter(eligible_user_filter(filters, campaign.category))
         .order_by("pk")
     )
     recipients, phones = [], set()
@@ -103,17 +105,17 @@ def preview(campaign):
     sample = list(orgs.order_by("name").values("id", "name")[:30])
     eligible_counts = dict(
         User.objects.filter(organization_id__in=[row["id"] for row in sample])
-        .filter(eligible_user_filter(campaign.audience.filters))
+        .filter(eligible_user_filter(campaign.audience.filters, campaign.category))
         .values("organization_id")
         .annotate(total=Count("pk"))
         .values_list("organization_id", "total")
     )
     for organization in sample:
         organization["eligible_users"] = eligible_counts.get(organization["id"], 0)
-    policy = category_policy("marketing")
+    policy = category_policy(campaign.category)
     blockers = []
     if not policy.enabled:
-        blockers.append("Ative a categoria Propagandas em Notificações.")
+        blockers.append(f"Ative a categoria {policy.get_category_display()} em Notificações.")
     if campaign.send_in_app and not policy.in_app_enabled:
         blockers.append("Ative o canal No sistema em Notificações ou desmarque esse canal.")
     if campaign.send_whatsapp and not policy.whatsapp_enabled:
@@ -139,6 +141,7 @@ def preview(campaign):
         repr(
             (
                 campaign.updated_at.isoformat(),
+                str(campaign.category),
                 campaign.audience.updated_at.isoformat(),
                 recipients,
                 policy.enabled,
@@ -177,14 +180,14 @@ def publish(campaign_id, token):
             .objects.select_for_update()
             .get(pk=campaign.audience_id)
         )
-        policy = category_policy("marketing")
+        policy = category_policy(campaign.category)
         if (
             not policy.enabled
             or (campaign.send_in_app and not policy.in_app_enabled)
             or (campaign.send_whatsapp and not policy.whatsapp_enabled)
         ):
             raise ValidationError(
-                "Ative a categoria Propagandas e os canais escolhidos em Notificações."
+                f"Ative a categoria {policy.get_category_display()} e os canais escolhidos em Notificações."
             )
         try:
             confirmed = signing.loads(token, salt="marketing-preview", max_age=900)
@@ -268,8 +271,8 @@ def prepare_campaign(campaign_id, batch_size=50):
                     user,
                     campaign.title,
                     plain_message(campaign),
-                    notif_type="marketing",
-                    category="marketing",
+                    notif_type=campaign.category,
+                    category=campaign.category,
                     event_key=f"marketing.campaign:{campaign.pk}",
                     campaign=campaign,
                     in_app=row.in_app,

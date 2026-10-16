@@ -24,8 +24,8 @@ class CategoryPolicySerializer(serializers.ModelSerializer):
         read_only_fields = ("category", "label", "updated_at")
 
     def validate(self, attrs):
-        if attrs.get("whatsapp_enabled") and self.instance.category not in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.ANIMAL, NotificationCategory.STOCK, NotificationCategory.MARKETING):
-            raise serializers.ValidationError({"whatsapp_enabled": "O WhatsApp está disponível para alertas operacionais de animais, estoque e campanhas com adesão."})
+        if attrs.get("whatsapp_enabled") and self.instance.category not in (NotificationCategory.SYSTEM, NotificationCategory.ANIMAL_CYCLE, NotificationCategory.ANIMAL, NotificationCategory.STOCK, NotificationCategory.MARKETING):
+            raise serializers.ValidationError({"whatsapp_enabled": "O WhatsApp está disponível para comunicados, alertas operacionais e campanhas com adesão."})
         for field, maximum in (("repeat_cooldown_minutes", 10080), ("group_similar_minutes", 60), ("max_per_day", 5000)):
             if field in attrs and attrs[field] > maximum:
                 raise serializers.ValidationError({field: f"O máximo permitido é {maximum}."})

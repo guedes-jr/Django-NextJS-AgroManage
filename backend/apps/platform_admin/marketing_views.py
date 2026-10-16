@@ -99,6 +99,7 @@ class ImageSerializer(serializers.ModelSerializer):
 
 
 class CampaignSerializer(serializers.ModelSerializer):
+    category = serializers.ChoiceField(choices=MarketingCampaign.Category.choices, required=False)
     image_details = ImageSerializer(source="images", many=True, read_only=True)
     audience_name = serializers.CharField(source="audience.name", read_only=True)
     summary = serializers.SerializerMethodField()
@@ -109,6 +110,7 @@ class CampaignSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "body",
+            "category",
             "link_url",
             "link_label",
             "images",
