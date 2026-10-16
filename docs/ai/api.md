@@ -36,8 +36,10 @@ another user's recipients or marking anything read. Preparation remains
 idempotent and rechecks current eligibility. Draft, cancelled and WhatsApp-only
 recipients are not prepared by these inbox requests. External delivery still
 requires an active Celery worker.
-Delivered unread campaign notifications appear as a persistent banner throughout
-the tenant home area. Acknowledging the banner marks that notification as read.
+Delivered unread campaign notifications appear in a centered modal throughout
+the tenant home area, with full-width images and scrollable content. Explicit
+acknowledgement marks the notification as read. View later or Escape dismisses
+the pending modals for the current session without marking them read.
 The notification provider refreshes content when the unread count changes, on
 window focus and when returning to a visible tab.
 

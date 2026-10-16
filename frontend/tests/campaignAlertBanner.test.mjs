@@ -38,6 +38,7 @@ function loadComponent(filename, dependencies) {
         useEffect() {},
       };
       if (name === "react/jsx-runtime") return loadModule(name);
+      if (name.endsWith(".module.css")) return { default: new Proxy({}, { get: (_target, property) => String(property) }) };
       return dependencies[name] || {};
     },
   });
@@ -56,12 +57,58 @@ test("an unread delivered campaign is visible on screen and requires explicit ac
     "./NotificationProvider": { useNotificationContext: () => ({ notifications: [current], markAsRead: async id => acknowledged.push(id) }) },
   });
   const tree = render();
+  assert.equal(tree.type, "dialog");
   assert.equal(tree.props["aria-label"], "Comunicados pendentes");
   assert.equal(acknowledged.length, 0);
   const action = nodes(tree).find(node => node.type === "button");
   action.props.onClick();
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(acknowledged, ["campaign-alert"]);
+});
+
+test("the modal displays large images separately from the padded message content", () => {
+  const render = loadComponent("CampaignAlertBanner.tsx", {
+    "next/image": { default: "image" },
+    "./NotificationProvider": { useNotificationContext: () => ({
+      notifications: [{ id: "photo", title: "Comunicado", promotion: {
+        body: "Mensagem", images: [{ id: "image-1", image: "/media/announcement.png" }],
+      } }],
+    }) },
+  });
+  const tree = render();
+  const image = nodes(tree).find(node => node.type === "image");
+  assert.equal(image.props.src, "/media/announcement.png");
+  assert.equal(image.props.width, 1600);
+  assert.equal(image.props.className, "image");
+  assert.equal(image.props.alt, "Comunicado");
+});
+
+test("view later closes the modal without marking any notification as read", () => {
+  let acknowledgements = 0;
+  const render = loadComponent("CampaignAlertBanner.tsx", {
+    "./NotificationProvider": { useNotificationContext: () => ({
+      notifications: [{ id: "later", promotion: { body: "Aviso", images: [] } }],
+      markAsRead: async () => { acknowledgements++; },
+    }) },
+  });
+  const action = nodes(render()).find(node => node.type === "button" && node.props.children === "Ver depois");
+  action.props.onClick();
+  assert.equal(render(), null);
+  assert.equal(acknowledgements, 0);
+});
+
+test("failed acknowledgement keeps the modal visible and displays a retry message", async () => {
+  const render = loadComponent("CampaignAlertBanner.tsx", {
+    "./NotificationProvider": { useNotificationContext: () => ({
+      notifications: [{ id: "failed", promotion: { body: "Aviso", images: [] } }],
+      markAsRead: async () => { throw new Error("Failure"); },
+    }) },
+  });
+  nodes(render()).find(node => node.type === "button").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  const tree = render();
+  assert.equal(tree.type, "dialog");
+  assert.ok(nodes(tree).some(node => node.props?.role === "alert"));
 });
 
 test("read, archived and ordinary notifications do not appear as campaign banners", () => {
