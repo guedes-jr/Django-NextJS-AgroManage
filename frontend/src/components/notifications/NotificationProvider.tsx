@@ -28,6 +28,7 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const confirmedAlerts = useRef(new Set<string>());
+  const lastUnreadCount = useRef<number | null>(null);
   const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -66,6 +67,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       ]);
       setNotifications([...activeItems, ...archivedItems]);
       setUnreadCount(count.unread_count);
+      lastUnreadCount.current = count.unread_count;
     } catch (requestError) {
       console.error("Error fetching notifications:", requestError);
       setError("Erro ao carregar notificações");
@@ -78,10 +80,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       const count = await notificationService.getUnreadCount();
       setUnreadCount(count.unread_count);
+      if (lastUnreadCount.current !== count.unread_count) await fetchNotifications();
     } catch (requestError) {
       console.error("Error fetching unread count:", requestError);
     }
-  }, []);
+  }, [fetchNotifications]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void fetchNotifications(), 0);
@@ -92,9 +95,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // O backend de produção usa workers síncronos. Uma conexão SSE aberta
     // ocupa um worker inteiro e pode bloquear as demais APIs do sistema.
     // A contagem é leve e mantém o indicador atualizado sem conexão persistente.
-    const interval = window.setInterval(() => void fetchUnreadCount(), 60_000);
-    return () => window.clearInterval(interval);
-  }, [fetchUnreadCount]);
+    const refresh = () => {if (document.visibilityState === "visible") void fetchUnreadCount();};
+    const refreshAll = () => {if (document.visibilityState === "visible") void fetchNotifications();};
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refreshAll);
+    document.addEventListener("visibilitychange", refreshAll);
+    return () => {window.clearInterval(interval); window.removeEventListener("focus", refreshAll); document.removeEventListener("visibilitychange", refreshAll);};
+  }, [fetchUnreadCount, fetchNotifications]);
 
   const markAsRead = useCallback(async (id: string) => {
     await notificationService.markAsRead(id);

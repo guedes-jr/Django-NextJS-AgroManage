@@ -1,6 +1,7 @@
 """Saved organization queries and consent-aware campaign outbox."""
 
 import hashlib
+import logging
 import re
 
 from django.core import signing
@@ -16,6 +17,17 @@ from .categories import category_policy
 from .models import MarketingCampaign, MarketingRecipient, NotificationDelivery
 from .services import NotificationService
 from .tasks import _whatsapp_phone
+
+logger = logging.getLogger(__name__)
+
+
+def enqueue_campaign_outbox():
+    from .tasks import process_marketing_outbox
+
+    try:
+        process_marketing_outbox.delay()
+    except Exception:
+        logger.exception("Não foi possível iniciar o processamento das comunicações; a fila persistida será retomada pelo agendamento.")
 
 
 def plain_message(campaign):
@@ -235,7 +247,7 @@ def publish(campaign_id, token):
                 "updated_at",
             ]
         )
-        # Beat consumes the durable outbox; a broker outage cannot lose a campaign.
+        transaction.on_commit(enqueue_campaign_outbox)
         return campaign
 
 

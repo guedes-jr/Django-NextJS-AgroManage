@@ -10,6 +10,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { SupportAccessBanner } from "@/components/platform/SupportAccessBanner";
 import { ClientAnnouncementBanner } from "@/components/platform/ClientAnnouncementBanner";
 import { NotificationProvider } from "@/components/notifications";
+import CampaignAlertBanner from "@/components/notifications/CampaignAlertBanner";
 
 export default function HomeLayout({
   children,
@@ -73,6 +74,7 @@ export default function HomeLayout({
         <ClientAnnouncementBanner />
         <TopBar onMenuClick={openSidebar} isMenuOpen={isSidebarOpen} />
         <main className="flex-grow-1 p-3 p-lg-5 overflow-auto">
+          {!accessLoading && !accessError && <CampaignAlertBanner />}
           {accessLoading ? <p role="status">Verificando acesso…</p> : accessError ? <div className="alert alert-danger">Não foi possível verificar suas permissões. Recarregue a página.</div> : canAccessOrganizationPath(access,pathname) ? children : <div className="alert alert-info"><h1 className="h5">Área não autorizada</h1><p>Solicite ao administrador a liberação desta área para seu usuário.</p><Link href="/home" className="btn btn-success">Voltar à dashboard</Link></div>}
         </main>
       </div>

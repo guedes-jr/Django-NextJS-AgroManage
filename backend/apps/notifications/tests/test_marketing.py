@@ -61,6 +61,21 @@ class MarketingTests(APITestCase):
             enabled=True, whatsapp_enabled=True
         )
 
+    @patch("apps.notifications.tasks.process_marketing_outbox.delay")
+    def test_publication_starts_outbox_after_commit(self, enqueue):
+        with self.captureOnCommitCallbacks(execute=True):
+            publish(self.campaign.pk, preview(self.campaign)["token"])
+            enqueue.assert_not_called()
+        enqueue.assert_called_once_with()
+
+    @patch("apps.notifications.tasks.process_marketing_outbox.delay", side_effect=RuntimeError("broker unavailable"))
+    def test_publication_keeps_durable_queue_when_broker_is_unavailable(self, enqueue):
+        with self.captureOnCommitCallbacks(execute=True):
+            publish(self.campaign.pk, preview(self.campaign)["token"])
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.status, "queued")
+        self.assertEqual(self.campaign.recipients.count(), 1)
+
     def test_roles_and_consent_filter_the_audience(self):
         self.assertEqual(len(resolve(self.campaign)[1]), 1)
         self.pref.marketing_alerts = False

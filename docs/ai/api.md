@@ -27,6 +27,14 @@ opt-out, system category/channel policy, limits and WhatsApp contact authorizati
 Tenant financial notifications and their access controls remain unchanged.
 The System category now supports enabling WhatsApp for these communications.
 
+Publishing kicks off the durable campaign outbox after the database transaction
+commits; scheduled processing remains the recovery path if broker enqueue fails.
+An active Celery worker is required to prepare and deliver the campaign.
+Delivered unread campaign notifications appear as a persistent banner throughout
+the tenant home area. Acknowledging the banner marks that notification as read.
+The notification provider refreshes content when the unread count changes, on
+window focus and when returning to a visible tab.
+
 Campaign create/update accepts any combination of title, body, link URL and
 images, requiring at least one nonempty item. Title and body may be omitted or
 blank. Partial updates validate the resulting content, including existing images;
