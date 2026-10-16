@@ -130,6 +130,16 @@ class MarketingTests(APITestCase):
         self.assertEqual(self.client.get("/api/v1/notifications/").data["count"], 0)
         self.assertEqual(self.campaign.notifications.count(), 0)
 
+    def test_preparation_handles_nullable_recipient_relations(self):
+        publish(self.campaign.pk, preview(self.campaign)["token"])
+        self.campaign.recipients.update(user=None, organization=None)
+        self.assertEqual(prepare_campaign(self.campaign.pk), 1)
+        recipient = self.campaign.recipients.get()
+        self.assertIsNotNone(recipient.prepared_at)
+        self.assertTrue(recipient.skip_reason)
+        self.assertIsNone(recipient.notification_id)
+        self.assertEqual(prepare_campaign(self.campaign.pk), 0)
+
     def test_roles_and_consent_filter_the_audience(self):
         self.assertEqual(len(resolve(self.campaign)[1]), 1)
         self.pref.marketing_alerts = False

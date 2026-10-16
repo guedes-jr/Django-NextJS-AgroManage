@@ -275,7 +275,7 @@ def prepare_campaign(campaign_id, batch_size=50, user_id=None):
             return 0
         campaign.status = "processing"
         campaign.save(update_fields=["status", "updated_at"])
-        recipients = campaign.recipients.select_for_update().filter(prepared_at__isnull=True)
+        recipients = campaign.recipients.select_for_update(of=("self",)).filter(prepared_at__isnull=True)
         if user_id is not None:
             recipients = recipients.filter(user_id=user_id, in_app=True)
         rows = list(recipients.select_related("user", "organization")[:batch_size])
