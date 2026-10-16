@@ -76,6 +76,60 @@ class MarketingTests(APITestCase):
         self.assertEqual(self.campaign.status, "queued")
         self.assertEqual(self.campaign.recipients.count(), 1)
 
+    def test_user_sees_published_system_campaign_without_running_worker(self):
+        self.campaign.category = "system"
+        self.campaign.send_whatsapp = False
+        self.campaign.save()
+        self.pref.marketing_alerts = False
+        self.pref.save()
+        publish(self.campaign.pk, preview(self.campaign)["token"])
+        self.assertEqual(self.campaign.notifications.count(), 0)
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/v1/notifications/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+        row = response.data["results"][0]
+        self.assertEqual(row["promotion"]["body"], self.campaign.body)
+        self.assertFalse(row["is_read"])
+        self.assertEqual(self.client.get("/api/v1/notifications/unread-count/").data["unread_count"], 1)
+        self.client.get("/api/v1/notifications/")
+        self.assertEqual(self.campaign.notifications.count(), 1)
+
+    def test_unread_count_prepares_only_authenticated_users_pending_campaign(self):
+        other = User.objects.create_user(
+            email="second-inbox@marketing.test", full_name="Outro",
+            organization=self.org, role="manager",
+        )
+        self.campaign.category = "system"
+        self.campaign.send_whatsapp = False
+        self.campaign.save()
+        publish(self.campaign.pk, preview(self.campaign)["token"])
+        self.client.force_authenticate(other)
+        response = self.client.get("/api/v1/notifications/unread-count/")
+        self.assertEqual(response.data["unread_count"], 1)
+        self.assertEqual(self.campaign.notifications.get().user_id, other.pk)
+        self.assertTrue(self.campaign.recipients.filter(user=self.user, prepared_at__isnull=True).exists())
+
+    def test_inbox_does_not_deliver_draft_cancelled_or_whatsapp_only_campaigns(self):
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.get("/api/v1/notifications/").data["count"], 0)
+        self.campaign.send_in_app = False
+        self.campaign.save()
+        publish(self.campaign.pk, preview(self.campaign)["token"])
+        self.assertEqual(self.client.get("/api/v1/notifications/").data["count"], 0)
+        self.campaign.status = "cancelled"
+        self.campaign.save()
+        self.assertEqual(self.client.get("/api/v1/notifications/unread-count/").data["unread_count"], 0)
+        self.assertEqual(self.campaign.notifications.count(), 0)
+
+    def test_inbox_rechecks_marketing_consent_before_delivery(self):
+        publish(self.campaign.pk, preview(self.campaign)["token"])
+        self.pref.marketing_alerts = False
+        self.pref.save()
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.get("/api/v1/notifications/").data["count"], 0)
+        self.assertEqual(self.campaign.notifications.count(), 0)
+
     def test_roles_and_consent_filter_the_audience(self):
         self.assertEqual(len(resolve(self.campaign)[1]), 1)
         self.pref.marketing_alerts = False

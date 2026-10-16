@@ -29,7 +29,13 @@ The System category now supports enabling WhatsApp for these communications.
 
 Publishing kicks off the durable campaign outbox after the database transaction
 commits; scheduled processing remains the recovery path if broker enqueue fails.
-An active Celery worker is required to prepare and deliver the campaign.
+Notification list and unread-count requests also prepare bounded batches of the
+authenticated user's queued in-app campaign recipients. Login can therefore show
+confirmed in-app communications even if Celery is unavailable, without consuming
+another user's recipients or marking anything read. Preparation remains
+idempotent and rechecks current eligibility. Draft, cancelled and WhatsApp-only
+recipients are not prepared by these inbox requests. External delivery still
+requires an active Celery worker.
 Delivered unread campaign notifications appear as a persistent banner throughout
 the tenant home area. Acknowledging the banner marks that notification as read.
 The notification provider refreshes content when the unread count changes, on

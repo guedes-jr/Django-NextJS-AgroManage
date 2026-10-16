@@ -251,7 +251,20 @@ def publish(campaign_id, token):
         return campaign
 
 
-def prepare_campaign(campaign_id, batch_size=50):
+def prepare_user_campaigns(user, batch_size=20):
+    campaign_ids = list(
+        MarketingRecipient.objects.filter(
+            user_id=user.pk,
+            in_app=True,
+            prepared_at__isnull=True,
+            campaign__status__in=["queued", "processing"],
+        ).order_by("campaign__queued_at", "campaign_id").values_list("campaign_id", flat=True)[:batch_size]
+    )
+    for campaign_id in campaign_ids:
+        prepare_campaign(campaign_id, batch_size=1, user_id=user.pk)
+
+
+def prepare_campaign(campaign_id, batch_size=50, user_id=None):
     with transaction.atomic():
         campaign = (
             MarketingCampaign.objects.select_for_update()
@@ -262,11 +275,10 @@ def prepare_campaign(campaign_id, batch_size=50):
             return 0
         campaign.status = "processing"
         campaign.save(update_fields=["status", "updated_at"])
-        rows = list(
-            campaign.recipients.select_for_update()
-            .filter(prepared_at__isnull=True)
-            .select_related("user", "organization")[:batch_size]
-        )
+        recipients = campaign.recipients.select_for_update().filter(prepared_at__isnull=True)
+        if user_id is not None:
+            recipients = recipients.filter(user_id=user_id, in_app=True)
+        rows = list(recipients.select_related("user", "organization")[:batch_size])
         for row in rows:
             user = row.user
             if (

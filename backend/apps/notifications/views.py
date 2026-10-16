@@ -34,6 +34,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
     pagination_class = NotificationPagination
 
     def get_queryset(self):
+        if self.action == "list":
+            from .marketing import prepare_user_campaigns
+            prepare_user_campaigns(self.request.user)
         from .operator_scope import visible_notifications
         queryset = visible_notifications(Notification.objects.filter(user=self.request.user, show_in_app=True), self.request.user).select_related("campaign").prefetch_related("campaign__images")
         archived = self.request.query_params.get("archived", "false").lower() == "true"
@@ -83,6 +86,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
 def unread_count_view(request):
     """Retorna a contagem de notificações não lidas"""
     from .operator_scope import visible_notifications
+    from .marketing import prepare_user_campaigns
+    prepare_user_campaigns(request.user)
     count = visible_notifications(Notification.objects.filter(user=request.user, show_in_app=True, is_read=False, is_archived=False), request.user).count()
     return Response({"unread_count": count})
 
