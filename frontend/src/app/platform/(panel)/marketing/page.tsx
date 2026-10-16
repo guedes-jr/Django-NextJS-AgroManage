@@ -69,11 +69,11 @@ export default function MarketingPage() {
   const edit = (change: Partial<CampaignInput>) => {setDirty(true); setDraft(current => ({...current, ...change})); setPreview(null);};
   const toggle = (field: 'roles' | 'plans' | 'statuses', value: string) => {setDirty(true); setPreview(null); setQueryPreview(null); setFilters(current => ({...current, [field]: (current[field] || []).includes(value) ? (current[field] || []).filter(v => v !== value) : [...(current[field] || []), value]}));};
   const format = (before: string, after = before) => {const node = textarea.current; if (!node) return; const start = node.selectionStart, end = node.selectionEnd; const text = draft.body.slice(start, end) || 'texto'; edit({body: draft.body.slice(0,start) + before + text + after + draft.body.slice(end)}); requestAnimationFrame(() => {node.focus(); node.setSelectionRange(start + before.length, start + before.length + text.length);});};
-  const saveAudience = async () => {
-    if (!filters.roles.length) throw new Error('Selecione ao menos um cargo que receberá a comunicação.');
-    if (selectionOnly && !filters.organizations?.length) throw new Error('Selecione ao menos uma organização na tabela ou escolha todas as organizações dos filtros.');
+  const saveAudience = async (inputFilters = filters) => {
+    if (!inputFilters.roles.length) throw new Error('Selecione ao menos um cargo que receberá a comunicação.');
+    if (selectionOnly && !inputFilters.organizations?.length) throw new Error('Selecione ao menos uma organização na tabela ou escolha todas as organizações dos filtros.');
     const name = audienceName.trim() || draft.title.trim().slice(0, 150) || 'Público da comunicação';
-    const audienceFilters: AudienceFilters = selectionOnly ? {roles: filters.roles, organizations: filters.organizations} : {...filters, organizations: []};
+    const audienceFilters: AudienceFilters = selectionOnly ? {roles: inputFilters.roles, organizations: inputFilters.organizations} : {...inputFilters, organizations: []};
     const row = await api.saveAudience({name, filters: audienceFilters}, audienceId || undefined);
     setAudienceId(row.id);
     setAudienceName(row.name);
@@ -92,6 +92,14 @@ export default function MarketingPage() {
     const row = await save(input);
     setPreview(await api.preview(row.id));
   };
+  const convertToSystem = () => run(async () => {
+    const roles = options?.roles.length ? options.roles.map(role => role.value) : ['admin', 'manager', 'operator'];
+    const audience = await saveAudience({...filters, roles});
+    const next = {...draft, category: 'system' as const, audience: audience.id};
+    edit(next);
+    await review(next);
+    setNotice('Envio alterado para Comunicado / cobrança, com todos os cargos. Confira os destinatários antes de confirmar.');
+  });
   const changeChannels = (change: Partial<CampaignInput>) => {
     const next = {...draft, ...change};
     edit(change);
@@ -217,6 +225,8 @@ export default function MarketingPage() {
       </fieldset>
     <div className="campaign-confirm mt-4" role="region" aria-label="Confirmar campanha">
       <h3 className="h5">Confirmar envio</h3>
+      <p>Tipo de envio: <strong>{draft.category === 'marketing' ? 'Propaganda' : 'Comunicado / cobrança'}</strong></p>
+      {draft.category === 'marketing' && <div className="alert alert-info"><p className="mb-2">Este rascunho ainda está classificado como publicidade. Se o conteúdo for um aviso de serviço ou cobrança, altere para comunicado para não exigir adesão a propagandas.</p><button className="btn btn-outline-primary" disabled={busy || !messageReady} onClick={() => void convertToSystem()}>Usar como comunicado / cobrança (todos os cargos)</button><small className="d-block mt-2">Mantém as organizações e os canais escolhidos, salva a alteração e recalcula os destinatários. O envio só acontece após sua confirmação.</small></div>}
       {preview ? <><p><strong>{preview.recipients} destinatários</strong> em {preview.organizations} organizações</p><p>{preview.in_app} notificações no sistema · {preview.whatsapp} envios pelo WhatsApp</p>
       {preview.eligibility && <div className="campaign-preview my-3"><h4 className="h6">{draft.send_in_app && !preview.in_app ? 'Por que o total no sistema está zero?' : 'Usuários das organizações escolhidas'}</h4><p className="small">{draft.category === 'marketing' ? 'Propagandas exigem adesão individual. O total considera os cargos escolhidos e as preferências dos usuários.' : 'Comunicados não dependem da opção Propagandas. O total considera usuários ativos dos cargos escolhidos, com notificações habilitadas.'}</p><dl className="row small mb-2">{([
         ['Usuários cadastrados', preview.eligibility.total_users],

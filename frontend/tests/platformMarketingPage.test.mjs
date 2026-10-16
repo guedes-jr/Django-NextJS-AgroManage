@@ -587,3 +587,28 @@ test("zero in-app recipients show counts and explain how users authorize marketi
   assert.equal(button(tree, "Confirmar envio").props.disabled, true);
   assert.ok(button(tree, "Revisar organizações e cargos"));
 });
+
+test("review converts an existing marketing draft without losing selected organizations or channels", async () => {
+  const saved = [];
+  const page = mount({
+    campaigns: async () => ({ results: [campaignRow({ category: "marketing", send_whatsapp: true })], next: null }),
+    audiences: async () => [{ id: "saved-audience", name: "Selecionadas", filters: { roles: ["admin"], organizations: ["org-1", "org-2"] } }],
+    saveAudience: async (data, id) => { saved.push(data); return { id, ...data }; },
+    saveCampaign: async data => campaignRow(data),
+    preview: async () => ({ recipients: saved.at(-1).filters.roles.length, organizations: 2, in_app: 3, whatsapp: 1, token: "new-token", blockers: [], sample: [] }),
+  });
+  await settle();
+  button(page.render(), "Gerenciar e enviar").props.onClick();
+  await settle();
+  button(page.render(), "3Revisão e envio").props.onClick();
+  await settle();
+  button(page.render(), "Usar como comunicado / cobrança (todos os cargos)").props.onClick();
+  await settle();
+  const tree = page.render();
+  assert.deepEqual(Array.from(saved.at(-1).filters.roles), ["admin", "manager", "operator"]);
+  assert.deepEqual(Array.from(saved.at(-1).filters.organizations), ["org-1", "org-2"]);
+  assert.match(textOf(tree), /Tipo de envio: Comunicado \/ cobrança/);
+  assert.equal(nodes(tree).find(node => node.type === "input" && node.props.checked && nodes(tree).some(label => label.type === "label" && textOf(label) === "WhatsApp" && nodes(label).includes(node))).props.checked, true);
+  assert.equal(button(tree, "Confirmar envio").props.disabled, false);
+  assert.equal(button(tree, "Usar como comunicado / cobrança (todos os cargos)"), undefined);
+});
