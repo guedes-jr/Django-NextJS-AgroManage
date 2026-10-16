@@ -2,13 +2,15 @@
 
 from common.permissions import IsPlatformAdmin
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Subquery
+from django.db.models import Count, IntegerField, OuterRef, Prefetch, Subquery
 from django.db.models.functions import Coalesce
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 
 from apps.accounts.models import User
+from apps.organizations.models import OrganizationAddress
 from apps.billing.models import Plan, Subscription
 from apps.notifications.marketing import organizations, preview, publish
 from apps.notifications.models import (
@@ -225,11 +227,42 @@ class MarketingAudienceViewSet(AuditedViewSet):
     def query(self, request):
         serializer = AudienceFiltersSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        qs = organizations(serializer.validated_data)
+        ordering = request.query_params.get("ordering", "name")
+        if ordering not in ("name", "-name", "document", "-document"):
+            raise serializers.ValidationError({"ordering": "Ordenação inválida."})
+        qs = organizations(serializer.validated_data).select_related(
+            "subscription__plan"
+        ).prefetch_related(
+            Prefetch(
+                "addresses",
+                queryset=OrganizationAddress.objects.order_by("-is_main", "pk"),
+                to_attr="query_addresses",
+            )
+        ).order_by(ordering, "pk")
+        pagination = PageNumberPagination()
+        pagination.page_size = 25
+        rows = pagination.paginate_queryset(qs, request, view=self)
+        results = []
+        for organization in rows:
+            subscription = getattr(organization, "subscription", None)
+            address = next(iter(organization.query_addresses), None)
+            results.append({
+                "id": organization.pk,
+                "name": organization.name,
+                "document": organization.document,
+                "email": organization.email,
+                "phone": organization.phone,
+                "plan": subscription.plan.name if subscription else organization.get_plan_display(),
+                "status": subscription.get_status_display() if subscription else "Sem assinatura",
+                "city": address.city if address else "",
+                "state": address.state if address else "",
+            })
         return Response(
             {
-                "count": qs.count(),
-                "results": list(qs.order_by("name").values("id", "name")[:50]),
+                "count": pagination.page.paginator.count,
+                "page": pagination.page.number,
+                "has_next": pagination.page.has_next(),
+                "results": results,
             }
         )
 

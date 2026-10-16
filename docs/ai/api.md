@@ -13,6 +13,7 @@ The backend uses Django REST Framework and the frontend consumes the API through
 - Keep validation errors predictable.
 - Keep pagination consistent with the existing project standard.
 - Preserve authentication and organization/tenant authorization.
+- Do not expose internal fields or secrets.
 
 ## Marketing campaign content
 
@@ -24,8 +25,14 @@ clearing all content is rejected. Supplied links must still be valid HTTP(S) URL
 POST `platform/marketing/audiences/query/` previews organization filters without
 creating or updating an audience. All filters are optional; an empty request
 matches active organizations. It uses the same platform administrator permission
-as saved audiences and returns `count` and up to 50 `results` with ID and name.
-- Do not expose internal fields or secrets.
+as saved audiences. Responses include `count`, `page`, `has_next` and 25
+`results` per page with ID, name, document, email, phone, plan label,
+subscription status label, city and state (from the primary address when present).
+Query parameters accept `page` and `ordering` (`name`, `-name`, `document`,
+`-document`). The organization table searches independently of the current
+selection, retaining selected IDs across pages in the audience's
+`filters.organizations`. An empty explicit selection cannot be saved in the UI;
+users can instead choose all organizations matching the filters.
 
 ## When changing an endpoint
 

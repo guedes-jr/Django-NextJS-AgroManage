@@ -116,6 +116,46 @@ test("organization filters can be queried without a saved audience or name", asy
   assert.match(textOf(page.render()), /1 organizações encontradas/);
 });
 
+test("table selections persist across pages and determine the saved audience", async () => {
+  let saved;
+  const page = mount({
+    queryOrganizations: async (_filters, requestedPage) => ({
+      count: 2, page: requestedPage, has_next: requestedPage === 1,
+      results: [{ id: `org-${requestedPage}`, name: `Fazenda ${requestedPage}`, document: "123", plan: "Pro", status: "Ativa", city: "Recife", state: "PE" }],
+    }),
+    saveAudience: async data => { saved = data; return { id: "audience", ...data }; },
+  });
+  await settle();
+  button(page.render(), "Consultar organizações").props.onClick();
+  await settle();
+  let tree = page.render();
+  assert.ok(nodes(tree).some(node => node.type === "table" && textOf(node).includes("Cidade / UF")));
+  nodes(tree).find(node => node.props?.["aria-label"] === "Selecionar Fazenda 1")
+    .props.onChange({ target: { checked: true } });
+  button(page.render(), "Próxima página").props.onClick();
+  await settle();
+  tree = page.render();
+  nodes(tree).find(node => node.props?.["aria-label"] === "Selecionar organizações desta página")
+    .props.onChange({ target: { checked: true } });
+  button(page.render(), "Página anterior").props.onClick();
+  await settle();
+  tree = page.render();
+  assert.equal(nodes(tree).find(node => node.props?.["aria-label"] === "Selecionar Fazenda 1").props.checked, true);
+  nodes(tree).find(node => node.type === "input" && node.props.maxLength === 150)
+    .props.onChange({ target: { value: "Selecionadas" } });
+  button(page.render(), "Salvar público").props.onClick();
+  await settle();
+  assert.deepEqual(Array.from(saved.filters.organizations), ["org-1", "org-2"]);
+  tree = page.render();
+  nodes(tree).find(node => node.props?.["aria-label"] === "Selecionar organizações desta página")
+    .props.onChange({ target: { checked: false } });
+  button(page.render(), "Próxima página").props.onClick();
+  await settle();
+  nodes(page.render()).find(node => node.props?.["aria-label"] === "Selecionar organizações desta página")
+    .props.onChange({ target: { checked: false } });
+  assert.equal(button(page.render(), "Salvar público").props.disabled, true);
+});
+
 test("message comes first and survives navigation between steps", async () => {
   const page = mount();
   await settle();

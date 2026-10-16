@@ -23,7 +23,7 @@ from apps.notifications.models import (
 )
 from apps.notifications.services import NotificationService
 from apps.notifications.tasks import dispatch_notification
-from apps.organizations.models import Organization
+from apps.organizations.models import Organization, OrganizationAddress
 from apps.platform_admin.models import PlatformStaffProfile
 
 
@@ -245,6 +245,49 @@ class MarketingTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.assertEqual(self.client.post(path, {}, format="json").status_code, 403)
+
+    def test_organization_query_returns_paginated_details(self):
+        self.org.document = "12345678000190"
+        self.org.email = "contato@example.com"
+        self.org.phone = "81999990000"
+        self.org.save()
+        OrganizationAddress.objects.create(
+            organization=self.org, street="Rua Principal", city="Recife",
+            state="PE", is_main=True,
+        )
+        for index in range(25):
+            Organization.objects.create(name=f"Outra {index:02}", slug=f"query-{index}")
+        Organization.objects.create(name="Inativa", slug="inactive-query", is_active=False)
+        path = "/api/v1/platform/marketing/audiences/query/"
+        response = self.client.post(path, {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 26)
+        self.assertEqual(len(response.data["results"]), 25)
+        self.assertTrue(response.data["has_next"])
+        row = response.data["results"][0]
+        self.assertEqual(row["document"], self.org.document)
+        self.assertEqual(row["email"], self.org.email)
+        self.assertEqual(row["phone"], self.org.phone)
+        self.assertEqual(row["city"], "Recife")
+        self.assertEqual(row["state"], "PE")
+        self.assertEqual(row["plan"], "Free")
+        self.assertEqual(row["status"], self.org.subscription.get_status_display())
+        self.org.subscription.delete()
+        without_subscription = self.client.post(
+            path, {"search": "Fazenda"}, format="json"
+        )
+        self.assertEqual(without_subscription.data["results"][0]["status"], "Sem assinatura")
+        self.assertEqual(without_subscription.data["results"][0]["plan"], "Free")
+        second = self.client.post(f"{path}?page=2", {}, format="json")
+        self.assertEqual(second.data["page"], 2)
+        self.assertFalse(second.data["has_next"])
+        self.assertEqual(len(second.data["results"]), 1)
+        descending = self.client.post(f"{path}?ordering=-name", {}, format="json")
+        self.assertEqual(descending.data["results"][0]["name"], "Outra 24")
+        self.assertEqual(
+            self.client.post(f"{path}?ordering=invalid", {}, format="json").status_code,
+            400,
+        )
 
     def test_campaign_requires_any_one_content_field(self):
         image = MarketingImage.objects.create(
