@@ -2,7 +2,7 @@
 
 from common.permissions import IsPlatformAdmin
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Prefetch, Subquery
+from django.db.models import Count, IntegerField, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -120,6 +120,7 @@ class CampaignSerializer(serializers.ModelSerializer):
             "status",
             "recipient_count",
             "queued_at",
+            "created_at",
             "updated_at",
             "summary",
         )
@@ -128,6 +129,7 @@ class CampaignSerializer(serializers.ModelSerializer):
             "status",
             "recipient_count",
             "queued_at",
+            "created_at",
             "updated_at",
         )
         extra_kwargs = {
@@ -323,6 +325,21 @@ def campaign_queryset():
 class MarketingCampaignViewSet(AuditedViewSet):
     queryset = campaign_queryset()
     serializer_class = CampaignSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get("search", "").strip()
+        status = self.request.query_params.get("status", "")
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) | Q(body__icontains=search)
+                | Q(audience__name__icontains=search)
+            )
+        if status:
+            if status not in MarketingCampaign.Status.values:
+                raise serializers.ValidationError({"status": "Situação inválida."})
+            queryset = queryset.filter(status=status)
+        return queryset
 
     @action(detail=True, methods=["get"])
     def preview(self, request, pk=None):

@@ -22,6 +22,20 @@ images, requiring at least one nonempty item. Title and body may be omitted or
 blank. Partial updates validate the resulting content, including existing images;
 clearing all content is rejected. Supplied links must still be valid HTTP(S) URLs.
 
+Campaign responses include `created_at`, `updated_at` and nullable `queued_at`
+timestamps for management history. Campaign preview also returns `blockers`,
+a list of actionable reasons that currently prevent publication (disabled
+marketing category, disabled selected channels, or no eligible recipients).
+The final review prepares this preview automatically. Publication still requires
+explicit confirmation and a current preview token, and revalidates policy and
+recipient consent on the server. A failed publication requires a fresh review
+before retrying; the editor retains the draft.
+
+The campaign list accepts optional `search` (title, body or saved audience name)
+and `status` (a campaign status value) alongside existing pagination. Invalid
+status filters return a validation error. Resuming a draft retrieves its own
+audience by ID if it is absent from the saved-audience list.
+
 POST `platform/marketing/audiences/query/` previews organization filters without
 creating or updating an audience. All filters are optional; an empty request
 matches active organizations. It uses the same platform administrator permission
@@ -32,7 +46,10 @@ Query parameters accept `page` and `ordering` (`name`, `-name`, `document`,
 `-document`). The organization table searches independently of the current
 selection, retaining selected IDs across pages in the audience's
 `filters.organizations`. An empty explicit selection cannot be saved in the UI;
-users can instead choose all organizations matching the filters.
+users can instead choose all organizations matching the filters. For explicit
+selections, saving uses only the selected IDs and recipient roles; discovery
+filters do not silently exclude organizations selected on other pages or searches.
+Choosing all matches saves the organization filters instead.
 
 ## When changing an endpoint
 

@@ -80,6 +80,15 @@ def resolve(campaign):
 def preview(campaign):
     orgs, recipients = resolve(campaign)
     policy = category_policy("marketing")
+    blockers = []
+    if not policy.enabled:
+        blockers.append("Ative a categoria Propagandas em Notificações.")
+    if campaign.send_in_app and not policy.in_app_enabled:
+        blockers.append("Ative o canal No sistema em Notificações ou desmarque esse canal.")
+    if campaign.send_whatsapp and not policy.whatsapp_enabled:
+        blockers.append("Ative o canal WhatsApp em Notificações ou desmarque esse canal.")
+    if not recipients:
+        blockers.append("Nenhum destinatário elegível. Revise os filtros, cargos e autorizações dos usuários.")
     fingerprint = hashlib.sha256(
         repr(
             (
@@ -93,6 +102,7 @@ def preview(campaign):
         ).encode()
     ).hexdigest()
     return {
+        "blockers": blockers,
         "organizations": orgs.count(),
         "recipients": len(recipients),
         "in_app": sum(r[2] for r in recipients),

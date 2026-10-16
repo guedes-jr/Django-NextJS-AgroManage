@@ -1,7 +1,10 @@
 .campaign-hero {padding: 28px; border-radius: 20px; background: linear-gradient(120deg,#e7f3eb,#f4f8ea); border: 1px solid #d9e7dc;}
 .campaign-step {font-size:.76rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#397251;}
 .campaign-steps {display:flex; flex-wrap:wrap; gap:8px;}
-.campaign-steps span {flex:1 1 160px; padding:12px 16px; border-radius:12px; background:#eef2ee; color:#536158;}
+.campaign-steps button {flex:1 1 160px; display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:12px; background:#eef2ee; color:#536158; border:1px solid transparent; text-align:left;}
+.campaign-steps button:focus-visible {outline:3px solid #397251; outline-offset:2px;}
+.campaign-steps button:disabled {opacity:.65;}
+.campaign-steps button span:first-child {display:grid; place-items:center; width:28px; height:28px; border:1px solid currentColor; border-radius:50%; flex-shrink:0;}
 .campaign-steps .active {background:#dceee0; color:#205b35; font-weight:700; border:1px solid #94bb9f;}
 .campaign-page fieldset {min-width:0;}
 .campaign-toolbar {display:flex; flex-wrap:wrap; gap:6px; padding:8px; background:#f1f5f2; border-radius:10px 10px 0 0;}
@@ -12,3 +15,16 @@
 .campaign-image {width:130px; padding:6px; border:1px solid #e0e8e2; border-radius:12px; display:flex; flex-direction:column; gap:6px;}
 .campaign-image img {width:100%; height:95px; object-fit:cover; border-radius:8px;}
 .campaign-page .form-label {font-size:.88rem; font-weight:500;}
+.campaign-saved {padding:14px 16px; border:1px solid #e0e8e2; border-radius:12px;}
+.campaign-saved summary {cursor:pointer; font-weight:600;}
+.campaign-actions {position:sticky; bottom:12px; z-index:5; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px; margin-top:24px; background:#fff; border:1px solid #d9e7dc; border-radius:14px; box-shadow:0 4px 20px #183b2020;}
+.campaign-dialog-backdrop {position:fixed; inset:0; z-index:1100; display:grid; place-items:center; padding:20px; background:#15251c80;}
+.campaign-dialog {width:min(100%,540px); max-height:90vh; overflow:auto;}
+@media (max-width:575px) {
+  .campaign-hero {padding:20px;}
+  .campaign-steps {gap:4px;}
+  .campaign-steps button {flex:1 1 0; padding:10px 6px; font-size:.78rem; flex-direction:column; text-align:center;}
+  .campaign-actions {bottom:6px; padding:12px;}
+  .campaign-actions > div {width:100%;}
+  .campaign-actions button {flex:1;}
+}

@@ -112,6 +112,26 @@ class MarketingTests(APITestCase):
             publish(self.campaign.pk, preview(self.campaign)["token"])
         self.assertEqual(self.campaign.recipients.count(), 1)
 
+    def test_preview_explains_channel_and_recipient_blockers(self):
+        policy = NotificationCategoryPolicy.objects.get(category="marketing")
+        policy.enabled = False
+        policy.in_app_enabled = False
+        policy.whatsapp_enabled = False
+        policy.save()
+        result = preview(self.campaign)
+        self.assertEqual(len(result["blockers"]), 3)
+        self.assertTrue(any("categoria Propagandas" in item for item in result["blockers"]))
+        self.assertTrue(any("No sistema" in item for item in result["blockers"]))
+        self.assertTrue(any("WhatsApp" in item for item in result["blockers"]))
+        policy.enabled = True
+        policy.in_app_enabled = True
+        policy.whatsapp_enabled = True
+        policy.save()
+        self.assertEqual(preview(self.campaign)["blockers"], [])
+        self.pref.marketing_alerts = False
+        self.pref.save()
+        self.assertTrue(any("Nenhum destinatário" in item for item in preview(self.campaign)["blockers"]))
+
     def test_outbox_is_idempotent_and_respects_channel_selection(self):
         publish(self.campaign.pk, preview(self.campaign)["token"])
         self.assertEqual(prepare_campaign(self.campaign.pk), 1)
@@ -288,6 +308,27 @@ class MarketingTests(APITestCase):
             self.client.post(f"{path}?ordering=invalid", {}, format="json").status_code,
             400,
         )
+
+    def test_campaign_list_filters_by_content_audience_and_status(self):
+        MarketingCampaign.objects.create(
+            title="Outra divulgação", body="Informativo", audience=self.audience,
+            status="cancelled",
+        )
+        path = "/api/v1/platform/marketing/campaigns/"
+        for search in ("Oferta", "Novidade"):
+            with self.subTest(search=search):
+                response = self.client.get(path, {"search": search})
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["count"], 1)
+                self.assertEqual(str(response.data["results"][0]["id"]), str(self.campaign.pk))
+        response = self.client.get(path, {"search": self.audience.name, "status": "draft"})
+        self.assertEqual(response.data["count"], 1)
+        response = self.client.get(path, {"status": "cancelled"})
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Outra divulgação")
+        response = self.client.get(path, {"search": "Inexistente"})
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(self.client.get(path, {"status": "invalid"}).status_code, 400)
 
     def test_campaign_requires_any_one_content_field(self):
         image = MarketingImage.objects.create(
