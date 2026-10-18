@@ -11,6 +11,9 @@ WorkingDirectory=/var/www/agromanage/backend
 EnvironmentFile=/var/www/agromanage/backend/.env
 Environment=DJANGO_SETTINGS_MODULE=config.settings.prod
 StateDirectory=agromanage
+StateDirectoryMode=0700
+UMask=0077
+TimeoutStopSec=60
 ExecStart=/var/www/agromanage/backend/.venv/bin/celery -A config beat --loglevel=INFO --schedule=/var/lib/agromanage/celerybeat-schedule
 Restart=always
 RestartSec=5

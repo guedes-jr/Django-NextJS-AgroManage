@@ -161,3 +161,28 @@ SQLite tests exercise rollback atomicity, isolation, manifest and relation check
 files, publication failure, authentication, permission revocation, expiry and
 conflicting previews. PostgreSQL lock contention/concurrency and production
 filesystem throughput still require staging validation before production rollout.
+
+## Celery and Redis production defaults
+
+`CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` can be configured separately;
+`REDIS_URL` remains the backwards-compatible broker fallback and the result
+backend defaults to that broker. Existing installations can keep their current
+Redis database. Startup connection retries are enabled. Worker defaults are one
+reserved task per process, recycling after 100 tasks or 524288 KiB RSS (after the
+current task completes), and 86400 seconds for result expiry. All four numeric
+settings have same-name environment overrides. No global late-ack policy is added.
+
+The systemd worker retains concurrency 2, a five-minute warm shutdown budget and
+mixed kill mode; tasks exceeding that shutdown window need the existing durable
+job retry/reconciliation flow. Beat retains its single persistent schedule under
+`/var/lib/agromanage` with 0700 directory permissions; both services use umask 0077.
+Install the tracked unit files, run daemon-reload and restart the worker/Beat after
+configuration updates. Only one Beat instance should run for this deployment.
+
+Redis must remain bound to loopback with protected mode enabled. For the local
+broker, enable `appendonly yes`, `appendfsync everysec`, and
+`maxmemory-policy noeviction`; reserve memory for Redis, Django, two worker
+processes and Next.js. Enable AOF at runtime first and wait for successful rewrite
+before persisting the configuration; changing only the file and restarting can
+lose the in-memory queue. Snapshot the previous Redis config before changing it.
+Do not flush Redis or migrate broker databases during a routine deployment.

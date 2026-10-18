@@ -11,6 +11,9 @@ WorkingDirectory=/var/www/agromanage/backend
 EnvironmentFile=/var/www/agromanage/backend/.env
 Environment=DJANGO_SETTINGS_MODULE=config.settings.prod
 ExecStart=/var/www/agromanage/backend/.venv/bin/celery -A config worker --loglevel=INFO --concurrency=2
+UMask=0077
+TimeoutStopSec=300
+KillMode=mixed
 Restart=always
 RestartSec=5
 
