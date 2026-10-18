@@ -61,7 +61,9 @@ When calling `scripts/update_project.sh` over root SSH, invoke it directly as
 `sudo -u deploy bash /var/www/agromanage/scripts/update_project.sh`. Its root-to-
 deploy wrapper applies a 60-second sudo timeout to the complete deployment; a
 Next.js build can exceed that limit even though the script's global timeout is
-600 seconds. Direct invocation avoids that wrapper.
+600 seconds. Direct invocation avoids that wrapper. If a maintenance backup left the backend
+stopped, the updater starts it before the local health check, retaining the final
+restart for updates initiated by the web application.
 
 
 ## Private human-support attachments
@@ -186,3 +188,8 @@ processes and Next.js. Enable AOF at runtime first and wait for successful rewri
 before persisting the configuration; changing only the file and restarting can
 lose the in-memory queue. Snapshot the previous Redis config before changing it.
 Do not flush Redis or migrate broker databases during a routine deployment.
+
+Deployment validation on PostgreSQL also covers a synthetic export, isolated
+rehearsal, original-tenant application, rollback, foreign-tenant preservation and
+a competing write blocked by the recovery fence. This uses a separate temporary
+database; it does not replace production load/throughput validation.

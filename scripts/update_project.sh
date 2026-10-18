@@ -266,6 +266,14 @@ if run_sudo systemctl cat "$CELERY_BEAT_SERVICE" >/dev/null 2>&1 && ! run_sudo s
   exit 1
 fi
 
+# A maintenance backup can deliberately leave the backend stopped. Start it
+# for the health check, retaining the final restart for web-triggered updates.
+if ! run_sudo systemctl is-active --quiet "$BACKEND_SERVICE"; then
+  echo "[DEPLOY] Iniciando backend para a checagem de saude..."
+  run_sudo systemctl start "$BACKEND_SERVICE"
+  sleep 3
+fi
+
 echo "[DEPLOY] Testando backend local..."
 if ! run_timeout "$CURL_TIMEOUT_SECONDS" curl -fsI http://127.0.0.1:8000/admin/ > /dev/null; then
   echo "[ERRO] Backend não respondeu em http://127.0.0.1:8000/admin/"
