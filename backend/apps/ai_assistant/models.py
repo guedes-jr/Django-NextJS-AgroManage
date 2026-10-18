@@ -5,6 +5,7 @@ import base64
 import hashlib
 
 from common.models import BaseModel
+from .ticket_storage import SupportAttachmentStorage, support_attachment_path
 
 
 class AIProviderConfiguration(BaseModel):
@@ -302,3 +303,86 @@ class SupportUsage(BaseModel):
 
     class Meta(BaseModel.Meta):
         constraints = [models.UniqueConstraint(fields=("organization", "user", "day"), name="unique_support_daily_usage")]
+
+
+class SupportTicket(BaseModel):
+    class Status(models.TextChoices):
+        OPEN = "open", "Aberto"
+        IN_PROGRESS = "in_progress", "Em atendimento"
+        WAITING = "waiting_customer", "Aguardando cliente"
+        RESOLVED = "resolved", "Resolvido"
+        CLOSED = "closed", "Fechado"
+
+    class Category(models.TextChoices):
+        ACCESS = "access", "Acesso"
+        BILLING = "billing", "Cobrança"
+        TECHNICAL = "technical", "Problema técnico"
+        QUESTION = "question", "Dúvida"
+        OTHER = "other", "Outro"
+
+    class Priority(models.TextChoices):
+        LOW = "low", "Baixa"
+        NORMAL = "normal", "Normal"
+        HIGH = "high", "Alta"
+        URGENT = "urgent", "Urgente"
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="support_tickets")
+    requester = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="support_tickets")
+    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="assigned_support_tickets")
+    subject = models.CharField(max_length=200)
+    category = models.CharField(max_length=20, choices=Category.choices)
+    priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.NORMAL)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    version = models.PositiveIntegerField(default=1)
+    creation_key = models.UUIDField()
+    creation_digest = models.CharField(max_length=64)
+    conversation = models.ForeignKey(AIConversation, null=True, on_delete=models.SET_NULL, related_name="human_tickets")
+    shared_context = models.TextField(blank=True)
+    first_response_at = models.DateTimeField(null=True)
+    first_resolved_at = models.DateTimeField(null=True)
+    resolved_at = models.DateTimeField(null=True)
+    closed_at = models.DateTimeField(null=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["organization", "requester", "creation_key"], name="unique_support_ticket_creation")]
+        indexes = [models.Index(fields=["organization", "status"]), models.Index(fields=["assignee", "status"])]
+
+
+class SupportTicketMessage(BaseModel):
+    ticket = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name="messages")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    body = models.TextField()
+    is_internal = models.BooleanField(default=False)
+    from_team = models.BooleanField(default=False)
+    request_key = models.UUIDField()
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["ticket", "request_key"], name="unique_support_message_request")]
+
+
+class SupportTicketEvent(BaseModel):
+    ticket = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name="events")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    kind = models.CharField(max_length=30)
+    description = models.CharField(max_length=500)
+    is_internal = models.BooleanField(default=False)
+    changes = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+
+
+class SupportTicketAttachment(BaseModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
+    message = models.ForeignKey(SupportTicketMessage, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(storage=SupportAttachmentStorage(), upload_to=support_attachment_path)
+    filename = models.CharField(max_length=180)
+    size = models.PositiveIntegerField()
+    digest = models.CharField(max_length=64)
+    request_key = models.UUIDField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["message", "request_key"], name="unique_support_attachment_request")]

@@ -3,8 +3,14 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import views, notification_views, marketing_views
+from .batch_views import OrganizationBatchViewSet
+from .exports.views import OrganizationExportViewSet
+from .recovery.views import RecoveryViewSet
 
 router = DefaultRouter()
+router.register(r"organizations/(?P<organization_pk>[^/.]+)/recoveries", RecoveryViewSet, basename="platform-organization-recovery")
+router.register(r"organizations/(?P<organization_pk>[^/.]+)/exports", OrganizationExportViewSet, basename="platform-organization-export")
+router.register("organization-batches", OrganizationBatchViewSet, basename="platform-organization-batch")
 router.register("organizations", views.PlatformOrganizationViewSet, basename="platform-organization")
 router.register("users", views.PlatformUserViewSet, basename="platform-user")
 router.register("team", views.PlatformTeamViewSet, basename="platform-team")

@@ -8,3 +8,5 @@ class BillingConfig(AppConfig):
 
     def ready(self):
         from . import signals  # noqa: F401
+        from .quota_signals import connect
+        connect()

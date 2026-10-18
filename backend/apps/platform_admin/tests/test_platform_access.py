@@ -162,6 +162,7 @@ class PlatformAccessAPITestCase(APITestCase):
             reverse("platform-organization-list"),
             {
                 "name": "Nova Organização",
+                "administrator": {"full_name": "Primeiro Responsável", "email": "responsavel@nova.test"},
                 "document": "12.345.678/0001-90",
                 "email": "contato@nova.test",
                 "phone": "(11) 99999-0000",

@@ -345,3 +345,111 @@ class WhatsAppSessionObservation(models.Model):
     state_since = models.DateTimeField(default=timezone.now)
     observed_at = models.DateTimeField()
     last_error = models.CharField(max_length=500, blank=True)
+
+
+class AdoptionObservation(models.Model):
+    """Start of reliable observation; existing history must not be invented."""
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    started_at = models.DateTimeField(default=timezone.now)
+
+
+class CustomerActivityDay(BaseModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    day = models.DateField()
+    last_login_at = models.DateTimeField(null=True)
+    last_operation_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["organization", "user", "day"], name="unique_customer_activity_day")]
+        indexes = [models.Index(fields=["organization", "day"])]
+
+
+class OrganizationAdoption(BaseModel):
+    organization = models.OneToOneField("organizations.Organization", on_delete=models.CASCADE, related_name="adoption")
+    status = models.CharField(max_length=20, db_index=True)
+    calculated_at = models.DateTimeField()
+    metrics = models.JSONField(default=dict)
+
+
+class OrganizationQuotaSnapshot(BaseModel):
+    organization = models.OneToOneField("organizations.Organization", on_delete=models.CASCADE, related_name="quota_snapshot")
+    near_limit = models.BooleanField(db_index=True)
+    calculated_at = models.DateTimeField()
+
+
+class OrganizationBatch(BaseModel):
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    action = models.CharField(max_length=30)
+    reason = models.CharField(max_length=1000, blank=True)
+    filters = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default="draft", db_index=True)
+    total = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField()
+    confirmed_at = models.DateTimeField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    parent = models.ForeignKey("self", null=True, on_delete=models.PROTECT)
+
+
+class OrganizationBatchItem(BaseModel):
+    batch = models.ForeignKey(OrganizationBatch, on_delete=models.CASCADE, related_name="items")
+    organization_id = models.UUIDField()
+    snapshot = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default="pending")
+    message = models.CharField(max_length=500, blank=True)
+    invitation_revision = models.CharField(max_length=64, blank=True)
+    completed_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["batch", "organization_id"], name="unique_organization_batch_item")]
+        indexes = [models.Index(fields=["batch", "status"])]
+
+
+class OrganizationExport(BaseModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="data_exports")
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    format = models.CharField(max_length=20, choices=[("customer", "Cliente"), ("recovery", "Técnico")])
+    request_key = models.UUIDField()
+    status = models.CharField(max_length=20, default="queued", db_index=True)
+    progress = models.PositiveSmallIntegerField(default=0)
+    started_at = models.DateTimeField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    expires_at = models.DateTimeField(null=True, db_index=True)
+    lease_until = models.DateTimeField(null=True)
+    lease_token = models.UUIDField(null=True)
+    archive_name = models.CharField(max_length=250, blank=True)
+    archive_size = models.PositiveBigIntegerField(default=0)
+    archive_sha256 = models.CharField(max_length=64, blank=True)
+    error_code = models.CharField(max_length=40, blank=True)
+    summary = models.JSONField(default=dict)
+    parent = models.ForeignKey("self", null=True, on_delete=models.PROTECT)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["organization", "requested_by", "request_key"], name="unique_organization_export_request")]
+
+
+class OrganizationRecovery(BaseModel):
+    authorized_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="authorized_organization_recoveries")
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="recoveries")
+    source = models.ForeignKey(OrganizationExport, on_delete=models.PROTECT)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    request_key = models.UUIDField()
+    status = models.CharField(max_length=30, default="queued", db_index=True)
+    operation = models.CharField(max_length=15, default="rehearse")
+    isolated_organization = models.OneToOneField("organizations.Organization", null=True, on_delete=models.PROTECT, related_name="recovery_rehearsal")
+    progress = models.PositiveSmallIntegerField(default=0)
+    preview = models.JSONField(default=dict)
+    preview_digest = models.CharField(max_length=64, blank=True)
+    source_sha256 = models.CharField(max_length=64, blank=True)
+    before_sha256 = models.CharField(max_length=64, blank=True)
+    journal_sha256 = models.CharField(max_length=64, blank=True)
+    applied_digest = models.CharField(max_length=64, blank=True)
+    lease_until = models.DateTimeField(null=True)
+    lease_token = models.UUIDField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    error_code = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["organization", "requested_by", "request_key"], name="unique_organization_recovery_request")]

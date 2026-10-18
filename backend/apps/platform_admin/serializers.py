@@ -7,6 +7,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.text import slugify
 
+from apps.accounts.models import OrganizationAdministratorInvitation
+from apps.organizations.serializers import OrganizationAddressSerializer, OrganizationContactSerializer
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, PlanEntitlement, Subscription
 from apps.billing.gateways import gateway_registry
@@ -366,7 +368,25 @@ class DemoRequestDecisionSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
 
 
+class OrganizationStatusTransitionSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")
+
+
+class OrganizationQuotaSnapshotSerializer(serializers.Serializer):
+    near_limit = serializers.BooleanField()
+    calculated_at = serializers.DateTimeField()
+
+
 class PlatformOrganizationListSerializer(serializers.ModelSerializer):
+    quota_snapshot = OrganizationQuotaSnapshotSerializer(read_only=True, allow_null=True)
+    subscription_plan_code = serializers.CharField(source="subscription.plan.code", read_only=True, allow_null=True)
+    adoption = serializers.SerializerMethodField()
+
+    def get_adoption(self, obj):
+        from .adoption import adoption_metrics
+        return adoption_metrics(obj)
+
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
     users_count = serializers.IntegerField(read_only=True)
     farms_count = serializers.IntegerField(read_only=True)
     subscription_plan_id = serializers.UUIDField(source="subscription.plan_id", read_only=True, allow_null=True)
@@ -381,6 +401,13 @@ class PlatformOrganizationListSerializer(serializers.ModelSerializer):
             "document",
             "plan",
             "is_active",
+            "status",
+            "status_display",
+            "adoption",
+            "quota_snapshot",
+            "subscription_plan_code",
+            "status_reason",
+            "status_changed_at",
             "email",
             "phone",
             "users_count",
@@ -392,11 +419,61 @@ class PlatformOrganizationListSerializer(serializers.ModelSerializer):
         )
 
 
+class AdministratorInvitationSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
+    state = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = OrganizationAdministratorInvitation
+        fields = ("id", "email", "full_name", "state", "expires_at", "accepted_at", "revoked_at", "delivery_attempts", "last_attempt_at", "last_sent_at", "delivery_error")
+        read_only_fields = fields
+
+
+class OrganizationResponsibleSerializer(serializers.ModelSerializer):
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "full_name", "email", "role", "role_display", "is_active")
+        read_only_fields = fields
+
+
+class TransferOrganizationResponsibleSerializer(serializers.Serializer):
+    user_id = serializers.UUIDField()
+    expected_responsible_id = serializers.UUIDField(allow_null=True)
+
+
+class OrganizationRegistrationSerializer(serializers.ModelSerializer):
+    addresses = OrganizationAddressSerializer(many=True, read_only=True)
+    contacts = OrganizationContactSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Organization
+        fields = ("id", "name", "slug", "document", "email", "phone", "address", "addresses", "contacts", "created_at", "updated_at")
+        read_only_fields = fields
+
+
 class PlatformOrganizationDetailSerializer(PlatformOrganizationListSerializer):
+    available_sections = serializers.SerializerMethodField()
+    can_manage = serializers.SerializerMethodField()
+    responsible = serializers.SerializerMethodField()
+    administrator_invitation = AdministratorInvitationSerializer(read_only=True, allow_null=True)
     active_users_count = serializers.IntegerField(read_only=True)
     transactions_count = serializers.IntegerField(read_only=True)
     planting_cycles_count = serializers.IntegerField(read_only=True)
     inventory_items_count = serializers.IntegerField(read_only=True)
+
+    def get_available_sections(self, obj):
+        from .organization_sections import dossier_sections
+        return dossier_sections(self.context.get("request"))
+
+    def get_can_manage(self, obj):
+        from .organization_sections import can_manage_organization
+        return can_manage_organization(self.context.get("request"))
+
+    def get_responsible(self, obj):
+        members = obj.responsible_members
+        return OrganizationResponsibleSerializer(members[0]).data if members else None
 
     class Meta(PlatformOrganizationListSerializer.Meta):
         fields = PlatformOrganizationListSerializer.Meta.fields + (
@@ -405,10 +482,20 @@ class PlatformOrganizationDetailSerializer(PlatformOrganizationListSerializer):
             "planting_cycles_count",
             "inventory_items_count",
             "address",
+            "administrator_invitation",
+            "responsible",
+            "available_sections",
+            "can_manage",
         )
 
 
+class FirstAdministratorSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+
+
 class PlatformOrganizationWriteSerializer(serializers.ModelSerializer):
+    administrator = FirstAdministratorSerializer(write_only=True, required=False)
     plan_id = serializers.UUIDField(write_only=True)
     billing_cycle = serializers.ChoiceField(
         choices=Subscription.BillingCycle.choices,
@@ -420,7 +507,7 @@ class PlatformOrganizationWriteSerializer(serializers.ModelSerializer):
         model = Organization
         fields = (
             "name", "slug", "document", "email", "phone", "address",
-            "plan_id", "billing_cycle",
+            "plan_id", "billing_cycle", "administrator",
         )
         extra_kwargs = {
             "slug": {"required": False, "allow_blank": True},
@@ -439,6 +526,10 @@ class PlatformOrganizationWriteSerializer(serializers.ModelSerializer):
         return slugify(value) if value else value
 
     def validate(self, attrs):
+        if not self.instance and "administrator" not in attrs:
+            raise serializers.ValidationError({"administrator": "Informe o nome e e-mail do primeiro administrador."})
+        if self.instance and "administrator" in attrs:
+            raise serializers.ValidationError({"administrator": "O responsável não pode ser alterado pelo cadastro da organização."})
         if not attrs.get("slug") and not self.instance:
             base = slugify(attrs.get("name", ""))[:90] or "organizacao"
             candidate = base
@@ -628,7 +719,7 @@ class SupportAccessGrantSerializer(serializers.ModelSerializer):
 class CreateSupportAccessSerializer(serializers.Serializer):
     organization_id = serializers.UUIDField()
     ticket_reference = serializers.CharField(min_length=3, max_length=100, required=False, allow_blank=True, default="")
-    justification = serializers.CharField(min_length=10, max_length=1000)
+    justification = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")
     duration_minutes = serializers.IntegerField(min_value=5, max_value=60, default=30)
 
 

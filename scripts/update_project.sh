@@ -143,6 +143,8 @@ git clean -fd \
   -e backend/.env \
   -e backend/.venv \
   -e backend/media \
+  -e backend/private_support \
+  -e backend/private_exports \
   -e backend/staticfiles \
   -e frontend/.env.production \
   -e frontend/.env.local \

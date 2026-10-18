@@ -41,6 +41,7 @@
 .platform-value { font-size:2rem; font-weight:800; letter-spacing:-.04em; }
 .platform-status { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border-radius:999px; font-size:.75rem; font-weight:700; }
 .platform-status.active { color:#166534; background:#dcfce7; }
+.platform-status.archived { color:#475569; background:#e2e8f0; }
 .platform-status.suspended { color:#991b1b; background:#fee2e2; }
 .platform-login { min-height:100vh; display:grid; grid-template-columns:1.1fr .9fr; background:#111827; }
 .platform-login-hero { padding:64px; color:white; display:flex; flex-direction:column; justify-content:space-between; background:radial-gradient(circle at 20% 10%,rgba(34,197,94,.32),transparent 36%),#111827; }

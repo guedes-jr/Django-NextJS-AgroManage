@@ -17,6 +17,8 @@ class NotificationService:
 
     @staticmethod
     def create(user, title, message, notif_type=NotificationType.SYSTEM, priority=NotificationPriority.MEDIUM, link=None, event_key="", category=None, *, campaign=None, in_app=None, schedule=True):
+        if user.organization_id and user.organization.recovery_isolated:
+            return None
         from .noise import create_guarded
 
         category = classify_notification(notif_type, event_key, category)
@@ -86,7 +88,7 @@ class NotificationService:
             roles = ["admin", "manager"]
 
         from apps.accounts.models import User
-        users = User.objects.filter(organization=organization, role__in=roles)
+        users = User.objects.filter(organization=organization, role__in=roles).select_related("organization")
 
         notifications = []
         for user in users:

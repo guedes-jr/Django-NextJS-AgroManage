@@ -1,4 +1,5 @@
 import apiClient from "./api";
+import { getOrganizationErrorMessage } from "./organizationInvitations";
 import { platformApi } from "./platformApi";
 import type { AxiosInstance } from "axios";
 export type SupportConfig = { whatsapp_number: string; ai_enabled: boolean; daily_question_limit: number; welcome_message: string };
@@ -19,16 +20,7 @@ async function allPages<T>(client: AxiosInstance, url: string, signal?: AbortSig
   return result;
 }
 export function supportError(error: unknown): string {
-  if (typeof error === "object" && error !== null && "response" in error) {
-    const response = error.response as { data?: Record<string, unknown> };
-    const detail = response.data?.detail;
-    if (typeof detail === "string") return detail;
-    if (response.data) {
-      const messages = Object.values(response.data).flatMap(value => typeof value === "string" ? [value] : Array.isArray(value) ? value.filter(item => typeof item === "string") : []);
-      if (messages.length) return messages.join(" ");
-    }
-  }
-  return "Não foi possível concluir a solicitação. Tente novamente.";
+  return getOrganizationErrorMessage(error, "Não foi possível concluir a solicitação. Tente novamente.");
 }
 export const supportService = {
   config: async (signal?: AbortSignal) => (await apiClient.get<SupportConfig>("/support/configuration/", { signal })).data,

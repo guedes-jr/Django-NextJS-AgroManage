@@ -380,3 +380,23 @@ class PaymentAttempt(BaseModel):
     provider_response_code = models.CharField(max_length=80, blank=True)
     error_message = models.TextField(blank=True)
     response_data = models.JSONField(default=dict, blank=True)
+
+
+class OrganizationStorageState(BaseModel):
+    organization = models.OneToOneField("organizations.Organization", on_delete=models.CASCADE, related_name="storage_state")
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+    unknown_files = models.PositiveIntegerField(default=0)
+    missing_files = models.PositiveIntegerField(default=0)
+
+
+class OrganizationStoredFile(BaseModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="stored_files")
+    model_label = models.CharField(max_length=100)
+    object_id = models.UUIDField()
+    field_name = models.CharField(max_length=50)
+    storage_name = models.CharField(max_length=1000)
+    size_bytes = models.PositiveBigIntegerField(default=0)
+    is_reserved = models.BooleanField(default=False)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["model_label", "object_id", "field_name"], name="unique_quota_file_reference")]

@@ -1,7 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import type { PaginatedResponse } from "@/types";
 
 import type {
   PlatformDashboard,
+  OrganizationBatch, OrganizationBatchItem, OrganizationBatchSelection,
+  OrganizationAdoption,
+  OrganizationOperations,
   PlatformOrganization,
   PlatformOrganizationPage,
   PlatformStaff,
@@ -29,6 +33,13 @@ import type {
   SandboxStatus,
   SandboxExecutionPage,
   OrganizationFormPayload,
+  OrganizationCreatePayload,
+  OrganizationResponsiblePage,
+  OrganizationRegistration,
+  PlatformSubscription,
+  PlatformPayment,
+  OrganizationQuotaUsage,
+  OrganizationQuotaOverrides,
   PlatformTeamMember,
   PlatformTeamMemberPayload,
   PlatformTeamPage,
@@ -229,6 +240,27 @@ export const platformService = {
     const { data } = await platformApi.post<{task_id?:string;run_id?:string;status:"queued"|"completed"}>("platform/ai/model-sync/",{provider},{timeout:120000});
     return data;
   },
+  async prepareOrganizationBatch(payload: OrganizationBatchSelection) {
+    return (await platformApi.post<OrganizationBatch>("platform/organization-batches/", payload)).data;
+  },
+  async organizationBatches(page = 1) {
+    return (await platformApi.get<PaginatedResponse<OrganizationBatch>>("platform/organization-batches/", { params: { page } })).data;
+  },
+  async organizationBatch(id: string) {
+    return (await platformApi.get<OrganizationBatch>(`platform/organization-batches/${id}/`)).data;
+  },
+  async organizationBatchItems(id: string, page = 1, status = "") {
+    return (await platformApi.get<PaginatedResponse<OrganizationBatchItem>>(`platform/organization-batches/${id}/items/`, { params: { page, ...(status ? { status } : {}) } })).data;
+  },
+  async confirmOrganizationBatch(id: string, expected_total: number) {
+    return (await platformApi.post<OrganizationBatch>(`platform/organization-batches/${id}/confirm/`, { expected_total })).data;
+  },
+  async retryOrganizationBatch(id: string) {
+    return (await platformApi.post<OrganizationBatch>(`platform/organization-batches/${id}/retry/`)).data;
+  },
+  async downloadOrganizationBatch(id: string) {
+    return (await platformApi.get<Blob>(`platform/organization-batches/${id}/download/`, { responseType: "blob" })).data;
+  },
   async organizations(params?: Record<string, string | number | boolean>) {
     const { data } = await platformApi.get<PlatformOrganizationPage>("platform/organizations/", { params });
     return data;
@@ -237,7 +269,7 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformOrganization>(`platform/organizations/${id}/`);
     return data;
   },
-  async createOrganization(payload: OrganizationFormPayload) {
+  async createOrganization(payload: OrganizationCreatePayload) {
     const { data } = await platformApi.post<PlatformOrganization>("platform/organizations/", payload);
     return data;
   },
@@ -245,14 +277,65 @@ export const platformService = {
     const { data } = await platformApi.patch<PlatformOrganization>(`platform/organizations/${id}/`, payload);
     return data;
   },
-  async archiveOrganization(id: string) {
-    await platformApi.post(`platform/organizations/${id}/archive/`);
+  async organizationOperations(id: string) {
+    return (await platformApi.get<OrganizationOperations>(`platform/organizations/${id}/operation/`)).data;
   },
-  async suspendOrganization(id: string) {
-    await platformApi.post(`platform/organizations/${id}/suspend/`);
+  async organizationTickets(id: string, params: Record<string, string | number> = {}) {
+    return (await platformApi.get<PaginatedResponse<import("@/services/ticketService").SupportTicket>>(`platform/organizations/${id}/tickets/`, { params })).data;
   },
-  async activateOrganization(id: string) {
-    await platformApi.post(`platform/organizations/${id}/activate/`);
+  async organizationAdoption(id: string) {
+    return (await platformApi.get<{ metrics: OrganizationAdoption | null }>(`platform/organizations/${id}/adoption/`)).data;
+  },
+  async organizationUsage(id: string) {
+    return (await platformApi.get<OrganizationQuotaUsage>(`platform/organizations/${id}/usage/`)).data;
+  },
+  async updateOrganizationLimits(id: string, payload: OrganizationQuotaOverrides) {
+    return (await platformApi.patch<OrganizationQuotaUsage>(`platform/organizations/${id}/usage/`, payload)).data;
+  },
+  async reconcileOrganizationStorage(id: string) {
+    return (await platformApi.post<OrganizationQuotaUsage>(`platform/organizations/${id}/reconcile-storage/`)).data;
+  },
+  async organizationRegistration(id: string) {
+    return (await platformApi.get<OrganizationRegistration>(`platform/organizations/${id}/registration/`)).data;
+  },
+  async organizationUsers(id: string, page: number, search: string) {
+    return (await platformApi.get<PlatformUserPage>(`platform/organizations/${id}/users/`, { params: { page, search } })).data;
+  },
+  async organizationSubscription(id: string) {
+    return (await platformApi.get<{ subscription: PlatformSubscription | null }>(`platform/organizations/${id}/subscription/`)).data.subscription;
+  },
+  async organizationInvoices(id: string, page: number, search: string) {
+    return (await platformApi.get<PlatformInvoicePage>(`platform/organizations/${id}/invoices/`, { params: { page, search } })).data;
+  },
+  async organizationPayments(id: string, page: number, search: string) {
+    return (await platformApi.get<PaginatedResponse<PlatformPayment>>(`platform/organizations/${id}/payments/`, { params: { page, search } })).data;
+  },
+  async organizationHistory(id: string, page: number, search: string) {
+    return (await platformApi.get<PlatformAuditLogPage>(`platform/organizations/${id}/history/`, { params: { page, search } })).data;
+  },
+  async organizationSupportAccesses(id: string, page: number, search: string) {
+    return (await platformApi.get<PlatformSupportAccessPage>(`platform/organizations/${id}/support-access/`, { params: { page, search } })).data;
+  },
+  async responsibleCandidates(id: string, params?: { search?: string; page?: number }) {
+    const { data } = await platformApi.get<OrganizationResponsiblePage>(`platform/organizations/${id}/responsible-candidates/`, { params });
+    return data;
+  },
+  async transferResponsible(id: string, userId: string, expectedResponsibleId: string | null) {
+    const { data } = await platformApi.post<PlatformOrganization>(`platform/organizations/${id}/transfer-responsible/`, { user_id: userId, expected_responsible_id: expectedResponsibleId });
+    return data;
+  },
+  async resendAdministratorInvitation(id: string) {
+    const { data } = await platformApi.post<PlatformOrganization>(`platform/organizations/${id}/resend-administrator-invitation/`);
+    return data;
+  },
+  async archiveOrganization(id: string, reason = "") {
+    await platformApi.post(`platform/organizations/${id}/archive/`, { reason });
+  },
+  async suspendOrganization(id: string, reason = "") {
+    await platformApi.post(`platform/organizations/${id}/suspend/`, { reason });
+  },
+  async activateOrganization(id: string, reason = "") {
+    await platformApi.post(`platform/organizations/${id}/activate/`, { reason });
   },
   async users(params?: Record<string, string | number | boolean>) {
     const { data } = await platformApi.get<PlatformUserPage>("platform/users/", { params });
@@ -431,7 +514,7 @@ export const platformService = {
     const { data } = await platformApi.get<PlatformSupportAccessPage>("platform/support-access/", { params });
     return data;
   },
-  async createSupportAccess(payload: { organization_id: string; ticket_reference: string; justification: string; duration_minutes: number }) {
+  async createSupportAccess(payload: { organization_id: string; ticket_reference?: string; justification?: string; duration_minutes?: number }) {
     const {data}=await platformApi.post<{access:string;grant:PlatformSupportAccess}>("platform/support-access/", payload);
     return data;
   },

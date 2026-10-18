@@ -29,6 +29,8 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 backend/media/
+backend/private_support/
+backend/private_exports/
 backend/staticfiles/
 
 # Node

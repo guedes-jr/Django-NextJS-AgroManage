@@ -332,6 +332,12 @@ class SoilAnalysisSerializer(serializers.ModelSerializer):
         url = obj.file.url
         return request.build_absolute_uri(url) if request else url
 
+    def validate_plantation(self, value):
+        request = self.context.get("request")
+        if request and value.organization_id != getattr(request.user, "organization_id", None):
+            raise serializers.ValidationError("Plantação inválida para esta organização.")
+        return value
+
     def validate_file(self, value):
         max_size = 10 * 1024 * 1024
         if value.size > max_size:

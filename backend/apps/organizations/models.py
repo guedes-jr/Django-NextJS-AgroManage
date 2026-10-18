@@ -3,6 +3,7 @@ Organizations domain models.
 """
 from common.models import BaseModel
 from django.db import models
+from django.utils import timezone
 
 
 class Organization(BaseModel):
@@ -10,6 +11,11 @@ class Organization(BaseModel):
     Top-level tenant entity. All farms, users and data belong to an organization.
     Supports future multi-tenancy.
     """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Ativa"
+        SUSPENDED = "suspended", "Suspensa"
+        ARCHIVED = "archived", "Arquivada"
 
     class Plan(models.TextChoices):
         FREE = "free", "Free"
@@ -22,6 +28,10 @@ class Organization(BaseModel):
     document = models.CharField(max_length=20, blank=True, help_text="CNPJ or CPF")
     plan = models.CharField(max_length=20, choices=Plan.choices, default=Plan.FREE)
     is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    status_reason = models.CharField(max_length=1000, blank=True)
+    status_changed_at = models.DateTimeField(default=timezone.now)
+    recovery_isolated = models.BooleanField(default=False, db_default=False, editable=False, db_index=True)
     logo = models.ImageField(upload_to="org_logos/", null=True, blank=True)
     # Direct fields are kept for backward compatibility or as "primary" values
     # but we will transition to the new tables
@@ -32,6 +42,48 @@ class Organization(BaseModel):
     class Meta(BaseModel.Meta):
         verbose_name = "Organization"
         verbose_name_plural = "Organizations"
+        constraints = [
+            models.CheckConstraint(condition=models.Q(recovery_isolated=False) | models.Q(is_active=False), name="isolated_organization_inactive"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status="active", is_active=True)
+                    | models.Q(status__in=["suspended", "archived"], is_active=False)
+                ),
+                name="organization_status_matches_active",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        fields = kwargs.get("update_fields")
+        if fields is None or {"status", "is_active"}.intersection(fields):
+            previous = None
+            if not self._state.adding:
+                previous = (
+                    type(self).objects.using(kwargs.get("using") or self._state.db)
+                    .filter(pk=self.pk).values("status", "is_active").first()
+                )
+            # Preserve legacy saves of is_active; explicit status changes take precedence.
+            legacy_update = fields is not None and "is_active" in fields and "status" not in fields
+            legacy_full_save = (
+                fields is None and previous and self.status == previous["status"]
+                and self.is_active != previous["is_active"]
+            )
+            if previous and (legacy_update or legacy_full_save):
+                self.status = self.Status.ACTIVE if self.is_active else (
+                    self.Status.ARCHIVED if previous["status"] == self.Status.ARCHIVED else self.Status.SUSPENDED
+                )
+            elif self._state.adding and self.status == self.Status.ACTIVE and not self.is_active:
+                self.status = self.Status.SUSPENDED
+            self.is_active = self.status == self.Status.ACTIVE
+            if previous and previous["status"] != self.status:
+                self.status_changed_at = timezone.now()
+            if fields is not None:
+                kwargs["update_fields"] = set(fields) | {"status", "is_active", "status_changed_at"}
+        return super().save(*args, **kwargs)
+
+    @property
+    def access_denied_message(self):
+        return f"Organização {self.get_status_display().lower()}. Entre em contato com o suporte."
 
     def __str__(self) -> str:
         return self.name

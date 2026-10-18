@@ -1,8 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import AuthenticationFailed
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.exceptions import APIException
-from rest_framework.permissions import SAFE_METHODS
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
@@ -34,19 +32,28 @@ class ActiveOrganizationJWTAuthentication(JWTAuthentication):
         if grant_id:
             from apps.platform_admin.models import SupportAccessGrant
 
+            if not is_active_platform_staff(user) or user.platform_staff_profile.role not in {
+                "platform_owner", "platform_admin", "platform_support"
+            }:
+                raise AuthenticationFailed("Acesso de suporte não autorizado.")
+
             try:
                 grant = SupportAccessGrant.objects.select_related("organization").get(
                     pk=grant_id, operator=user
                 )
             except SupportAccessGrant.DoesNotExist as exc:
                 raise AuthenticationFailed("Concessão de suporte inválida.") from exc
-            if not grant.is_valid:
+            if not grant.is_valid or not grant.organization.is_active or grant.organization.recovery_isolated:
                 raise AuthenticationFailed("Concessão de suporte expirada ou revogada.")
             from django.utils import timezone
             SupportAccessGrant.objects.filter(pk=grant.pk).update(last_used_at=timezone.now())
             user.organization = grant.organization
+            user.role = "admin"
             user.support_access_grant = grant
         organization = getattr(user, "organization", None)
+
+        if organization and organization.recovery_isolated:
+            raise AuthenticationFailed("Organização isolada para conferência de recuperação.")
 
         if organization and not is_active_platform_staff(user):
             from apps.platform_admin.operational import active_maintenance_window
@@ -56,16 +63,14 @@ class ActiveOrganizationJWTAuthentication(JWTAuthentication):
 
         if organization and not organization.is_active and not is_active_platform_staff(user):
             raise AuthenticationFailed(
-                "Organização suspensa. Entre em contato com o suporte.",
-                code="organization_suspended",
+                organization.access_denied_message,
+                code=f"organization_{organization.status}",
             )
 
         return user
 
     def authenticate(self, request):
         result = super().authenticate(request)
-        if result and hasattr(result[0], "support_access_grant") and request.method not in SAFE_METHODS:
-            raise PermissionDenied("O acesso assistido permite somente leitura.")
         if result and not is_active_platform_staff(result[0]):
             from .operator_access import enforce_request
             enforce_request(result[0], request)

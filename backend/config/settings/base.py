@@ -82,6 +82,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.platform_admin.adoption_middleware.CustomerActivityMiddleware",
 ]
 APPEND_SLASH = True
 
@@ -151,8 +152,19 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+ORGANIZATION_RECOVERY_MAX_BYTES = env.int("ORGANIZATION_RECOVERY_MAX_BYTES", default=256 * 1024**2)
+ORGANIZATION_RECOVERY_MAX_ROWS = env.int("ORGANIZATION_RECOVERY_MAX_ROWS", default=100000)
+ORGANIZATION_EXPORT_ROOT = env("ORGANIZATION_EXPORT_ROOT", default=str(BASE_DIR / "private_exports"))
+ORGANIZATION_EXPORT_RETENTION_DAYS = env.int("ORGANIZATION_EXPORT_RETENTION_DAYS", default=7)
+ORGANIZATION_EXPORT_MAX_BYTES = env.int("ORGANIZATION_EXPORT_MAX_BYTES", default=5 * 1024 ** 3)
+ORGANIZATION_EXPORT_MAX_ROWS = env.int("ORGANIZATION_EXPORT_MAX_ROWS", default=1000000)
+
+SUPPORT_ATTACHMENT_ROOT = env("SUPPORT_ATTACHMENT_ROOT", default=str(BASE_DIR / "private_support"))
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@agromanage.com")
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")
+ORGANIZATION_INVITATION_HOURS = env.int("ORGANIZATION_INVITATION_HOURS", default=24)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
 DEMO_REQUEST_NOTIFICATION_EMAILS = env.list(
     "DEMO_REQUEST_NOTIFICATION_EMAILS",
     default=["contato@agromanage.com"],
@@ -255,6 +267,12 @@ AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
 AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
 AI_MODEL_CATALOG_STALE_DAYS = env.int("AI_MODEL_CATALOG_STALE_DAYS", default=14)
 CELERY_BEAT_SCHEDULE = {
+    "organization-recovery-maintenance": {"task": "apps.platform_admin.tasks.maintain_organization_recoveries", "schedule": 60.0},
+    "organization-export-maintenance": {"task": "apps.platform_admin.tasks.maintain_organization_exports", "schedule": 60.0},
+    "organization-batch-resume": {"task": "apps.platform_admin.tasks.resume_organization_batches", "schedule": 60.0},
+    "organization-quota-snapshots": {"task": "apps.platform_admin.tasks.refresh_organization_quota_snapshots", "schedule": 3600.0},
+    "organization-adoption": {"task": "apps.platform_admin.tasks.refresh_organization_adoption", "schedule": 3600.0},
+    "organization-storage-reconciliation": {"task": "apps.billing.tasks.reconcile_organization_storage", "schedule": crontab(minute=15, hour=2)},
     "marketing-outbox": {"task": "apps.notifications.tasks.process_marketing_outbox", "schedule": 60.0},
     "notifications-daily-digest": {"task": "apps.notifications.tasks.send_daily_notifications_digest", "schedule": crontab(minute=0, hour=7)},
     "notifications-weekly-digest": {"task": "apps.notifications.tasks.send_weekly_notifications_digest", "schedule": crontab(minute=0, hour=7, day_of_week="monday")},

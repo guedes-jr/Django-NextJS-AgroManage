@@ -6,8 +6,9 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from apps.farms.models import Farm
 from apps.organizations.models import Organization
-from apps.platform_admin.models import PlatformStaffProfile, SupportAccessGrant
+from apps.platform_admin.models import PlatformAuditLog, PlatformStaffProfile, SupportAccessGrant
 
 User = get_user_model()
 
@@ -22,23 +23,87 @@ class SupportAccessAPITestCase(APITestCase):
         PlatformStaffProfile.objects.create(user=self.support, role=PlatformStaffProfile.Role.SUPPORT)
         self.client.force_authenticate(user=self.support)
 
-    def test_support_token_reads_tenant_and_blocks_writes(self):
+    def create_access(self):
         response = self.client.post(
             reverse("platform-support-access-list"),
-            {"organization_id": str(self.organization.id), "ticket_reference": "SUP-123", "justification": "Investigação do problema informado pelo cliente.", "duration_minutes": 15},
-            format="json",
+            {"organization_id": str(self.organization.id)}, format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["grant"]["ticket_reference"], "SUP-123")
-        token_client = APIClient()
-        token_client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+        return response, client
 
-        read_response = token_client.get(reverse("my-organization"))
-        write_response = token_client.post(reverse("auth_logout"), {}, format="json")
+    def test_support_access_needs_only_organization_and_records_history(self):
+        response, client = self.create_access()
+        grant = SupportAccessGrant.objects.get(pk=response.data["grant"]["id"])
+        self.assertEqual(grant.operator, self.support)
+        self.assertEqual(grant.organization, self.organization)
+        self.assertEqual(grant.justification, "")
+        self.assertTrue(PlatformAuditLog.objects.filter(action="support_access.created", organization=self.organization).exists())
+        read = client.get(reverse("my-organization"))
+        self.assertEqual(read.status_code, status.HTTP_200_OK)
+        self.assertEqual(read.data["id"], str(self.organization.id))
 
-        self.assertEqual(read_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(read_response.data["id"], str(self.organization.id))
-        self.assertEqual(write_response.status_code, status.HTTP_403_FORBIDDEN)
+    def test_support_can_create_update_and_delete_in_selected_organization(self):
+        _, client = self.create_access()
+        response = client.post(reverse("farms-list"), {"name": "Fazenda Suporte"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        farm = Farm.objects.get(pk=response.data["id"])
+        self.assertEqual(farm.organization, self.organization)
+        detail = reverse("farms-detail", args=[farm.pk])
+        self.assertEqual(client.patch(detail, {"name": "Atualizada"}, format="json").status_code, status.HTTP_200_OK)
+        farm.refresh_from_db()
+        self.assertEqual(farm.name, "Atualizada")
+        self.assertEqual(client.delete(detail).status_code, status.HTTP_204_NO_CONTENT)
+        self.support.refresh_from_db()
+        self.assertIsNone(self.support.organization_id)
+        self.assertNotEqual(self.support.role, "admin")
+
+    def test_profile_save_does_not_persist_support_role_or_organization(self):
+        from common.authentication import ActiveOrganizationJWTAuthentication
+        from rest_framework_simplejwt.tokens import AccessToken
+
+        response, _ = self.create_access()
+        user = ActiveOrganizationJWTAuthentication().get_user(AccessToken(response.data["access"]))
+        user.full_name = "Support Updated"
+        user.save()
+        self.assertEqual(user.role, "admin")
+        self.assertEqual(user.organization, self.organization)
+        self.support.refresh_from_db()
+        self.assertEqual(self.support.full_name, "Support Updated")
+        self.assertEqual(self.support.role, User.Role.OPERATOR)
+        self.assertIsNone(self.support.organization_id)
+
+    def test_support_cannot_change_other_organization(self):
+        other = Organization.objects.create(name="Outra", slug="outra")
+        farm = Farm.objects.create(name="Fazenda Outra", organization=other)
+        _, client = self.create_access()
+        detail = reverse("farms-detail", args=[farm.pk])
+        for response in (client.get(detail), client.patch(detail, {"name": "Inválida"}, format="json"), client.delete(detail)):
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        farm.refresh_from_db()
+        self.assertEqual(farm.name, "Fazenda Outra")
+
+    def test_disabled_staff_and_changed_role_reject_support_token(self):
+        _, client = self.create_access()
+        profile = self.support.platform_staff_profile
+        profile.is_active = False
+        profile.save()
+        self.assertEqual(client.get(reverse("my-organization")).status_code, status.HTTP_401_UNAUTHORIZED)
+        profile.is_active = True
+        profile.role = PlatformStaffProfile.Role.AUDITOR
+        profile.save()
+        self.assertEqual(client.get(reverse("my-organization")).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_expired_access_and_suspended_organization_reject_token(self):
+        response, client = self.create_access()
+        self.organization.is_active = False
+        self.organization.save()
+        self.assertEqual(client.get(reverse("my-organization")).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.organization.is_active = True
+        self.organization.save()
+        SupportAccessGrant.objects.filter(pk=response.data["grant"]["id"]).update(expires_at=timezone.now() - timedelta(minutes=1))
+        self.assertEqual(client.get(reverse("my-organization")).status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_revoked_grant_rejects_token(self):
         create_response = self.client.post(

@@ -19,6 +19,7 @@ class OrganizationContactSerializer(serializers.ModelSerializer):
         ]
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
     plan_display = serializers.CharField(source='get_plan_display', read_only=True)
     addresses = OrganizationAddressSerializer(many=True, read_only=True)
     contacts = OrganizationContactSerializer(many=True, read_only=True)
@@ -30,17 +31,18 @@ class OrganizationSerializer(serializers.ModelSerializer):
         model = Organization
         fields = [
             'id', 'name', 'slug', 'document', 'plan', 'plan_display',
-            'is_active', 'logo', 'address', 'phone', 'email',
+            'is_active', 'status', 'status_display', 'status_changed_at', 'logo', 'address', 'phone', 'email',
             'addresses', 'contacts', 'farms_count', 'storage_used',
             'subscription', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'slug', 'plan', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'slug', 'plan', 'is_active', 'status', 'status_changed_at', 'created_at', 'updated_at']
 
     def get_farms_count(self, obj):
-        return 0
+        return obj.farms.filter(is_active=True).count()
 
     def get_storage_used(self, obj):
-        return 0
+        from apps.billing.quotas import organization_storage_usage
+        return organization_storage_usage(obj.pk) / (1024 * 1024)
 
     def get_subscription(self, obj):
         subscription = getattr(obj, "subscription", None)

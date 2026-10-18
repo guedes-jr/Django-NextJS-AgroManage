@@ -109,6 +109,8 @@ export interface PlatformSupportAccess {
 export type PlatformSupportAccessPage = PaginatedResponse<PlatformSupportAccess>;
 
 export interface PlatformDashboard {
+  support: OrganizationSupportMetrics | null;
+  adoption: { by_status: Partial<Record<OrganizationAdoption["status"], number>>; pending: number; oldest_calculated_at: string | null };
   organizations: {
     total: number;
     active: number;
@@ -133,13 +135,66 @@ export interface PlatformDashboard {
   recent_activities: Array<{ id:string; action:string; description:string; actor_name:string; organization_name:string; object_type:string; created_at:string }>;
 }
 
-export interface PlatformOrganization {
+export interface AdministratorInvitation {
   id: string;
+  email: string;
+  full_name: string;
+  state: "pending" | "sent" | "failed" | "expired" | "accepted" | "revoked";
+  expires_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  delivery_attempts: number;
+  last_attempt_at: string | null;
+  last_sent_at: string | null;
+  delivery_error: string;
+}
+
+export type OrganizationStatus = "active" | "suspended" | "archived";
+
+export interface OrganizationResponsible {
+  id: string;
+  full_name: string;
+  email: string;
+  role: "admin" | "manager" | "operator";
+  role_display: string;
+  is_active: boolean;
+}
+
+export type OrganizationResponsiblePage = PaginatedResponse<OrganizationResponsible>;
+
+export type OrganizationDossierSection = "summary" | "registration" | "users" | "subscription" | "invoices" | "payments" | "history" | "support-access" | "consumption" | "adoption" | "operation" | "tickets" | "exports" | "recovery";
+
+export interface OrganizationRegistration {
+  id: string; name: string; slug: string; document: string; email: string; phone: string; address: string;
+  created_at: string; updated_at: string;
+  addresses: {id: string; label: string; postal_code: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; is_main: boolean}[];
+  contacts: {id: string; name: string; contact_type: string; contact_type_display: string; value: string; is_main: boolean}[];
+}
+
+export interface OrganizationAdoption {
+  status: "active" | "inactive_7" | "inactive_15" | "inactive_30" | "never" | "unknown";
+  observed_since: string; calculated_at: string; history_complete: boolean;
+  last_customer_login_at: string | null; last_operation_at: string | null; days_without_use: number | null;
+  active_users_7d: number; active_users_30d: number; period_7d_complete: boolean; period_30d_complete: boolean;
+  checklist: { responsible_activated: boolean; first_farm: boolean; first_operation: boolean | null };
+}
+
+export interface PlatformOrganization {
+  quota_snapshot: { near_limit: boolean; calculated_at: string } | null;
+  subscription_plan_code: string | null;
+  adoption: OrganizationAdoption | null;
+  id: string;
+  available_sections?: OrganizationDossierSection[];
+  can_manage?: boolean;
   name: string;
   slug: string;
   document: string;
   plan: OrgPlan;
   is_active: boolean;
+  status: OrganizationStatus;
+  status_display: string;
+  status_reason: string;
+  status_changed_at: string;
   email: string;
   phone: string;
   users_count: number;
@@ -149,6 +204,8 @@ export interface PlatformOrganization {
   planting_cycles_count?: number;
   inventory_items_count?: number;
   address?: string;
+  responsible: OrganizationResponsible | null;
+  administrator_invitation?: AdministratorInvitation | null;
   subscription_plan_id?: string | null;
   billing_cycle?: "monthly" | "yearly" | "custom";
   created_at: string;
@@ -166,6 +223,10 @@ export interface OrganizationFormPayload {
   address: string;
   plan_id: string;
   billing_cycle: "monthly" | "yearly" | "custom";
+}
+
+export interface OrganizationCreatePayload extends OrganizationFormPayload {
+  administrator: { full_name: string; email: string };
 }
 
 export interface PlatformUser {
@@ -252,6 +313,10 @@ export interface PlatformSubscription {
   billing_cycle: "monthly" | "yearly" | "custom";
   billing_cycle_display: string;
   started_at: string;
+  trial_ends_at: string | null;
+  cancel_at_period_end: boolean;
+  cancelled_at: string | null;
+  notes: string;
   current_period_ends_at: string | null;
   discount_type: "percentage" | "fixed_amount" | "";
   discount_value: string;
@@ -282,7 +347,7 @@ export interface PlatformAIDashboard { period:{start:string;end:string}; metrics
 export interface PlatformAIProvider { id:string; provider:string; display_name:string; base_url:string; is_enabled:boolean; is_default:boolean; timeout_seconds:number; prefer_free_models:boolean; allow_paid_models:boolean; max_model_attempts:number; max_output_tokens:number; credential_configured:boolean; last_health_status:"unknown"|"healthy"|"degraded"|"unavailable"; health_status_display:string; last_health_check_at:string|null; last_health_message:string; created_at:string; updated_at:string; }
 export interface PlatformAIModel { id:string; provider:string; provider_name:string; provider_code:string; external_id:string; display_name:string; endpoint_type:"chat_completions"|"responses"; endpoint_type_display:string; is_free:boolean; is_available:boolean; is_enabled:boolean; is_primary:boolean; priority:number; supports_streaming:boolean; supports_tools:boolean; input_price:string|null; output_price:string|null; context_window:number|null; first_seen_at:string|null; last_seen_at:string|null; last_verified_at:string|null; created_at:string; updated_at:string; }
 export interface PlatformAIModelSyncRun { id:string; provider:string; provider_name:string; status:"running"|"success"|"failure"; status_display:string; trigger:"scheduled"|"manual"; trigger_display:string; started_at:string; finished_at:string|null; models_found:number; free_models_found:number; models_created:number; models_updated:number; models_unavailable:number; added_model_ids:string[]; unavailable_model_ids:string[]; error_class:string; error_message:string; response_summary:Record<string,unknown>; created_at:string; }
-export interface PlatformInvoice { effective_status:string; id:string; number:string; organization:string; organization_name:string; plan_name:string; status:string; status_display:string; total:string; amount_paid:string; amount_due:string; due_date:string; paid_at:string|null; created_at:string; }
+export interface PlatformInvoice { currency?:string; effective_status:string; id:string; number:string; organization:string; organization_name:string; plan_name:string; status:string; status_display:string; total:string; amount_paid:string; amount_due:string; due_date:string; paid_at:string|null; created_at:string; }
 export type PlatformInvoicePage = PaginatedResponse<PlatformInvoice>;
 export interface PlatformHealth { status:string; checked_at:string; environment:string; checks:Record<string,{status:string;engine?:string;pending?:number}>; }
 export interface PlatformTaskRun { id:string; task_id:string; task_name:string; status:string; status_display:string; started_at:string|null; finished_at:string|null; duration_ms:number|null; result_summary:string; error_class:string; error_message:string; can_retry:boolean; created_at:string; }
@@ -383,6 +448,64 @@ export interface SandboxExecutionRecord {
 
 export type SandboxExecutionPage = PaginatedResponse<SandboxExecutionRecord>;
 
-export interface PlatformPayment { id:string; invoice:string; invoice_number:string; organization_name:string; amount:string; status:string; status_display:string; payment_method:string; paid_at:string|null; notes:string; }
+export interface PlatformPayment { currency?:string; created_at?:string; id:string; invoice:string; invoice_number:string; organization_name:string; amount:string; status:string; status_display:string; payment_method:string; paid_at:string|null; notes:string; }
 export interface PlatformFinanceReport { dashboard:PlatformFinanceDashboard; invoices:PlatformInvoice[]; payments:PlatformPayment[]; generated_at:string; generated_by:string; }
 export interface PlatformInvoiceDetails { invoice:PlatformInvoice; items:{description:string;quantity:string;unit_amount:string;total:string}[]; payments:PlatformPayment[]; }
+
+
+export type OrganizationQuotaResource = "users" | "farms" | "storage";
+export interface OrganizationQuotaMetric {
+  limit: number | null;
+  plan_limit: number | null;
+  source: "plan" | "override";
+  used: number;
+  capacity: number | null;
+  remaining: number | null;
+  percent: number | null;
+  status: "normal" | "warning" | "at_limit" | "over_limit";
+}
+export interface OrganizationQuotaUsage {
+  plan_name: string | null;
+  warning_threshold_percent: number;
+  resources: Record<OrganizationQuotaResource, OrganizationQuotaMetric>;
+  active_users: number;
+  reserved_users: number;
+  storage: {reconciled_at: string; unknown_files: number; missing_files: number};
+}
+export interface OrganizationQuotaOverrides {
+  max_users?: number | null;
+  max_farms?: number | null;
+  max_storage_mb?: number | null;
+  warning_threshold_percent?: number;
+  inherit?: ("max_users" | "max_farms" | "max_storage_mb" | "warning_threshold_percent")[];
+}
+
+export type OrganizationBatchAction = "export" | "suspend" | "activate" | "resend_invitation";
+export interface OrganizationBatch {
+  id: string; action: OrganizationBatchAction; reason: string; filters: Record<string, string | number | boolean>;
+  status: "draft" | "queued" | "running" | "completed"; total: number; succeeded: number; failed: number; skipped: number;
+  expires_at: string; confirmed_at: string | null; completed_at: string | null; created_at: string; parent: string | null;
+}
+export interface OrganizationBatchItem {
+  id: string; organization_id: string; snapshot: {name: string; slug: string; status: string; plan: string};
+  status: "pending" | "delivery_pending" | "succeeded" | "failed" | "skipped"; message: string; completed_at: string | null;
+}
+export interface OrganizationBatchSelection {
+  action: OrganizationBatchAction; reason: string; filters?: Record<string, string>; ids?: string[]; all_matching?: boolean;
+}
+
+
+export interface OrganizationSupportMetrics {
+  total: number; active: number; awaiting_team: number; waiting_customer: number;
+  unassigned: number; urgent: number; without_first_response: number;
+}
+export interface OrganizationOperations {
+  calculated_at: string;
+  responsible: {id: string; full_name: string; email: string; is_active: boolean} | null;
+  has_active_admin: boolean;
+  usage: OrganizationQuotaUsage;
+  adoption: OrganizationAdoption | null;
+  billing: { unpaid_count: number; overdue_count: number; overdue_amounts: {currency: string; outstanding: string}[] };
+  support: OrganizationSupportMetrics | null;
+  issues: {code: string; severity: "warning" | "info"; section: OrganizationDossierSection}[];
+}

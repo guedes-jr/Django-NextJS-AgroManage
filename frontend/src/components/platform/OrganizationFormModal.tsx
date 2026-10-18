@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Building2, Save, X } from "lucide-react";
 
+import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
 import { platformService } from "@/services/platformApi";
 import type { OrganizationFormPayload, PlatformOrganization, PlatformPlan } from "@/types/platform";
 
@@ -18,6 +19,8 @@ export function OrganizationFormModal({
   const [plans, setPlans] = useState<PlatformPlan[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [administratorName, setAdministratorName] = useState("");
+  const [administratorEmail, setAdministratorEmail] = useState("");
   const [form, setForm] = useState<OrganizationFormPayload>({
     name: organization?.name || "",
     slug: organization?.slug || "",
@@ -46,12 +49,10 @@ export function OrganizationFormModal({
     try {
       const result = organization
         ? await platformService.updateOrganization(organization.id, form)
-        : await platformService.createOrganization(form);
+        : await platformService.createOrganization({ ...form, administrator: { full_name: administratorName.trim(), email: administratorEmail.trim() } });
       onSaved(result);
     } catch (requestError) {
-      const data = (requestError as { response?: { data?: Record<string, string[] | string> } }).response?.data;
-      const firstMessage = data && Object.values(data).flat().find(Boolean);
-      setError(firstMessage ? String(firstMessage) : "Não foi possível salvar a organização.");
+      setError(getOrganizationErrorMessage(requestError, "Não foi possível salvar a organização."));
     } finally {
       setSaving(false);
     }
@@ -76,6 +77,14 @@ export function OrganizationFormModal({
             <div className="col-md-7"><label className="form-label fw-semibold">Plano</label><select required className="form-select" value={form.plan_id} onChange={(event) => setForm({ ...form, plan_id: event.target.value })}><option value="">Selecione um plano</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} — R$ {Number(plan.monthly_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/mês</option>)}</select></div>
             <div className="col-md-5"><label className="form-label fw-semibold">Ciclo de cobrança</label><select className="form-select" value={form.billing_cycle} onChange={(event) => setForm({ ...form, billing_cycle: event.target.value as OrganizationFormPayload["billing_cycle"] })}><option value="monthly">Mensal</option><option value="yearly">Anual</option><option value="custom">Personalizado</option></select></div>
           </div>
+          {!organization && <fieldset className="border-top mt-4 pt-3" disabled={saving}>
+            <legend className="h5">Primeiro administrador</legend>
+            <p className="text-muted small">O responsável receberá um convite para definir a senha. O acesso será ativado após o aceite.</p>
+            <div className="row g-3">
+              <div className="col-md-6"><label className="form-label" htmlFor="administrator-name">Nome completo</label><input id="administrator-name" className="form-control" required maxLength={255} autoComplete="name" value={administratorName} onChange={event => setAdministratorName(event.target.value)}/></div>
+              <div className="col-md-6"><label className="form-label" htmlFor="administrator-email">E-mail do responsável</label><input id="administrator-email" className="form-control" type="email" required autoComplete="email" value={administratorEmail} onChange={event => setAdministratorEmail(event.target.value)}/></div>
+            </div>
+          </fieldset>}
         </div>
         <div className="p-3 border-top d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={onClose}>Cancelar</button><button className="btn btn-success d-flex align-items-center gap-2" disabled={saving || !form.plan_id}><Save size={16} />{saving ? "Salvando..." : "Salvar organização"}</button></div>
       </form>

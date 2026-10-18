@@ -4,12 +4,14 @@ Accounts app URLs — authentication and user management.
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 
-from . import views
+from . import views, invitation_views
 
 router = DefaultRouter()
 router.register(r"users", views.UserViewSet, basename="user")
 
 urlpatterns = [
+    path("organization-invitations/inspect/", invitation_views.invitation_inspect, name="organization-invitation-inspect"),
+    path("organization-invitations/accept/", invitation_views.invitation_accept, name="organization-invitation-accept"),
     path("operator-options/", views.operator_options, name="operator-options"),
     re_path(r"^login/?$", views.login_view, name="auth_login"),
     re_path(r"^google/?$", views.google_login_view, name="auth_google"),

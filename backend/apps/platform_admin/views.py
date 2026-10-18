@@ -687,6 +687,9 @@ def client_state(request):
 def dashboard_summary(request):
     """Return executive, commercial and operational KPIs for the platform backoffice."""
 
+    from .adoption import adoption_summary
+    from .organization_operations import support_metrics
+    from apps.billing.selectors import unpaid_invoices, overdue_invoices as select_overdue_invoices
     thirty_days_ago = timezone.now() - timedelta(days=30)
     organizations = Organization.objects.all()
     users = User.objects.filter(organization__isnull=False)
@@ -734,9 +737,8 @@ def dashboard_summary(request):
             if subscription.billing_cycle == Subscription.BillingCycle.YEARLY
             else subscription.plan.monthly_price
         )
-    today = timezone.localdate()
-    open_invoices = Invoice.objects.filter(status__in=(Invoice.Status.OPEN, Invoice.Status.OVERDUE))
-    overdue_invoices = open_invoices.filter(due_date__lt=today)
+    open_invoices = unpaid_invoices()
+    overdue_invoices = select_overdue_invoices()
     open_leads = DemoRequest.objects.exclude(status__in=(DemoRequest.Status.WON, DemoRequest.Status.LOST))
     won_leads = DemoRequest.objects.filter(status=DemoRequest.Status.WON)
     pipeline_value = open_leads.aggregate(value=Sum("estimated_value"))["value"] or Decimal("0")
@@ -771,6 +773,8 @@ def dashboard_summary(request):
                 ).count(),
                 "without_organization": users_without_organization.count(),
             },
+            "adoption": adoption_summary(),
+            "support": support_metrics(request.user),
             "platform_team": {
                 "total": PlatformStaffProfile.objects.count(),
                 "active": PlatformStaffProfile.objects.filter(is_active=True).count(),
@@ -846,13 +850,17 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsPlatformStaff]
     search_fields = ("name", "slug", "document", "email")
-    ordering_fields = ("name", "plan", "is_active", "created_at", "updated_at")
+    ordering_fields = ("name", "plan", "is_active", "status", "created_at", "updated_at")
     ordering = ("-created_at",)
-    filterset_fields = ("plan", "is_active")
+    filter_backends = []
+    filterset_fields = ("plan", "is_active", "status")
     http_method_names = ("get", "post", "patch", "head", "options")
 
     def get_queryset(self):
-        return Organization.objects.select_related("subscription__plan").annotate(
+        from django.db.models import Prefetch
+        queryset = Organization.objects.select_related("subscription__plan", "administrator_invitation__user", "adoption", "quota_snapshot").prefetch_related(
+            Prefetch("members", queryset=User.objects.filter(organization_responsible=True, platform_staff_profile__isnull=True).exclude(affiliate_profile__portal_access_only=True).only("id", "organization_id", "full_name", "email", "role", "is_active"), to_attr="responsible_members"),
+        ).annotate(
             users_count=Count("members", distinct=True),
             active_users_count=Count(
                 "members",
@@ -865,6 +873,17 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
             inventory_items_count=Count("inventory_items", distinct=True),
         )
 
+        if self.action != "list":
+            return queryset.order_by("-created_at", "pk")
+        from .organization_filters import validated_filters, filter_organizations
+        from rest_framework.exceptions import ValidationError
+        queryset = filter_organizations(queryset, validated_filters(self.request.query_params))
+        ordering = self.request.query_params.get("ordering", "-created_at")
+        fields = ordering.split(",")
+        if any(field.removeprefix("-") not in self.ordering_fields for field in fields):
+            raise ValidationError({"ordering": "Ordenação inválida."})
+        return queryset.order_by(*fields, "pk")
+
     def get_serializer_class(self):
         if self.action in {"create", "partial_update"}:
             return PlatformOrganizationWriteSerializer
@@ -873,44 +892,36 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         return PlatformOrganizationListSerializer
 
     def get_permissions(self):
-        if self.action in {"create", "partial_update", "activate", "suspend", "archive"}:
+        if self.action == "dossier_tickets":
+            from apps.ai_assistant.ticket_views import TeamSupportPermission
+            return [TeamSupportPermission()]
+        if self.action == "dossier_reconcile_storage" or (self.action == "dossier_usage" and self.request.method == "PATCH"):
+            return [IsPlatformAdmin()]
+        if self.action == "dossier_history":
+            return [IsPlatformAuditor()]
+        if self.action == "dossier_support_access":
+            return [IsPlatformSupport()]
+        if self.action in {"create", "partial_update", "activate", "suspend", "archive", "resend_administrator_invitation", "responsible_candidates", "transfer_responsible"}:
             return [IsPlatformAdmin()]
         return super().get_permissions()
 
-    @transaction.atomic
     def create(self, request, *args, **kwargs):
+        from apps.organizations.services import create_organization_with_administrator
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        plan = Plan.objects.get(pk=serializer.validated_data.pop("plan_id"))
-        billing_cycle = serializer.validated_data.pop("billing_cycle")
-        legacy_codes = {choice[0] for choice in Organization.Plan.choices}
-        organization = serializer.save(
-            plan=plan.code if plan.code in legacy_codes else Organization.Plan.FREE,
-        )
-        subscription, _ = Subscription.objects.get_or_create(
-            organization=organization,
-            defaults={
-                "plan": plan,
-                "status": Subscription.Status.ACTIVE,
-                "billing_cycle": billing_cycle,
-                "started_at": timezone.now(),
-            },
-        )
-        if subscription.plan_id != plan.id or subscription.billing_cycle != billing_cycle:
-            subscription.plan = plan
-            subscription.billing_cycle = billing_cycle
-            subscription.save(update_fields=("plan", "billing_cycle", "updated_at"))
-        record_platform_action(
-            request=request,
-            action="organization.created",
-            organization=organization,
-            object_type="Organization",
-            object_id=organization.id,
-            description="Organização criada pela equipe da plataforma.",
-            extra_data={"plan": plan.code, "billing_cycle": billing_cycle},
-        )
+        organization = create_organization_with_administrator(data=serializer.validated_data, request=request)
         result = self.get_queryset().get(pk=organization.pk)
-        return Response(PlatformOrganizationDetailSerializer(result).data, status=status.HTTP_201_CREATED)
+        return Response(PlatformOrganizationDetailSerializer(result, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="resend-administrator-invitation")
+    def resend_administrator_invitation(self, request, pk=None):
+        from apps.accounts.invitations import resend_invitation
+
+        organization = self.get_object()
+        resend_invitation(organization_id=organization.pk, request=request)
+        result = self.get_queryset().get(pk=organization.pk)
+        return Response(PlatformOrganizationDetailSerializer(result, context=self.get_serializer_context()).data)
 
     @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
@@ -941,69 +952,154 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
             description="Cadastro da organização atualizado.",
         )
         result = self.get_queryset().get(pk=organization.pk)
-        return Response(PlatformOrganizationDetailSerializer(result).data)
+        return Response(PlatformOrganizationDetailSerializer(result, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=["get"], url_path="responsible-candidates")
+    def responsible_candidates(self, request, pk=None):
+        from .serializers import OrganizationResponsibleSerializer
+
+        from django.shortcuts import get_object_or_404
+
+        organization = get_object_or_404(self.get_queryset(), pk=pk)
+        self.check_object_permissions(request, organization)
+        candidates = User.objects.filter(
+            organization=organization, is_active=True, organization_responsible=False,
+            platform_staff_profile__isnull=True,
+        ).exclude(affiliate_profile__portal_access_only=True).order_by("full_name", "id")
+        search = request.query_params.get("search", "").strip()
+        if search:
+            candidates = candidates.filter(Q(full_name__icontains=search) | Q(email__icontains=search))
+        page = self.paginate_queryset(candidates)
+        if page is not None:
+            return self.get_paginated_response(OrganizationResponsibleSerializer(page, many=True).data)
+        return Response(OrganizationResponsibleSerializer(candidates, many=True).data)
+
+    @action(detail=True, methods=["post"], url_path="transfer-responsible")
+    def transfer_responsible(self, request, pk=None):
+        from apps.organizations.services import transfer_organization_responsible
+        from .serializers import TransferOrganizationResponsibleSerializer
+
+        organization = self.get_object()
+        serializer = TransferOrganizationResponsibleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        transfer_organization_responsible(organization_id=organization.pk, request=request, **serializer.validated_data)
+        result = self.get_queryset().get(pk=organization.pk)
+        return Response(PlatformOrganizationDetailSerializer(result, context=self.get_serializer_context()).data)
+
+    def _dossier_organization(self):
+        from rest_framework.generics import get_object_or_404
+        organization = get_object_or_404(Organization, pk=self.kwargs["pk"])
+        self.check_object_permissions(self.request, organization)
+        return organization
+
+    def _dossier_records(self, request, section, serializer_class):
+        from .organization_sections import section_records
+        organization = self._dossier_organization()
+        queryset = section_records(organization=organization, section=section, user=request.user, params=request.query_params)
+        page = self.paginate_queryset(queryset)
+        serializer = serializer_class(page if page is not None else queryset, many=True, context=self.get_serializer_context())
+        return self.get_paginated_response(serializer.data) if page is not None else Response(serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="registration")
+    def dossier_registration(self, request, pk=None):
+        from .serializers import OrganizationRegistrationSerializer
+        organization = self._dossier_organization()
+        return Response(OrganizationRegistrationSerializer(organization, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=["get"], url_path="users")
+    def dossier_users(self, request, pk=None):
+        return self._dossier_records(request, "users", PlatformUserSerializer)
+
+    @action(detail=True, methods=["get"], url_path="subscription")
+    def dossier_subscription(self, request, pk=None):
+        organization = self._dossier_organization()
+        subscription = Subscription.objects.select_related("organization", "plan").filter(organization=organization).first()
+        return Response({"subscription": SubscriptionSerializer(subscription).data if subscription else None})
+
+    @action(detail=True, methods=["get"], url_path="invoices")
+    def dossier_invoices(self, request, pk=None):
+        return self._dossier_records(request, "invoices", InvoiceSerializer)
+
+    @action(detail=True, methods=["get"], url_path="payments")
+    def dossier_payments(self, request, pk=None):
+        return self._dossier_records(request, "payments", PaymentSerializer)
+
+    @action(detail=True, methods=["get"], url_path="history")
+    def dossier_history(self, request, pk=None):
+        return self._dossier_records(request, "history", PlatformAuditLogSerializer)
+
+    @action(detail=True, methods=["get"], url_path="support-access")
+    def dossier_support_access(self, request, pk=None):
+        return self._dossier_records(request, "support-access", SupportAccessGrantSerializer)
+
+    @action(detail=True, methods=["get"], url_path="operation")
+    def dossier_operation(self, request, pk=None):
+        from .organization_operations import organization_operations
+        return Response(organization_operations(self._dossier_organization(), request.user))
+
+    @action(detail=True, methods=["get"], url_path="tickets")
+    def dossier_tickets(self, request, pk=None):
+        from apps.ai_assistant.ticket_services import visible_tickets
+        from apps.ai_assistant.ticket_selectors import filter_tickets
+        from apps.ai_assistant.ticket_serializers import TeamTicketSerializer
+        organization = self._dossier_organization()
+        queryset = filter_tickets(visible_tickets(request.user, staff=True), user=request.user, params=request.query_params, staff=True, organization_id=organization.pk)
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(TeamTicketSerializer(page, many=True).data)
+
+    @action(detail=True, methods=["get"], url_path="adoption")
+    def dossier_adoption(self, request, pk=None):
+        from .adoption import adoption_metrics
+        return Response({"metrics": adoption_metrics(self._dossier_organization())})
+
+    @action(detail=True, methods=["get", "patch"], url_path="usage")
+    def dossier_usage(self, request, pk=None):
+        from apps.billing.quotas import organization_usage, update_organization_limits
+        from apps.billing.quota_serializers import OrganizationLimitsSerializer
+        organization = self._dossier_organization()
+        if request.method == "PATCH":
+            serializer = OrganizationLimitsSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return Response(update_organization_limits(organization_id=organization.pk, values=serializer.validated_data, request=request))
+        return Response(organization_usage(organization.pk))
+
+    @action(detail=True, methods=["post"], url_path="reconcile-storage")
+    def dossier_reconcile_storage(self, request, pk=None):
+        from apps.billing.quotas import organization_usage, reconcile_storage
+        organization = self._dossier_organization()
+        reconcile_storage(organization.pk)
+        record_platform_action(request=request, action="organization.storage_reconciled", organization=organization, object_type="Organization", object_id=organization.pk, description="Armazenamento da organização reconciliado.")
+        return Response(organization_usage(organization.pk))
+
+    def _transition(self, request, target):
+        from apps.organizations.services import transition_organization
+        from .serializers import OrganizationStatusTransitionSerializer
+
+        organization = self.get_object()
+        serializer = OrganizationStatusTransitionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        transition_organization(
+            organization_id=organization.pk, target=target,
+            reason=serializer.validated_data["reason"], request=request,
+        )
+        messages = {
+            Organization.Status.ACTIVE: "Organização reativada com sucesso.",
+            Organization.Status.SUSPENDED: "Organização suspensa com sucesso.",
+            Organization.Status.ARCHIVED: "Organização arquivada com sucesso.",
+        }
+        return Response({"detail": messages[target], "status": target})
 
     @action(detail=True, methods=["post"])
     def suspend(self, request, pk=None):
-        organization = self.get_object()
-        if not organization.is_active:
-            return Response(
-                {"detail": "A organização já está suspensa."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        organization.is_active = False
-        organization.save(update_fields=["is_active", "updated_at"])
-        record_platform_action(
-            request=request,
-            action="organization.suspended",
-            organization=organization,
-            object_type="Organization",
-            object_id=organization.id,
-            description="Organização suspensa pela equipe da plataforma.",
-        )
-        return Response({"detail": "Organização suspensa com sucesso."})
+        return self._transition(request, Organization.Status.SUSPENDED)
 
     @action(detail=True, methods=["post"])
     def activate(self, request, pk=None):
-        organization = self.get_object()
-        if organization.is_active:
-            return Response(
-                {"detail": "A organização já está ativa."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        organization.is_active = True
-        organization.save(update_fields=["is_active", "updated_at"])
-        record_platform_action(
-            request=request,
-            action="organization.activated",
-            organization=organization,
-            object_type="Organization",
-            object_id=organization.id,
-            description="Organização reativada pela equipe da plataforma.",
-        )
-        return Response({"detail": "Organização ativada com sucesso."})
+        return self._transition(request, Organization.Status.ACTIVE)
 
     @action(detail=True, methods=["post"])
     def archive(self, request, pk=None):
-        organization = self.get_object()
-        if not organization.is_active:
-            return Response({"detail": "A organização já está arquivada."}, status=status.HTTP_400_BAD_REQUEST)
-        organization.is_active = False
-        organization.save(update_fields=("is_active", "updated_at"))
-        User.objects.filter(organization=organization, is_active=True).update(
-            session_version=F("session_version") + 1,
-        )
-        record_platform_action(
-            request=request,
-            action="organization.archived",
-            organization=organization,
-            object_type="Organization",
-            object_id=organization.id,
-            description="Organização arquivada sem exclusão dos dados.",
-        )
-        return Response({"detail": "Organização arquivada com sucesso."})
+        return self._transition(request, Organization.Status.ARCHIVED)
 
 
 class PlatformDemoRequestViewSet(viewsets.ReadOnlyModelViewSet):
@@ -1726,7 +1822,7 @@ class PlatformSupportAccessViewSet(viewsets.ModelViewSet):
         record_platform_action(
             request=request, action="support_access.created", organization=organization,
             object_type="SupportAccessGrant", object_id=grant.id,
-            description="Acesso assistido somente leitura iniciado.",
+            description="Acesso assistido completo iniciado.",
             extra_data={"ticket_reference": grant.ticket_reference, "justification": grant.justification, "expires_at": grant.expires_at.isoformat()},
         )
         return Response({"grant": SupportAccessGrantSerializer(grant).data, "access": str(token)}, status=status.HTTP_201_CREATED)

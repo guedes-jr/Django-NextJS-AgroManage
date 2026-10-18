@@ -35,7 +35,7 @@ class LoginSerializer(serializers.Serializer):
                 and not is_active_platform_staff(user)
             ):
                 raise serializers.ValidationError(
-                    "Organização suspensa. Entre em contato com o suporte."
+                    user.organization.access_denied_message
                 )
 
             data["user"] = user

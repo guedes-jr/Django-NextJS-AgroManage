@@ -438,8 +438,11 @@ class OperatorAccessTests(APITestCase):
 
         from django.apps import apps
 
+        # A legacy owner needs a tenant without an existing responsible user;
+        # the current schema enforces uniqueness after the later backfill.
+        migration_org = Organization.objects.create(name="Migração de cargos", slug="migration-roles")
         former_owner = User.objects.create_user(
-            email="owner@migration.test", organization=self.org, role="owner"
+            email="owner@migration.test", organization=migration_org, role="owner"
         )
         former_viewer = User.objects.create_user(
             email="viewer@migration.test", organization=self.org, role="viewer"

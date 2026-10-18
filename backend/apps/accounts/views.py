@@ -121,6 +121,7 @@ def create_member_view(request):
     )
 
 
+@transaction.atomic
 def _ensure_user_organization(user):
     """Auto-provision an organization for users without tenant binding."""
     from common.authentication import is_active_platform_staff
@@ -172,6 +173,8 @@ def login_view(request):
     _ensure_user_organization(user)
 
     refresh = issue_tokens_for_user(user)
+    from apps.platform_admin.adoption import queue_activity
+    queue_activity(user, "login")
 
     return Response(
         {
@@ -214,7 +217,7 @@ def google_login_view(request):
             and not is_active_platform_staff(user)
         ):
             return Response(
-                {"detail": "Organização suspensa. Entre em contato com o suporte."},
+                {"detail": user.organization.access_denied_message},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -227,6 +230,8 @@ def google_login_view(request):
         _ensure_user_organization(user)
 
     refresh = issue_tokens_for_user(user)
+    from apps.platform_admin.adoption import queue_activity
+    queue_activity(user, "login")
     return Response(
         {
             "access": str(refresh.access_token),
@@ -262,6 +267,8 @@ def register_view(request):
             )
 
     refresh = issue_tokens_for_user(user)
+    from apps.platform_admin.adoption import queue_activity
+    queue_activity(user, "login")
 
     return Response(
         {
@@ -326,14 +333,12 @@ def me_view(request):
     """Get or update current user profile."""
     import logging
     logger = logging.getLogger(__name__)
-    from django.core.files.storage import default_storage
     
     if request.method == "GET":
         return Response(UserSerializer(request.user).data)
 
     if request.method in ["PUT", "PATCH"]:
         user = request.user
-        old_avatar = user.avatar if user.avatar else None
         
         data = {}
         
@@ -347,21 +352,9 @@ def me_view(request):
                 elif value is not None and str(value) != '':
                     data[key] = str(value)
         
-        logger.warning(f"[DEBUG] Parsed data: {data}")
-        
-        if 'avatar' in data and data['avatar'] is not None:
-            if hasattr(data['avatar'], 'name') and data['avatar'].name == '':
-                if old_avatar:
-                    try:
-                        default_storage.delete(old_avatar.path)
-                    except Exception:
-                        pass
-                user.avatar = None
-                user.save()
-                data['avatar'] = None
-        
-        logger.warning(f"[DEBUG] Final data for serializer: {data}")
-        
+        if data.get("avatar") == "":
+            data["avatar"] = None
+
         serializer = UserSerializer(
             user,
             data=data,

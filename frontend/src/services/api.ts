@@ -136,6 +136,7 @@ apiClient.interceptors.response.use(
       if (localStorage.getItem("support_access_token")) {
         localStorage.removeItem("support_access_token");
         localStorage.removeItem("support_context");
+        localStorage.removeItem("user");
         window.location.href = "/platform/organizations";
         return Promise.reject(error);
       }

@@ -4,9 +4,12 @@ Accounts app models — custom User model with role management.
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from common.models import BaseModel
+from common.quotas import QuotaQuerySet, save_with_quotas
+from django.utils import timezone
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager.from_queryset(QuotaQuerySet)):
     def create_user(self, email: str, password: str = None, **extra_fields):
         if not email:
             raise ValueError("Email is required.")
@@ -74,6 +77,25 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = "User"
         verbose_name_plural = "Users"
         ordering = ["full_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization"], condition=models.Q(organization_responsible=True),
+                name="unique_organization_responsible",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if hasattr(self, "support_access_grant"):
+            # The tenant and administrator role apply only to this support request.
+            fields = kwargs.get("update_fields")
+            if fields is None:
+                deferred = self.get_deferred_fields()
+                fields = {
+                    field.name for field in self._meta.concrete_fields
+                    if not field.primary_key and field.attname not in deferred
+                }
+            kwargs["update_fields"] = set(fields) - {"organization", "organization_id", "role"}
+        return save_with_quotas(self, super().save, args, kwargs)
 
     def __str__(self) -> str:
         return f"{self.full_name} <{self.email}>"
@@ -81,6 +103,38 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_admin(self) -> bool:
         return self.role == self.Role.ADMIN
+
+
+class OrganizationAdministratorInvitation(BaseModel):
+    class DeliveryStatus(models.TextChoices):
+        PENDING = "pending", "Pendente"
+        SENT = "sent", "Enviado"
+        FAILED = "failed", "Falha no envio"
+
+    organization = models.OneToOneField(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="administrator_invitation",
+    )
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="organization_invitation")
+    email = models.EmailField()
+    token_digest = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    delivery_status = models.CharField(max_length=10, choices=DeliveryStatus.choices, default=DeliveryStatus.PENDING)
+    delivery_attempts = models.PositiveIntegerField(default=0)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+    delivery_error = models.CharField(max_length=255, blank=True)
+
+    @property
+    def state(self):
+        if self.accepted_at:
+            return "accepted"
+        if self.revoked_at:
+            return "revoked"
+        if self.expires_at <= timezone.now():
+            return "expired"
+        return self.delivery_status
 
 
 class OperatorRecordOwnership(models.Model):

@@ -62,3 +62,102 @@ When calling `scripts/update_project.sh` over root SSH, invoke it directly as
 deploy wrapper applies a 60-second sudo timeout to the complete deployment; a
 Next.js build can exceed that limit even though the script's global timeout is
 600 seconds. Direct invocation avoids that wrapper.
+
+
+## Private human-support attachments
+
+Human support uses `SUPPORT_ATTACHMENT_ROOT` (default `backend/private_support`),
+separate from MEDIA_ROOT and STATIC_ROOT. Storage rejects roots inside either public
+root and does not implement a public URL. Downloads stream through authenticated
+support endpoints with attachment disposition, octet-stream type, no-store and
+nosniff. Do not add an Nginx/static alias or CDN URL for this directory.
+
+Provision a persistent directory writable by the backend service user and shared
+by every backend/worker instance. Files/directories are created with 0600/0700;
+instances must use a compatible owner. Prefer a persistent path outside the source
+checkout and set SUPPORT_ATTACHMENT_ROOT accordingly. The default directory is
+gitignored and explicitly preserved by `scripts/update_project.sh` cleanup.
+Back up this private root alongside the database and public media; copying only
+MEDIA_ROOT is insufficient to recover support attachments. Changing the root does
+not move existing files: copy them before switching configuration. Nginx upload
+body limits must permit a 10 MB file plus multipart overhead. Never expose private
+files to solve an upload/download configuration problem.
+
+Apply ai_assistant migration 0009 before serving the new ticket endpoints. Existing
+notification policy/preferences and Celery delivery workers handle support alerts;
+no extra broker or delivery channel is introduced. In-app notification creation is
+transactional with the ticket action; external delivery follows the existing outbox.
+
+## Private organization exports
+
+Apply `platform_admin.0016_organizationexport` before enabling the dossier export
+section. Celery workers execute `generate_organization_export`; Beat runs
+`maintain_organization_exports` every minute. Requests remain durably queued if
+broker dispatch fails; maintenance dispatches them again. Duplicate deliveries
+are ignored. Running jobs have a fenced two-hour lease; interrupted jobs become
+failed and can be explicitly retried from their history.
+
+`ORGANIZATION_EXPORT_ROOT` defaults to `backend/private_exports`, outside both
+MEDIA_ROOT and STATIC_ROOT. It must be a persistent private volume shared by web
+and all workers on the same filesystem (atomic rename is required). Never expose
+it through Nginx, media/static routes or public object URLs. Files use mode 0600;
+created directories use 0700. The update script preserves the default directory.
+Custom locations require deployment-specific persistence and cleanup exclusions.
+
+Defaults: `ORGANIZATION_EXPORT_RETENTION_DAYS=7`,
+`ORGANIZATION_EXPORT_MAX_BYTES=5368709120`,
+`ORGANIZATION_EXPORT_MAX_ROWS=1000000`. The byte limit is a staging-work budget,
+including intermediate/final JSON, copied files and CSV, rather than the ZIP size;
+provision additional space for compression, manifests and simultaneous packages.
+Rows include M2M links and synthetic actors. Expiry blocks downloads immediately;
+maintenance deletes expired ZIPs and abandoned staging/orphan ZIPs after three
+hours. It retains database history. Retry creates a fresh snapshot, not a resume.
+
+PostgreSQL captures use a single REPEATABLE READ transaction and an organization
+row lock while copying referenced files; application quota-aware file mutations
+use that same lock and may wait until capture completes. External filesystem
+writers must not overwrite customer files during capture. SQLite snapshots are
+supported for tests; other database engines fail closed. Source domain data is
+never changed by export. Tests cover isolation, manifests, catalog/M2M references,
+private attachments, permission revocation, failed publication, missing files,
+limits, expiration and delivery retries. Production PostgreSQL concurrency and
+filesystem throughput should be exercised before rollout; local SQLite tests do
+not validate those deployment properties.
+
+## Organization recovery operations
+
+Apply `organizations.0006` and `platform_admin.0017` before exposing recovery.
+The existing Celery worker runs `process_organization_recovery`; Beat runs
+`maintain_organization_recoveries` every minute to dispatch queued work, flag
+expired two-hour leases and remove orphan imported files without live references.
+The worker rechecks authorization before writes and publication and holds the
+acting staff profile lock during the domain transaction. Concurrent revocation
+waits for that transaction to commit or roll back. Job row locks
+and lease tokens fence duplicate deliveries and stale workers.
+
+Recovery work lives under `ORGANIZATION_EXPORT_ROOT/recoveries/{id}/`: pinned
+source, private rehearsal ID map, preview, pre-application snapshot, inverse
+journal and verification snapshots. Modes are 0700 for directories, 0600 for files.
+These recovery artifacts and isolated organizations intentionally outlive the
+export's seven-day download expiry to preserve conference and rollback evidence;
+they have no automatic retention/deletion policy yet. Include them in private
+volume capacity planning, backup and administrative data-retention procedures.
+Export cleanup waits for a requested rehearsal to pin its source before deletion.
+Defaults are 256 MiB uncompressed package data (`ORGANIZATION_RECOVERY_MAX_BYTES`)
+and 100,000 records/links (`ORGANIZATION_RECOVERY_MAX_ROWS`). Increase only after
+measuring memory, transaction duration and available staging space.
+
+PostgreSQL uses REPEATABLE READ and a maintenance transaction with SHARE ROW
+EXCLUSIVE locks on approved entity/M2M tables, in deterministic order, with a
+10-second lock acquisition timeout. This deliberately fences legacy workers and
+SQL writers that do not honor tenant row locks. **The write pause affects all
+organizations using these tables while recovery commits**, although data reads
+remain available and mutations are limited to the selected organization. Schedule
+recovery for an operational maintenance window. The lock is released on commit,
+rollback or worker connection loss; it is not a persistent tenant flag. External
+filesystem writers must remain stopped during capture/recovery as with exports.
+
+SQLite tests exercise rollback atomicity, isolation, manifest and relation checks,
+files, publication failure, authentication, permission revocation, expiry and
+conflicting previews. PostgreSQL lock contention/concurrency and production
+filesystem throughput still require staging validation before production rollout.

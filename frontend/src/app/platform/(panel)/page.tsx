@@ -104,9 +104,9 @@ export default function PlatformDashboardPage() {
       tone: "orange",
     },
     {
-      label: "Adoção da plataforma",
-      value: `${activeUsersRate}%`,
-      note: `${data.users.active} de ${data.users.total} usuários ativos`,
+      label: "Clientes com uso em 7 dias",
+      value: data.adoption.by_status.active || 0,
+      note: `${data.adoption.pending} aguardando cálculo · histórico anterior não inferido`,
       icon: ChartNoAxesCombined,
       tone: "purple",
     },
@@ -120,6 +120,20 @@ export default function PlatformDashboardPage() {
   ];
 
   const pendingItems = [
+    ...(data.support ? [{
+      label: "Chamados aguardando equipe",
+      value: data.support.awaiting_team,
+      detail: `${data.support.unassigned} sem atendente · ${data.support.urgent} urgentes em aberto`,
+      href: "/platform/tickets",
+      status: data.support.awaiting_team ? "attention" : "ok",
+    }] : []),
+    {
+      label: "Clientes sem uso há 30 dias",
+      value: data.adoption.by_status.inactive_30 || 0,
+      detail: data.adoption.oldest_calculated_at ? `Cálculo mais antigo: ${new Date(data.adoption.oldest_calculated_at).toLocaleString("pt-BR")}` : "Aguardando cálculo de adoção",
+      href: "/platform/organizations",
+      status: data.adoption.by_status.inactive_30 ? "attention" : "ok",
+    },
     {
       label: "Organizações suspensas",
       value: data.organizations.suspended,

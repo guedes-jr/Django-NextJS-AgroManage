@@ -21,6 +21,7 @@ const navigationGroups: { id: string; label: string; icon: LucideIcon; items: Na
     { href: "/platform/organizations", label: "Organizações", icon: Building2 },
     { href: "/platform/users", label: "Usuários", icon: Users },
     { href: "/platform/demo-requests", label: "Demonstrações", icon: ClipboardList },
+    { href: "/platform/tickets", label: "Chamados", icon: MessageCircle, roles: [...administrators, "platform_support"] },
     { href: "/platform/support", label: "Central de suporte", icon: BookOpen, roles: administrators },
     { href: "/platform/support-access", label: "Acesso assistido", icon: Eye, roles: [...administrators, "platform_support"] },
   ] },

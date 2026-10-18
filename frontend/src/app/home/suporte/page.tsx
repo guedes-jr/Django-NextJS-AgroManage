@@ -2,6 +2,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Headphones, MessageCircle, Send, CheckCircle, Plus, Search, Copy, Download, MessageSquareMore } from "lucide-react";
 import { supportError, supportService, SupportArticle, SupportConfig, SupportConversation, SupportHandoff } from "@/services/supportService";
+import { SupportTicketList } from "@/components/support/SupportTicketList";
 import { MarkdownMessage } from "@/components/ui/MarkdownMessage";
 import styles from "./page.module.css";
 
@@ -66,7 +67,9 @@ export default function SupportPage() {
       <div className={styles.filters}><label><Search size={18} /><input aria-label="Buscar dúvidas e tutoriais" placeholder="Busque por cadastro, lançamento, relatório…" value={search} onChange={event => setSearch(event.target.value)} /></label><select aria-label="Tipo de conteúdo" value={kind} onChange={event => setKind(event.target.value)}><option value="">Todos os conteúdos</option><option value="faq">Dúvidas frequentes</option><option value="tutorial">Tutoriais</option></select></div>
       {filtered.length ? filtered.map(article => <details key={article.id} className={styles.article}><summary><span>{article.kind === "faq" ? "Dúvida frequente" : "Tutorial"}{article.category ? ` · ${article.category}` : ""}</span><strong>{article.title}</strong></summary><p>{article.content}</p>{article.video_url && <a href={article.video_url} target="_blank" rel="noopener noreferrer">Abrir vídeo ou material do tutorial</a>}</details>) : <p>Nenhum conteúdo encontrado.</p>}
     </section> : tab === "attendant" ? <section className={styles.panel}>
-      <h2>Precisa de um atendente?</h2>
+      <SupportTicketList conversationId={conversation?.id}/>
+      <hr/>
+      <h2>Continuar pelo WhatsApp</h2>
       <p>Se a IA não resolver, prepare um resumo para continuar no WhatsApp.</p>
       <button disabled={busy} onClick={prepareHandoff}><MessageCircle size={17} />Falar com atendente</button>
       {handoff && <div className={styles.handoff}><label htmlFor="support-summary">Revise o resumo do problema</label><textarea id="support-summary" value={summary} maxLength={4000} rows={12} onChange={event => { setSummary(event.target.value); setHandoff(current => current ? { ...current, whatsapp_url: null } : current); }} /><p>Confira o texto antes de compartilhar. O envio será concluído por você no WhatsApp.</p>{config?.whatsapp_number ? handoff.whatsapp_url ? <a className={styles.whatsapp} href={handoff.whatsapp_url} target="_blank" rel="noopener noreferrer">Abrir mensagem no WhatsApp</a> : <button disabled={busy || summary.trim().length < 3} onClick={prepareLink}>Preparar mensagem revisada</button> : <p>O número de atendimento ainda não foi configurado pela administração.</p>}<button className={styles.secondary} disabled={busy} onClick={async () => { try { await navigator.clipboard.writeText(summary); setCopied(true); } catch { setError("Não foi possível copiar. Selecione o resumo para copiá-lo."); } }}>{copied ? "Resumo copiado" : "Copiar resumo"}</button></div>}

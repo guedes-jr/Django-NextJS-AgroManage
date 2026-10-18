@@ -7,7 +7,10 @@ from .support_views import (
     support_configuration,
 )
 
+from .ticket_views import SupportTicketViewSet
+
 router = DefaultRouter()
+router.register("tickets", SupportTicketViewSet, basename="support-ticket")
 router.register("articles", SupportArticleViewSet, basename="support-article")
 router.register(
     "conversations", SupportConversationViewSet, basename="support-conversation"
