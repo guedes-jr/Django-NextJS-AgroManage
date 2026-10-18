@@ -113,7 +113,7 @@ def dispatch_queue_message(message_id):
         if row.delivery_id and not operational_message_active(row):
             row.status = "skipped"
             row.last_error = (
-                "Alerta confirmado, resolvido ou fora do acesso atual do destinatário."
+                "Alerta confirmado, resolvido, fora da janela de até 3 dias ou do acesso atual do destinatário."
             )
             NotificationDelivery.objects.filter(pk=row.delivery_id).update(
                 status="skipped", last_error=row.last_error, processing_until=None
@@ -229,7 +229,7 @@ def operational_message_active(row):
     from apps.livestock.models import AcknowledgedOperationalAlert
     from apps.livestock.operational_alerts import operational_alerts
 
-    from .operational import event_key
+    from .operational import event_key, within_whatsapp_window
 
     parts = n.event_key.split(":")
     if len(parts) != 5 or parts[1] != str(n.user.organization_id):
@@ -239,6 +239,7 @@ def operational_message_active(row):
     ).exists():
         return False
     return any(
-        event_key(n.user.organization, parts[2], alert) == n.event_key
+        within_whatsapp_window(alert)
+        and event_key(n.user.organization, parts[2], alert) == n.event_key
         for alert in operational_alerts(n.user.organization, parts[2])
     )

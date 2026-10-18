@@ -603,6 +603,17 @@ Entregas de notificações anteriores são importadas; o conteúdo histórico é
 reconstruído da notificação original. Mensagens individuais antigas cujo texto
 não era persistido não podem ser reconstruídas.
 
+Dated automatic livestock operational reminders enter WhatsApp only when their
+current due date is at most three local calendar days ahead. Due-today and overdue
+pending events remain eligible; undated active operational alerts keep their
+existing behavior. Dashboard forecasts retain their original horizon. The upcoming
+stage is `upcoming_3d`, deduplicated throughout the three-day window; due/overdue
+stages retain their existing keys. Old `scheduled` messages no longer qualify for
+automatic sending, while an earlier sent forecast does not suppress the new
+three-day reminder. Eligibility is checked both by the queue worker and direct
+notification dispatch before transport. Explicit administrator historical resends
+retain their existing override behavior; consent and tenant scope still apply.
+
 ## Navbar search
 
 `GET /livestock/animals/?search=<term>&page_size=5` searches animal identifiers

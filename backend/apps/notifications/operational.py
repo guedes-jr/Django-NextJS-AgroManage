@@ -1,16 +1,29 @@
 """Create a durable WhatsApp delivery for each visible operational event stage."""
 
+from datetime import date, timedelta
+
 from django.db.models import Q
 from django.utils import timezone
 
 from .models import Notification, NotificationDelivery, NotificationType
 
 
+def within_whatsapp_window(alert):
+    """Dated operational reminders start three local calendar days before due."""
+    due = alert.get("due_date")
+    if not due:
+        return True
+    try:
+        return date.fromisoformat(due) <= timezone.localdate() + timedelta(days=3)
+    except (TypeError, ValueError):
+        return False
+
+
 def event_key(organization, species, alert):
     due = alert.get("due_date")
     today = timezone.localdate().isoformat()
     stage = (
-        ("scheduled" if due > today else "due" if due == today else "overdue")
+        ("upcoming_3d" if due > today else "due" if due == today else "overdue")
         if due
         else "active"
     )
@@ -76,7 +89,10 @@ def collect_operational_notifications():
         for code in allowed:
             cache_key = (user.organization_id, code)
             if cache_key not in cache:
-                cache[cache_key] = operational_alerts(user.organization, code)
+                cache[cache_key] = [
+                    alert for alert in operational_alerts(user.organization, code)
+                    if within_whatsapp_window(alert)
+                ]
             alerts = cache[cache_key]
             confirmed = set(
                 AcknowledgedOperationalAlert.objects.filter(

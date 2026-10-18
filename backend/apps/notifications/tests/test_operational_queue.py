@@ -318,7 +318,7 @@ class OperationalQueueTests(APITestCase):
         rows = WhatsAppQueueMessage.objects.filter(body__contains="aplicar ferro")
         self.assertEqual(rows.count(), 2)
         stages = {r.delivery.notification.event_key.split(":")[-1] for r in rows}
-        self.assertEqual(stages, {"scheduled", "due"})
+        self.assertEqual(stages, {"upcoming_3d", "due"})
 
     def test_old_processing_lease_becomes_unknown_without_transport(self):
         row = WhatsAppQueueMessage.objects.create(
@@ -439,3 +439,71 @@ class OperationalQueueTests(APITestCase):
         count = WhatsAppQueueMessage.objects.count()
         collect_operational_notifications()
         self.assertEqual(WhatsAppQueueMessage.objects.count(), count)
+
+    def future_pregnancy(self, days):
+        mating = Mating.objects.create(female=self.female, mating_date=timezone.localdate(), status="confirmed")
+        return Pregnancy.objects.create(female=self.female, mating=mating, start_date=mating.mating_date, expected_birth_date=timezone.localdate() + timedelta(days=days), status="ongoing")
+
+    def test_distant_birth_is_visible_in_system_but_not_queued_for_whatsapp(self):
+        from apps.livestock.operational_alerts import operational_alerts
+        for days in (4, 52, 113):
+            pregnancy = self.future_pregnancy(days)
+            collect_operational_notifications()
+            self.assertTrue(any(alert.get("due_date") == pregnancy.expected_birth_date.isoformat() and "Parto" in alert["text"] for alert in operational_alerts(self.org, "suinos")))
+            self.assertFalse(WhatsAppQueueMessage.objects.filter(body__contains="Parto da matriz").exists())
+            pregnancy.delete()
+
+    def test_birth_enters_window_once_at_three_days_and_retains_due_and_overdue(self):
+        today = timezone.localdate()
+        self.future_pregnancy(4)
+        collect_operational_notifications()
+        for elapsed in (1, 2, 3):
+            with patch("django.utils.timezone.localdate", return_value=today + timedelta(days=elapsed)):
+                collect_operational_notifications()
+        rows = WhatsAppQueueMessage.objects.filter(body__contains="Parto da matriz")
+        self.assertEqual(rows.count(), 1)
+        self.assertIn("Em 3 dias", rows.get().body)
+        for elapsed in (4, 5):
+            with patch("django.utils.timezone.localdate", return_value=today + timedelta(days=elapsed)):
+                collect_operational_notifications()
+        self.assertEqual(rows.count(), 3)
+        self.assertEqual({row.delivery.notification.event_key.split(":")[-1] for row in rows}, {"upcoming_3d", "due", "overdue"})
+
+    def old_birth_delivery(self, days):
+        from apps.notifications.models import Notification, NotificationDelivery
+        from apps.notifications.operational import event_key
+        from apps.notifications.whatsapp_queue import queue_notification
+        from apps.livestock.operational_alerts import operational_alerts
+        pregnancy = self.future_pregnancy(days)
+        alert = next(a for a in operational_alerts(self.org, "suinos") if a.get("due_date") == pregnancy.expected_birth_date.isoformat() and "Parto" in a["text"])
+        notification = Notification.objects.create(user=self.user, title=alert["text"], message=alert["text"], type="animal", category="animal_cycle", event_key=event_key(self.org, "suinos", alert).rsplit(":", 1)[0] + ":scheduled")
+        delivery = NotificationDelivery.objects.create(notification=notification, channel="whatsapp_web")
+        row = queue_notification(delivery)
+        row.scheduled_for = timezone.now() - timedelta(seconds=1); row.save()
+        return pregnancy, row
+
+    def test_old_distant_queue_and_direct_delivery_are_blocked_before_transport(self):
+        from apps.notifications.tasks import dispatch_notification
+        _, row = self.old_birth_delivery(52)
+        with patch("common.wppconnect.wpp_request") as transport:
+            dispatch_queue_message(row.pk)
+        row.refresh_from_db(); self.assertEqual(row.status, "skipped")
+        transport.assert_not_called()
+        _, other = self.old_birth_delivery(113)
+        with patch("apps.notifications.tasks._send_whatsapp_web") as transport:
+            dispatch_notification(str(other.delivery.notification_id), channels=["whatsapp_web"])
+        other.refresh_from_db(); self.assertEqual(other.status, "skipped")
+        self.assertIsNone(other.processing_until)
+        transport.assert_not_called()
+
+    def test_old_sent_early_reminder_does_not_prevent_new_three_day_reminder(self):
+        today = timezone.localdate()
+        _, row = self.old_birth_delivery(52)
+        row.status = "sent"; row.save()
+        row.delivery.status = "sent"; row.delivery.save()
+        with patch("django.utils.timezone.localdate", return_value=today + timedelta(days=49)):
+            collect_operational_notifications()
+            collect_operational_notifications()
+        rows = WhatsAppQueueMessage.objects.filter(body__contains="Parto da matriz")
+        self.assertEqual(rows.count(), 2)
+        self.assertEqual(rows.filter(status="pending").count(), 1)

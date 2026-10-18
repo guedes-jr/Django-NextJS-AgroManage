@@ -149,6 +149,15 @@ def dispatch_notification(self, notification_id, channels=None):
                     delivery.status = NotificationDelivery.Status.SENT if sent_any else NotificationDelivery.Status.SKIPPED
                     delivery.delivered_at = timezone.now() if sent_any else None
             elif delivery.channel == NotificationDelivery.Channel.WHATSAPP_WEB:
+                from .whatsapp_queue import operational_message_active
+                if not operational_message_active(queued):
+                    delivery.status = NotificationDelivery.Status.SKIPPED
+                    delivery.last_error = "Alerta confirmado, resolvido, fora da janela de até 3 dias ou do acesso atual do destinatário."
+                    delivery.processing_until = None
+                    delivery.save(update_fields=("status", "last_error", "processing_until", "updated_at"))
+                    from .whatsapp_queue import sync_delivery
+                    sync_delivery(delivery)
+                    continue
                 sent, detail = _send_whatsapp_web(notification, delivery)
                 if sent:
                     delivery.status = NotificationDelivery.Status.SENT
