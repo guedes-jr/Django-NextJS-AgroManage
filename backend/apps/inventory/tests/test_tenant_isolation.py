@@ -57,6 +57,19 @@ class InventoryTenantIsolationTestCase(APITestCase):
         response = self.client.get("/api/v1/inventory/items/", {"search": "Ração B", "page_size": 5})
         self.assertEqual(response.data["results"], [])
 
+    def test_all_items_search_prioritizes_names_starting_with_term(self):
+        prefix_match = ItemEstoque.objects.create(
+            organization=self.org_a, nome="Ferro Dextrano", categoria="medicamento", unidade_medida="ml"
+        )
+        contains_match = ItemEstoque.objects.create(
+            organization=self.org_a, nome="Suplemento com ferro", categoria="suplemento", unidade_medida="kg"
+        )
+
+        response = self.client.get("/api/v1/inventory/items/all_items/", {"search": "ferr"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([str(item["id"]) for item in response.data], [str(prefix_match.id), str(contains_match.id)])
+
     def test_cannot_create_lot_for_foreign_item_or_supplier(self):
         payload = {
             "item": str(self.item_b.id),

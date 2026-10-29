@@ -1002,26 +1002,41 @@ export function ReproducaoDashboard({
           ])).values()
         ).filter((option) => option.value);
         const selectedMother = rows.length === 1 ? rows[0] : undefined;
+        const isBatchVaccination = rows.length > 1;
+        const selectedMotherLabels = motherOptions.map((option) => option.label).join(", ");
         const vaccineOpts = (vaccineItems || []).map((item) => ({
           value: String(item.id),
           label: `${item.nome}${item.estoque_atual != null ? ` (Estoque: ${item.estoque_atual} ${item.unidade_display || item.unidade_medida || "un"})` : ""}`,
         }));
         setActionModal({
           open: true,
-          title: "Registrar Vacinação Pós-parto",
+          title: isBatchVaccination
+            ? `Registrar Vacinação Pós-parto em Lote (${rows.length})`
+            : "Registrar Vacinação Pós-parto",
           subtitle: vaccineItems.length === 0
             ? "Nenhuma vacina disponível no estoque."
-            : "A vacina será registrada na ficha da matriz e descontada automaticamente do estoque.",
+            : isBatchVaccination
+              ? "A vacina será registrada nas matrizes selecionadas e descontada automaticamente do estoque."
+              : "A vacina será registrada na ficha da matriz e descontada automaticamente do estoque.",
           fields: [
-            {
-              name: "id",
-              label: "Matriz",
-              type: motherOptions.length > 0 ? "select" : "text",
-              options: motherOptions,
-              initialValue: selectedMother ? String(selectedMother.animal_id) : undefined,
-              disabled: rows.length === 1,
-              required: true,
-            },
+            ...(isBatchVaccination
+              ? [{
+                  name: "selected_mothers",
+                  label: "Matrizes selecionadas",
+                  type: "text" as const,
+                  initialValue: selectedMotherLabels,
+                  disabled: true,
+                  colSpan: "full" as const,
+                }]
+              : [{
+                  name: "id",
+                  label: "Matriz",
+                  type: motherOptions.length > 0 ? "select" as const : "text" as const,
+                  options: motherOptions,
+                  initialValue: selectedMother ? String(selectedMother.animal_id) : undefined,
+                  disabled: rows.length === 1,
+                  required: true,
+                }]),
             {
               name: "vaccine_applications",
               label: "Vacinas",
@@ -1051,8 +1066,10 @@ export function ReproducaoDashboard({
             { name: "notes", label: "Observações", type: "textarea", colSpan: "full" },
           ],
           onConfirm: async (data) => {
-            const targetMotherIds = rows.length > 1
-              ? Array.from(new Set(rows.map((row) => row.animal_id).filter(Boolean)))
+            const targetMotherIds = isBatchVaccination
+              ? Array.from(new Set(rows
+                .map((row) => String(row.animal_id || row.id || row.pk || ""))
+                .filter(Boolean)))
               : [data.id];
             const applications = JSON.parse(data.vaccine_applications) as Array<{
               inventory_item: string;
@@ -1069,7 +1086,12 @@ export function ReproducaoDashboard({
                 });
               }
             }
-            showToast(applications.length > 1 ? "Vacinas pós-parto registradas na matriz e estoque atualizado." : "Vacinação pós-parto registrada na matriz e estoque atualizado.", "success");
+            showToast(
+              isBatchVaccination
+                ? `Vacinação pós-parto registrada para ${targetMotherIds.length} matrizes e estoque atualizado.`
+                : "Vacinação pós-parto registrada na matriz e estoque atualizado.",
+              "success"
+            );
             onSuccess?.();
             setActionModal((previous) => ({ ...previous, open: false }));
           },
@@ -1958,9 +1980,9 @@ export function ReproducaoDashboard({
   const hasTabData = activeTab === "dashboard" || currentTab?.count !== undefined;
 
   return (
-    <div>
+    <div className="repro-dashboard">
       {/* ─── Breadcrumb dinâmico ─── */}
-      <div className="mb-4">
+      <div className="repro-breadcrumb mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
           <span style={{ color: "var(--muted-foreground)" }}>Rebanho</span>
           <span className="text-muted-foreground">›</span>
@@ -1976,7 +1998,7 @@ export function ReproducaoDashboard({
         </nav>
       </div>
 
-      <div className="mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+      <div className="repro-header mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
         <div>
           <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
             Módulo de Reprodução

@@ -690,6 +690,115 @@
   }
 }
 
+@media (max-width: 430px) {
+  .repro-dashboard {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .repro-breadcrumb {
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+  }
+
+  .repro-breadcrumb::-webkit-scrollbar {
+    display: none;
+  }
+
+  .repro-breadcrumb nav {
+    width: max-content;
+    min-width: 100%;
+    white-space: nowrap;
+  }
+
+  .repro-header {
+    margin-bottom: 1.5rem !important;
+  }
+
+  .repro-header h1 {
+    font-size: clamp(1.6rem, 8.5vw, 2rem) !important;
+    line-height: 1.1;
+  }
+
+  .repro-header p {
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+
+  .repro-phase-tabs {
+    margin-inline: -0.25rem;
+    padding: 0.35rem;
+    border-radius: 13px;
+    scroll-padding-inline: 0.35rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .repro-tab-kpi-grid {
+    gap: 0.55rem;
+  }
+
+  .repro-tab-kpi-card {
+    min-height: 88px;
+    padding: 0.7rem;
+  }
+
+  .repro-quick-actions .row {
+    --bs-gutter-x: 0.65rem;
+    --bs-gutter-y: 0.65rem;
+  }
+
+  .repro-quick-actions button {
+    min-width: 0;
+    padding: 0.8rem !important;
+  }
+
+  .repro-quick-actions button > div:last-child {
+    min-width: 0;
+  }
+
+  .repro-quick-actions button .small {
+    overflow-wrap: anywhere;
+  }
+
+  .repro-modal-overlay {
+    align-items: flex-start;
+    padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  }
+
+  .repro-modal {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem);
+    border-radius: 16px;
+  }
+
+  .repro-modal-header {
+    padding: 1rem 1rem 0;
+  }
+
+  .repro-modal-title {
+    font-size: 1rem;
+  }
+
+  .repro-modal-body {
+    padding: 1rem;
+  }
+
+  .repro-modal-footer {
+    padding: 0 1rem 1rem;
+  }
+
+  .repro-btn-primary,
+  .repro-btn-secondary {
+    flex: 1;
+    justify-content: center;
+    min-height: 42px;
+    padding-inline: 0.75rem;
+  }
+}
+
 /* Shared phase navigation, metrics and operational actions. */
 .repro-phase-tabs{display:flex;gap:8px;list-style:none;padding:6px;margin:0;overflow-x:auto;border:1px solid var(--border);border-radius:16px;background:var(--card);scrollbar-width:thin}
 .repro-phase-tab{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 14px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--muted-foreground);font-size:.84rem;font-weight:700;white-space:nowrap;transition:background .18s,border-color .18s,color .18s}

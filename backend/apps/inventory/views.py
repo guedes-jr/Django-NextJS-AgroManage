@@ -4,7 +4,7 @@ ViewSets for the inventory app.
 """
 from decimal import Decimal
 from django.db import models, transaction
-from django.db.models import Sum, Q
+from django.db.models import Case, IntegerField, Q, Sum, Value, When
 from rest_framework import viewsets, status, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -191,8 +191,17 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
         categoria = request.query_params.get("categoria")
         especie_animal = request.query_params.get("especie_animal")
+        search = request.query_params.get("search", "").strip()
 
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
+        if search:
+            items = items.filter(nome__icontains=search).annotate(
+                search_priority=Case(
+                    When(nome__istartswith=search, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )
+            ).order_by("search_priority", "nome")
         if categoria:
             items = items.filter(
                 vaccine_category_q() if categoria == "vacina" else

@@ -413,6 +413,7 @@ function ReproducaoPageContent() {
         selectable: true,
         rowKey: "id",
         batchActions: [
+          { label: "Registrar Vacina Pós-parto", icon: "💉", variant: "default", type: "postpartum_vaccine" },
           { label: "Confirmar Desmame", icon: "🔄", variant: "primary", type: 'wean' as any },
         ],
         kpis: [
