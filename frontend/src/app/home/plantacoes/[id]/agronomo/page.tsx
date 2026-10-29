@@ -39,7 +39,7 @@ type InventoryItem = {
   categoria_display?: string;
   especie_animal?: string;
   unidade_medida?: string;
-  estoque_atual?: string;
+  estoque_atual?: string | number;
 };
 
 type SoilAnalysis = {
@@ -174,8 +174,10 @@ export default function AgronomoPage() {
   const [products, setProducts] = useState<RecommendationProduct[]>([{ ...emptyProduct }]);
 
   const agriculturalItems = useMemo(() => {
-    const items = inventoryItems.filter((item) => agriculturalCategoryValues.includes(item.categoria || ""));
-    return items.length > 0 ? items : inventoryItems;
+    return inventoryItems.filter((item) =>
+      agriculturalCategoryValues.includes(item.categoria || "") &&
+      (parseDecimal(item.estoque_atual) || 0) > 0
+    );
   }, [inventoryItems]);
   const recommendationAreaHa = useMemo(
     () => parseDecimal(plantation?.planted_area_ha),
@@ -736,7 +738,8 @@ export default function AgronomoPage() {
               </div>
             </div>
 
-            <h6 className="fw-bold text-success mb-3">Produtos recomendados</h6>
+            <h6 className="fw-bold text-success mb-1">Produtos em estoque</h6>
+            <p className="text-muted small mb-3">Selecione os produtos agrícolas disponíveis no estoque para usar nesta cultura.</p>
             <div className="table-responsive mb-3">
               <table className="table table-hover align-middle mb-0 agro-table">
                 <thead>
@@ -791,11 +794,11 @@ export default function AgronomoPage() {
                                 style={{ borderRadius: 999, fontWeight: 700 }}
                               >
                                 {item.nome}
-                                <span className="ms-1 text-nowrap">({item.categoria_display || item.categoria || "Sem categoria"})</span>
+                                <span className="ms-1 text-nowrap">({item.estoque_atual} {item.unidade_medida || "un."} em estoque · {item.categoria_display || item.categoria || "Sem categoria"})</span>
                               </button>
                             ))}
                             {getProductSuggestions(product).length === 0 && (
-                              <span className="text-muted small">Nenhum produto encontrado para esta busca.</span>
+                              <span className="text-muted small">Nenhum produto agrícola com saldo disponível encontrado para esta busca.</span>
                             )}
                           </div>
                         </div>

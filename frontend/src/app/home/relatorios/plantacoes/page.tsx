@@ -36,6 +36,7 @@ export default function RelatorioGeralPlantacoesPage() {
   const [plantations, setPlantations] = useState<Plantation[]>([]);
   const [sources, setSources] = useState<Record<string, AnyRecord[]>>({});
   const [culture, setCulture] = useState("all");
+  const [field, setField] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -70,10 +71,15 @@ export default function RelatorioGeralPlantacoesPage() {
   }, []);
 
   const cultures = useMemo(() => [...new Set(plantations.map((item) => item.crop_name).filter(Boolean))].sort(), [plantations]);
+  const fields = useMemo(() => [...new Map(plantations
+    .filter((item) => item.field)
+    .map((item) => [item.field, item.field_name || "Sem nome"]))
+    .entries()]
+    .sort(([, first], [, second]) => first.localeCompare(second, "pt-BR")), [plantations]);
   const filtered = useMemo(() => plantations.filter((item) => {
     const planted = iso(item.planting_date);
-    return (culture === "all" || item.crop_name === culture) && (!startDate || !planted || planted >= startDate) && (!endDate || !planted || planted <= endDate);
-  }), [culture, endDate, plantations, startDate]);
+    return (culture === "all" || item.crop_name === culture) && (field === "all" || item.field === field) && (!startDate || !planted || planted >= startDate) && (!endDate || !planted || planted <= endDate);
+  }), [culture, endDate, field, plantations, startDate]);
   const ids = useMemo(() => new Set(filtered.map((item) => item.id)), [filtered]);
   const inReport = useCallback((item: AnyRecord) => ids.has(String(item.plantation || "")), [ids]);
 
@@ -173,6 +179,7 @@ export default function RelatorioGeralPlantacoesPage() {
     <section className={styles.panel}>
       <div className={styles.sectionTitle}><h2>1. Resumo por plantação</h2><div className={styles.filters}>
         <label>Cultura<select value={culture} onChange={(event) => setCulture(event.target.value)}><option value="all">Todas</option>{cultures.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label>Talhão<select value={field} onChange={(event) => setField(event.target.value)}><option value="all">Todos</option>{fields.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
         <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
         <button><Filter /> Filtrar</button>
