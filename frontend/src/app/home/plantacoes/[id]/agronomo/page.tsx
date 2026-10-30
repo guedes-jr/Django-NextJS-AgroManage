@@ -18,6 +18,7 @@ import {
   Edit3,
 } from "lucide-react";
 import apiClient from "@/services/api";
+import styles from "./products-table.module.css";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -741,7 +742,16 @@ export default function AgronomoPage() {
             <h6 className="fw-bold text-success mb-1">Produtos em estoque</h6>
             <p className="text-muted small mb-3">Selecione os produtos agrícolas disponíveis no estoque para usar nesta cultura.</p>
             <div className="table-responsive mb-3">
-              <table className="table table-hover align-middle mb-0 agro-table">
+              <table className={`table table-hover align-middle mb-0 agro-table ${styles.productsTable}`}>
+                <colgroup>
+                  <col style={{ width: "17%" }} />
+                  <col style={{ width: "29%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "6%" }} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Categoria</th>
@@ -756,9 +766,9 @@ export default function AgronomoPage() {
                 <tbody>
                   {products.map((product, index) => (
                     <tr key={index}>
-                      <td style={{ minWidth: 180 }}>
+                      <td>
                         <select
-                          className="form-select"
+                          className="form-select form-select-sm"
                           value={product.category}
                           onChange={(e) => updateProduct(index, { category: e.target.value, item: "", item_search: "" })}
                         >
@@ -768,13 +778,13 @@ export default function AgronomoPage() {
                           ))}
                         </select>
                       </td>
-                      <td style={{ minWidth: 280 }}>
+                      <td>
                         <div className="position-relative">
                           <input
-                            className="form-control"
+                            className="form-control form-control-sm"
                             value={product.item_search}
                             onChange={(e) => handleProductSearchChange(index, e.target.value)}
-                            placeholder="Digite para buscar o produto"
+                            placeholder="Buscar produto"
                             list={`agronomo-produtos-${index}`}
                           />
                           <datalist id={`agronomo-produtos-${index}`}>
@@ -784,17 +794,18 @@ export default function AgronomoPage() {
                               </option>
                             ))}
                           </datalist>
-                          <div className="d-flex flex-wrap gap-2 mt-2">
+                          <div className="d-flex flex-column gap-1 mt-2">
                             {getProductSuggestions(product).map((item) => (
                               <button
                                 key={item.id}
                                 type="button"
-                                className={`btn btn-sm ${product.item === item.id ? "btn-success" : "btn-outline-secondary"}`}
+                                className={`btn btn-sm ${styles.productOption} ${product.item === item.id ? "btn-success" : "btn-outline-secondary"}`}
                                 onClick={() => selectProductItem(index, item)}
-                                style={{ borderRadius: 999, fontWeight: 700 }}
+                                title={item.nome}
+                                aria-label={item.nome}
                               >
-                                {item.nome}
-                                <span className="ms-1 text-nowrap">({item.estoque_atual} {item.unidade_medida || "un."} em estoque · {item.categoria_display || item.categoria || "Sem categoria"})</span>
+                                {item.nome.length > 30 ? `${item.nome.slice(0, 30)}...` : item.nome}
+                                <span className={styles.productDetails}>({item.estoque_atual} {item.unidade_medida || "un."} em estoque · {item.categoria_display || item.categoria || "Sem categoria"})</span>
                               </button>
                             ))}
                             {getProductSuggestions(product).length === 0 && (
@@ -803,19 +814,19 @@ export default function AgronomoPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ minWidth: 120 }}>
-                        <input className="form-control" type="number" step="0.01" value={product.dose_per_ha} onChange={(e) => updateProduct(index, { dose_per_ha: e.target.value })} placeholder="0,00" />
+                      <td>
+                        <input className="form-control form-control-sm" type="number" step="0.01" value={product.dose_per_ha} onChange={(e) => updateProduct(index, { dose_per_ha: e.target.value })} placeholder="0,00" />
                       </td>
-                      <td style={{ minWidth: 110 }}>
-                        <select className="form-select" value={product.dose_unit} onChange={(e) => updateProduct(index, { dose_unit: e.target.value })}>
+                      <td>
+                        <select className="form-select form-select-sm" value={product.dose_unit} onChange={(e) => updateProduct(index, { dose_unit: e.target.value })}>
                           {doseUnitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                         </select>
                       </td>
-                      <td style={{ minWidth: 140 }}>
-                        <input className="form-control" type="number" step="0.01" value={calculateTotalQuantity(product)} readOnly placeholder="0,00" />
+                      <td>
+                        <input className="form-control form-control-sm" type="number" step="0.01" value={calculateTotalQuantity(product)} readOnly placeholder="0,00" />
                       </td>
-                      <td style={{ minWidth: 220 }}>
-                        <input className="form-control" value={product.notes} onChange={(e) => updateProduct(index, { notes: e.target.value })} placeholder="Observações" />
+                      <td>
+                        <input className="form-control form-control-sm" value={product.notes} onChange={(e) => updateProduct(index, { notes: e.target.value })} placeholder="Observações" />
                       </td>
                       <td className="text-center">
                         <Button variant="outline-danger" size="sm" onClick={() => setProducts((prev) => prev.length === 1 ? [{ ...emptyProduct }] : prev.filter((_, productIndex) => productIndex !== index))}>

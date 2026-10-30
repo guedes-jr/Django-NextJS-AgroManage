@@ -1,0 +1,37 @@
+.productsTable {
+  width: 100%;
+  min-width: 780px;
+  table-layout: fixed;
+}
+
+.productsTable th,
+.productsTable td {
+  padding-right: 0.35rem;
+  padding-left: 0.35rem;
+}
+
+.productsTable th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+  font-size: 0.7rem;
+}
+
+.productOption {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border-radius: 0.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.productDetails {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
