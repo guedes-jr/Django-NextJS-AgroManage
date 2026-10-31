@@ -11,6 +11,12 @@ from .views import (
     MedicationViewSet, AlertViewSet, SymptomViewSet, HealthRecordViewSet
 )
 
+from .cattle_views import (
+    CattleOverviewView, CattleAnimalViewSet, CattleBatchViewSet,
+    CattlePastureViewSet, CattleGrazingViewSet, CattleMilkViewSet, CattleFeedViewSet,
+    CattleManagementViewSet,
+)
+
 router = DefaultRouter()
 router.register(r'batches', AnimalBatchViewSet, basename='animalbatch')
 router.register(r'animals', AnimalViewSet, basename='animal')
@@ -28,7 +34,17 @@ router.register(r'alerts', AlertViewSet, basename='alert')
 router.register(r'symptoms', SymptomViewSet, basename='symptom')
 router.register(r'health/records', HealthRecordViewSet, basename='healthrecord')
 
+
+router.register(r'cattle/animals', CattleAnimalViewSet, basename='cattle-animal')
+router.register(r'cattle/batches', CattleBatchViewSet, basename='cattle-batch')
+router.register(r'cattle/pastures', CattlePastureViewSet, basename='cattle-pasture')
+router.register(r'cattle/grazings', CattleGrazingViewSet, basename='cattle-grazing')
+router.register(r'cattle/feed', CattleFeedViewSet, basename='cattle-feed')
+router.register(r'cattle/milk', CattleMilkViewSet, basename='cattle-milk')
+router.register(r'cattle/managements', CattleManagementViewSet, basename='cattle-management')
+
 urlpatterns = [
+    path('cattle/overview/', CattleOverviewView.as_view(), name='cattle-overview'),
     # Custom dashboard endpoint
     path('dashboard/reproduction/', ReproductionDashboardView.as_view(), name='reproduction_dashboard'),
     path('dashboard/reproduction/acknowledge-alert/', AcknowledgeOperationalAlertView.as_view(), name='acknowledge_operational_alert'),

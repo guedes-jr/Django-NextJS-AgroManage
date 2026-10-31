@@ -397,8 +397,8 @@ def register_batch_sale(batch, data):
         organization=batch.farm.organization, farm=batch.farm, animal_batch=batch,
         species=batch.species, category=category,
         description=f'Venda de animais: {batch.batch_code} ({quantity} animais)',
-        amount=amount, due_date=data['date'], payment_date=data['date'],
-        status='paid', reference=reference, notes=data.get('notes', ''),
+        amount=amount, due_date=data.get('due_date') or data['date'],
+        status='pending', reference=reference, notes=data.get('notes', ''),
     )
     metadata['transaction_reference'] = revenue.reference
     if closes_batch:

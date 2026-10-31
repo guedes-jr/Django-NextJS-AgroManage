@@ -1,0 +1,483 @@
+{
+  "researched_at": "2026-10-30",
+  "scope": "Catálogo de materiais públicos; vídeos não assistidos integralmente; sem autenticação/cadastro nos fornecedores",
+  "irancho_playlists": [
+    {
+      "id": "PLWdM_wLixeSgs1C_ZfHVQRtzo7NTzSwdc",
+      "title": "Tutoriais iRancho",
+      "channel": "iRancho",
+      "channel_url": "https://www.youtube.com/channel/UCz9vuNf8gQrH7nDU_DizD6Q",
+      "webpage_url": "https://www.youtube.com/playlist?list=PLWdM_wLixeSgs1C_ZfHVQRtzo7NTzSwdc",
+      "entries": [
+        {
+          "id": "5k7F4T-3BuQ",
+          "title": "Boas-vindas",
+          "url": "https://www.youtube.com/watch?v=5k7F4T-3BuQ",
+          "duration": 24,
+          "upload_date": null
+        },
+        {
+          "id": "hHcIIAqbXLg",
+          "title": "Sincronização via JSON",
+          "url": "https://www.youtube.com/watch?v=hHcIIAqbXLg",
+          "duration": 38,
+          "upload_date": null
+        },
+        {
+          "id": "1aVrQGUaR0o",
+          "title": "Manejo de Venda e Embarque",
+          "url": "https://www.youtube.com/watch?v=1aVrQGUaR0o",
+          "duration": 84,
+          "upload_date": null
+        },
+        {
+          "id": "vcq7Dftb_2E",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=vcq7Dftb_2E",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "aNrtkTi7Qz4",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=aNrtkTi7Qz4",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "BKnl5jNuyc8",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=BKnl5jNuyc8",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "juH8HSI9qXY",
+          "title": "Entrada de animais",
+          "url": "https://www.youtube.com/watch?v=juH8HSI9qXY",
+          "duration": 123,
+          "upload_date": null
+        },
+        {
+          "id": "TYClij_s_MM",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=TYClij_s_MM",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "M_ZDa13M8vc",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=M_ZDa13M8vc",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "ddzE9pFOoys",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=ddzE9pFOoys",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "xbR1aR4z_9E",
+          "title": "Conexão Com Balança E Leitor De Brincos",
+          "url": "https://www.youtube.com/watch?v=xbR1aR4z_9E",
+          "duration": 58,
+          "upload_date": null
+        },
+        {
+          "id": "jEscim9TROY",
+          "title": "Cadastro De Animais",
+          "url": "https://www.youtube.com/watch?v=jEscim9TROY",
+          "duration": 30,
+          "upload_date": null
+        },
+        {
+          "id": "uWszIQAlPlA",
+          "title": "Módulo de confinamento",
+          "url": "https://www.youtube.com/watch?v=uWszIQAlPlA",
+          "duration": 70,
+          "upload_date": null
+        }
+      ]
+    },
+    {
+      "id": "PLWdM_wLixeShoxdTpaVGKV0HbhH50sXBc",
+      "title": "Tutoriais: App do Peão",
+      "channel": "iRancho",
+      "channel_url": "https://www.youtube.com/channel/UCz9vuNf8gQrH7nDU_DizD6Q",
+      "webpage_url": "https://www.youtube.com/playlist?list=PLWdM_wLixeShoxdTpaVGKV0HbhH50sXBc",
+      "entries": [
+        {
+          "id": "5k7F4T-3BuQ",
+          "title": "Boas-vindas",
+          "url": "https://www.youtube.com/watch?v=5k7F4T-3BuQ",
+          "duration": 24,
+          "upload_date": null
+        },
+        {
+          "id": "UonZkimw7kw",
+          "title": "Pesagem Sem Conexão de Balança",
+          "url": "https://www.youtube.com/watch?v=UonZkimw7kw",
+          "duration": 37,
+          "upload_date": null
+        },
+        {
+          "id": "UsLigNE7u3U",
+          "title": "Pesagem e Cadastro de Animais com Bastão e Balança",
+          "url": "https://www.youtube.com/watch?v=UsLigNE7u3U",
+          "duration": 82,
+          "upload_date": null
+        },
+        {
+          "id": "79E11b8Fv1U",
+          "title": "Movimentação de Animais",
+          "url": "https://www.youtube.com/watch?v=79E11b8Fv1U",
+          "duration": 30,
+          "upload_date": null
+        },
+        {
+          "id": "C-H7BiewuIc",
+          "title": "Leitura de Cocho",
+          "url": "https://www.youtube.com/watch?v=C-H7BiewuIc",
+          "duration": 57,
+          "upload_date": null
+        },
+        {
+          "id": "SfztHas3Z7g",
+          "title": "Lançamento de Nutrição",
+          "url": "https://www.youtube.com/watch?v=SfztHas3Z7g",
+          "duration": 40,
+          "upload_date": null
+        },
+        {
+          "id": "O1wwMF2-YNg",
+          "title": "Lançamento de Nascimento",
+          "url": "https://www.youtube.com/watch?v=O1wwMF2-YNg",
+          "duration": 44,
+          "upload_date": null
+        },
+        {
+          "id": "ibv8vD7JJG8",
+          "title": "Lançamento de Medicamentos",
+          "url": "https://www.youtube.com/watch?v=ibv8vD7JJG8",
+          "duration": 45,
+          "upload_date": null
+        },
+        {
+          "id": "oT5vIi465MI",
+          "title": "Lançamento de Abastecimento",
+          "url": "https://www.youtube.com/watch?v=oT5vIi465MI",
+          "duration": 44,
+          "upload_date": null
+        },
+        {
+          "id": "SKyzlHhEF-o",
+          "title": "Consultar Animal",
+          "url": "https://www.youtube.com/watch?v=SKyzlHhEF-o",
+          "duration": 35,
+          "upload_date": null
+        },
+        {
+          "id": "CDqKEwU-ajE",
+          "title": "Consulta de Pasto",
+          "url": "https://www.youtube.com/watch?v=CDqKEwU-ajE",
+          "duration": 43,
+          "upload_date": null
+        }
+      ]
+    },
+    {
+      "id": "PLWdM_wLixeSjdPVWV9v3MLjsSH8UOtKib",
+      "title": "iRancho RePro",
+      "channel": "iRancho",
+      "channel_url": "https://www.youtube.com/channel/UCz9vuNf8gQrH7nDU_DizD6Q",
+      "webpage_url": "https://www.youtube.com/playlist?list=PLWdM_wLixeSjdPVWV9v3MLjsSH8UOtKib",
+      "entries": [
+        {
+          "id": "u4GZ7O7uLbA",
+          "title": "Rotina na estação de monta está um caos? O RePro coloca tudo em ordem!",
+          "url": "https://www.youtube.com/shorts/u4GZ7O7uLbA",
+          "duration": null,
+          "upload_date": null
+        }
+      ]
+    },
+    {
+      "id": "PLWdM_wLixeSgSTc45LO7FoK4jq62Biyc7",
+      "title": "iRancho Confinamento",
+      "channel": "iRancho",
+      "channel_url": "https://www.youtube.com/channel/UCz9vuNf8gQrH7nDU_DizD6Q",
+      "webpage_url": "https://www.youtube.com/playlist?list=PLWdM_wLixeSgSTc45LO7FoK4jq62Biyc7",
+      "entries": [
+        {
+          "id": "62Xmf9Ohyds",
+          "title": "iRancho Confinamento: uma nova era na gestão do confinamento começa agora!🚀",
+          "url": "https://www.youtube.com/watch?v=62Xmf9Ohyds",
+          "duration": 106,
+          "upload_date": null
+        },
+        {
+          "id": "Sdf9wR8D_Kg",
+          "title": null,
+          "url": "https://www.youtube.com/watch?v=Sdf9wR8D_Kg",
+          "duration": null,
+          "upload_date": null
+        },
+        {
+          "id": "2_3JMF-5gSs",
+          "title": "iRancho Confinamento:🎥 Consulta de baias na palma da mão!",
+          "url": "https://www.youtube.com/watch?v=2_3JMF-5gSs",
+          "duration": 51,
+          "upload_date": null
+        },
+        {
+          "id": "X3VTTRfMdQM",
+          "title": "A gestão do seu confinamento nunca mais será a mesma! 🐂📈",
+          "url": "https://www.youtube.com/watch?v=X3VTTRfMdQM",
+          "duration": 80,
+          "upload_date": null
+        },
+        {
+          "id": "l7mSlvM292Q",
+          "title": "Dê boas-vindas a uma nova era na gestão confinamento! 🐂🚀",
+          "url": "https://www.youtube.com/watch?v=l7mSlvM292Q",
+          "duration": 60,
+          "upload_date": null
+        }
+      ]
+    },
+    {
+      "id": "PLWdM_wLixeSj_l94qSOG7SLnmD_gL5xUK",
+      "title": "iRancho em um minuto",
+      "channel": "iRancho",
+      "channel_url": "https://www.youtube.com/channel/UCz9vuNf8gQrH7nDU_DizD6Q",
+      "webpage_url": "https://www.youtube.com/playlist?list=PLWdM_wLixeSj_l94qSOG7SLnmD_gL5xUK",
+      "entries": [
+        {
+          "id": "wVRTu2CtY-U",
+          "title": "Na reprodução precisão não é detalhe",
+          "url": "https://www.youtube.com/watch?v=wVRTu2CtY-U",
+          "duration": 35,
+          "upload_date": null
+        },
+        {
+          "id": "XZnyPi6j6Jg",
+          "title": "O que falta para sua pecuária dar mais resultado?",
+          "url": "https://www.youtube.com/watch?v=XZnyPi6j6Jg",
+          "duration": 34,
+          "upload_date": null
+        },
+        {
+          "id": "QiJJwkEPhh0",
+          "title": "Do pasto ao frigorífico: Como provar a origem do seu gado",
+          "url": "https://www.youtube.com/watch?v=QiJJwkEPhh0",
+          "duration": 25,
+          "upload_date": null
+        },
+        {
+          "id": "S7_5ZS1k3bQ",
+          "title": "Tecnologia feita para a rotina da pecuária",
+          "url": "https://www.youtube.com/watch?v=S7_5ZS1k3bQ",
+          "duration": 44,
+          "upload_date": null
+        },
+        {
+          "id": "u2nULCmE0ME",
+          "title": "Dados que viram decisão: O poder do iRancho na fazenda",
+          "url": "https://www.youtube.com/watch?v=u2nULCmE0ME",
+          "duration": 42,
+          "upload_date": null
+        },
+        {
+          "id": "2zntGj5_Y5o",
+          "title": "O sistema que eleva a produtividade por cabeça no confinamento",
+          "url": "https://www.youtube.com/watch?v=2zntGj5_Y5o",
+          "duration": 35,
+          "upload_date": null
+        },
+        {
+          "id": "47_pfKuW4ps",
+          "title": "Do campo à gestão: Como o iRancho transforma a pecuária",
+          "url": "https://www.youtube.com/watch?v=47_pfKuW4ps",
+          "duration": 29,
+          "upload_date": null
+        },
+        {
+          "id": "puG0Q5PdGMI",
+          "title": "Tecnologia que nasce no curral",
+          "url": "https://www.youtube.com/watch?v=puG0Q5PdGMI",
+          "duration": 39,
+          "upload_date": null
+        },
+        {
+          "id": "lmymOlVG-60",
+          "title": "Gestão de confinamento na palma da mão: Conheça o iRancho Confinamento",
+          "url": "https://www.youtube.com/watch?v=lmymOlVG-60",
+          "duration": 45,
+          "upload_date": null
+        },
+        {
+          "id": "BC5mvftN7P8",
+          "title": "Do pasto ao prato: A tecnologia que garante confiança na carne",
+          "url": "https://www.youtube.com/watch?v=BC5mvftN7P8",
+          "duration": 33,
+          "upload_date": null
+        },
+        {
+          "id": "-s9gtuxIfpM",
+          "title": "No campo, ninguém cresce sozinho. 🌱",
+          "url": "https://www.youtube.com/watch?v=-s9gtuxIfpM",
+          "duration": 31,
+          "upload_date": null
+        },
+        {
+          "id": "zMHZ0cyb60M",
+          "title": "Confinamento não é só engorda",
+          "url": "https://www.youtube.com/watch?v=zMHZ0cyb60M",
+          "duration": 45,
+          "upload_date": null
+        },
+        {
+          "id": "Rbi1oprBZno",
+          "title": "Mais precisão e eficiência no nascimento de bezerros",
+          "url": "https://www.youtube.com/watch?v=Rbi1oprBZno",
+          "duration": 48,
+          "upload_date": null
+        },
+        {
+          "id": "7BjEy2y86j8",
+          "title": "Mais organização, clareza e confiança na pecuária",
+          "url": "https://www.youtube.com/watch?v=7BjEy2y86j8",
+          "duration": 50,
+          "upload_date": null
+        },
+        {
+          "id": "EQ9bKhuHeas",
+          "title": "Gestão inteligente para escalar sua pecuária",
+          "url": "https://www.youtube.com/watch?v=EQ9bKhuHeas",
+          "duration": 47,
+          "upload_date": null
+        },
+        {
+          "id": "R2k6cdlR414",
+          "title": "Transforme dados em decisões com o iRancho! 🚀",
+          "url": "https://www.youtube.com/watch?v=R2k6cdlR414",
+          "duration": 48,
+          "upload_date": null
+        },
+        {
+          "id": "ZCeLxzpoVcI",
+          "title": "Mais eficiência na engorda do gado 🐂",
+          "url": "https://www.youtube.com/watch?v=ZCeLxzpoVcI",
+          "duration": 46,
+          "upload_date": null
+        },
+        {
+          "id": "pm_TQteOJUA",
+          "title": "iRancho: o futuro da pecuária começa aqui",
+          "url": "https://www.youtube.com/watch?v=pm_TQteOJUA",
+          "duration": 35,
+          "upload_date": null
+        },
+        {
+          "id": "xRO_0W7nTRI",
+          "title": "Gestão pecuária de alta performance é com iRancho",
+          "url": "https://www.youtube.com/watch?v=xRO_0W7nTRI",
+          "duration": 39,
+          "upload_date": null
+        },
+        {
+          "id": "Gk3hn3YtoLw",
+          "title": "Vem ser parceiro iRancho você também!",
+          "url": "https://www.youtube.com/watch?v=Gk3hn3YtoLw",
+          "duration": 36,
+          "upload_date": null
+        },
+        {
+          "id": "S-42xcYmHOE",
+          "title": "Quanto você está deixando de ganhar sem controle?",
+          "url": "https://www.youtube.com/watch?v=S-42xcYmHOE",
+          "duration": 41,
+          "upload_date": null
+        },
+        {
+          "id": "GtGhE9h3yJY",
+          "title": "Eleve o nível da sua pecuária com o iRancho Confinamento",
+          "url": "https://www.youtube.com/watch?v=GtGhE9h3yJY",
+          "duration": 54,
+          "upload_date": null
+        },
+        {
+          "id": "Uer_8lflYbU",
+          "title": "Manejo mais rápido no curral com iRancho",
+          "url": "https://www.youtube.com/watch?v=Uer_8lflYbU",
+          "duration": 52,
+          "upload_date": null
+        },
+        {
+          "id": "YpgQ3agBxZI",
+          "title": "Tecnologia facilitadora de decisões na fazenda é com iRancho!",
+          "url": "https://www.youtube.com/watch?v=YpgQ3agBxZI",
+          "duration": 31,
+          "upload_date": null
+        },
+        {
+          "id": "i7oipIQN-9g",
+          "title": "iRancho: sistema completo de gestão pecuária",
+          "url": "https://www.youtube.com/watch?v=i7oipIQN-9g",
+          "duration": 39,
+          "upload_date": null
+        }
+      ]
+    }
+  ],
+  "irancho_videos_with_titles_in_playlists": 48,
+  "irancho_unique_videos_with_titles_in_playlists": 47,
+  "irancho_unresolved_entries": 7,
+  "vsm_videos": [
+    {
+      "id": "Q95LQOZgHLo",
+      "title": "VSM Agro! Software pecuária de cria e recria",
+      "channel": "VSM Agro",
+      "channel_url": "https://www.youtube.com/channel/UCeWYtN2OliHTNmFl2UViOrw",
+      "webpage_url": "https://www.youtube.com/watch?v=Q95LQOZgHLo",
+      "upload_date": "20231214",
+      "duration": 181
+    },
+    {
+      "id": "a8btNztSczM",
+      "title": "VSM Agro off",
+      "channel": "VSM Agro",
+      "channel_url": "https://www.youtube.com/channel/UCeWYtN2OliHTNmFl2UViOrw",
+      "webpage_url": "https://www.youtube.com/watch?v=a8btNztSczM",
+      "upload_date": "20251014",
+      "duration": 59
+    }
+  ],
+  "images_manifest": "imagens.json",
+  "study_scope": {
+    "defined_at": "2026-10-30",
+    "sequence": [
+      "octaagro",
+      "vsmagro",
+      "bovin",
+      "irancho"
+    ],
+    "excluded": [
+      "fielddata"
+    ],
+    "criterion": "Volume e profundidade do material demonstrativo localizado",
+    "plan": "sequencia-estudo.md",
+    "completed_studies": [
+      {
+        "system": "octaagro",
+        "completed_at": "2026-10-30",
+        "scope": "Estudo público e comparação delimitada com o código; quatro verificações em SQLite em memória",
+        "report": "estudo-octaagro.md",
+        "implementation": "pending"
+      }
+    ]
+  }
+}

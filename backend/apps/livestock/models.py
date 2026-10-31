@@ -7,6 +7,104 @@ from django.conf import settings
 from django.db import models
 
 
+class CattlePasture(BaseModel):
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="cattle_pastures")
+    name = models.CharField(max_length=100)
+    area_ha = models.DecimalField(max_digits=10, decimal_places=2)
+    max_stocking_ua_ha = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["farm", "name"], name="unique_cattle_pasture_name")]
+
+
+class CattleGrazing(BaseModel):
+    pasture = models.ForeignKey(CattlePasture, on_delete=models.PROTECT, related_name="grazings")
+    batch = models.ForeignKey("AnimalBatch", on_delete=models.PROTECT, related_name="grazings")
+    entry_date = models.DateField()
+    exit_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.UniqueConstraint(fields=["batch"], condition=models.Q(exit_date__isnull=True), name="unique_active_cattle_grazing"),
+            models.CheckConstraint(condition=models.Q(exit_date__isnull=True) | models.Q(exit_date__gte=models.F("entry_date")), name="cattle_grazing_date_order"),
+        ]
+
+
+class CattleMilkRecord(BaseModel):
+    class Session(models.TextChoices):
+        MORNING = "morning", "Manhã"
+        AFTERNOON = "afternoon", "Tarde"
+        EVENING = "evening", "Noite"
+
+    animal = models.ForeignKey("Animal", on_delete=models.PROTECT, related_name="milk_records")
+    date = models.DateField()
+    session = models.CharField(max_length=10, choices=Session.choices)
+    liters = models.DecimalField(max_digits=9, decimal_places=2)
+    discarded_liters = models.DecimalField(max_digits=9, decimal_places=2, default=0)
+    discard_reason = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-date", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["animal", "date", "session"], name="unique_cattle_milking_session"),
+            models.CheckConstraint(condition=models.Q(liters__gt=0) & models.Q(discarded_liters__gte=0) & models.Q(discarded_liters__lte=models.F("liters")), name="valid_cattle_milk_volume"),
+        ]
+
+
+class CattleAnimalProfile(BaseModel):
+    """Cattle-specific states, independent of the shared reproduction workflow."""
+
+    animal = models.OneToOneField("Animal", on_delete=models.CASCADE, related_name="cattle_profile")
+    is_lactating = models.BooleanField(default=False)
+    is_castrated = models.BooleanField(default=False)
+    weaning_date = models.DateField(null=True, blank=True)
+    management_group = models.CharField(max_length=100, blank=True)
+
+
+class CattleManagement(BaseModel):
+    class Kind(models.TextChoices):
+        WEIGHING = "weighing", "Pesagem"
+        SANITARY = "sanitary", "Sanitário"
+        CASTRATION = "castration", "Castração"
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Rascunho"
+        CONFIRMED = "confirmed", "Confirmado"
+        CANCELLED = "cancelled", "Cancelado"
+
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT, related_name="cattle_managements")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    date = models.DateField()
+    description = models.CharField(max_length=200)
+    responsible = models.CharField(max_length=100, blank=True)
+    treatment_type = models.CharField(max_length=20, default="other")
+    cost_per_animal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    next_procedure_date = models.DateField(null=True, blank=True)
+    milk_withdrawal_until = models.DateField(null=True, blank=True)
+    meat_withdrawal_until = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_cattle_managements")
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="confirmed_cattle_managements")
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    cancellation_reason = models.CharField(max_length=300, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-date", "-created_at"]
+
+
+class CattleManagementEntry(BaseModel):
+    management = models.ForeignKey(CattleManagement, on_delete=models.CASCADE, related_name="entries")
+    animal = models.ForeignKey("Animal", on_delete=models.PROTECT, related_name="cattle_management_entries")
+    weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["management", "animal"], name="unique_cattle_management_animal")]
+
+
 class Species(BaseModel):
     """Animal species (e.g. Bovino, Suíno, Aves, Ovino)."""
 

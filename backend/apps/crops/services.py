@@ -111,6 +111,7 @@ def _create_stock_movement(instance, request, description):
         quantidade=amount,
         responsavel=user,
         destino="Plantio",
+        farm=instance.plantation.farm or instance.plantation.field.farm,
         observacao=description,
     )
 

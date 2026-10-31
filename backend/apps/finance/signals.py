@@ -1,4 +1,5 @@
-from django.db.models.signals import post_save
+from django.db import transaction
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from apps.inventory.models import LoteEstoque
 from apps.livestock.models import AnimalBatch, Species
@@ -31,6 +32,8 @@ def create_inventory_transaction(sender, instance, created, **kwargs):
         return
     if created and instance.custo_unitario and instance.custo_unitario > 0:
         total_cost = instance.custo_unitario * instance.quantidade_inicial
+        if total_cost <= 0:
+            return
         
         # Tentar obter a organização do item de estoque
         organization = getattr(instance.item, 'organization', None)
@@ -48,8 +51,8 @@ def create_inventory_transaction(sender, instance, created, **kwargs):
             amount=total_cost,
             category=category,
             due_date=instance.data_entrada,
-            payment_date=instance.data_entrada,
-            status="paid",  # Assumimos pago se entrou no estoque com custo
+            farm=getattr(instance, "_purchase_farm", None),
+            status="pending",  # Stock receipt is not proof of payment.
             reference=f"LOTE-{instance.id}",
             species=Species.objects.filter(
                 code__in=_species_codes(instance.item.especie_animal)
@@ -78,7 +81,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
                 "amount": instance.purchase_value,
                 "category": category_pur,
                 "due_date": instance.entry_date,
-                "payment_date": instance.entry_date,
+                "farm": instance.farm,
                 "animal_batch": instance,
                 "species": instance.species,
             },
@@ -87,10 +90,10 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
                 "amount": instance.purchase_value,
                 "category": category_pur,
                 "due_date": instance.entry_date,
-                "payment_date": instance.entry_date,
+                "farm": instance.farm,
                 "animal_batch": instance,
                 "species": instance.species,
-                "status": "paid",
+                "status": "pending",
             },
         )
 
@@ -98,7 +101,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
     if instance.status == AnimalBatch.Status.SOLD and instance.sale_value and instance.sale_value > 0:
         # Evitar duplicidade: verificar se já existe transação para esta referência
         ref_sale = f"SALE-BATCH-{instance.id}"
-        if not Transaction.objects.filter(reference=ref_sale).exists():
+        if not Transaction.objects.filter(organization=instance.farm.organization, reference=ref_sale).exists():
             category_sale, _ = FinancialCategory.objects.get_or_create(
                 organization=instance.farm.organization,
                 name="Venda de Animais",
@@ -111,9 +114,17 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
                 amount=instance.sale_value,
                 category=category_sale,
                 due_date=instance.exit_date or instance.updated_at.date(),
-                payment_date=instance.exit_date or instance.updated_at.date(),
-                status="paid",
+                status="pending",
                 reference=ref_sale,
+                farm=instance.farm,
                 animal_batch=instance,
                 species=instance.species,
             )
+
+
+@receiver(post_delete, sender=Transaction)
+def refresh_deleted_transaction_account(sender, instance, **kwargs):
+    if instance.bank_account_id:
+        from .services import refresh_account_balances
+        with transaction.atomic():
+            refresh_account_balances([instance.bank_account_id])

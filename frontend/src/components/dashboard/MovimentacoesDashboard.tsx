@@ -30,8 +30,12 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { financeError } from "@/services/financeService";
+import { useToast } from "@/components/ui/Toast";
 import { apiClient } from "@/services/api";
 import { Badge } from "@/components/ui/Badge";
+import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
+import { StockAdjustmentModal } from "@/components/dashboard/StockAdjustmentModal";
 import { QuickMovementModal } from "@/components/dashboard/QuickMovementModal";
 import "@/app/home/estoque/estoque.css";
 
@@ -197,6 +201,11 @@ export function MovimentacoesDashboard() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  const { showToast } = useToast();
+  const access = useOrganizationAccess();
+  const canAdjust = !!access && !access.read_only && ["admin", "manager"].includes(access.role);
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+
   // Modal State
   const [quickModal, setQuickModal] = useState<{
     open: boolean;
@@ -252,12 +261,12 @@ export function MovimentacoesDashboard() {
       await apiClient.delete(`/inventory/movimentacoes/${id}/`);
       fetchHistory(page);
     } catch (error) {
-      console.error("Erro ao excluir:", error);
+      showToast(financeError(error), "error");
     }
   };
 
   const currentPageMovementIds = useMemo(() => {
-    return movements.map((movement) => movement.id);
+    return movements.filter((movement) => movement.tipo !== "ajuste").map((movement) => movement.id);
   }, [movements]);
 
   const allCurrentPageSelected = useMemo(() => {
@@ -303,7 +312,7 @@ export function MovimentacoesDashboard() {
       setSelectedMovementIds([]);
       fetchHistory(page);
     } catch (error) {
-      console.error("Erro ao excluir movimentações:", error);
+      showToast(financeError(error), "error");
     }
   };
 
@@ -328,7 +337,8 @@ export function MovimentacoesDashboard() {
               Gerencie entradas, saídas e acompanhe o histórico completo de movimentações.
             </p>
           </div>
-          <div className="d-flex gap-3">
+          <div className="d-flex flex-wrap gap-3">
+            {canAdjust && <button className="btn btn-outline-primary" onClick={() => { fetchStock(); setAdjustmentOpen(true); }}>Ajuste de inventário</button>}
             <button 
               onClick={() => setQuickModal({ open: true, type: "in" })}
               className="btn btn-primary d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm transition-all hover-scale"
@@ -526,6 +536,7 @@ export function MovimentacoesDashboard() {
                             <input
                               type="checkbox"
                               className="form-check-input"
+                              disabled={m.tipo === "ajuste"}
                               checked={selectedMovementIds.includes(m.id)}
                               onChange={() => toggleMovementSelection(m.id)}
                             />
@@ -543,6 +554,7 @@ export function MovimentacoesDashboard() {
                           <td className="px-3 py-3 fw-bold">
                             <div className="d-flex align-items-center gap-2">
                               {m.item_nome}
+                              {m.tipo === "ajuste" && <small className="fw-normal text-muted">{m.observacao} · {m.responsavel_nome}</small>}
                               {(m.observacao && (m.observacao.includes("produção de") || m.observacao.includes("Entrada por produção"))) && (
                                 <span 
                                   className="badge rounded-pill" 
@@ -574,12 +586,12 @@ export function MovimentacoesDashboard() {
                             </div>
                           </td>
                           <td className="px-3 py-3 text-end">
-                            <button 
+                            {m.tipo !== "ajuste" && <button
                               onClick={() => handleDeleteMovement(m.id)}
                               className="btn btn-sm p-2 hover-bg-rose-50 text-muted-foreground hover-text-rose-600 rounded-lg transition-all"
                             >
                               <Trash2 size={16} />
-                            </button>
+                            </button>}
                           </td>
                         </tr>
                       ))
@@ -606,6 +618,8 @@ export function MovimentacoesDashboard() {
           </div>
         </div>
       )}
+
+      {adjustmentOpen && <StockAdjustmentModal items={items} onClose={() => setAdjustmentOpen(false)} onSaved={() => { setAdjustmentOpen(false); if (view === "stock") fetchStock(); else fetchHistory(1); }} />}
 
       {quickModal.open && (
         <QuickMovementModal

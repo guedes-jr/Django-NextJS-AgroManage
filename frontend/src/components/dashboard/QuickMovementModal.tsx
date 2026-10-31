@@ -7,6 +7,7 @@ import {
   ArrowDownRight, CreditCard, ShoppingCart, 
   Utensils, Trash2, Plus, MapPin
 } from "lucide-react";
+import { financeService, FinanceAccount, NamedOption } from "@/services/financeService";
 import { apiClient } from "@/services/api";
 
 interface InventoryItem {
@@ -82,6 +83,15 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
   const [loteId, setLoteId] = useState<string>("");
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
 
+  const [farms, setFarms] = useState<NamedOption[]>([]);
+  const [accounts, setAccounts] = useState<FinanceAccount[]>([]);
+  const [farmId, setFarmId] = useState("");
+  const [purchasePaymentMethod, setPurchasePaymentMethod] = useState("pix");
+  const [paymentStatus, setPaymentStatus] = useState("pending");
+  const [purchaseDueDate, setPurchaseDueDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [purchasePaymentDate, setPurchasePaymentDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [accountId, setAccountId] = useState("");
+
   // Entrance fields
   const [numeroLote, setNumeroLote] = useState("");
   const [dataValidade, setDataValidade] = useState("");
@@ -105,6 +115,8 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       setSubType(initialType === "in" ? "compra" : "consumo");
       
       fetchFornecedores();
+      setPaymentStatus("pending"); setFarmId(""); setAccountId("");
+      Promise.all([financeService.farms(), financeService.accounts()]).then(([farms, accounts]) => { setFarms(farms); setAccounts(accounts); }).catch(() => setError("Não foi possível carregar propriedades e contas."));
     }
   }, [isOpen, initialItem, initialType]);
 
@@ -179,6 +191,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
         tipo: subType,
         quantidade: quantidadeNumber,
         observacao,
+        farm: farmId || null,
       };
 
       if (mainType === "out") {
@@ -192,6 +205,15 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
         if (fornecedorId) payload.fornecedor = fornecedorId;
       }
 
+      if (subType === "compra") {
+        payload.purchase_payment_status = paymentStatus;
+        payload.purchase_due_date = purchaseDueDate;
+        if (paymentStatus === "paid") {
+          payload.purchase_bank_account = accountId;
+          payload.purchase_payment_date = purchasePaymentDate;
+          payload.purchase_payment_method = purchasePaymentMethod;
+        }
+      }
       await apiClient.post("/inventory/movimentacoes/", payload);
       onClose();
     } catch (err: any) {
@@ -312,7 +334,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                       </div>
                       <div className="col-6">
                         <button type="button" onClick={() => setSubType("entrada")} className={`btn w-100 py-3 rounded-xl border d-flex align-items-center gap-2 fw-bold transition-all ${subType === "entrada" ? "bg-success-subtle border-success text-success" : "bg-light border-light text-muted"}`}>
-                          <Plus size={18} /> Ajuste
+                          <Plus size={18} /> Entrada avulsa
                         </button>
                       </div>
                     </>
@@ -440,6 +462,21 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                   </div>
                 </div>
               )}
+
+              <div className="mb-3">
+                <label className={labelStyle}>Propriedade da movimentação</label>
+                <select style={inputStyle} value={farmId} onChange={e => setFarmId(e.target.value)}><option value="">Estoque geral da organização</option>{farms.map(farm => <option key={farm.id} value={farm.id}>{farm.name}</option>)}</select>
+              </div>
+              {subType === "compra" && <div className="row g-3 mb-4">
+                <label className={`col-12 col-md-6 ${labelStyle}`}>Condição de pagamento<select style={inputStyle} value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}><option value="pending">A pagar / a prazo</option><option value="paid">Pago à vista</option></select></label>
+                <label className={`col-12 col-md-6 ${labelStyle}`}>Vencimento<input style={inputStyle} type="date" required value={purchaseDueDate} onChange={e => setPurchaseDueDate(e.target.value)} /></label>
+                {paymentStatus === "paid" && <>
+                  <label className={`col-12 ${labelStyle}`}>Forma de pagamento<select style={inputStyle} value={purchasePaymentMethod} onChange={e => setPurchasePaymentMethod(e.target.value)}>{Object.entries({ pix: "PIX", boleto: "Boleto", transfer: "Transferência", cash: "Dinheiro", credit_card: "Cartão de crédito" }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <label className={`col-12 col-md-6 ${labelStyle}`}>Conta do pagamento<select style={inputStyle} required value={accountId} onChange={e => setAccountId(e.target.value)}><option value="">Selecione</option>{accounts.filter(account => account.is_active).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                  <label className={`col-12 col-md-6 ${labelStyle}`}>Data do pagamento<input style={inputStyle} type="date" required max={new Date().toLocaleDateString("en-CA")} value={purchasePaymentDate} onChange={e => setPurchasePaymentDate(e.target.value)} /></label>
+                </>}
+                <p className="small text-muted mb-0">Compras com custo geram um título financeiro. Somente pagamentos confirmados alteram o saldo da conta.</p>
+              </div>}
 
               {/* Observation */}
               <div className="mb-0">

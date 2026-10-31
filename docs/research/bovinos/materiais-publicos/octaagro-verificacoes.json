@@ -1,0 +1,40 @@
+{
+  "database": "SQLite :memory:",
+  "production_data_changed": false,
+  "notification_delivery_mocked": true,
+  "method": "Serializers e serviços reais; sem requisição HTTP ou teste visual",
+  "probes": [
+    {
+      "id": "OCTA-01",
+      "scenario": "Conta com saldo inicial 1000 e receita paga 400",
+      "expected_if_derived": "1400.00",
+      "current_balance": "0.00",
+      "result": "Saldo armazenado não atualizado neste fluxo"
+    },
+    {
+      "id": "OCTA-02",
+      "scenario": "Consumo bovino na fazenda diferente da escolhida pelo fallback",
+      "consumption_farm_matches_animal": true,
+      "movement_farm_matches_animal": false,
+      "movement_farm_matches_fallback": true,
+      "stock_after_consuming_3_from_20": "17.00",
+      "consumption_cost": "6.0000",
+      "result": "Baixa e custo corretos; fazenda da movimentação divergente"
+    },
+    {
+      "id": "OCTA-03",
+      "scenario": "Cadastro de lote de insumo com custo, sem dados de liquidação",
+      "generated_expense_status": "paid",
+      "generated_expense_amount": "40.00",
+      "generated_expense_has_farm": false,
+      "result": "Despesa gerada como paga automaticamente e sem fazenda"
+    },
+    {
+      "id": "OCTA-04",
+      "scenario": "PATCH do saldo do lote por serializer público",
+      "new_stock_balance": "15.00",
+      "new_movement_created": false,
+      "result": "Saldo do lote editável sem gerar movimentação neste caminho"
+    }
+  ]
+}

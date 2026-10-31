@@ -32,6 +32,7 @@ from .serializers import (
     ConsumoRacaoSerializer,
     FormulaRacaoSerializer,
     ProducaoRacaoSerializer,
+    StockCountSerializer,
 )
 from .choices import (
     CategoriaItem, UnidadeMedida, EspecieAnimal, TipoMovimentacao, TipoContratoFornecedor
@@ -286,6 +287,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 class LoteEstoqueViewSet(viewsets.ModelViewSet):
     """CRUD for stock batches."""
     permission_classes = [OrganizationRolePermission]
+    action_operations = {"adjust_stock": "edit"}
 
     queryset = LoteEstoque.objects.select_related("item").order_by("-data_entrada")
     serializer_class = LoteEstoqueSerializer
@@ -300,6 +302,24 @@ class LoteEstoqueViewSet(viewsets.ModelViewSet):
         if item_id:
             qs = qs.filter(item_id=item_id)
         return qs
+
+    @action(detail=True, methods=["post"], url_path="ajustar-estoque")
+    def adjust_stock(self, request, pk=None):
+        from .services import record_stock_count
+
+        lot = self.get_object()
+        data = StockCountSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        movement = record_stock_count(lot, request.user, **data.validated_data)
+        return Response(MovimentacaoEstoqueSerializer(movement, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        ItemEstoque.objects.select_for_update().get(pk=instance.item_id)
+        lot = LoteEstoque.objects.select_for_update().get(pk=instance.pk)
+        if lot.quantidade_atual != 0 or lot.movimentacoes.exists():
+            raise exceptions.ValidationError("Não é possível apagar um lote com saldo ou lançamentos. Preserve o histórico e registre um ajuste quando necessário.")
+        lot.delete()
 
 
 @operator_scoped
@@ -348,6 +368,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             qs = qs.filter(item_id=item_filter)
         return qs
 
+    @transaction.atomic
     def perform_create(self, serializer):
         from datetime import date
         from apps.farms.models import Farm
@@ -357,19 +378,30 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         
         tipo = serializer.validated_data.get("tipo")
         item = serializer.validated_data.get("item")
+        ItemEstoque.objects.select_for_update().get(pk=item.pk)
         quantidade = serializer.validated_data.get("quantidade")
         lote = serializer.validated_data.get("lote")
+        if lote:
+            lote = LoteEstoque.objects.select_for_update().get(pk=lote.pk)
+            serializer.validated_data["lote"] = lote
         
-        # Ensure farm is set (default to first farm of the organization if missing)
+        # A shared stock purchase must keep its explicit property context.
         farm = serializer.validated_data.get("farm")
-        if not farm and responsavel and responsavel.organization:
-            farm = Farm.objects.filter(organization=responsavel.organization).first()
         
         # Save additional context
         save_kwargs = {"responsavel": responsavel}
         if farm:
             save_kwargs["farm"] = farm
         
+        purchase = {
+            "due_date": serializer.validated_data.pop("purchase_due_date", None),
+            "paid": serializer.validated_data.pop("purchase_payment_status", "pending") == "paid",
+            "bank_account": serializer.validated_data.pop("purchase_bank_account", None),
+            "payment_date": serializer.validated_data.pop("purchase_payment_date", None),
+            "payment_method": serializer.validated_data.pop("purchase_payment_method", "transfer"),
+        }
+        if purchase["paid"] and tipo != TipoMovimentacao.COMPRA:
+            raise exceptions.ValidationError("Somente compras podem registrar pagamento neste fluxo.")
         # Pop batch fields so they don't get passed to MovimentacaoEstoque.objects.create()
         batch_data = {
             "numero_lote": serializer.validated_data.pop("numero_lote", ""),
@@ -388,7 +420,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             lote = LoteEstoque.objects.filter(item=item, numero_lote=numero_lote).first()
             
             if not lote:
-                lote = LoteEstoque.objects.create(
+                lote = LoteEstoque(
                     item=item,
                     numero_lote=numero_lote,
                     data_fabricacao=batch_data["data_fabricacao"],
@@ -401,6 +433,9 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
                     nota_fiscal=batch_data["nota_fiscal"],
                     data_entrada=date.today(),
                 )
+                lote._purchase_farm = farm
+                lote._skip_finance_transaction = True
+                lote.save()
             else:
                 # Update existing batch metadata if provided
                 if batch_data["data_validade"]:
@@ -416,6 +451,10 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             instance = serializer.save(**save_kwargs)
             lote = instance.lote
             
+        if tipo == TipoMovimentacao.COMPRA:
+            from apps.finance.services import record_stock_purchase
+            record_stock_purchase(instance, user, **purchase)
+
         # Logic to find a batch for output if none was provided
         if not lote and tipo in [TipoMovimentacao.VENDA, TipoMovimentacao.CONSUMO, TipoMovimentacao.PERDA]:
             lote = item.lotes.filter(ativo=True, quantidade_atual__gt=0).order_by("data_validade", "created_at").first()
@@ -431,13 +470,31 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
                 lote.quantidade_atual += quantidade
                 lote.save(update_fields=["quantidade_atual", "updated_at"])
 
+    @transaction.atomic
     def perform_update(self, serializer):
-        # We need to handle the stock adjustment if the quantity or type changes
-        instance = self.get_object()
+        # Serialize ordinary movement corrections with inventory counts.
+        original = serializer.instance
+        new_item = serializer.validated_data.get("item", original.item)
+        list(ItemEstoque.objects.select_for_update().filter(pk__in=[original.item_id, new_item.pk]).order_by("pk"))
+        instance = MovimentacaoEstoque.objects.select_for_update().get(pk=original.pk)
+        new_lot = serializer.validated_data.get("lote", instance.lote)
+        lots = {lot.pk: lot for lot in LoteEstoque.objects.select_for_update().filter(pk__in=[pk for pk in [instance.lote_id, getattr(new_lot, "pk", None)] if pk]).order_by("pk")}
+        if instance.lote_id:
+            instance.lote = lots[instance.lote_id]
+        if new_lot:
+            serializer.validated_data["lote"] = lots[new_lot.pk]
+        serializer.instance = instance
+        from .services import movement_has_financial_origin
+        if movement_has_financial_origin(instance):
+            raise exceptions.ValidationError("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste.")
+        if instance.tipo == TipoMovimentacao.AJUSTE:
+            raise exceptions.ValidationError("Ajustes de inventário preservam o histórico. Registre uma nova contagem para corrigir o saldo.")
         old_qty = instance.quantidade
         old_tipo = instance.tipo
         old_lote = instance.lote
         
+        for field in ["purchase_due_date", "purchase_payment_status", "purchase_bank_account", "purchase_payment_date", "purchase_payment_method"]:
+            serializer.validated_data.pop(field, None)
         # Save the new version
         updated_instance = serializer.save()
         new_qty = updated_instance.quantidade
@@ -480,7 +537,17 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
                 new_lote.quantidade_atual = max(Decimal("0"), new_lote.quantidade_atual)
                 new_lote.save(update_fields=["quantidade_atual", "updated_at"])
 
+    @transaction.atomic
     def perform_destroy(self, instance):
+        ItemEstoque.objects.select_for_update().get(pk=instance.item_id)
+        instance = MovimentacaoEstoque.objects.select_for_update().get(pk=instance.pk)
+        if instance.lote_id:
+            instance.lote = LoteEstoque.objects.select_for_update().get(pk=instance.lote_id)
+        from .services import movement_has_financial_origin
+        if movement_has_financial_origin(instance):
+            raise exceptions.ValidationError("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste.")
+        if instance.tipo == TipoMovimentacao.AJUSTE:
+            raise exceptions.ValidationError("Ajustes de inventário não podem ser apagados. Registre uma nova contagem para corrigir o saldo.")
         lote = instance.lote
         tipo = instance.tipo
         quantidade = instance.quantidade
@@ -512,6 +579,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             .filter(id__in=ids)
             .select_related("lote")
         )
+        if any(movement.tipo == TipoMovimentacao.AJUSTE for movement in movements):
+            raise exceptions.ValidationError("A seleção contém ajustes de inventário, que não podem ser apagados.")
 
         if not movements:
             return Response(

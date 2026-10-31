@@ -32,7 +32,7 @@ from .operational_alerts import (_operational_alert_key, _event_alert_metadata, 
 
 @transaction.atomic
 def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
-                       observacao: str = "", destino: str = "Pecuária") -> tuple:
+                       observacao: str = "", destino: str = "Pecuária", farm=None) -> tuple:
     """Dá baixa da quantidade aplicada, convertida para a unidade do estoque.
     
     Returns:
@@ -69,14 +69,14 @@ def _dar_baixa_vacina(vaccine_item, user, dosagem_ml=None,
             tipo=TipoMovimentacao.CONSUMO,
             quantidade=retirada,
             responsavel=user,
-            destino=destino,
+            destino=destino, farm=farm,
             observacao=observacao or "Consumo por vacinação",
         )
         restante -= retirada
     return quantidade, custo_total
 
 
-def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao, destino="Maternidade"):
+def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao, destino="Maternidade", farm=None):
     """Consume an exact inventory quantity from active lots using FEFO."""
     from apps.inventory.choices import TipoMovimentacao
     from apps.inventory.services import registrar_movimentacao
@@ -102,7 +102,7 @@ def _dar_baixa_aplicacao_coletiva(item, quantidade, user, observacao, destino="M
         custo_total += retirada * (lote.custo_unitario or Decimal("0"))
         registrar_movimentacao(
             item=item, lote=lote, tipo=TipoMovimentacao.CONSUMO,
-            quantidade=retirada, responsavel=user, destino=destino,
+            quantidade=retirada, responsavel=user, destino=destino, farm=farm,
             observacao=observacao,
         )
         restante -= retirada
@@ -1199,7 +1199,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 inventory_quantity,
                 request.user,
                 f"Vacinação coletiva do lote {batch.batch_code}",
-                destino=f"Lote {batch.batch_code}",
+                destino=f"Lote {batch.batch_code}", farm=batch.farm,
             )
         except serializers.ValidationError:
             available_inventory = sum(
@@ -1927,7 +1927,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         if vaccine_item:
             _, custo_real = _dar_baixa_vacina(
                 vaccine_item, request.user, record.dosage_ml,
-                observacao=f"Vacinação do animal {animal.identifier}"
+                observacao=f"Vacinação do animal {animal.identifier}", farm=animal.farm
             )
             record.inventory_cost_snapshot = custo_real
             record.save(update_fields=['inventory_cost_snapshot'])
@@ -2456,6 +2456,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                 _dar_baixa_aplicacao_coletiva(
                     item, quantidade_estoque, request.user,
                     f"{item.nome} aplicado em {animal_count} leitões da matriz {birth.female.identifier}",
+                    farm=birth.female.farm,
                 )
                 med = LitterMedication.objects.create(
                     birth=birth, batch=batch, inventory_item=item,
@@ -2986,7 +2987,7 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
         if record.vaccine_item:
             target_desc = record.animal.identifier if record.animal else record.batch.batch_code if record.batch else "desconhecido"
             _, custo_real = _dar_baixa_vacina(record.vaccine_item, request.user, record.dosage_ml,
-                              observacao=f"Vacinação de {target_desc}")
+                              observacao=f"Vacinação de {target_desc}", farm=record.farm)
             record.inventory_cost_snapshot = custo_real
             record.save(update_fields=['inventory_cost_snapshot'])
 

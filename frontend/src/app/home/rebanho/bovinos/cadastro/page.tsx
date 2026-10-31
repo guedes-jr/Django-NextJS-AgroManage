@@ -1,7 +1,5 @@
-"use client";
+import { CattleWorkspace } from "@/components/cattle/CattleWorkspace";
 
-import { SpeciesDashboard } from "@/components/dashboard/SpeciesDashboard";
-
-export default function BovinosCadastroPage() {
-  return <SpeciesDashboard species="bovinos" />;
+export default function Page() {
+  return <CattleWorkspace view="animals" />;
 }

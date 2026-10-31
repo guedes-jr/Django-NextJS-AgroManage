@@ -4,7 +4,7 @@
     radial-gradient(circle at 12% 4%, rgba(38, 137, 77, 0.18), transparent 28%),
     linear-gradient(180deg, #06291e 0%, #031d16 100%);
   width: 280px;
-  min-height: 100vh;
+  min-height: 0;
   height: 100vh;
   height: 100dvh;
   position: sticky;
@@ -153,36 +153,12 @@
   transform: translateY(-1px);
 }
 
-.premium-badge-card {
-  padding: 14px;
-  border: 1px solid rgba(139, 214, 108, .13);
-  border-radius: 14px;
-  background: linear-gradient(145deg, rgba(34, 108, 65, .33), rgba(16, 65, 44, .36));
-}
-
-.badge-icon-yellow {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  place-items: center;
-  background: #fde047;
-  border-radius: 8px;
-  color: #173923;
-  font-size: .72rem;
-  box-shadow: 0 5px 14px rgba(253, 224, 71, .14);
-}
-
-.sidebar-navigation { padding: 0 12px 14px; }
+.sidebar-navigation { flex: 0 0 auto; padding: 0 12px 14px; }
 .sidebar-section { padding: 13px 0 10px; border-top: 1px solid rgba(255,255,255,.055); }
 .sidebar-section:first-child { padding-top: 2px; border-top: 0; }
 .sidebar-section h2 { margin: 0 10px 8px; color: #79ba5e; font-size: .64rem; font-weight: 800; letter-spacing: .105em; text-transform: uppercase; }
 .sidebar-section-items { display: flex; flex-direction: column; gap: 2px; }
-.sidebar-plan-heading { display: flex; align-items: center; gap: 10px; color: white; }
-.sidebar-plan-heading strong { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
-.premium-badge-card > span { display: block; margin-top: 8px; color: rgba(255,255,255,.5); font-size: .69rem; font-weight: 500; }
-.premium-badge-card > small { display: block; margin-top: 4px; color: #f6d75b; font-size: .66rem; font-weight: 700; }
-.sidebar-footer { flex: 0 0 auto; padding: 12px; border-top: 1px solid rgba(255,255,255,.06); background: rgba(1, 20, 14, .3); }
+.sidebar-footer { flex: 0 0 auto; margin-top: auto; padding: 12px; border-top: 1px solid rgba(255,255,255,.06); background: rgba(1, 20, 14, .3); }
 .sidebar-settings-link { margin-top: 8px; }
 
 .dashboard-card {
@@ -359,6 +335,10 @@
 
 /* Fix sidebar scrolling nicely if it overflows */
 .sidebar-nav-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;

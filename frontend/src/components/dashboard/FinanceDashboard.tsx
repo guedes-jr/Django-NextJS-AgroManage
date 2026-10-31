@@ -30,6 +30,7 @@ const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'
 
 export function FinanceDashboard() {
   const [stats, setStats] = useState<any>(null);
+  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,10 +43,13 @@ export function FinanceDashboard() {
       setStats(response.data);
     } catch (err) {
       console.error("Error fetching finance stats:", err);
+      setError(true);
     } finally {
       setLoading(false);
     }
   };
+
+  if (error) return <div className="alert alert-danger" role="alert">Não foi possível carregar os indicadores. Atualize a página para tentar novamente.</div>;
 
   if (loading || !stats) {
     return <div className="p-5 text-center">Carregando indicadores financeiros...</div>;
@@ -80,7 +84,7 @@ export function FinanceDashboard() {
               <div className="p-2 rounded-lg bg-success/10 text-success">
                 <TrendingUp size={20} />
               </div>
-              <span className="text-muted-foreground small fw-medium">Este Mês</span>
+              <span className="text-muted-foreground small fw-medium">Acumulado</span>
             </div>
             <div className="text-muted-foreground small fw-medium mb-1">Total Recebido</div>
             <div className="h4 fw-bold text-success mb-0">
@@ -95,7 +99,7 @@ export function FinanceDashboard() {
               <div className="p-2 rounded-lg bg-danger/10 text-danger">
                 <TrendingDown size={20} />
               </div>
-              <span className="text-muted-foreground small fw-medium">Este Mês</span>
+              <span className="text-muted-foreground small fw-medium">Acumulado</span>
             </div>
             <div className="text-muted-foreground small fw-medium mb-1">Total Pago</div>
             <div className="h4 fw-bold text-danger mb-0">
@@ -112,7 +116,7 @@ export function FinanceDashboard() {
               </div>
               <span className="text-muted-foreground small fw-medium">Pendentes</span>
             </div>
-            <div className="text-muted-foreground small fw-medium mb-1">A Pagar Próx. 7 dias</div>
+            <div className="text-muted-foreground small fw-medium mb-1">Total a pagar</div>
             <div className="h4 fw-bold text-warning mb-0">
               R$ {summary.payable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
@@ -130,9 +134,7 @@ export function FinanceDashboard() {
                 <p className="text-muted-foreground small mb-0">Entradas e saídas nos últimos 30 dias</p>
               </div>
               <div className="d-flex gap-2">
-                <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 border-light-subtle bg-white">
-                  <Calendar size={14} /> 30 Dias
-                </button>
+                <span className="small text-muted d-flex align-items-center gap-2"><Calendar size={14} /> 30 dias</span>
               </div>
             </div>
             

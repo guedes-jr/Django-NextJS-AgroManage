@@ -986,6 +986,7 @@ class LitterMedicationSerializer(serializers.ModelSerializer):
 
 
 class BatchSaleSerializer(serializers.Serializer):
+    due_date = serializers.DateField(required=False)
     mode = serializers.ChoiceField(choices=['whole', 'partial'])
     quantity = serializers.IntegerField(min_value=1, required=False)
     weight_kg = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal('0.001'))

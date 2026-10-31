@@ -1,0 +1,145 @@
+"""Read models for the cattle workspace; all queries start with the tenant."""
+
+from decimal import Decimal
+
+from django.db.models import Avg, Count, Q, Sum
+from django.utils import timezone
+
+from .models import (
+    Animal,
+    AnimalBatch,
+    CattleManagement,
+    CattleMilkRecord,
+    CattlePasture,
+    Pregnancy,
+)
+
+
+def cattle_overview(organization, farm=None):
+    if farm:
+        from rest_framework import serializers
+
+        farm = serializers.UUIDField().run_validation(farm)
+    animals = Animal.objects.filter(
+        farm__organization=organization, species__code="bovinos", status="active"
+    )
+    batches = AnimalBatch.objects.filter(
+        farm__organization=organization, species__code="bovinos", status="active"
+    )
+    if farm:
+        animals = animals.filter(farm_id=farm)
+        batches = batches.filter(farm_id=farm)
+    standalone = animals.filter(batch__isnull=True)
+    categories = {}
+    for row in batches.values("category").annotate(total=Sum("quantity")):
+        categories[row["category"] or "Sem categoria"] = row["total"]
+    for row in standalone.values("category").annotate(total=Count("id")):
+        key = row["category"] or "Sem categoria"
+        categories[key] = categories.get(key, 0) + row["total"]
+    today = timezone.localdate()
+    milk = CattleMilkRecord.objects.filter(
+        animal__farm__organization=organization,
+        date__gte=today.replace(day=1),
+        date__lte=today,
+    )
+    if farm:
+        milk = milk.filter(animal__farm_id=farm)
+    milk_totals = milk.aggregate(
+        produced=Sum("liters"), discarded=Sum("discarded_liters")
+    )
+    pastures = CattlePasture.objects.filter(farm__organization=organization)
+    if farm:
+        pastures = pastures.filter(farm_id=farm)
+    pregnancies = (
+        Pregnancy.objects.filter(female__in=animals, status="ongoing")
+        .select_related("female")
+        .order_by("expected_birth_date")[:8]
+    )
+    sanitary = CattleManagement.objects.filter(
+        farm__organization=organization,
+        status="confirmed",
+        kind="sanitary",
+        next_procedure_date__isnull=False,
+    )
+    if farm:
+        sanitary = sanitary.filter(farm_id=farm)
+    agenda = [
+        {
+            "date": str(row.expected_birth_date),
+            "title": f"Parto previsto · {row.female.identifier}",
+            "kind": "birth",
+        }
+        for row in pregnancies
+    ]
+    agenda.extend(
+        {
+            "date": str(row.next_procedure_date),
+            "title": row.description,
+            "kind": "sanitary",
+        }
+        for row in sanitary.order_by("next_procedure_date")[:8]
+    )
+    return {
+        "total_head": sum(categories.values()),
+        "identified_animals": animals.count(),
+        "active_batches": batches.count(),
+        "pregnant_females": animals.filter(
+            gender="F", reproductive_status="gestante"
+        ).count(),
+        "lactating_females": animals.filter(
+            Q(cattle_profile__is_lactating=True)
+            | Q(cattle_profile__isnull=True, reproductive_status="lactante"),
+            gender="F",
+        ).count(),
+        "average_identified_weight": animals.aggregate(value=Avg("current_weight_kg"))[
+            "value"
+        ],
+        "milk_produced_month": milk_totals["produced"] or Decimal(0),
+        "milk_discarded_month": milk_totals["discarded"] or Decimal(0),
+        "milk_usable_month": (milk_totals["produced"] or Decimal(0))
+        - (milk_totals["discarded"] or Decimal(0)),
+        "pasture_area_ha": pastures.aggregate(total=Sum("area_ha"))["total"]
+        or Decimal(0),
+        "categories": [
+            {"category": key, "quantity": value}
+            for key, value in sorted(categories.items())
+        ],
+        "agenda": sorted(agenda, key=lambda item: item["date"]),
+    }
+
+
+def milk_withdrawal_for(animal, day):
+    from .models import CattleManagementEntry
+
+    return CattleManagementEntry.objects.filter(
+        animal=animal,
+        management__status="confirmed",
+        management__kind="sanitary",
+        management__date__lte=day,
+        management__milk_withdrawal_until__gte=day,
+    ).exists()
+
+
+def cattle_withdrawals(queryset):
+    """Correlated subqueries keep withdrawal dates from multiplying animal rows."""
+    from django.db.models import DateField, OuterRef, Subquery
+
+    from .models import CattleManagementEntry
+
+    applications = CattleManagementEntry.objects.filter(
+        animal_id=OuterRef("pk"),
+        management__status="confirmed",
+        management__kind="sanitary",
+        management__date__lte=timezone.localdate(),
+    )
+    return queryset.annotate(
+        **{
+            field: Subquery(
+                applications.exclude(**{f"management__{field}": None})
+                .order_by(f"-management__{field}")
+                .values(f"management__{field}")[:1],
+                output_field=DateField(),
+            )
+            for field in ("milk_withdrawal_until", "meat_withdrawal_until")
+        }
+    )

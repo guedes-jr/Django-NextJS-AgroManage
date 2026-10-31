@@ -58,7 +58,7 @@ export default function HomeLayout({
   }, [closeSidebar, isSidebarOpen]);
 
   return (
-    <OrganizationAccessContext.Provider value={access}><NotificationProvider><div className="d-flex" style={{ minHeight: "100vh" }}>
+    <OrganizationAccessContext.Provider value={access}><NotificationProvider><div className="app-workspace d-flex" style={{ minHeight: "100vh" }}>
       <AppSidebar access={access} isOpen={isSidebarOpen} onClose={closeSidebar} />
       
       {/* Mobile Overlay */}
@@ -69,11 +69,11 @@ export default function HomeLayout({
         />
       )}
 
-      <div className="flex-grow-1 d-flex flex-column" style={{ background: "var(--background)", minWidth: 0 }}>
+      <div className="workspace-body flex-grow-1 d-flex flex-column" style={{ background: "var(--background)", minWidth: 0 }}>
         <SupportAccessBanner />
         <ClientAnnouncementBanner />
         <TopBar onMenuClick={openSidebar} isMenuOpen={isSidebarOpen} />
-        <main className="flex-grow-1 p-3 p-lg-5 overflow-auto">
+        <main className="workspace-content flex-grow-1 overflow-auto">
           {!accessLoading && !accessError && <CampaignAlertBanner />}
           {accessLoading ? <p role="status">Verificando acesso…</p> : accessError ? <div className="alert alert-danger">Não foi possível verificar suas permissões. Recarregue a página.</div> : canAccessOrganizationPath(access,pathname) ? children : <div className="alert alert-info"><h1 className="h5">Área não autorizada</h1><p>Solicite ao administrador a liberação desta área para seu usuário.</p><Link href="/home" className="btn btn-success">Voltar à dashboard</Link></div>}
         </main>

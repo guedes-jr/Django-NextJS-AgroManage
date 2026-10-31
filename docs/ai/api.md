@@ -1239,7 +1239,7 @@ Customer format additionally includes UTF-8 CSV tables with formula escaping;
 recovery format preserves typed field metadata, IDs and relationships without
 CSV duplication. Decimal and UUID JSON values are strings. This technical export is accepted by the controlled recovery contract below.
 
-The authoritative inventory is the explicit 90-model allowlist in
+The authoritative inventory is the explicit 93-model allowlist in
 `backend/apps/platform_admin/exports/registry.py`. It covers organization and
 customer accounts/preferences, farms/sectors, crop cycles and activities,
 livestock and health/production records, inventory and movements, finances,
@@ -1342,3 +1342,212 @@ Failed application returns to `ready`; failed rollback returns to `applied`, wit
 a sanitized error, preserving the last committed state and permitting retry.
 The request actor is immutable; subsequent confirmed operations record their
 own authorized actor. Requests, execution, result, failure and downloads are audited.
+
+## Bovine workspace (beef and dairy)
+
+The bovine pages under `/home/rebanho/bovinos/` use the isolated
+`/api/v1/livestock/cattle/` API. Existing swine, poultry and generic livestock
+routes retain their contracts. The bovine workspace replaces its former
+under-development gate and sample reproduction data with persisted records.
+
+- `overview/`: tenant-scoped active head count, identified animals, collective
+  batches, reproductive status, identified-animal average weight, monthly milk
+  production/discard and pasture area. Identified members of collective batches
+  are not counted twice.
+- `animals/`: paginated cattle-only inventory, exact `identifier` and `farm`
+  filters plus sex/category/status/reproductive filters and text search. Creation
+  uses `farm_id`, a unique brinco in that farm and `species_code_input=bovinos`.
+  Entry weight is saved as a weighing. Cattle pesagens do not allow a backdated
+  record to overwrite a more recent current weight.
+- Animal actions: `register-weight/`, `register-vaccination/`, `register-mating/`,
+  `diagnose-pregnancy/`, `record-birth/`, `record-event/`, `full-history/`.
+  Birth accepts `date`, `outcome=alive|stillborn`, optional `weight_kg`, and a new
+  `calf_identifier` plus `calf_gender` for live births. It atomically completes
+  the pregnancy and creates a calf linked to its dam, without generating swine
+  maternity batches. Management events cover weaning, castration, dry-off,
+  pregnancy loss and mortality; state-changing management requires a manager.
+- `batches/`: collective cattle lots with cattle categories and phases
+  `creche` (Cria), `crescimento` (Recria), `engorda`, `reproducao`. Exact
+  `batch_code`/`farm` filters are supported. `change-phase/` retains phase history;
+  `register-sale/` reuses the existing atomic sale/revenue service. Complete
+  sales also close open pasture occupancy. A positive purchase value also triggers the shared livestock financial signal,
+  which now creates an open payable linked to the farm; settlement is confirmed
+  in Finance. Sales create open receivables and accept an optional `due_date`.
+  Existing paid documents retain their original status.
+- `pastures/`: farm, name, positive area in hectares and notes.
+  `grazings/`: a cattle batch and pasture from the same farm, entry and optional
+  exit. Only one open occupancy is allowed per batch. POST `grazings/{id}/close/`
+  accepts `exit_date`. This version records occupancy; it does not provide
+  satellite imagery or geographic pasture polygons.
+- `milk/`: per-cow/per-date/per-session (`morning`, `afternoon`, `evening`)
+  production and discarded liters. Duplicate sessions and discard exceeding
+  production are rejected. Records require an active bovine cow or matrix.
+- `feed/`: cattle-specific consumption backed by existing inventory records.
+  Accept a collective `lote_animal` or identified `animais`, cattle feed in kg,
+  `data_inicio`, `data_fim`, and total `quantidade`. Stock deduction and cost
+  snapshots are atomic. Existing swine consumption validation is unchanged.
+
+Organization and species authorization apply on the server. Operators need
+bovinos in `allowed_livestock`; read-only access cannot mutate records. Financial
+values and sales remain restricted. The UI uses local CSS modules and existing
+Bootstrap, modal, organization-access and API-client conventions, with 30-row
+pagination and CSV exports for managerial animal, batch and milking reports.
+
+Migration `livestock.0033` adds pasture, grazing and milk records without changing
+existing livestock rows. These three models are included in the explicit tenant
+export/recovery registry. Device/RFID integration, offline synchronization,
+satellite monitoring and predictive AI are not part of this implementation.
+
+### Confirmed cattle management and independent lactation
+
+Migration `livestock.0034` adds cattle-only profiles, collective managements and
+participants, pasture capacity and milk discard reasons. It preserves existing
+bovine lactation states and recorded castrations without changing other species.
+The three new models and fields are included in tenant export/recovery.
+
+- `managements/`: managerial list/create/retrieve/PATCH for identified animals,
+  filtered by `farm`, `kind=weighing|sanitary|castration`, `status` and `search`.
+  Payload includes `farm`, `kind`, `date`, `description`, `entries` (1–1000 unique
+  `{animal, weight_kg}` rows) and optional `responsible`/`notes`. Weighing requires
+  each participant's positive weight; other kinds do not accept weights.
+  Sanitary headers also accept `treatment_type`, nonnegative `cost_per_animal`,
+  `next_procedure_date`, `milk_withdrawal_until` and `meat_withdrawal_until`.
+  Dates of follow-up/withdrawal cannot precede the application. This manual
+  sanitary flow creates HealthRecords with the declared costs; it does **not**
+  deduct medication stock. Existing individual vaccination retains its stock
+  integration. Collective drafts do not change weights, histories or costs.
+- POST `managements/{id}/confirm/`: admin/manager only; locks the document and
+  animals, revalidates current state and farm/species/date, then applies all
+  effects atomically. Retrying an already confirmed document returns it without
+  duplicating effects. Confirmed/cancelled documents cannot be edited or deleted.
+  POST `managements/{id}/cancel/` requires a nonempty `reason` and cancels only a
+  draft. Confirmed management reversal is not implemented; the UI does not offer
+  cancellation as a substitute. Collective endpoints are unavailable to operators.
+- Animal responses additionally expose read-only `is_lactating`, `is_castrated`,
+  `weaning_date`, `management_group` and withdrawal end dates. The latest confirmed
+  sanitary end dates are displayed; `withdrawal=milk|meat` filters currently
+  restricted animals. Each withdrawal includes its final day. Meat withdrawal
+  here is informational for identified animals; it does not implement a slaughter
+  sale workflow or restrictions for untracked collective animals.
+- `record-event/` additionally accepts `start_lactation`; `dry_off` closes the
+  independent lactation flag while preserving an ongoing pregnancy. Covering a
+  lactating cow preserves that flag. Birth opens lactation. Castration persists
+  a flag and rejects a repeat. Weaning optionally accepts positive `weight_kg`
+  and `destination_group` (a cattle profile label, **not** a collective lot
+  transfer); it records weight/date/group and leaves the dam's lactation intact.
+  These fields are rejected for other events. State-changing events remain
+  managerial. A complete independent lactation-cycle model is not implemented.
+- `milk/`: `discard_reason` is required whenever discarded liters are positive.
+  A confirmed sanitary milk restriction covering the recording date requires
+  full discard. Historical end dates are evaluated against the milk date, not
+  today's date. Confirming a new restriction over previously usable milk is
+  rejected until those records are corrected explicitly. Both flows lock the
+  same animal to serialize application/production; existing milk ownership
+  restrictions remain. Cow reassignment of an existing milking is prohibited.
+- `pastures/`: optional positive `max_stocking_ua_ha`; read-only `occupancy`
+  reports currently occupied collective heads, known weight, missing-weight
+  heads, UA/ha and percentage of capacity using 1 UA = 450 kg. Missing weights
+  or capacity produce null metrics, not a false zero. Changing a pasture's farm
+  by PATCH is rejected. No geographic polygons or individual pasture occupancy
+  are added in this iteration.
+- `overview/` accepts optional `farm`, counts lactation independently of
+  reproductive status, and returns `agenda` with predicted births and sanitary
+  follow-ups (up to eight of each, including past dates for review).
+  Milk, pasture, grazing, feed and sales queries also support the farm filter.
+  UI CSV exports carry the current farm/search/status/category/withdrawal filters
+  applicable to each resource and export all matching pages.
+
+This iteration keeps existing sales/finance contracts. Purchase documents,
+confirmed-sale reversal, carcass settlements, economic cost allocation, offline
+synchronization and the sale simulator remain separate follow-up work.
+
+## Stock counts
+
+`LoteEstoque.quantidade_atual` is read-only. Supplying it in a write request is
+rejected; the initial quantity cannot be changed after creation. Creating a lot
+with a positive initial quantity creates an `entrada` movement atomically.
+Lots with balance cannot be deactivated, and lots with balance or movements
+cannot be deleted. Historical balances are not backfilled.
+
+`POST /api/v1/inventory/lotes/{id}/ajustar-estoque/` accepts
+`quantidade_contada` (nonnegative decimal), `saldo_esperado` (observed balance),
+and a required `motivo`. Admins/managers within the organization can submit it.
+It locks the item and lot, rejects stale balances with 409 and unchanged counts
+with 400, and records a signed `ajuste` movement for the difference together
+with the responsible user, previous balance, count and reason. The movement
+and new balance commit atomically. An inactive lot must be reactivated at zero
+before receiving positive balance. Adjustments cannot be edited or deleted,
+including bulk deletion; correct them with a new count. Generic movement
+creation rejects `ajuste`; ordinary entries/exits require positive quantities.
+This operation does not create a financial transaction.
+
+## Financial posting and settlements (OCTA study, increments A/B)
+
+`BankAccount.current_balance` is reconciled from `initial_balance` plus paid
+revenues minus paid expenses in the same organization/account. Pending, overdue
+and cancelled documents do not enter the realized balance. Normal model saves,
+account reassignment and transaction deletion refresh affected accounts under
+ordered row locks in the same transaction. Bulk writes bypass model hooks; the
+controlled recovery importer restores the captured balance together with its
+documents. Migration `finance.0007` reconciles existing balances without changing
+the payment status of historical documents. No missing bank/farm is guessed.
+An account with documents cannot be deleted; deactivate it instead. Opening
+balance is protected after first use; category type is protected after posting.
+
+New stock purchases create one payable per receipt (`STOCK-MOV-{movement UUID}`),
+including receipts reusing an existing lot. `farm` is explicit on stock movements.
+Their write-only purchase fields are `purchase_due_date`,
+`purchase_payment_status=pending|paid` (default pending),
+`purchase_bank_account`, `purchase_payment_date`, `purchase_payment_method`. Paid purchases require a
+positive known cost, own active account and nonfuture payment date; creating the
+receipt, document, payment event and stock balance is atomic. Ordinary stock
+entries do not create purchase expenses. Raw cost-bearing lot creation outside
+this receipt flow retains the existing financial integration, now as a pending
+payable. Feed transformation lots remain excluded. Receipts linked to a payable
+cannot be silently edited/deleted independently of the financial origin.
+
+New livestock purchase/sale titles are open, linked to farm/batch/species. Cattle,
+swine vaccination and crop stock services transmit the actual production farm;
+shared generic stock movements without a farm remain unassigned. These changes
+do not retrospectively reassign historical movements.
+
+`POST /api/v1/finance/transactions/{id}/settle/` accepts `bank_account`,
+`payment_date`, `payment_method` and UUID `idempotency_key`. It settles the full
+positive amount of an open title and records an immutable `PaymentEvent` with
+actor/date/account. `POST .../{id}/reverse/` requires a reason and a new UUID key;
+provide `payment` with the active payment-event UUID. For a legacy paid title
+without events, the first reversal snapshots its original payment before
+recording the reversal. The title reopens; the original payment stays in history.
+Replay of the same key within the same title returns its original event without
+changing the balance; mismatched parameters are rejected. Financial fields are
+protected after a payment event, including writes through shared model services.
+Paid/history-bearing titles cannot be deleted. Existing clients posting an
+already-paid title remain supported and now create an initial payment event.
+New settlement/reversal actions retain organization and role authorization.
+Partial settlements are not implemented in this increment.
+
+`POST .../transactions/series/` accepts UUID `series_id`,
+`kind=installment|recurrence`, `count` (2–120) and `transaction` (normal title
+fields). All titles start pending. Installments divide the total into exact cents;
+recurrence repeats the full value. Monthly dates retain the original day when
+possible and clamp to the last day for shorter months. The organization/series
+number constraint and organization lock prevent duplicate generation; a retry
+returns the existing series. This is a finite monthly schedule, not an automatic
+background billing task.
+
+Transaction list/stats/CSV export share organization, type/status/search,
+farm/account/species/batch/planting-cycle and due/payment-date range filters
+(`due_date__gte|lte`, `payment_date__gte|lte`). Lookup choices are available at
+`GET .../transactions/lookups/` and remain tenant-scoped except global species.
+`GET .../transactions/export/` exports up to 10,000 filtered rows with a UTF-8 BOM
+and escapes spreadsheet formulas in user-authored cells. Cash flow includes
+payment/reversal events at their effective dates, plus legacy paid titles without
+events, avoiding double counting. Account balance is organization-wide; title
+filters do not apportion a bank balance across production activities.
+
+The financial UI now supports paginated/searchable titles, production context,
+full settlement/reversal history, monthly installments/recurrence, filtered CSV
+export, and active/inactive accounts/categories. `finance.0006` adds payment
+events and series metadata. Both are registered in tenant export/recovery.
+Cost-center allocation, bank-statement reconciliation and geographic import
+remain the separately specified increments C/D from the research document.

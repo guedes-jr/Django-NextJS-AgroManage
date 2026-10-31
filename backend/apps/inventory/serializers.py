@@ -2,6 +2,9 @@
 Serializers for the inventory app.
 """
 import re
+from decimal import Decimal
+from apps.finance.models import BankAccount, Transaction as FinancialTransaction
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import (
@@ -233,6 +236,8 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class LoteEstoqueSerializer(serializers.ModelSerializer):
+    quantidade_inicial = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
+    quantidade_atual = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     item_nome = serializers.CharField(source="item.nome", read_only=True)
     local_display = serializers.CharField(
         source="get_local_armazenamento_display", read_only=True
@@ -250,9 +255,18 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
             "observacao", "ativo",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "quantidade_atual", "created_at", "updated_at"]
 
     def validate(self, attrs):
+        if "quantidade_atual" in self.initial_data:
+            raise serializers.ValidationError({"quantidade_atual": "O saldo só pode ser alterado por lançamentos. Use o ajuste de inventário."})
+        if self.instance:
+            if "quantidade_inicial" in self.initial_data:
+                raise serializers.ValidationError({"quantidade_inicial": "A quantidade inicial não pode ser editada. Registre um lançamento de ajuste."})
+            if attrs.get("item", self.instance.item) != self.instance.item:
+                raise serializers.ValidationError({"item": "O item de um lote não pode ser alterado."})
+            if attrs.get("ativo", self.instance.ativo) != self.instance.ativo and self.instance.quantidade_atual != 0:
+                raise serializers.ValidationError({"ativo": "Zere o saldo com um lançamento antes de alterar a situação do lote."})
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         item = attrs.get("item", getattr(self.instance, "item", None))
         fornecedor = attrs.get("fornecedor", getattr(self.instance, "fornecedor", None))
@@ -262,12 +276,44 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
         return attrs
 
+    @transaction.atomic
+    def create(self, validated_data):
+        quantity = validated_data["quantidade_inicial"]
+        lot = LoteEstoque.objects.create(quantidade_atual=quantity, **validated_data)
+        if quantity:
+            MovimentacaoEstoque.objects.create(
+                item=lot.item, lote=lot, tipo="entrada", quantidade=quantity,
+                responsavel=self.context["request"].user,
+                observacao="Saldo inicial informado no cadastro do lote.",
+            )
+        return lot
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        # Match the lock order used by stock consumption/counting.
+        ItemEstoque.objects.select_for_update().get(pk=instance.item_id)
+        self.instance = LoteEstoque.objects.select_for_update().get(pk=instance.pk)
+        self.validate(validated_data)
+        return super().update(self.instance, validated_data)
+
+
+class StockCountSerializer(serializers.Serializer):
+    quantidade_contada = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
+    saldo_esperado = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
+    motivo = serializers.CharField(max_length=1000, trim_whitespace=True)
+
 
 # ---------------------------------------------------------------------------
 # MovimentacaoEstoque
 # ---------------------------------------------------------------------------
 
 class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
+    purchase_payment_method = serializers.ChoiceField(choices=FinancialTransaction.PaymentMethod.choices, write_only=True, required=False, default="transfer")
+    purchase_due_date = serializers.DateField(write_only=True, required=False)
+    purchase_payment_status = serializers.ChoiceField(choices=["pending", "paid"], write_only=True, required=False, default="pending")
+    purchase_bank_account = serializers.PrimaryKeyRelatedField(queryset=BankAccount.objects.all(), write_only=True, required=False)
+    purchase_payment_date = serializers.DateField(write_only=True, required=False)
+
     item_nome = serializers.CharField(source="item.nome", read_only=True)
     item_categoria = serializers.CharField(source="item.categoria", read_only=True)
     item_unidade = serializers.CharField(source="item.unidade_medida", read_only=True)
@@ -317,13 +363,14 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     class Meta:
         model = MovimentacaoEstoque
         fields = [
-            "id", "item", "item_nome", "item_categoria", "item_unidade", "lote",
+            "id", "farm", "item", "item_nome", "item_categoria", "item_unidade", "lote",
             "tipo", "tipo_display", "quantidade",
             "data_movimentacao",
             "responsavel", "responsavel_nome",
             "destino", "observacao",
             "custo_unitario_movimento", "custo_total",
             "created_at",
+            "purchase_due_date", "purchase_payment_status", "purchase_bank_account", "purchase_payment_date", "purchase_payment_method",
             # Write-only batch fields
             "custo_unitario", "fornecedor", "numero_lote",
             "data_validade", "data_fabricacao", "local_armazenamento", "nota_fiscal",
@@ -334,12 +381,24 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
         return (value or "").strip()
 
     def validate(self, attrs):
+        if attrs.get("tipo") == "ajuste":
+            raise serializers.ValidationError({"tipo": "Registre ajustes pelo inventário do lote, informando a contagem e o motivo."})
+        if attrs.get("quantidade") is not None and attrs["quantidade"] <= 0:
+            raise serializers.ValidationError({"quantidade": "Informe uma quantidade maior que zero."})
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         item = attrs.get("item", getattr(self.instance, "item", None))
         lote = attrs.get("lote", getattr(self.instance, "lote", None))
         fornecedor = attrs.get("fornecedor")
         if not organization or not item or item.organization_id != organization.id:
             raise serializers.ValidationError({"item": "Item não pertence à sua organização."})
+        account = attrs.get("purchase_bank_account")
+        if account and account.organization_id != organization.id:
+            raise serializers.ValidationError({"purchase_bank_account": "A conta não pertence à sua organização."})
+        if attrs.get("purchase_payment_status") == "paid" and (not account or not attrs.get("purchase_payment_date")):
+            raise serializers.ValidationError({"purchase_payment_status": "Informe a conta e a data do pagamento."})
+        farm = attrs.get("farm", getattr(self.instance, "farm", None))
+        if farm and farm.organization_id != organization.id:
+            raise serializers.ValidationError({"farm": "A fazenda não pertence à sua organização."})
         if lote and (lote.item_id != item.id or lote.item.organization_id != organization.id):
             raise serializers.ValidationError({"lote": "Lote não pertence ao item e à organização informados."})
         if fornecedor and fornecedor.organization_id != organization.id:

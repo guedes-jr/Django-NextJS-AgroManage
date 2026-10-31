@@ -27,15 +27,6 @@ import apiClient from "@/services/api";
 
 interface SidebarOrganization {
   name: string;
-  subscription: null | {
-    plan_name: string;
-    status: string;
-    current_period_ends_at: string | null;
-    discount_type: "percentage" | "fixed_amount" | "";
-    discount_value: string;
-    discount_ends_at: string | null;
-    has_active_discount: boolean;
-  };
 }
 
 type SidebarIcon = ComponentType<LucideProps>;
@@ -70,7 +61,7 @@ const sidebarSections: SidebarSection[] = [
     label: "Rebanhos",
     items: [
       { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
-      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, iconTone: "amber", underDevelopment: true },
+      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, iconTone: "amber" },
       { title: "Aves", href: "/home/rebanho/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
       { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope, iconTone: "teal" },
     ],
@@ -97,15 +88,6 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
 ];
-
-const subscriptionStatus: Record<string, string> = {
-  active: "Assinatura ativa",
-  trialing: "Período de avaliação",
-  past_due: "Pagamento pendente",
-  suspended: "Assinatura suspensa",
-  canceled: "Assinatura cancelada",
-  cancelled: "Assinatura cancelada",
-};
 
 interface AppSidebarProps {
   access?: OrganizationAccess | null;
@@ -136,7 +118,7 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
         if (active) setOrganization(data);
       })
       .catch(() => {
-        // The menu remains usable when organization or billing data is unavailable.
+        // Keep navigation available when organization data cannot be loaded.
       });
     return () => {
       active = false;
@@ -155,13 +137,6 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
       active = false;
     };
   }, []);
-
-  const plan = organization?.subscription;
-  const planStatus = plan?.current_period_ends_at
-    ? `Válido até ${new Date(plan.current_period_ends_at).toLocaleDateString("pt-BR")}`
-    : plan?.status
-      ? subscriptionStatus[plan.status] || "Consulte sua assinatura"
-      : "Consulte sua assinatura";
 
   return (
     <aside
@@ -223,42 +198,23 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
             </section>
           ))}
         </nav>
+        <footer className="sidebar-footer">
+          <Link href="/home/suporte" className={`sidebar-link sidebar-settings-link ${isActive("/home/suporte") ? "active" : ""}`} onClick={onClose} aria-current={isActive("/home/suporte") ? "page" : undefined}>
+            <span className="sidebar-link-icon" aria-hidden="true"><Headphones size={19} /></span><span>Suporte</span>
+          </Link>
+          {access?.role !== "operator" && <Link
+            href="/home/settings"
+            className={`sidebar-link sidebar-settings-link ${isActive("/home/settings") ? "active" : ""}`}
+            onClick={onClose}
+            aria-current={isActive("/home/settings") ? "page" : undefined}
+          >
+            <span className="sidebar-link-icon" aria-hidden="true">
+              <Settings size={19} strokeWidth={isActive("/home/settings") ? 2.3 : 2} />
+            </span>
+            <span>Configurações</span>
+          </Link>}
+        </footer>
       </div>
-
-      <footer className="sidebar-footer">
-        {access && access.role !== "operator" && <div className="premium-badge-card">
-          <div className="sidebar-plan-heading">
-            <div className="badge-icon-yellow" aria-hidden="true">★</div>
-            <strong>Plano {plan?.plan_name || "não informado"}</strong>
-          </div>
-          <span>{planStatus}</span>
-          {plan?.has_active_discount && (
-            <small>
-              {plan.discount_type === "percentage"
-                ? `${Number(plan.discount_value).toLocaleString("pt-BR")}% de desconto`
-                : `${Number(plan.discount_value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de desconto`}
-              {plan.discount_ends_at
-                ? ` até ${new Date(plan.discount_ends_at).toLocaleDateString("pt-BR")}`
-                : " permanente"}
-            </small>
-          )}
-        </div>}
-
-        <Link href="/home/suporte" className={`sidebar-link sidebar-settings-link ${isActive("/home/suporte") ? "active" : ""}`} onClick={onClose} aria-current={isActive("/home/suporte") ? "page" : undefined}>
-          <span className="sidebar-link-icon" aria-hidden="true"><Headphones size={19} /></span><span>Suporte</span>
-        </Link>
-        {access?.role !== "operator" && <Link
-          href="/home/settings"
-          className={`sidebar-link sidebar-settings-link ${isActive("/home/settings") ? "active" : ""}`}
-          onClick={onClose}
-          aria-current={isActive("/home/settings") ? "page" : undefined}
-        >
-          <span className="sidebar-link-icon" aria-hidden="true">
-            <Settings size={19} strokeWidth={isActive("/home/settings") ? 2.3 : 2} />
-          </span>
-          <span>Configurações</span>
-        </Link>}
-      </footer>
     </aside>
   );
 }

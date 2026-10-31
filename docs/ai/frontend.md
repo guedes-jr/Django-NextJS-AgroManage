@@ -47,3 +47,13 @@ Avoid:
 - duplicated API calls across nested components.
 
 Do not refactor unrelated UI while fixing a local issue.
+
+## Workspace dimensions
+
+Authenticated home, platform and affiliate shells use the `app-workspace` marker
+and shared `frontend/src/app/workspace.css`. Desktop typography uses a relative
+87.5% root size with compact navigation, controls and content padding. Mobile
+keeps the default root size, 16px form inputs and 44px touch controls. The marker
+also scopes portal-rendered forms through the root selector. Public pages and
+login retain their own dimensions. Use the shared workspace hooks when adding
+shells; avoid browser zoom, transforms or per-page scale overrides.

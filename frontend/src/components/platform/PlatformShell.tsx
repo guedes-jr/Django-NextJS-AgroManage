@@ -123,7 +123,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="platform-root">
+    <div className="app-workspace platform-root">
       {mobileMenuOpen && <button className="platform-menu-backdrop" aria-label="Fechar menu" onClick={() => setMobileMenuOpen(false)} />}
       <aside ref={sidebarRef} id="platform-navigation" className={`platform-sidebar${mobileMenuOpen ? " is-open" : ""}`}>
         <button className="platform-menu-close" aria-label="Fechar menu" onClick={() => setMobileMenuOpen(false)}><X size={21} /></button>
@@ -154,15 +154,15 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </aside>
-      <div className="platform-main">
-        <header className="platform-topbar">
+      <div className="platform-main workspace-fixed-offset">
+        <header className="platform-topbar workspace-topbar">
           <div className="d-flex align-items-center gap-3"><button className="platform-menu-toggle" aria-label="Abrir menu da plataforma" aria-expanded={mobileMenuOpen} aria-controls="platform-navigation" onClick={() => setMobileMenuOpen(true)}><Menu size={22} /></button><ContextualBackButton area="platform" /><div><strong>Backoffice</strong><span className="text-muted ms-2 small">Ambiente administrativo</span></div></div>
           <div className="d-flex align-items-center gap-3">
             <div className="text-end d-none d-sm-block"><div className="small fw-bold">{staff?.full_name}</div><div className="text-muted" style={{fontSize:12}}>{staff?.role_display}</div></div>
             <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2" onClick={logout}><LogOut size={15} /> Sair</button>
           </div>
         </header>
-        <main className="platform-content">{children}</main>
+        <main className="platform-content workspace-content">{children}</main>
       </div>
     </div>
   );

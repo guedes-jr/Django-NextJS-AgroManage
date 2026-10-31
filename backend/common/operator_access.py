@@ -9,6 +9,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
 
 SPECIES_PATHS = {
+    "CattleMilkRecord": ["animal__species"],
     "Animal": ["species"],
     "AnimalBatch": ["species"],
     "Species": [""],
@@ -33,6 +34,7 @@ SPECIES_PATHS = {
     "ConsumoRacao": ["lote_animal__species", "animais__species"],
 }
 OPERATIONAL_MODELS = {
+    "CattleMilkRecord",
     "Animal",
     "AnimalBatch",
     "Mating",
@@ -54,6 +56,7 @@ OPERATIONAL_MODELS = {
     "ConsumoRacao",
 }
 OPERATIONAL_ACTIONS = {
+    "record_birth",
     "register_weight",
     "registrar_vacinacao",
     "registrar_mortalidade",

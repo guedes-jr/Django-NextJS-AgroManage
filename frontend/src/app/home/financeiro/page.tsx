@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { FinanceDashboard } from "@/components/dashboard/FinanceDashboard";
+import { FinanceSettings } from "@/components/dashboard/FinanceSettings";
+import { financeService, financeError } from "@/services/financeService";
+import { useToast } from "@/components/ui/Toast";
 import { TransactionManager } from "@/components/dashboard/TransactionManager";
 import { 
   LayoutDashboard, 
@@ -16,9 +19,11 @@ import { motion, AnimatePresence } from "framer-motion";
 const TABS = [
   { id: "dashboard", label: "Visão Geral", icon: <LayoutDashboard size={18} /> },
   { id: "transactions", label: "Fluxo de Transações", icon: <ArrowLeftRight size={18} /> },
+  { id: "settings", label: "Contas e categorias", icon: <Settings size={18} /> },
 ];
 
 export default function FinanceiroPage() {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
@@ -43,11 +48,11 @@ export default function FinanceiroPage() {
           </p>
         </div>
         
-        <div className="d-flex gap-2">
-          <button className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
+        <div className="d-flex flex-wrap gap-2">
+          <button onClick={() => financeService.export().catch(error => showToast(financeError(error), "error"))} className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
             <Download size={18} /> Exportar Relatório
           </button>
-          <button className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
+          <button onClick={() => setActiveTab("settings")} className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
             <Settings size={18} /> Configurações
           </button>
         </div>
@@ -84,6 +89,8 @@ export default function FinanceiroPage() {
         >
           {activeTab === "dashboard" ? (
             <FinanceDashboard />
+          ) : activeTab === "settings" ? (
+            <FinanceSettings />
           ) : (
             <TransactionManager />
           )}

@@ -1,0 +1,105 @@
+/* Authenticated workspaces share spacing without changing public pages or login. */
+.app-workspace {
+  --workspace-sidebar-width: 232px;
+  --workspace-content-width: 1600px;
+}
+
+.app-workspace .workspace-content {
+  width: 100%;
+  max-width: var(--workspace-content-width);
+  min-width: 0;
+  margin-inline: auto;
+  padding: clamp(16px, 2vw, 28px);
+}
+
+@media screen and (min-width: 992px) {
+  /* Relative sizing respects browser zoom and the user's preferred font size.
+     The root selector also includes modals rendered through a body portal. */
+  html:has(.app-workspace) {
+    font-size: 87.5%;
+  }
+
+  .app-workspace :is(.dashboard-sidebar, .platform-sidebar, .workspace-fixed-sidebar) {
+    width: var(--workspace-sidebar-width);
+  }
+
+  .app-workspace .workspace-fixed-offset {
+    width: calc(100% - var(--workspace-sidebar-width));
+    margin-left: var(--workspace-sidebar-width);
+  }
+
+  .app-workspace .workspace-topbar,
+  .app-workspace .workspace-body > header {
+    min-height: 60px;
+    padding: 10px 24px !important;
+  }
+
+  .app-workspace .sidebar-brand {
+    padding: 18px 16px;
+  }
+
+  .app-workspace .sidebar-brand-mark {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .app-workspace .sidebar-brand-mark img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .app-workspace .sidebar-link {
+    min-height: 40px;
+    padding: 5px 10px;
+    font-size: 13px;
+  }
+
+  .app-workspace .sidebar-link-icon {
+    width: 29px;
+    height: 29px;
+    flex-basis: 29px;
+  }
+
+  .app-workspace .sidebar-section {
+    padding-block: 9px 7px;
+  }
+
+  .app-workspace :is(.platform-nav a, .platform-nav-group-toggle) {
+    padding-block: 9px;
+    font-size: 13px;
+  }
+
+  html:has(.app-workspace) :is(.form-control, .form-select) {
+    min-height: 36px;
+    font-size: 14px;
+  }
+
+  html:has(.app-workspace) .form-label {
+    font-size: 13px;
+  }
+
+  html:has(.app-workspace) .btn:not(.btn-link):not(.p-0) {
+    min-height: 32px;
+  }
+
+  .app-workspace .agro-table th {
+    padding-block: 10px !important;
+    font-size: 12px;
+  }
+
+  .app-workspace .agro-table td {
+    padding-block: 8px;
+  }
+}
+
+@media screen and (max-width: 991.98px) {
+  html:has(.app-workspace) :is(.form-control, .form-select) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  html:has(.app-workspace) .btn:not(.btn-link):not(.p-0) {
+    min-height: 44px;
+  }
+}

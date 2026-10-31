@@ -358,3 +358,23 @@ class OrganizationRecoveryTests(APITestCase):
         self.assertNotEqual(self.org.logo.name, before_path)
         with self.org.logo.open("rb") as handle:
             self.assertEqual(handle.read(), b"COPY-BEFORE-APPLY")
+
+    def test_payment_reversal_history_and_balance_survive_isolated_recovery(self):
+        from decimal import Decimal
+        from apps.finance.models import BankAccount, FinancialCategory, Transaction, PaymentEvent
+        from apps.finance.services import settle_transaction, reverse_payment
+        account = BankAccount.objects.create(organization=self.org, name="Caixa de conferência", initial_balance=100)
+        category = FinancialCategory.objects.create(organization=self.org, name="Vendas de conferência", category_type="revenue")
+        document = Transaction.objects.create(organization=self.org, category=category, farm=self.farm, description="Venda rastreável", amount=25, due_date=timezone.localdate())
+        payment = settle_transaction(document, self.customer, bank_account=account, payment_date=timezone.localdate(), payment_method="pix", idempotency_key=uuid.uuid4())
+        reverse_payment(document, self.customer, payment=payment.pk, reason="Conferência", idempotency_key=uuid.uuid4())
+        settle_transaction(document, self.customer, bank_account=account, payment_date=timezone.localdate(), payment_method="pix", idempotency_key=uuid.uuid4())
+        job = self.rehearse()
+        clone = job.isolated_organization
+        restored = Transaction.objects.get(organization=clone, description="Venda rastreável")
+        self.assertEqual(restored.payment_events.count(), 3)
+        reversal = PaymentEvent.objects.get(transaction=restored, kind="reversal")
+        self.assertEqual(reversal.reverses.transaction_id, restored.pk)
+        self.assertEqual(BankAccount.objects.get(organization=clone).current_balance, Decimal("125"))
+        self.assertEqual(document.payment_events.count(), 3)
+        self.assertNotEqual(restored.pk, document.pk)

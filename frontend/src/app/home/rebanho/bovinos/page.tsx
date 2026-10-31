@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { CattleWorkspace } from "@/components/cattle/CattleWorkspace";
 
-export default function BovinosPage() {
-  redirect("/home/rebanho/bovinos/cadastro");
+export default function Page() {
+  return <CattleWorkspace view="overview" />;
 }
