@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { cattleService, cattleError, cattleNutritionStatuses, type CattleFeedPlan, type CattleBatch, type CattleDelivery, type Page } from "@/services/cattleService";
@@ -66,7 +67,7 @@ export function CattleNutrition({ farm, canWrite, onChanged }: { farm: string; c
     ], submitLabel: "Confirmar fornecimento", save: values => cattleService.deliver(row.id, { ...values, date: today(), request_key: requestKey }) });
   }
   return <section className={styles.panel}>
-    <div className="d-flex flex-wrap justify-content-between gap-3"><div><h2>Planejamento e fornecimento</h2><p className={styles.muted}>Estimativa diária por lote. O saldo do cocho é estimado a partir da conferência e do último fornecimento; não representa consumo medido.</p></div>{canWrite && <button disabled={preparing} className="btn btn-success btn-sm align-self-start" onClick={() => plan()}>Novo plano</button>}</div>
+    <div className="d-flex flex-wrap justify-content-between gap-3"><div><h2>Planejamento e fornecimento</h2><Link href="/home/rebanho/bovinos/racao/tratos" className="btn btn-outline-success btn-sm mb-2">Tratos de hoje</Link><p className={styles.muted}>Estimativa diária por lote. O saldo do cocho é estimado a partir da conferência e do último fornecimento; não representa consumo medido.</p></div>{canWrite && <button disabled={preparing} className="btn btn-success btn-sm align-self-start" onClick={() => plan()}>Novo plano</button>}</div>
     <label className="small mb-3">Planos<select className="form-select form-select-sm" value={active} onChange={event => { setActive(event.target.value); setPage(1); setLoading(true); }}><option value="true">Ativos</option><option value="false">Encerrados</option><option value="">Todos</option></select></label>
     {error && <p className="alert alert-danger" role="alert">{error}</p>}
     {loading ? <p role="status">Carregando planos…</p> : <div className="table-responsive"><table className={styles.table}><thead><tr><th>Lote / produto</th><th>Planejamento</th><th>Previsão do cocho</th><th>Ações</th></tr></thead><tbody>

@@ -58,7 +58,7 @@ class CattlePermission(OrganizationRolePermission):
             return False
         user = request.user
         return (
-            user.role != "operator"
+            user.role not in {"operator", "feeder"}
             or user.allowed_livestock.filter(code="bovinos").exists()
         )
 
@@ -70,6 +70,19 @@ class CattleOverviewView(APIView):
         return Response(
             cattle_overview(request.user.organization, request.query_params.get("farm"))
         )
+
+
+class CattleDairyOverviewView(APIView):
+    permission_classes = [CattlePermission]
+
+    def get(self, request):
+        from django.utils import timezone
+        from .cattle_selectors import dairy_overview
+        day = serializers.DateField(validators=[past_date]).run_validation(request.query_params.get("date", str(timezone.localdate())))
+        farm = request.query_params.get("farm")
+        if farm:
+            farm = serializers.UUIDField().run_validation(farm)
+        return Response(dairy_overview(request.user.organization, day, farm))
 
 
 class CattleAgendaView(APIView):
@@ -109,6 +122,8 @@ class CattleAnimalViewSet(AnimalViewSet):
             .filter(species__code="bovinos")
             .select_related("cattle_profile")
         )
+        if self.request.query_params.get("young_females") == "true":
+            queryset = queryset.filter(gender="F", category__in=["Bezerro", "Novilha"])
         withdrawal = self.request.query_params.get("withdrawal")
         if withdrawal in ["milk", "meat"]:
             from django.utils import timezone
@@ -583,3 +598,23 @@ class CattleFeedPlanViewSet(viewsets.ModelViewSet):
         values.is_valid(raise_exception=True)
         delivery = deliver_feed(plan, request.user, **values.validated_data)
         return Response(CattleFeedDeliverySerializer(delivery).data, status=201)
+
+
+class CattleDailyFeedingView(APIView):
+    """Operational projection excluding inventory prices and costs."""
+    permission_classes = [CattlePermission]
+    create_roles = {"admin", "manager", "feeder"}
+
+    def get(self, request):
+        from .cattle_daily_feeding import daily_feeding
+        return Response(daily_feeding(request.user.organization))
+
+    def post(self, request):
+        from django.shortcuts import get_object_or_404
+        from .cattle_planning import deliver_feed
+        plan_id = serializers.UUIDField().run_validation(request.data.get("plan"))
+        plan = get_object_or_404(CattleFeedPlan, pk=plan_id, batch__farm__organization=request.user.organization, batch__species__code="bovinos")
+        values = CattleFeedDeliveryInput(data=request.data)
+        values.is_valid(raise_exception=True)
+        delivery = deliver_feed(plan, request.user, **values.validated_data)
+        return Response({"id": str(delivery.pk), "date": delivery.date, "quantity_kg": delivery.quantity_kg}, status=201)

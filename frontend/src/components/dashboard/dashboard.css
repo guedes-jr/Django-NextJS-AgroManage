@@ -444,3 +444,8 @@
   border-color: var(--primary);
   background: radial-gradient(circle at center, var(--primary) 45%, transparent 48%);
 }
+
+.sidebar-submenu { margin: 4px 0 6px 29px; padding-left: 9px; border-left: 1px solid rgba(179, 228, 135, .18); display: grid; gap: 3px; }
+.sidebar-sublink { font-size: .78rem; gap: 8px; padding: 9px 10px; min-height: 36px; }
+.sidebar-sublink > svg { flex-shrink: 0; }
+@media (max-width: 991px) { .sidebar-sublink { min-height: 44px; } }

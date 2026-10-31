@@ -93,3 +93,22 @@ class MemberRoleTests(APITestCase):
         for role in ["owner", "admin"]:
             response = self.client.post(reverse("auth_members_create"), {"email": f"new-{role}@example.com", "full_name": "Novo", "role": role, "password": "test12345", "password_confirm": "test12345"}, format="json")
             self.assertEqual(response.status_code, 400 if role == "owner" else 201)
+
+    def test_feeder_can_be_created_and_scoped_only_to_cattle(self):
+        from apps.livestock.models import Species
+        cattle, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
+        pigs, _ = Species.objects.get_or_create(code="suinos", defaults={"name": "Suínos"})
+        response = self.client.post(reverse("auth_members_create"), {
+            "email": "new-feeder@example.invalid", "full_name": "Tratador",
+            "role": "feeder", "password": "test12345", "password_confirm": "test12345",
+            "allowed_livestock": [str(cattle.pk), str(pigs.pk)], "can_operate_crops": True,
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        member = User.objects.get(pk=response.data["id"])
+        self.assertEqual(member.get_role_display(), "Tratador")
+        self.assertFalse(member.can_operate_crops)
+        self.assertEqual(list(member.allowed_livestock.all()), [cattle])
+        self.assertEqual(self.patch(member, operator_read_only=True).status_code, 200)
+        self.assertEqual(self.patch(member, role="manager").status_code, 200)
+        member.refresh_from_db()
+        self.assertFalse(member.allowed_livestock.exists())

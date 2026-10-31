@@ -1,0 +1,25 @@
+.page { padding-bottom: 20px; }
+.filters { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.filters label { display: grid; gap: 5px; font-size: .75rem; color: var(--muted-foreground); }
+.filters label span { display: flex; align-items: center; gap: 5px; }
+.filters select { max-width: 230px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.metric { padding: 19px; min-height: 112px; }
+.metric[data-tone=green], .metric[data-tone=emerald] { --metric-color: #14913a; --metric-soft: #eaf8ee; }
+.metric[data-tone=blue] { --metric-color: #168ed4; --metric-soft: #eaf5fc; }
+.metric[data-tone=slate] { --metric-color: #667b86; --metric-soft: #edf2f4; }
+.metricLabel { display: block; font-size: .81rem; font-weight: 600; color: var(--muted-foreground); margin-bottom: 10px; }
+.scope { font-size: .75rem; line-height: 1.5; color: var(--muted-foreground); margin: 14px 0 24px; }
+.shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.shortcut { display: flex; flex-direction: column; min-width: 0; padding: 22px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); color: var(--foreground); text-decoration: none; box-shadow: var(--card-premium-shadow); }
+a.shortcut:hover { border-color: var(--primary); color: var(--foreground); box-shadow: var(--shadow-elegant); }
+a.shortcut:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.shortcutTop { display: flex; align-items: center; justify-content: space-between; color: color-mix(in srgb, var(--primary), var(--foreground) 25%); margin-bottom: 15px; }
+.shortcutIcon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: color-mix(in srgb, var(--primary), transparent 91%); }
+.shortcut h2 { font-size: 1.08rem; font-weight: 800; margin: 0 0 7px; }
+.shortcut p { font-size: .83rem; line-height: 1.5; color: var(--muted-foreground); margin: 0; }
+.badge { font-size: .68rem; border: 1px solid var(--border); border-radius: 20px; padding: 4px 8px; color: var(--muted-foreground); }
+.planned { border-style: dashed; }
+@media (max-width: 1200px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filters { width: 100%; } .filters label { flex: 1; min-width: 140px; } .filters select { max-width: none; } .metric { padding: 14px; } .shortcut { padding: 17px; } }
+@media (max-width: 480px) { .metrics, .shortcuts { grid-template-columns: 1fr; } }

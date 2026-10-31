@@ -80,7 +80,7 @@ FINANCIAL_ACTIONS = {
 
 
 def is_operator(user):
-    return getattr(user, "role", None) == "operator"
+    return getattr(user, "role", None) in {"operator", "feeder"}
 
 
 def effective_access(user):
@@ -89,7 +89,7 @@ def effective_access(user):
         "role": user.role,
         "can_manage_users": user.role == "admin",
         "can_view_financial": not operator,
-        "can_operate_crops": not operator or user.can_operate_crops,
+        "can_operate_crops": user.role != "feeder" and (not operator or user.can_operate_crops),
         "livestock_species": [species.code for species in user.allowed_livestock.all()]
         if operator
         else None,
@@ -112,6 +112,8 @@ def request_allowed(user, request):
         "support",
         "affiliates",
     )
+    if user.role == "feeder" and (path == "affiliates" or path.startswith("affiliates/")):
+        return False
     if any(
         path == prefix or path.startswith(prefix + "/") for prefix in personal_paths
     ):
@@ -120,6 +122,14 @@ def request_allowed(user, request):
         return False
     if path == "auth/operator-options":
         return True
+    if user.role == "feeder":
+        if path == "organizations/me":
+            return request.method in SAFE_METHODS
+        return (
+            path == "livestock/cattle/daily-feeding"
+            and request.method in (*SAFE_METHODS, "POST")
+            and user.allowed_livestock.filter(code="bovinos").exists()
+        )
     if path == "reports/dashboard":
         return True
     if path == "inventory/consumos" and request.method == "POST":

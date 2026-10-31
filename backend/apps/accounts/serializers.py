@@ -216,9 +216,13 @@ class OperatorScopeValidationMixin:
     def validate(self, attrs):
         attrs = super().validate(attrs)
         role = attrs.get("role", getattr(self.instance, "role", "operator"))
-        if role != "operator" and (attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only")):
-            raise serializers.ValidationError("As restrições de área são exclusivas do operador.")
-        if role != "operator":
+        if role not in {"operator", "feeder"} and (attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only")):
+            raise serializers.ValidationError("As restrições de área são exclusivas do operador e do tratador.")
+        if role == "feeder":
+            attrs["can_operate_crops"] = False
+            scope = attrs.get("allowed_livestock", self.instance.allowed_livestock.all() if self.instance else [])
+            attrs["allowed_livestock"] = [species for species in scope if species.code == "bovinos"]
+        if role not in {"operator", "feeder"}:
             attrs.update(can_operate_crops=False, allowed_livestock=[], operator_read_only=False)
         return attrs
 

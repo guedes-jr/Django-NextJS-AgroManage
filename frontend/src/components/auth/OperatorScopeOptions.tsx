@@ -16,10 +16,11 @@ export const emptyOperatorScope: OperatorScope = {
   operator_read_only: false,
 };
 
-export default function OperatorScopeOptions({ value, onChange, disabled = false }: {
+export default function OperatorScopeOptions({ value, onChange, disabled = false, role = "operator" }: {
   value: OperatorScope;
   onChange: (value: OperatorScope) => void;
   disabled?: boolean;
+  role?: string;
 }) {
   const [species, setSpecies] = useState<SpeciesOption[]>([]);
   const [error, setError] = useState("");
@@ -43,15 +44,15 @@ export default function OperatorScopeOptions({ value, onChange, disabled = false
 
   return (
     <fieldset className="border rounded-3 p-3" disabled={disabled}>
-      <legend className="float-none w-auto h6 px-1">Áreas de atuação do operador</legend>
-      <label className="form-check">
+      <legend className="float-none w-auto h6 px-1">Áreas de atuação do {role === "feeder" ? "tratador" : "operador"}</legend>
+      {role !== "feeder" && <label className="form-check">
         <input className="form-check-input" type="checkbox" checked={value.can_operate_crops}
           onChange={event => onChange({ ...value, can_operate_crops: event.target.checked })} />
         Pode operar em plantações
-      </label>
+      </label>}
       <p className="fw-semibold small mt-3 mb-2">Rebanhos autorizados</p>
       {error && <p className="text-danger small" role="alert">{error}</p>}
-      {species.map(option => (
+      {species.filter(option => role !== "feeder" || option.code === "bovinos").map(option => (
         <label className="form-check" key={option.id}>
           <input className="form-check-input" type="checkbox" checked={value.allowed_livestock.includes(option.id)}
             onChange={event => toggleSpecies(option.id, event.target.checked)} />
@@ -66,13 +67,13 @@ export default function OperatorScopeOptions({ value, onChange, disabled = false
         Somente consulta nas áreas autorizadas
       </label>
       <p className="small text-muted mb-0 mt-3">
-        A dashboard exibirá apenas informações operacionais das áreas selecionadas.
+        {role === "feeder" ? "O tratador consulta e registra os tratos bovinos de hoje. O planejamento fica com o gerente ou administrador." : "A dashboard exibirá apenas informações operacionais das áreas selecionadas."}
         Sem acesso financeiro, gestão de usuários ou exclusão de históricos.
         Novos tipos de rebanho precisam de autorização.
       </p>
       {!value.can_operate_crops && !value.allowed_livestock.length && (
         <p className="small text-warning mb-0 mt-2">
-          Nenhuma área liberada: o usuário terá acesso somente à conta, tarefas atribuídas e notificações permitidas.
+          {role === "feeder" ? "Autorize Bovinos para liberar os tratos. Sem essa área, ficam disponíveis apenas a conta, suporte e notificações permitidas." : "Nenhuma área liberada: o usuário terá acesso somente à conta, tarefas atribuídas e notificações permitidas."}
         </p>
       )}
     </fieldset>

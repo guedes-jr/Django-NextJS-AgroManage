@@ -13,7 +13,7 @@ const BatchSheet = dynamic(() => import("@/components/animal/BatchTechnicalSheet
 export function NavbarSearch() {
   const router = useRouter();
   const access = useOrganizationAccess();
-  const allowed = !!access && (access.role !== "operator" || !!access.livestock_species?.length);
+  const allowed = !!access && access.role !== "feeder" && (access.role !== "operator" || !!access.livestock_species?.length);
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState<{ query: string; items: NavbarSearchResult[]; error: boolean } | null>(null);
   const [open, setOpen] = useState(false);

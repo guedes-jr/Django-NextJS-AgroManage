@@ -12,9 +12,9 @@ from .views import (
 )
 
 from .cattle_views import (
-    CattleOverviewView, CattleAnimalViewSet, CattleBatchViewSet,
+    CattleOverviewView, CattleDairyOverviewView, CattleAnimalViewSet, CattleBatchViewSet,
     CattlePastureViewSet, CattleGrazingViewSet, CattleMilkViewSet, CattleFeedViewSet,
-    CattleManagementViewSet, CattleAgendaView, CattleFeedPlanViewSet,
+    CattleManagementViewSet, CattleAgendaView, CattleFeedPlanViewSet, CattleDailyFeedingView,
 )
 
 router = DefaultRouter()
@@ -45,6 +45,8 @@ router.register(r'cattle/feed-plans', CattleFeedPlanViewSet, basename='cattle-fe
 router.register(r'cattle/managements', CattleManagementViewSet, basename='cattle-management')
 
 urlpatterns = [
+    path('cattle/dairy-overview/', CattleDairyOverviewView.as_view(), name='cattle-dairy-overview'),
+    path('cattle/daily-feeding/', CattleDailyFeedingView.as_view(), name='cattle-daily-feeding'),
     path('cattle/agenda/', CattleAgendaView.as_view(), name='cattle-agenda'),
     path('cattle/overview/', CattleOverviewView.as_view(), name='cattle-overview'),
     # Custom dashboard endpoint

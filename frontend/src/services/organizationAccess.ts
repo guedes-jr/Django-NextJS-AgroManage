@@ -1,7 +1,7 @@
 import apiClient, { setOrganizationOperatorMode } from "./api";
 
 export type OrganizationAccess = {
-  role: "admin" | "manager" | "operator";
+  role: "admin" | "manager" | "operator" | "feeder";
   can_manage_users: boolean;
   can_view_financial: boolean;
   can_operate_crops: boolean;
@@ -11,6 +11,10 @@ export type OrganizationAccess = {
 
 export function canAccessOrganizationPath(access: OrganizationAccess | null, path: string) {
   if (!access) return path === "/home";
+  if (access.role === "feeder") {
+    return ["/home/profile", "/home/notifications", "/home/suporte"].some(prefix => path === prefix || path.startsWith(`${prefix}/`))
+      || ((access.livestock_species || []).includes("bovinos") && path === "/home/rebanho/bovinos/racao/tratos");
+  }
   if (access.role !== "operator") {
     return !path.startsWith("/home/usuarios") || access.can_manage_users;
   }
@@ -30,6 +34,6 @@ export function canAccessOrganizationPath(access: OrganizationAccess | null, pat
 
 export async function getOrganizationAccess() {
   const access = (await apiClient.get<{ access: OrganizationAccess }>("/auth/me/")).data.access;
-  setOrganizationOperatorMode(access.role === "operator");
+  setOrganizationOperatorMode(["operator", "feeder"].includes(access.role));
   return access;
 }

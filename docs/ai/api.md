@@ -1670,3 +1670,55 @@ Migrations: notifications `0011_alter_notification_category_and_more`, tasks `00
 Celery Beat calls `apps.tasks.tasks.collect_agenda_reminders` every 60 seconds. The collector locks each eligible task, uses a stable versioned notification key, and enqueues only WhatsApp through the existing durable outbox (which runs every 30 seconds). No message is sent during event save. End-to-end delivery requires a configured/connected WPPConnect service and running Celery worker/Beat. A 15-minute event-start grace accommodates scheduler delays; expired events are skipped. Edits rotate the reminder version; completion/cancellation/deletion, organization changes and expiration are checked again immediately before dispatch. Messages already sent cannot be recalled. Export/recovery preserves event fields, excluding the transient `reminder_delivery` pointer.
 
 Agenda PDF uses a printable version of the web calendar: compact month/week grids, activity colors, current-day marker and distinct weekend/holiday backgrounds. Adopted holiday metadata is loaded independently of activity filters, matching the web highlights. The monthly overview stays on one page; previews that overflow or truncate have their complete event details included on additional pages. List export uses the same activity colors and filter header.
+
+
+### Tratador and today's cattle feeding
+
+`accounts.0012` adds `User.role=feeder` (Tratador). Existing assignments remain
+unchanged. Administrators configure the role in Settings → Membros, where the
+role information button explains the four roles. The feeder scope currently
+supports **bovinos only**; member writes normalize crops to false and remove
+other species. An empty scope grants no herd access. `operator_read_only`
+blocks operational writes for this role too.
+
+The JWT request gate uses an explicit feeder allowlist: own account,
+notifications, support, role options, organization identity (GET), and
+`/livestock/cattle/daily-feeding/` when Bovinos is authorized. It denies finance,
+stock administration, planning, reports, other livestock resources, agenda and
+member management. This is enforced server-side, independently of navigation.
+
+`GET /api/v1/livestock/cattle/daily-feeding/` returns `{date, results}` for today's
+active, effective plans and active batches within the organization. Rows expose
+farm, batch, current pasture, current head count, product, current daily target,
+today's supplied quantity, trough forecast and today's audited deliveries.
+They deliberately contain no costs or stock prices. Daily target and supplied
+quantity are distinct from measured consumption; no historical target is
+inferred. A day without a delivery does not necessarily need replenishment.
+
+`POST` accepts `plan`, `date`, `quantity_kg`, `remaining_before_kg`, `request_key`
+(UUID), and optional `notes`. Administrators, managers and authorized writable
+feeders can post. It reuses `deliver_feed`: today only, locks, current plan
+validation, tenant checks, stock ledger, operator attribution, quantity/head
+snapshots, and idempotency. The response contains only `id`, `date` and
+`quantity_kg`. No direct stock balance update or extra financial title occurs.
+The page is `/home/rebanho/bovinos/racao/tratos`, linked from cattle nutrition;
+feeders enter directly here and receive a dedicated sidebar entry.
+
+
+### Dairy landing indicators
+
+`GET /api/v1/livestock/cattle/dairy-overview/?date=YYYY-MM-DD&farm=UUID`
+returns daily produced/discarded/usable liters, distinct milked cows and the
+average production per **cow with an actual milking record**, plus current
+identified active cattle counts: lactating females, cows/matrices, non-lactating
+cows, young females and bulls. Date defaults to today and cannot be future.
+The selected date filters milk records, not current herd counts (`herd_as_of`).
+All queries remain organization/farm scoped; no estimated revenue or price is
+inferred. Counts use the shared bovine registry, not a separate dairy herd.
+Zero milk records return zero volumes and a null average.
+
+`GET /livestock/cattle/animals/?young_females=true` limits the existing authorized
+queryset to females categorized Bezerro or Novilha. The dairy home shortcut
+opens `/home/rebanho/bovinos/cadastro?group=young-females`; CSV export preserves
+this filter. The dairy landing uses existing milk, reproduction, health, feeding,
+feed factory and report routes. Milk tank management remains explicitly planned.

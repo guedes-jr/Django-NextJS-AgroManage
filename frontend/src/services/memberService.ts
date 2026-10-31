@@ -1,6 +1,6 @@
 import apiClient from "./api";
 
-export const roleLabels = { admin: "Administrador", manager: "Gerente", operator: "Operador" };
+export const roleLabels = { admin: "Administrador", manager: "Gerente", operator: "Operador", feeder: "Tratador" };
 export type UserRole = keyof typeof roleLabels;
 export interface Member {
   id: string; email: string; full_name: string; phone?: string; phone_is_whatsapp: boolean; receive_system_alerts: boolean;

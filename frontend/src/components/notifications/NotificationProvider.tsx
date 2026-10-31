@@ -38,7 +38,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const fetchOperationalAlerts = useCallback(async () => {
     try {
       const access = await getOrganizationAccess();
-      const codes = access.role === "operator" ? access.livestock_species || [] : ["suinos"];
+      const codes = access.role === "feeder" ? [] : access.role === "operator" ? access.livestock_species || [] : ["suinos"];
       const dashboards = await Promise.all(codes.map(code => getReproductionDashboard(code)));
       setOperationalAlerts(dashboards.flatMap((data,index) => data.notifications_enabled === false ? [] : (data.alerts || []).map((alert: OperationalAlert) => ({...alert,species:codes[index]}))).filter((item: OperationalAlert) => !confirmedAlerts.current.has(item.alert_key)));
     } catch { /* Retain pending alerts if the refresh fails. */ }

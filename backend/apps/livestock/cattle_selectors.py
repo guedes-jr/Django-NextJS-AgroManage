@@ -87,6 +87,30 @@ def cattle_overview(organization, farm=None):
     }
 
 
+def dairy_overview(organization, day, farm=None):
+    animals = Animal.objects.filter(farm__organization=organization, species__code="bovinos", status="active")
+    milk = CattleMilkRecord.objects.filter(animal__farm__organization=organization, animal__species__code="bovinos", date=day)
+    if farm:
+        animals = animals.filter(farm_id=farm)
+        milk = milk.filter(animal__farm_id=farm)
+    lactating = Q(gender="F") & (Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante"))
+    cows = Q(gender="F", category__in=["Vaca", "Matriz"])
+    counts = animals.aggregate(
+        lactating_cows=Count("pk", filter=lactating),
+        total_cows=Count("pk", filter=cows),
+        non_lactating_cows=Count("pk", filter=cows & ~lactating),
+        young_females=Count("pk", filter=Q(gender="F", category__in=["Bezerro", "Novilha"])),
+        bulls=Count("pk", filter=Q(gender="M", category__in=["Touro", "Reprodutor"])),
+    )
+    volumes = milk.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"), milked_cows=Count("animal_id", distinct=True))
+    produced = volumes["produced"] or Decimal(0)
+    discarded = volumes["discarded"] or Decimal(0)
+    return {**counts, "date": day, "herd_as_of": timezone.localdate(),
+            "produced_liters": produced, "discarded_liters": discarded,
+            "usable_liters": produced - discarded, "milked_cows": volumes["milked_cows"],
+            "average_per_milked_cow": produced / volumes["milked_cows"] if volumes["milked_cows"] else None}
+
+
 def milk_withdrawal_for(animal, day):
     from .models import CattleManagementEntry
 

@@ -169,6 +169,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [memberModalMode, setMemberModalMode] = useState<'create' | 'edit'>('create');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
@@ -1069,8 +1070,8 @@ export default function SettingsPage() {
                   <div className="fade-in">
                     <div className="d-flex justify-content-between align-items-center mb-4">
                       <div>
-                        <h2 className="fw-bold h5 mb-1">Membros da Equipe</h2>
-                        <p className="small text-muted-foreground">Proprietário, administrador e gerente podem criar, editar e excluir registros. Operador pode consultar e criar categorias e registros. Visualizador pode apenas consultar. Somente proprietário e administrador gerenciam usuários.</p>
+                        <div className="d-flex align-items-center gap-2"><h2 className="fw-bold h5 mb-1">Membros da Equipe</h2><button type="button" className="btn btn-sm btn-outline-secondary" title="Permissões dos cargos" aria-label="Consultar permissões dos cargos" onClick={() => setRolesOpen(true)}><Settings size={16}/></button></div>
+                        <p className="small text-muted-foreground">Defina o cargo e as áreas autorizadas de cada membro. Somente administradores gerenciam os usuários da organização.</p>
                       </div>
                       <button 
                         onClick={openCreateMemberModal}
@@ -1478,6 +1479,17 @@ export default function SettingsPage() {
       </div>
 
       {/* Create / Edit Member Modal */}
+      <Modal isOpen={rolesOpen} onClose={() => setRolesOpen(false)} title="Cargos e permissões" description="As permissões também são verificadas no servidor.">
+        <div className="d-grid gap-3">
+          {[
+            ["Administrador", "Gerencia a organização, seus membros, configurações, operações e financeiro."],
+            ["Gerente", "Gerencia operações, planejamentos e financeiro. Não gerencia membros da organização."],
+            ["Operador", "Atua nas plantações e rebanhos autorizados, sem acesso financeiro ou gestão de membros. Correções seguem as regras de autoria e histórico do sistema."],
+            ["Tratador", "Consulta os tratos bovinos de hoje e registra fornecimentos dos planos vigentes, com conferência da sobra no cocho e baixa de estoque por lançamento. Não altera planos, saldos ou custos."],
+          ].map(([name, description]) => <article key={name} className="border rounded-3 p-3"><h3 className="h6">{name}</h3><p className="small text-muted-foreground mb-0">{description}</p></article>)}
+          <p className="small mb-0">Operador e tratador precisam de áreas autorizadas. A opção “Somente consulta” bloqueia lançamentos. O responsável pela organização mantém as proteções de acesso existentes.</p>
+        </div>
+      </Modal>
       <Modal
         isOpen={memberModalOpen}
         onClose={() => setMemberModalOpen(false)}
@@ -1554,7 +1566,7 @@ export default function SettingsPage() {
                       className="login-input login-input-icon-left bg-transparent text-foreground"
                       value={memberData.role}
                       disabled={memberModalMode === "edit" && !canChangeMemberRole(currentUser, members.find(member => member.id === selectedMemberId) || { ...memberData, id: selectedMemberId || "", role: memberData.role as UserRole, role_display: "", is_active: true, organization_responsible: false })}
-                      onChange={e => setMemberData({...memberData, ...(e.target.value !== "operator" ? emptyOperatorScope : {}), role: e.target.value})}
+                      onChange={e => setMemberData({...memberData, ...(!["operator", "feeder"].includes(e.target.value) ? emptyOperatorScope : e.target.value === "feeder" ? {can_operate_crops: false, allowed_livestock: []} : {}), role: e.target.value})}
                     >
                       {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{roleLabels[role]}</option>)}
                     </select>
@@ -1563,7 +1575,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {memberData.role === "operator" && <div className="col-12"><OperatorScopeOptions value={memberData} disabled={memberLoading} onChange={value => setMemberData({...memberData,...value})}/></div>}
+              {["operator", "feeder"].includes(memberData.role) && <div className="col-12"><OperatorScopeOptions role={memberData.role} value={memberData} disabled={memberLoading} onChange={value => setMemberData({...memberData,...value})}/></div>}
               <div className="col-12"><WhatsAppContactOptions value={memberData} disabled={memberLoading} onChange={value => setMemberData({ ...memberData, ...value })} /></div>
 
               {memberModalMode === 'create' && (

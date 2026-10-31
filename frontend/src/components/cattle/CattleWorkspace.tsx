@@ -55,7 +55,7 @@ const positive = (name: string, label: string, required = true): CattleField => 
 const payload = (values: Record<string, string>) => Object.fromEntries(Object.entries(values).filter(([, value]) => value !== ""));
 function Table({ columns, children }: { columns: string[]; children: ReactNode }) { return <div className="table-responsive"><table className={styles.table}><thead><tr>{columns.map(column => <th key={column}>{column}</th>)}</tr></thead><tbody>{children}</tbody></table></div>; }
 
-export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
+export function CattleWorkspace({ view = "overview", production, youngFemales = false }: { view?: CattleView; production?: "beef" | "dairy"; youngFemales?: boolean }) {
   const access = useOrganizationAccess();
   const operator = access?.role === "operator";
   const canWrite = !!access && !access.read_only;
@@ -94,6 +94,7 @@ export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
       if (resource === "animals" && withdrawal) params.withdrawal = withdrawal;
       if (resource === "animals" && category) params.category = category;
       if (view === "reproduction") params.gender = "F";
+      if (youngFemales) params.young_females = "true";
       Promise.all([
         cattleService.overview(controller.signal, farm),
         cattleService.farms(controller.signal),
@@ -106,7 +107,7 @@ export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [view, resource, page, search, status, category, farm, withdrawal, refresh, manager]);
+  }, [view, resource, page, search, status, category, farm, withdrawal, refresh, manager, youngFemales]);
 
   useEffect(() => {
     if (!historyAnimal) return;
@@ -206,6 +207,7 @@ export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
       if (resource === "animals" && withdrawal) filters.withdrawal = withdrawal;
       if (search) filters.search = search;
       if (view === "reproduction") filters.gender = "F";
+      if (youngFemales && resource === "animals") filters.young_females = "true";
       const records = await cattleService.all<CattleAnimal & CattleBatch & CattleMilk>(resource, filters);
       const columns: [string, string][] = resource === "animals" ? [["identifier", "Brinco"], ["farm_name", "Fazenda"], ["category", "Categoria"], ["gender", "Sexo"], ["status", "Situação"], ["current_weight_kg", "Peso (kg)"], ["is_castrated", "Castrado"], ["is_lactating", "Em lactação"], ["management_group", "Grupo de manejo"], ["milk_withdrawal_until", "Carência leite até"], ["meat_withdrawal_until", "Carência abate até"]] : resource === "batches" ? [["batch_code", "Lote"], ["farm_name", "Fazenda"], ["category", "Categoria"], ["phase", "Fase"], ["quantity", "Cabeças"], ["avg_weight_kg", "Peso médio (kg)"]] : [["identifier", "Vaca"], ["farm_name", "Fazenda"], ["date", "Data"], ["session", "Turno"], ["liters", "Produção (L)"], ["discarded_liters", "Descarte (L)"], ["discard_reason", "Motivo do descarte"]];
       const escape = (value: unknown) => { let text = String(value ?? ""); if (/^[\s]*[=+@-]/.test(text)) text = "'" + text; return '"' + text.replaceAll('"', '""') + '"'; };
@@ -235,10 +237,11 @@ export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
   function sell(batch: CattleBatch) {
     setForm({ title: `Venda · ${batch.batch_code}`, description: `${batch.quantity} animais disponíveis. Informe o peso vivo total dos animais vendidos. A receita será registrada em aberto no financeiro; confirme o recebimento para movimentar o caixa.`, initial: { date: today(), due_date: today(), mode: "whole" }, fields: [{ name: "mode", label: "Tipo de venda", type: "select", required: true, options: options({ whole: "Lote inteiro", partial: "Parte do lote" }) }, { name: "quantity", label: "Quantidade (venda parcial)", type: "number", min: "1", max: String(batch.quantity), step: "1" }, positive("weight_kg", "Peso vivo total vendido (kg)"), positive("price_per_kg", "Preço por kg (R$)"), { ...dayField, min: batch.entry_date, max: today() }, { name: "buyer", label: "Comprador", required: true }, { name: "due_date", label: "Vencimento do recebimento", type: "date", required: true, min: today() }, notes], submitLabel: "Registrar venda e receita", save: values => cattleService.action("batches", batch.id, "register-sale", payload(values)) });
   }
-  const activeModules = modules.filter(module => manager || !["sales", "reports", "management"].includes(module.id));
+  const activeModules = modules.filter(module => (manager || !["sales", "reports", "management"].includes(module.id)) && (production !== "beef" || module.id !== "milk")).sort((a, b) => production === "dairy" ? Number(b.id === "milk") - Number(a.id === "milk") : 0);
+  const productionTitle = production === "dairy" ? "Pecuária leiteira" : production === "beef" ? "Gado de corte" : "Bovinos";
   const activeGroup = navigationGroups.find(group => group.ids.includes(view === "grazings" ? "pastures" : view));
   const currentModule = modules.find(module => module.id === (view === "grazings" ? "pastures" : view));
-  const title = view === "grazings" ? "Ocupação dos pastos" : modules.find(module => module.id === view)?.label;
+  const title = youngFemales ? "Bezerras e novilhas" : view === "grazings" ? "Ocupação dos pastos" : modules.find(module => module.id === view)?.label;
   const newAction = view === "animals" ? () => newAnimal() : view === "batches" ? newBatch : view === "milk" ? newMilk : view === "feeding" ? newFeed : view === "pastures" && manager ? newPasture : null;
   const metrics = overview ? [
     ["Animais ativos (cabeças)", number(overview.total_head)], ["Identificados por brinco", number(overview.identified_animals)], ["Lotes ativos", number(overview.active_batches)],
@@ -254,12 +257,18 @@ export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
   return <div className={styles.page}>
     {view !== "overview" && <nav className={styles.breadcrumb} aria-label="Caminho da página"><Link href={root}><Icon iconNode={cowHead} size={16} /> Bovinos</Link><ChevronRight size={14} aria-hidden="true" /><span>{title}</span></nav>}
     <header className={styles.header}>
-      <div className={styles.brand}><div className={homeStyles.titleIcon} aria-hidden="true"><Icon iconNode={cowHead} size={30} /></div><div><h1>{view === "overview" ? "Bovinos" : title}</h1><p>{view === "overview" ? "Gerencie todas as operações da bovinocultura de corte e leite" : currentModule?.description}</p></div></div>
+      <div className={styles.brand}><div className={homeStyles.titleIcon} aria-hidden="true"><Icon iconNode={cowHead} size={30} /></div><div><h1>{view === "overview" ? productionTitle : title}</h1><p>{view === "overview" ? production === "dairy" ? "Ordenhas, lactação, reprodução e cuidados do rebanho leiteiro" : production === "beef" ? "Cria, recria, engorda, pesagens e comercialização" : "Gerencie todas as operações da bovinocultura de corte e leite" : currentModule?.description}</p></div></div>
       <div className={styles.headerActions}>
         {view !== "management" && <label className={styles.farmFilter}><span>Fazenda</span><select aria-label="Filtrar por fazenda" className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">Todas as fazendas</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         <button className="btn btn-outline-secondary btn-sm" onClick={() => setRefresh(value => value + 1)} disabled={loading}><RefreshCw size={15} className="me-1" aria-hidden="true" /> Atualizar</button>
       </div>
     </header>
+    <nav className={`${styles.contextNav} mb-3`} aria-label="Tipos de produção bovina">
+      <Link href={root}>Bovinos</Link>
+      <Link href={`${root}/corte`} aria-current={production === "beef" ? "page" : undefined}>Gado de corte</Link>
+      <Link href={`${root}/pecuaria-leiteira`} aria-current={production === "dairy" ? "page" : undefined}>Pecuária leiteira</Link>
+    </nav>
+    {production && <p className="small text-muted-foreground mb-3">Cadastros, pastagens e manejos são compartilhados entre as duas áreas. Os indicadores gerais abrangem o rebanho bovino da fazenda selecionada.</p>}
     {view !== "overview" && <div className={styles.navigation}>
       <nav className={styles.nav} aria-label="Áreas da bovinocultura"><Link href={root}><ArrowLeft size={15} /> Visão geral</Link>{navigationGroups.map(group => {
         const first = activeModules.find(module => group.ids.includes(module.id));
@@ -271,9 +280,11 @@ export function CattleWorkspace({ view = "overview" }: { view?: CattleView }) {
     {error && <div role="alert" className="alert alert-danger">{error} <button className="btn btn-sm btn-outline-danger" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</button></div>}
     {loading && !overview ? <div className={styles.empty} role="status">Carregando dados do rebanho...</div> : !error && <>
       {(["overview", "reports", "milk"].includes(view)) && <section className={homeStyles.summaryPanel} aria-labelledby="cattle-summary-title">
-        <div className={homeStyles.sectionHeading}><div><span>{view === "milk" ? "Produção leiteira" : "Visão geral do rebanho"}</span><h2 id="cattle-summary-title">{view === "milk" ? "Resumo da produção de leite" : "Resumo da Bovinocultura"}</h2></div><small className={styles.summaryScope}>{farm ? farms.find(item => item.id === farm)?.name : "Todas as fazendas"}</small></div>
+        <div className={homeStyles.sectionHeading}><div><span>{view === "milk" ? "Produção leiteira" : "Visão geral do rebanho"}</span><h2 id="cattle-summary-title">{view === "milk" ? "Resumo da produção de leite" : production ? `Resumo · ${productionTitle}` : "Resumo da Bovinocultura"}</h2></div><small className={styles.summaryScope}>{farm ? farms.find(item => item.id === farm)?.name : "Todas as fazendas"}</small></div>
         <div className={homeStyles.metricsGrid} aria-busy={loading}>{metrics.map(([label, value], index) => {
           if (view === "milk" && !label.startsWith("Leite") && !label.startsWith("Fêmeas em lactação")) return null;
+          if (production === "beef" && (label.startsWith("Leite") || label.startsWith("Fêmeas em lactação"))) return null;
+          if (production === "dairy" && !label.startsWith("Leite") && !label.startsWith("Fêmeas em lactação") && !label.startsWith("Fêmeas gestantes")) return null;
           const appearance = metricAppearance[index];
           return <article className={`${homeStyles.metricCard} ${styles.overviewMetric}`} data-tone={appearance.tone} key={label}><div className={homeStyles.metricIcon} aria-hidden="true"><appearance.icon size={27} strokeWidth={1.9} /></div><div><strong>{value}</strong><span>{label}</span></div></article>;
         })}</div>

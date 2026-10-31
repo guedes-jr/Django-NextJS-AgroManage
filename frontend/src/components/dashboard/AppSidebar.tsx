@@ -7,6 +7,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  Milk,
+  Scale,
   Bird,
   Bot,
   CircleDollarSign,
@@ -38,6 +40,7 @@ interface SidebarItem {
   iconTone: "emerald" | "lime" | "rose" | "amber" | "sky" | "teal" | "orange" | "gold" | "earth" | "violet" | "blue" | "cyan";
   requiresAffiliate?: boolean;
   underDevelopment?: boolean;
+  children?: { title: string; href: string; icon: SidebarIcon }[];
 }
 
 interface SidebarSection {
@@ -62,7 +65,11 @@ const sidebarSections: SidebarSection[] = [
     label: "Rebanhos",
     items: [
       { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
-      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, iconTone: "amber" },
+      { title: "Tratos bovinos", href: "/home/rebanho/bovinos/racao/tratos", icon: CowIcon, iconTone: "amber" },
+      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, iconTone: "amber", children: [
+        { title: "Gado de corte", href: "/home/rebanho/bovinos/corte", icon: Scale },
+        { title: "Pecuária leiteira", href: "/home/rebanho/bovinos/pecuaria-leiteira", icon: Milk },
+      ] },
       { title: "Aves", href: "/home/rebanho/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
       { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope, iconTone: "teal" },
     ],
@@ -170,15 +177,15 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
 
       <div className="sidebar-nav-container">
         <nav className="sidebar-navigation" aria-label="Áreas do sistema">
-          {sidebarSections.filter(section => section.items.some(item => (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
+          {sidebarSections.filter(section => section.items.some(item => (item.href !== "/home/rebanho/bovinos/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
               <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
               <div className="sidebar-section-items">
-                {section.items.filter((item) => (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
+                {section.items.filter((item) => (item.href !== "/home/rebanho/bovinos/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
                   const active = isActive(item.href);
                   return (
+                    <div key={item.href}>
                     <Link
-                      key={item.href}
                       href={item.href}
                       className={`sidebar-link ${active ? "active" : ""}`}
                       onClick={onClose}
@@ -192,6 +199,8 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
                         <span className="sidebar-link-badge">Em breve</span>
                       )}
                     </Link>
+                    {item.children && <div className="sidebar-submenu" aria-label="Tipos de produção bovina">{item.children.filter(child => canAccessOrganizationPath(access, child.href)).map(child => <Link key={child.href} href={child.href} className={`sidebar-link sidebar-sublink ${pathname === child.href ? "active" : ""}`} onClick={onClose} aria-current={pathname === child.href ? "page" : undefined}><child.icon size={15} aria-hidden="true"/><span>{child.title}</span></Link>)}</div>}
+                    </div>
                   );
                 })}
               </div>

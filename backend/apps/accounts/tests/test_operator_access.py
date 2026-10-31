@@ -87,12 +87,12 @@ class OperatorAccessTests(APITestCase):
         response = self.client.get("/api/v1/livestock/batches/", {"search": "missing"})
         self.assertEqual(response.data["results"], [])
 
-    def test_only_three_role_choices_and_options_from_species_catalog(self):
+    def test_role_choices_and_options_from_species_catalog(self):
         response = self.client.get("/api/v1/auth/operator-options/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             {role["value"] for role in response.data["roles"]},
-            {"admin", "manager", "operator"},
+            {"admin", "manager", "operator", "feeder"},
         )
         self.assertTrue(
             any(item["id"] == self.pigs.pk for item in response.data["species"])
