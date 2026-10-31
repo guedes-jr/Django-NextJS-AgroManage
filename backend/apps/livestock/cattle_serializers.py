@@ -42,6 +42,7 @@ def past_date(value):
 
 
 class CattleAnimalSerializer(AnimalSerializer):
+    name = serializers.CharField(source="cattle_profile.name", required=False, allow_blank=True, default="", max_length=100)
     sire_identifier_input = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     dam_identifier_input = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     category = serializers.ChoiceField(choices=CATTLE_CATEGORIES)
@@ -59,6 +60,11 @@ class CattleAnimalSerializer(AnimalSerializer):
     milk_withdrawal_until = serializers.DateField(read_only=True, default=None)
     meat_withdrawal_until = serializers.DateField(read_only=True, default=None)
 
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        result["name"] = getattr(getattr(instance, "cattle_profile", None), "name", "")
+        return result
+
     def get_is_lactating(self, obj):
         profile = getattr(obj, "cattle_profile", None)
         return (
@@ -70,6 +76,7 @@ class CattleAnimalSerializer(AnimalSerializer):
     class Meta(AnimalSerializer.Meta):
         fields = [
             *AnimalSerializer.Meta.fields,
+            "name",
             "sire_identifier_input", "dam_identifier_input",
             "is_lactating",
             "is_castrated",
@@ -87,9 +94,11 @@ class CattleAnimalSerializer(AnimalSerializer):
     def create(self, validated_data):
         from .models import WeightRecord
 
+        profile_data = validated_data.pop("cattle_profile", {})
         animal = super().create(validated_data)
         CattleAnimalProfile.objects.create(
             animal=animal,
+            name=profile_data.get("name", ""),
             is_lactating=animal.gender == "F"
             and animal.reproductive_status == "lactante",
         )
@@ -103,6 +112,18 @@ class CattleAnimalSerializer(AnimalSerializer):
                 notes="Peso de entrada no cadastro bovino.",
             )
             animal.refresh_from_db()
+        return animal
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop("cattle_profile", {})
+        animal = super().update(instance, validated_data)
+        if "name" in profile_data:
+            from .cattle_services import cattle_profile
+            profile = cattle_profile(animal)
+            profile.name = profile_data["name"]
+            profile.save(update_fields=["name", "updated_at"])
+            animal.cattle_profile = profile
         return animal
 
     def validate(self, attrs):

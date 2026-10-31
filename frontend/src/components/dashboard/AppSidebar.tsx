@@ -7,8 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
-  Milk,
-  Scale,
+  Wheat,
   Bird,
   Bot,
   CircleDollarSign,
@@ -23,9 +22,10 @@ import {
   X,
   type LucideProps,
 } from "lucide-react";
-import { barn, cowHead, pigHead } from "@lucide/lab";
+import { barn, pigHead } from "@lucide/lab";
 import {canAccessOrganizationPath, type OrganizationAccess} from "@/services/organizationAccess";
 import apiClient from "@/services/api";
+import { BullIcon, LactationIcon } from "@/components/cattle/CattleIcons";
 
 interface SidebarOrganization {
   name: string;
@@ -40,7 +40,6 @@ interface SidebarItem {
   iconTone: "emerald" | "lime" | "rose" | "amber" | "sky" | "teal" | "orange" | "gold" | "earth" | "violet" | "blue" | "cyan";
   requiresAffiliate?: boolean;
   underDevelopment?: boolean;
-  children?: { title: string; href: string; icon: SidebarIcon }[];
 }
 
 interface SidebarSection {
@@ -49,7 +48,7 @@ interface SidebarSection {
 }
 
 const PigIcon: SidebarIcon = (props) => <Icon iconNode={pigHead} {...props} />;
-const CowIcon: SidebarIcon = (props) => <Icon iconNode={cowHead} {...props} />;
+
 const BarnIcon: SidebarIcon = (props) => <Icon iconNode={barn} {...props} />;
 
 const sidebarSections: SidebarSection[] = [
@@ -62,14 +61,12 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    label: "Rebanhos",
+    label: "Segmentos",
     items: [
       { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
-      { title: "Tratos bovinos", href: "/home/rebanho/bovinos/racao/tratos", icon: CowIcon, iconTone: "amber" },
-      { title: "Bovinos", href: "/home/rebanho/bovinos", icon: CowIcon, iconTone: "amber", children: [
-        { title: "Gado de corte", href: "/home/rebanho/bovinos/corte", icon: Scale },
-        { title: "Pecuária leiteira", href: "/home/rebanho/bovinos/pecuaria-leiteira", icon: Milk },
-      ] },
+      { title: "Tratos bovinos", href: "/home/rebanho/bovinos/racao/tratos", icon: Wheat, iconTone: "amber" },
+      { title: "Gado de corte", href: "/home/rebanho/bovinos/corte", icon: BullIcon, iconTone: "amber" },
+      { title: "Pecuária leiteira", href: "/home/rebanho/bovinos/pecuaria-leiteira", icon: LactationIcon, iconTone: "cyan" },
       { title: "Aves", href: "/home/rebanho/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
       { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope, iconTone: "teal" },
     ],
@@ -192,14 +189,13 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
                       aria-current={active ? "page" : undefined}
                     >
                       <span className={`sidebar-link-icon tone-${item.iconTone}`} aria-hidden="true">
-                        <item.icon size={19} strokeWidth={active ? 2.3 : 2} />
+                        <item.icon size={19} strokeWidth={1.8} />
                       </span>
                       <span>{item.title}</span>
                       {item.underDevelopment && (
                         <span className="sidebar-link-badge">Em breve</span>
                       )}
                     </Link>
-                    {item.children && <div className="sidebar-submenu" aria-label="Tipos de produção bovina">{item.children.filter(child => canAccessOrganizationPath(access, child.href)).map(child => <Link key={child.href} href={child.href} className={`sidebar-link sidebar-sublink ${pathname === child.href ? "active" : ""}`} onClick={onClose} aria-current={pathname === child.href ? "page" : undefined}><child.icon size={15} aria-hidden="true"/><span>{child.title}</span></Link>)}</div>}
                     </div>
                   );
                 })}

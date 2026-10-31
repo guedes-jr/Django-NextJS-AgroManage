@@ -15,7 +15,7 @@
 a.shortcut:hover { border-color: var(--primary); color: var(--foreground); box-shadow: var(--shadow-elegant); }
 a.shortcut:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .shortcutTop { display: flex; align-items: center; justify-content: space-between; color: color-mix(in srgb, var(--primary), var(--foreground) 25%); margin-bottom: 15px; }
-.shortcutIcon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: color-mix(in srgb, var(--primary), transparent 91%); }
+.shortcutIcon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--primary), transparent 70%); color: color-mix(in srgb, var(--primary), var(--foreground) 30%); background: color-mix(in srgb, var(--card), var(--primary) 12%); }
 .shortcut h2 { font-size: 1.08rem; font-weight: 800; margin: 0 0 7px; }
 .shortcut p { font-size: .83rem; line-height: 1.5; color: var(--muted-foreground); margin: 0; }
 .badge { font-size: .68rem; border: 1px solid var(--border); border-radius: 20px; padding: 4px 8px; color: var(--muted-foreground); }

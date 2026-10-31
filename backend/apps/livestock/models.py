@@ -60,6 +60,7 @@ class CattleAnimalProfile(BaseModel):
     """Cattle-specific states, independent of the shared reproduction workflow."""
 
     animal = models.OneToOneField("Animal", on_delete=models.CASCADE, related_name="cattle_profile")
+    name = models.CharField(max_length=100, blank=True, default="")
     is_lactating = models.BooleanField(default=False)
     is_castrated = models.BooleanField(default=False)
     weaning_date = models.DateField(null=True, blank=True)

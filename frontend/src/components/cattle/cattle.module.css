@@ -8,16 +8,14 @@
 .headerActions { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
 .headerActions > button { min-height: 36px; }
 .farmFilter { display: flex; flex-direction: column; gap: 5px; min-width: 180px; max-width: 260px; font-size: .72rem; font-weight: 650; color: var(--muted-foreground); }
-.navigation { margin-bottom: 26px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); overflow: hidden; }
-.nav, .contextNav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
-.nav { padding: 9px 12px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--muted), var(--card) 65%); }
-.nav a, .contextNav a { display: flex; align-items: center; gap: 8px; flex-shrink: 0; text-decoration: none; padding: 10px 14px; color: var(--muted-foreground); font-size: .82rem; font-weight: 650; border-radius: 8px; }
-.nav a[data-active=true] { background: var(--card); color: var(--primary); box-shadow: 0 1px 3px #0000000a; }
-.contextNav { padding: 4px 12px 0; }
-.contextNav a { border-radius: 0; border-bottom: 3px solid transparent; padding: 14px 16px; }
-.contextNav a[aria-current=page] { color: var(--primary); border-bottom-color: var(--primary); background: color-mix(in srgb, var(--primary), transparent 95%); }
-.nav a:hover, .contextNav a:hover { color: var(--primary); }
-.nav a:focus-visible, .contextNav a:focus-visible, .breadcrumb a:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.navigationBar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.navigationBar .breadcrumb { margin: 0; flex-wrap: wrap; row-gap: 6px; min-width: 0; }
+.navigationBar .breadcrumb > span { color: var(--foreground); font-weight: 650; }
+.navigationSelect { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; color: var(--muted-foreground); font-size: .78rem; }
+.navigationSelect select { width: 220px; max-width: 100%; }
+.navigationBar a:hover { color: var(--foreground); }
+.navigationBar a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 4px; }
+@media (max-width: 600px) { .navigationBar { align-items: stretch; padding: 12px; gap: 12px; } .navigationSelect { width: 100%; } .navigationSelect select { flex: 1; min-width: 160px; } }
 .summaryScope { color: var(--muted-foreground) !important; font-weight: 500 !important; }
 .overviewMetric { --metric-color: var(--primary); --metric-soft: color-mix(in srgb, var(--primary), var(--card) 92%); }
 .overviewMetric[data-tone=blue] { --metric-color: #1768d4; --metric-soft: #eaf3ff; }
@@ -116,9 +114,44 @@
   .actions { row-gap: 8px; }
   .metrics { grid-template-columns: 1fr; }
   .table td, .table th { padding: 12px; }
-  .nav a { padding: 9px 12px; }
   .category { grid-template-columns: 95px 1fr 40px; }
 }
 .formDialog { max-width: 860px; }
 .dialogActions { display: flex; flex: 1; justify-content: flex-end; flex-wrap: wrap; gap: 10px; width: 100%; }
 @media (max-width: 600px) { .dialogActions > button { flex: 1; min-height: 44px; } }
+
+/* Keep bovine symbols consistent with the shared outline icon family. */
+.page [data-tone] > div:first-child {
+  border-radius: 14px;
+  color: color-mix(in srgb, var(--module-color, var(--metric-color, var(--primary))), var(--foreground) 20%);
+  background: color-mix(in srgb, var(--card), var(--module-color, var(--metric-color, var(--primary))) 10%);
+  border-color: color-mix(in srgb, var(--module-color, var(--metric-color, var(--primary))), transparent 72%);
+}
+.brand > div:first-child {
+  color: color-mix(in srgb, var(--primary), var(--foreground) 25%);
+  background: color-mix(in srgb, var(--card), var(--primary) 12%);
+}
+
+.categoryTabs { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 20px 14px; }
+.categoryTab { padding: 7px 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: var(--muted-foreground); font-size: .8rem; font-weight: 600; }
+.categoryTab[aria-pressed=true] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground, white); }
+.categoryTab:focus-visible, .rowMenu summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.categoryTab:disabled { opacity: .65; }
+.dairyList .toolbar > .filters { flex: 1; }
+.dairyList .searchField { flex: 1 1 300px; max-width: 420px; }
+.dairyList .table th, .dairyList .table td { padding: 11px 14px; }
+.dairyList .table th { text-transform: none; font-size: .8rem; letter-spacing: 0; }
+.dairyList .table td { font-size: .83rem; }
+.dairyList .table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--muted), transparent 55%); }
+.animalBadges { display: flex; flex-wrap: wrap; gap: 5px; }
+.animalBadge { display: inline-flex; padding: 4px 8px; border-radius: 6px; font-size: .73rem; font-weight: 650; line-height: 1.2; background: var(--muted); color: var(--muted-foreground); }
+.animalBadge[data-tone=green] { background: color-mix(in srgb, #18a558, var(--card) 85%); color: color-mix(in srgb, #15803d, var(--foreground) 20%); }
+.animalBadge[data-tone=blue] { background: color-mix(in srgb, #38a3e7, var(--card) 84%); color: color-mix(in srgb, #168ed4, var(--foreground) 20%); }
+.animalBadge[data-tone=amber] { background: color-mix(in srgb, #e5a832, var(--card) 84%); color: color-mix(in srgb, #b7791f, var(--foreground) 20%); }
+.rowMenu { min-width: 34px; }
+.rowMenu summary { list-style: none; display: grid; place-items: center; width: 34px; min-height: 34px; margin-left: auto; border: 1px solid transparent; border-radius: 7px; cursor: pointer; color: var(--muted-foreground); }
+.rowMenu summary::-webkit-details-marker { display: none; }
+.rowMenu summary:hover, .rowMenu[open] summary { background: var(--muted); color: var(--foreground); border-color: var(--border); }
+.rowMenuItems { display: grid; gap: 6px; min-width: 150px; padding-top: 8px; }
+.rowMenuItems > button { text-align: left; white-space: normal; }
+@media (max-width: 600px) { .categoryTabs { padding: 0 12px 12px; } .categoryTab, .rowMenu summary { min-height: 44px; } .rowMenu summary { width: 44px; } }

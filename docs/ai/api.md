@@ -1722,3 +1722,28 @@ queryset to females categorized Bezerro or Novilha. The dairy home shortcut
 opens `/home/rebanho/bovinos/cadastro?group=young-females`; CSV export preserves
 this filter. The dairy landing uses existing milk, reproduction, health, feeding,
 feed factory and report routes. Milk tank management remains explicitly planned.
+
+
+### Dairy animal list and optional bovine name
+
+The dairy registry is `/home/rebanho/bovinos/pecuaria-leiteira/animais`.
+It reuses the cattle endpoints and permissions, with a compact table without
+photos and category counts matching the active farm/search/status filters.
+The displayed herd remains the shared bovine registry; this UI change does not
+classify existing animals by productive purpose.
+
+`CattleAnimalProfile.name` (livestock.0037) stores an optional 100-character name,
+separate from `Animal.identifier`. Cattle animal GET/POST/PATCH exposes `name`;
+legacy animals return an empty string. Name writes preserve lactation and other
+profile state. The explicit organization export/recovery inventory includes it.
+The generic swine serializer and shared Animal model remain unchanged.
+
+`GET /livestock/cattle/animals/category-counts/` returns `all`, `cows` (female
+Vaca/Matriz), `heifers` (female Novilha), `calves` (female Bezerro), and `bulls`
+(male Touro/Reprodutor). Counts ignore pagination and `dairy_category`, while
+honoring authorized queryset, farm, search, status, withdrawal and young_females.
+`GET /livestock/cattle/animals/?dairy_category=all|cows|heifers|calves|bulls`
+filters the paginated list. Invalid groups return 400. Search includes identifier,
+optional bovine name, batch code and batch name. CSV export preserves the group.
+A female may display both pregnancy and lactation badges; dry status is not
+inferred merely from the absence of a lactation flag.

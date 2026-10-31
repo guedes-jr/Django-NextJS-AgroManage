@@ -9,6 +9,10 @@ type ParentRoute = { href: string; label: string };
 function homeParent(pathname: string, searchParams: URLSearchParams | null): ParentRoute | null {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] !== "home" || parts.length < 3) return null;
+  if (pathname.startsWith("/home/rebanho/bovinos/pecuaria-leiteira")) {
+    const dairyRoot = "/home/rebanho/bovinos/pecuaria-leiteira";
+    return pathname === dairyRoot ? null : { href: dairyRoot, label: "Voltar para Pecuária leiteira" };
+  }
   if (parts[1] === "rebanho" && parts[2]) {
     const speciesRoot = `/home/rebanho/${parts[2]}`;
     return pathname === speciesRoot ? null : { href: speciesRoot, label: `Voltar para ${parts[2]}` };

@@ -3,7 +3,7 @@
 from common.operator_access import operator_scoped, remember_operator_record
 from common.permissions import OrganizationRolePermission
 from django.db import transaction
-from django.db.models import Prefetch, Q, OuterRef, Subquery
+from django.db.models import Prefetch, Q, OuterRef, Subquery, Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -113,6 +113,7 @@ class CattleAnimalViewSet(AnimalViewSet):
     ]
     ordering_fields = ["identifier", "entry_date", "current_weight_kg"]
     ordering = ["identifier"]
+    search_fields = ["identifier", "cattle_profile__name", "batch__batch_code", "batch__name"]
     action_operations = {**AnimalViewSet.action_operations, "record_event": "edit"}
 
     def get_queryset(self):
@@ -124,6 +125,15 @@ class CattleAnimalViewSet(AnimalViewSet):
         )
         if self.request.query_params.get("young_females") == "true":
             queryset = queryset.filter(gender="F", category__in=["Bezerro", "Novilha"])
+        group = serializers.ChoiceField(choices=["all", "cows", "heifers", "calves", "bulls"]).run_validation(self.request.query_params.get("dairy_category", "all"))
+        groups = {
+            "cows": Q(gender="F", category__in=["Vaca", "Matriz"]),
+            "heifers": Q(gender="F", category="Novilha"),
+            "calves": Q(gender="F", category="Bezerro"),
+            "bulls": Q(gender="M", category__in=["Touro", "Reprodutor"]),
+        }
+        if group != "all" and self.action != "category_counts":
+            queryset = queryset.filter(groups[group])
         withdrawal = self.request.query_params.get("withdrawal")
         if withdrawal in ["milk", "meat"]:
             from django.utils import timezone
@@ -132,6 +142,17 @@ class CattleAnimalViewSet(AnimalViewSet):
                 **{f"{withdrawal}_withdrawal_until__gte": timezone.localdate()}
             )
         return queryset
+
+    @action(detail=False, methods=["get"], url_path="category-counts")
+    def category_counts(self, request):
+        rows = self.filter_queryset(self.get_queryset())
+        return Response(rows.aggregate(
+            all=Count("pk"),
+            cows=Count("pk", filter=Q(gender="F", category__in=["Vaca", "Matriz"])),
+            heifers=Count("pk", filter=Q(gender="F", category="Novilha")),
+            calves=Count("pk", filter=Q(gender="F", category="Bezerro")),
+            bulls=Count("pk", filter=Q(gender="M", category__in=["Touro", "Reprodutor"])),
+        ))
 
     @action(detail=True, methods=["post"], url_path="register-weight")
     @transaction.atomic

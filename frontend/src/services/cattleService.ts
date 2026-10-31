@@ -1,7 +1,7 @@
 import apiClient from "./api";
 
 export type CattleAnimal = {
-  id: string; farm: string; farm_name: string; identifier: string; gender: "M" | "F";
+  id: string; farm: string; farm_name: string; identifier: string; name?: string; gender: "M" | "F";
   category: string; breed_name?: string; batch?: string | null; batch_code?: string;
   status: string; reproductive_status: string; birth_date?: string | null; entry_date?: string | null;
   is_lactating: boolean; is_castrated: boolean; weaning_date: string | null; management_group: string;
@@ -49,6 +49,7 @@ export const cattleNutritionStatuses: Record<string, string> = { not_supplied: "
 const base = "/livestock/cattle";
 export const cattleService = {
   agenda: async (params: CattleFilters, signal?: AbortSignal) => (await apiClient.get<Page<CattleAgendaEvent>>(`${base}/agenda/`, { params, signal })).data,
+  categoryCounts: async (params: CattleFilters, signal?: AbortSignal) => (await apiClient.get<Record<"all" | "cows" | "heifers" | "calves" | "bulls", number>>(`${base}/animals/category-counts/`, { params, signal })).data,
   animal: async (id: string) => (await apiClient.get<CattleAnimal>(`${base}/animals/${id}/`)).data,
   genealogy: async (id: string, signal?: AbortSignal) => (await apiClient.get<CattleGenealogy>(`${base}/animals/${id}/genealogy/`, { signal })).data,
   deliveries: async (id: string, page: number, signal?: AbortSignal) => (await apiClient.get<Page<CattleDelivery>>(`${base}/feed-plans/${id}/deliveries/`, { params: { page, page_size: 10 }, signal })).data,
