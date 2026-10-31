@@ -15,7 +15,7 @@ export function canAccessOrganizationPath(access: OrganizationAccess | null, pat
     return !path.startsWith("/home/usuarios") || access.can_manage_users;
   }
   const personal = ["/home/profile", "/home/notifications", "/home/suporte"];
-  if (path === "/home" || personal.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return true;
+  if (path === "/home" || path === "/home/agenda" || personal.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return true;
   const segments = path.split("/");
   if (path.startsWith("/home/plantacoes")) {
     return access.can_operate_crops && !["estrutura", "mao-obra", "colheita", "historico"].includes(segments[4]);

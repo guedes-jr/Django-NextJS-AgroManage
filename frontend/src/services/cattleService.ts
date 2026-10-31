@@ -11,9 +11,10 @@ export type CattleAnimal = {
 export type CattleBatch = {
   id: string; farm_id: string; farm_name: string; batch_code: string; name: string;
   category: string; phase: string; quantity: number; status: string; gender: string;
+  operations?: { age_days: number | null; last_weighing_date: string | null; identified_animals: number; pastures: { name: string; entry_date: string; days: number }[]; nutrition: ({ id: string; product: string } & CattleForecast)[] };
   avg_weight_kg: string | null; entry_date: string; origin: string; notes: string;
 };
-export type CattlePasture = { id: string; farm: string; farm_name: string; name: string; area_ha: string; notes: string; max_stocking_ua_ha: string | null; occupancy: { heads: number; missing_weight_heads: number; live_weight_kg: string; stocking_ua_ha: string | null; capacity_percent: string | null } };
+export type CattlePasture = { id: string; farm: string; farm_name: string; name: string; area_ha: string; notes: string; max_stocking_ua_ha: string | null; availability: string; availability_reason: string; occupancy: { heads: number; missing_weight_heads: number; live_weight_kg: string; stocking_ua_ha: string | null; capacity_percent: string | null; occupied_days: number | null; empty_days: number | null; last_exit_date: string | null; state: string } };
 export type CattleGrazing = { id: string; pasture: string; pasture_name: string; batch: string; batch_code: string; quantity: number; entry_date: string; exit_date: string | null; notes: string };
 export type CattleMilk = { id: string; animal: string; identifier: string; farm_name: string; date: string; session: string; liters: string; discarded_liters: string; discard_reason: string; notes: string };
 export type CattleManagement = {
@@ -21,6 +22,7 @@ export type CattleManagement = {
   responsible: string; treatment_type: string; cost_per_animal: string; next_procedure_date: string | null;
   milk_withdrawal_until: string | null; meat_withdrawal_until: string | null; notes: string;
   status: "draft" | "confirmed" | "cancelled"; confirmed_at: string | null; cancellation_reason: string;
+  follow_up_status: string; follow_up_execution: string | null; follow_up_note: string;
   entries: { animal: string; identifier: string; weight_kg: string | null }[];
 };
 export type CattleFeed = { id: string; lote_codigo?: string; animais_identificadores: string[]; item_nome: string; data_inicio: string; data_fim: string; quantidade: string; custo_total?: string };
@@ -34,11 +36,24 @@ export type CattleOverview = {
   agenda: { date: string; title: string; kind: string }[];
 };
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };
-export type CattleResource = "animals" | "batches" | "pastures" | "grazings" | "milk" | "feed" | "managements";
+export type CattleResource = "animals" | "batches" | "pastures" | "grazings" | "milk" | "feed" | "managements" | "feed-plans";
 export type CattleFilters = Record<string, string | number>;
+
+export type CattleAgendaEvent = { id: string; source_id: string; date: string; title: string; kind: "birth" | "diagnosis" | "sanitary"; animal: string | null; farm: string; farm_name: string; period: string };
+export type CattleForecast = { daily_requirement_kg: string | number; estimated_remaining_kg: string | number | null; days_covered: string | number | null; next_supply_date: string | null; last_supply_date: string | null; status: string };
+export type CattleFeedPlan = { id: string; batch: string; batch_code: string; farm: string; farm_name: string; item: string; item_name: string; kg_per_head_day: string; start_date: string; end_date: string | null; is_active: boolean; notes: string; forecast: CattleForecast };
+export type CattleDelivery = { id: string; date: string; quantity_kg: string; remaining_before_kg: string; available_after_kg: string; head_count: number; daily_requirement_kg: string; cost: string; notes: string };
+export type CattleGenealogy = { ancestors: { id: string; identifier: string; relation: string; level: number; repeated: boolean }[]; children: { id: string; identifier: string; birth_date: string | null; current_weight_kg: string | null; status: string }[]; children_count: number; depth: number; notice: string };
+export const cattleNutritionStatuses: Record<string, string> = { not_supplied: "Sem fornecimento registrado", scheduled: "Programado", inactive: "Encerrado ou fora da vigência", review: "Revisar efetivo e plano", supply_today: "Abastecer hoje", supplied: "Abastecido" };
 
 const base = "/livestock/cattle";
 export const cattleService = {
+  agenda: async (params: CattleFilters, signal?: AbortSignal) => (await apiClient.get<Page<CattleAgendaEvent>>(`${base}/agenda/`, { params, signal })).data,
+  animal: async (id: string) => (await apiClient.get<CattleAnimal>(`${base}/animals/${id}/`)).data,
+  genealogy: async (id: string, signal?: AbortSignal) => (await apiClient.get<CattleGenealogy>(`${base}/animals/${id}/genealogy/`, { signal })).data,
+  deliveries: async (id: string, page: number, signal?: AbortSignal) => (await apiClient.get<Page<CattleDelivery>>(`${base}/feed-plans/${id}/deliveries/`, { params: { page, page_size: 10 }, signal })).data,
+  deliver: async (id: string, data: Record<string, unknown>) => (await apiClient.post<CattleDelivery>(`${base}/feed-plans/${id}/deliveries/`, data)).data,
+
   stockItems: async () => {
     const { data } = await apiClient.get<CattleStockItem[]>("/inventory/items/all_items/");
     return data;

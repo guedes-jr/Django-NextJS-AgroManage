@@ -7,7 +7,7 @@ CYCLE_PREFIXES = ("livestock.reproductive_vaccine.", "livestock.next_mating:", "
 def classify_notification(notification_type, event_key="", category=None):
     if category is not None:
         category = NotificationCategory(category).value
-        expected_type = {"animal_cycle": "animal", "overdue_payment": "finance"}.get(category, category)
+        expected_type = {"agenda": "system", "animal_cycle": "animal", "overdue_payment": "finance"}.get(category, category)
         if notification_type != expected_type:
             raise ValueError("Notification category does not match its type")
         return category
@@ -15,6 +15,8 @@ def classify_notification(notification_type, event_key="", category=None):
         return NotificationCategory.ANIMAL_CYCLE
     if notification_type == NotificationType.FINANCE and event_key.startswith("finance.transaction.overdue:"):
         return NotificationCategory.OVERDUE_PAYMENT
+    if event_key.startswith("agenda.reminder:"):
+        return NotificationCategory.AGENDA
     return NotificationCategory(notification_type).value
 
 
@@ -22,7 +24,7 @@ def category_policy(category):
     policy = NotificationCategoryPolicy.objects.filter(category=category).first()
     return policy or NotificationCategoryPolicy(
         category=category, enabled=category != NotificationCategory.MARKETING,
-        whatsapp_enabled=category in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.ANIMAL, NotificationCategory.STOCK),
+        whatsapp_enabled=category in (NotificationCategory.ANIMAL_CYCLE, NotificationCategory.ANIMAL, NotificationCategory.STOCK, NotificationCategory.AGENDA),
     )
 
 

@@ -3,7 +3,8 @@
 import datetime
 import hashlib
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F, DateField
+from django.db.models.functions import Coalesce, Cast
 from django.utils import timezone
 
 from .models import Animal, AnimalBatch, Birth, HeatRecord, Litter, Mating, Pregnancy
@@ -105,6 +106,15 @@ def _heat_prediction_alerts(organization, species_code, horizon_days=45):
     return alerts
 
 
+def pending_diagnoses(organization, species_code, farm=None):
+    queryset = Mating.objects.filter(female__farm__organization=organization, female__status=AnimalBatch.Status.ACTIVE, status=Mating.Status.PENDING_DG)
+    if species_code:
+        queryset = queryset.filter(female__species__code=species_code)
+    if farm:
+        queryset = queryset.filter(female__farm_id=farm)
+    return queryset.annotate(diagnosis_due_date=Coalesce(F("expected_diagnosis_date"), Cast(F("mating_date") + datetime.timedelta(days=21), DateField())))
+
+
 def _scheduled_reproductive_alerts(
     organization, species_code, include_birth_vaccines=True
 ):
@@ -112,14 +122,9 @@ def _scheduled_reproductive_alerts(
     today = timezone.localdate()
     alerts = []
 
-    pending_matings = Mating.objects.filter(
-        female__farm__organization=organization,
-        female__species__code=species_code,
-        female__status=AnimalBatch.Status.ACTIVE,
-        status=Mating.Status.PENDING_DG,
-    ).select_related("female")
+    pending_matings = pending_diagnoses(organization, species_code).select_related("female")
     for mating in pending_matings:
-        due_date = mating.mating_date + datetime.timedelta(days=21)
+        due_date = mating.diagnosis_due_date
         days = (due_date - today).days
         if days < 0:
             alert_type, time_label = (

@@ -1,3 +1,8 @@
-from django.contrib import admin  # noqa: F401
+from django.contrib import admin
+from .models import Holiday
 
-# Register 'tasks' models with the Django admin here.
+@admin.register(Holiday)
+class HolidayAdmin(admin.ModelAdmin):
+    list_display = ("name", "date", "organization", "source")
+    list_filter = ("source", "date")
+    search_fields = ("name", "organization__name")

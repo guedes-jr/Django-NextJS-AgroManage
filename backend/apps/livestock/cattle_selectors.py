@@ -50,35 +50,13 @@ def cattle_overview(organization, farm=None):
     pastures = CattlePasture.objects.filter(farm__organization=organization)
     if farm:
         pastures = pastures.filter(farm_id=farm)
-    pregnancies = (
-        Pregnancy.objects.filter(female__in=animals, status="ongoing")
-        .select_related("female")
-        .order_by("expected_birth_date")[:8]
-    )
-    sanitary = CattleManagement.objects.filter(
-        farm__organization=organization,
-        status="confirmed",
-        kind="sanitary",
-        next_procedure_date__isnull=False,
-    )
-    if farm:
-        sanitary = sanitary.filter(farm_id=farm)
-    agenda = [
-        {
-            "date": str(row.expected_birth_date),
-            "title": f"Parto previsto · {row.female.identifier}",
-            "kind": "birth",
-        }
-        for row in pregnancies
-    ]
-    agenda.extend(
-        {
-            "date": str(row.next_procedure_date),
-            "title": row.description,
-            "kind": "sanitary",
-        }
-        for row in sanitary.order_by("next_procedure_date")[:8]
-    )
+    from .cattle_operations import cattle_agenda, agenda_row
+    # Keep the overview bounded, with separate space for upcoming and overdue work.
+    today_events = list(cattle_agenda(organization, farm, "today")[:8])
+    upcoming_events = list(cattle_agenda(organization, farm, "upcoming")[:8])
+    overdue_events = list(cattle_agenda(organization, farm, "overdue")[:4])
+    agenda = [agenda_row(row) for row in [*today_events, *upcoming_events, *overdue_events]]
+    agenda_count = cattle_agenda(organization, farm).count()
     return {
         "total_head": sum(categories.values()),
         "identified_animals": animals.count(),
@@ -104,7 +82,8 @@ def cattle_overview(organization, farm=None):
             {"category": key, "quantity": value}
             for key, value in sorted(categories.items())
         ],
-        "agenda": sorted(agenda, key=lambda item: item["date"]),
+        "agenda": agenda,
+        "agenda_count": agenda_count,
     }
 
 

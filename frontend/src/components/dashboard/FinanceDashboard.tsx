@@ -24,6 +24,7 @@ import {
   Pie,
   Cell
 } from "recharts";
+import { FinanceProjection } from "./FinanceProjection";
 import { apiClient } from "@/services/api";
 
 const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
@@ -59,6 +60,7 @@ export function FinanceDashboard() {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      <FinanceProjection />
       {/* KPI Cards */}
       <div className="row g-3">
         <div className="col-12 col-md-6 col-lg-3">

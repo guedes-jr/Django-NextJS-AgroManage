@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
   Bird,
   Bot,
   CircleDollarSign,
@@ -16,7 +17,6 @@ import {
   Headphones,
   Sprout,
   Stethoscope,
-  UserRoundCog,
   Warehouse,
   X,
   type LucideProps,
@@ -54,6 +54,7 @@ const sidebarSections: SidebarSection[] = [
     label: "Operação",
     items: [
       { title: "Dashboard", href: "/home", icon: PanelsTopLeft, iconTone: "emerald" },
+      { title: "Agenda", href: "/home/agenda", icon: CalendarDays, iconTone: "blue" },
       { title: "Plantações", href: "/home/plantacoes", icon: Sprout, iconTone: "lime" },
     ],
   },
@@ -83,7 +84,6 @@ const sidebarSections: SidebarSection[] = [
   {
     label: "Administração",
     items: [
-      { title: "Equipe e usuários", href: "/home/usuarios", icon: UserRoundCog, iconTone: "blue" },
       { title: "Área do afiliado", href: "/home/afiliados", icon: BadgePercent, iconTone: "cyan", requiresAffiliate: true },
     ],
   },
@@ -170,7 +170,7 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
 
       <div className="sidebar-nav-container">
         <nav className="sidebar-navigation" aria-label="Áreas do sistema">
-          {sidebarSections.filter(section => section.items.some(item => canAccessOrganizationPath(access,item.href))).map((section) => (
+          {sidebarSections.filter(section => section.items.some(item => (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
               <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
               <div className="sidebar-section-items">

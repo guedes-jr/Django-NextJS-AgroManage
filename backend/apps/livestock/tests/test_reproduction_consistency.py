@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -90,3 +90,21 @@ class ReproductionConsistencyTestCase(APITestCase):
         self.assertEqual(pregnancy.status, Pregnancy.Status.COMPLETED)
         self.assertEqual(gestations.status_code, status.HTTP_200_OK)
         self.assertEqual(gestations.data["kpis"]["total"], 0)
+
+    def test_pending_diagnosis_dates_are_calendar_dates_for_both_schedules(self):
+        from django.utils import timezone
+        from apps.livestock.operational_alerts import pending_diagnoses, _scheduled_reproductive_alerts
+        today = timezone.localdate()
+        sow = Animal.objects.create(farm=self.farm, species=self.swine, identifier="DATE-REGRESSION", gender="F", category=AnimalBatch.Category.MATRIZ, entry_date=today)
+        mating = Mating.objects.create(female=sow, mating_date=today, status=Mating.Status.PENDING_DG)
+        for explicit in (None, today + timedelta(days=30)):
+            with self.subTest(explicit=explicit):
+                Mating.objects.filter(pk=mating.pk).update(expected_diagnosis_date=explicit)
+                due = pending_diagnoses(self.organization,"suinos").get(pk=mating.pk).diagnosis_due_date
+                self.assertIs(type(due), date)
+                self.assertEqual(due, explicit or today + timedelta(days=21))
+                alerts = _scheduled_reproductive_alerts(self.organization,"suinos")
+                diagnosis = next(alert for alert in alerts if "Diagnóstico de prenhez" in alert["text"])
+                self.assertEqual(diagnosis["due_date"], due.isoformat())
+                response = self.client.get(reverse("reproduction_dashboard"), {"species":"suinos"})
+                self.assertEqual(response.status_code,200,response.data)

@@ -484,6 +484,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         if new_lot:
             serializer.validated_data["lote"] = lots[new_lot.pk]
         serializer.instance = instance
+        if instance.cattle_delivery_id:
+            raise exceptions.ValidationError("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário.")
         from .services import movement_has_financial_origin
         if movement_has_financial_origin(instance):
             raise exceptions.ValidationError("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste.")
@@ -543,6 +545,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         instance = MovimentacaoEstoque.objects.select_for_update().get(pk=instance.pk)
         if instance.lote_id:
             instance.lote = LoteEstoque.objects.select_for_update().get(pk=instance.lote_id)
+        if instance.cattle_delivery_id:
+            raise exceptions.ValidationError("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário.")
         from .services import movement_has_financial_origin
         if movement_has_financial_origin(instance):
             raise exceptions.ValidationError("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste.")

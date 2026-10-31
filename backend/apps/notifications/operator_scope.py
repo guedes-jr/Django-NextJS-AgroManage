@@ -20,7 +20,7 @@ def visible_notifications(queryset, user):
         return queryset
     from apps.livestock.models import Birth, Litter, Mating
 
-    allowed = Q(category__in=["system", "marketing"])
+    allowed = Q(category__in=["system", "marketing", "agenda"])
     for code in user.allowed_livestock.values_list('code',flat=True):
         allowed |= Q(category='animal_cycle',event_key__startswith=f'livestock.operational:{user.organization_id}:{code}:')
     for model, prefix in [
@@ -45,6 +45,9 @@ def visible_notifications(queryset, user):
 
 
 def event_allowed(user, category, event_key):
+    if event_key.startswith("agenda.reminder:"):
+        from apps.tasks.reminders import reminder_allowed
+        return reminder_allowed(user, event_key)
     if not is_operator(user) or category in ("system", "marketing"):
         return True
     from uuid import UUID

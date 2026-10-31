@@ -13,6 +13,8 @@ class CattlePasture(BaseModel):
     area_ha = models.DecimalField(max_digits=10, decimal_places=2)
     max_stocking_ua_ha = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
+    availability = models.CharField(max_length=12, choices=[("unknown", "Não informada"), ("available", "Liberado"), ("resting", "Em descanso"), ("blocked", "Interditado")], default="unknown")
+    availability_reason = models.CharField(max_length=255, blank=True)
 
     class Meta(BaseModel.Meta):
         constraints = [models.UniqueConstraint(fields=["farm", "name"], name="unique_cattle_pasture_name")]
@@ -91,6 +93,12 @@ class CattleManagement(BaseModel):
     confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="confirmed_cattle_managements")
     confirmed_at = models.DateTimeField(null=True, blank=True)
     cancellation_reason = models.CharField(max_length=300, blank=True)
+    follow_up_status = models.CharField(max_length=12, choices=[("pending", "Pendente"), ("done", "Executado"), ("cancelled", "Cancelado")], default="pending")
+    follow_up_execution = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="resolved_follow_ups")
+    follow_up_note = models.CharField(max_length=500, blank=True)
+    follow_up_resolved_at = models.DateTimeField(null=True, blank=True)
+    follow_up_resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="resolved_cattle_follow_ups")
+
 
     class Meta(BaseModel.Meta):
         ordering = ["-date", "-created_at"]
@@ -328,6 +336,7 @@ class Mating(BaseModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING_DG)
     
     expected_birth_date = models.DateField(null=True, blank=True)
+    expected_diagnosis_date = models.DateField(null=True, blank=True)
     reproductive_vaccine_item = models.ForeignKey(
         "inventory.ItemEstoque",
         on_delete=models.SET_NULL,
@@ -1126,3 +1135,41 @@ class AcknowledgedOperationalAlert(BaseModel):
             )
         ]
         indexes = [models.Index(fields=("user", "organization", "alert_key"))]
+
+
+class CattleFeedPlan(BaseModel):
+    batch = models.ForeignKey(AnimalBatch, on_delete=models.PROTECT, related_name="cattle_feed_plans")
+    item = models.ForeignKey("inventory.ItemEstoque", on_delete=models.PROTECT, related_name="cattle_feed_plans")
+    kg_per_head_day = models.DecimalField(max_digits=8, decimal_places=3)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="cattle_feed_plans")
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.CheckConstraint(condition=models.Q(kg_per_head_day__gt=0), name="positive_cattle_feed_plan_rate"),
+            models.CheckConstraint(condition=models.Q(end_date__isnull=True) | models.Q(end_date__gte=models.F("start_date")), name="cattle_feed_plan_date_order"),
+            models.UniqueConstraint(fields=["batch", "item"], condition=models.Q(is_active=True), name="unique_active_cattle_feed_plan"),
+        ]
+
+
+class CattleFeedDelivery(BaseModel):
+    plan = models.ForeignKey(CattleFeedPlan, on_delete=models.PROTECT, related_name="deliveries")
+    date = models.DateField()
+    quantity_kg = models.DecimalField(max_digits=10, decimal_places=2)
+    remaining_before_kg = models.DecimalField(max_digits=10, decimal_places=2)
+    available_after_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    daily_requirement_kg = models.DecimalField(max_digits=14, decimal_places=3)
+    head_count = models.PositiveIntegerField()
+    cost = models.DecimalField(max_digits=16, decimal_places=2)
+    request_key = models.UUIDField()
+    notes = models.CharField(max_length=1000, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="cattle_feed_deliveries")
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "request_key"], name="unique_cattle_delivery_request"),
+            models.CheckConstraint(condition=models.Q(quantity_kg__gt=0) & models.Q(remaining_before_kg__gte=0), name="valid_cattle_feed_delivery_quantity"),
+        ]

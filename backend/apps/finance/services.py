@@ -1,10 +1,10 @@
 """Financial posting and traceable, idempotent settlement operations."""
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum, Case, When, F, DecimalField
+from django.db.models import Sum, Case, When, F, DecimalField, Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -132,3 +132,31 @@ def record_stock_purchase(movement, user, *, due_date=None, paid=False, bank_acc
             raise ValidationError({"purchase_payment_status": "Uma compra paga exige conta e data do pagamento."})
         settle_transaction(document, user, bank_account=bank_account, payment_date=payment_date, payment_method=payment_method, idempotency_key=movement.pk)
     return document
+
+
+def cash_projection(organization, *, days=30, bank_account=None, include_overdue=True):
+    """Future open documents, kept separate from realized cash and without postings."""
+    from .models import BankAccount, Transaction
+    from django.db.models.functions import Greatest
+    accounts = BankAccount.objects.filter(organization=organization)
+    titles = Transaction.objects.filter(organization=organization, status__in=["pending", "overdue"])
+    if bank_account:
+        accounts = accounts.filter(pk=bank_account.pk)
+        titles = titles.filter(bank_account=bank_account)
+    today = timezone.localdate()
+    end = today + timedelta(days=days - 1)
+    titles = titles.filter(due_date__lte=end)
+    if not include_overdue:
+        titles = titles.filter(due_date__gte=today)
+    opening = accounts.aggregate(total=Sum("current_balance"))["total"] or Decimal(0)
+    rows = titles.annotate(projected_date=Greatest(F("due_date"), today)).order_by().values("projected_date").annotate(revenue=Sum("amount", filter=Q(category__category_type="revenue")), expense=Sum("amount", filter=Q(category__category_type="expense")))
+    by_day = {row["projected_date"]: row for row in rows}
+    balance, first_negative, result = opening, None, []
+    for offset in range(days):
+        day = today + timedelta(days=offset)
+        row = by_day.get(day, {})
+        income, expense = row.get("revenue") or Decimal(0), row.get("expense") or Decimal(0)
+        balance += income - expense
+        if balance < 0 and first_negative is None: first_negative = day
+        result.append({"date": day, "revenue": income, "expense": expense, "balance": balance})
+    return {"start_date": today, "end_date": end, "opening_balance": opening, "closing_balance": balance, "first_negative_date": first_negative, "included_titles": titles.count(), "unassigned_titles": titles.filter(bank_account__isnull=True).count(), "include_overdue": include_overdue, "days": result}

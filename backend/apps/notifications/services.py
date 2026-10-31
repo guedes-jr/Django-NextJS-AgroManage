@@ -49,7 +49,7 @@ class NotificationService:
         if pref.push_notifications:
             channels.append(NotificationDelivery.Channel.WEB_PUSH)
         if (
-            pref.whatsapp_reproductive_alerts
+            ((notification.category == "agenda" and notification.event_key.startswith("agenda.reminder:")) or pref.whatsapp_reproductive_alerts)
             and notification.user.phone_is_whatsapp
             and (notification.type == NotificationType.STOCK or NotificationService.is_reproductive_whatsapp_alert(notification))
         ):
@@ -76,6 +76,7 @@ class NotificationService:
     def is_reproductive_whatsapp_alert(notification):
         """Only approved operational events may reach WhatsApp."""
         return notification.event_key.startswith((
+            "agenda.reminder:",
             "livestock.reproductive_vaccine.",
             "livestock.next_mating:",
             "livestock.operational:",

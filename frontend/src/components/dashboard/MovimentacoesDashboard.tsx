@@ -53,6 +53,7 @@ type InventoryItem = {
 };
 
 type Movimentacao = {
+  cattle_delivery?: string | null;
   id: string;
   item: { id: string; nome: string };
   item_nome: string;
@@ -266,7 +267,7 @@ export function MovimentacoesDashboard() {
   };
 
   const currentPageMovementIds = useMemo(() => {
-    return movements.filter((movement) => movement.tipo !== "ajuste").map((movement) => movement.id);
+    return movements.filter((movement) => movement.tipo !== "ajuste" && !movement.cattle_delivery).map((movement) => movement.id);
   }, [movements]);
 
   const allCurrentPageSelected = useMemo(() => {
@@ -536,7 +537,7 @@ export function MovimentacoesDashboard() {
                             <input
                               type="checkbox"
                               className="form-check-input"
-                              disabled={m.tipo === "ajuste"}
+                              disabled={m.tipo === "ajuste" || !!m.cattle_delivery}
                               checked={selectedMovementIds.includes(m.id)}
                               onChange={() => toggleMovementSelection(m.id)}
                             />
@@ -586,7 +587,7 @@ export function MovimentacoesDashboard() {
                             </div>
                           </td>
                           <td className="px-3 py-3 text-end">
-                            {m.tipo !== "ajuste" && <button
+                            {m.tipo !== "ajuste" && !m.cattle_delivery && <button
                               onClick={() => handleDeleteMovement(m.id)}
                               className="btn btn-sm p-2 hover-bg-rose-50 text-muted-foreground hover-text-rose-600 rounded-lg transition-all"
                             >

@@ -378,3 +378,24 @@ class OrganizationRecoveryTests(APITestCase):
         self.assertEqual(BankAccount.objects.get(organization=clone).current_balance, Decimal("125"))
         self.assertEqual(document.payment_events.count(), 3)
         self.assertNotEqual(restored.pk, document.pk)
+
+    def test_cattle_nutrition_stock_link_survives_recovery_without_second_consumption(self):
+        from decimal import Decimal
+        from apps.inventory.models import ItemEstoque, LoteEstoque, MovimentacaoEstoque
+        from apps.livestock.models import CattleFeedPlan, CattleFeedDelivery
+        from apps.livestock.cattle_planning import deliver_feed
+        species, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
+        batch = AnimalBatch.objects.create(farm=self.farm, species=species, batch_code="RESTORE-FEED", quantity=10, entry_date=timezone.localdate())
+        item = ItemEstoque.objects.create(organization=self.org, nome="Ração de conferência", categoria="racao", especie_animal="bovino", unidade_medida="kg")
+        LoteEstoque.objects.create(item=item, numero_lote="RESTORE-FEED", quantidade_inicial=100, quantidade_atual=100, custo_unitario=2, data_entrada=timezone.localdate())
+        plan = CattleFeedPlan.objects.create(batch=batch, item=item, kg_per_head_day=Decimal("0.5"), start_date=timezone.localdate(), created_by=self.customer)
+        delivery = deliver_feed(plan, self.customer, quantity_kg=Decimal(50), remaining_before_kg=Decimal(0), date=timezone.localdate(), request_key=uuid.uuid4())
+        recovery = self.rehearse()
+        clone = recovery.isolated_organization
+        restored = CattleFeedDelivery.objects.get(plan__batch__farm__organization=clone)
+        movement = MovimentacaoEstoque.objects.get(cattle_delivery=restored)
+        self.assertNotEqual(restored.pk, delivery.pk)
+        self.assertEqual(movement.item_id, restored.plan.item_id)
+        self.assertEqual(movement.lote.quantidade_atual, Decimal(50))
+        self.assertEqual(restored.available_after_kg, Decimal(50))
+        self.assertEqual(delivery.stock_movements.count(), 1)

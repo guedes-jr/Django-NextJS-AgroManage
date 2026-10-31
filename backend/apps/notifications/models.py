@@ -15,6 +15,7 @@ class NotificationType(models.TextChoices):
 
 
 class NotificationCategory(models.TextChoices):
+    AGENDA = "agenda", "Agenda"
     SYSTEM = "system", "Sistema"
     ANIMAL_CYCLE = "animal_cycle", "Ciclos dos animais"
     OVERDUE_PAYMENT = "overdue_payment", "Pagamentos atrasados"

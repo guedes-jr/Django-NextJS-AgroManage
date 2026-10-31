@@ -538,8 +538,12 @@ class AnimalSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         validate_tenant_relations(self, attrs, ("batch", "sire_ref", "dam_ref"))
+        if (self.instance and self.instance.species.code == "bovinos") or attrs.get("species_code_input") == "bovinos":
+            from .cattle_genealogy import validate_cattle_parentage
+            validate_cattle_parentage(self.instance, attrs, attrs.get("farm_id", getattr(self.instance, "farm_id", None)))
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         species_code = validated_data.pop('species_code_input', None)
         breed_name = validated_data.pop('breed_name_input', None)
@@ -605,8 +609,21 @@ class AnimalSerializer(serializers.ModelSerializer):
                         raise serializers.ValidationError({'farm_id': f'Erro ao obter farm: {str(e)}'})
             
         validated_data['farm'] = farm
-        
+        if species.code == 'bovinos':
+            from .cattle_genealogy import validate_cattle_parentage
+            Farm.objects.select_for_update().get(pk=farm.pk)
+            validate_cattle_parentage(None, validated_data, farm.pk)
         return super().create(validated_data)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        if instance.species.code == 'bovinos':
+            from apps.farms.models import Farm
+            from .cattle_genealogy import validate_cattle_parentage
+            Farm.objects.select_for_update().get(pk=instance.farm_id)
+            instance = Animal.objects.select_for_update().select_related('species', 'farm').get(pk=instance.pk)
+            validate_cattle_parentage(instance, validated_data, instance.farm_id)
+        return super().update(instance, validated_data)
 
 
 class MatingSerializer(serializers.ModelSerializer):
@@ -618,12 +635,16 @@ class MatingSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'female', 'female_identifier', 'sire', 'sire_identifier',
             'sire_info', 'mating_date', 'mating_type', 'status',
-            'expected_birth_date', 'reproductive_vaccine_item',
+            'expected_birth_date', 'expected_diagnosis_date', 'reproductive_vaccine_item',
             'reproductive_vaccine_days', 'reproductive_vaccine_due_date', 'notes'
         ]
         read_only_fields = ['female', 'reproductive_vaccine_due_date']
 
     def validate(self, attrs):
+        planned = attrs.get("expected_diagnosis_date", getattr(self.instance, "expected_diagnosis_date", None))
+        mating_date = attrs.get("mating_date", getattr(self.instance, "mating_date", None))
+        if planned and mating_date and planned < mating_date:
+            raise serializers.ValidationError({"expected_diagnosis_date": "A previsão de diagnóstico não pode anteceder a cobertura."})
         item = attrs.get('reproductive_vaccine_item')
         days = attrs.get('reproductive_vaccine_days')
         if bool(item) != bool(days):

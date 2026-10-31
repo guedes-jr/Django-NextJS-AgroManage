@@ -272,6 +272,7 @@ AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
 AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
 AI_MODEL_CATALOG_STALE_DAYS = env.int("AI_MODEL_CATALOG_STALE_DAYS", default=14)
 CELERY_BEAT_SCHEDULE = {
+    "agenda-whatsapp-reminders": {"task": "apps.tasks.tasks.collect_agenda_reminders", "schedule": 60.0},
     "organization-recovery-maintenance": {"task": "apps.platform_admin.tasks.maintain_organization_recoveries", "schedule": 60.0},
     "organization-export-maintenance": {"task": "apps.platform_admin.tasks.maintain_organization_exports", "schedule": 60.0},
     "organization-batch-resume": {"task": "apps.platform_admin.tasks.resume_organization_batches", "schedule": 60.0},

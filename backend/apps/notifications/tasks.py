@@ -35,6 +35,9 @@ def _send_whatsapp_web(notification, delivery=None):
     marketing = getattr(notification, "campaign_id", None) is not None
     if marketing:
         allowed = notification.campaign.category != "marketing" or NotificationPreference.objects.filter(user=notification.user, marketing_alerts=True).exists()
+    elif notification.category == "agenda" and notification.event_key.startswith("agenda.reminder:"):
+        from apps.tasks.reminders import reminder_allowed
+        allowed = reminder_allowed(notification.user, notification.event_key)
     else:
         allowed = NotificationPreference.objects.filter(user=notification.user, whatsapp_reproductive_alerts=True).exists()
     if not notification.user.receive_system_alerts or not notification.user.phone_is_whatsapp or not allowed:

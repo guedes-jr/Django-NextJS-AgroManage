@@ -363,7 +363,7 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     class Meta:
         model = MovimentacaoEstoque
         fields = [
-            "id", "farm", "item", "item_nome", "item_categoria", "item_unidade", "lote",
+            "id", "cattle_delivery", "farm", "item", "item_nome", "item_categoria", "item_unidade", "lote",
             "tipo", "tipo_display", "quantidade",
             "data_movimentacao",
             "responsavel", "responsavel_nome",
@@ -375,7 +375,7 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
             "custo_unitario", "fornecedor", "numero_lote",
             "data_validade", "data_fabricacao", "local_armazenamento", "nota_fiscal",
         ]
-        read_only_fields = ["id", "data_movimentacao", "created_at"]
+        read_only_fields = ["id", "cattle_delivery", "data_movimentacao", "created_at"]
 
     def validate_destino(self, value):
         return (value or "").strip()

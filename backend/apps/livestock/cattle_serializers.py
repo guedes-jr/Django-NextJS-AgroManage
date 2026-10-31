@@ -16,6 +16,8 @@ from .models import (
     CattleManagement,
     CattleManagementEntry,
     CattleMilkRecord,
+    CattleFeedPlan,
+    CattleFeedDelivery,
     CattlePasture,
     Species,
 )
@@ -40,6 +42,8 @@ def past_date(value):
 
 
 class CattleAnimalSerializer(AnimalSerializer):
+    sire_identifier_input = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
+    dam_identifier_input = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     category = serializers.ChoiceField(choices=CATTLE_CATEGORIES)
     identifier = serializers.CharField(max_length=50, trim_whitespace=True)
     is_lactating = serializers.SerializerMethodField()
@@ -66,6 +70,7 @@ class CattleAnimalSerializer(AnimalSerializer):
     class Meta(AnimalSerializer.Meta):
         fields = [
             *AnimalSerializer.Meta.fields,
+            "sire_identifier_input", "dam_identifier_input",
             "is_lactating",
             "is_castrated",
             "weaning_date",
@@ -101,7 +106,19 @@ class CattleAnimalSerializer(AnimalSerializer):
         return animal
 
     def validate(self, attrs):
+        farm_id = attrs.get("farm_id", getattr(self.instance, "farm_id", None))
+        for field, input_field in [("sire_ref", "sire_identifier_input"), ("dam_ref", "dam_identifier_input")]:
+            identifier = attrs.pop(input_field, "").strip()
+            if identifier:
+                parent = Animal.objects.filter(farm_id=farm_id, farm__organization=self.context["request"].user.organization, species__code="bovinos", identifier=identifier).first()
+                if not parent:
+                    raise serializers.ValidationError({input_field: "Ascendente identificado não encontrado nesta fazenda."})
+                if field in attrs and attrs[field] != parent:
+                    raise serializers.ValidationError({input_field: "Os dados do ascendente são conflitantes."})
+                attrs[field] = parent
         attrs = super().validate(attrs)
+        from .cattle_genealogy import validate_cattle_parentage
+        validate_cattle_parentage(self.instance, attrs, farm_id)
         organization = self.context["request"].user.organization
         farm_id = attrs.get("farm_id", getattr(self.instance, "farm_id", None))
         if (
@@ -159,6 +176,18 @@ class CattleAnimalSerializer(AnimalSerializer):
 
 
 class CattleBatchSerializer(serializers.ModelSerializer):
+    operations = serializers.SerializerMethodField()
+
+    def get_operations(self, obj):
+        from .cattle_operations import feed_forecast
+        today = timezone.localdate()
+        grazings = getattr(obj, "operational_grazings", [])
+        return {"age_days": (today - obj.birth_date).days if obj.birth_date else None,
+                "last_weighing_date": getattr(obj, "last_weighing_date", None),
+                "identified_animals": getattr(obj, "identified_count", None) or 0,
+                "pastures": [{"name": row.pasture.name, "entry_date": row.entry_date, "days": (today - row.entry_date).days} for row in grazings],
+                "nutrition": [{"id": row.id, "product": row.item.nome, **feed_forecast(row)} for row in getattr(obj, "operational_feed_plans", [])]}
+
     farm_id = serializers.PrimaryKeyRelatedField(
         source="farm", queryset=Farm.objects.all()
     )
@@ -188,7 +217,7 @@ class CattleBatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnimalBatch
         fields = [
-            "id",
+            "id", "operations",
             "farm_id",
             "farm_name",
             "batch_code",
@@ -307,6 +336,10 @@ class CattlePastureSerializer(serializers.ModelSerializer):
             "missing_weight_heads": missing,
             "live_weight_kg": weight,
             "stocking_ua_ha": stocking,
+            "occupied_days": max(((timezone.localdate() - row.entry_date).days for row in grazings), default=None),
+            "last_exit_date": getattr(obj, "last_exit_date", None),
+            "empty_days": (timezone.localdate() - obj.last_exit_date).days if not grazings and getattr(obj, "last_exit_date", None) else None,
+            "state": "occupied" if grazings else obj.availability,
             "capacity_percent": stocking / obj.max_stocking_ua_ha * 100
             if stocking is not None and obj.max_stocking_ua_ha
             else None,
@@ -322,7 +355,7 @@ class CattlePastureSerializer(serializers.ModelSerializer):
             "area_ha",
             "max_stocking_ua_ha",
             "occupancy",
-            "notes",
+            "notes", "availability", "availability_reason",
         ]
 
     def validate(self, attrs):
@@ -334,7 +367,20 @@ class CattlePastureSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"farm": "A fazenda do pasto não pode ser alterada."}
             )
+        state = attrs.get("availability", getattr(self.instance, "availability", "unknown"))
+        reason = attrs.get("availability_reason", getattr(self.instance, "availability_reason", ""))
+        if state in ["resting", "blocked"]:
+            if not reason.strip():
+                raise serializers.ValidationError({"availability_reason": "Informe o motivo da restrição do pasto."})
+            if self.instance and self.instance.grazings.filter(exit_date__isnull=True, batch__status="active").exists():
+                raise serializers.ValidationError({"availability": "Finalize as ocupações antes de restringir o pasto."})
         return attrs
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        self.instance = CattlePasture.objects.select_for_update().get(pk=instance.pk)
+        self.validate(validated_data)
+        return super().update(self.instance, validated_data)
 
 
 class CattleGrazingSerializer(serializers.ModelSerializer):
@@ -530,13 +576,13 @@ class CattleFeedSerializer(ConsumoRacaoSerializer):
         if (
             not item
             or item.organization_id != organization.pk
-            or item.categoria != "racao"
+            or item.categoria not in ["racao", "suplemento"]
             or item.especie_animal not in ["", "bovino", "multiplo"]
             or item.unidade_medida != "kg"
         ):
             raise serializers.ValidationError(
                 {
-                    "item_estoque": "Selecione uma ração em kg indicada para bovinos da sua organização."
+                    "item_estoque": "Selecione uma ração ou suplemento em kg indicado para bovinos da sua organização."
                 }
             )
         targets = [batch] if batch else animals
@@ -656,7 +702,7 @@ class CattleManagementSerializer(serializers.ModelSerializer):
             "created_by",
             "confirmed_by",
             "confirmed_at",
-            "cancellation_reason",
+            "cancellation_reason", "follow_up_status", "follow_up_execution", "follow_up_note", "follow_up_resolved_at", "follow_up_resolved_by",
             "entries",
         ]
         read_only_fields = [
@@ -664,7 +710,7 @@ class CattleManagementSerializer(serializers.ModelSerializer):
             "created_by",
             "confirmed_by",
             "confirmed_at",
-            "cancellation_reason",
+            "cancellation_reason", "follow_up_status", "follow_up_execution", "follow_up_note", "follow_up_resolved_at", "follow_up_resolved_by",
         ]
 
     def validate(self, attrs):
@@ -756,3 +802,79 @@ class CattleManagementSerializer(serializers.ModelSerializer):
                 [CattleManagementEntry(management=instance, **row) for row in entries]
             )
         return instance
+
+
+class CattleAgendaQuery(serializers.Serializer):
+    farm = serializers.UUIDField(required=False)
+    period = serializers.ChoiceField(choices=["all", "overdue", "today", "upcoming", "current"], default="all")
+    kind = serializers.ChoiceField(choices=["all", "birth", "diagnosis", "sanitary"], default="all")
+
+
+class CattleFollowUpInput(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["done", "cancelled"])
+    note = serializers.CharField(max_length=500, trim_whitespace=True)
+    execution = serializers.PrimaryKeyRelatedField(queryset=CattleManagement.objects.all(), required=False, allow_null=True)
+
+    def validate_execution(self, execution):
+        if execution and execution.farm.organization_id != self.context["request"].user.organization_id:
+            raise serializers.ValidationError("Manejo fora da sua organização.")
+        return execution
+
+
+class CattleFeedPlanSerializer(serializers.ModelSerializer):
+    batch_code = serializers.CharField(source="batch.batch_code", read_only=True)
+    farm = serializers.UUIDField(source="batch.farm_id", read_only=True)
+    farm_name = serializers.CharField(source="batch.farm.name", read_only=True)
+    item_name = serializers.CharField(source="item.nome", read_only=True)
+    forecast = serializers.SerializerMethodField()
+    kg_per_head_day = serializers.DecimalField(max_digits=8, decimal_places=3, min_value=Decimal("0.001"))
+
+    class Meta:
+        model = CattleFeedPlan
+        fields = ["id", "batch", "batch_code", "farm", "farm_name", "item", "item_name", "kg_per_head_day", "start_date", "end_date", "is_active", "notes", "forecast"]
+
+    def get_forecast(self, obj):
+        from .cattle_operations import feed_forecast
+        if not hasattr(obj, "ordered_deliveries"):
+            obj.ordered_deliveries = list(obj.deliveries.order_by("-date", "-created_at")[:1])
+        return feed_forecast(obj)
+
+    def validate(self, attrs):
+        org = self.context["request"].user.organization
+        batch = attrs.get("batch", getattr(self.instance, "batch", None))
+        item = attrs.get("item", getattr(self.instance, "item", None))
+        if not batch or batch.farm.organization_id != org.id or batch.species.code != "bovinos":
+            raise serializers.ValidationError({"batch": "Selecione um lote bovino da sua organização."})
+        if self.instance and (("batch" in attrs and batch != self.instance.batch) or ("item" in attrs and item != self.instance.item)):
+            raise serializers.ValidationError("Não altere a origem de um plano. Encerre-o e cadastre outro.")
+        active = attrs.get("is_active", getattr(self.instance, "is_active", True))
+        if not item or item.organization_id != org.id:
+            raise serializers.ValidationError({"item": "O produto deve pertencer à sua organização."})
+        if active and (item.categoria not in ["racao", "suplemento"] or item.unidade_medida != "kg" or item.especie_animal not in ["", "bovino", "multiplo"] or not item.ativo):
+            raise serializers.ValidationError({"item": "Selecione ração ou suplemento bovino ativo em kg da sua organização."})
+        start = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        if active and batch.status != "active":
+            raise serializers.ValidationError({"batch": "O lote não está ativo."})
+        if end and start and end < start:
+            raise serializers.ValidationError({"end_date": "A data final não pode anteceder a inicial."})
+        duplicate = CattleFeedPlan.objects.filter(batch=batch, item=item, is_active=True)
+        if self.instance: duplicate = duplicate.exclude(pk=self.instance.pk)
+        if active and duplicate.exists():
+            raise serializers.ValidationError("Já existe um plano ativo deste produto para o lote.")
+        return attrs
+
+
+class CattleFeedDeliverySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CattleFeedDelivery
+        fields = ["id", "plan", "date", "quantity_kg", "remaining_before_kg", "available_after_kg", "daily_requirement_kg", "head_count", "cost", "notes", "created_at"]
+        read_only_fields = fields
+
+
+class CattleFeedDeliveryInput(serializers.Serializer):
+    date = serializers.DateField()
+    quantity_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
+    remaining_before_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal(0))
+    request_key = serializers.UUIDField()
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)

@@ -150,6 +150,19 @@ class TransactionViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=["get"])
+    def projection(self, request):
+        from .services import cash_projection
+        days = serializers.IntegerField(min_value=1, max_value=365).run_validation(request.query_params.get("days", 30))
+        overdue = serializers.BooleanField().run_validation(request.query_params.get("include_overdue", True))
+        account = None
+        if request.query_params.get("bank_account"):
+            account_id = serializers.UUIDField().run_validation(request.query_params["bank_account"])
+            account = BankAccount.objects.filter(organization=request.user.organization, pk=account_id).first()
+            if not account:
+                raise serializers.ValidationError({"bank_account": "Conta não encontrada nesta organização."})
+        return Response(cash_projection(request.user.organization, days=days, bank_account=account, include_overdue=overdue))
+
+    @action(detail=False, methods=["get"])
     def stats(self, request):
         organization = request.user.organization
         transactions = self.filter_queryset(self.get_queryset())

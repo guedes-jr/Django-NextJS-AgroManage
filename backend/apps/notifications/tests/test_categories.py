@@ -143,7 +143,8 @@ class PlatformNotificationControlTests(APITestCase):
     def test_admin_lists_categories_and_saves_audited_policy(self):
         response = self.client.get(reverse("platform-notification-categories"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 8)
+        self.assertEqual(len(response.data["results"]), 9)
+        self.assertIn("agenda", {row["category"] for row in response.data["results"]})
         response = self.client.patch(reverse("platform-notification-category-detail", args=["overdue_payment"]), {"enabled": False}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["enabled"])

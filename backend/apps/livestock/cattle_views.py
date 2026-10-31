@@ -3,7 +3,7 @@
 from common.operator_access import operator_scoped, remember_operator_record
 from common.permissions import OrganizationRolePermission
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch, Q, OuterRef, Subquery
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -18,6 +18,7 @@ from .cattle_serializers import (
     CattleAnimalSerializer,
     CattleBatchSerializer,
     CattleBirthInput,
+    CattleAgendaQuery, CattleFollowUpInput, CattleFeedPlanSerializer, CattleFeedDeliverySerializer, CattleFeedDeliveryInput,
     CattleEventInput,
     CattleFeedSerializer,
     CattleGrazingSerializer,
@@ -42,6 +43,7 @@ from .models import (
     CattleGrazing,
     CattleManagement,
     CattleMilkRecord,
+    CattleFeedPlan,
     CattlePasture,
     HistoricoEvento,
     Species,
@@ -68,6 +70,20 @@ class CattleOverviewView(APIView):
         return Response(
             cattle_overview(request.user.organization, request.query_params.get("farm"))
         )
+
+
+class CattleAgendaView(APIView):
+    permission_classes = [CattlePermission]
+
+    def get(self, request):
+        from .cattle_operations import cattle_agenda, agenda_row
+        from common.pagination import StandardResultsPagination
+        query = CattleAgendaQuery(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        events = cattle_agenda(request.user.organization, **query.validated_data)
+        pager = StandardResultsPagination()
+        page = pager.paginate_queryset(events, request, view=self)
+        return pager.get_paginated_response([agenda_row(row) for row in page])
 
 
 class CattleAnimalViewSet(AnimalViewSet):
@@ -205,6 +221,11 @@ class CattleAnimalViewSet(AnimalViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=True, methods=["get"])
+    def genealogy(self, request, pk=None):
+        from .cattle_genealogy import genealogy
+        return Response(genealogy(self.get_object()))
+
     @action(detail=True, methods=["get"], url_path="full-history")
     def full_history(self, request, pk=None):
         animal = self.get_object()
@@ -247,7 +268,8 @@ class CattleBatchViewSet(AnimalBatchViewSet):
     ordering = ["batch_code"]
 
     def get_queryset(self):
-        return super().get_queryset().filter(species__code="bovinos")
+        from .cattle_operations import with_batch_operations
+        return with_batch_operations(super().get_queryset().filter(species__code="bovinos"))
 
     @action(detail=True, methods=["post"], url_path="register-weight")
     @transaction.atomic
@@ -348,6 +370,7 @@ class CattlePastureViewSet(viewsets.ModelViewSet):
                 farm__organization=self.request.user.organization
             )
             .select_related("farm")
+            .annotate(last_exit_date=Subquery(CattleGrazing.objects.filter(pasture_id=OuterRef("pk"), exit_date__isnull=False).order_by("-exit_date").values("exit_date")[:1]))
             .prefetch_related(
                 Prefetch(
                     "grazings",
@@ -486,6 +509,14 @@ class CattleManagementViewSet(viewsets.ModelViewSet):
             .prefetch_related("entries__animal")
         )
 
+    @action(detail=True, methods=["post"], url_path="resolve-follow-up")
+    def resolve_follow_up(self, request, pk=None):
+        from .cattle_planning import resolve_follow_up
+        values = CattleFollowUpInput(data=request.data, context={"request": request})
+        values.is_valid(raise_exception=True)
+        result = resolve_follow_up(self.get_object(), request.user, **values.validated_data)
+        return Response(self.get_serializer(result).data)
+
     @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
         management = confirm_cattle_management(self.get_object(), request.user)
@@ -508,3 +539,47 @@ class CattleManagementViewSet(viewsets.ModelViewSet):
         management.cancellation_reason = reason
         management.save(update_fields=["status", "cancellation_reason", "updated_at"])
         return Response(self.get_serializer(management).data)
+
+
+class CattleFeedPlanViewSet(viewsets.ModelViewSet):
+    permission_classes = [CattlePermission]
+    create_roles = {"admin", "manager"}
+    http_method_names = ["get", "post", "patch", "head", "options"]
+    serializer_class = CattleFeedPlanSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["batch", "is_active"]
+    search_fields = ["batch__batch_code", "item__nome"]
+
+    def get_queryset(self):
+        from .cattle_operations import feed_plans
+        if self.request.user.role not in {"admin", "manager"}:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Planejamento nutricional exige gerente ou administrador.")
+        query = feed_plans().filter(batch__farm__organization=self.request.user.organization)
+        if self.request.query_params.get("farm"):
+            query = query.filter(batch__farm_id=serializers.UUIDField().run_validation(self.request.query_params["farm"]))
+        return query.order_by("batch__batch_code", "item__nome", "id")
+
+    def perform_create(self, serializer):
+        # Enforce managerial access for POST as well as queries.
+        self.get_queryset()
+        from .cattle_planning import save_feed_plan
+        save_feed_plan(serializer, self.request.user)
+
+    def perform_update(self, serializer):
+        from .cattle_planning import save_feed_plan
+        save_feed_plan(serializer, self.request.user)
+
+    @action(detail=True, methods=["get", "post"])
+    def deliveries(self, request, pk=None):
+        from common.pagination import StandardResultsPagination
+        from .cattle_planning import deliver_feed
+        plan = self.get_object()
+        if request.method == "GET":
+            pager = StandardResultsPagination()
+            rows = pager.paginate_queryset(plan.deliveries.order_by("-date", "-created_at"), request, view=self)
+            return pager.get_paginated_response(CattleFeedDeliverySerializer(rows, many=True).data)
+        values = CattleFeedDeliveryInput(data=request.data)
+        values.is_valid(raise_exception=True)
+        delivery = deliver_feed(plan, request.user, **values.validated_data)
+        return Response(CattleFeedDeliverySerializer(delivery).data, status=201)

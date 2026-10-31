@@ -24,7 +24,10 @@ export async function allFinanceOptions<T>(url: string, signal?: AbortSignal): P
     if (!data.next) return result;
   }
 }
+export type CashProjection = { start_date: string; end_date: string; opening_balance: string | number; closing_balance: string | number; first_negative_date: string | null; included_titles: number; unassigned_titles: number; include_overdue: boolean; days: { date: string; revenue: string | number; expense: string | number; balance: string | number }[] };
 export const financeService = {
+  projection: async (params: FinanceFilters, signal?: AbortSignal) => (await apiClient.get<CashProjection>("/finance/transactions/projection/", { params, signal })).data,
+
   list: async (params: FinanceFilters, signal?: AbortSignal) => (await apiClient.get<FinancePage>("/finance/transactions/", { params, signal })).data,
   categories: (signal?: AbortSignal) => allFinanceOptions<FinanceCategory>("/finance/categories/", signal),
   accounts: (signal?: AbortSignal) => allFinanceOptions<FinanceAccount>("/finance/accounts/", signal),

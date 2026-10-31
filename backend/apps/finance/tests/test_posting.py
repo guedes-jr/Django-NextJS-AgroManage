@@ -239,3 +239,25 @@ class FinancialPostingTests(APITestCase):
         lot.refresh_from_db()
         self.assertEqual(lot.quantidade_atual, Decimal("10"))
         self.assertTrue(Transaction.objects.filter(reference=f"LOTE-{lot.pk}").exists())
+
+    def test_projection_only_uses_open_titles_and_does_not_change_balance(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        self.make_document(category=self.expense, amount=1500, due_date=tomorrow)
+        self.make_document(category=self.revenue, amount=9999, status="cancelled")
+        response = self.client.get(reverse("transaction-projection"), {"days": 3})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["opening_balance"], Decimal("1000"))
+        self.assertEqual(response.data["closing_balance"], Decimal("-100"))
+        self.assertEqual(response.data["first_negative_date"], tomorrow)
+        self.assertEqual(self.balance(), Decimal("1000"))
+
+    def test_projection_rejects_foreign_account_and_can_exclude_overdue(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.make_document(category=self.expense, amount=100, due_date=timezone.localdate() - timedelta(days=1))
+        response = self.client.get(reverse("transaction-projection"), {"days": 1, "include_overdue": "false"})
+        self.assertEqual(response.data["closing_balance"], Decimal("1400"))
+        self.assertEqual(self.client.get(reverse("transaction-projection"), {"bank_account": str(self.other_account.pk)}).status_code, 400)
+        self.assertEqual(self.client.get(reverse("transaction-projection"), {"days": 1000}).status_code, 400)

@@ -291,6 +291,7 @@ class MovimentacaoEstoque(BaseModel):
         blank=True,
         related_name="movimentacoes",
     )
+    cattle_delivery = models.ForeignKey("livestock.CattleFeedDelivery", null=True, blank=True, on_delete=models.PROTECT, related_name="stock_movements")
     tipo = models.CharField(max_length=30, choices=TipoMovimentacao.choices)
     quantidade = models.DecimalField(max_digits=10, decimal_places=2)
     data_movimentacao = models.DateTimeField(auto_now_add=True)

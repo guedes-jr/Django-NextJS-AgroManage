@@ -12,6 +12,7 @@ from .models import (
     CattleGrazing,
     CattleManagement,
     CattleMilkRecord,
+    CattlePasture,
     HealthRecord,
     HistoricoEvento,
     Pregnancy,
@@ -201,6 +202,9 @@ def record_cattle_birth(animal, data):
 @transaction.atomic
 def enter_cattle_pasture(data):
     batch = AnimalBatch.objects.select_for_update().get(pk=data["batch"].pk)
+    pasture = CattlePasture.objects.select_for_update().get(pk=data["pasture"].pk)
+    if pasture.availability in ["resting", "blocked"]:
+        raise ValidationError({"pasture": "Libere o pasto antes de registrar uma entrada."})
     latest = CattleGrazing.objects.filter(batch=batch).order_by("-entry_date").first()
     if latest and (latest.exit_date is None or data["entry_date"] < latest.exit_date):
         raise ValidationError(
