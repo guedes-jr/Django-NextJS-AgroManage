@@ -179,7 +179,7 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
           <PigHeadIcon size={30} />
         </div>
         <div>
-          <h1>Suínos</h1>
+          <h1>Suinocultura</h1>
           <p>Gerencie todas as operações da suinocultura</p>
         </div>
       </header>

@@ -15,6 +15,33 @@ from .models import (
 )
 
 
+def cattle_reproduction_groups():
+    lactating = Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante")
+    female = Q(gender="F")
+    return {
+        "heifers": female & Q(category="Novilha"),
+        "cows": female & Q(category__in=["Vaca", "Matriz"]),
+        "lactating": female & lactating,
+        "dry": female & Q(category__in=["Vaca", "Matriz"]) & ~lactating & (Q(reproductive_status="descanso") | Q(has_dry_off=True)),
+        "open": female & Q(category__in=["Vaca", "Matriz"]) & ~Q(reproductive_status__in=["coberta", "gestante"]) & ~lactating,
+        "covered": female & Q(reproductive_status="coberta"),
+        "pregnant": female & Q(reproductive_status="gestante"),
+        "suckling": female & lactating,
+        "calves": Q(category="Bezerro", cattle_profile__weaning_date__isnull=True),
+    }
+
+
+def with_cattle_reproduction(queryset):
+    from django.db.models import OuterRef, Subquery, Exists
+    from .models import Mating, HistoricoEvento
+    return queryset.annotate(
+        has_dry_off=Exists(HistoricoEvento.objects.filter(matriz_id=OuterRef("pk"), tipo_evento="Secagem", data_evento__lte=timezone.localdate())),
+        last_mating_date=Subquery(Mating.objects.filter(female_id=OuterRef("pk")).order_by("-mating_date", "-created_at").values("mating_date")[:1]),
+        expected_birth_date=Subquery(Pregnancy.objects.filter(female_id=OuterRef("pk"), status="ongoing").order_by("-start_date", "-created_at").values("expected_birth_date")[:1]),
+        pregnancy_start_date=Subquery(Pregnancy.objects.filter(female_id=OuterRef("pk"), status="ongoing").order_by("-start_date", "-created_at").values("start_date")[:1]),
+    )
+
+
 def cattle_overview(organization, farm=None):
     if farm:
         from rest_framework import serializers

@@ -1747,3 +1747,82 @@ filters the paginated list. Invalid groups return 400. Search includes identifie
 optional bovine name, batch code and batch name. CSV export preserves the group.
 A female may display both pregnancy and lactation badges; dry status is not
 inferred merely from the absence of a lactation flag.
+
+### Structured bovine registration and reproduction phases
+
+livestock.0039 adds optional cattle-profile fields: `coat_color`, positive
+`birth_weight_kg`, `genealogical_registration`, `dairy_aptitude`, `beef_aptitude`,
+`embryo_role` (blank/donor/recipient), `historical_birth_count` and
+`historical_last_birth_date`. Historical births are declared baseline data,
+separate from `Animal.birth_count`; they create no Mating, Pregnancy or Birth.
+Male animals cannot receive maternal history/embryo roles. Dates cannot be in
+the future or precede the animal's birth. Aptitude flags are metadata, not the
+productive-purpose classification or an automatic separation of existing herds.
+`initial_weaning_date` is creation-only declared history; later weaning uses the
+existing record-event command. Cattle registration/editing uses responsive
+sections without photos and preserves the existing authorization rules.
+
+Cattle GET exposes read-only `last_mating_date`, `expected_birth_date` and
+`gestation_days` from actual reproductive records, through queryset annotations.
+`GET /livestock/cattle/animals/reproduction-summary/` returns active-animal counts
+`females`, `heifers`, `cows`, `pregnant`, `lactating`, `dry` and the legacy
+`open`/`covered`/`suckling`/`calves` groups, scoped
+by organization and normal farm/search filters, independent of pagination and
+the chosen reproduction_group. `reproduction_group` on the animal list accepts
+all/heifers/cows/pregnant/lactating/dry, plus the legacy groups; invalid values
+return 400. Heifers include all female Novilha records; cows include Vaca/Matriz.
+Dry cows require descanso status or a recorded dry-off and no current lactation;
+absence of lactation alone does not classify an empty cow as dry.
+The legacy open group includes non-lactating Vaca/Matriz
+without coverage/pregnancy; calves include both sexes without recorded weaning.
+Pregnancy and suckling may overlap. Cattle and swine share reproduction header, phase cards/tabs, KPIs and the
+ReproducaoTabContent/DataTable presentation. Cattle uses server pagination and
+search without collecting the entire herd into the browser. Phase IDs persist
+in `tab`; `production=dairy|beef` supplies the navigation context, not a new data
+classification. Existing bovine commands remain authoritative for each action.
+
+### Cattle feeding and independent trough readings
+
+Feeding uses the existing FormulaRacao → production → ItemEstoque / LoteEstoque
+and ConsumoRacao flow. Feeding plans and manual headcount adjustments are not
+part of the producer workflow. The former herd-movements endpoint and new batch
+history/cost shortcuts were removed. Operational entry, birth, death, transfer
+and sale commands continue to update herd quantity; raw quantity edits remain
+blocked. Existing events and legacy plan/delivery data are preserved.
+
+`GET /livestock/cattle/daily-feeding/` lists active cattle batches with today's
+feed records, formula options (id/name/final product) and eligible feed products
+(id/name), without prices or estimated feeding targets. POST accepts `batch`,
+optional `formula` and/or `item`, today's `date`, positive `quantity_kg`, UUID
+`request_key` and optional `notes`. A formula must be active, belong to the same
+organization and have a final product; this command does not manufacture feed.
+The product must match the formula when both are provided. The existing cattle
+consumption service creates one ConsumoRacao and the normal stock ledger
+movements, atomically. Retries with the same batch/key and matching input return
+the original record. Only this mutation records its operational event; GET does
+not append operational history or audit entries. Manager/admin/Tratador access
+and read-only restrictions are preserved, without exposing financial data.
+
+Both direct cattle consumption and daily feeding block expired/inactive stock
+lots or lots received after the start of the recorded period. Validity through
+the last consumption date is required; expiry-today and undated lots are allowed.
+Selection uses earliest expiry, with undated lots last. Insufficient eligible
+stock rolls back every effect. For historical periods this is deliberately
+conservative because there is no per-day consumption allocation.
+
+`GET/POST /livestock/cattle/trough-readings/` is manager/admin only. GET is
+paginated and accepts farm/batch filters. POST accepts `batch`, optional active
+bovine `formula`, today's `date`, `session` (morning/afternoon/evening), `score`
+0–4 (empty/traces/thin layer/moderate leftovers/high leftovers), optional
+nonnegative `remaining_kg`, UUID `request_key` and optional `notes`. The reading
+snapshots formula name, current headcount and author. It requires no plan or
+stock, creates no feeding/financial/stock movement and does not convert the
+visual score into kg or a feeding recommendation. Identical retries have one
+effect; GET generates no alteration history.
+
+livestock.0040 adds batch/formula references to readings, backfills the batch
+from existing protected plan references, and preserves original legacy fields.
+The explicit export/recovery registry includes the new references. The former
+feed-plans endpoints are read-only archival endpoints: creation, revision and
+new delivery commands are disabled; no producer screens use them. No applied
+migration or historical operational data is deleted.

@@ -15,6 +15,15 @@ export interface Action<T> {
   icon?: React.ReactNode;
   onClick: (row: T) => void;
   variant?: "primary" | "default" | "danger";
+  shouldShow?: (row: T) => boolean;
+}
+
+export interface ServerPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
 export interface BatchAction<T> {
@@ -39,6 +48,7 @@ interface FilterConfig {
 }
 
 interface DataTableProps<T extends Record<string, unknown>> {
+  pagination?: ServerPagination;
   columns: Column<T>[];
   rows: T[];
   pageSize?: number;
@@ -94,11 +104,13 @@ export function DataTable<T extends Record<string, unknown>>({
   searchPlaceholder = "Buscar por lote, animal, data...",
   filters,
   onSelectionChange,
+  pagination,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [localPageSize, setPageSize] = useState(initialPageSize);
+  const pageSize = pagination?.pageSize ?? localPageSize;
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const lastSelectedRowsRef = useRef<T[]>([]);
@@ -155,10 +167,10 @@ export function DataTable<T extends Record<string, unknown>>({
     return data;
   }, [rows, searchQuery, sortKey, sortDir]);
 
-  const totalItems = filtered.length;
+  const totalItems = pagination?.total ?? filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const safePage = Math.min(page, totalPages - 1);
-  const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  const safePage = Math.max(0, Math.min(pagination?.page ?? page, totalPages - 1));
+  const paged = pagination ? filtered : filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   const startItem = totalItems === 0 ? 0 : safePage * pageSize + 1;
   const endItem = Math.min((safePage + 1) * pageSize, totalItems);
@@ -212,10 +224,13 @@ export function DataTable<T extends Record<string, unknown>>({
   }
 
   function goToPage(p: number) {
-    setPage(Math.max(0, Math.min(totalPages - 1, p)));
+    const next = Math.max(0, Math.min(totalPages - 1, p));
+    if (pagination) pagination.onPageChange(next);
+    else setPage(next);
   }
 
   function changePageSize(size: number) {
+    if (pagination) { pagination.onPageSizeChange(size); return; }
     setPageSize(size);
     setPage(0);
   }
@@ -413,7 +428,7 @@ export function DataTable<T extends Record<string, unknown>>({
                       {((actions && actions.length > 0) || onRowClick) && (
                         <td className="py-3 text-end pe-4" onClick={(e) => e.stopPropagation()}>
                           <div className="d-flex align-items-center justify-content-end gap-2">
-                            {actions && actions.map((action, ai) => (
+                            {actions && actions.filter(action => !action.shouldShow || action.shouldShow(row)).map((action, ai) => (
                               <button
                                 key={ai}
                                 className={`btn btn-sm btn-light rounded-circle p-2 transition-colors border-0 ${

@@ -1,7 +1,7 @@
 """Transactional cattle planning/execution; projections never mutate warehouse stock."""
 from decimal import Decimal
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, F
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from .models import AnimalBatch, CattleManagement, CattleFeedPlan, CattleFeedDelivery
@@ -35,17 +35,6 @@ def resolve_follow_up(management, user, *, status, note, execution=None):
 
 
 @transaction.atomic
-def save_feed_plan(serializer, user):
-    values = serializer.validated_data
-    batch = values.get("batch", getattr(serializer.instance, "batch", None))
-    AnimalBatch.objects.select_for_update().get(pk=batch.pk, farm__organization=user.organization)
-    if serializer.instance:
-        serializer.instance = CattleFeedPlan.objects.select_for_update().get(pk=serializer.instance.pk)
-    serializer.validate(values)
-    return serializer.save(**({"created_by": user} if serializer.instance is None else {}))
-
-
-@transaction.atomic
 def deliver_feed(plan, user, *, quantity_kg, remaining_before_kg, date, request_key, notes=""):
     from apps.inventory.models import ItemEstoque
     from apps.inventory.services import registrar_movimentacao
@@ -66,14 +55,14 @@ def deliver_feed(plan, user, *, quantity_kg, remaining_before_kg, date, request_
     lots = list(item.lotes.select_for_update().filter(
         Q(data_validade__isnull=True) | Q(data_validade__gte=date),
         ativo=True, quantidade_atual__gt=0, data_entrada__lte=date,
-    ).order_by("data_validade", "data_entrada", "id"))
+    ).order_by(F("data_validade").asc(nulls_last=True), "data_entrada", "id"))
     if sum((row.quantidade_atual for row in lots), Decimal(0)) < quantity_kg:
         raise ValidationError({"quantity_kg": "Estoque elegível insuficiente. Lotes vencidos, inativos ou com entrada futura não podem ser fornecidos."})
     daily_requirement = plan.kg_per_head_day * batch.quantity
     if daily_requirement > Decimal("99999999999.999"):
         raise ValidationError("A necessidade diária excede o limite permitido.")
     remaining, cost = quantity_kg, Decimal(0)
-    delivery = CattleFeedDelivery.objects.create(plan=plan, date=date, quantity_kg=quantity_kg, remaining_before_kg=remaining_before_kg, available_after_kg=remaining_before_kg + quantity_kg, daily_requirement_kg=daily_requirement, head_count=batch.quantity, cost=0, request_key=request_key, notes=notes, created_by=user)
+    delivery = CattleFeedDelivery.objects.create(plan=plan, plan_version=plan.version, date=date, quantity_kg=quantity_kg, remaining_before_kg=remaining_before_kg, available_after_kg=remaining_before_kg + quantity_kg, daily_requirement_kg=daily_requirement, head_count=batch.quantity, cost=0, request_key=request_key, notes=notes, created_by=user)
     for lot in lots:
         if remaining <= 0: break
         take = min(remaining, lot.quantidade_atual)

@@ -61,6 +61,14 @@ class CattleAnimalProfile(BaseModel):
 
     animal = models.OneToOneField("Animal", on_delete=models.CASCADE, related_name="cattle_profile")
     name = models.CharField(max_length=100, blank=True, default="")
+    coat_color = models.CharField(max_length=80, blank=True, default="")
+    birth_weight_kg = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    genealogical_registration = models.CharField(max_length=80, blank=True, default="")
+    dairy_aptitude = models.BooleanField(default=False)
+    beef_aptitude = models.BooleanField(default=False)
+    embryo_role = models.CharField(max_length=12, blank=True, default="", choices=[("", "Não informado"), ("donor", "Doadora"), ("recipient", "Receptora")])
+    historical_birth_count = models.PositiveSmallIntegerField(default=0)
+    historical_last_birth_date = models.DateField(null=True, blank=True)
     is_lactating = models.BooleanField(default=False)
     is_castrated = models.BooleanField(default=False)
     weaning_date = models.DateField(null=True, blank=True)
@@ -1139,6 +1147,7 @@ class AcknowledgedOperationalAlert(BaseModel):
 
 
 class CattleFeedPlan(BaseModel):
+    version = models.PositiveIntegerField(default=1)
     batch = models.ForeignKey(AnimalBatch, on_delete=models.PROTECT, related_name="cattle_feed_plans")
     item = models.ForeignKey("inventory.ItemEstoque", on_delete=models.PROTECT, related_name="cattle_feed_plans")
     kg_per_head_day = models.DecimalField(max_digits=8, decimal_places=3)
@@ -1157,6 +1166,7 @@ class CattleFeedPlan(BaseModel):
 
 
 class CattleFeedDelivery(BaseModel):
+    plan_version = models.PositiveIntegerField(null=True, blank=True)
     plan = models.ForeignKey(CattleFeedPlan, on_delete=models.PROTECT, related_name="deliveries")
     date = models.DateField()
     quantity_kg = models.DecimalField(max_digits=10, decimal_places=2)
@@ -1173,4 +1183,31 @@ class CattleFeedDelivery(BaseModel):
         constraints = [
             models.UniqueConstraint(fields=["plan", "request_key"], name="unique_cattle_delivery_request"),
             models.CheckConstraint(condition=models.Q(quantity_kg__gt=0) & models.Q(remaining_before_kg__gte=0), name="valid_cattle_feed_delivery_quantity"),
+        ]
+
+
+class CattleTroughReading(BaseModel):
+    """A physical observation, independent from supply and warehouse consumption."""
+    plan = models.ForeignKey(CattleFeedPlan, on_delete=models.PROTECT, related_name="trough_readings", null=True, blank=True)
+    batch = models.ForeignKey(AnimalBatch, on_delete=models.PROTECT, related_name="trough_readings", null=True, blank=True)
+    formula = models.ForeignKey("inventory.FormulaRacao", on_delete=models.PROTECT, related_name="cattle_trough_readings", null=True, blank=True)
+    formula_name = models.CharField(max_length=150, blank=True)
+    date = models.DateField()
+    session = models.CharField(max_length=12, choices=[("morning", "Manhã"), ("afternoon", "Tarde"), ("evening", "Noite")])
+    score = models.PositiveSmallIntegerField(choices=[(0, "Vazio"), (1, "Vestígios"), (2, "Camada fina"), (3, "Sobra moderada"), (4, "Sobra elevada")])
+    remaining_kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    plan_version = models.PositiveIntegerField(null=True, blank=True)
+    head_count = models.PositiveIntegerField()
+    kg_per_head_day = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+    request_key = models.UUIDField()
+    notes = models.CharField(max_length=1000, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="cattle_trough_readings")
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "request_key"], name="unique_cattle_trough_reading_request"),
+            models.UniqueConstraint(fields=["batch", "request_key"], condition=models.Q(batch__isnull=False, plan__isnull=True), name="unique_cattle_batch_trough_request"),
+            models.CheckConstraint(condition=models.Q(batch__isnull=False) | models.Q(plan__isnull=False), name="cattle_trough_reading_target"),
+            models.CheckConstraint(condition=models.Q(score__gte=0, score__lte=4), name="valid_cattle_trough_score"),
+            models.CheckConstraint(condition=models.Q(remaining_kg__isnull=True) | models.Q(remaining_kg__gte=0), name="nonnegative_cattle_trough_remaining"),
         ]

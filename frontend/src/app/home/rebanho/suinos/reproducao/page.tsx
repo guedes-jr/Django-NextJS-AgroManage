@@ -61,6 +61,7 @@ function ReproducaoPageContent() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [tabData, setTabData] = useState<Record<string, any>>({});
   const [tabLoading, setTabLoading] = useState<Record<string, boolean>>({});
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<TabId, string>>>({});
   const mountedRef = useRef(true);
   const lastFetchRef = useRef<Record<string, number>>({});
   const [reproducers, setReproducers] = useState<{ id: number; identifier: string; category: string }[]>([]);
@@ -91,6 +92,7 @@ function ReproducaoPageContent() {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
@@ -101,6 +103,12 @@ function ReproducaoPageContent() {
       const data = await fetchFn();
       if (mountedRef.current) {
         setTabData(prev => ({ ...prev, [tabId]: data }));
+        setLoadErrors(prev => { const next = { ...prev }; delete next[tabId]; return next; });
+      }
+    } catch {
+      delete lastFetchRef.current[tabId];
+      if (mountedRef.current) {
+        setLoadErrors(prev => ({ ...prev, [tabId]: "Não foi possível carregar esta fase." }));
       }
     } finally {
       if (mountedRef.current) {
@@ -117,8 +125,11 @@ function ReproducaoPageContent() {
     });
     if (toFetch.length === 0) return;
     if (showLoader) setInitialLoading(true);
-    await Promise.all(toFetch.map(id => fetchTabData(id, TAB_FETCH_MAP[id])));
-    if (showLoader && mountedRef.current) setInitialLoading(false);
+    try {
+      await Promise.all(toFetch.map(id => fetchTabData(id, TAB_FETCH_MAP[id])));
+    } finally {
+      if (showLoader && mountedRef.current) setInitialLoading(false);
+    }
   }, [fetchTabData]);
 
   const fetchAll = useCallback(async () => {
@@ -611,6 +622,11 @@ function ReproducaoPageContent() {
   };
 
   return (
+    <>
+    {Object.keys(loadErrors).length > 0 && <div className="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2" role="alert">
+      <span>Não foi possível carregar todas as informações da reprodução. Os dados disponíveis continuam acessíveis.</span>
+      <button type="button" className="btn btn-outline-danger btn-sm" disabled={initialLoading} onClick={() => { void refetchTabs(Object.keys(loadErrors) as TabId[], true, true); }}>Tentar novamente</button>
+    </div>}
     <ReproducaoDashboard
       config={config}
       initialLoading={initialLoading}
@@ -620,6 +636,7 @@ function ReproducaoPageContent() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
     />
+    </>
   );
 }
 

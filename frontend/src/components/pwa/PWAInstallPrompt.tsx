@@ -19,6 +19,34 @@ export function PWAInstallPrompt() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      let disposed = false;
+      const isAppWorker = (scriptURL?: string) => {
+        if (!scriptURL) return false;
+        const url = new URL(scriptURL, window.location.origin);
+        return url.origin === window.location.origin && url.pathname === "/sw.js";
+      };
+      const clearDevelopmentCache = async () => {
+        if (!("serviceWorker" in navigator)) return;
+        const controlled = isAppWorker(navigator.serviceWorker.controller?.scriptURL);
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        const removed = await Promise.all(registrations.filter(registration =>
+          [registration.active, registration.waiting, registration.installing].some(worker => isAppWorker(worker?.scriptURL))
+        ).map(registration => registration.unregister()));
+        if ("caches" in window) {
+          const keys = await window.caches.keys();
+          await Promise.all(keys.filter(key => key.startsWith("fazenda-mais-static-")).map(key => window.caches.delete(key)));
+        }
+        // Development chunks reuse URLs. An old PWA worker can otherwise restore
+        // obsolete React code after each refresh, despite successful hot updates.
+        if (!disposed && (controlled || removed.some(Boolean))) window.location.reload();
+      };
+      void clearDevelopmentCache().catch(() => {
+        // Cache access can be blocked; development must still work online.
+      });
+      return () => { disposed = true; };
+    }
+
     let removeServiceWorkerListener: (() => void) | undefined;
     if ("serviceWorker" in navigator) {
       let reloadingForUpdate = false;

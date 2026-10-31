@@ -57,3 +57,28 @@ keeps the default root size, 16px form inputs and 44px touch controls. The marke
 also scopes portal-rendered forms through the root selector. Public pages and
 login retain their own dimensions. Use the shared workspace hooks when adding
 shells; avoid browser zoom, transforms or per-page scale overrides.
+
+## Local development and PWA cache
+
+PWAInstallPrompt unregisters this app's `/sw.js` worker and clears only
+`fazenda-mais-static-*` caches in development. A previously controlled page reloads
+once after cleanup. Development chunks reuse URLs, so a production-style static
+cache can restore obsolete React code after refresh. Production PWA registration
+and caching remain enabled. Do not clear authentication storage or unrelated
+service workers/caches to troubleshoot this issue.
+
+## Reproduction presentation
+
+Swine and cattle share ReproducaoLayout header, phase cards and phase tabs,
+ReproducaoKpiCards and ReproducaoTabContent/DataTable. Keep styles in the existing
+reproducao.css rather than reproducing them in species-specific CSS. DataTable
+accepts optional zero-based ServerPagination; without it the existing client
+pagination is unchanged. Cattle server pagination/search must retain tenant/farm
+filters and conditional row actions.
+
+Reproduction phase lists must keep the same table, search, status filters,
+pagination, details and row-action presentation across species. Operational
+forms use ReproducaoModal; structured cattle registration and detail sheets use
+Modal's reproduction variant so headers, overlay, controls and footer retain
+the same visual language. Preserve species-specific fields, validation and
+permissions rather than introducing another visual pattern per culture.

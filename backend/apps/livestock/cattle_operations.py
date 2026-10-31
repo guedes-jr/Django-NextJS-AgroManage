@@ -73,7 +73,7 @@ def with_batch_operations(queryset):
     from django.db.models import Count
     latest = WeightRecord.objects.filter(batch_id=OuterRef("pk")).order_by("-weighing_date", "-created_at")
     linked = Animal.objects.filter(batch_id=OuterRef("pk"), status="active").order_by().values("batch_id").annotate(total=Count("pk")).values("total")
-    return queryset.annotate(last_weighing_date=Subquery(latest.values("weighing_date")[:1]), identified_count=Subquery(linked[:1])).prefetch_related(Prefetch("grazings", queryset=CattleGrazing.objects.filter(exit_date__isnull=True).select_related("pasture"), to_attr="operational_grazings"), Prefetch("cattle_feed_plans", queryset=feed_plans().filter(is_active=True), to_attr="operational_feed_plans"))
+    return queryset.annotate(last_weighing_date=Subquery(latest.values("weighing_date")[:1]), identified_count=Subquery(linked[:1])).prefetch_related(Prefetch("grazings", queryset=CattleGrazing.objects.filter(exit_date__isnull=True).select_related("pasture"), to_attr="operational_grazings"))
 
 
 def feed_plans():

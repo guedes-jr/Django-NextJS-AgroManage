@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight, Grid2X2, List, Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
+import { ReproducaoHeader, ReproducaoPhaseCards, ReproducaoPhaseTabs } from "./ReproducaoLayout";
 import "./reproducao.css";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, CardSkeleton, TableSkeleton, BatchAction } from "@/components/ui";
@@ -105,41 +105,11 @@ function DashboardTabContent({
   config: ReproducaoConfig;
   onTabChange: (id: string) => void;
 }) {
-  const [compactView, setCompactView] = useState(false);
   return (
     <div className="repro-overview">
       <ReproducaoKpiCards kpis={config.kpis} />
 
-      <section className="repro-phase-section">
-        <div className="repro-section-heading">
-          <div>
-            <h2>Fases do ciclo produtivo</h2>
-            <p>Toque em uma fase para gerenciar e acompanhar os animais.</p>
-          </div>
-          <div className="repro-view-toggle" aria-label="Visualização dos cards">
-            <button className={!compactView ? "active" : ""} onClick={() => setCompactView(false)} aria-label="Cards grandes"><Grid2X2 size={17}/></button>
-            <button className={compactView ? "active" : ""} onClick={() => setCompactView(true)} aria-label="Lista compacta"><List size={17}/></button>
-          </div>
-        </div>
-        <div className={`repro-phase-grid ${compactView ? "is-compact" : ""}`}>
-          {config.flowSteps.map((step, index) => {
-            const targetId = step.id ?? config.tabs[index]?.id ?? "dashboard";
-            return <button key={`${targetId}-${step.label}`} className="repro-phase-card" onClick={() => onTabChange(targetId)} style={{ "--phase-accent": step.accent ?? step.borderColor, "--phase-soft": step.color } as React.CSSProperties}>
-              <div className="repro-phase-photo">
-                {step.image ? <Image src={step.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 25vw" /> : <span className="repro-phase-placeholder">{step.icon}</span>}
-              </div>
-              <div className="repro-phase-body">
-                <div className="repro-phase-copy">
-                  <h3>{step.label}</h3>
-                  <strong>{step.count.toLocaleString("pt-BR")} <span>{step.count === 1 ? "registro" : "registros"}</span></strong>
-                  <p><i />{step.summary ?? "Acessar registros da fase"}</p>
-                </div>
-                <span className="repro-phase-enter">Entrar <ChevronRight size={17}/></span>
-              </div>
-            </button>;
-          })}
-        </div>
-      </section>
+      <ReproducaoPhaseCards phases={config.flowSteps.map((step, index) => ({ ...step, id: step.id ?? config.tabs[index]?.id ?? "dashboard", accent: step.accent ?? step.borderColor }))} onSelect={onTabChange} />
 
       <div className="repro-chart-wrap"><DesempenhoChart category="reprodutivo" /></div>
     </div>
@@ -1998,16 +1968,7 @@ export function ReproducaoDashboard({
         </nav>
       </div>
 
-      <div className="repro-header mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-        <div>
-          <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
-            Módulo de Reprodução
-          </h1>
-          <p className="mb-0 text-muted-foreground fw-medium">
-            {config.subtitulo}
-          </p>
-        </div>
-
+      <ReproducaoHeader subtitle={config.subtitulo}>
         {activeTab !== "dashboard" && currentTab?.primaryActionLabel && (
           <button
             className="btn btn-primary d-inline-flex align-items-center gap-2 fw-semibold px-4 py-2 shadow-sm rounded-pill transition-all hover-scale"
@@ -2024,35 +1985,10 @@ export function ReproducaoDashboard({
             {currentTab.primaryActionLabel}
           </button>
         )}
-      </div>
+      </ReproducaoHeader>
 
       {/* As abas internas aparecem somente depois que o produtor entra em uma fase. */}
-      {activeTab !== "dashboard" && <ul className="repro-phase-tabs mb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: 'none' }}>
-        {allTabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <li className="nav-item" key={tab.id} style={{ flexShrink: 0 }}>
-              <button
-                className={`repro-phase-tab ${isActive ? "is-active" : ""}`}
-                aria-current={isActive ? "page" : undefined}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span className="repro-phase-tab-icon"><ReproductionIcon icon={tab.icon} size={20} /></span>
-                {tab.label}
-                {tab.count !== undefined && (
-                  <span className={`badge rounded-pill ms-1 ${isActive ? "bg-success" : "bg-light text-muted"}`}
-                    style={{ fontSize: '0.6rem', fontWeight: 700 }}>
-                    {tab.count}
-                  </span>
-                )}
-                {tabLoading?.[tab.id] && !isActive && (
-                  <Loader2 size={12} className="ms-1 text-muted spin-animation" />
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>}
+      <ReproducaoPhaseTabs selected={activeTab} onSelect={setActiveTab} loading={tabLoading} phases={allTabs.map(tab => ({ id: tab.id, label: tab.label, count: tab.count, icon: <ReproductionIcon icon={tab.icon} size={20} /> }))} />
 
       {/* ─── Tab content ─── */}
       <div>

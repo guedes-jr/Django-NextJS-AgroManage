@@ -226,14 +226,13 @@ def record_cattle_feed(serializer, user):
 
     values = serializer.validated_data
     item = ItemEstoque.objects.select_for_update().get(pk=values["item_estoque"].pk)
-    lots = list(
-        item.lotes.select_for_update()
-        .filter(ativo=True, quantidade_atual__gt=0)
-        .order_by("data_entrada", "id")
-    )
+    from .cattle_feeding import eligible_feed_lots
+    if not item.ativo:
+        raise ValidationError({"item_estoque": "Selecione um produto ativo."})
+    lots = list(eligible_feed_lots(item, values["data_fim"], values["data_inicio"]))
     remaining = values["quantidade"]
     if sum((lot.quantidade_atual for lot in lots), Decimal(0)) < remaining:
-        raise ValidationError({"quantidade": "Estoque insuficiente para este consumo."})
+        raise ValidationError({"quantidade": "Estoque elegível insuficiente. Produtos vencidos, inativos ou recebidos após o início do período não podem ser fornecidos."})
     target = values.get("lote_animal") or values["animais"][0]
     total = Decimal(0)
     for lot in lots:

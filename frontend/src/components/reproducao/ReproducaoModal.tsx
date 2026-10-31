@@ -11,12 +11,13 @@ export interface ModalField {
   placeholder?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
+  maxLength?: number;
   colSpan?: "full" | "half";
   initialValue?: string | number;
-  min?: number;
-  max?: number;
+  min?: number | string;
+  max?: number | string;
   decimalMask?: boolean | ((values: Record<string, string>) => boolean);
-  step?: number;
+  step?: number | string;
   disabled?: boolean;
   showIf?: (values: Record<string, string>) => boolean;
 }
@@ -218,6 +219,7 @@ export function ReproducaoModal({
                     <textarea
                       id={`modal-${field.name}`}
                       name={field.name}
+                      maxLength={field.maxLength}
                       placeholder={field.placeholder}
                       required={field.required}
                       disabled={loading || field.disabled}
@@ -229,6 +231,7 @@ export function ReproducaoModal({
                     <input
                       id={`modal-${field.name}`}
                       name={field.name}
+                      maxLength={field.maxLength}
                       type={isDecimalMask ? "text" : field.type}
                       inputMode={isDecimalMask ? "decimal" : undefined}
                       placeholder={field.placeholder}

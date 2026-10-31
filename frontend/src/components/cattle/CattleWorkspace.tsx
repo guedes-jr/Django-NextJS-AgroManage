@@ -9,12 +9,14 @@ import { LayoutDashboard, Tags, Scale, HeartPulse, VenusAndMars, Venus, Mars, La
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { Modal } from "@/components/ui/Modal";
 import { clinicalService } from "@/services/clinicalService";
-import { cattleService, cattleError, type CattleAnimal, type CattleBatch, type CattlePasture, type CattleGrazing, type CattleMilk, type CattleHistory, type CattleOverview, type CattleFeed, type CattleResource, type CattleAgendaEvent, cattleNutritionStatuses } from "@/services/cattleService";
+import { cattleService, cattleError, type CattleAnimal, type CattleBatch, type CattlePasture, type CattleGrazing, type CattleMilk, type CattleHistory, type CattleOverview, type CattleFeed, type CattleResource, type CattleAgendaEvent } from "@/services/cattleService";
 import { CattleForm, type CattleField, type CattleFormSpec } from "./CattleForm";
 import styles from "./cattle.module.css";
 import { CattleAgenda } from "./CattleAgenda";
 import { CattleNutrition } from "./CattleNutrition";
 import { CattleGenealogy } from "./CattleGenealogy";
+import { CattleReproductionForm } from "./CattleReproductionForm";
+import { CattleReproduction } from "./CattleReproduction";
 import { CattleManagementWorkspace } from "./CattleManagementWorkspace";
 
 export type CattleView = "overview" | "animals" | "batches" | "weights" | "reproduction" | "health" | "pastures" | "grazings" | "milk" | "sales" | "feeding" | "reports" | "management";
@@ -33,12 +35,6 @@ const modules = [
   { id: "feeding", label: "Alimentação", href: `${root}/racao`, icon: Wheat, description: "Consumo, fórmulas e produção de ração" },
   { id: "sales", label: "Vendas", href: `${root}/vendas`, icon: BadgeDollarSign, description: "Venda de lotes e receitas no financeiro" },
   { id: "reports", label: "Relatórios", href: `${root}/relatorios`, icon: ChartNoAxesCombined, description: "Inventário, custos e resultados do rebanho" },
-];
-const navigationGroups = [
-  { id: "herd", label: "Rebanho", ids: ["animals", "batches", "pastures"] },
-  { id: "management", label: "Manejo e reprodução", ids: ["management", "weights", "health", "reproduction"] },
-  { id: "production", label: "Produção", ids: ["milk", "feeding"] },
-  { id: "business", label: "Gestão e resultados", ids: ["sales", "reports"] },
 ];
 const moduleTones: Record<string, string> = { animals: "green", batches: "orange", pastures: "emerald", management: "slate", weights: "blue", reproduction: "purple", health: "green", milk: "cyan", feeding: "blue", sales: "emerald", reports: "cyan" };
 const categories = ["Bezerro", "Garrote", "Novilha", "Touro", "Matriz", "Vaca", "Terminação", "Reprodutor"];
@@ -87,9 +83,9 @@ function AnimalRowActions({ compact, identifier, children }: { compact: boolean;
   </details>;
 }
 
-export function CattleWorkspace({ view = "overview", production, youngFemales = false, dairyAnimals = false }: { view?: CattleView; production?: "beef" | "dairy"; youngFemales?: boolean; dairyAnimals?: boolean }) {
-  const access = useOrganizationAccess();
+export function CattleWorkspace({ view = "overview", production, youngFemales = false, dairyAnimals = false, initialReproductionTab = "dashboard" }: { initialReproductionTab?: string; view?: CattleView; production?: "beef" | "dairy"; youngFemales?: boolean; dairyAnimals?: boolean }) {
   const router = useRouter();
+  const access = useOrganizationAccess();
   const operator = access?.role === "operator";
   const canWrite = !!access && !access.read_only;
   const manager = !!access && !operator;
@@ -102,6 +98,10 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
   const [category, setCategory] = useState("");
+  const [reproductionPageSize, setReproductionPageSize] = useState(10);
+  const [reproductionStatus, setReproductionStatus] = useState("");
+  const [reproductionGroup, setReproductionGroup] = useState(initialReproductionTab);
+  const [reproductionCounts, setReproductionCounts] = useState<Record<string, number>>({});
   const [dairyTab, setDairyTab] = useState("all");
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [farm, setFarm] = useState("");
@@ -128,24 +128,25 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       if (farm) params.farm = farm;
       if (resource === "animals" && withdrawal) params.withdrawal = withdrawal;
       if (resource === "animals" && category) params.category = category;
-      if (view === "reproduction") params.gender = "F";
+      if (view === "reproduction") { params.gender = "F"; params.status = "active"; params.page_size = reproductionPageSize; if (reproductionStatus) params.reproductive_status = reproductionStatus; if (reproductionGroup !== "dashboard") params.reproduction_group = reproductionGroup; }
       if (youngFemales) params.young_females = "true";
       const countParams = { ...params };
       if (dairyAnimals) params.dairy_category = dairyTab;
       Promise.all([
         cattleService.overview(controller.signal, farm),
         cattleService.farms(controller.signal),
-        ["overview", "reports", "management"].includes(view) ? Promise.resolve(null) : cattleService.list<Row>(resource, params, controller.signal),
+        (["overview", "reports", "management"].includes(view) || (view === "reproduction" && reproductionGroup === "dashboard")) ? Promise.resolve(null) : cattleService.list<Row>(resource, params, controller.signal),
         view === "sales" && manager ? cattleService.sales(controller.signal, farm) : Promise.resolve([]),
         dairyAnimals ? cattleService.categoryCounts(countParams, controller.signal) : Promise.resolve({}),
-      ]).then(([summary, farms, data, sales, counts]) => {
+        view === "reproduction" ? cattleService.reproductionSummary(farm ? { farm } : {}, controller.signal) : Promise.resolve({}),
+      ]).then(([summary, farms, data, sales, counts, reproduction]) => {
         if (controller.signal.aborted) return;
-        setCategoryCounts(counts); setOverview(summary); setFarms(farms); setRows(data?.results || []); setCount(data?.count || 0); setSales(sales);
+        setReproductionCounts(reproduction); setCategoryCounts(counts); setOverview(summary); setFarms(farms); setRows(data?.results || []); setCount(data?.count || 0); setSales(sales);
       }).catch(error => { if (!controller.signal.aborted) { setRows([]); setError(cattleError(error)); } })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [view, resource, page, search, status, category, farm, withdrawal, refresh, manager, youngFemales, dairyAnimals, dairyTab]);
+  }, [view, resource, page, search, status, category, farm, withdrawal, refresh, manager, youngFemales, dairyAnimals, dairyTab, reproductionGroup, reproductionPageSize, reproductionStatus]);
 
   useEffect(() => {
     if (!historyAnimal) return;
@@ -164,16 +165,55 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
     if (data.results.length !== 1) throw { response: { data: { detail: "Brinco não encontrado nesta fazenda. Cadastre o animal antes de registrar a ordenha." } } };
     return data.results[0];
   }
-  function newAnimal(preset: { gender?: "F" | "M"; category?: string } = {}) {
-    setForm({ title: "Cadastrar bovino", description: "Registro individual por brinco. Animais cadastrados individualmente não devem ser contados novamente em um lote coletivo.",
-      initial: { farm_id: farmInitial, entry_date: today(), gender: "F", category: "Vaca", reproductive_status: "vazia", ...preset },
-      fields: [farmField, ...(dairyAnimals ? [{ name: "name", label: "Nome do animal", maxLength: 100 }] : []), { name: "identifier", label: "Brinco / identificação", required: true, maxLength: 50 }, { name: "gender", label: "Sexo", type: "select", required: true, options: options({ F: "Fêmea", M: "Macho" }) }, { name: "category", label: "Categoria", type: "select", required: true, options: options(categories) }, { name: "reproductive_status", label: "Situação inicial da fêmea", visibleWhen: { field: "gender", value: "F" }, type: "select", options: options({ vazia: "Vazia", em_preparo: "Em preparo", pronta: "Pronta para cobertura", lactante: "Em lactação", descanso: "Em descanso" }) }, { name: "breed_name_input", label: "Raça" }, { name: "birth_date", label: "Nascimento", type: "date", max: today() }, { name: "entry_date", label: "Entrada na fazenda", type: "date", required: true, max: today() }, positive("initial_weight_kg", "Peso de entrada (kg)", false), { name: "sire_identifier_input", label: "Brinco do pai cadastrado nesta fazenda" }, { name: "dam_identifier_input", label: "Brinco da mãe cadastrada nesta fazenda" }, { name: "sire_name", label: "Pai externo (nome / registro)" }, { name: "dam_name", label: "Mãe (nome / registro)" }, notes],
-      save: values => cattleService.create("animals", { ...payload(values), current_weight_kg: values.initial_weight_kg || null, reproductive_status: values.gender === "M" ? "ativa" : values.reproductive_status || "vazia" }),
-    });
+  async function animalForm(animal?: CattleAnimal, preset: { gender?: "F" | "M"; category?: string } = {}) {
+    setPreparing(true); setError("");
+    try {
+      const batches = await cattleService.all<CattleBatch>("batches", { status: "active" });
+      const editing = !!animal;
+      const fields: CattleField[] = [
+        { ...farmField, section: "animal", readOnly: editing },
+        { name: "name", label: "Nome", maxLength: 100, section: "animal" },
+        { name: "identifier", label: "Brinco / identificação", required: true, maxLength: 50, section: "animal" },
+        { name: "breed_name_input", label: "Raça", section: "animal", readOnly: editing },
+        { name: "coat_color", label: "Cor / pelagem", maxLength: 80, section: "animal" },
+        { name: "gender", label: "Sexo", type: "select", required: true, options: options({ F: "Fêmea", M: "Macho" }), section: "animal", readOnly: editing },
+        { name: "category", label: "Categoria", type: "select", required: true, options: options(categories), section: "animal" },
+        { name: "batch", label: "Lote de origem (opcional)", type: "select", section: "animal", dependsOn: "farm_id", options: batches.map(row => ({ value: row.id, label: row.batch_code, parentValue: row.farm_id })), readOnly: editing },
+        { name: "sire_identifier_input", label: "Brinco do pai cadastrado", section: "genealogy", maxLength: 50 },
+        { name: "dam_identifier_input", label: "Brinco da mãe cadastrada", section: "genealogy", maxLength: 50 },
+        { name: "sire_name", label: "Pai externo (nome / registro)", section: "genealogy" },
+        { name: "dam_name", label: "Mãe externa (nome / registro)", section: "genealogy" },
+        { name: "birth_date", label: "Nascimento", type: "date", max: today(), section: "development" },
+        { name: "entry_date", label: "Entrada na fazenda", type: "date", required: true, max: today(), section: "development", readOnly: editing },
+        { ...positive("birth_weight_kg", "Peso ao nascer (kg)", false), section: "development" },
+        ...(!editing ? [{ name: "initial_weaning_date", label: "Desmame anterior (se conhecido)", type: "date" as const, max: today(), section: "development" }] : []),
+        { ...positive("initial_weight_kg", editing ? "Peso de entrada (kg)" : "Peso na entrada (kg)", false), section: "development", readOnly: editing },
+        ...(editing ? [{ name: "current_weight_kg", label: "Peso atual registrado (kg)", type: "number" as const, readOnly: true, section: "development" }, { name: "weaning_date", label: "Desmame registrado", type: "date" as const, readOnly: true, section: "development" }] : []),
+        { name: "reproductive_status", label: editing ? "Status reprodutivo registrado" : "Situação inicial", visibleWhen: { field: "gender", value: "F" }, type: "select", options: options(editing ? statuses : { vazia: "Vazia", em_preparo: "Em preparo", pronta: "Pronta para cobertura", lactante: "Em lactação / com cria", descanso: "Pós-parto / descanso" }), section: "reproduction", readOnly: editing },
+        { name: "historical_birth_count", label: "Partos anteriores ao cadastro (informados)", type: "number", min: "0", max: "32767", step: "1", visibleWhen: { field: "gender", value: "F" }, section: "reproduction" },
+        { name: "historical_last_birth_date", label: "Último parto anterior (informado)", type: "date", max: today(), visibleWhen: { field: "gender", value: "F" }, section: "reproduction" },
+        ...(editing ? [{ name: "birth_count", label: "Partos registrados no sistema", type: "number" as const, readOnly: true, section: "reproduction" }, { name: "last_mating_date", label: "Última cobertura / IA registrada", type: "date" as const, readOnly: true, section: "reproduction" }, { name: "expected_birth_date", label: "Previsão de parto registrada", type: "date" as const, readOnly: true, section: "reproduction" }, { name: "gestation_days", label: "Dias de gestação", type: "number" as const, readOnly: true, section: "reproduction" }] : []),
+        { name: "genealogical_registration", label: "Registro genealógico (RGD)", maxLength: 80, section: "additional" },
+        { name: "embryo_role", label: "Função embrionária", type: "select", options: options({ donor: "Doadora", recipient: "Receptora" }), visibleWhen: { field: "gender", value: "F" }, section: "additional" },
+        { name: "dairy_aptitude", label: "Aptidão leiteira", type: "checkbox", section: "additional" },
+        { name: "beef_aptitude", label: "Aptidão de corte", type: "checkbox", section: "additional" },
+        { ...notes, section: "additional" },
+      ];
+      const initial: Record<string, string> = animal ? Object.fromEntries(fields.map(field => [field.name, String(({ ...animal, farm_id: animal.farm, breed_name_input: animal.breed_name, sire_identifier_input: animal.sire_identifier, dam_identifier_input: animal.dam_identifier } as Record<string, unknown>)[field.name] ?? "")])) : { farm_id: farmInitial, entry_date: today(), gender: "F", category: "Vaca", reproductive_status: "vazia", historical_birth_count: "0", dairy_aptitude: "false", beef_aptitude: "false", ...preset };
+      setForm({ title: editing ? `Editar bovino · ${animal.identifier}` : "Cadastrar bovino", description: "Registro individual, filiação e histórico do animal.", initial, fields,
+        sections: [{ id: "animal", title: "Dados do animal" }, { id: "genealogy", title: "Filiação (genealogia)", description: "Use os brincos de animais da mesma fazenda ou informe ascendentes externos." }, { id: "reproduction", title: "Informações reprodutivas", description: "O histórico informado não cria coberturas, gestações ou partos. Registre esses eventos no módulo Reprodução." }, { id: "development", title: "Nascimento e desenvolvimento", description: "Pesagens e desmame posteriores são registrados nos manejos." }, { id: "additional", title: "Informações complementares", description: "Aptidões são características cadastrais e não separam automaticamente o efetivo de corte e leite." }],
+        submitLabel: "Salvar cadastro", save: values => {
+          const data: Record<string, unknown> = Object.fromEntries(fields.filter(field => !field.readOnly && (!field.visibleWhen || values[field.visibleWhen.field] === field.visibleWhen.value)).map(field => [field.name, values[field.name] ?? ""]));
+          for (const key of ["birth_date", "birth_weight_kg", "historical_last_birth_date", "initial_weaning_date"]) if (data[key] === "") data[key] = null;
+          if (data.historical_birth_count === "") data.historical_birth_count = 0;
+          if (!editing) return cattleService.create("animals", { ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== "")), reproductive_status: values.gender === "M" ? "ativa" : values.reproductive_status || "vazia" });
+          return cattleService.update("animals", animal.id, data);
+        },
+      });
+    } catch (error) { setError(cattleError(error)); } finally { setPreparing(false); }
   }
-  function editAnimal(animal: CattleAnimal) {
-    setForm({ title: `Editar ${animal.identifier}`, initial: { identifier: animal.identifier, name: animal.name || "", category: animal.category, notes: animal.notes || "" }, fields: [...(dairyAnimals ? [{ name: "name", label: "Nome do animal", maxLength: 100 }] : []), { name: "identifier", label: "Brinco / identificação", required: true, maxLength: 50 }, { name: "category", label: "Categoria", type: "select", required: true, options: options(categories) }, notes], save: values => cattleService.update("animals", animal.id, values) });
-  }
+  function newAnimal(preset: { gender?: "F" | "M"; category?: string } = {}) { void animalForm(undefined, preset); }
+  function editAnimal(animal: CattleAnimal) { void animalForm(animal); }
   function newBatch() {
     setForm({ title: "Cadastrar lote bovino", description: "Use lotes coletivos para animais sem cadastro individual. As quantidades não devem repetir os animais cadastrados por brinco.",
       initial: { farm_id: farmInitial, phase: "crescimento", category: "Garrote", entry_date: today(), origin: "purchased", gender: "Misto" },
@@ -198,14 +238,14 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   function birth(animal: CattleAnimal) {
     setForm({ title: `Registrar parto · ${animal.identifier}`, description: "Para nascimento vivo, informe o brinco do bezerro. O cadastro será criado e vinculado à mãe.", initial: { date: today(), outcome: "alive", calf_gender: "F" }, fields: [{ ...dayField, max: today() }, { name: "outcome", label: "Resultado", type: "select", required: true, options: options({ alive: "Nascido vivo", stillborn: "Natimorto" }) }, { name: "calf_identifier", label: "Brinco do bezerro (nascido vivo)", maxLength: 50 }, { name: "calf_gender", label: "Sexo do bezerro", type: "select", options: options({ F: "Fêmea", M: "Macho" }) }, positive("weight_kg", "Peso ao nascer (kg)", false), notes], save: values => cattleService.action("animals", animal.id, "record-birth", payload(values)) });
   }
-  function event(animal: CattleAnimal) {
+  function event(animal: CattleAnimal, initialKind?: string) {
     const kinds: Record<string, string> = { death: "Morte" };
     if (animal.reproductive_status === "gestante") kinds.abortion = "Perda gestacional / aborto";
     if (animal.category === "Bezerro") kinds.weaning = "Desmame";
     if (animal.gender === "M" && !animal.is_castrated) kinds.castration = "Castração";
     if (animal.gender === "F" && animal.is_lactating) kinds.dry_off = "Secagem";
     if (animal.gender === "F" && ["Vaca", "Matriz"].includes(animal.category) && !animal.is_lactating) kinds.start_lactation = "Iniciar lactação";
-    setForm({ title: `Manejo · ${animal.identifier}`, description: "O desmame pode incluir peso e grupo de destino do bezerro; ele preserva a lactação da mãe. A secagem encerra a lactação sem interromper a gestação. Morte retira o animal do rebanho ativo.", initial: { date: today() }, fields: [{ name: "kind", label: "Manejo", type: "select", required: true, options: options(kinds) }, { ...dayField, max: today() }, ...(animal.category === "Bezerro" ? [positive("weight_kg", "Peso ao desmame (kg, apenas para desmame)", false), { name: "destination_group", label: "Grupo de manejo de destino (apenas desmame)", maxLength: 100 } satisfies CattleField] : []), { ...notes, required: true }], save: values => cattleService.action("animals", animal.id, "record-event", payload(values)) });
+    setForm({ title: `Manejo · ${animal.identifier}`, description: "O desmame pode incluir peso e grupo de destino do bezerro; ele preserva a lactação da mãe. A secagem encerra a lactação sem interromper a gestação. Morte retira o animal do rebanho ativo.", initial: { date: today(), ...(initialKind ? { kind: initialKind } : {}) }, fields: [{ name: "kind", label: "Manejo", type: "select", required: true, options: options(kinds) }, { ...dayField, max: today() }, ...(animal.category === "Bezerro" ? [positive("weight_kg", "Peso ao desmame (kg, apenas para desmame)", false), { name: "destination_group", label: "Grupo de manejo de destino (apenas desmame)", maxLength: 100 } satisfies CattleField] : []), { ...notes, required: true }], save: values => cattleService.action("animals", animal.id, "record-event", payload(values)) });
   }
   async function vaccination(animal: CattleAnimal) {
     setPreparing(true);
@@ -244,7 +284,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       if (resource === "animals" && category) filters.category = category;
       if (resource === "animals" && withdrawal) filters.withdrawal = withdrawal;
       if (search) filters.search = search;
-      if (view === "reproduction") filters.gender = "F";
+      if (view === "reproduction") { if (reproductionGroup !== "calves") filters.gender = "F"; if (reproductionGroup !== "dashboard") filters.reproduction_group = reproductionGroup; }
       if (youngFemales && resource === "animals") filters.young_females = "true";
       if (dairyAnimals && resource === "animals") filters.dairy_category = dairyTab;
       const records = await cattleService.all<CattleAnimal & CattleBatch & CattleMilk>(resource, filters);
@@ -291,34 +331,10 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
     { icon: VenusAndMars, tone: "purple" }, { icon: LactationIcon, tone: "pink" }, { icon: Scale, tone: "blue" },
     { icon: Milk, tone: "cyan" }, { icon: Milk, tone: "emerald" }, { icon: MapPin, tone: "emerald" },
   ];
-  const animalsTable = ["animals", "weights", "reproduction", "health"].includes(view);
-  return <div className={styles.page}>
-    <nav className={styles.navigationBar} aria-label="Navegação de Bovinos">
-      <div className={styles.breadcrumb}>
-        <Link href={dairyAnimals ? `${root}/pecuaria-leiteira` : production === "beef" ? `${root}/corte` : root}>
-          {dairyAnimals ? <LactationIcon size={16} aria-hidden="true" /> : <CattleIcon size={16} aria-hidden="true" />}
-          {" "}
-          {dairyAnimals ? "Pecuária leiteira" : production === "beef" ? "Gado de corte" : "Início de Bovinos"}
-        </Link>
-        <ChevronRight size={14} aria-hidden="true" />
-        <span aria-current="page">{view === "overview" ? productionTitle : title}</span>
-      </div>
-      <label className={styles.navigationSelect}>
-        <span>Acessar outra função</span>
-        <select className="form-select form-select-sm" value="" onChange={event => { if (event.target.value) router.push(event.target.value); }}>
-          <option value="" disabled>Escolha uma função…</option>
-          <optgroup label="Páginas iniciais">
-            <option value={`${root}/corte`}>Gado de corte</option>
-            <option value={`${root}/pecuaria-leiteira`}>Pecuária leiteira</option>
-          </optgroup>
-          {navigationGroups.map(group => {
-            const entries = activeModules.filter(module => group.ids.includes(module.id));
-            return entries.length ? <optgroup key={group.id} label={group.label}>{entries.map(module => <option key={module.id} value={dairyAnimals && module.id === "animals" ? `${root}/pecuaria-leiteira/cadastro` : module.href}>{module.label}</option>)}</optgroup> : null;
-          })}
-        </select>
-      </label>
-    </nav>
-    <header className={styles.header}>
+  const animalsTable = ["animals", "weights", "health"].includes(view);
+  const savedForm = () => { setForm(null); setSuccess("Registro salvo com sucesso."); setRefresh(value => value + 1); };
+  return <div className={view === "reproduction" ? undefined : styles.page}>
+    {view !== "reproduction" && <header className={styles.header}>
       <div className={styles.brand}>
         <div className={homeStyles.titleIcon} aria-hidden="true">
           {dairyAnimals ? <LactationIcon size={27} strokeWidth={1.8} /> : <CattleIcon size={27} strokeWidth={1.8} />}
@@ -342,7 +358,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         {view !== "management" && <label className={styles.farmFilter}><span>Fazenda</span><select aria-label="Filtrar por fazenda" className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">Todas as fazendas</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         <button className="btn btn-outline-secondary btn-sm" onClick={() => setRefresh(value => value + 1)} disabled={loading}><RefreshCw size={15} className="me-1" aria-hidden="true" /> Atualizar</button>
       </div>
-    </header>
+    </header>}
     {success && <div role="status" className="alert alert-success py-2">{success}</div>}
     {error && <div role="alert" className="alert alert-danger">{error} <button className="btn btn-sm btn-outline-danger" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</button></div>}
     {loading && !overview ? <div className={styles.empty} role="status">Carregando dados do rebanho...</div> : !error && <>
@@ -357,11 +373,19 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         })}</div>
       </section>}
       {view === "feeding" && manager && <CattleNutrition key={farm || "all"} farm={farm} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} />}
-      {["reproduction", "health"].includes(view) && <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} />}
+      {view === "reproduction" && <CattleReproduction production={production} counts={reproductionCounts} selected={reproductionGroup} loading={loading || preparing}
+        headerActions={<><label className={styles.farmFilter}><span>Fazenda</span><select aria-label="Filtrar por fazenda" className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">Todas as fazendas</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="btn btn-outline-secondary btn-sm" disabled={loading} onClick={() => setRefresh(value => value+1)}><RefreshCw size={15} aria-hidden="true"/> Atualizar</button></>}
+        onNew={canWrite ? () => newAnimal({ gender: "F", category: reproductionGroup === "heifers" ? "Novilha" : "Vaca" }) : undefined}
+        onSelect={value => { setReproductionGroup(value); setPage(1); setSearch(""); setReproductionStatus(""); setRows([]); router.replace(`${root}/reproducao?production=${production || "beef"}&tab=${value}`, { scroll: false }); }}
+        animals={rows as CattleAnimal[]} pagination={{ page: page-1, pageSize: reproductionPageSize, total: count, onPageChange: value => setPage(value+1), onPageSizeChange: value => { setReproductionPageSize(value); setPage(1); } }}
+        search={search} onSearch={value => { setSearch(value); setPage(1); }} status={reproductionStatus} onStatus={value => { setReproductionStatus(value); setPage(1); }}
+        canWrite={canWrite && !loading && !preparing} manager={manager} onMating={mating} onDiagnosis={diagnosis} onBirth={birth} onEvent={event} onHistory={openHistory} onEdit={editAnimal} />}
+
+      {view === "health" && <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} />}
       {view === "management" ? (manager ? <CattleManagementWorkspace farms={farms} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} /> : <p role="alert">Manejos coletivos exigem gerente ou administrador.</p>) : ["overview", "reports"].includes(view) ? <>
         {view === "overview" && <section aria-labelledby="cattle-modules-title" className={styles.operations}>
           <div className={homeStyles.modulesHeading}><div><span>Operações</span><h2 id="cattle-modules-title">O que você deseja acessar?</h2></div><p>Escolha uma área para continuar a gestão do rebanho.</p></div>
-          <div className={homeStyles.moduleGrid}>{activeModules.filter(module => module.id !== "overview").map(module => <Link className={homeStyles.moduleCard} data-tone={moduleTones[module.id]} href={module.href} key={module.id}><div className={homeStyles.moduleIcon} aria-hidden="true"><module.icon size={26} strokeWidth={1.8} /></div><div className={homeStyles.moduleCopy}><h3>{module.label}</h3><p>{module.description}</p></div><span className={homeStyles.moduleAction}>Acessar <ChevronRight size={19} aria-hidden="true" /></span></Link>)}</div>
+          <div className={homeStyles.moduleGrid}>{activeModules.filter(module => module.id !== "overview").map(module => <Link className={homeStyles.moduleCard} data-tone={moduleTones[module.id]} href={module.id === "reproduction" ? `${module.href}?production=${production || "beef"}` : module.href} key={module.id}><div className={homeStyles.moduleIcon} aria-hidden="true"><module.icon size={26} strokeWidth={1.8} /></div><div className={homeStyles.moduleCopy}><h3>{module.label}</h3><p>{module.description}</p></div><span className={homeStyles.moduleAction}>Acessar <ChevronRight size={19} aria-hidden="true" /></span></Link>)}</div>
         </section>}
         <div className={styles.insightGrid}><section className={styles.panel}><div className={styles.sectionTitle}><ChartNoAxesCombined size={20} aria-hidden="true" /><div><span>Inventário</span><h2>Composição do rebanho ativo</h2></div></div>{overview?.categories.length ? overview.categories.map(item => <div className={styles.category} key={item.category}><span>{item.category}</span><progress value={item.quantity} max={overview.total_head} aria-label={item.category} /><strong>{number(item.quantity)}</strong></div>) : <p className={styles.muted}>Nenhum animal ativo cadastrado. Comece pelo cadastro individual ou pelos lotes.</p>}</section>
         <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} /></div>
@@ -464,7 +488,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
             ))}
           </section>
         )}
-        <section className={`${styles.panel} ${styles.listPanel} ${dairyAnimals ? styles.dairyList : ""}`} aria-busy={loading}>
+        {view !== "reproduction" && <section className={`${styles.panel} ${styles.listPanel} ${dairyAnimals ? styles.dairyList : ""}`} aria-busy={loading}>
           <div className={styles.listHeading}>
             <div className={styles.sectionTitle}>
               {currentModule && <currentModule.icon size={22} aria-hidden="true" />}
@@ -489,27 +513,26 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         {view === "feeding" && <Table columns={["Período", "Destino", "Ração", "Consumo", ...(manager ? ["Custo total"] : [])]}>{(rows as CattleFeed[]).map(row => <tr key={row.id}><td>{date(row.data_inicio)}<small>até {date(row.data_fim)}</small></td><td>{row.lote_codigo || row.animais_identificadores.join(", ")}</td><td>{row.item_nome}</td><td>{number(row.quantidade)} kg</td>{manager && <td>{Number(row.custo_total || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>}</tr>)}</Table>}
         {view === "pastures" && <p className={styles.muted}>Lotação atual dos lotes coletivos em ocupação, usando seus pesos médios. 1 UA = 450 kg. Animais sem peso impedem o cálculo da capacidade.</p>}
         {view === "batches" && <p className={styles.muted}>Lotes coletivos de animais sem identificação individual. Para registrar uma pesagem, informe o peso médio por animal.</p>}
-        {animalsTable && <Table columns={dairyAnimals ? ["Brinco", "Nome", "Categoria", "Raça", "Idade", "Status", "Ações"] : ["Brinco / fazenda", "Categoria / raça", "Sexo", view === "reproduction" ? "Fase reprodutiva" : "Peso atual", "Ações"]}>{(rows as CattleAnimal[]).map(animal => <tr key={animal.id}>{dairyAnimals ? <><td><strong>{animal.identifier}</strong>{!farm && <small>{animal.farm_name}</small>}</td><td>{animal.name || "—"}</td><td>{animal.category === "Bezerro" && animal.gender === "F" ? "Bezerra" : animal.category || "—"}</td><td>{animal.breed_name || "—"}</td><td>{animalAge(animal.birth_date)}</td><td><DairyAnimalStatus animal={animal}/>{animal.milk_withdrawal_until && animal.milk_withdrawal_until >= today() && <small className="text-danger">Carência de leite até {date(animal.milk_withdrawal_until)}</small>}{animal.meat_withdrawal_until && animal.meat_withdrawal_until >= today() && <small className="text-danger">Carência de abate até {date(animal.meat_withdrawal_until)}</small>}</td></> : <><td><strong>{animal.identifier}</strong><small>{animal.farm_name}</small>{animal.management_group && <small>Grupo: {animal.management_group}</small>}{animal.is_castrated && <small>Castrado</small>}{animal.is_lactating && <small>Em lactação</small>}{animal.milk_withdrawal_until && animal.milk_withdrawal_until >= today() && <small className="text-danger">Carência leite até {date(animal.milk_withdrawal_until)}</small>}{animal.meat_withdrawal_until && animal.meat_withdrawal_until >= today() && <small className="text-danger">Carência abate até {date(animal.meat_withdrawal_until)}</small>}</td><td>{animal.category || "—"}<small>{animal.breed_name || "Raça não informada"}</small></td><td>{animal.gender === "F" ? "Fêmea" : "Macho"}</td><td>{view === "reproduction" ? <span className={styles.status}>{statuses[animal.reproductive_status] || animal.reproductive_status}</span> : `${number(animal.current_weight_kg)} kg`}</td></>}<td><AnimalRowActions compact={dairyAnimals} identifier={animal.identifier}>
+        {animalsTable && <Table columns={dairyAnimals ? ["Brinco", "Nome", "Categoria", "Raça", "Idade", "Status", "Ações"] : ["Brinco / fazenda", "Categoria / raça", "Sexo", "Peso atual", "Ações"]}>{(rows as CattleAnimal[]).map(animal => <tr key={animal.id}>{dairyAnimals ? <><td><strong>{animal.identifier}</strong>{!farm && <small>{animal.farm_name}</small>}</td><td>{animal.name || "—"}</td><td>{animal.category === "Bezerro" && animal.gender === "F" ? "Bezerra" : animal.category || "—"}</td><td>{animal.breed_name || "—"}</td><td>{animalAge(animal.birth_date)}</td><td><DairyAnimalStatus animal={animal}/>{animal.milk_withdrawal_until && animal.milk_withdrawal_until >= today() && <small className="text-danger">Carência de leite até {date(animal.milk_withdrawal_until)}</small>}{animal.meat_withdrawal_until && animal.meat_withdrawal_until >= today() && <small className="text-danger">Carência de abate até {date(animal.meat_withdrawal_until)}</small>}</td></> : <><td><strong>{animal.identifier}</strong><small>{animal.farm_name}</small>{animal.management_group && <small>Grupo: {animal.management_group}</small>}{animal.is_castrated && <small>Castrado</small>}{animal.is_lactating && <small>Em lactação</small>}{animal.milk_withdrawal_until && animal.milk_withdrawal_until >= today() && <small className="text-danger">Carência leite até {date(animal.milk_withdrawal_until)}</small>}{animal.meat_withdrawal_until && animal.meat_withdrawal_until >= today() && <small className="text-danger">Carência abate até {date(animal.meat_withdrawal_until)}</small>}</td><td>{animal.category || "—"}<small>{animal.breed_name || "Raça não informada"}</small></td><td>{animal.gender === "F" ? "Fêmea" : "Macho"}</td><td>{number(animal.current_weight_kg)} kg</td></>}<td><AnimalRowActions compact={dairyAnimals} identifier={animal.identifier}>
           <button className="btn btn-outline-secondary btn-sm" onClick={() => openHistory(animal)}>Ficha / histórico</button>
           {canWrite && animal.status === "active" && <>
             {view === "animals" && manager && <button className="btn btn-outline-secondary btn-sm" onClick={() => editAnimal(animal)}>Editar</button>}
             {["animals", "weights"].includes(view) && <button className="btn btn-outline-success btn-sm" onClick={() => weighing(animal)}>Pesar</button>}
             {view === "health" && <><button className="btn btn-outline-success btn-sm" onClick={() => vaccination(animal)}>Vacinar</button><button className="btn btn-outline-secondary btn-sm" onClick={() => health(animal)}>Exame / tratamento</button></>}
-            {view === "reproduction" && <>{animal.reproductive_status === "coberta" ? <button className="btn btn-outline-success btn-sm" onClick={() => diagnosis(animal)}>Diagnóstico</button> : animal.reproductive_status === "gestante" ? <button className="btn btn-outline-success btn-sm" onClick={() => birth(animal)}>Parto</button> : <button className="btn btn-outline-success btn-sm" onClick={() => mating(animal)}>Cobertura / IA</button>}</>}
             {view === "animals" && manager && <button className="btn btn-outline-secondary btn-sm" onClick={() => event(animal)}>Manejo / baixa</button>}
           </>}
         </AnimalRowActions></td></tr>)}</Table>}
-        {(view === "batches" || view === "sales") && <Table columns={["Lote / fazenda", "Categoria / fase", "Cabeças", "Peso médio", "Ações"]}>{(rows as CattleBatch[]).map(batch => <tr key={batch.id}><td><strong>{batch.batch_code}</strong><small>{batch.farm_name}</small>{batch.operations?.pastures.map(pasto => <small key={pasto.name}>{pasto.name} · {pasto.days} dias</small>)}<small>Última pesagem: {date(batch.operations?.last_weighing_date)}</small>{batch.operations?.nutrition.map(plan => <small key={plan.id}>{plan.product}: {cattleNutritionStatuses[plan.status] || plan.status}</small>)}</td><td>{batch.category}<small>{phases[batch.phase] || batch.phase}</small>{batch.operations?.age_days !== null && batch.operations?.age_days !== undefined && <small>Idade de referência: {batch.operations.age_days} dias</small>}</td><td>{number(batch.quantity)}</td><td>{number(batch.avg_weight_kg)} kg</td><td><div className={styles.actions}>{batch.status === "active" && canWrite && <>{view === "batches" && <button className="btn btn-outline-success btn-sm" onClick={() => weighing(batch, true)}>Pesar lote</button>}{manager && <>{view === "batches" && <button className="btn btn-outline-secondary btn-sm" onClick={() => changePhase(batch)}>Alterar fase</button>}<button className="btn btn-outline-secondary btn-sm" onClick={() => sell(batch)}>Vender</button></>}</>}</div></td></tr>)}</Table>}
+        {(view === "batches" || view === "sales") && <Table columns={["Lote / fazenda", "Categoria / fase", "Cabeças", "Peso médio", "Ações"]}>{(rows as CattleBatch[]).map(batch => <tr key={batch.id}><td><strong>{batch.batch_code}</strong><small>{batch.farm_name}</small>{batch.operations?.pastures.map(pasto => <small key={pasto.name}>{pasto.name} · {pasto.days} dias</small>)}<small>Última pesagem: {date(batch.operations?.last_weighing_date)}</small></td><td>{batch.category}<small>{phases[batch.phase] || batch.phase}</small>{batch.operations?.age_days !== null && batch.operations?.age_days !== undefined && <small>Idade de referência: {batch.operations.age_days} dias</small>}</td><td>{number(batch.quantity)}</td><td>{number(batch.avg_weight_kg)} kg</td><td><div className={styles.actions}>{batch.status === "active" && canWrite && <>{view === "batches" && <button className="btn btn-outline-success btn-sm" onClick={() => weighing(batch, true)}>Pesar lote</button>}{manager && <>{view === "batches" && <button className="btn btn-outline-secondary btn-sm" onClick={() => changePhase(batch)}>Alterar fase</button>}<button className="btn btn-outline-secondary btn-sm" onClick={() => sell(batch)}>Vender</button></>}</>}</div></td></tr>)}</Table>}
         {view === "milk" && <Table columns={["Data / turno", "Vaca / fazenda", "Produção", "Descarte", "Aproveitável", ...(manager ? ["Ações"] : [])]}>{(rows as CattleMilk[]).map(row => <tr key={row.id}><td>{date(row.date)}<small>{sessions[row.session]}</small></td><td><strong>{row.identifier}</strong><small>{row.farm_name}</small></td><td>{number(row.liters)} L</td><td>{number(row.discarded_liters)} L<small>{row.discard_reason}</small></td><td>{number(Number(row.liters) - Number(row.discarded_liters))} L</td>{manager && <td><button className="btn btn-outline-secondary btn-sm" onClick={() => editMilk(row)}>Corrigir</button></td>}</tr>)}</Table>}
         {view === "pastures" && <Table columns={["Pasto / piquete", "Fazenda", "Área", "Lotação / capacidade", "Ações"]}>{(rows as CattlePasture[]).map(row => <tr key={row.id}><td><strong>{row.name}</strong><small>{row.notes}</small><small>{({ occupied: "Em uso", unknown: "Disponibilidade não informada", available: "Liberado", resting: "Em descanso", blocked: "Interditado" } as Record<string, string>)[row.occupancy.state]}</small>{row.occupancy.occupied_days !== null && <small>Ocupação atual: até {row.occupancy.occupied_days} dias</small>}{row.occupancy.empty_days !== null && <small>Sem ocupação há {row.occupancy.empty_days} dias</small>}<small>{row.availability_reason}</small></td><td>{row.farm_name}</td><td>{number(row.area_ha)} ha</td><td>{number(row.occupancy.heads)} cabeças<small>{row.occupancy.stocking_ua_ha === null ? "Peso insuficiente para calcular UA/ha" : `${number(row.occupancy.stocking_ua_ha)} UA/ha`}</small><small className={Number(row.occupancy.capacity_percent) > 100 ? "text-danger" : ""}>{row.occupancy.capacity_percent === null ? "Capacidade não calculada" : `${number(row.occupancy.capacity_percent)}% da capacidade`}</small></td><td>{canWrite && manager && <div className={styles.actions}><button className="btn btn-outline-success btn-sm" disabled={["resting", "blocked"].includes(row.availability)} onClick={() => grazing(row)}>Entrada de lote</button><button className="btn btn-outline-secondary btn-sm" onClick={() => editPasture(row)}>Editar capacidade</button></div>}</td></tr>)}</Table>}
         {view === "grazings" && <Table columns={["Pasto", "Lote", "Cabeças atuais", "Entrada", "Saída", "Ações"]}>{(rows as CattleGrazing[]).map(row => <tr key={row.id}><td>{row.pasture_name}</td><td>{row.batch_code}</td><td>{number(row.quantity)}</td><td>{date(row.entry_date)}</td><td>{row.exit_date ? date(row.exit_date) : "Em ocupação"}</td><td>{!row.exit_date && canWrite && manager && <button className="btn btn-outline-secondary btn-sm" onClick={() => closeGrazing(row)}>Registrar saída</button>}</td></tr>)}</Table>}
         {!rows.length && <div className={styles.empty}>Nenhum registro encontrado para os filtros selecionados.</div>}
         <div className={styles.pagination}><span>{number(count)} registros · página {page}</span><button className="btn btn-outline-secondary btn-sm" disabled={page === 1} onClick={() => setPage(value => value - 1)}>Anterior</button><button className="btn btn-outline-secondary btn-sm" disabled={page * 30 >= count} onClick={() => setPage(value => value + 1)}>Próxima</button></div>
-      </section></>}
+      </section>}</>}
       {view === "sales" && manager && <section className={styles.panel}><h2>Últimas vendas registradas</h2><Table columns={["Data", "Lote", "Cabeças", "Comprador", "Receita"]}>{sales.map(sale => <tr key={sale.id}><td>{date(sale.date)}</td><td>{sale.batch_code}</td><td>{number(sale.quantity)}</td><td>{sale.buyer}</td><td>{Number(sale.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td></tr>)}</Table>{!sales.length && <p className={styles.empty}>Nenhuma venda registrada.</p>}</section>}
     </>}
-    {form && <CattleForm spec={form} onClose={() => setForm(null)} onSaved={() => { setForm(null); setSuccess("Registro salvo com sucesso."); setRefresh(value => value + 1); }} />}
-    {historyAnimal && <Modal isOpen onClose={() => setHistoryAnimal(null)} maxWidth={styles.formDialog} title={`Ficha do bovino · ${historyAnimal.identifier}`} description={`${historyAnimal.category || "Bovino"} · ${historyAnimal.farm_name}`}><div className={styles.form}>
+    {form && (view === "reproduction" ? <CattleReproductionForm spec={form} onClose={() => setForm(null)} onSaved={savedForm}/> : <CattleForm spec={form} onClose={() => setForm(null)} onSaved={savedForm}/>)}
+    {historyAnimal && <Modal variant={view === "reproduction" ? "reproduction" : "default"} isOpen onClose={() => setHistoryAnimal(null)} maxWidth={styles.formDialog} title={`Ficha do bovino · ${historyAnimal.identifier}`} description={`${historyAnimal.category || "Bovino"} · ${historyAnimal.farm_name}`}><div className={styles.form}>
       <div className={styles.metrics}><article className={styles.metric}><span>Peso atual</span><strong>{number(historyAnimal.current_weight_kg)} kg</strong></article><article className={styles.metric}><span>Nascimento</span><strong style={{ fontSize: "1rem" }}>{date(historyAnimal.birth_date)}</strong></article></div>
       <p className={styles.muted}>Raça: {historyAnimal.breed_name || "Não informada"} · Sexo: {historyAnimal.gender === "F" ? "Fêmea" : "Macho"} · Entrada: {date(historyAnimal.entry_date)}</p><p className={styles.muted}>Pai: {historyAnimal.sire_identifier || historyAnimal.sire_name || "Não informado"} · Mãe: {historyAnimal.dam_identifier || historyAnimal.dam_name || "Não informada"}</p><hr />
       <CattleGenealogy key={historyAnimal.id} id={historyAnimal.id} />

@@ -18,7 +18,9 @@ from .models import (
     CattleMilkRecord,
     CattleFeedPlan,
     CattleFeedDelivery,
+    CattleTroughReading,
     CattlePasture,
+    HistoricoEvento,
     Species,
 )
 from .serializers import AnimalSerializer, validate_tenant_relations
@@ -43,6 +45,18 @@ def past_date(value):
 
 class CattleAnimalSerializer(AnimalSerializer):
     name = serializers.CharField(source="cattle_profile.name", required=False, allow_blank=True, default="", max_length=100)
+    coat_color = serializers.CharField(source="cattle_profile.coat_color", required=False, allow_blank=True, default="", max_length=80)
+    birth_weight_kg = serializers.DecimalField(source="cattle_profile.birth_weight_kg", max_digits=7, decimal_places=2, min_value=Decimal("0.01"), required=False, allow_null=True, default=None)
+    genealogical_registration = serializers.CharField(source="cattle_profile.genealogical_registration", max_length=80, required=False, allow_blank=True, default="")
+    dairy_aptitude = serializers.BooleanField(source="cattle_profile.dairy_aptitude", required=False, default=False)
+    beef_aptitude = serializers.BooleanField(source="cattle_profile.beef_aptitude", required=False, default=False)
+    embryo_role = serializers.ChoiceField(source="cattle_profile.embryo_role", choices=["", "donor", "recipient"], allow_blank=True, required=False, default="")
+    historical_birth_count = serializers.IntegerField(source="cattle_profile.historical_birth_count", min_value=0, max_value=32767, required=False, default=0)
+    historical_last_birth_date = serializers.DateField(source="cattle_profile.historical_last_birth_date", required=False, allow_null=True, default=None)
+    last_mating_date = serializers.DateField(read_only=True, default=None)
+    expected_birth_date = serializers.DateField(read_only=True, default=None)
+    gestation_days = serializers.SerializerMethodField()
+    initial_weaning_date = serializers.DateField(write_only=True, required=False, allow_null=True)
     sire_identifier_input = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     dam_identifier_input = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     category = serializers.ChoiceField(choices=CATTLE_CATEGORIES)
@@ -63,6 +77,10 @@ class CattleAnimalSerializer(AnimalSerializer):
     def to_representation(self, instance):
         result = super().to_representation(instance)
         result["name"] = getattr(getattr(instance, "cattle_profile", None), "name", "")
+        profile = getattr(instance, "cattle_profile", None)
+        for field, default in {"coat_color": "", "genealogical_registration": "", "dairy_aptitude": False, "beef_aptitude": False, "embryo_role": "", "historical_birth_count": 0}.items():
+            if profile is None:
+                result[field] = default
         return result
 
     def get_is_lactating(self, obj):
@@ -73,10 +91,17 @@ class CattleAnimalSerializer(AnimalSerializer):
             else obj.gender == "F" and obj.reproductive_status == "lactante"
         )
 
+    def get_gestation_days(self, obj):
+        start = getattr(obj, "pregnancy_start_date", None)
+        return max(0, (timezone.localdate() - start).days) if start else None
+
     class Meta(AnimalSerializer.Meta):
         fields = [
             *AnimalSerializer.Meta.fields,
             "name",
+            "coat_color", "birth_weight_kg", "genealogical_registration", "dairy_aptitude", "beef_aptitude", "embryo_role", "historical_birth_count", "historical_last_birth_date", "last_mating_date", "expected_birth_date",
+            "initial_weaning_date",
+            "gestation_days",
             "sire_identifier_input", "dam_identifier_input",
             "is_lactating",
             "is_castrated",
@@ -95,10 +120,12 @@ class CattleAnimalSerializer(AnimalSerializer):
         from .models import WeightRecord
 
         profile_data = validated_data.pop("cattle_profile", {})
+        if "initial_weaning_date" in validated_data:
+            profile_data["weaning_date"] = validated_data.pop("initial_weaning_date")
         animal = super().create(validated_data)
         CattleAnimalProfile.objects.create(
             animal=animal,
-            name=profile_data.get("name", ""),
+            **profile_data,
             is_lactating=animal.gender == "F"
             and animal.reproductive_status == "lactante",
         )
@@ -118,15 +145,24 @@ class CattleAnimalSerializer(AnimalSerializer):
     def update(self, instance, validated_data):
         profile_data = validated_data.pop("cattle_profile", {})
         animal = super().update(instance, validated_data)
-        if "name" in profile_data:
+        if profile_data:
             from .cattle_services import cattle_profile
             profile = cattle_profile(animal)
-            profile.name = profile_data["name"]
-            profile.save(update_fields=["name", "updated_at"])
+            for field, value in profile_data.items():
+                setattr(profile, field, value)
+            profile.save(update_fields=[*profile_data, "updated_at"])
             animal.cattle_profile = profile
         return animal
 
     def validate(self, attrs):
+        if "initial_weaning_date" in attrs:
+            if self.instance:
+                raise serializers.ValidationError({"initial_weaning_date": "Registre o desmame pelo manejo do animal."})
+            day = attrs["initial_weaning_date"]
+            if day:
+                past_date(day)
+                if attrs.get("birth_date") and day < attrs["birth_date"]:
+                    raise serializers.ValidationError({"initial_weaning_date": "O desmame não pode anteceder o nascimento."})
         farm_id = attrs.get("farm_id", getattr(self.instance, "farm_id", None))
         for field, input_field in [("sire_ref", "sire_identifier_input"), ("dam_ref", "dam_identifier_input")]:
             identifier = attrs.pop(input_field, "").strip()
@@ -162,6 +198,19 @@ class CattleAnimalSerializer(AnimalSerializer):
                 {"identifier": "Este brinco já está cadastrado nesta fazenda."}
             )
         gender = attrs.get("gender", getattr(self.instance, "gender", "F"))
+        profile_values = attrs.get("cattle_profile", {})
+        historical_last = profile_values.get("historical_last_birth_date", getattr(getattr(self.instance, "cattle_profile", None), "historical_last_birth_date", None))
+        historical_count = profile_values.get("historical_birth_count", getattr(getattr(self.instance, "cattle_profile", None), "historical_birth_count", 0))
+        embryo_role = profile_values.get("embryo_role", getattr(getattr(self.instance, "cattle_profile", None), "embryo_role", ""))
+        if gender == "M" and (historical_last or historical_count or embryo_role):
+            raise serializers.ValidationError("Partos anteriores e função embrionária são informações de fêmeas.")
+        if historical_last:
+            past_date(historical_last)
+            if not historical_count:
+                raise serializers.ValidationError({"historical_birth_count": "Informe a quantidade de partos anteriores."})
+            birth_day = attrs.get("birth_date", getattr(self.instance, "birth_date", None))
+            if birth_day and historical_last <= birth_day:
+                raise serializers.ValidationError({"historical_last_birth_date": "O último parto deve ser posterior ao nascimento."})
         category = attrs.get("category", getattr(self.instance, "category", None))
         if (category in ["Vaca", "Matriz", "Novilha"] and gender != "F") or (
             category in ["Touro", "Reprodutor"] and gender != "M"
@@ -200,14 +249,12 @@ class CattleBatchSerializer(serializers.ModelSerializer):
     operations = serializers.SerializerMethodField()
 
     def get_operations(self, obj):
-        from .cattle_operations import feed_forecast
         today = timezone.localdate()
         grazings = getattr(obj, "operational_grazings", [])
         return {"age_days": (today - obj.birth_date).days if obj.birth_date else None,
                 "last_weighing_date": getattr(obj, "last_weighing_date", None),
                 "identified_animals": getattr(obj, "identified_count", None) or 0,
-                "pastures": [{"name": row.pasture.name, "entry_date": row.entry_date, "days": (today - row.entry_date).days} for row in grazings],
-                "nutrition": [{"id": row.id, "product": row.item.nome, **feed_forecast(row)} for row in getattr(obj, "operational_feed_plans", [])]}
+                "pastures": [{"name": row.pasture.name, "entry_date": row.entry_date, "days": (today - row.entry_date).days} for row in grazings]}
 
     farm_id = serializers.PrimaryKeyRelatedField(
         source="farm", queryset=Farm.objects.all()
@@ -860,7 +907,8 @@ class CattleFeedPlanSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CattleFeedPlan
-        fields = ["id", "batch", "batch_code", "farm", "farm_name", "item", "item_name", "kg_per_head_day", "start_date", "end_date", "is_active", "notes", "forecast"]
+        fields = ["id", "version", "batch", "batch_code", "farm", "farm_name", "item", "item_name", "kg_per_head_day", "start_date", "end_date", "is_active", "notes", "forecast"]
+        read_only_fields = ["version"]
 
     def get_forecast(self, obj):
         from .cattle_operations import feed_forecast
@@ -897,7 +945,7 @@ class CattleFeedPlanSerializer(serializers.ModelSerializer):
 class CattleFeedDeliverySerializer(serializers.ModelSerializer):
     class Meta:
         model = CattleFeedDelivery
-        fields = ["id", "plan", "date", "quantity_kg", "remaining_before_kg", "available_after_kg", "daily_requirement_kg", "head_count", "cost", "notes", "created_at"]
+        fields = ["id", "plan", "plan_version", "date", "quantity_kg", "remaining_before_kg", "available_after_kg", "daily_requirement_kg", "head_count", "cost", "notes", "created_at"]
         read_only_fields = fields
 
 
@@ -905,5 +953,37 @@ class CattleFeedDeliveryInput(serializers.Serializer):
     date = serializers.DateField()
     quantity_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     remaining_before_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal(0))
+    request_key = serializers.UUIDField()
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class CattleTroughReadingSerializer(serializers.ModelSerializer):
+    recorded_by = serializers.CharField(source="created_by.full_name", read_only=True, default="")
+    batch_code = serializers.CharField(source="batch.batch_code", read_only=True)
+    farm_name = serializers.CharField(source="batch.farm.name", read_only=True)
+
+    class Meta:
+        model = CattleTroughReading
+        fields = ["id", "batch", "batch_code", "farm_name", "formula", "formula_name", "date", "session", "score", "remaining_kg", "head_count", "notes", "recorded_by", "created_at"]
+        read_only_fields = fields
+
+
+class CattleTroughReadingInput(serializers.Serializer):
+    batch = serializers.UUIDField()
+    formula = serializers.UUIDField(required=False, allow_null=True, default=None)
+    date = serializers.DateField()
+    session = serializers.ChoiceField(choices=["morning", "afternoon", "evening"])
+    score = serializers.IntegerField(min_value=0, max_value=4)
+    remaining_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal(0), allow_null=True, required=False, default=None)
+    request_key = serializers.UUIDField()
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class CattleDailyFeedInput(serializers.Serializer):
+    batch = serializers.UUIDField()
+    formula = serializers.UUIDField(required=False, allow_null=True, default=None)
+    item = serializers.UUIDField(required=False, allow_null=True, default=None)
+    date = serializers.DateField()
+    quantity_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     request_key = serializers.UUIDField()
     notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)

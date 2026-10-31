@@ -60,7 +60,7 @@ const shortcuts: Array<{
   {
     title: "Reprodução",
     description: "Coberturas, diagnóstico, gestação e parto",
-    href: `${root}/reproducao`,
+    href: `${root}/reproducao?production=dairy`,
     icon: VenusAndMars,
     tone: "purple",
   },

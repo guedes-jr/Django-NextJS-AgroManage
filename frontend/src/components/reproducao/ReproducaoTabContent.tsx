@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ServerPagination } from "@/components/ui/DataTable";
 import { KpiCard, ReproductionIcon, kpiIconColor } from "./ReproducaoKpiCards";
 import {
   DataTable,
@@ -28,6 +29,7 @@ export interface QuickAction {
   icon?: React.ReactNode;
   onClick: (row: TableRow) => void;
   variant?: "primary" | "default" | "danger";
+  shouldShow?: (row: TableRow) => boolean;
 }
 
 interface AlertItem {
@@ -42,6 +44,11 @@ interface AiSuggestion {
 }
 
 interface ReproducaoTabContentProps {
+  pagination?: ServerPagination;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  filterValue?: string;
+  onFilterChange?: (value: string) => void;
   columns: TableColumn[];
   rows: TableRow[];
   statusKey?: string;
@@ -83,11 +90,20 @@ export function ReproducaoTabContent({
   batchActions,
   onRowClick,
   onSelectionChange,
+  pagination,
+  searchValue,
+  onSearchChange,
+  filterValue,
+  onFilterChange,
 }: ReproducaoTabContentProps) {
-  const [search, setSearch] = useState("");
-  const [filterVal, setFilterVal] = useState("all");
+  const [localSearch, setLocalSearch] = useState("");
+  const [localFilter, setLocalFilter] = useState("all");
+  const search = searchValue ?? localSearch;
+  const setSearch = onSearchChange ?? setLocalSearch;
+  const filterVal = filterValue ?? localFilter;
+  const setFilterVal = onFilterChange ?? setLocalFilter;
 
-  const filtered = rows.filter((row) => {
+  const filtered = pagination ? rows : rows.filter((row) => {
     const searchLower = search.toLowerCase();
     const matchSearch =
       search === "" ||
@@ -131,7 +147,7 @@ export function ReproducaoTabContent({
                       className="repro-tab-kpi-icon"
                       style={{ background: k.color, color: kpiIconColor(k.color), width: 40, height: 40 }}
                     >
-                      <ReproductionIcon icon={k.icon} size={20} />
+                      {k.iconNode ?? <ReproductionIcon icon={k.icon} size={20} />}
                     </div>
                     <div className="flex-grow-1">
                       <div className="h4 fw-black mb-0">{k.value}</div>
@@ -165,6 +181,7 @@ export function ReproducaoTabContent({
       )}
 
       <DataTable<TableRow>
+        pagination={pagination}
         columns={columns}
         rows={filtered}
         statusKey={statusKey}

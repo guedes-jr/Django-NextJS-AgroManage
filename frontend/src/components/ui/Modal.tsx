@@ -14,9 +14,10 @@ interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: string;
+  variant?: "default" | "reproduction";
 }
 
-export function Modal({ isOpen, onClose, title, description, children, footer, maxWidth = "max-w-2xl" }: ModalProps) {
+export function Modal({ isOpen, onClose, title, description, children, footer, maxWidth = "max-w-2xl", variant = "default" }: ModalProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -30,6 +31,18 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
   }, [isOpen]);
 
   if (!mounted) return null;
+
+  if (variant === "reproduction") return isOpen ? createPortal(
+    <div className="repro-modal-overlay" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="repro-modal" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="repro-modal-header">
+          <div><div className="repro-modal-title">{title}</div>{description && <div className="repro-modal-subtitle">{description}</div>}</div>
+          <button type="button" className="repro-modal-close" aria-label="Fechar" onClick={onClose}><X size={16}/></button>
+        </div>
+        <div className="repro-modal-body">{children}</div>
+        {footer && <div className="repro-modal-footer">{footer}</div>}
+      </div>
+    </div>, document.body) : null;
 
   const modalContent = (
     <AnimatePresence>

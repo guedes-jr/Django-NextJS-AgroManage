@@ -63,7 +63,7 @@ const sidebarSections: SidebarSection[] = [
   {
     label: "Segmentos",
     items: [
-      { title: "Suínos", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
+      { title: "Suinocultura", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
       { title: "Tratos bovinos", href: "/home/rebanho/bovinos/racao/tratos", icon: Wheat, iconTone: "amber" },
       { title: "Gado de corte", href: "/home/rebanho/bovinos/corte", icon: BullIcon, iconTone: "amber" },
       { title: "Pecuária leiteira", href: "/home/rebanho/bovinos/pecuaria-leiteira", icon: LactationIcon, iconTone: "cyan" },

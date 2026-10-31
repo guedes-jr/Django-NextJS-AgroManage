@@ -14,6 +14,7 @@ type Details = {
   cost_per_kg: string | null;
   missing_cost_count: number;
   reproduction_allocation_pending?: boolean;
+
 };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatMoney = (value: string | null) => value === null ? "Não informado" : money.format(Number(value));

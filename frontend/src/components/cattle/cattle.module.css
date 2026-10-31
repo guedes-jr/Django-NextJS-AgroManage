@@ -155,3 +155,16 @@
 .rowMenuItems { display: grid; gap: 6px; min-width: 150px; padding-top: 8px; }
 .rowMenuItems > button { text-align: left; white-space: normal; }
 @media (max-width: 600px) { .categoryTabs { padding: 0 12px 12px; } .categoryTab, .rowMenu summary { min-height: 44px; } .rowMenu summary { width: 44px; } }
+
+.animalDialog { max-width: 1100px; }
+.animalSections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.animalSection { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--card); }
+.animalSection:first-child, .animalSection:last-child { grid-column: 1 / -1; }
+.animalSection legend { float: none; width: auto; margin: 0 0 16px; padding: 0 8px; font-size: .95rem; font-weight: 750; color: var(--primary); }
+.animalSection:first-child .fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.checkField { display: flex; align-items: center; gap: 9px; font-size: .82rem; min-height: 38px; }
+.checkField input { width: 17px; height: 17px; accent-color: var(--primary); }
+@media (max-width: 900px) { .animalSection:first-child .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 650px) { .animalSections { grid-template-columns: 1fr; } .animalSection { padding: 14px; } .animalSection .fields, .animalSection:first-child .fields { grid-template-columns: 1fr; } .checkField { min-height: 44px; } }
+.animalSection:last-child { grid-column: auto; }
+.animalSection legend { background: color-mix(in srgb, var(--primary), var(--card) 92%); border-radius: 8px; padding: 6px 10px; }

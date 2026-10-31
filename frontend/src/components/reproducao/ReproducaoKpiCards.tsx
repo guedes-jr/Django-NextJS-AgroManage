@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import {
   Baby,
   ChartNoAxesColumnIncreasing,
@@ -33,6 +33,7 @@ import "./reproducao.css";
 
 export interface KpiCard {
   icon: string;
+  iconNode?: ReactNode;
   value: string | number;
   label: string;
   sub?: string;
@@ -111,7 +112,7 @@ export function ReproducaoKpiCards({ kpis }: ReproducaoKpiCardsProps) {
                   className="repro-kpi-icon"
                   style={{ background: k.color, color: kpiIconColor(k.color) }}
                 >
-                  <ReproductionIcon icon={k.icon} size={20} />
+                  {k.iconNode ?? <ReproductionIcon icon={k.icon} size={20} />}
                 </div>
                 <div className="flex-grow-1">
                   <div className="repro-kpi-value">{k.value}</div>

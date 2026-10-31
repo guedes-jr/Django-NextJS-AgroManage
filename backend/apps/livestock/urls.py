@@ -14,7 +14,7 @@ from .views import (
 from .cattle_views import (
     CattleOverviewView, CattleDairyOverviewView, CattleAnimalViewSet, CattleBatchViewSet,
     CattlePastureViewSet, CattleGrazingViewSet, CattleMilkViewSet, CattleFeedViewSet,
-    CattleManagementViewSet, CattleAgendaView, CattleFeedPlanViewSet, CattleDailyFeedingView,
+    CattleManagementViewSet, CattleAgendaView, CattleFeedPlanViewSet, CattleDailyFeedingView, CattleTroughReadingViewSet,
 )
 
 router = DefaultRouter()
@@ -41,6 +41,7 @@ router.register(r'cattle/pastures', CattlePastureViewSet, basename='cattle-pastu
 router.register(r'cattle/grazings', CattleGrazingViewSet, basename='cattle-grazing')
 router.register(r'cattle/feed', CattleFeedViewSet, basename='cattle-feed')
 router.register(r'cattle/milk', CattleMilkViewSet, basename='cattle-milk')
+router.register(r'cattle/trough-readings', CattleTroughReadingViewSet, basename='cattle-trough-reading')
 router.register(r'cattle/feed-plans', CattleFeedPlanViewSet, basename='cattle-feed-plan')
 router.register(r'cattle/managements', CattleManagementViewSet, basename='cattle-management')
 

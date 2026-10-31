@@ -434,8 +434,8 @@ def batch_financial_details(batch):
     for item in ConsumoRacao.objects.filter(lote_animal_id__in=batch_ids, organization=batch.farm.organization).select_related('item_estoque'):
         add(f'feed-{item.pk}', 'Ração', item.item_estoque.nome, item.data_inicio, item.custo_total, item.quantidade, 'kg')
     from apps.reports.lot_costs import maternal_feed_costs, semen_costs
-    for attributed_batch_id, entries in maternal_feed_costs(batch.farm.organization, batch_ids).items():
-        for item, amount, phase in entries:
+    for attributed_batch_id, maternal_entries in maternal_feed_costs(batch.farm.organization, batch_ids).items():
+        for item, amount, phase in maternal_entries:
             label = 'Ração da matriz — gestação' if phase == 'gestation_feed' else 'Ração da matriz — lactação'
             add(f'maternal-feed-{item.pk}-{phase}-{attributed_batch_id}', label, item.item_estoque.nome, item.data_inicio, amount, item.quantidade, 'kg')
     for attributed_batch_id, amount in semen_costs(batch.farm.organization, batch_ids).items():

@@ -105,20 +105,16 @@ class CattleOperationsTests(APITestCase):
         self.client.patch(reverse("cattle-management-detail",args=[original.pk]),{"follow_up_status":"done"},format="json")
         original.refresh_from_db(); self.assertEqual(original.follow_up_status,"pending")
 
-    def test_delivery_is_atomic_idempotent_and_protects_stock_origin(self):
-        first, values=self.delivery(); self.assertEqual(first.status_code,201,first.data)
-        self.assertEqual(first.data["cost"],"100.00")
-        self.assertEqual(self.post("cattle-feed-plan-deliveries",values,self.plan.pk).data["id"],first.data["id"])
-        self.lot.refresh_from_db(); self.assertEqual(self.lot.quantidade_atual,Decimal(50))
-        movement=MovimentacaoEstoque.objects.get(cattle_delivery_id=first.data["id"])
-        self.assertEqual(movement.farm,self.farm)
+    def test_legacy_delivery_stock_origin_stays_protected(self):
+        delivery = deliver_feed(self.plan, self.user, quantity_kg=Decimal(50), remaining_before_kg=Decimal(0), date=self.today, request_key=uuid4())
+        movement = MovimentacaoEstoque.objects.get(cattle_delivery=delivery)
         self.assertEqual(self.client.delete(reverse("inventory-movimentacoes-detail",args=[movement.pk])).status_code,400)
         self.assertEqual(self.client.patch(reverse("inventory-movimentacoes-detail",args=[movement.pk]),{"quantidade":"99"},format="json").status_code,400)
 
-    def test_invalid_delivery_has_no_effect(self):
-        self.assertEqual(self.delivery(quantity_kg="101")[0].status_code,400)
-        self.assertEqual(self.delivery(date=(self.today-timedelta(days=1)).isoformat())[0].status_code,400)
-        self.assertFalse(CattleFeedDelivery.objects.exists()); self.assertFalse(MovimentacaoEstoque.objects.exists())
+    def test_plan_delivery_endpoint_is_read_only(self):
+        self.assertEqual(self.delivery()[0].status_code,405)
+        self.assertFalse(CattleFeedDelivery.objects.exists())
+        self.assertFalse(MovimentacaoEstoque.objects.exists())
 
     def test_delivery_error_rolls_back_snapshot(self):
         with patch("apps.inventory.services.registrar_movimentacao",side_effect=RuntimeError("fail")):
@@ -128,7 +124,7 @@ class CattleOperationsTests(APITestCase):
         self.lot.refresh_from_db(); self.assertEqual(self.lot.quantidade_atual,Decimal(100))
 
     def test_forecast_preserves_snapshot_when_heads_change(self):
-        self.delivery()
+        deliver_feed(self.plan, self.user, quantity_kg=Decimal(50), remaining_before_kg=Decimal(0), date=self.today, request_key=uuid4())
         url=reverse("cattle-feed-plan-detail",args=[self.plan.pk])
         response=self.client.get(url); self.assertEqual(response.data["forecast"]["estimated_remaining_kg"],Decimal(50))
         self.batch.quantity=20; self.batch.save(update_fields=["quantity"])
@@ -136,19 +132,11 @@ class CattleOperationsTests(APITestCase):
         self.assertEqual(forecast["status"],"review"); self.assertIsNone(forecast["estimated_remaining_kg"])
         self.assertEqual(CattleFeedDelivery.objects.get().head_count,10)
 
-    def test_request_key_payload_is_checked(self):
-        _, values=self.delivery(); values["quantity_kg"]="1"
-        self.assertEqual(self.post("cattle-feed-plan-deliveries",values,self.plan.pk).status_code,400)
-        self.assertEqual(CattleFeedDelivery.objects.count(),1)
-
-    def test_plan_creation_does_not_move_stock_and_foreign_item_is_rejected(self):
-        item=ItemEstoque.objects.create(organization=self.org,nome="Ração",categoria="racao",unidade_medida="kg")
-        data={"batch":str(self.batch.pk),"item":str(item.pk),"kg_per_head_day":"1","start_date":self.today.isoformat()}
-        response=self.post("cattle-feed-plan-list",data); self.assertEqual(response.status_code,201,response.data)
+    def test_legacy_plans_cannot_be_created_or_changed(self):
+        data={"batch":str(self.batch.pk),"item":str(self.item.pk),"kg_per_head_day":"1","start_date":self.today.isoformat()}
+        self.assertEqual(self.post("cattle-feed-plan-list",data).status_code,405)
+        self.assertEqual(self.client.patch(reverse("cattle-feed-plan-detail",args=[self.plan.pk]),{"kg_per_head_day":"2"},format="json").status_code,405)
         self.assertFalse(MovimentacaoEstoque.objects.exists())
-        # Use a genuinely foreign record rather than moving tenant-owned data.
-        foreign=ItemEstoque.objects.create(organization=self.other,nome="Other",categoria="racao",unidade_medida="kg")
-        self.assertEqual(self.client.patch(reverse("cattle-feed-plan-detail",args=[self.plan.pk]),{"item":str(foreign.pk)},format="json").status_code,400)
 
     def test_pasture_restriction_and_duration(self):
         pasture=CattlePasture.objects.create(farm=self.farm,name="Pasto",area_ha=10,availability="resting",availability_reason="Recuperação")
@@ -181,10 +169,10 @@ class CattleOperationsTests(APITestCase):
         self.assertEqual(self.client.get(reverse("cattle-feed-plan-detail",args=[self.plan.pk])).status_code,404)
         self.assertEqual(self.client.get(reverse("cattle-agenda"),{"farm":str(self.farm.pk)}).data["count"],0)
 
-    def test_inactive_product_plan_can_be_closed(self):
+    def test_inactive_product_legacy_plan_is_preserved(self):
         self.item.ativo = False; self.item.save(update_fields=["ativo"])
         response = self.client.patch(reverse("cattle-feed-plan-detail", args=[self.plan.pk]), {"is_active": False}, format="json")
-        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.status_code, 405, response.data)
 
     def test_feed_plan_query_count_does_not_grow_per_row(self):
         from django.db import connection
