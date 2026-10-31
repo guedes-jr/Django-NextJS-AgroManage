@@ -1,6 +1,7 @@
 """Transactional cattle planning/execution; projections never mutate warehouse stock."""
 from decimal import Decimal
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from .models import AnimalBatch, CattleManagement, CattleFeedPlan, CattleFeedDelivery
@@ -62,9 +63,12 @@ def deliver_feed(plan, user, *, quantity_kg, remaining_before_kg, date, request_
     item = ItemEstoque.objects.select_for_update().get(pk=plan.item_id, organization=user.organization)
     if not item.ativo or item.categoria not in ["racao", "suplemento"] or item.unidade_medida != "kg" or item.especie_animal not in ["", "bovino", "multiplo"]:
         raise ValidationError("O produto do plano não é mais elegível para alimentação bovina.")
-    lots = list(item.lotes.select_for_update().filter(ativo=True, quantidade_atual__gt=0).order_by("data_validade", "data_entrada", "id"))
+    lots = list(item.lotes.select_for_update().filter(
+        Q(data_validade__isnull=True) | Q(data_validade__gte=date),
+        ativo=True, quantidade_atual__gt=0, data_entrada__lte=date,
+    ).order_by("data_validade", "data_entrada", "id"))
     if sum((row.quantidade_atual for row in lots), Decimal(0)) < quantity_kg:
-        raise ValidationError({"quantity_kg": "Estoque insuficiente para este fornecimento."})
+        raise ValidationError({"quantity_kg": "Estoque elegível insuficiente. Lotes vencidos, inativos ou com entrada futura não podem ser fornecidos."})
     daily_requirement = plan.kg_per_head_day * batch.quantity
     if daily_requirement > Decimal("99999999999.999"):
         raise ValidationError("A necessidade diária excede o limite permitido.")

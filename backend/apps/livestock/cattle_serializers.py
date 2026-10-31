@@ -260,6 +260,8 @@ class CattleBatchSerializer(serializers.ModelSerializer):
         read_only_fields = ["status"]
 
     def validate(self, attrs):
+        from .cattle_herd import validate_headcount_edit
+        validate_headcount_edit(self.instance, attrs)
         validate_tenant_relations(self, attrs, ("farm",))
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         duplicate = AnimalBatch.objects.filter(
@@ -308,6 +310,12 @@ class CattleBatchSerializer(serializers.ModelSerializer):
                 species=species, breed=breed, **validated_data
             )
             open_batch_phase(batch, batch.phase, batch.entry_date)
+            HistoricoEvento.objects.create(
+                farm=batch.farm, lote=batch, tipo_evento="Entrada de Lote", data_evento=batch.entry_date,
+                descricao=f"Entrada de {batch.quantity} animais no lote {batch.batch_code}.",
+                metadata={"quantidade": batch.quantity, "quantity_before": 0, "quantity_after": batch.quantity,
+                          "responsible_id": str(self.context["request"].user.pk)},
+            )
             return batch
 
     def update(self, instance, validated_data):

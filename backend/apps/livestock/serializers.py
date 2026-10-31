@@ -104,6 +104,8 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Validação de fase produtiva para lotes comprados."""
+        from .cattle_herd import validate_headcount_edit
+        validate_headcount_edit(self.instance, data)
         origin = data.get('origin')
         phase = data.get('phase')
 

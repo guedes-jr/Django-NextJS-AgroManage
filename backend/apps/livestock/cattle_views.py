@@ -307,6 +307,27 @@ class CattleBatchViewSet(AnimalBatchViewSet):
         from .cattle_operations import with_batch_operations
         return with_batch_operations(super().get_queryset().filter(species__code="bovinos"))
 
+    @action(detail=True, methods=["get", "post"], url_path="herd-movements")
+    def herd_movements(self, request, pk=None):
+        from .cattle_herd import adjust_headcount, movement_row
+        batch = self.get_object()
+        if request.method == "GET":
+            events = batch.historicos.order_by("-data_evento", "-created_at", "-id")
+            page = self.paginate_queryset(events)
+            return self.get_paginated_response([movement_row(event) for event in page])
+        from rest_framework.exceptions import PermissionDenied
+        if request.user.role not in {"admin", "manager"}:
+            raise PermissionDenied("Somente administradores e gerentes podem ajustar o efetivo.")
+        class AdjustmentInput(serializers.Serializer):
+            quantity = serializers.IntegerField(min_value=1, max_value=2147483647)
+            expected_quantity = serializers.IntegerField(min_value=0, max_value=2147483647)
+            reason = serializers.CharField(min_length=5, max_length=1000)
+            request_key = serializers.UUIDField()
+        data = AdjustmentInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        event = adjust_headcount(batch, request.user, **data.validated_data)
+        return Response(movement_row(event), status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=["post"], url_path="register-weight")
     @transaction.atomic
     def register_weight(self, request, pk=None):

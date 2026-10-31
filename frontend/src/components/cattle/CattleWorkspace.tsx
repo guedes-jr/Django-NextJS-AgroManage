@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CowIcon as CattleIcon, LactationIcon } from "./CattleIcons";
+import { CowIcon, BullIcon, CowIcon as CattleIcon, LactationIcon } from "./CattleIcons";
 import homeStyles from "@/components/livestock/species-module-home.module.css";
 import { LayoutDashboard, Tags, Scale, HeartPulse, VenusAndMars, Venus, Mars, Layers3, ClipboardCheck, Wheat, MapPin, Milk, BadgeDollarSign, ChartNoAxesCombined, RefreshCw, Plus, ChevronRight, MoreHorizontal, Search, ClipboardList, CheckCircle2 } from "lucide-react";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
@@ -22,7 +22,7 @@ type Row = CattleAnimal | CattleBatch | CattlePasture | CattleGrazing | CattleMi
 const root = "/home/rebanho/bovinos";
 const modules = [
   { id: "overview", label: "Visão geral", href: root, icon: LayoutDashboard, description: "Indicadores do rebanho de corte e leite" },
-  { id: "animals", label: "Animais", href: `${root}/cadastro`, icon: ClipboardList, description: "Brincos, raças, categorias e histórico individual" },
+  { id: "animals", label: "Cadastro", href: `${root}/cadastro`, icon: ClipboardList, description: "Animais, matrizes e lotes" },
   { id: "batches", label: "Lotes", href: `${root}/lotes`, icon: Tags, description: "Cria, recria, engorda e reprodução" },
   { id: "management", label: "Manejos", href: `${root}/manejos`, icon: ClipboardCheck, description: "Pesagens, sanidade e castração com conferência e confirmação" },
   { id: "weights", label: "Pesagens", href: `${root}/pesagens`, icon: Scale, description: "Peso atual, evolução e ganho médio diário" },
@@ -295,7 +295,11 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   return <div className={styles.page}>
     <nav className={styles.navigationBar} aria-label="Navegação de Bovinos">
       <div className={styles.breadcrumb}>
-        <Link href={dairyAnimals ? `${root}/pecuaria-leiteira` : root}><CattleIcon size={16} aria-hidden="true" /> {dairyAnimals ? "Pecuária leiteira" : "Início de Bovinos"}</Link>
+        <Link href={dairyAnimals ? `${root}/pecuaria-leiteira` : production === "beef" ? `${root}/corte` : root}>
+          {dairyAnimals ? <LactationIcon size={16} aria-hidden="true" /> : <CattleIcon size={16} aria-hidden="true" />}
+          {" "}
+          {dairyAnimals ? "Pecuária leiteira" : production === "beef" ? "Gado de corte" : "Início de Bovinos"}
+        </Link>
         <ChevronRight size={14} aria-hidden="true" />
         <span aria-current="page">{view === "overview" ? productionTitle : title}</span>
       </div>
@@ -309,13 +313,31 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
           </optgroup>
           {navigationGroups.map(group => {
             const entries = activeModules.filter(module => group.ids.includes(module.id));
-            return entries.length ? <optgroup key={group.id} label={group.label}>{entries.map(module => <option key={module.id} value={dairyAnimals && module.id === "animals" ? `${root}/pecuaria-leiteira/animais` : module.href}>{module.label}</option>)}</optgroup> : null;
+            return entries.length ? <optgroup key={group.id} label={group.label}>{entries.map(module => <option key={module.id} value={dairyAnimals && module.id === "animals" ? `${root}/pecuaria-leiteira/cadastro` : module.href}>{module.label}</option>)}</optgroup> : null;
           })}
         </select>
       </label>
     </nav>
     <header className={styles.header}>
-      <div className={styles.brand}><div className={homeStyles.titleIcon} aria-hidden="true"><CattleIcon size={27} strokeWidth={1.8} /></div><div><h1>{view === "overview" ? productionTitle : title}</h1><p>{view === "overview" ? production === "dairy" ? "Ordenhas, lactação, reprodução e cuidados do rebanho leiteiro" : production === "beef" ? "Cria, recria, engorda, pesagens e comercialização" : "Gerencie todas as operações da bovinocultura de corte e leite" : currentModule?.description}</p></div></div>
+      <div className={styles.brand}>
+        <div className={homeStyles.titleIcon} aria-hidden="true">
+          {dairyAnimals ? <LactationIcon size={27} strokeWidth={1.8} /> : <CattleIcon size={27} strokeWidth={1.8} />}
+        </div>
+        <div>
+          <h1>{view === "overview" ? productionTitle : title}</h1>
+          <p>
+            {view === "overview"
+              ? production === "dairy"
+                ? "Ordenhas, lactação, reprodução e cuidados do rebanho leiteiro"
+                : production === "beef"
+                ? "Cria, recria, engorda, pesagens e comercialização"
+                : "Gerencie todas as operações da bovinocultura de corte e leite"
+              : dairyAnimals
+              ? "Vacas, bezerras, touros e registros do rebanho leiteiro"
+              : currentModule?.description}
+          </p>
+        </div>
+      </div>
       <div className={styles.headerActions}>
         {view !== "management" && <label className={styles.farmFilter}><span>Fazenda</span><select aria-label="Filtrar por fazenda" className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">Todas as fazendas</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         <button className="btn btn-outline-secondary btn-sm" onClick={() => setRefresh(value => value + 1)} disabled={loading}><RefreshCw size={15} className="me-1" aria-hidden="true" /> Atualizar</button>
@@ -346,13 +368,114 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         {view === "reports" && manager && <section className={styles.panel}><h2>Exportar registros bovinos</h2><div className={styles.actions}>{(["animals", "batches", "milk"] as const).map(resource => <button key={resource} disabled={preparing} className="btn btn-outline-success btn-sm" onClick={() => exportCsv(resource)}>{preparing ? "Preparando..." : { animals: "Animais (CSV)", batches: "Lotes (CSV)", milk: "Ordenhas (CSV)" }[resource]}</button>)}</div></section>}
 
       </> : <>
-        {view === "animals" && !dairyAnimals && canWrite && <section className={styles.registrationGrid} aria-label="Ações de cadastro">{[
-          { title: "Fêmeas e matrizes", description: "Cadastre vacas e novilhas do rebanho.", icon: Venus, tone: "purple", features: ["Ciclos reprodutivos", "Partos e genealogia", "Lactação independente"], action: () => newAnimal({ gender: "F", category: "Vaca" }), button: "Cadastrar fêmea" },
-          { title: "Machos e reprodutores", description: "Identificação e acompanhamento individual.", icon: Mars, tone: "blue", features: ["Brinco e raça", "Pesagens individuais", "Histórico de manejos"], action: () => newAnimal({ gender: "M", category: "Touro" }), button: "Cadastrar macho" },
-          { title: "Lotes coletivos", description: "Animais sem identificação individual.", icon: Layers3, tone: "orange", features: ["Cria, recria e engorda", "Controle de quantidade", "Peso médio por animal"], action: newBatch, button: "Cadastrar lote" },
-        ].map(card => <article className={`${homeStyles.moduleCard} ${styles.registrationCard}`} data-tone={card.tone} key={card.title}><div className={homeStyles.moduleIcon}><card.icon size={26} strokeWidth={1.8} aria-hidden="true" /></div><h2>{card.title}</h2><p className={styles.muted}>{card.description}</p><ul>{card.features.map(feature => <li key={feature}><CheckCircle2 size={14} aria-hidden="true" />{feature}</li>)}</ul><button className="btn btn-outline-success btn-sm" onClick={card.action}>{card.button}</button></article>)}</section>}
+        {view === "animals" && (
+          <div className={homeStyles.modulesHeading}>
+            <div>
+              <span>Atalhos de cadastro</span>
+              <h2>O que você deseja cadastrar?</h2>
+            </div>
+            <p>{dairyAnimals ? "Cadastre vacas, fêmeas jovens ou reprodutores do rebanho leiteiro." : "Cadastre matrizes, reprodutores ou lotes coletivos do rebanho."}</p>
+          </div>
+        )}
+        {view === "animals" && (
+          <section className={styles.registrationGrid} aria-label="Ações de cadastro por categoria">
+            {(dairyAnimals
+              ? [
+                  {
+                    title: "Vacas e matrizes",
+                    description: "Cadastre vacas em lactação ou secas para produção leiteira.",
+                    icon: LactationIcon,
+                    tone: "green",
+                    features: ["Controle de ordenhas e lactação", "Ciclos reprodutivos e partos", "Genealogia e histórico individual"],
+                    action: () => newAnimal({ gender: "F", category: "Vaca" }),
+                    button: "Cadastrar vaca",
+                  },
+                  {
+                    title: "Bezerras e novilhas",
+                    description: "Fêmeas jovens para recria e reposição do plantel leiteiro.",
+                    icon: CowIcon,
+                    tone: "pink",
+                    features: ["Acompanhamento do desenvolvimento", "Controle de pesagens e ganho de peso", "Futuras matrizes em lactação"],
+                    action: () => newAnimal({ gender: "F", category: "Novilha" }),
+                    button: "Cadastrar bezerra / novilha",
+                  },
+                  {
+                    title: "Touros e reprodutores",
+                    description: "Identificação de reprodutores e controle de genealogia.",
+                    icon: BullIcon,
+                    tone: "blue",
+                    features: ["Identificação individual por brinco", "Genealogia e controle de coberturas", "Acompanhamento sanitário e peso"],
+                    action: () => newAnimal({ gender: "M", category: "Touro" }),
+                    button: "Cadastrar touro",
+                  },
+                ]
+              : [
+                  {
+                    title: "Fêmeas e matrizes",
+                    description: "Cadastre vacas e novilhas do rebanho.",
+                    icon: Venus,
+                    tone: "purple",
+                    features: ["Ciclos reprodutivos", "Partos e genealogia", "Lactação independente"],
+                    action: () => newAnimal({ gender: "F", category: "Vaca" }),
+                    button: "Cadastrar fêmea",
+                  },
+                  {
+                    title: "Machos e reprodutores",
+                    description: "Identificação e acompanhamento individual.",
+                    icon: Mars,
+                    tone: "blue",
+                    features: ["Brinco e raça", "Pesagens individuais", "Histórico de manejos"],
+                    action: () => newAnimal({ gender: "M", category: "Touro" }),
+                    button: "Cadastrar macho",
+                  },
+                  {
+                    title: "Lotes coletivos",
+                    description: "Animais sem identificação individual.",
+                    icon: Layers3,
+                    tone: "orange",
+                    features: ["Cria, recria e engorda", "Controle de quantidade", "Peso médio por animal"],
+                    action: newBatch,
+                    button: "Cadastrar lote",
+                  },
+                ]
+            ).map((card) => (
+              <article className={`${homeStyles.moduleCard} ${styles.registrationCard}`} data-tone={card.tone} key={card.title}>
+                <div className={homeStyles.moduleIcon}>
+                  <card.icon size={26} strokeWidth={1.8} aria-hidden="true" />
+                </div>
+                <h2>{card.title}</h2>
+                <p className={styles.muted}>{card.description}</p>
+                <ul>
+                  {card.features.map((feature) => (
+                    <li key={feature}>
+                      <CheckCircle2 size={14} aria-hidden="true" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  className="btn btn-outline-success btn-sm"
+                  disabled={!canWrite}
+                  onClick={card.action}
+                >
+                  {card.button}
+                </button>
+              </article>
+            ))}
+          </section>
+        )}
         <section className={`${styles.panel} ${styles.listPanel} ${dairyAnimals ? styles.dairyList : ""}`} aria-busy={loading}>
-        {!dairyAnimals && <div className={styles.listHeading}><div className={styles.sectionTitle}>{currentModule && <currentModule.icon size={22} aria-hidden="true" />}<div><span>{view === "grazings" ? "Histórico de ocupação" : "Registros do rebanho"}</span><h2>{title}</h2><p>{currentModule?.description}</p></div></div><span className={styles.countBadge}>{number(count)} registros</span></div>}
+          <div className={styles.listHeading}>
+            <div className={styles.sectionTitle}>
+              {currentModule && <currentModule.icon size={22} aria-hidden="true" />}
+              <div>
+                <span>{dairyAnimals ? "Plantel leiteiro" : view === "grazings" ? "Histórico de ocupação" : "Registros do rebanho"}</span>
+                <h2>{dairyAnimals ? (youngFemales ? "Bezerras e novilhas" : "Animais cadastrados") : title}</h2>
+                <p>{dairyAnimals ? "Lista e histórico de animais da pecuária leiteira" : currentModule?.description}</p>
+              </div>
+            </div>
+            <span className={styles.countBadge}>{number(count)} registros</span>
+          </div>
         <div className={styles.toolbar}><div className={styles.filters}>
           <label className={styles.searchField}><Search size={17} aria-hidden="true" /><input aria-label="Buscar registros" className="form-control form-control-sm" placeholder={dairyAnimals ? "Buscar por brinco, nome ou lote…" : view === "milk" ? "Buscar por brinco" : "Buscar registros..."} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label>
           {(resource === "animals" || resource === "batches") && <select aria-label="Situação" className="form-select form-select-sm" value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}>{Object.entries({ "": "Todas as situações", active: "Ativos", sold: "Vendidos", dead: "Mortos", finished: "Encerrados" }).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>}
