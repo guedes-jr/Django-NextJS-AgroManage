@@ -1,8 +1,10 @@
 /* ─── Reprodução Module Styles ───────────────────────────────────────────── */
 
 /* ─── Overview / mobile-first phase dashboard ────────────────────────────── */
+:root,
+.repro-dashboard,
 .repro-overview {
-  --overview-border: color-mix(in srgb, var(--border) 82%, white);
+  --overview-border: var(--border);
   --overview-shadow: 0 12px 30px rgba(20, 36, 27, 0.06);
 }
 
@@ -17,7 +19,7 @@
   height: 100%;
   min-height: 80px;
   padding: 0.78rem 0.85rem;
-  border: 1px solid var(--overview-border);
+  border: 1px solid var(--border);
   border-radius: 13px;
   background: var(--card);
   box-shadow: 0 3px 12px rgba(20, 36, 27, 0.035);
@@ -38,7 +40,7 @@
 .repro-kpi-sub { color: var(--muted-foreground); font-size: 0.66rem; margin-top: 0.18rem; }
 
 .repro-tab-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; margin-bottom:1.5rem; }
-.repro-tab-kpi-card { min-width:0; padding:.85rem; border:1px solid var(--overview-border); border-radius:14px; background:var(--card); box-shadow:0 4px 14px rgba(20,36,27,.04); }
+.repro-tab-kpi-card { min-width:0; padding:.85rem; border:1px solid var(--border); border-radius:14px; background:var(--card); box-shadow:0 4px 14px rgba(20,36,27,.04); }
 .repro-tab-kpi-icon { display:grid; flex:0 0 40px; place-items:center; border:1px solid color-mix(in srgb,currentColor,transparent 80%); border-radius:50%; }
 
 .repro-phase-section {
@@ -91,7 +93,7 @@
   min-width: 0;
   padding: 0;
   text-align: left;
-  border: 1px solid color-mix(in srgb, var(--phase-accent) 22%, var(--overview-border));
+  border: 1px solid color-mix(in srgb, var(--phase-accent, var(--border)) 25%, var(--border));
   border-radius: 14px;
   background: var(--card);
   color: var(--foreground);
@@ -123,14 +125,14 @@
 .repro-phase-grid.is-compact .repro-phase-body { min-height: 130px; padding: 0.85rem 0.9rem; }
 
 .repro-insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; margin-top: 0.9rem; }
-.repro-insight-card { overflow: hidden; border: 1px solid var(--overview-border); border-radius: 17px; background: var(--card); box-shadow: 0 6px 18px rgba(20, 36, 27, 0.045); }
-.repro-insight-card header { min-height: 52px; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--overview-border); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.repro-insight-card { overflow: hidden; border: 1px solid var(--border); border-radius: 17px; background: var(--card); box-shadow: 0 6px 18px rgba(20, 36, 27, 0.045); }
+.repro-insight-card header { min-height: 52px; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .repro-insight-card header > span { display: flex; align-items: center; gap: 0.45rem; font-size: 0.79rem; font-weight: 850; }
 .repro-insight-card header i { min-width: 20px; height: 20px; padding: 0 0.35rem; border-radius: 999px; background: #dc3545; color: white; display: grid; place-items: center; font-size: 0.63rem; font-style: normal; }
-.repro-insight-card header button { border: 1px solid var(--overview-border); border-radius: 8px; background: var(--background); color: var(--muted-foreground); padding: 0.32rem 0.58rem; font-size: 0.62rem; font-weight: 750; }
+.repro-insight-card header button { border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--muted-foreground); padding: 0.32rem 0.58rem; font-size: 0.62rem; font-weight: 750; }
 
 .repro-event-list, .repro-task-list, .repro-system-alerts { padding: 0.7rem; display: flex; flex-direction: column; gap: 0.48rem; }
-.repro-event-row, .repro-task-row { min-height: 58px; display: flex; align-items: center; gap: 0.62rem; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--overview-border); }
+.repro-event-row, .repro-task-row { min-height: 58px; display: flex; align-items: center; gap: 0.62rem; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--border); }
 .repro-event-row:last-child, .repro-task-row:last-child { border-bottom: 0; }
 .repro-event-row > b { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: #f3f6fb; }
 .repro-event-row.blue > b { background: #edf5ff; }.repro-event-row.amber > b { background: #fff5e8; }.repro-event-row.green > b { background: #ecf9f0; }
@@ -806,7 +808,7 @@
 .repro-phase-tab.is-active{background:color-mix(in srgb,var(--primary),transparent 90%);border-color:color-mix(in srgb,var(--primary),transparent 65%);color:var(--primary)}
 .repro-phase-tab-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:var(--muted);flex-shrink:0}
 .repro-phase-tab.is-active .repro-phase-tab-icon{background:color-mix(in srgb,var(--primary),transparent 85%)}
-.repro-tab-kpi-card,.repro-kpi-card{border-color:var(--border);padding:18px;border-radius:16px;min-height:100px;box-shadow:0 4px 16px rgba(20,36,27,.04)}
+.repro-tab-kpi-card,.repro-kpi-card{border:1px solid var(--border);padding:18px;border-radius:16px;min-height:100px;box-shadow:0 4px 16px rgba(20,36,27,.04)}
 .repro-tab-kpi-icon,.repro-kpi-icon{width:44px!important;height:44px!important;flex-basis:44px;border-radius:13px;border:1px solid color-mix(in srgb,currentColor,transparent 85%)}
 .repro-tab-kpi-card .h4,.repro-kpi-value{font-size:1.55rem;font-weight:850;letter-spacing:-.04em;line-height:1.15}
 .repro-tab-kpi-card .small,.repro-kpi-label{font-size:.8rem;line-height:1.4;margin-top:4px}
