@@ -5,15 +5,18 @@
 .title h1 { font-size: 1.65rem; font-weight: 800; margin: 0 0 .25rem; }
 .title p { margin: 0; color: var(--muted-foreground); font-size: .9rem; }
 .filters { display: flex; align-items: flex-end; gap: .6rem; flex-wrap: wrap; }
-.filters label { font-size: .8rem; font-weight: 600; display: grid; gap: .3rem; }
-.filters select { min-width: 13rem; }
+.filters label { font-size: .75rem; font-weight: 600; color: var(--muted-foreground); display: grid; gap: 5px; min-width: 180px; max-width: 260px; }
+.filters select { width: 100%; min-width: 0; }
+.filters select, .historyFilter select, .modalFarm select { border-radius: 8px; }
+.filters select, .filters > button { min-height: 36px; height: 36px; }
+.filters > button { border-radius: 8px; white-space: nowrap; }
 .filters button, .saveActions button { display: inline-flex; gap: .5rem; align-items: center; justify-content: center; }
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: 1.25rem; padding: 1.25rem; min-width: 0; }
 .sectionHeading { margin-bottom: 1rem; }
 .sectionHeading h2 { font-size: 1.2rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: .5rem; }
 .sectionHeading small { color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: .7rem; }
 .date { font-size: .75rem; display: grid; gap: .2rem; }
-.date input { background: var(--background); color: var(--foreground); border: 1px solid var(--border); border-radius: .75rem; padding: .45rem .65rem; }
+.date input { border-radius: 8px; }
 .metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .75rem; }
 .metrics article { display: flex; align-items: center; gap: .75rem; padding: 1rem; border-radius: 1rem; border: 1px solid var(--border); background: color-mix(in srgb, var(--primary) 6%, var(--card)); color: var(--primary); }
 .metrics article[data-warning="true"] { background: color-mix(in srgb,#f59e0b 9%,var(--card)); color: #b87508; }
@@ -47,7 +50,7 @@
   .workspace { padding: .75rem; gap: .85rem; }
   .panel { padding: .85rem; }
   .filters { width: 100%; }
-  .filters label { flex: 1; min-width: 0; }
+  .filters label { flex: 1; min-width: 0; max-width: none; }
   .filters select { min-width: 0; }
   .metrics article { padding: .65rem; gap: .5rem; }
   .metrics strong { font-size: 1.35rem; }
@@ -59,3 +62,13 @@
 .volumeSlider { display: flex; align-items: center; gap: 1rem; }
 .volumeSlider input { flex: 1; min-width: 0; accent-color: var(--primary); }
 .volumeSlider button { width: 2.75rem; height: 2.75rem; border-radius: .65rem; border: 1px solid var(--border); background: var(--background); color: var(--primary); font-size: 1.4rem; }
+
+.modalBody { padding: 1.25rem; color: var(--foreground); }
+.modalFarm { display: grid; gap: .4rem; font-size: .85rem; font-weight: 600; }
+@media (max-width: 575px) { .modalBody { padding: .85rem; } }
+
+.recordTabs { display: flex; flex-wrap: wrap; gap: .4rem; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+.recordTabs button { display: inline-flex; align-items: center; gap: .5rem; padding: .7rem 1rem; border: 1px solid transparent; border-radius: .75rem; background: transparent; color: var(--muted-foreground); font-size: .9rem; font-weight: 700; }
+.recordTabs button[aria-selected="true"] { color: var(--primary); background: color-mix(in srgb,var(--primary) 12%,var(--card)); border-color: color-mix(in srgb,var(--primary) 35%,var(--border)); }
+.recordTabs button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.historyFilter { display: grid; gap: .3rem; font-size: .8rem; font-weight: 600; }

@@ -51,3 +51,30 @@ test('discard requires a reason and saving or read-only state disables the entir
   assert.equal(all(tree, n => n.type === 'fieldset')[0].props.disabled, true);
   assert.equal(all(tree, n => n.type === 'input' && n.props.maxLength === 200)[0].props.required, true);
 });
+
+test('milk entry uses the standard modal and prevents closing during submission', () => {
+  const { MilkEntryModal } = load('components/cattle/MilkProduction.tsx');
+  let closed = 0;
+  const props = { title: 'Lançar produção de leite', description: 'Produção individual', onClose() { closed++; }, children: 'form' };
+  const modal = MilkEntryModal({ ...props, saving: false });
+  assert.equal(modal.type, 'Modal');
+  assert.equal(modal.props.isOpen, true);
+  assert.equal(modal.props.variant, undefined);
+  modal.props.onClose(); assert.equal(closed, 1);
+  MilkEntryModal({ ...props, saving: true }).props.onClose();
+  assert.equal(closed, 1);
+});
+
+test('milk record tabs select the appropriate panel and support keyboard navigation', () => {
+  const { MilkRecordTabs } = load('components/cattle/MilkProduction.tsx');
+  let selected, focused;
+  const tree = MilkRecordTabs({ selected: 'cows', onSelect(value) { selected = value; } });
+  const tabs = all(tree, n => n.props?.role === 'tab');
+  assert.equal(tabs.length, 2);
+  assert.equal(tabs[0].props['aria-selected'], true);
+  assert.equal(tabs[1].props['aria-controls'], 'milk-history-panel');
+  tabs[1].props.onClick(); assert.equal(selected, 'history');
+  tabs[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() {}, currentTarget: { parentElement: { querySelector(selector) { return { focus() { focused = selector; } }; } } } });
+  assert.equal(selected, 'history');
+  assert.equal(focused, '#milk-history-tab');
+});
