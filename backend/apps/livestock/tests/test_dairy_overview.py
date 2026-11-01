@@ -23,7 +23,7 @@ class DairyOverviewTests(APITestCase):
         self.cow = self.animal("V1", reproductive_status="lactante")
 
     def animal(self, identifier, **changes):
-        return Animal.objects.create(**dict(dict(farm=self.farm, species=self.species, identifier=identifier, gender="F", category="Vaca", entry_date=self.day-timedelta(days=100)), **changes))
+        return Animal.objects.create(**dict(dict(farm=self.farm, species=self.species, identifier=identifier, cattle_purpose="dairy", gender="F", category="Vaca", entry_date=self.day-timedelta(days=100)), **changes))
 
     def milk(self, cow, liters, session="morning", **changes):
         return CattleMilkRecord.objects.create(**dict(dict(animal=cow, date=self.day, session=session, liters=liters, discarded_liters=0), **changes))

@@ -31,6 +31,7 @@ const modules = [
   { id: "reproduction", label: "Reprodução", href: `${root}/reproducao`, icon: VenusAndMars, description: "Coberturas, diagnóstico, partos e bezerras/os" },
   { id: "health", label: "Sanidade", href: `${root}/sanidade`, icon: HeartPulse, description: "Vacinas, exames, tratamentos e ocorrências" },
   { id: "pastures", label: "Pastagens", href: `${root}/pastos`, icon: MapPin, description: "Piquetes, área e ocupação por lote" },
+  { id: "operations", label: "Central de manejo", href: `${root}/operacoes`, icon: ClipboardList, description: "Finalidade, transferências, ocorrências, importação e protocolos" },
   { id: "milk", label: "Leite", href: `${root}/leite`, icon: Milk, description: "Ordenhas por vaca e turno, produção e descarte" },
   { id: "feeding", label: "Alimentação", href: `${root}/racao`, icon: Wheat, description: "Consumo, fórmulas e produção de ração" },
   { id: "sales", label: "Vendas", href: `${root}/vendas`, icon: BadgeDollarSign, description: "Venda de lotes e receitas no financeiro" },
@@ -124,6 +125,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       setLoading(true);
       setError("");
       const params: Record<string, string | number> = { page, search };
+      if (production && ["animals", "batches"].includes(resource)) params.production = production;
       if ((resource === "animals" || resource === "batches") && status) params.status = status;
       if (farm) params.farm = farm;
       if (resource === "animals" && withdrawal) params.withdrawal = withdrawal;
@@ -133,12 +135,12 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       const countParams = { ...params };
       if (dairyAnimals) params.dairy_category = dairyTab;
       Promise.all([
-        cattleService.overview(controller.signal, farm),
+        cattleService.overview(controller.signal, farm, production),
         cattleService.farms(controller.signal),
         (["overview", "reports", "management"].includes(view) || (view === "reproduction" && reproductionGroup === "dashboard")) ? Promise.resolve(null) : cattleService.list<Row>(resource, params, controller.signal),
-        view === "sales" && manager ? cattleService.sales(controller.signal, farm) : Promise.resolve([]),
+        view === "sales" && manager ? cattleService.sales(controller.signal, farm, production) : Promise.resolve([]),
         dairyAnimals ? cattleService.categoryCounts(countParams, controller.signal) : Promise.resolve({}),
-        view === "reproduction" ? cattleService.reproductionSummary(farm ? { farm } : {}, controller.signal) : Promise.resolve({}),
+        view === "reproduction" ? cattleService.reproductionSummary({ ...(farm ? { farm } : {}), ...(production ? { production } : {}) }, controller.signal) : Promise.resolve({}),
       ]).then(([summary, farms, data, sales, counts, reproduction]) => {
         if (controller.signal.aborted) return;
         setReproductionCounts(reproduction); setCategoryCounts(counts); setOverview(summary); setFarms(farms); setRows(data?.results || []); setCount(data?.count || 0); setSales(sales);
@@ -146,7 +148,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [view, resource, page, search, status, category, farm, withdrawal, refresh, manager, youngFemales, dairyAnimals, dairyTab, reproductionGroup, reproductionPageSize, reproductionStatus]);
+  }, [view, resource, page, search, status, category, farm, withdrawal, refresh, manager, youngFemales, dairyAnimals, dairyTab, reproductionGroup, reproductionPageSize, reproductionStatus, production]);
 
   useEffect(() => {
     if (!historyAnimal) return;
@@ -195,13 +197,14 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         ...(editing ? [{ name: "birth_count", label: "Partos registrados no sistema", type: "number" as const, readOnly: true, section: "reproduction" }, { name: "last_mating_date", label: "Última cobertura / IA registrada", type: "date" as const, readOnly: true, section: "reproduction" }, { name: "expected_birth_date", label: "Previsão de parto registrada", type: "date" as const, readOnly: true, section: "reproduction" }, { name: "gestation_days", label: "Dias de gestação", type: "number" as const, readOnly: true, section: "reproduction" }] : []),
         { name: "genealogical_registration", label: "Registro genealógico (RGD)", maxLength: 80, section: "additional" },
         { name: "embryo_role", label: "Função embrionária", type: "select", options: options({ donor: "Doadora", recipient: "Receptora" }), visibleWhen: { field: "gender", value: "F" }, section: "additional" },
+        { name: "cattle_purpose", label: "Finalidade produtiva", type: "select", options: options({ unknown: "Não informado", beef: "Corte", dairy: "Leite", dual: "Dupla finalidade" }), section: "animal" },
         { name: "dairy_aptitude", label: "Aptidão leiteira", type: "checkbox", section: "additional" },
         { name: "beef_aptitude", label: "Aptidão de corte", type: "checkbox", section: "additional" },
         { ...notes, section: "additional" },
       ];
-      const initial: Record<string, string> = animal ? Object.fromEntries(fields.map(field => [field.name, String(({ ...animal, farm_id: animal.farm, breed_name_input: animal.breed_name, sire_identifier_input: animal.sire_identifier, dam_identifier_input: animal.dam_identifier } as Record<string, unknown>)[field.name] ?? "")])) : { farm_id: farmInitial, entry_date: today(), gender: "F", category: "Vaca", reproductive_status: "vazia", historical_birth_count: "0", dairy_aptitude: "false", beef_aptitude: "false", ...preset };
+      const initial: Record<string, string> = animal ? Object.fromEntries(fields.map(field => [field.name, String(({ ...animal, farm_id: animal.farm, breed_name_input: animal.breed_name, sire_identifier_input: animal.sire_identifier, dam_identifier_input: animal.dam_identifier } as Record<string, unknown>)[field.name] ?? "")])) : { farm_id: farmInitial, entry_date: today(), gender: "F", category: "Vaca", reproductive_status: "vazia", historical_birth_count: "0", dairy_aptitude: "false", beef_aptitude: "false", cattle_purpose: production || "unknown", ...preset };
       setForm({ title: editing ? `Editar bovino · ${animal.identifier}` : "Cadastrar bovino", description: "Registro individual, filiação e histórico do animal.", initial, fields,
-        sections: [{ id: "animal", title: "Dados do animal" }, { id: "genealogy", title: "Filiação (genealogia)", description: "Use os brincos de animais da mesma fazenda ou informe ascendentes externos." }, { id: "reproduction", title: "Informações reprodutivas", description: "O histórico informado não cria coberturas, gestações ou partos. Registre esses eventos no módulo Reprodução." }, { id: "development", title: "Nascimento e desenvolvimento", description: "Pesagens e desmame posteriores são registrados nos manejos." }, { id: "additional", title: "Informações complementares", description: "Aptidões são características cadastrais e não separam automaticamente o efetivo de corte e leite." }],
+        sections: [{ id: "animal", title: "Dados do animal" }, { id: "genealogy", title: "Filiação (genealogia)", description: "Use os brincos de animais da mesma fazenda ou informe ascendentes externos." }, { id: "reproduction", title: "Informações reprodutivas", description: "O histórico informado não cria coberturas, gestações ou partos. Registre esses eventos no módulo Reprodução." }, { id: "development", title: "Nascimento e desenvolvimento", description: "Pesagens e desmame posteriores são registrados nos manejos." }, { id: "additional", title: "Informações complementares", description: "A finalidade produtiva separa os segmentos. Aptidão e lactação são características independentes." }],
         submitLabel: "Salvar cadastro", save: values => {
           const data: Record<string, unknown> = Object.fromEntries(fields.filter(field => !field.readOnly && (!field.visibleWhen || values[field.visibleWhen.field] === field.visibleWhen.value)).map(field => [field.name, values[field.name] ?? ""]));
           for (const key of ["birth_date", "birth_weight_kg", "historical_last_birth_date", "initial_weaning_date"]) if (data[key] === "") data[key] = null;
@@ -216,8 +219,8 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   function editAnimal(animal: CattleAnimal) { void animalForm(animal); }
   function newBatch() {
     setForm({ title: "Cadastrar lote bovino", description: "Use lotes coletivos para animais sem cadastro individual. As quantidades não devem repetir os animais cadastrados por brinco.",
-      initial: { farm_id: farmInitial, phase: "crescimento", category: "Garrote", entry_date: today(), origin: "purchased", gender: "Misto" },
-      fields: [farmField, { name: "batch_code", label: "Código do lote", required: true, maxLength: 50 }, { name: "name", label: "Nome" }, { name: "phase", label: "Fase", type: "select", required: true, options: options(phases) }, { name: "category", label: "Categoria", type: "select", required: true, options: options(categories) }, { name: "quantity", label: "Quantidade de animais", type: "number", required: true, min: "1", step: "1" }, { name: "gender", label: "Sexo", type: "select", required: true, options: options({ M: "Machos", F: "Fêmeas", Misto: "Misto" }) }, { name: "origin", label: "Origem", type: "select", required: true, options: options({ purchased: "Comprado", born: "Nascido na fazenda", donated: "Doado" }) }, { name: "breed_name_input", label: "Raça" }, { name: "entry_date", label: "Entrada", type: "date", required: true, max: today() }, positive("avg_weight_kg", "Peso médio por animal (kg)", false), ...(manager ? [positive("purchase_value", "Valor total da compra (R$)", false)] : []), notes], save: values => cattleService.create("batches", payload(values)),
+      initial: { cattle_purpose: production || "unknown", farm_id: farmInitial, phase: "crescimento", category: "Garrote", entry_date: today(), origin: "purchased", gender: "Misto" },
+      fields: [farmField, { name: "cattle_purpose", label: "Finalidade produtiva", type: "select", required: true, options: options({ unknown: "Não informado", beef: "Corte", dairy: "Leite", dual: "Dupla finalidade" }) }, { name: "batch_code", label: "Código do lote", required: true, maxLength: 50 }, { name: "name", label: "Nome" }, { name: "phase", label: "Fase", type: "select", required: true, options: options(phases) }, { name: "category", label: "Categoria", type: "select", required: true, options: options(categories) }, { name: "quantity", label: "Quantidade de animais", type: "number", required: true, min: "1", step: "1" }, { name: "gender", label: "Sexo", type: "select", required: true, options: options({ M: "Machos", F: "Fêmeas", Misto: "Misto" }) }, { name: "origin", label: "Origem", type: "select", required: true, options: options({ purchased: "Comprado", born: "Nascido na fazenda", donated: "Doado" }) }, { name: "breed_name_input", label: "Raça" }, { name: "entry_date", label: "Entrada", type: "date", required: true, max: today() }, positive("avg_weight_kg", "Peso médio por animal (kg)", false), ...(manager ? [positive("purchase_value", "Valor total da compra (R$)", false)] : []), notes], save: values => cattleService.create("batches", payload(values)),
     });
   }
   function weighing(row: CattleAnimal | CattleBatch, batch = false) {
@@ -280,6 +283,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
     setPreparing(true);
     try {
       const filters: Record<string, string> = farm ? { farm } : {};
+      if (production && ["animals", "batches"].includes(resource)) filters.production = production;
       if (["animals", "batches"].includes(resource) && status) filters.status = status;
       if (resource === "animals" && category) filters.category = category;
       if (resource === "animals" && withdrawal) filters.withdrawal = withdrawal;
@@ -362,9 +366,11 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
     {success && <div role="status" className="alert alert-success py-2">{success}</div>}
     {error && <div role="alert" className="alert alert-danger">{error} <button className="btn btn-sm btn-outline-danger" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</button></div>}
     {loading && !overview ? <div className={styles.empty} role="status">Carregando dados do rebanho...</div> : !error && <>
+      {production && <p className="alert alert-info py-2 small">Este segmento considera a finalidade {production === "dairy" ? "leite" : "corte"} e dupla finalidade. <Link href="/home/rebanho/bovinos/operacoes?tab=classification">Revisar animais e lotes não classificados</Link>.</p>}
       {(["overview", "reports", "milk"].includes(view)) && <section className={homeStyles.summaryPanel} aria-labelledby="cattle-summary-title">
         <div className={homeStyles.sectionHeading}><div><span>{view === "milk" ? "Produção leiteira" : "Visão geral do rebanho"}</span><h2 id="cattle-summary-title">{view === "milk" ? "Resumo da produção de leite" : production ? `Resumo · ${productionTitle}` : "Resumo da Bovinocultura"}</h2></div><small className={styles.summaryScope}>{farm ? farms.find(item => item.id === farm)?.name : "Todas as fazendas"}</small></div>
         <div className={homeStyles.metricsGrid} aria-busy={loading}>{metrics.map(([label, value], index) => {
+          if (production === "beef" && label.startsWith("Leite")) return null;
           if (view === "milk" && !label.startsWith("Leite") && !label.startsWith("Fêmeas em lactação")) return null;
           if (production === "beef" && (label.startsWith("Leite") || label.startsWith("Fêmeas em lactação"))) return null;
           if (production === "dairy" && !label.startsWith("Leite") && !label.startsWith("Fêmeas em lactação") && !label.startsWith("Fêmeas gestantes")) return null;
@@ -382,10 +388,10 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         canWrite={canWrite && !loading && !preparing} manager={manager} onMating={mating} onDiagnosis={diagnosis} onBirth={birth} onEvent={event} onHistory={openHistory} onEdit={editAnimal} />}
 
       {view === "health" && <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} />}
-      {view === "management" ? (manager ? <CattleManagementWorkspace farms={farms} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} /> : <p role="alert">Manejos coletivos exigem gerente ou administrador.</p>) : ["overview", "reports"].includes(view) ? <>
+      {view === "management" ? (manager ? <CattleManagementWorkspace production={production} farms={farms} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} /> : <p role="alert">Manejos coletivos exigem gerente ou administrador.</p>) : ["overview", "reports"].includes(view) ? <>
         {view === "overview" && <section aria-labelledby="cattle-modules-title" className={styles.operations}>
           <div className={homeStyles.modulesHeading}><div><span>Operações</span><h2 id="cattle-modules-title">O que você deseja acessar?</h2></div><p>Escolha uma área para continuar a gestão do rebanho.</p></div>
-          <div className={homeStyles.moduleGrid}>{activeModules.filter(module => module.id !== "overview").map(module => <Link className={homeStyles.moduleCard} data-tone={moduleTones[module.id]} href={module.id === "reproduction" ? `${module.href}?production=${production || "beef"}` : module.href} key={module.id}><div className={homeStyles.moduleIcon} aria-hidden="true"><module.icon size={26} strokeWidth={1.8} /></div><div className={homeStyles.moduleCopy}><h3>{module.label}</h3><p>{module.description}</p></div><span className={homeStyles.moduleAction}>Acessar <ChevronRight size={19} aria-hidden="true" /></span></Link>)}</div>
+          <div className={homeStyles.moduleGrid}>{activeModules.filter(module => module.id !== "overview").map(module => <Link className={homeStyles.moduleCard} data-tone={moduleTones[module.id]} href={production && ["animals","batches","weights","health","sales","reports","management","reproduction"].includes(module.id) ? `${module.href}?production=${production}` : module.id === "reproduction" ? `${module.href}?production=beef` : module.href} key={module.id}><div className={homeStyles.moduleIcon} aria-hidden="true"><module.icon size={26} strokeWidth={1.8} /></div><div className={homeStyles.moduleCopy}><h3>{module.label}</h3><p>{module.description}</p></div><span className={homeStyles.moduleAction}>Acessar <ChevronRight size={19} aria-hidden="true" /></span></Link>)}</div>
         </section>}
         <div className={styles.insightGrid}><section className={styles.panel}><div className={styles.sectionTitle}><ChartNoAxesCombined size={20} aria-hidden="true" /><div><span>Inventário</span><h2>Composição do rebanho ativo</h2></div></div>{overview?.categories.length ? overview.categories.map(item => <div className={styles.category} key={item.category}><span>{item.category}</span><progress value={item.quantity} max={overview.total_head} aria-label={item.category} /><strong>{number(item.quantity)}</strong></div>) : <p className={styles.muted}>Nenhum animal ativo cadastrado. Comece pelo cadastro individual ou pelos lotes.</p>}</section>
         <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} /></div>

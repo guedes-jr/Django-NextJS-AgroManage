@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import {useEffect,useState} from "react";
 import {X,MessageCircle,CalendarPlus} from "lucide-react";
 import {agendaTaskService,type AgendaTask,type AgendaTaskOptions} from "@/services/organizationAgendaService";
@@ -38,7 +39,7 @@ export function AgendaTaskForm({id,date,farms,onClose,onSaved}:{id?:string;date:
   const terminal=!!task&&["done","cancelled"].includes(task.status);
   return <div className={styles.overlay} onClick={()=>{if(!busy)onClose();}} onKeyDown={e=>{if(e.key==="Escape"&&!busy)onClose();}}><section role="dialog" aria-modal="true" aria-labelledby="task-form-title" className={`${styles.detail} ${styles.holidayManager}`} onClick={e=>e.stopPropagation()}><button autoFocus aria-label="Fechar evento" disabled={busy} className={styles.close} onClick={onClose}><X size={20}/></button><span className={styles.eyebrow}>AGENDA DA ORGANIZAÇÃO</span><h2 id="task-form-title" className="h4"><CalendarPlus size={22}/> {id?"Detalhes do evento":"Novo evento ou compromisso"}</h2>
     {error&&<div role="alert" className="alert alert-danger py-2">{error}</div>}
-    {loading?<p role="status">Carregando…</p>:options&&<form onSubmit={async e=>{e.preventDefault();setBusy(true);setError("");try{
+    {loading?<p role="status">Carregando…</p>:options&&task?.operational_link?<div><h3 className="h5">{task.title}</h3><p>{task.description}</p><p className="small text-muted">Esta atividade pertence a uma rotina bovina. Registre sua execução na origem para manter o histórico e os efeitos integrados.</p><Link className="btn btn-success" href={task.operational_link}>Abrir Central de manejo</Link></div>:options&&<form onSubmit={async e=>{e.preventDefault();setBusy(true);setError("");try{
       const payload={title,description,event_kind:kind,due_date:day,start_time:start||null,end_time:end||null,location,farm:farm||null,status,priority,...(own?{whatsapp_remind_at:reminder?(task?.whatsapp_remind_at&&remindAt===reminderLocal(task.whatsapp_remind_at)?task.whatsapp_remind_at:new Date(`${remindAt}:00-03:00`).toISOString()):null}:{})};
       if(id)await agendaTaskService.update(id,payload);else await agendaTaskService.create(payload);
       onSaved();

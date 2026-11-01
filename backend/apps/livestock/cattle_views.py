@@ -68,7 +68,7 @@ class CattleOverviewView(APIView):
 
     def get(self, request):
         return Response(
-            cattle_overview(request.user.organization, request.query_params.get("farm"))
+            cattle_overview(request.user.organization, request.query_params.get("farm"), request.query_params.get("production"))
         )
 
 
@@ -105,6 +105,7 @@ class CattleAnimalViewSet(AnimalViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = [
         "identifier",
+        "batch",
         "farm",
         "gender",
         "category",
@@ -124,7 +125,8 @@ class CattleAnimalViewSet(AnimalViewSet):
             .filter(species__code="bovinos")
             .select_related("cattle_profile")
         )
-        queryset = with_cattle_reproduction(queryset)
+        from .cattle_improvements import filter_purpose
+        queryset = filter_purpose(with_cattle_reproduction(queryset), self.request.query_params.get("production"))
         group = serializers.ChoiceField(choices=["all", *cattle_reproduction_groups()]).run_validation(self.request.query_params.get("reproduction_group", "all"))
         if group != "all" and self.action != "reproduction_summary":
             queryset = queryset.filter(cattle_reproduction_groups()[group])
@@ -319,7 +321,8 @@ class CattleBatchViewSet(AnimalBatchViewSet):
 
     def get_queryset(self):
         from .cattle_operations import with_batch_operations
-        return with_batch_operations(super().get_queryset().filter(species__code="bovinos"))
+        from .cattle_improvements import filter_purpose
+        return with_batch_operations(filter_purpose(super().get_queryset().filter(species__code="bovinos"), self.request.query_params.get("production")))
 
     @action(detail=True, methods=["post"], url_path="register-weight")
     @transaction.atomic
@@ -596,10 +599,13 @@ class CattleManagementViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
 
             raise PermissionDenied("Manejos coletivos exigem gerente ou administrador.")
+        from .cattle_improvements import filter_purpose
+        participants = filter_purpose(Animal.objects.filter(farm__organization=self.request.user.organization, species__code="bovinos"), self.request.query_params.get("production"))
         return (
             CattleManagement.objects.filter(
-                farm__organization=self.request.user.organization
-            )
+                farm__organization=self.request.user.organization,
+                entries__animal__in=participants,
+            ).distinct()
             .select_related("farm")
             .prefetch_related("entries__animal")
         )

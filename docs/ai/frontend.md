@@ -82,3 +82,14 @@ forms use ReproducaoModal; structured cattle registration and detail sheets use
 Modal's reproduction variant so headers, overlay, controls and footer retain
 the same visual language. Preserve species-specific fields, validation and
 permissions rather than introducing another visual pattern per culture.
+
+## Bovine operations center
+
+`CattleOperationsWorkspace` reuses DataTable, CattleForm/Modal, app-workspace
+sizing and scoped theme tokens. Operations include productive-purpose review,
+transfer previews, occurrences, assisted CSV import, protocol stages and milk/cost
+queries. API access and CSV parsing live in cattleOperationsService. Contextual
+beef/dairy links preserve the production query; purpose is independent of aptitude
+and lactation. Existing dairy milk records stay visible even when current purpose
+or lactation changes. Generated Agenda tasks show their operational source link
+instead of allowing edits that would disconnect source execution from the agenda.

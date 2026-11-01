@@ -44,6 +44,7 @@ def past_date(value):
 
 
 class CattleAnimalSerializer(AnimalSerializer):
+    cattle_purpose = serializers.ChoiceField(choices=["unknown", "beef", "dairy", "dual"], required=False)
     name = serializers.CharField(source="cattle_profile.name", required=False, allow_blank=True, default="", max_length=100)
     coat_color = serializers.CharField(source="cattle_profile.coat_color", required=False, allow_blank=True, default="", max_length=80)
     birth_weight_kg = serializers.DecimalField(source="cattle_profile.birth_weight_kg", max_digits=7, decimal_places=2, min_value=Decimal("0.01"), required=False, allow_null=True, default=None)
@@ -98,7 +99,7 @@ class CattleAnimalSerializer(AnimalSerializer):
     class Meta(AnimalSerializer.Meta):
         fields = [
             *AnimalSerializer.Meta.fields,
-            "name",
+            "name", "cattle_purpose",
             "coat_color", "birth_weight_kg", "genealogical_registration", "dairy_aptitude", "beef_aptitude", "embryo_role", "historical_birth_count", "historical_last_birth_date", "last_mating_date", "expected_birth_date",
             "initial_weaning_date",
             "gestation_days",
@@ -119,6 +120,9 @@ class CattleAnimalSerializer(AnimalSerializer):
     def create(self, validated_data):
         from .models import WeightRecord
 
+        Farm.objects.select_for_update().get(pk=validated_data["farm_id"])
+        if Animal.objects.filter(farm_id=validated_data["farm_id"], identifier=validated_data["identifier"]).exists():
+            raise serializers.ValidationError({"identifier": "Brinco já cadastrado nesta fazenda."})
         profile_data = validated_data.pop("cattle_profile", {})
         if "initial_weaning_date" in validated_data:
             profile_data["weaning_date"] = validated_data.pop("initial_weaning_date")
@@ -129,6 +133,8 @@ class CattleAnimalSerializer(AnimalSerializer):
             is_lactating=animal.gender == "F"
             and animal.reproductive_status == "lactante",
         )
+        from .cattle_improvements import remember_purpose
+        remember_purpose(animal, "unknown", self.context["request"].user)
         if animal.initial_weight_kg:
             WeightRecord.objects.create(
                 farm=animal.farm,
@@ -143,8 +149,17 @@ class CattleAnimalSerializer(AnimalSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        Farm.objects.select_for_update().get(pk=instance.farm_id)
+        from .cattle_selectors import cattle_withdrawals, with_cattle_reproduction
+        instance = cattle_withdrawals(with_cattle_reproduction(Animal.objects.select_for_update())).get(pk=instance.pk)
+        linked_batch = validated_data.get("batch", instance.batch)
+        if linked_batch and linked_batch.cattle_purpose != validated_data.get("cattle_purpose", instance.cattle_purpose):
+            raise serializers.ValidationError({"cattle_purpose": "A finalidade do lote mudou. Confira a classificação antes de salvar."})
         profile_data = validated_data.pop("cattle_profile", {})
+        previous_purpose = instance.cattle_purpose
         animal = super().update(instance, validated_data)
+        from .cattle_improvements import remember_purpose
+        remember_purpose(animal, previous_purpose, self.context["request"].user)
         if profile_data:
             from .cattle_services import cattle_profile
             profile = cattle_profile(animal)
@@ -174,6 +189,10 @@ class CattleAnimalSerializer(AnimalSerializer):
                     raise serializers.ValidationError({input_field: "Os dados do ascendente são conflitantes."})
                 attrs[field] = parent
         attrs = super().validate(attrs)
+        linked_batch = attrs.get("batch", getattr(self.instance, "batch", None))
+        purpose = attrs.get("cattle_purpose", getattr(self.instance, "cattle_purpose", "unknown"))
+        if linked_batch and linked_batch.cattle_purpose != purpose:
+            raise serializers.ValidationError({"cattle_purpose": "Use a mesma finalidade do lote ou classifique o lote e seus participantes pela Central de manejo."})
         from .cattle_genealogy import validate_cattle_parentage
         validate_cattle_parentage(self.instance, attrs, farm_id)
         organization = self.context["request"].user.organization
@@ -285,7 +304,7 @@ class CattleBatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnimalBatch
         fields = [
-            "id", "operations",
+            "id", "operations", "cattle_purpose",
             "farm_id",
             "farm_name",
             "batch_code",
@@ -356,6 +375,8 @@ class CattleBatchSerializer(serializers.ModelSerializer):
             batch = AnimalBatch.objects.create(
                 species=species, breed=breed, **validated_data
             )
+            from .cattle_improvements import remember_purpose
+            remember_purpose(batch, "unknown", self.context["request"].user)
             open_batch_phase(batch, batch.phase, batch.entry_date)
             HistoricoEvento.objects.create(
                 farm=batch.farm, lote=batch, tipo_evento="Entrada de Lote", data_evento=batch.entry_date,
@@ -367,7 +388,14 @@ class CattleBatchSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         validated_data.pop("breed_name_input", None)
-        return super().update(instance, validated_data)
+        with transaction.atomic():
+            Farm.objects.select_for_update().get(pk=instance.farm_id)
+            instance = AnimalBatch.objects.select_for_update().get(pk=instance.pk)
+            previous = instance.cattle_purpose
+            result = super().update(instance, validated_data)
+            from .cattle_improvements import remember_purpose
+            remember_purpose(result, previous, self.context["request"].user)
+            return result
 
 
 class CattlePastureSerializer(serializers.ModelSerializer):
@@ -782,7 +810,7 @@ class CattleManagementSerializer(serializers.ModelSerializer):
             "description",
             "responsible",
             "treatment_type",
-            "cost_per_animal",
+            "cost_per_animal", "inventory_lot", "inventory_quantity_per_animal", "inventory_movement", "inventory_cost_snapshot",
             "next_procedure_date",
             "milk_withdrawal_until",
             "meat_withdrawal_until",
@@ -795,7 +823,7 @@ class CattleManagementSerializer(serializers.ModelSerializer):
             "entries",
         ]
         read_only_fields = [
-            "status",
+            "status", "inventory_movement", "inventory_cost_snapshot",
             "created_by",
             "confirmed_by",
             "confirmed_at",
@@ -804,6 +832,9 @@ class CattleManagementSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         validate_tenant_relations(self, attrs, ("farm",))
+        from .cattle_stock_management import validate_management_stock
+        candidate = CattleManagement(**{key: attrs.get(key, getattr(self.instance, key, None)) for key in ["kind", "date", "inventory_lot", "inventory_quantity_per_animal", "milk_withdrawal_until", "meat_withdrawal_until"]})
+        validate_management_stock(candidate, self.context["request"].user.organization)
         if self.instance and self.instance.status != "draft":
             raise serializers.ValidationError("Somente rascunhos podem ser editados.")
         farm = attrs.get("farm", getattr(self.instance, "farm", None))

@@ -43,6 +43,7 @@ const shortcuts: Array<{
   financial?: boolean;
   planned?: boolean;
 }> = [
+  { title: "Central de manejo", description: "Classificação, ocorrências e protocolos", href: `${root}/operacoes`, icon: ClipboardList, tone: "green" },
   {
     title: "Cadastro",
     description: "Vacas, bezerras, touros e lotes",
@@ -74,7 +75,7 @@ const shortcuts: Array<{
   {
     title: "Sanidade",
     description: "Vacinações, tratamentos e carências",
-    href: `${root}/sanidade`,
+    href: `${root}/sanidade?production=dairy`,
     icon: ShieldPlus,
     tone: "emerald",
   },
@@ -103,7 +104,7 @@ const shortcuts: Array<{
   {
     title: "Relatórios",
     description: "Consulte e exporte os registros do rebanho",
-    href: `${root}/relatorios`,
+    href: `${root}/relatorios?production=dairy`,
     icon: ChartNoAxesCombined,
     tone: "cyan",
     financial: true,
@@ -270,7 +271,7 @@ export function DairyHome() {
       </section>
 
       <p className={styles.scope}>
-        Produção e média correspondem à data selecionada. As contagens mostram o rebanho bovino identificado atual da fazenda, compartilhado com a área de corte.
+        Produção e média correspondem à data selecionada. As contagens consideram os animais classificados como leite ou dupla finalidade. Revise os cadastros não informados na Central de manejo.
       </p>
 
       {!loading && !error && data?.milked_cows === 0 && (

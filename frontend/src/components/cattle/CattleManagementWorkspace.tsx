@@ -2,16 +2,18 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { cattleService, cattleError, type CattleAnimal, type CattleManagement } from "@/services/cattleService";
+import { cattleOperations, type StockLotOption } from "@/services/cattleOperationsService";
 import styles from "./cattle.module.css";
 
 const kinds = { weighing: "Pesagem", sanitary: "Sanitário", castration: "Castração" };
 const statuses = { draft: "Rascunho", confirmed: "Confirmado", cancelled: "Cancelado" };
 const today = () => new Date().toLocaleDateString("en-CA");
 const displayDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR");
-type Draft = { id?: string; farm: string; kind: CattleManagement["kind"]; date: string; description: string; responsible: string; treatment_type: string; cost_per_animal: string; next_procedure_date: string; milk_withdrawal_until: string; meat_withdrawal_until: string; notes: string; entries: Record<string, string> };
-const blank = (farm: string): Draft => ({ farm, kind: "weighing", date: today(), description: "", responsible: "", treatment_type: "other", cost_per_animal: "0", next_procedure_date: "", milk_withdrawal_until: "", meat_withdrawal_until: "", notes: "", entries: {} });
+type Draft = { inventory_lot: string; inventory_quantity_per_animal: string; id?: string; farm: string; kind: CattleManagement["kind"]; date: string; description: string; responsible: string; treatment_type: string; cost_per_animal: string; next_procedure_date: string; milk_withdrawal_until: string; meat_withdrawal_until: string; notes: string; entries: Record<string, string> };
+const blank = (farm: string): Draft => ({ inventory_lot: "", inventory_quantity_per_animal: "", farm, kind: "weighing", date: today(), description: "", responsible: "", treatment_type: "other", cost_per_animal: "0", next_procedure_date: "", milk_withdrawal_until: "", meat_withdrawal_until: "", notes: "", entries: {} });
 
-export function CattleManagementWorkspace({ farms, canWrite, onChanged }: { farms: { id: string; name: string }[]; canWrite: boolean; onChanged: () => void }) {
+export function CattleManagementWorkspace({ farms, canWrite, onChanged, production }: { production?: "dairy" | "beef"; farms: { id: string; name: string }[]; canWrite: boolean; onChanged: () => void }) {
+  const [stockLots, setStockLots] = useState<StockLotOption[]>([]);
   const [rows, setRows] = useState<CattleManagement[]>([]);
   const [status, setStatus] = useState("draft");
   const [page, setPage] = useState(1);
@@ -30,25 +32,31 @@ export function CattleManagementWorkspace({ farms, canWrite, onChanged }: { farm
   const [reason, setReason] = useState("");
   const farm = draft?.farm || "";
   useEffect(() => {
+    if (draft?.kind !== "sanitary") return;
     const controller = new AbortController();
-    cattleService.list<CattleManagement>("managements", { status, page }, controller.signal)
+    cattleOperations.page<StockLotOption>("stock-lots", { page_size: 100 }, controller.signal).then(data => setStockLots(data.results)).catch(error => { if (!controller.signal.aborted) setAnimalError(cattleError(error)); });
+    return () => controller.abort();
+  }, [draft?.kind]);
+  useEffect(() => {
+    const controller = new AbortController();
+    cattleService.list<CattleManagement>("managements", { status, page, ...(production ? { production } : {}) }, controller.signal)
       .then(data => { if (!controller.signal.aborted) { setRows(data.results); setCount(data.count); } })
       .catch(error => { if (!controller.signal.aborted) setError(cattleError(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [status, page, refresh]);
+  }, [status, page, refresh, production]);
   useEffect(() => {
     if (!farm) return;
     const controller = new AbortController();
-    cattleService.all<CattleAnimal>("animals", { farm, status: "active" }, controller.signal)
+    cattleService.all<CattleAnimal>("animals", { farm, status: "active", ...(production ? { production } : {}) }, controller.signal)
       .then(data => { if (!controller.signal.aborted) setAnimals(data); })
       .catch(error => { if (!controller.signal.aborted) setAnimalError(cattleError(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoadingAnimals(false); });
     return () => controller.abort();
-  }, [farm, refresh]);
+  }, [farm, refresh, production]);
   function edit(row: CattleManagement) {
     setError(""); setAnimalError(""); setSearch(""); setAnimals([]); setLoadingAnimals(true);
-    setDraft({ ...row, next_procedure_date: row.next_procedure_date || "", milk_withdrawal_until: row.milk_withdrawal_until || "", meat_withdrawal_until: row.meat_withdrawal_until || "", entries: Object.fromEntries(row.entries.map(entry => [entry.animal, entry.weight_kg || ""])) });
+    setDraft({ ...row, inventory_lot: row.inventory_lot || "", inventory_quantity_per_animal: row.inventory_quantity_per_animal || "", next_procedure_date: row.next_procedure_date || "", milk_withdrawal_until: row.milk_withdrawal_until || "", meat_withdrawal_until: row.meat_withdrawal_until || "", entries: Object.fromEntries(row.entries.map(entry => [entry.animal, entry.weight_kg || ""])) });
   }
   const change = (name: keyof Draft, value: string) => setDraft(previous => previous ? { ...previous, [name]: value } : previous);
   function reload(message: string) { setNotice(message); setError(""); setRefresh(value => value + 1); setLoading(true); onChanged(); }
@@ -57,7 +65,7 @@ export function CattleManagementWorkspace({ farms, canWrite, onChanged }: { farm
     setSaving(true); setError("");
     try {
       const { entries, id, ...header } = draft;
-      const data = { ...header, cost_per_animal: draft.kind === "sanitary" ? draft.cost_per_animal || "0" : "0", next_procedure_date: draft.kind === "sanitary" ? draft.next_procedure_date || null : null, milk_withdrawal_until: draft.kind === "sanitary" ? draft.milk_withdrawal_until || null : null, meat_withdrawal_until: draft.kind === "sanitary" ? draft.meat_withdrawal_until || null : null, entries: Object.entries(entries).map(([animal, weight]) => ({ animal, weight_kg: draft.kind === "weighing" ? weight || null : null })) };
+      const data = { ...header, inventory_lot: draft.kind === "sanitary" ? draft.inventory_lot || null : null, inventory_quantity_per_animal: draft.kind === "sanitary" ? draft.inventory_quantity_per_animal || null : null, cost_per_animal: draft.kind === "sanitary" ? draft.cost_per_animal || "0" : "0", next_procedure_date: draft.kind === "sanitary" ? draft.next_procedure_date || null : null, milk_withdrawal_until: draft.kind === "sanitary" ? draft.milk_withdrawal_until || null : null, meat_withdrawal_until: draft.kind === "sanitary" ? draft.meat_withdrawal_until || null : null, entries: Object.entries(entries).map(([animal, weight]) => ({ animal, weight_kg: draft.kind === "weighing" ? weight || null : null })) };
       if (id) await cattleService.update("managements", id, data); else await cattleService.create("managements", data);
       setDraft(null); reload("Rascunho salvo. Confira os participantes antes de confirmar; os efeitos ainda não foram aplicados.");
     } catch (error) { setError(cattleError(error)); } finally { setSaving(false); }
@@ -86,8 +94,10 @@ export function CattleManagementWorkspace({ farms, canWrite, onChanged }: { farm
         <label className={styles.field}>Descrição *<input required maxLength={200} className="form-control" value={draft.description} onChange={event => change("description", event.target.value)} /></label>
         <label className={styles.field}>Responsável / veterinário<input maxLength={100} className="form-control" value={draft.responsible} onChange={event => change("responsible", event.target.value)} /></label>
         {draft.kind === "sanitary" && <>
+          <label className={styles.field}>Produto e lote de estoque<select className="form-select" value={draft.inventory_lot} onChange={event => setDraft({ ...draft, inventory_lot: event.target.value, inventory_quantity_per_animal: event.target.value ? draft.inventory_quantity_per_animal : "" })}><option value="">Sem consumo de produto</option>{stockLots.map(lot => <option key={lot.id} value={lot.id}>{lot.label}{lot.expiry ? ` · Validade ${displayDate(lot.expiry)}` : ""}</option>)}</select></label>
+          {draft.inventory_lot && <label className={styles.field}>Quantidade por animal ({stockLots.find(lot => lot.id === draft.inventory_lot)?.unit || "unidade do estoque"}) *<input className="form-control" required type="number" min="0.01" step="0.01" value={draft.inventory_quantity_per_animal} onChange={event => change("inventory_quantity_per_animal", event.target.value)}/><small>A confirmação baixa a quantidade × participantes. Informe na unidade do estoque.</small></label>}
           <label className={styles.field}>Procedimento<select className="form-select" value={draft.treatment_type} onChange={event => change("treatment_type", event.target.value)}>{Object.entries({ medication: "Medicação", exam: "Exame", surgery: "Cirurgia", other: "Outro" }).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-          <label className={styles.field}>Custo por animal (R$)<input className="form-control" type="number" min="0" step="0.01" value={draft.cost_per_animal} onChange={event => change("cost_per_animal", event.target.value)} /></label>
+          <label className={styles.field}>Serviço / custo adicional por animal (R$)<input className="form-control" type="number" min="0" step="0.01" value={draft.cost_per_animal} onChange={event => change("cost_per_animal", event.target.value)} /></label>
           {([['next_procedure_date', 'Próximo procedimento'], ['milk_withdrawal_until', 'Carência de leite até (inclusive)'], ['meat_withdrawal_until', 'Carência de abate até (inclusive)']] as const).map(([key, label]) => <label key={key} className={styles.field}>{label}<input className="form-control" type="date" min={draft.date} value={draft[key]} onChange={event => change(key, event.target.value)} /></label>)}
           <p className={styles.muted}>Este registro apropria o custo informado e registra carências; não realiza baixa de medicamentos no estoque. Vacinação com consumo continua na tela de sanidade.</p>
         </>}

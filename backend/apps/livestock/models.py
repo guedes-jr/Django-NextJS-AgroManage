@@ -6,6 +6,8 @@ from common.models import BaseModel
 from django.conf import settings
 from django.db import models
 
+CATTLE_PURPOSES = [("unknown", "Não informado"), ("beef", "Corte"), ("dairy", "Leite"), ("dual", "Dupla finalidade")]
+
 
 class CattlePasture(BaseModel):
     farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="cattle_pastures")
@@ -109,6 +111,10 @@ class CattleManagement(BaseModel):
     description = models.CharField(max_length=200)
     responsible = models.CharField(max_length=100, blank=True)
     treatment_type = models.CharField(max_length=20, default="other")
+    inventory_lot = models.ForeignKey("inventory.LoteEstoque", on_delete=models.PROTECT, null=True, blank=True, related_name="cattle_managements")
+    inventory_quantity_per_animal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    inventory_movement = models.OneToOneField("inventory.MovimentacaoEstoque", on_delete=models.PROTECT, null=True, blank=True, related_name="cattle_management")
+    inventory_cost_snapshot = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     cost_per_animal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     next_procedure_date = models.DateField(null=True, blank=True)
     milk_withdrawal_until = models.DateField(null=True, blank=True)
@@ -222,6 +228,7 @@ class AnimalBatch(BaseModel):
     species = models.ForeignKey(Species, on_delete=models.PROTECT, related_name="batches")
     breed = models.ForeignKey(Breed, on_delete=models.SET_NULL, null=True, blank=True)
     batch_code = models.CharField(max_length=50)
+    cattle_purpose = models.CharField(max_length=10, choices=CATTLE_PURPOSES, default="unknown")
     quantity = models.PositiveIntegerField(default=0)
     birth_date = models.DateField(null=True, blank=True)
     entry_date = models.DateField()
@@ -289,6 +296,7 @@ class Animal(BaseModel):
     breed = models.ForeignKey(Breed, on_delete=models.SET_NULL, null=True, blank=True)
     batch = models.ForeignKey(AnimalBatch, on_delete=models.SET_NULL, null=True, blank=True, help_text="Lote de origem, se houver")
     
+    cattle_purpose = models.CharField(max_length=10, choices=CATTLE_PURPOSES, default="unknown")
     identifier = models.CharField(max_length=50, help_text="Brinco, tatuagem ou nome")
     birth_date = models.DateField(null=True, blank=True)
     entry_date = models.DateField(null=True, blank=True)
@@ -644,6 +652,7 @@ class HealthRecord(BaseModel):
     farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="health_records")
     animal = models.ForeignKey(Animal, on_delete=models.CASCADE, related_name="health_records")
     
+    cattle_management = models.ForeignKey("CattleManagement", null=True, blank=True, on_delete=models.PROTECT, related_name="health_records")
     treatment_type = models.CharField(max_length=20, choices=TreatmentType.choices, default=TreatmentType.MEDICACAO)
     description = models.TextField()
     application_date = models.DateField()
@@ -1228,3 +1237,91 @@ class CattleTroughReading(BaseModel):
             models.CheckConstraint(condition=models.Q(score__gte=0, score__lte=4), name="valid_cattle_trough_score"),
             models.CheckConstraint(condition=models.Q(remaining_kg__isnull=True) | models.Q(remaining_kg__gte=0), name="nonnegative_cattle_trough_remaining"),
         ]
+
+
+class CattlePurposeChange(BaseModel):
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT)
+    animal = models.ForeignKey(Animal, null=True, blank=True, on_delete=models.PROTECT, related_name="purpose_changes")
+    batch = models.ForeignKey(AnimalBatch, null=True, blank=True, on_delete=models.PROTECT, related_name="purpose_changes")
+    previous = models.CharField(max_length=10, choices=CATTLE_PURPOSES)
+    purpose = models.CharField(max_length=10, choices=CATTLE_PURPOSES)
+    date = models.DateField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.CheckConstraint(condition=(models.Q(animal__isnull=False, batch__isnull=True) | models.Q(animal__isnull=True, batch__isnull=False)), name="cattle_purpose_one_target")]
+
+
+class CattleTransfer(BaseModel):
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT)
+    source = models.ForeignKey(AnimalBatch, on_delete=models.PROTECT, related_name="outgoing_cattle_transfers")
+    destination = models.ForeignKey(AnimalBatch, on_delete=models.PROTECT, related_name="incoming_cattle_transfers")
+    date = models.DateField()
+    quantity = models.PositiveIntegerField()
+    animal_ids = models.JSONField(default=list)
+    reason = models.CharField(max_length=300)
+    request_key = models.UUIDField()
+    snapshot = models.JSONField(default=dict)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["farm", "request_key"], name="unique_cattle_transfer_request"), models.CheckConstraint(condition=models.Q(quantity__gt=0) & ~models.Q(source=models.F("destination")), name="valid_cattle_transfer")]
+        ordering = ["-date", "-created_at"]
+
+
+class CattleOccurrence(BaseModel):
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT)
+    animal = models.ForeignKey(Animal, null=True, blank=True, on_delete=models.PROTECT)
+    batch = models.ForeignKey(AnimalBatch, null=True, blank=True, on_delete=models.PROTECT)
+    kind = models.CharField(max_length=20, choices=[("animal", "Animal"), ("water", "Água"), ("fence", "Cerca"), ("pasture", "Pasto"), ("other", "Outro")])
+    date = models.DateField()
+    description = models.CharField(max_length=1000)
+    task = models.OneToOneField("tasks.Task", on_delete=models.PROTECT)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="resolved_cattle_occurrences")
+    resolution = models.CharField(max_length=1000, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_cattle_occurrences")
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-date", "-created_at"]
+
+
+class CattleProtocol(BaseModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    version = models.PositiveIntegerField(default=1)
+    steps = models.JSONField(default=list)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["organization", "name", "version"], name="unique_cattle_protocol_version")]
+
+
+class CattleProtocolRun(BaseModel):
+    animal = models.ForeignKey(Animal, on_delete=models.PROTECT)
+    protocol = models.ForeignKey(CattleProtocol, on_delete=models.PROTECT)
+    start_date = models.DateField()
+    request_key = models.UUIDField()
+    steps_snapshot = models.JSONField(default=list)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["animal", "request_key"], name="unique_cattle_protocol_run")]
+
+
+class CattleProtocolStep(BaseModel):
+    inventory_cost_snapshot = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    inventory_lot = models.ForeignKey("inventory.LoteEstoque", null=True, blank=True, on_delete=models.PROTECT)
+    inventory_quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    inventory_movement = models.OneToOneField("inventory.MovimentacaoEstoque", null=True, blank=True, on_delete=models.PROTECT)
+    mating = models.ForeignKey("Mating", null=True, blank=True, on_delete=models.PROTECT, related_name="protocol_steps")
+    run = models.ForeignKey(CattleProtocolRun, on_delete=models.PROTECT, related_name="executions")
+    number = models.PositiveIntegerField()
+    task = models.OneToOneField("tasks.Task", on_delete=models.PROTECT)
+    executed_at = models.DateTimeField(null=True, blank=True)
+    executed_date = models.DateField(null=True, blank=True)
+    executed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True)
+    notes = models.CharField(max_length=1000, blank=True)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["run", "number"], name="unique_cattle_protocol_step")]

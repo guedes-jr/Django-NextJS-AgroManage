@@ -9,9 +9,15 @@ from .models import Pregnancy, CattleManagement, CattleGrazing, WeightRecord, Ca
 from .operational_alerts import pending_diagnoses
 
 
-def cattle_agenda(organization, farm=None, period="all", kind="all"):
+def cattle_agenda(organization, farm=None, period="all", kind="all", production=None):
     sources = []
+    if production:
+        from .models import Animal
+        from .cattle_improvements import filter_purpose
+        participants = filter_purpose(Animal.objects.filter(farm__organization=organization, species__code="bovinos"), production)
     def project(query, day, title, event_kind, farm_path, animal_path=None):
+        if production:
+            query = query.filter(**{f"{animal_path}__in": participants.values("pk")}) if animal_path else query.filter(entries__animal__in=participants).distinct()
         query = query.order_by().annotate(
             _day=day, _title=title, _kind=Value(event_kind, output_field=CharField()),
             _animal=Cast(F(animal_path), CharField()) if animal_path else Value("", output_field=CharField()),

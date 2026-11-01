@@ -1,7 +1,7 @@
 import apiClient from "./api";
 
 export type CattleAnimal = {
-  id: string; farm: string; farm_name: string; identifier: string; name?: string; gender: "M" | "F";
+  cattle_purpose?: string; id: string; farm: string; farm_name: string; identifier: string; name?: string; gender: "M" | "F";
   coat_color?: string; birth_weight_kg?: string | null; genealogical_registration?: string; dairy_aptitude?: boolean; beef_aptitude?: boolean; embryo_role?: string; historical_birth_count?: number; historical_last_birth_date?: string | null;
   birth_count?: number; last_mating_date?: string | null; expected_birth_date?: string | null; gestation_days?: number | null;
   category: string; breed_name?: string; batch?: string | null; batch_code?: string;
@@ -11,7 +11,7 @@ export type CattleAnimal = {
   sire_identifier?: string | null; dam_identifier?: string | null; sire_name?: string; dam_name?: string; current_weight_kg?: string | null; initial_weight_kg?: string | null; notes: string;
 };
 export type CattleBatch = {
-  id: string; farm_id: string; farm_name: string; batch_code: string; name: string;
+  cattle_purpose?: string; id: string; farm_id: string; farm_name: string; batch_code: string; name: string;
   category: string; phase: string; quantity: number; status: string; gender: string;
   operations?: { age_days: number | null; last_weighing_date: string | null; identified_animals: number; pastures: { name: string; entry_date: string; days: number }[] };
   avg_weight_kg: string | null; entry_date: string; origin: string; notes: string;
@@ -21,6 +21,7 @@ export type CattleGrazing = { id: string; pasture: string; pasture_name: string;
 export type CattleMilk = { id: string; animal: string; identifier: string; farm_name: string; date: string; session: string; liters: string; discarded_liters: string; discard_reason: string; notes: string };
 export type CattleManagement = {
   id: string; farm: string; farm_name: string; kind: "weighing" | "sanitary" | "castration"; date: string; description: string;
+  inventory_lot?: string | null; inventory_quantity_per_animal?: string | null; inventory_movement?: string | null; inventory_cost_snapshot?: string | null;
   responsible: string; treatment_type: string; cost_per_animal: string; next_procedure_date: string | null;
   milk_withdrawal_until: string | null; meat_withdrawal_until: string | null; notes: string;
   status: "draft" | "confirmed" | "cancelled"; confirmed_at: string | null; cancellation_reason: string;
@@ -71,7 +72,7 @@ export const cattleService = {
     }
     return records;
   },
-  overview: async (signal?: AbortSignal, farm?: string) => (await apiClient.get<CattleOverview>(`${base}/overview/`, { signal, params: farm ? { farm } : {} })).data,
+  overview: async (signal?: AbortSignal, farm?: string, production?: string) => (await apiClient.get<CattleOverview>(`${base}/overview/`, { signal, params: { ...(farm ? { farm } : {}), ...(production ? { production } : {}) } })).data,
   list: async <T>(resource: CattleResource, params: CattleFilters = {}, signal?: AbortSignal) =>
     (await apiClient.get<Page<T>>(`${base}/${resource}/`, { params: { page_size: 30, ...params }, signal })).data,
   farms: async (signal?: AbortSignal) => {
@@ -91,7 +92,7 @@ export const cattleService = {
   action: async (resource: "animals" | "batches" | "grazings" | "managements", id: string, action: string, data: Record<string, unknown>) =>
     (await apiClient.post(`${base}/${resource}/${id}/${action}/`, data)).data,
   history: async (id: string, signal?: AbortSignal) => (await apiClient.get<CattleHistory[]>(`${base}/animals/${id}/full-history/`, { signal })).data,
-  sales: async (signal?: AbortSignal, farm?: string) => (await apiClient.get<{ id: string; date: string; batch_code: string; quantity: number; amount: string; buyer: string }[]>(`${base}/batches/sales/`, { signal, params: farm ? { farm } : {} })).data,
+  sales: async (signal?: AbortSignal, farm?: string, production?: string) => (await apiClient.get<{ id: string; date: string; batch_code: string; quantity: number; amount: string; buyer: string }[]>(`${base}/batches/sales/`, { signal, params: { ...(farm ? { farm } : {}), ...(production ? { production } : {}) } })).data,
 };
 
 export function cattleError(error: unknown): string {

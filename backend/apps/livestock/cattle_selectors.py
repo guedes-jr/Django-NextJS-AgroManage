@@ -42,7 +42,7 @@ def with_cattle_reproduction(queryset):
     )
 
 
-def cattle_overview(organization, farm=None):
+def cattle_overview(organization, farm=None, production=None):
     if farm:
         from rest_framework import serializers
 
@@ -56,6 +56,8 @@ def cattle_overview(organization, farm=None):
     if farm:
         animals = animals.filter(farm_id=farm)
         batches = batches.filter(farm_id=farm)
+    from .cattle_improvements import filter_purpose
+    animals, batches = filter_purpose(animals, production), filter_purpose(batches, production)
     standalone = animals.filter(batch__isnull=True)
     categories = {}
     for row in batches.values("category").annotate(total=Sum("quantity")):
@@ -84,11 +86,11 @@ def cattle_overview(organization, farm=None):
         pastures = pastures.filter(farm_id=farm)
     from .cattle_operations import cattle_agenda, agenda_row
     # Keep the overview bounded, with separate space for upcoming and overdue work.
-    today_events = list(cattle_agenda(organization, farm, "today")[:8])
-    upcoming_events = list(cattle_agenda(organization, farm, "upcoming")[:8])
-    overdue_events = list(cattle_agenda(organization, farm, "overdue")[:4])
+    today_events = list(cattle_agenda(organization, farm, "today", production=production)[:8])
+    upcoming_events = list(cattle_agenda(organization, farm, "upcoming", production=production)[:8])
+    overdue_events = list(cattle_agenda(organization, farm, "overdue", production=production)[:4])
     agenda = [agenda_row(row) for row in [*today_events, *upcoming_events, *overdue_events]]
-    agenda_count = cattle_agenda(organization, farm).count()
+    agenda_count = cattle_agenda(organization, farm, production=production).count()
     return {
         "total_head": sum(categories.values()),
         "identified_animals": animals.count(),
@@ -125,6 +127,7 @@ def dairy_overview(organization, day, farm=None):
     if farm:
         animals = animals.filter(farm_id=farm)
         milk = milk.filter(animal__farm_id=farm)
+    animals = animals.filter(cattle_purpose__in=["dairy", "dual"])
     lactating = Q(gender="F") & (Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante"))
     cows = Q(gender="F", category__in=["Vaca", "Matriz"])
     counts = animals.aggregate(

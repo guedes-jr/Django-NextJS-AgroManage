@@ -32,7 +32,7 @@ export const holidayService = {
   remove: async(id:string)=>{await apiClient.delete(`/tasks/holidays/${id}/`);},
 };
 
-export type AgendaTask = {id:string;title:string;description:string;due_date:string|null;event_kind:"task"|"event"|"appointment";start_time:string|null;end_time:string|null;location:string;farm:string|null;status:string;priority:string;whatsapp_remind_at:string|null;reminder_status:string|null;created_by:string|null};
+export type AgendaTask = {operational_link?:string|null;id:string;title:string;description:string;due_date:string|null;event_kind:"task"|"event"|"appointment";start_time:string|null;end_time:string|null;location:string;farm:string|null;status:string;priority:string;whatsapp_remind_at:string|null;reminder_status:string|null;created_by:string|null};
 export type AgendaTaskOptions = {user_id:string;role:string;read_only:boolean;whatsapp_contact_ready:boolean;whatsapp_configured:boolean;channel_enabled:boolean;timezone:string};
 export const agendaTaskService = {
   detail:async(id:string)=>(await apiClient.get<AgendaTask>(`/tasks/${id}/`)).data,

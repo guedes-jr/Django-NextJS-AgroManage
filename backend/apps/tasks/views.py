@@ -35,7 +35,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         organization = getattr(self.request.user, "organization", None)
         if not organization:
             return Task.objects.none()
-        qs = Task.objects.filter(organization=organization).select_related("farm", "assigned_to", "created_by", "reminder_delivery")
+        qs = Task.objects.filter(organization=organization).select_related("farm", "assigned_to", "created_by", "reminder_delivery", "cattleprotocolstep", "cattleoccurrence")
         if self.request.user.role == "operator":
             qs = qs.filter(Q(assigned_to=self.request.user) | Q(created_by=self.request.user))
         return qs
@@ -63,6 +63,8 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
 
     def perform_destroy(self, instance):
+        if hasattr(instance, "cattleprotocolstep") or hasattr(instance, "cattleoccurrence"):
+            raise PermissionDenied("Resolva esta atividade pela Central de manejo bovino; sua origem operacional deve ser preservada.")
         task_id, title = instance.id, instance.title
         instance.delete()
         record_client_action(

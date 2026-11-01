@@ -63,6 +63,8 @@ def confirm_cattle_management(management, user):
         .select_related("farm", "species")
         .order_by("pk")
     }
+    from .cattle_stock_management import consume_management_stock
+    consume_management_stock(management, user, len(entries))
     for entry in entries:
         animal = animals[entry.animal_id]
         if (
@@ -94,6 +96,7 @@ def confirm_cattle_management(management, user):
                     f"Corrija as ordenhas aproveitadas de {animal.identifier} no período de carência antes de confirmar."
                 )
             HealthRecord.objects.create(
+                cattle_management=management,
                 farm=animal.farm,
                 animal=animal,
                 application_date=management.date,

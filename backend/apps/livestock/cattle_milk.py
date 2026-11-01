@@ -27,7 +27,7 @@ def milk_cows(organization, day, farm=None):
     return cows.annotate(
         has_milk=Exists(records), has_daily_total=Exists(totals),
         day_liters=Subquery(volumes[:1], output_field=DecimalField(max_digits=11, decimal_places=2)),
-    ).filter(Q(has_milk=True) | (Q(status="active") & (Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante")))).select_related("farm", "breed", "cattle_profile").order_by("identifier", "id")
+    ).filter(Q(has_milk=True) | (Q(status="active", cattle_purpose__in=["dairy", "dual"]) & (Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante")))).select_related("farm", "breed", "cattle_profile").order_by("identifier", "id")
 
 
 def milk_cow_row(animal):

@@ -1856,3 +1856,104 @@ daily dairy summaries, but have no invented cow allocation: milked count, per-co
 mean and individual pending count are null whenever the selected scope includes
 an aggregate. Individual and aggregate history remain distinct. Operator species,
 read-only, ownership and manager deletion rules remain in force.
+
+## Bovine operational improvements — 2026-11-01
+
+The eight approved improvements are exposed through the existing bovine pages
+and `/home/rebanho/bovinos/operacoes` (Central de manejo). No feeding-plan or
+manual headcount-adjustment operation was reintroduced.
+
+### Productive purpose
+
+Animals and batches expose `cattle_purpose=unknown|beef|dairy|dual` through cattle
+serializers. `production=beef|dairy` includes dual-purpose participants; `unknown`
+is an explicit review queue. The general census still counts participants once.
+Existing records are migrated to unknown, never inferred from lactation or breed.
+Purpose changes create CattlePurposeChange with before/after, date and author.
+Batch classification explicitly includes its active identified participants;
+the confirmation form states this. Individual purpose cannot diverge from its
+linked batch, preventing inconsistent segment counts.
+Historical operational records are preserved; purpose filters describe the
+current cohort rather than a reconstructed historical herd. Dairy herd counts
+and new pending-milking lists use dairy/dual classification. Existing individual
+milk records remain accessible even after classification or lactation changes.
+
+### Operations API
+
+`/livestock/cattle/operations/<kind>/` uses CattlePermission and keeps tenant
+and bovine species scope. GET collections are paginated (default 10, max 100).
+GET `members` returns only active organization IDs/names (operators see themselves).
+
+| Kind | Method | Behavior |
+|---|---|---|
+| `purpose-history` | GET | Classification changes, optionally by farm |
+| `classify` | POST | Manager/admin classification of explicit animal/batch IDs |
+| `transfers` | GET/POST | Preview or confirm an explicit same-farm batch transfer |
+| `move-pasture` | POST | Preview or atomically close/open a batch pasture occupation |
+| `occurrences` | GET/POST | Occurrence with member, due date and existing Agenda Task |
+| `resolve-occurrence` | POST | Authored resolution and task completion together |
+| `import-preview` | POST | Per-line validation without database writes |
+| `import-confirm` | POST | All-or-nothing revalidation/import, max 500 animals |
+| `protocols` | GET/POST | Immutable template versions with relative-day steps |
+| `protocol-runs` | GET | Animal execution and step history |
+| `start-protocol` | POST | Snapshot selected version and generate agenda tasks |
+| `execute-step` | POST | Real execution date, note, optional semen origin/mating |
+| `matings` | GET | Authorized bovine mating choices, optionally by animal |
+| `stock-lots` | GET | Product/lot/unit/balance options; `category=semen` for reproduction |
+| `milk-trends` | GET | Bounded daily series, session totals and configurable drop flag |
+| `costs` | GET | Manager/admin operational cost sources and separate financial expenses |
+
+Transfers require date=today, compatible category/sex/purpose and exact identified
+participants when the origin contains identities. Source/destination are locked
+and reconciled together. Confirmations require expected source/destination counts
+from the preview and a UUID request_key. Retries reuse the committed result;
+changed payloads or stale counts are rejected. Pasture changes similarly bind
+expected_source to the previous occupation and preserve a request-key history.
+Acquisition value is proportionally transferred when known, without creating a
+new financial expense. No generic quantity editing is enabled.
+
+Imports use an explicit field whitelist and the normal cattle serializer; purchase
+or unrelated operational columns are rejected. CSV templates and parsing are
+provided by the service/UI. Reimporting an existing identifier is rejected, not
+silently overwritten. Operators do not import, classify or transfer.
+
+Occurrences and protocol stages reuse Agenda tasks. Operators may assign only
+themselves and execute only their own/assigned operations, with read-only access
+respected. Generated tasks expose operational_link and must be completed
+through their source workflow; direct deletion is blocked, preventing
+agenda/operational divergence.
+Protocols do not fabricate matings, diagnoses or births. Optional semen
+consumption requires a matching animal/date mating, eligible physical lot,
+positive quantity in the stock unit and an idempotent step execution.
+
+### Sanitary stock integration and costs
+
+CattleManagement accepts optional inventory_lot and
+inventory_quantity_per_animal. Quantity uses the item's stock unit, explicitly
+shown in the form. Confirmation validates species, category, expiry, entry date,
+balance and configured withdrawal periods. It creates one normal stock movement,
+snapshots material cost and links generated HealthRecords to the management.
+Service/additional cost_per_animal is separate from the consumed material.
+Reports keep a known service cost even if the material price is unknown, showing
+the material origin as pending instead of hiding the known portion.
+Confirmation retries do not consume again. Milk/meat withdrawal checks remain.
+
+Cost reports aggregate known feed, collective sanitary, individual treatment,
+vaccination and protocol semen origins once. Generated collective HealthRecords
+are excluded as duplicate representations of the same application. Financial
+expenses are shown separately by due date and never added again to operational
+stock consumption. Missing source prices are counted as pending, not invented. Equal per-participant
+allocations distribute residual cents deterministically by participant ID, so
+splitting a cohort cannot multiply or lose cents. Monetary report values use
+decimal strings.
+Batch/purpose filters use current participant registration, clearly stated in the
+report; this is not a complete retrospective allocation or a profit/DRE engine.
+
+Milk trends accept start/end (max 366 days), farm, animal and drop_percent (1–100).
+Only recorded dates appear; absent days are not zero production. A drop flag
+compares consecutive recorded past calendar days and warns to check missing turns.
+Daily aggregate volumes are never distributed artificially by animal or session.
+
+Migrations: 0042 adds purpose, operational records and stock origins; 0043 links
+legacy collective HealthRecords only when an exact, unambiguous match exists.
+All new schema is explicitly registered for tenant-safe export/restore.

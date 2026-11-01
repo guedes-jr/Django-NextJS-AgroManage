@@ -24,7 +24,7 @@ class MilkProductionTests(APITestCase):
         self.second = self.animal("V002")
 
     def animal(self, identifier, **changes):
-        return Animal.objects.create(**{**dict(identifier=identifier, farm=self.farm, species=self.species, category="Vaca", gender="F", status="active", reproductive_status="lactante", entry_date=self.day - timedelta(days=100)), **changes})
+        return Animal.objects.create(**{**dict(identifier=identifier, farm=self.farm, species=self.species, cattle_purpose="dairy", category="Vaca", gender="F", status="active", reproductive_status="lactante", entry_date=self.day - timedelta(days=100)), **changes})
 
     def individual(self, **changes):
         return self.client.post(self.base + "milk/", {"animal": str(self.cow.pk), "date": str(self.day), "session": "morning", "liters": "12.00", **changes}, format="json")
