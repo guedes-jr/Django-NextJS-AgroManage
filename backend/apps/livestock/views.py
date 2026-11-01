@@ -2685,7 +2685,11 @@ class ReproductionDashboardView(APIView):
         alerts.extend(_expected_birth_alerts(user.organization, species_code))
         alerts.extend(_piglet_iron_alerts(user.organization, species_code))
         alert_deadline = (timezone.localdate() + datetime.timedelta(days=3)).isoformat()
-        alerts = [alert for alert in alerts if alert.get("due_date") and alert["due_date"] <= alert_deadline]
+        if request.query_params.get("include_all_alerts") == "true":
+            from .operational_alerts import operational_alerts
+            alerts = operational_alerts(user.organization, species_code)
+        else:
+            alerts = [alert for alert in alerts if alert.get("due_date") and alert["due_date"] <= alert_deadline]
         ai_suggestions = []
         
         # Check close births

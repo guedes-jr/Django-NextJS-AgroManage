@@ -1,5 +1,5 @@
-import { CattleWorkspace } from "@/components/cattle/CattleWorkspace";
+import { MilkProduction } from "@/components/cattle/MilkProduction";
 
 export default function Page() {
-  return <CattleWorkspace view="milk" />;
+  return <MilkProduction />;
 }

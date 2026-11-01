@@ -56,6 +56,23 @@ class CattleMilkRecord(BaseModel):
         ]
 
 
+class CattleMilkDailyTotal(BaseModel):
+    """Daily aggregate entry, mutually exclusive with individual milkings per farm/day."""
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT, related_name="milk_daily_totals")
+    date = models.DateField()
+    liters = models.DecimalField(max_digits=11, decimal_places=2)
+    discarded_liters = models.DecimalField(max_digits=11, decimal_places=2, default=0)
+    discard_reason = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-date", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["farm", "date"], name="unique_cattle_daily_milk_total"),
+            models.CheckConstraint(condition=models.Q(liters__gt=0) & models.Q(discarded_liters__gte=0) & models.Q(discarded_liters__lte=models.F("liters")), name="valid_daily_milk_total_volume"),
+        ]
+
+
 class CattleAnimalProfile(BaseModel):
     """Cattle-specific states, independent of the shared reproduction workflow."""
 

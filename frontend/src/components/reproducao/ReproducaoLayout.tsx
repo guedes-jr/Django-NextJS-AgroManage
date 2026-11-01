@@ -31,6 +31,6 @@ export function ReproducaoPhaseTabs({ phases, selected, onSelect, loading = {} }
   if (selected === "dashboard") return null;
   return <ul className="repro-phase-tabs mb-4" aria-label="Fases da reprodução" style={{ scrollbarWidth: "none", msOverflowStyle: "none", borderBottom: "none" }}>{phases.map(phase => {
     const active = selected === phase.id;
-    return <li className="nav-item" key={phase.id} style={{ flexShrink: 0 }}><button className={`repro-phase-tab ${active ? "is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onSelect(phase.id)}><span className="repro-phase-tab-icon">{phase.icon}</span>{phase.label}{phase.count !== undefined && <span className={`badge rounded-pill ms-1 ${active ? "bg-success" : "bg-light text-muted"}`} style={{ fontSize: ".6rem", fontWeight: 700 }}>{phase.count}</span>}{loading[phase.id] && !active && <Loader2 size={12} className="ms-1 text-muted spin-animation" />}</button></li>;
+    return <li className="nav-item" key={phase.id} style={{ flexShrink: 0 }}><button className={`repro-phase-tab ${active ? "is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onSelect(phase.id)}><span className="repro-phase-tab-icon">{phase.icon}</span>{phase.label}{phase.count !== undefined && <span className={`badge rounded-pill ms-1 repro-phase-count ${active ? "is-active" : ""}`} style={{ fontSize: ".6rem", fontWeight: 700 }}>{phase.count}</span>}{loading[phase.id] && !active && <Loader2 size={12} className="ms-1 text-muted spin-animation" />}</button></li>;
   })}</ul>;
 }

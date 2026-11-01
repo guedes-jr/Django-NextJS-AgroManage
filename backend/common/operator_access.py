@@ -34,6 +34,7 @@ SPECIES_PATHS = {
     "ConsumoRacao": ["lote_animal__species", "animais__species"],
 }
 OPERATIONAL_MODELS = {
+    "CattleMilkDailyTotal",
     "CattleMilkRecord",
     "Animal",
     "AnimalBatch",
@@ -174,6 +175,8 @@ def species_codes(user):
 def scoped_queryset(queryset, user):
     if not is_operator(user):
         return queryset
+    if queryset.model.__name__ == "CattleMilkDailyTotal":
+        return queryset if "bovinos" in species_codes(user) else queryset.none()
     paths = SPECIES_PATHS.get(queryset.model.__name__)
     if paths:
         query = Q()

@@ -820,3 +820,7 @@
 .repro-phase-tab:focus-visible,.repro-quick-actions button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
 @media(max-width:600px){.repro-phase-tab{min-height:46px;padding:7px 10px;font-size:.78rem;gap:7px}.repro-phase-tab-icon{width:30px;height:30px}.repro-tab-kpi-card,.repro-kpi-card{padding:13px;min-height:92px}.repro-tab-kpi-icon,.repro-kpi-icon{width:38px!important;height:38px!important;flex-basis:38px}.repro-tab-kpi-card .h4,.repro-kpi-value{font-size:1.3rem}.repro-tab-kpi-card .small,.repro-kpi-label{font-size:.73rem}.repro-quick-actions button{min-height:90px}}
 @media(prefers-reduced-motion:reduce){.repro-phase-tab,.repro-quick-actions button{transition:none!important}.repro-quick-actions button{transform:none!important}}
+
+/* Explicit paired colors keep phase totals readable in both themes. */
+.repro-phase-count { background: var(--muted); color: var(--foreground); border: 1px solid var(--border); }
+.repro-phase-count.is-active { background: #237b48; color: #fff; border-color: #237b48; }

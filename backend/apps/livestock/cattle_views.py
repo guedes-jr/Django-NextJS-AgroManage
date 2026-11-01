@@ -23,7 +23,7 @@ from .cattle_serializers import (
     CattleFeedSerializer,
     CattleGrazingSerializer,
     CattleManagementSerializer,
-    CattleMilkSerializer,
+    CattleMilkSerializer, CattleMilkDailyTotalSerializer,
     CattlePastureSerializer,
     CattleVaccinationInput,
     CattleWeightInput,
@@ -42,7 +42,7 @@ from .models import (
     AnimalBatch,
     CattleGrazing,
     CattleManagement,
-    CattleMilkRecord,
+    CattleMilkRecord, CattleMilkDailyTotal,
     CattleFeedPlan,
     CattlePasture,
     HistoricoEvento,
@@ -498,6 +498,51 @@ class CattleMilkViewSet(viewsets.ModelViewSet):
                 )
             )
         return queryset
+
+
+    def day_scope(self):
+        from django.utils import timezone
+        day = serializers.DateField(validators=[past_date]).run_validation(self.request.query_params.get("date", str(timezone.localdate())))
+        farm = self.request.query_params.get("farm")
+        if farm:
+            farm = serializers.UUIDField().run_validation(farm)
+        return day, farm
+
+    @action(detail=False, methods=["get"], url_path="day-summary")
+    def day_summary(self, request):
+        from .cattle_milk import milk_day_summary
+        day, farm = self.day_scope()
+        return Response(milk_day_summary(request.user.organization, day, farm))
+
+    @action(detail=False, methods=["get"], url_path="cows")
+    def cows(self, request):
+        from .cattle_milk import milk_cows, milk_cow_row
+        day, farm = self.day_scope()
+        queryset = milk_cows(request.user.organization, day, farm)
+        search = request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(Q(identifier__icontains=search) | Q(cattle_profile__name__icontains=search))
+        entry_status = request.query_params.get("entry_status")
+        if entry_status == "pending":
+            queryset = queryset.filter(has_milk=False, has_daily_total=False)
+        elif entry_status == "recorded":
+            queryset = queryset.filter(has_milk=True)
+        elif entry_status == "total":
+            queryset = queryset.filter(has_daily_total=True)
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response([milk_cow_row(animal) for animal in page])
+
+
+@operator_scoped
+class CattleMilkDailyTotalViewSet(viewsets.ModelViewSet):
+    permission_classes = [CattlePermission]
+    serializer_class = CattleMilkDailyTotalSerializer
+    write_roles = {"admin", "manager", "operator"}
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["farm", "date"]
+
+    def get_queryset(self):
+        return CattleMilkDailyTotal.objects.filter(farm__organization=self.request.user.organization).select_related("farm")
 
 
 @operator_scoped

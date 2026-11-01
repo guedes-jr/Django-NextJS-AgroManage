@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { newestAlerts, ALERTS_PAGE, ALERT_PREVIEW_LIMIT } from "@/services/operationalAlertPresentation";
+
 interface AlertItem {
+  due_date?: string; created_at?: string;
   type: "warning" | "danger" | "info" | "success";
   icon: string;
   text: string;
@@ -21,7 +25,7 @@ export function AlertListCard({
   emptyText = "Nenhum alerta no momento",
 }: AlertListCardProps) {
   return (
-    <div className="dashboard-card p-4 h-100" style={{ background: "white" }}>
+    <div className="dashboard-card p-4 h-100" style={{ background: "var(--card)", color: "var(--foreground)" }}>
       <div className="d-flex align-items-center justify-content-between mb-3">
         <div>
           <h6 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>
@@ -45,7 +49,7 @@ export function AlertListCard({
         </div>
       ) : (
         <div className="repro-alert-list">
-          {alerts.map((alert, i) => (
+          {newestAlerts(alerts).slice(0, ALERT_PREVIEW_LIMIT).map((alert, i) => (
             <div key={i} className={`repro-alert-item ${alert.type}`}>
               <span className="repro-alert-icon">{alert.icon}</span>
               <div>
@@ -56,6 +60,7 @@ export function AlertListCard({
           ))}
         </div>
       )}
+      <Link href={ALERTS_PAGE} className="d-inline-block mt-3 small fw-semibold">Ver todos os alertas →</Link>
     </div>
   );
 }

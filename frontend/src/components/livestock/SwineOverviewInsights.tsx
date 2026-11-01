@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { newestAlerts, ALERTS_PAGE, ALERT_PREVIEW_LIMIT } from "@/services/operationalAlertPresentation";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, BellRing, CalendarDays, CheckCircle2, ChevronRight, Loader2, Sparkles, Syringe } from "lucide-react";
 import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
@@ -41,7 +43,7 @@ export function SwineOverviewInsights() {
     { text: "Revisar leitões e desmames programados", sector: "Maternidade" },
     { text: "Conferir lotes na creche", sector: "Creche" },
   ];
-  const alerts = operationalAlerts;
+  const alerts = newestAlerts(operationalAlerts);
   const suggestions = data?.aiSuggestions || [];
 
   const confirmAlert = async (item: AlertItem | SuggestionItem) => {
@@ -83,10 +85,11 @@ export function SwineOverviewInsights() {
           <article className={styles.card}>
             <header><span><BellRing size={19}/> Alertas do sistema <i>{alerts.length + suggestions.length}</i></span></header>
             <div className={styles.list}>
-              {alerts.map((alert, index) => <div className={styles.alert} data-danger={alert.type === "danger"} key={alert.alert_key || `${alert.text}-${index}`}><AlertTriangle size={20}/><div><strong>{alert.text}</strong><small>{alert.time || "Requer atenção"}</small></div><button className="btn btn-sm border-0 p-1" style={{ color: "inherit", fontSize: "1.05rem" }} disabled={!alert.alert_key || confirming === alert.alert_key} onClick={() => void confirmAlert(alert)} title="Confirmar que este alerta foi tratado" aria-label="Confirmar alerta tratado"><span aria-hidden="true">🆗</span></button></div>)}
+              {alerts.slice(0, ALERT_PREVIEW_LIMIT).map((alert, index) => <div className={styles.alert} data-danger={alert.type === "danger"} key={alert.alert_key || `${alert.text}-${index}`}><AlertTriangle size={20}/><div><strong>{alert.text}</strong><small>{alert.time || "Requer atenção"}</small></div><button className="btn btn-sm border-0 p-1" style={{ color: "inherit", fontSize: "1.05rem" }} disabled={!alert.alert_key || confirming === alert.alert_key} onClick={() => void confirmAlert(alert)} title="Confirmar que este alerta foi tratado" aria-label="Confirmar alerta tratado"><span aria-hidden="true">🆗</span></button></div>)}
               {!alerts.length && !suggestions.length && <div className={styles.clear}><Sparkles size={23}/><div><strong>Tudo sob controle</strong><small>Nenhum alerta crítico neste momento.</small></div></div>}
-              {suggestions.slice(0, 1).map((item, index) => <div className={styles.suggestion} key={item.alert_key || index}><Syringe size={20}/><div><strong>{item.text}</strong><small>Sugestão do sistema</small></div><button className="btn btn-sm border-0 p-1" style={{ color: "inherit", fontSize: "1.05rem" }} disabled={!item.alert_key || confirming === item.alert_key} onClick={() => void confirmAlert(item)} title="Confirmar que esta orientação foi atendida" aria-label="Confirmar orientação atendida"><span aria-hidden="true">🆗</span></button></div>)}
+              {suggestions.slice(0, Math.max(0, ALERT_PREVIEW_LIMIT - alerts.length)).map((item, index) => <div className={styles.suggestion} key={item.alert_key || index}><Syringe size={20}/><div><strong>{item.text}</strong><small>Sugestão do sistema</small></div><button className="btn btn-sm border-0 p-1" style={{ color: "inherit", fontSize: "1.05rem" }} disabled={!item.alert_key || confirming === item.alert_key} onClick={() => void confirmAlert(item)} title="Confirmar que esta orientação foi atendida" aria-label="Confirmar orientação atendida"><span aria-hidden="true">🆗</span></button></div>)}
             </div>
+            <Link href={ALERTS_PAGE} className="d-inline-block p-3 small fw-semibold">Ver todos os alertas →</Link>
           </article>
         </div>
       )}

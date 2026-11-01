@@ -15,7 +15,7 @@ from .models import (
     CattleGrazing,
     CattleManagement,
     CattleManagementEntry,
-    CattleMilkRecord,
+    CattleMilkRecord, CattleMilkDailyTotal,
     CattleFeedPlan,
     CattleFeedDelivery,
     CattleTroughReading,
@@ -577,12 +577,25 @@ class CattleMilkSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        Animal.objects.select_for_update().get(pk=validated_data["animal"].pk)
+        from apps.farms.models import Farm
+        from .models import CattleMilkDailyTotal
+        animal = validated_data["animal"]
+        Farm.objects.select_for_update().get(pk=animal.farm_id)
+        Animal.objects.select_for_update().get(pk=animal.pk)
+        if CattleMilkDailyTotal.objects.filter(farm_id=animal.farm_id, date=validated_data["date"]).exists():
+            raise serializers.ValidationError({"date": "Já existe produção total nesta fazenda e data. Corrija ou remova o total antes de lançar por vaca."})
+        if CattleMilkRecord.objects.filter(animal=animal, date=validated_data["date"], session=validated_data["session"]).exists():
+            raise serializers.ValidationError({"session": "Já existe ordenha desta vaca na data e turno. Corrija o lançamento existente."})
         return super().create(self.validate(validated_data))
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        from apps.farms.models import Farm
+        from .models import CattleMilkDailyTotal
+        Farm.objects.select_for_update().get(pk=instance.animal.farm_id)
         Animal.objects.select_for_update().get(pk=instance.animal_id)
+        if CattleMilkDailyTotal.objects.filter(farm_id=instance.animal.farm_id, date=validated_data.get("date", instance.date)).exists():
+            raise serializers.ValidationError({"date": "Já existe produção total nesta fazenda e data."})
         if (
             "animal" in validated_data
             and validated_data["animal"].pk != instance.animal_id
@@ -987,3 +1000,50 @@ class CattleDailyFeedInput(serializers.Serializer):
     quantity_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     request_key = serializers.UUIDField()
     notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
+    farm_name = serializers.CharField(source="farm.name", read_only=True)
+    liters = serializers.DecimalField(max_digits=11, decimal_places=2, min_value=Decimal("0.01"))
+    discarded_liters = serializers.DecimalField(max_digits=11, decimal_places=2, min_value=Decimal(0), default=0)
+
+    class Meta:
+        model = CattleMilkDailyTotal
+        fields = ["id", "farm", "farm_name", "date", "liters", "discarded_liters", "discard_reason", "notes"]
+
+    def validate(self, attrs):
+        validate_tenant_relations(self, attrs, ("farm",))
+        day = attrs.get("date", getattr(self.instance, "date", None))
+        past_date(day)
+        liters = attrs.get("liters", getattr(self.instance, "liters", 0))
+        discarded = attrs.get("discarded_liters", getattr(self.instance, "discarded_liters", 0))
+        if discarded > liters:
+            raise serializers.ValidationError({"discarded_liters": "O descarte não pode superar a produção."})
+        if discarded and not attrs.get("discard_reason", getattr(self.instance, "discard_reason", "")).strip():
+            raise serializers.ValidationError({"discard_reason": "Informe o motivo do descarte."})
+        if self.instance and attrs.get("farm", self.instance.farm) != self.instance.farm:
+            raise serializers.ValidationError({"farm": "Não altere a fazenda de um lançamento existente."})
+        return attrs
+
+    def locked_save(self, attrs):
+        from apps.farms.models import Farm
+        farm = attrs.get("farm", getattr(self.instance, "farm", None))
+        day = attrs.get("date", getattr(self.instance, "date", None))
+        Farm.objects.select_for_update().get(pk=farm.pk)
+        existing = CattleMilkDailyTotal.objects.filter(farm=farm, date=day)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError({"date": "Já existe um total nesta fazenda e data. Corrija o lançamento existente."})
+        if CattleMilkRecord.objects.filter(animal__farm=farm, date=day).exists():
+            raise serializers.ValidationError({"date": "Já existem ordenhas individuais nesta fazenda e data. Use o resumo das vacas; o total não pode ser somado novamente."})
+
+    @transaction.atomic
+    def create(self, validated_data):
+        self.locked_save(validated_data)
+        return super().create(validated_data)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        self.locked_save(validated_data)
+        return super().update(instance, validated_data)

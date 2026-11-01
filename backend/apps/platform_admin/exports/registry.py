@@ -2,6 +2,7 @@
 INVENTORY_VERSION = 1
 APPS = ('accounts', 'organizations', 'farms', 'crops', 'livestock', 'inventory', 'finance', 'tasks', 'reports', 'audit', 'ai_assistant', 'billing', 'notifications')
 REGISTRY = {
+    'livestock.cattlemilkdailytotal': {"scope": "farm__organization", "fields": ("id", "created_at", "updated_at", "farm", "date", "liters", "discarded_liters", "discard_reason", "notes"), "m2m": ()},
     'livestock.cattletroughreading': {"scope": 'batch__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'plan', 'batch', 'formula', 'formula_name', 'date', 'session', 'score', 'remaining_kg', 'plan_version', 'head_count', 'kg_per_head_day', 'request_key', 'notes', 'created_by'), "m2m": ()},
     'livestock.cattlefeedplan': {"scope": 'batch__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'version', 'batch', 'item', 'kg_per_head_day', 'start_date', 'end_date', 'is_active', 'notes', 'created_by'), "m2m": ()},
     'livestock.cattlefeeddelivery': {"scope": 'plan__batch__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'plan', 'plan_version', 'date', 'quantity_kg', 'remaining_before_kg', 'available_after_kg', 'daily_requirement_kg', 'head_count', 'cost', 'request_key', 'notes', 'created_by'), "m2m": ()},

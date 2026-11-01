@@ -156,8 +156,8 @@ export function DairyHome() {
 
   const metrics = [
     { label: "Vacas em lactação", value: data?.lactating_cows, icon: LactationIcon, tone: "green", detail: "Fêmeas identificadas em lactação atualmente" },
-    { label: date === today() ? "Produção de hoje" : "Produção do dia", value: data ? `${number(data.produced_liters)} L` : undefined, icon: Milk, tone: "blue", detail: "Soma das ordenhas registradas na data" },
-    { label: "Média por vaca ordenhada", value: data ? (data.average_per_milked_cow === null ? "—" : `${number(data.average_per_milked_cow)} L`) : undefined, icon: Droplets, tone: "green", detail: `${data?.milked_cows || 0} vacas com ordenha registrada no dia` },
+    { label: date === today() ? "Produção de hoje" : "Produção do dia", value: data ? `${number(data.produced_liters)} L` : undefined, icon: Milk, tone: "blue", detail: "Produção registrada na data" },
+    { label: "Média por vaca ordenhada", value: data ? (data.average_per_milked_cow === null ? "—" : `${number(data.average_per_milked_cow)} L`) : undefined, icon: Droplets, tone: "green", detail: data?.milked_cows === null ? "Lançamento total sem identificação das vacas" : `${data?.milked_cows || 0} vacas com ordenha registrada no dia` },
     { label: "Leite aproveitável", value: data ? `${number(data.usable_liters)} L` : undefined, icon: Milk, tone: "emerald", detail: `Produção menos ${number(data?.discarded_liters)} L de descarte` },
     { label: "Total de vacas", value: data?.total_cows, icon: CowIcon, tone: "blue", detail: "Vacas e matrizes identificadas ativas" },
     { label: "Vacas fora de lactação", value: data?.non_lactating_cows, icon: MilkOff, tone: "amber", detail: "Vacas e matrizes ativas sem indicação de lactação" },

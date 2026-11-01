@@ -6,7 +6,7 @@ import notificationService, { Notification } from "@/services/notificationServic
 
 import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
 
-export type OperationalAlert = { alert_key: string; text: string; time?: string; type?: string; species?: string };
+export type OperationalAlert = { due_date?: string; created_at?: string; alert_key: string; text: string; time?: string; type?: string; species?: string };
 type NotificationContextValue = {
   operationalAlerts: OperationalAlert[];
   confirmOperationalAlert: (alert: OperationalAlert) => Promise<void>;

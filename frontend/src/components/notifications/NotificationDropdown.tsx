@@ -2,6 +2,7 @@
 
 import { Bell, CheckCheck, Trash2, Loader2, Package, Beef, Receipt, FileText } from "lucide-react";
 import Link from "next/link";
+import { newestAlerts, ALERT_PREVIEW_LIMIT, ALERTS_PAGE } from "@/services/operationalAlertPresentation";
 import { useState } from "react";
 import useNotifications from "@/hooks/useNotifications";
 
@@ -58,7 +59,8 @@ export default function NotificationDropdown({ onClose }: Props) {
 
         <div style={{ overflowY: "auto", maxHeight: "380px" }}>
           {alertError && <p className="text-danger p-3" role="alert">{alertError}</p>}
-          {operationalAlerts.map(alert => <div key={alert.alert_key} className="p-3 border-bottom notification-unread"><div className="d-flex align-items-start gap-2"><Beef size={18}/><div className="flex-grow-1"><p className="small fw-bold mb-1">{alert.text}</p><small>Ciclos dos animais{alert.time ? ` · ${alert.time}` : ""}</small></div><button type="button" className="btn btn-sm btn-success" disabled={confirming !== null} onClick={async () => { setConfirming(alert.alert_key); setAlertError(""); try { await confirmOperationalAlert(alert); } catch { setAlertError("Não foi possível confirmar o alerta. Tente novamente."); } finally { setConfirming(null); } }}>{confirming === alert.alert_key ? "…" : "OK"}</button></div></div>)}
+          {newestAlerts(operationalAlerts).slice(0, ALERT_PREVIEW_LIMIT).map(alert => <div key={alert.alert_key} className="p-3 border-bottom notification-unread"><div className="d-flex align-items-start gap-2"><Beef size={18}/><div className="flex-grow-1"><p className="small fw-bold mb-1">{alert.text}</p><small>Ciclos dos animais{alert.time ? ` · ${alert.time}` : ""}</small></div><button type="button" className="btn btn-sm btn-success" disabled={confirming !== null} onClick={async () => { setConfirming(alert.alert_key); setAlertError(""); try { await confirmOperationalAlert(alert); } catch { setAlertError("Não foi possível confirmar o alerta. Tente novamente."); } finally { setConfirming(null); } }}>{confirming === alert.alert_key ? "…" : "OK"}</button></div></div>)}
+          {operationalAlerts.length > 0 && <Link href={ALERTS_PAGE} onClick={onClose} className="d-block p-3 small fw-semibold">Ver todos os alertas →</Link>}
           {loading ? (
             <div className="d-flex justify-content-center align-items-center py-5">
               <Loader2 className="animate-spin text-success" size={24} />

@@ -30,6 +30,37 @@ class ReproductionConsistencyTestCase(APITestCase):
         self.swine = Species.objects.create(name="Suínos Consistência", code="suinos")
         self.client.force_authenticate(self.user)
 
+    def test_all_alerts_includes_future_dates_but_keeps_tenant_and_acknowledgements(self):
+        from django.utils import timezone
+        from apps.livestock.models import AcknowledgedOperationalAlert
+
+        today = timezone.localdate()
+        female = Animal.objects.create(
+            farm=self.farm, species=self.swine, identifier="FUTURE-01",
+            gender="F", category="Matriz", reproductive_status="coberta",
+            entry_date=today,
+        )
+        Mating.objects.create(female=female, mating_date=today,
+                              expected_diagnosis_date=today + timedelta(days=21))
+        other_org = Organization.objects.create(name="Outra", slug="outra-alertas")
+        other_farm = Farm.objects.create(organization=other_org, name="Outra fazenda")
+        other = Animal.objects.create(farm=other_farm, species=self.swine,
+                                      identifier="SECRET-OTHER", gender="F", category="Matriz",
+                                      reproductive_status="coberta", entry_date=today)
+        Mating.objects.create(female=other, mating_date=today,
+                              expected_diagnosis_date=today + timedelta(days=21))
+        url = reverse("reproduction_dashboard")
+        normal = self.client.get(url, {"species": "suinos"})
+        self.assertFalse(any("FUTURE-01" in item["text"] for item in normal.data["alerts"]))
+        full = self.client.get(url, {"species": "suinos", "include_all_alerts": "true"})
+        self.assertEqual(full.status_code, 200)
+        future = next(item for item in full.data["alerts"] if "FUTURE-01" in item["text"])
+        self.assertFalse(any("SECRET-OTHER" in item["text"] for item in full.data["alerts"]))
+        AcknowledgedOperationalAlert.objects.create(user=self.user, organization=self.organization,
+                                                     alert_key=future["alert_key"], alert_text=future["text"])
+        full = self.client.get(url, {"species": "suinos", "include_all_alerts": "true"})
+        self.assertFalse(any(item["alert_key"] == future["alert_key"] for item in full.data["alerts"]))
+
     def test_covered_gilt_belongs_only_to_coverage_gestation_phase(self):
         gilt = Animal.objects.create(
             farm=self.farm,

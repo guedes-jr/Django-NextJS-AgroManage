@@ -1,7 +1,7 @@
 import apiClient from "./api";
 
-export const getReproductionDashboard = async (species: string) => {
-  const response = await apiClient.get(`/livestock/dashboard/reproduction/?species=${species}`);
+export const getReproductionDashboard = async (species: string, includeAllAlerts = false) => {
+  const response = await apiClient.get(`/livestock/dashboard/reproduction/?species=${species}`, { params: includeAllAlerts ? { include_all_alerts: true } : undefined });
   return response.data;
 };
 

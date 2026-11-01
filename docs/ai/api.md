@@ -485,6 +485,14 @@ separate `marketing_alerts` user opt-in, also unchecked by default.
 Operational reproductive dashboard alerts expose their category and
 `notifications_enabled`; the notification bell respects that flag while the
 reproduction dashboard keeps its operational information available.
+The same endpoint accepts `include_all_alerts=true` for the dedicated operational
+alert consultation (`/home/notifications/alertas`). This returns the complete
+operational selector, including scheduled dates beyond the dashboard's three-day
+window, while preserving organization/species scope and per-user acknowledgements.
+The consultation filters and paginates the returned generated snapshot on the
+client. Dashboard cards show at most ten alerts, newest scheduled date first
+(undated alerts retain their relative order at the end), and retain the full count.
+
 
 The in-app channel is recorded as `show_in_app` when an event is created or
 updated. External-only records stay in platform history but do not appear in the
@@ -1826,3 +1834,25 @@ The explicit export/recovery registry includes the new references. The former
 feed-plans endpoints are read-only archival endpoints: creation, revision and
 new delivery commands are disabled; no producer screens use them. No applied
 migration or historical operational data is deleted.
+
+
+## Milk production entries
+
+`GET /livestock/cattle/milk/day-summary/?date=YYYY-MM-DD&farm=UUID` returns
+scoped daily volumes, current eligible cow count and pending individual entries.
+`GET /livestock/cattle/milk/cows/` accepts the same scope plus `search`,
+`entry_status=pending|recorded|total`, `page` and `page_size`. Cows currently in
+lactation and cows with an existing record on the requested date are included;
+this is not a historical herd census. Existing individual `/cattle/milk/` entries
+remain unique by animal/date/session, retain withdrawal/discard checks and are
+corrected with PATCH rather than another POST.
+
+`/livestock/cattle/milk-totals/` provides tenant-scoped daily aggregate CRUD and
+filters by farm/date. Livestock migration 0041 adds CattleMilkDailyTotal with one
+positive-volume record per farm/date and validated discard/reason fields. Both
+entry paths lock the farm during save and reject mixing aggregate and individual
+entries on that farm/date. Aggregate volumes participate in monthly cattle and
+daily dairy summaries, but have no invented cow allocation: milked count, per-cow
+mean and individual pending count are null whenever the selected scope includes
+an aggregate. Individual and aggregate history remain distinct. Operator species,
+read-only, ownership and manager deletion rules remain in force.
