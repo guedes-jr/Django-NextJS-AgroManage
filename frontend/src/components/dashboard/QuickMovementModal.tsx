@@ -1,11 +1,12 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  X, Save, Calendar, Package, AlertTriangle, 
+  X, Save, Package, AlertTriangle,
   ArrowDownRight, CreditCard, ShoppingCart, 
-  Utensils, Trash2, Plus, MapPin
+  Utensils, Plus, MapPin
 } from "lucide-react";
 import { financeService, FinanceAccount, NamedOption } from "@/services/financeService";
 import { apiClient } from "@/services/api";
@@ -76,7 +77,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(initialItem || null);
   const [productSearch, setProductSearch] = useState("");
   const [suggestions, setSuggestions] = useState<InventoryItem[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [, setSearching] = useState(false);
 
   // Options
   const [lotes, setLotes] = useState<Lote[]>([]);
@@ -94,39 +95,13 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
 
   // Entrance fields
   const [numeroLote, setNumeroLote] = useState("");
+  const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`; };
+  const [receiptDate, setReceiptDate] = useState(localToday);
   const [dataValidade, setDataValidade] = useState("");
   const [custoUnitario, setCustoUnitario] = useState("");
   const [fornecedorId, setFornecedorId] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setMainType(initialType);
-      setSelectedItem(initialItem || null);
-      setProductSearch("");
-      setSuggestions([]);
-      setError("");
-      setQuantidade("");
-      setDestino("");
-      setObservacao("");
-      setNumeroLote("");
-      setDataValidade("");
-      setCustoUnitario("");
-      setFornecedorId("");
-      setSubType(initialType === "in" ? "compra" : "consumo");
-      
-      fetchFornecedores();
-      setPaymentStatus("pending"); setFarmId(""); setAccountId("");
-      Promise.all([financeService.farms(), financeService.accounts()]).then(([farms, accounts]) => { setFarms(farms); setAccounts(accounts); }).catch(() => setError("Não foi possível carregar propriedades e contas."));
-    }
-  }, [isOpen, initialItem, initialType]);
-
-  useEffect(() => {
-    if (isOpen && selectedItem && mainType === "out") {
-      fetchLotes(selectedItem.id);
-    }
-  }, [isOpen, selectedItem, mainType]);
-
-  const fetchFornecedores = async () => {
+  async function fetchFornecedores() {
     try {
       const { data } = await apiClient.get("/inventory/fornecedores/");
       setFornecedores(data.results || data);
@@ -135,7 +110,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
     }
   };
 
-  const fetchLotes = async (itemId: string) => {
+  async function fetchLotes(itemId: string) {
     try {
       const { data } = await apiClient.get(`/inventory/items/${itemId}/lots/`);
       setLotes(data);
@@ -145,6 +120,38 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       console.error("Erro lotes:", err);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isOpen) queueMicrotask(() => {
+      if (cancelled) return;
+      setMainType(initialType);
+      setSelectedItem(initialItem || null);
+      setProductSearch("");
+      setSuggestions([]);
+      setError("");
+      setQuantidade("");
+      setDestino("");
+      setObservacao("");
+      setNumeroLote("");
+      setReceiptDate(localToday());
+      setDataValidade("");
+      setCustoUnitario("");
+      setFornecedorId("");
+      setSubType(initialType === "in" ? "compra" : "consumo");
+      
+      fetchFornecedores();
+      setPaymentStatus("pending"); setFarmId(""); setAccountId("");
+      Promise.all([financeService.farms(), financeService.accounts()]).then(([farms, accounts]) => { setFarms(farms); setAccounts(accounts); }).catch(() => setError("Não foi possível carregar propriedades e contas."));
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, initialItem, initialType]);
+
+  useEffect(() => {
+    if (isOpen && selectedItem && mainType === "out") {
+      queueMicrotask(() => void fetchLotes(selectedItem.id));
+    }
+  }, [isOpen, selectedItem, mainType]);
 
   const handleProductSearch = async (query: string) => {
     setProductSearch(query);
@@ -186,7 +193,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
     setError("");
 
     try {
-      const payload: any = {
+      const payload: Record<string, string | number | null> = {
         item: selectedItem.id,
         tipo: subType,
         quantidade: quantidadeNumber,
@@ -199,6 +206,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
         payload.destino = destino.trim();
       } else {
         // Para entradas, sempre tentamos enviar numero_lote para o backend criar/vincular o lote
+        payload.data_entrada = receiptDate;
         payload.numero_lote = numeroLote || `LOTE-${new Date().getTime().toString().slice(-6)}`;
         if (dataValidade) payload.data_validade = dataValidade;
         if (custoUnitario) payload.custo_unitario = parseDecimalValue(custoUnitario);
@@ -216,37 +224,15 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       }
       await apiClient.post("/inventory/movimentacoes/", payload);
       onClose();
-    } catch (err: any) {
-      const errorData = err.response?.data;
-
-      let errorMessage = "Erro ao processar.";
-
-      if (typeof errorData === "string") {
-        errorMessage = errorData;
-      } else if (errorData?.error?.detail) {
-        const detail = errorData.error.detail;
-
-        if (typeof detail === "string") {
-          errorMessage = detail;
-        } else if (typeof detail === "object") {
-          const firstKey = Object.keys(detail)[0];
-          const fieldError = detail[firstKey];
-
-          if (Array.isArray(fieldError)) {
-            errorMessage = fieldError[0];
-          } else if (typeof fieldError === "string") {
-            errorMessage = fieldError;
-          } else {
-            errorMessage = JSON.stringify(detail);
-          }
-        }
-      } else if (errorData?.error?.message) {
-        errorMessage = errorData.error.message;
-      } else if (errorData?.detail) {
-        errorMessage = errorData.detail;
-      }
-
-      setError(errorMessage);
+    } catch (err: unknown) {
+      const errorData: unknown = isAxiosError(err) ? err.response?.data : null;
+      const describe = (value: unknown): string => {
+        if (typeof value === "string") return value;
+        if (Array.isArray(value)) return value.map(describe).filter(Boolean).join(" ");
+        if (value && typeof value === "object") return Object.values(value).map(describe).filter(Boolean).join(" ");
+        return "";
+      };
+      setError(describe(errorData) || "Erro ao processar a movimentação. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -412,6 +398,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                 </div>
               </div>
 
+              {mainType === "in" && <div className="mb-3"><label className={labelStyle}>Data de recebimento no estoque</label><input required type="date" className="form-control" max={localToday()} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} /><small className="text-muted">Para lançamentos retroativos, informe quando o produto foi realmente recebido.</small></div>}
               {/* Specific Purchase Section */}
               {mainType === "in" && subType === "compra" && (
                 <div className="p-4 rounded-xl border mb-4 bg-white">

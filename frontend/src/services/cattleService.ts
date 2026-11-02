@@ -10,6 +10,7 @@ export type CattleAnimal = {
   milk_withdrawal_until: string | null; meat_withdrawal_until: string | null;
   sire_identifier?: string | null; dam_identifier?: string | null; sire_name?: string; dam_name?: string; current_weight_kg?: string | null; initial_weight_kg?: string | null; notes: string;
 };
+export type CattleBatchResult = { daily_weight_gain: string | null; batch_code: string; initial_head: number; sold_head: number; deaths: number; remaining_head: number; mortality_percent: string | null; acquisition: string; operational_cost: string; additional_cost: string; total_cost: string; gross_revenue: string; deductions: string; net_revenue: string; result: string; margin_percent: string | null; cost_per_sold_head: string | null; result_per_sold_head: string | null; carcass_arrobas: string | null; cost_per_arroba: string | null; carcass_estimated: boolean; entries: { id: string; date: string; description: string; amount: string | null; source: string }[]; weight_intervals: { start: string; end: string; days: number; gmd: string }[]; warnings: string[] };
 export type CattleBatch = {
   cattle_purpose?: string; id: string; farm_id: string; farm_name: string; batch_code: string; name: string;
   category: string; phase: string; quantity: number; status: string; gender: string;
@@ -48,6 +49,7 @@ export type CattleGenealogy = { ancestors: { id: string; identifier: string; rel
 
 const base = "/livestock/cattle";
 export const cattleService = {
+  batchResult: async (id: string, yieldPercent?: string) => (await apiClient.get<CattleBatchResult>(`${base}/batches/${id}/economic-result/`, { params: yieldPercent ? { yield_percent: yieldPercent } : {} })).data,
   reproductionSummary: async (params: CattleFilters, signal?: AbortSignal) => (await apiClient.get<Record<string, number>>(`${base}/animals/reproduction-summary/`, { params, signal })).data,
   troughReadings: async (params: CattleFilters, signal?: AbortSignal) => (await apiClient.get<Page<CattleTroughReading>>(`${base}/trough-readings/`, { params: { page_size: 10, ...params }, signal })).data,
   recordTroughReading: async (data: Record<string, unknown>) => (await apiClient.post<CattleTroughReading>(`${base}/trough-readings/`, data)).data,

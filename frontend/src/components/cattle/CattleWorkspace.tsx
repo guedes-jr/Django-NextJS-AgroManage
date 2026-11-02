@@ -9,7 +9,7 @@ import { LayoutDashboard, Tags, Scale, HeartPulse, VenusAndMars, Venus, Mars, La
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { Modal } from "@/components/ui/Modal";
 import { clinicalService } from "@/services/clinicalService";
-import { cattleService, cattleError, type CattleAnimal, type CattleBatch, type CattlePasture, type CattleGrazing, type CattleMilk, type CattleHistory, type CattleOverview, type CattleFeed, type CattleResource, type CattleAgendaEvent } from "@/services/cattleService";
+import { cattleService, cattleError, type CattleAnimal, type CattleBatchResult, type CattleBatch, type CattlePasture, type CattleGrazing, type CattleMilk, type CattleHistory, type CattleOverview, type CattleFeed, type CattleResource, type CattleAgendaEvent } from "@/services/cattleService";
 import { CattleForm, type CattleField, type CattleFormSpec } from "./CattleForm";
 import styles from "./cattle.module.css";
 import { CattleAgenda } from "./CattleAgenda";
@@ -17,6 +17,7 @@ import { CattleNutrition } from "./CattleNutrition";
 import { CattleGenealogy } from "./CattleGenealogy";
 import { CattleReproductionForm } from "./CattleReproductionForm";
 import { CattleReproduction } from "./CattleReproduction";
+import { cattleOperations, type StockLotOption } from "@/services/cattleOperationsService";
 import { CattleManagementWorkspace } from "./CattleManagementWorkspace";
 
 export type CattleView = "overview" | "animals" | "batches" | "weights" | "reproduction" | "health" | "pastures" | "grazings" | "milk" | "sales" | "feeding" | "reports" | "management";
@@ -90,6 +91,10 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   const operator = access?.role === "operator";
   const canWrite = !!access && !access.read_only;
   const manager = !!access && !operator;
+  const [resultError, setResultError] = useState("");
+  const [resultBatchId, setResultBatchId] = useState("");
+  const [resultYield, setResultYield] = useState("");
+  const [batchResult, setBatchResult] = useState<CattleBatchResult | null>(null);
   const [overview, setOverview] = useState<CattleOverview | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
@@ -220,7 +225,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   function newBatch() {
     setForm({ title: "Cadastrar lote bovino", description: "Use lotes coletivos para animais sem cadastro individual. As quantidades não devem repetir os animais cadastrados por brinco.",
       initial: { cattle_purpose: production || "unknown", farm_id: farmInitial, phase: "crescimento", category: "Garrote", entry_date: today(), origin: "purchased", gender: "Misto" },
-      fields: [farmField, { name: "cattle_purpose", label: "Finalidade produtiva", type: "select", required: true, options: options({ unknown: "Não informado", beef: "Corte", dairy: "Leite", dual: "Dupla finalidade" }) }, { name: "batch_code", label: "Código do lote", required: true, maxLength: 50 }, { name: "name", label: "Nome" }, { name: "phase", label: "Fase", type: "select", required: true, options: options(phases) }, { name: "category", label: "Categoria", type: "select", required: true, options: options(categories) }, { name: "quantity", label: "Quantidade de animais", type: "number", required: true, min: "1", step: "1" }, { name: "gender", label: "Sexo", type: "select", required: true, options: options({ M: "Machos", F: "Fêmeas", Misto: "Misto" }) }, { name: "origin", label: "Origem", type: "select", required: true, options: options({ purchased: "Comprado", born: "Nascido na fazenda", donated: "Doado" }) }, { name: "breed_name_input", label: "Raça" }, { name: "entry_date", label: "Entrada", type: "date", required: true, max: today() }, positive("avg_weight_kg", "Peso médio por animal (kg)", false), ...(manager ? [positive("purchase_value", "Valor total da compra (R$)", false)] : []), notes], save: values => cattleService.create("batches", payload(values)),
+      fields: [farmField, { name: "cattle_purpose", label: "Finalidade produtiva", type: "select", required: true, options: options({ unknown: "Não informado", beef: "Corte", dairy: "Leite", dual: "Dupla finalidade" }) }, { name: "batch_code", label: "Código do lote", required: true, maxLength: 50 }, { name: "name", label: "Nome" }, { name: "phase", label: "Fase", type: "select", required: true, options: options(phases) }, { name: "category", label: "Categoria", type: "select", required: true, options: options(categories) }, { name: "quantity", label: "Quantidade de animais", type: "number", required: true, min: "1", step: "1" }, { name: "gender", label: "Sexo", type: "select", required: true, options: options({ M: "Machos", F: "Fêmeas", Misto: "Misto" }) }, { name: "origin", label: "Origem", type: "select", required: true, options: options({ purchased: "Comprado", born: "Nascido na fazenda", donated: "Doado" }) }, { name: "breed_name_input", label: "Raça" }, { name: "entry_date", label: "Entrada", type: "date", required: true, max: today() }, positive("avg_weight_kg", "Peso médio por animal (kg)", false), ...(manager ? [positive("purchase_value", "Valor total da compra (R$)", false), { name: "purchase_due_date", label: "Vencimento da compra", type: "date" } satisfies CattleField] : []), notes], save: values => cattleService.create("batches", payload(values)),
     });
   }
   function weighing(row: CattleAnimal | CattleBatch, batch = false) {
@@ -266,14 +271,15 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
   async function newFeed() {
     setPreparing(true);
     try {
-      const items = (await cattleService.stockItems()).filter(item => ["racao", "suplemento"].includes(item.categoria) && item.unidade_medida === "kg" && ["", "bovino", "multiplo"].includes(item.especie_animal || ""));
-      setForm({ title: "Registrar alimentação", description: "Informe um lote coletivo ou o brinco de um animal. A quantidade é o total consumido no período, com baixa no estoque.", initial: { farm_id: farmInitial, destination: "batch", data_inicio: today(), data_fim: today() }, fields: [farmField, { name: "destination", label: "Destino", type: "select", required: true, options: options({ batch: "Lote coletivo", animal: "Animal por brinco" }) }, { name: "identifier", label: "Código do lote ou brinco", required: true, maxLength: 50 }, { name: "item_estoque", label: "Ração / suplemento em estoque (kg)", type: "select", required: true, options: items.map(item => ({ value: item.id, label: `${item.nome.slice(0, 30)}${item.nome.length > 30 ? "..." : ""} · ${number(item.estoque_atual)} kg` })) }, { name: "data_inicio", label: "Início do período", type: "date", required: true, max: today() }, { name: "data_fim", label: "Fim do período", type: "date", required: true, max: today() }, positive("quantidade", "Quantidade total consumida (kg)"), notes], save: async values => {
+      const items = (await cattleService.stockItems()).filter(item => ["racao", "suplemento", "nucleo"].includes(item.categoria) && item.unidade_medida === "kg" && ["", "bovino", "multiplo"].includes(item.especie_animal || ""));
+      const batches = await cattleService.all<CattleBatch>("batches", { status: "active", ...(production ? { production } : {}) });
+      setForm({ title: "Registrar alimentação", description: "Informe um lote coletivo ou o brinco de um animal. A quantidade é o total consumido no período, com baixa no estoque.", initial: { farm_id: farmInitial, destination: "batch", data_inicio: today(), data_fim: today() }, fields: [farmField, { name: "destination", label: "Destino", type: "select", required: true, options: options({ batch: "Lote coletivo", animal: "Animal por brinco" }) }, { name: "batch_id", label: "Lote coletivo", type: "select", required: true, dependsOn: "farm_id", visibleWhen: { field: "destination", value: "batch" }, options: batches.map(batch => ({ value: batch.id, label: `${batch.batch_code} · ${batch.quantity} animais`, parentValue: batch.farm_id })) }, { name: "identifier", label: "Brinco", required: true, maxLength: 50, visibleWhen: { field: "destination", value: "animal" } }, { name: "item_estoque", label: "Ração / suplemento em estoque (kg)", type: "select", required: true, options: items.map(item => ({ value: item.id, label: `${item.nome.slice(0, 30)}${item.nome.length > 30 ? "..." : ""} · ${number(item.estoque_atual)} kg` })) }, { name: "data_inicio", label: "Início do período", type: "date", required: true, max: today() }, { name: "data_fim", label: "Fim do período", type: "date", required: true, max: today() }, positive("quantidade", "Quantidade total consumida (kg)"), notes], save: async values => {
         let target: Record<string, unknown>;
         if (values.destination === "animal") target = { animais: [(await resolveAnimal(values)).id] };
         else {
-          const data = await cattleService.list<CattleBatch>("batches", { batch_code: values.identifier.trim(), farm: values.farm_id, status: "active" });
-          if (data.results.length !== 1) throw { response: { data: { detail: "Lote ativo não encontrado nesta fazenda." } } };
-          target = { lote_animal: data.results[0].id };
+          const batch = batches.find(row => row.id === values.batch_id && row.farm_id === values.farm_id);
+          if (!batch) throw new Error("Selecione um lote da fazenda.");
+          target = { lote_animal: batch.id };
         }
         return cattleService.create("feed", { ...target, item_estoque: values.item_estoque, data_inicio: values.data_inicio, data_fim: values.data_fim, quantidade: values.quantidade, tipo_registro: "total_periodo", observacao: values.notes || "" });
       } });
@@ -315,10 +321,76 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
     setForm({ title: `Saída do pasto · ${row.batch_code}`, initial: { exit_date: today() }, fields: [{ name: "exit_date", label: "Data de saída", type: "date", min: row.entry_date, max: today(), required: true }], save: values => cattleService.action("grazings", row.id, "close", values) });
   }
   function changePhase(batch: CattleBatch) {
-    setForm({ title: `Alterar fase · ${batch.batch_code}`, initial: { date: today() }, fields: [{ name: "phase", label: "Nova fase", type: "select", required: true, options: options(phases).filter(option => option.value !== batch.phase) }, { ...dayField, min: batch.entry_date, max: today() }, notes], save: values => cattleService.action("batches", batch.id, "change-phase", values) });
+    setForm({ title: `Alterar fase · ${batch.batch_code}`, initial: { date: today(), category: batch.category }, fields: [{ name: "category", label: "Categoria após a mudança (confirme)", type: "select", required: true, options: options(categories) }, { name: "phase", label: "Nova fase", type: "select", required: true, options: options(phases).filter(option => option.value !== batch.phase) }, { ...dayField, min: batch.entry_date, max: today() }, notes], save: values => cattleService.action("batches", batch.id, "change-phase", values) });
+  }
+  async function chooseBatchResult() {
+    setPreparing(true); setError("");
+    try {
+      const batches = await cattleService.all<CattleBatch>("batches", { ...(farm ? { farm } : {}), ...(production ? { production } : {}) });
+      if (!batches.length) { setError("Nenhum lote encontrado neste segmento e fazenda."); return; }
+      setForm({ title: "Resultado econômico do lote", description: "Selecione um lote ativo ou encerrado para consultar seus custos e vendas.", fields: [{ name: "batch", label: "Lote / fazenda", type: "select", required: true, options: batches.map(batch => ({ value: batch.id, label: `${batch.batch_code} · ${batch.farm_name} · ${statuses[batch.status] || batch.status}` })) }], submitLabel: "Consultar resultado", save: async values => {
+        const result = await cattleService.batchResult(values.batch);
+        setResultBatchId(values.batch); setResultYield(""); setResultError(""); setBatchResult(result);
+      } });
+    } catch (error) { setError(cattleError(error)); } finally { setPreparing(false); }
+  }
+  async function showBatchResult(batch: CattleBatch) {
+    setPreparing(true); setError("");
+    try { setResultError(""); setResultBatchId(batch.id); setResultYield(""); setBatchResult(await cattleService.batchResult(batch.id)); }
+    catch (error) { setError(cattleError(error)); } finally { setPreparing(false); }
+  }
+  function batchDeath(batch: CattleBatch) {
+    const requestKey = crypto.randomUUID();
+    setForm({ title: `Mortalidade · ${batch.batch_code}`, description: "Lançamento para lote coletivo sem identificação individual. Reduz o efetivo disponível e preserva a autoria e o motivo.", initial: { date: today() }, fields: [{ ...dayField, min: batch.entry_date, max: today() }, { name: "quantity", label: "Animais mortos", type: "number", min: "1", max: String(batch.quantity), step: "1", required: true }, { name: "reason", label: "Causa / motivo", type: "textarea", required: true }], save: values => cattleService.action("batches", batch.id, "registrar-mortalidade", { ...values, request_key: requestKey }) });
+  }
+  async function batchTreatment(batch: CattleBatch) {
+    setPreparing(true); setError("");
+    try {
+      const lots: StockLotOption[] = [];
+      let page = 1;
+      while (true) {
+        const result = await cattleOperations.page<StockLotOption>("stock-lots", { page, page_size: 100 });
+        lots.push(...result.results);
+        if (!result.next) break;
+        page += 1;
+      }
+      const requestKey = crypto.randomUUID();
+      setForm({ title: `Sanidade coletiva · ${batch.batch_code}`, description: "Aplicação em lote sem brincos individuais. Informe a dose na unidade do produto selecionado. O estoque será consumido uma única vez e a carência cadastrada bloqueará a venda para abate.", initial: { date: today(), quantity: String(batch.quantity), service_cost: "0" }, fields: [
+        { ...dayField, min: batch.entry_date, max: today() },
+        { name: "quantity", label: "Animais tratados", type: "number", min: "1", max: String(batch.quantity), step: "1", required: true },
+        { name: "description", label: "Procedimento / tratamento", required: true, maxLength: 500 },
+        { name: "inventory_lot", label: "Produto e lote de estoque (confira a unidade)", type: "select", options: lots.map(lot => ({ value: lot.id, label: lot.label })) },
+        { ...positive("quantity_per_head", "Dose por animal na unidade do estoque", false), step: "0.0001", min: "0.0001" },
+        { ...positive("service_cost", "Custo externo do serviço (R$)", false), min: "0" }
+      ], save: values => cattleService.action("batches", batch.id, "record-treatment", { ...payload(values), request_key: requestKey }) });
+    } catch (error) { setError(cattleError(error)); } finally { setPreparing(false); }
+  }
+  function batchCost(batch: CattleBatch) {
+    const requestKey = crypto.randomUUID();
+    setForm({ title: `Apropriar custo · ${batch.batch_code}`, description: "Registre somente custos externos ainda não apropriados: serviço sanitário, pastagem, mão de obra ou frete. Não repita compra de animais, consumo de estoque ou descontos da venda. Este lançamento não movimenta o caixa.", initial: { date: today() }, fields: [{ ...dayField, min: batch.entry_date, max: today() }, { name: "category", label: "Tipo de custo", type: "select", required: true, options: options({ sanitary: "Serviço sanitário / tratamento externo", pasture: "Pastagem / arrendamento", labor: "Mão de obra", freight: "Frete", other: "Outro" }) }, positive("amount", "Valor total (R$)"), { name: "description", label: "Descrição / referência", type: "textarea", required: true }], save: values => cattleService.action("batches", batch.id, "record-cost", { ...values, request_key: requestKey }) });
   }
   function sell(batch: CattleBatch) {
-    setForm({ title: `Venda · ${batch.batch_code}`, description: `${batch.quantity} animais disponíveis. Informe o peso vivo total dos animais vendidos. A receita será registrada em aberto no financeiro; confirme o recebimento para movimentar o caixa.`, initial: { date: today(), due_date: today(), mode: "whole" }, fields: [{ name: "mode", label: "Tipo de venda", type: "select", required: true, options: options({ whole: "Lote inteiro", partial: "Parte do lote" }) }, { name: "quantity", label: "Quantidade (venda parcial)", type: "number", min: "1", max: String(batch.quantity), step: "1" }, positive("weight_kg", "Peso vivo total vendido (kg)"), positive("price_per_kg", "Preço por kg (R$)"), { ...dayField, min: batch.entry_date, max: today() }, { name: "buyer", label: "Comprador", required: true }, { name: "due_date", label: "Vencimento do recebimento", type: "date", required: true, min: today() }, notes], submitLabel: "Registrar venda e receita", save: values => cattleService.action("batches", batch.id, "register-sale", payload(values)) });
+    const carcass = { field: "pricing_basis", value: "carcass_arroba" };
+    setForm({ title: `Venda · ${batch.batch_code}`, description: `${batch.quantity} animais disponíveis. A receita líquida fica em aberto no financeiro até confirmar o recebimento. Descontos são valores explícitos, sem alíquota presumida.`, initial: { date: today(), due_date: today(), mode: "whole", pricing_basis: "live_kg" }, fields: [
+      { name: "mode", label: "Tipo de venda", type: "select", required: true, options: options({ whole: "Lote inteiro", partial: "Parte do lote" }) },
+      { name: "quantity", label: "Animais vendidos", type: "number", min: "1", max: String(batch.quantity), step: "1", required: true, visibleWhen: { field: "mode", value: "partial" } },
+      { name: "pricing_basis", label: "Base do preço", type: "select", required: true, options: options({ live_kg: "Kg de peso vivo", carcass_arroba: "Arroba de carcaça (15 kg)" }) },
+      positive("weight_kg", "Peso vivo total vendido (kg)"),
+      { ...positive("price_per_kg", "Preço por kg vivo (R$)"), step: "0.000001", visibleWhen: { field: "pricing_basis", value: "live_kg" } },
+      { ...positive("price_per_arroba", "Preço por arroba (R$)"), visibleWhen: carcass },
+      { ...positive("carcass_weight_kg", "Peso total de carcaça medido (kg)", false), visibleWhen: carcass },
+      { ...positive("yield_percent", "Ou rendimento estimado (%)", false), max: "100", visibleWhen: carcass },
+      { ...positive("deductions", "Total de descontos (R$)", false), min: "0" },
+      { name: "deduction_description", label: "Descrição dos descontos (frete, Funrural etc.)", maxLength: 500 },
+      { name: "slaughter_reference", label: "Referência do romaneio / documento", maxLength: 200 },
+      { ...dayField, min: batch.entry_date, max: today() }, { name: "buyer", label: "Comprador", required: true },
+      { name: "due_date", label: "Vencimento do recebimento", type: "date", required: true }, notes
+    ], submitLabel: "Registrar venda e receita", save: values => {
+      const visible = { ...payload(values) };
+      if (values.pricing_basis === "live_kg") { delete visible.price_per_arroba; delete visible.carcass_weight_kg; delete visible.yield_percent; }
+      else delete visible.price_per_kg;
+      return cattleService.action("batches", batch.id, "register-sale", visible);
+    } });
   }
   const activeModules = modules.filter(module => (manager || !["sales", "reports", "management"].includes(module.id)) && (production !== "beef" || module.id !== "milk")).sort((a, b) => production === "dairy" ? Number(b.id === "milk") - Number(a.id === "milk") : 0);
   const productionTitle = production === "dairy" ? "Pecuária leiteira" : production === "beef" ? "Gado de corte" : "Bovinos";
@@ -395,7 +467,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
         </section>}
         <div className={styles.insightGrid}><section className={styles.panel}><div className={styles.sectionTitle}><ChartNoAxesCombined size={20} aria-hidden="true" /><div><span>Inventário</span><h2>Composição do rebanho ativo</h2></div></div>{overview?.categories.length ? overview.categories.map(item => <div className={styles.category} key={item.category}><span>{item.category}</span><progress value={item.quantity} max={overview.total_head} aria-label={item.category} /><strong>{number(item.quantity)}</strong></div>) : <p className={styles.muted}>Nenhum animal ativo cadastrado. Comece pelo cadastro individual ou pelos lotes.</p>}</section>
         <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} /></div>
-        {view === "reports" && manager && <section className={styles.panel}><h2>Exportar registros bovinos</h2><div className={styles.actions}>{(["animals", "batches", "milk"] as const).map(resource => <button key={resource} disabled={preparing} className="btn btn-outline-success btn-sm" onClick={() => exportCsv(resource)}>{preparing ? "Preparando..." : { animals: "Animais (CSV)", batches: "Lotes (CSV)", milk: "Ordenhas (CSV)" }[resource]}</button>)}</div></section>}
+        {view === "reports" && manager && <section className={styles.panel}><h2>Fechamento econômico por lote</h2><p>Compra, consumo, sanidade, custos adicionais, vendas, margem, mortalidade, GMD e custo por arroba de carcaça.</p><button disabled={preparing} className="btn btn-success btn-sm mb-3" onClick={chooseBatchResult}>Consultar resultado do lote</button><h2>Exportar registros bovinos</h2><div className={styles.actions}>{(["animals", "batches", "milk"] as const).map(resource => <button key={resource} disabled={preparing} className="btn btn-outline-success btn-sm" onClick={() => exportCsv(resource)}>{preparing ? "Preparando..." : { animals: "Animais (CSV)", batches: "Lotes (CSV)", milk: "Ordenhas (CSV)" }[resource]}</button>)}</div></section>}
 
       </> : <>
         {view === "animals" && (
@@ -528,7 +600,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
             {view === "animals" && manager && <button className="btn btn-outline-secondary btn-sm" onClick={() => event(animal)}>Manejo / baixa</button>}
           </>}
         </AnimalRowActions></td></tr>)}</Table>}
-        {(view === "batches" || view === "sales") && <Table columns={["Lote / fazenda", "Categoria / fase", "Cabeças", "Peso médio", "Ações"]}>{(rows as CattleBatch[]).map(batch => <tr key={batch.id}><td><strong>{batch.batch_code}</strong><small>{batch.farm_name}</small>{batch.operations?.pastures.map(pasto => <small key={pasto.name}>{pasto.name} · {pasto.days} dias</small>)}<small>Última pesagem: {date(batch.operations?.last_weighing_date)}</small></td><td>{batch.category}<small>{phases[batch.phase] || batch.phase}</small>{batch.operations?.age_days !== null && batch.operations?.age_days !== undefined && <small>Idade de referência: {batch.operations.age_days} dias</small>}</td><td>{number(batch.quantity)}</td><td>{number(batch.avg_weight_kg)} kg</td><td><div className={styles.actions}>{batch.status === "active" && canWrite && <>{view === "batches" && <button className="btn btn-outline-success btn-sm" onClick={() => weighing(batch, true)}>Pesar lote</button>}{manager && <>{view === "batches" && <button className="btn btn-outline-secondary btn-sm" onClick={() => changePhase(batch)}>Alterar fase</button>}<button className="btn btn-outline-secondary btn-sm" onClick={() => sell(batch)}>Vender</button></>}</>}</div></td></tr>)}</Table>}
+        {(view === "batches" || view === "sales") && <Table columns={["Lote / fazenda", "Categoria / fase", "Cabeças", "Peso médio", "Ações"]}>{(rows as CattleBatch[]).map(batch => <tr key={batch.id}><td><strong>{batch.batch_code}</strong><small>{batch.farm_name}</small>{batch.operations?.pastures.map(pasto => <small key={pasto.name}>{pasto.name} · {pasto.days} dias</small>)}<small>Última pesagem: {date(batch.operations?.last_weighing_date)}</small></td><td>{batch.category}<small>{phases[batch.phase] || batch.phase}</small>{batch.operations?.age_days !== null && batch.operations?.age_days !== undefined && <small>Idade de referência: {batch.operations.age_days} dias</small>}</td><td>{number(batch.quantity)}</td><td>{number(batch.avg_weight_kg)} kg</td><td><div className={styles.actions}>{manager && <><button className="btn btn-outline-success btn-sm" onClick={() => showBatchResult(batch)}>Resultado do lote</button>{canWrite && <button className="btn btn-outline-secondary btn-sm" onClick={() => batchCost(batch)}>Apropriar custo</button>}</>}{batch.status === "active" && canWrite && <>{view === "batches" && <button className="btn btn-outline-success btn-sm" onClick={() => weighing(batch, true)}>Pesar lote</button>}{view === "batches" && <button className="btn btn-outline-secondary btn-sm" onClick={() => batchTreatment(batch)}>Sanidade coletiva</button>}{view === "batches" && <button className="btn btn-outline-danger btn-sm" onClick={() => batchDeath(batch)}>Mortalidade</button>}{manager && <>{view === "batches" && <button className="btn btn-outline-secondary btn-sm" onClick={() => changePhase(batch)}>Alterar fase</button>}<button className="btn btn-outline-secondary btn-sm" onClick={() => sell(batch)}>Vender</button></>}</>}</div></td></tr>)}</Table>}
         {view === "milk" && <Table columns={["Data / turno", "Vaca / fazenda", "Produção", "Descarte", "Aproveitável", ...(manager ? ["Ações"] : [])]}>{(rows as CattleMilk[]).map(row => <tr key={row.id}><td>{date(row.date)}<small>{sessions[row.session]}</small></td><td><strong>{row.identifier}</strong><small>{row.farm_name}</small></td><td>{number(row.liters)} L</td><td>{number(row.discarded_liters)} L<small>{row.discard_reason}</small></td><td>{number(Number(row.liters) - Number(row.discarded_liters))} L</td>{manager && <td><button className="btn btn-outline-secondary btn-sm" onClick={() => editMilk(row)}>Corrigir</button></td>}</tr>)}</Table>}
         {view === "pastures" && <Table columns={["Pasto / piquete", "Fazenda", "Área", "Lotação / capacidade", "Ações"]}>{(rows as CattlePasture[]).map(row => <tr key={row.id}><td><strong>{row.name}</strong><small>{row.notes}</small><small>{({ occupied: "Em uso", unknown: "Disponibilidade não informada", available: "Liberado", resting: "Em descanso", blocked: "Interditado" } as Record<string, string>)[row.occupancy.state]}</small>{row.occupancy.occupied_days !== null && <small>Ocupação atual: até {row.occupancy.occupied_days} dias</small>}{row.occupancy.empty_days !== null && <small>Sem ocupação há {row.occupancy.empty_days} dias</small>}<small>{row.availability_reason}</small></td><td>{row.farm_name}</td><td>{number(row.area_ha)} ha</td><td>{number(row.occupancy.heads)} cabeças<small>{row.occupancy.stocking_ua_ha === null ? "Peso insuficiente para calcular UA/ha" : `${number(row.occupancy.stocking_ua_ha)} UA/ha`}</small><small className={Number(row.occupancy.capacity_percent) > 100 ? "text-danger" : ""}>{row.occupancy.capacity_percent === null ? "Capacidade não calculada" : `${number(row.occupancy.capacity_percent)}% da capacidade`}</small></td><td>{canWrite && manager && <div className={styles.actions}><button className="btn btn-outline-success btn-sm" disabled={["resting", "blocked"].includes(row.availability)} onClick={() => grazing(row)}>Entrada de lote</button><button className="btn btn-outline-secondary btn-sm" onClick={() => editPasture(row)}>Editar capacidade</button></div>}</td></tr>)}</Table>}
         {view === "grazings" && <Table columns={["Pasto", "Lote", "Cabeças atuais", "Entrada", "Saída", "Ações"]}>{(rows as CattleGrazing[]).map(row => <tr key={row.id}><td>{row.pasture_name}</td><td>{row.batch_code}</td><td>{number(row.quantity)}</td><td>{date(row.entry_date)}</td><td>{row.exit_date ? date(row.exit_date) : "Em ocupação"}</td><td>{!row.exit_date && canWrite && manager && <button className="btn btn-outline-secondary btn-sm" onClick={() => closeGrazing(row)}>Registrar saída</button>}</td></tr>)}</Table>}
@@ -537,7 +609,16 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       </section>}</>}
       {view === "sales" && manager && <section className={styles.panel}><h2>Últimas vendas registradas</h2><Table columns={["Data", "Lote", "Cabeças", "Comprador", "Receita"]}>{sales.map(sale => <tr key={sale.id}><td>{date(sale.date)}</td><td>{sale.batch_code}</td><td>{number(sale.quantity)}</td><td>{sale.buyer}</td><td>{Number(sale.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td></tr>)}</Table>{!sales.length && <p className={styles.empty}>Nenhuma venda registrada.</p>}</section>}
     </>}
-    {form && (view === "reproduction" ? <CattleReproductionForm spec={form} onClose={() => setForm(null)} onSaved={savedForm}/> : <CattleForm spec={form} onClose={() => setForm(null)} onSaved={savedForm}/>)}
+    {batchResult && <Modal isOpen onClose={() => setBatchResult(null)} title={`Resultado · ${batchResult.batch_code}`} description="Resultado econômico parcial dos lançamentos, independente da baixa financeira."><div className={styles.form}>
+        {resultError && <div className="alert alert-danger" role="alert">{resultError}</div>}
+        <div className={styles.fields}>{[["GMD no período (kg/dia)", batchResult.daily_weight_gain], ["Entrada", batchResult.initial_head], ["Vendidos", batchResult.sold_head], ["Mortes", batchResult.deaths], ["Ativos", batchResult.remaining_head], ["Mortalidade (%)", batchResult.mortality_percent], ["Compra (R$)", batchResult.acquisition], ["Consumos e sanidade (R$)", batchResult.operational_cost], ["Custos adicionais (R$)", batchResult.additional_cost], ["Custo total (R$)", batchResult.total_cost], ["Receita bruta (R$)", batchResult.gross_revenue], ["Descontos (R$)", batchResult.deductions], ["Receita líquida (R$)", batchResult.net_revenue], ["Resultado parcial (R$)", batchResult.result], ["Margem parcial (%)", batchResult.margin_percent], ["Custo por vendido (R$)", batchResult.cost_per_sold_head], ["Resultado por vendido (R$)", batchResult.result_per_sold_head], ["Arrobas de carcaça", batchResult.carcass_arrobas], ["Custo por arroba (R$)", batchResult.cost_per_arroba]].map(([label, value]) => <div key={String(label)}><small>{label}</small><strong className="d-block">{number(value)}</strong></div>)}</div>
+        <form className="d-flex flex-wrap gap-2 align-items-end mt-3" onSubmit={async event => { event.preventDefault(); setPreparing(true); setResultError(""); try { setBatchResult(await cattleService.batchResult(resultBatchId, resultYield)); } catch (error) { setResultError(cattleError(error)); } finally { setPreparing(false); } }}><label className={styles.field}>Rendimento para estimar carcaça (%)<input className="form-control form-control-sm" type="number" min="0.01" max="100" step="0.01" value={resultYield} onChange={event => setResultYield(event.target.value)}/></label><button className="btn btn-outline-success btn-sm" disabled={preparing}>Recalcular arrobas</button></form>
+        {batchResult.carcass_estimated && <p className="text-muted mt-3">Carcaça calculada pelo rendimento estimado informado na venda.</p>}
+        {batchResult.warnings.map(text => <p key={text} className="text-muted small mt-3">{text}</p>)}
+        <h3 className="h6 mt-3">Custos operacionais apropriados</h3><Table columns={["Data", "Descrição", "Valor (R$)"]}>{batchResult.entries.map(row => <tr key={row.id}><td>{date(row.date)}</td><td>{row.description}</td><td>{number(row.amount)}</td></tr>)}</Table>
+        <h3 className="h6 mt-3">Ganho entre pesagens (kg/animal/dia)</h3><Table columns={["Início", "Fim", "Dias", "GMD"]}>{batchResult.weight_intervals.map(row => <tr key={`${row.start}-${row.end}`}><td>{date(row.start)}</td><td>{date(row.end)}</td><td>{row.days}</td><td>{Number(row.gmd).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</td></tr>)}</Table>
+      </div></Modal>}
+      {form && (view === "reproduction" ? <CattleReproductionForm spec={form} onClose={() => setForm(null)} onSaved={savedForm}/> : <CattleForm spec={form} onClose={() => setForm(null)} onSaved={savedForm}/>)}
     {historyAnimal && <Modal variant={view === "reproduction" ? "reproduction" : "default"} isOpen onClose={() => setHistoryAnimal(null)} maxWidth={styles.formDialog} title={`Ficha do bovino · ${historyAnimal.identifier}`} description={`${historyAnimal.category || "Bovino"} · ${historyAnimal.farm_name}`}><div className={styles.form}>
       <div className={styles.metrics}><article className={styles.metric}><span>Peso atual</span><strong>{number(historyAnimal.current_weight_kg)} kg</strong></article><article className={styles.metric}><span>Nascimento</span><strong style={{ fontSize: "1rem" }}>{date(historyAnimal.birth_date)}</strong></article></div>
       <p className={styles.muted}>Raça: {historyAnimal.breed_name || "Não informada"} · Sexo: {historyAnimal.gender === "F" ? "Fêmea" : "Macho"} · Entrada: {date(historyAnimal.entry_date)}</p><p className={styles.muted}>Pai: {historyAnimal.sire_identifier || historyAnimal.sire_name || "Não informado"} · Mãe: {historyAnimal.dam_identifier || historyAnimal.dam_name || "Não informada"}</p><hr />

@@ -265,6 +265,7 @@ class CattleAnimalSerializer(AnimalSerializer):
 
 
 class CattleBatchSerializer(serializers.ModelSerializer):
+    purchase_due_date = serializers.DateField(write_only=True, required=False)
     operations = serializers.SerializerMethodField()
 
     def get_operations(self, obj):
@@ -314,7 +315,7 @@ class CattleBatchSerializer(serializers.ModelSerializer):
             "quantity",
             "gender",
             "origin",
-            "purchase_value",
+            "purchase_value", "purchase_due_date",
             "entry_date",
             "birth_date",
             "status",
@@ -326,6 +327,8 @@ class CattleBatchSerializer(serializers.ModelSerializer):
         read_only_fields = ["status"]
 
     def validate(self, attrs):
+        if self.instance and "purchase_due_date" in attrs:
+            raise serializers.ValidationError({"purchase_due_date": "Altere o vencimento existente pelo título de compra no financeiro."})
         from .cattle_herd import validate_headcount_edit
         validate_headcount_edit(self.instance, attrs)
         validate_tenant_relations(self, attrs, ("farm",))
@@ -360,6 +363,7 @@ class CattleBatchSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        purchase_due_date = validated_data.pop("purchase_due_date", None)
         breed_name = validated_data.pop("breed_name_input", "")
         species, _ = Species.objects.get_or_create(
             code="bovinos", defaults={"name": "Bovinos"}
@@ -375,18 +379,22 @@ class CattleBatchSerializer(serializers.ModelSerializer):
             batch = AnimalBatch.objects.create(
                 species=species, breed=breed, **validated_data
             )
+            if purchase_due_date:
+                from apps.finance.models import Transaction
+                Transaction.objects.filter(organization=batch.farm.organization, reference=f"PURCHASE-BATCH-{batch.pk}").update(due_date=purchase_due_date)
             from .cattle_improvements import remember_purpose
             remember_purpose(batch, "unknown", self.context["request"].user)
             open_batch_phase(batch, batch.phase, batch.entry_date)
             HistoricoEvento.objects.create(
                 farm=batch.farm, lote=batch, tipo_evento="Entrada de Lote", data_evento=batch.entry_date,
                 descricao=f"Entrada de {batch.quantity} animais no lote {batch.batch_code}.",
-                metadata={"quantidade": batch.quantity, "quantity_before": 0, "quantity_after": batch.quantity,
+                metadata={"peso_medio_entrada": str(batch.avg_weight_kg) if batch.avg_weight_kg else None, "quantidade": batch.quantity, "quantity_before": 0, "quantity_after": batch.quantity,
                           "responsible_id": str(self.context["request"].user.pk)},
             )
             return batch
 
     def update(self, instance, validated_data):
+        validated_data.pop("purchase_due_date", None)
         validated_data.pop("breed_name_input", None)
         with transaction.atomic():
             Farm.objects.select_for_update().get(pk=instance.farm_id)
@@ -693,7 +701,7 @@ class CattleFeedSerializer(ConsumoRacaoSerializer):
         if (
             not item
             or item.organization_id != organization.pk
-            or item.categoria not in ["racao", "suplemento"]
+            or item.categoria not in ["racao", "suplemento", "nucleo"]
             or item.especie_animal not in ["", "bovino", "multiplo"]
             or item.unidade_medida != "kg"
         ):
@@ -971,7 +979,7 @@ class CattleFeedPlanSerializer(serializers.ModelSerializer):
         active = attrs.get("is_active", getattr(self.instance, "is_active", True))
         if not item or item.organization_id != org.id:
             raise serializers.ValidationError({"item": "O produto deve pertencer à sua organização."})
-        if active and (item.categoria not in ["racao", "suplemento"] or item.unidade_medida != "kg" or item.especie_animal not in ["", "bovino", "multiplo"] or not item.ativo):
+        if active and (item.categoria not in ["racao", "suplemento", "nucleo"] or item.unidade_medida != "kg" or item.especie_animal not in ["", "bovino", "multiplo"] or not item.ativo):
             raise serializers.ValidationError({"item": "Selecione ração ou suplemento bovino ativo em kg da sua organização."})
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
         end = attrs.get("end_date", getattr(self.instance, "end_date", None))
@@ -1078,3 +1086,49 @@ class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         self.locked_save(validated_data)
         return super().update(instance, validated_data)
+
+
+class CattleSaleInput(serializers.Serializer):
+    mode = serializers.ChoiceField(choices=["whole", "partial"])
+    quantity = serializers.IntegerField(min_value=1, required=False)
+    date = serializers.DateField(validators=[past_date])
+    due_date = serializers.DateField(required=False)
+    buyer = serializers.CharField(max_length=200)
+    responsible = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    weight_kg = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal(".001"))
+    pricing_basis = serializers.ChoiceField(choices=["live_kg", "carcass_arroba"], default="live_kg")
+    price_per_kg = serializers.DecimalField(max_digits=12, decimal_places=6, min_value=Decimal(".000001"), required=False)
+    price_per_arroba = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal(".01"), required=False)
+    carcass_weight_kg = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal(".001"), required=False)
+    yield_percent = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=Decimal(".01"), max_value=100, required=False)
+    deductions = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=0, default=0)
+    deduction_description = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    slaughter_reference = serializers.CharField(max_length=200, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["mode"] == "partial" and "quantity" not in attrs:
+            raise serializers.ValidationError({"quantity": "Informe a quantidade vendida."})
+        if attrs["date"] < self.context["batch"].entry_date:
+            raise serializers.ValidationError({"date": "A venda não pode anteceder a entrada."})
+        if attrs["pricing_basis"] == "carcass_arroba":
+            if not attrs.get("price_per_arroba") or not (attrs.get("carcass_weight_kg") or attrs.get("yield_percent")):
+                raise serializers.ValidationError("Informe preço por arroba e peso de carcaça ou rendimento.")
+            carcass = attrs.get("carcass_weight_kg") or attrs["weight_kg"] * attrs["yield_percent"] / 100
+            if carcass > attrs["weight_kg"]:
+                raise serializers.ValidationError({"carcass_weight_kg": "Carcaça não pode superar o peso vivo."})
+            attrs["carcass_estimated"] = not bool(attrs.get("carcass_weight_kg"))
+            attrs["carcass_weight_kg"] = carcass
+            gross = carcass / 15 * attrs["price_per_arroba"]
+            attrs["price_per_kg"] = gross / attrs["weight_kg"]
+        else:
+            if not attrs.get("price_per_kg"):
+                raise serializers.ValidationError({"price_per_kg": "Informe o preço por kg vivo."})
+            gross = attrs["weight_kg"] * attrs["price_per_kg"]
+        attrs["gross_amount"] = gross.quantize(Decimal(".01"))
+        if attrs["deductions"] and not attrs.get("deduction_description"):
+            raise serializers.ValidationError({"deduction_description": "Descreva os descontos informados."})
+        if attrs["deductions"] >= attrs["gross_amount"]:
+            raise serializers.ValidationError({"deductions": "Descontos devem ser menores que a receita bruta."})
+        attrs["net_amount"] = attrs["gross_amount"] - attrs["deductions"]
+        return attrs

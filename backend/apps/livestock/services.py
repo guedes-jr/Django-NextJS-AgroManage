@@ -379,7 +379,7 @@ def register_batch_sale(batch, data):
     if quantity > batch.quantity:
         raise ValidationError({'quantity': 'A quantidade vendida não pode exceder o saldo disponível.'})
     closes_batch = quantity == batch.quantity
-    amount = (data['weight_kg'] * data['price_per_kg']).quantize(Decimal('0.01'))
+    amount = data.get('net_amount', (data['weight_kg'] * data['price_per_kg']).quantize(Decimal('0.01')))
     if amount <= 0 or amount > Decimal('9999999999.99'):
         raise ValidationError({'price_per_kg': 'Valor total da venda fora do limite permitido.'})
     metadata = {
@@ -388,6 +388,9 @@ def register_batch_sale(batch, data):
         'buyer': data['buyer'], 'responsible': data.get('responsible', ''),
         'notes': data.get('notes', ''), 'amount': str(amount), 'mode': 'whole' if closes_batch else 'partial',
     }
+    for field in ['pricing_basis', 'gross_amount', 'deductions', 'deduction_description', 'slaughter_reference', 'carcass_weight_kg', 'yield_percent', 'price_per_arroba', 'carcass_estimated']:
+        if field in data:
+            metadata[field] = data[field] if isinstance(data[field], bool) else str(data[field])
     category, _ = FinancialCategory.objects.get_or_create(
         organization=batch.farm.organization, name='Venda de Animais', category_type='revenue',
     )

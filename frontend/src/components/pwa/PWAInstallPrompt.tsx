@@ -19,6 +19,7 @@ export function PWAInstallPrompt() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    try { if (localStorage.getItem("fazenda-mais-install-dismissed") === "true") queueMicrotask(() => setDismissed(true)); } catch { /* Storage can be unavailable. */ }
     if (process.env.NODE_ENV === "development") {
       let disposed = false;
       const isAppWorker = (scriptURL?: string) => {
@@ -107,7 +108,7 @@ export function PWAInstallPrompt() {
       <button
         type="button"
         className={styles.close}
-        onClick={() => setDismissed(true)}
+        onClick={() => { setDismissed(true); try { localStorage.setItem("fazenda-mais-install-dismissed", "true"); } catch { /* Dismiss still applies to this screen. */ } }}
         aria-label="Fechar opção de instalação"
       >
         <X size={17} aria-hidden="true" />

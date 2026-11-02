@@ -404,6 +404,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             raise exceptions.ValidationError("Somente compras podem registrar pagamento neste fluxo.")
         # Pop batch fields so they don't get passed to MovimentacaoEstoque.objects.create()
         batch_data = {
+            "data_entrada": serializer.validated_data.pop("data_entrada", None),
             "numero_lote": serializer.validated_data.pop("numero_lote", ""),
             "data_fabricacao": serializer.validated_data.pop("data_fabricacao", None),
             "data_validade": serializer.validated_data.pop("data_validade", None),
@@ -431,12 +432,14 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
                     local_armazenamento=batch_data["local_armazenamento"],
                     fornecedor=batch_data["fornecedor"],
                     nota_fiscal=batch_data["nota_fiscal"],
-                    data_entrada=date.today(),
+                    data_entrada=batch_data["data_entrada"] or date.today(),
                 )
                 lote._purchase_farm = farm
                 lote._skip_finance_transaction = True
                 lote.save()
             else:
+                if batch_data["data_entrada"] and batch_data["data_entrada"] != lote.data_entrada:
+                    raise exceptions.ValidationError({"data_entrada": "Este lote já possui outra data de recebimento. Use um novo número de lote para uma nova entrada."})
                 # Update existing batch metadata if provided
                 if batch_data["data_validade"]:
                     lote.data_validade = batch_data["data_validade"]

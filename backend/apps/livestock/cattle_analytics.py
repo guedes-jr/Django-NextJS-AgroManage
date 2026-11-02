@@ -93,6 +93,11 @@ def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpo
         add("vaccine", row.pk, row.application_date, row.vaccine_name, row.inventory_cost_snapshot, row.animal_id or row.batch_id)
     for row in CattleProtocolStep.objects.filter(run__animal__in=animals, executed_date__range=(start,end), inventory_movement__isnull=False).select_related("inventory_lot__item"):
         add("semen", row.pk, row.executed_date, row.inventory_lot.item.nome, row.inventory_cost_snapshot, row.inventory_movement_id)
+    from .models import HistoricoEvento
+    for row in HistoricoEvento.objects.filter(lote__in=batches, tipo_evento="Sanidade de Lote Bovino", data_evento__range=(start,end)):
+        add("sanitary", f"{row.pk}:service", row.data_evento, f"Serviço · {row.descricao}", Decimal(row.metadata["service_cost"]), row.lote_id)
+        material = row.metadata.get("material_cost")
+        add("sanitary", f"{row.pk}:material", row.data_evento, f"Material · {row.descricao}", Decimal(material) if material is not None else None, row.metadata.get("inventory_movement"))
     # Cash/accounting expenses are a separate ledger view: never add them to physical
     # stock consumption, since a purchase may already finance the same material.
     cash = Transaction.objects.filter(organization=organization, category__category_type="expense", due_date__range=(start,end)).exclude(status="cancelled").filter(animal_batch__in=batches)

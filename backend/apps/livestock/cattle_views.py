@@ -1,5 +1,7 @@
 """Cattle-only endpoints reuse the livestock tenant and role policies."""
 
+from decimal import Decimal
+
 from common.operator_access import operator_scoped, remember_operator_record
 from common.permissions import OrganizationRolePermission
 from django.db import transaction
@@ -15,7 +17,7 @@ from apps.inventory.models import ConsumoRacao
 
 from .cattle_selectors import cattle_overview, cattle_withdrawals
 from .cattle_serializers import (
-    CattleAnimalSerializer,
+    CattleAnimalSerializer, CATTLE_CATEGORIES,
     CattleBatchSerializer,
     CattleBirthInput,
     CattleAgendaQuery, CattleFollowUpInput, CattleFeedPlanSerializer, CattleFeedDeliverySerializer, CattleFeedDeliveryInput,
@@ -313,7 +315,7 @@ class CattleAnimalViewSet(AnimalViewSet):
 class CattleBatchViewSet(AnimalBatchViewSet):
     permission_classes = [CattlePermission]
     serializer_class = CattleBatchSerializer
-    action_operations = {**AnimalBatchViewSet.action_operations, "change_phase": "edit"}
+    action_operations = {**AnimalBatchViewSet.action_operations, "change_phase": "edit", "record_cost": "edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["batch_code", "farm", "phase", "status"]
     ordering_fields = ["batch_code", "entry_date"]
@@ -361,9 +363,14 @@ class CattleBatchViewSet(AnimalBatchViewSet):
             raise serializers.ValidationError(
                 "Selecione um lote ativo, uma nova fase e uma data posterior à entrada na fase atual."
             )
-        transfer_batch_phase(
-            batch, phase, day, notes=str(request.data.get("notes", ""))
-        )
+        category = serializers.ChoiceField(choices=CATTLE_CATEGORIES).run_validation(request.data.get("category", batch.category))
+        previous = batch.category
+        transfer_batch_phase(batch, phase, day, notes=str(request.data.get("notes", "")))
+        if category != previous:
+            batch.category = category
+            batch.save(update_fields=["category", "updated_at"])
+            HistoricoEvento.objects.create(farm=batch.farm, lote=batch, tipo_evento="Categoria de Lote", data_evento=day,
+                descricao=f"Categoria: {previous} → {category}", metadata={"previous": previous, "category": category, "author": str(request.user.pk)})
         return Response(self.get_serializer(batch).data)
 
     @action(detail=True, methods=["post"], url_path="register-sale")
@@ -380,12 +387,49 @@ class CattleBatchViewSet(AnimalBatchViewSet):
             raise serializers.ValidationError(
                 {"date": "A venda não pode anteceder a entrada no pasto atual."}
             )
-        response = super().register_sale(request, pk)
+        from .cattle_serializers import CattleSaleInput
+        from .services import register_batch_sale
+        sale = CattleSaleInput(data=request.data, context={"batch": batch})
+        sale.is_valid(raise_exception=True)
+        withdrawals = batch.historicos.filter(tipo_evento="Sanidade de Lote Bovino", data_evento__lte=day)
+        if any(event.metadata.get("meat_withdrawal_until", "") > str(day) for event in withdrawals):
+            raise serializers.ValidationError({"date": "Há aplicação sanitária com carência de carne vigente neste lote."})
+        response = Response(register_batch_sale(batch, sale.validated_data), status=status.HTTP_201_CREATED)
         batch.refresh_from_db()
         if grazing and batch.status == "sold":
             grazing.exit_date = day
             grazing.save(update_fields=["exit_date"])
         return response
+
+    @action(detail=True, methods=["post"], url_path="record-treatment")
+    @transaction.atomic
+    def record_treatment(self, request, pk=None):
+        from .cattle_batch_results import record_batch_treatment
+        batch = AnimalBatch.objects.select_for_update().get(pk=self.get_object().pk)
+        return Response(record_batch_treatment(batch, request.user, request.data), status=201)
+
+    @action(detail=True, methods=["get"], url_path="economic-result")
+    def economic_result(self, request, pk=None):
+        from .cattle_batch_results import batch_result
+        if request.user.role not in {"admin", "manager"}:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        yield_percent = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=Decimal(".01"), max_value=100).run_validation(request.query_params["yield_percent"]) if request.query_params.get("yield_percent") else None
+        return Response(batch_result(self.get_object(), yield_percent=yield_percent))
+
+    @action(detail=True, methods=["post"], url_path="registrar-mortalidade")
+    @transaction.atomic
+    def registrar_mortalidade(self, request, pk=None):
+        from .cattle_batch_results import record_batch_death
+        batch = AnimalBatch.objects.select_for_update().get(pk=self.get_object().pk)
+        return Response(record_batch_death(batch, request.user, request.data), status=201)
+
+    @action(detail=True, methods=["post"], url_path="record-cost")
+    @transaction.atomic
+    def record_cost(self, request, pk=None):
+        from .cattle_batch_results import record_batch_cost
+        batch = AnimalBatch.objects.select_for_update().get(pk=self.get_object().pk)
+        return Response(record_batch_cost(batch, request.user, request.data), status=201)
 
     @action(detail=False, methods=["get"], url_path="sales")
     def sales(self, request):

@@ -354,6 +354,7 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     fornecedor = serializers.PrimaryKeyRelatedField(
         queryset=Fornecedor.objects.all(), write_only=True, required=False, allow_null=True
     )
+    data_entrada = serializers.DateField(write_only=True, required=False)
     numero_lote = serializers.CharField(write_only=True, required=False, allow_blank=True)
     data_validade = serializers.DateField(write_only=True, required=False, allow_null=True)
     data_fabricacao = serializers.DateField(write_only=True, required=False, allow_null=True)
@@ -373,7 +374,7 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
             "purchase_due_date", "purchase_payment_status", "purchase_bank_account", "purchase_payment_date", "purchase_payment_method",
             # Write-only batch fields
             "custo_unitario", "fornecedor", "numero_lote",
-            "data_validade", "data_fabricacao", "local_armazenamento", "nota_fiscal",
+            "data_validade", "data_fabricacao", "data_entrada", "local_armazenamento", "nota_fiscal",
         ]
         read_only_fields = ["id", "cattle_delivery", "data_movimentacao", "created_at"]
 
@@ -381,6 +382,9 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
         return (value or "").strip()
 
     def validate(self, attrs):
+        from django.utils import timezone
+        if attrs.get("data_entrada") and (attrs["data_entrada"] > timezone.localdate() or attrs.get("tipo") not in {"compra", "entrada"}):
+            raise serializers.ValidationError({"data_entrada": "Informe uma data de recebimento até hoje para uma entrada de estoque."})
         if attrs.get("tipo") == "ajuste":
             raise serializers.ValidationError({"tipo": "Registre ajustes pelo inventário do lote, informando a contagem e o motivo."})
         if attrs.get("quantidade") is not None and attrs["quantidade"] <= 0:

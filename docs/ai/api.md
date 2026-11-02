@@ -1957,3 +1957,47 @@ Daily aggregate volumes are never distributed artificially by animal or session.
 Migrations: 0042 adds purpose, operational records and stock origins; 0043 links
 legacy collective HealthRecords only when an exact, unambiguous match exists.
 All new schema is explicitly registered for tenant-safe export/restore.
+
+### Collective cattle launches and lot result
+
+Cattle batch detail routes retain tenant, purpose and farm scope. No schema
+migration is required: launches use the existing operational ledger.
+
+- `POST batches/{id}/registrar-mortalidade/`: `date`, `quantity`, `reason`, UUID
+  `request_key`. Locks the batch, rejects future/pre-entry dates and identified
+  participants, reduces heads and records author/cause once. A final mortality
+  after partial sales closes as finished without a fabricated sale/revenue.
+- `POST batches/{id}/record-treatment/`: collective `quantity`, `date`,
+  `description`, optional `inventory_lot`, `quantity_per_head` in stock units,
+  total external `service_cost`, UUID `request_key`. Checks tenant, species,
+  receipt, expiry and stock; records one movement, material cost and configured
+  meat withdrawal. Sales during withdrawal are rejected. Identified animals
+  retain the existing management flow.
+- `POST batches/{id}/record-cost/` (manager/admin): date, category
+  (`sanitary`, `pasture`, `labor`, `freight`, `other`), description, positive total
+  amount, UUID request_key. Explicit external cost appropriation, not a stock
+  adjustment/payment. Do not repeat acquisitions, consumption or sale discounts.
+- `GET batches/{id}/economic-result/` (manager/admin): acquisition + known
+  operational origins + additional appropriations, gross/net sales, discounts,
+  partial result/margin, cost/result per sold head, mortality, head reconciliation
+  and weighing intervals/GMD. Financial expenses are not added twice. Missing
+  costs and transferred cohorts are qualified. Carcass arrobas/cost require sale
+  carcass data or explicit query `yield_percent`; estimates do not rewrite sales.
+  This is a partial economic result, not net profit or cash balance.
+- Cattle-only `register-sale` accepts `pricing_basis` (`live_kg` default or
+  `carcass_arroba`), live total kg, corresponding price and measured carcass kg or
+  yield percent for carcass pricing. Arroba = 15 kg carcass. Conversions retain
+  decimal precision; monetary totals round to cents. Deductions require a
+  description; `slaughter_reference` stores a romaneio reference. Net revenue
+  remains pending until receipt. Swine payload behavior is preserved.
+- `change-phase` accepts explicit category confirmation and records category
+  changes with author rather than guessing from weight.
+- New cattle batches accept `purchase_due_date`; operational saves preserve an
+  existing cattle purchase payable's amount and negotiated due date. Existing
+  payables are corrected through the normal authorized finance flow.
+
+Bovine feed choices include `nucleo` (Suplementos), `suplemento` and `racao` in kg.
+Stock receipt inputs accept non-future `data_entrada` for a new receipt lot,
+independent of purchase_due_date. Existing lot chronology cannot be silently
+backdated. FEFO, expiry and consumption chronology remain enforced. Dashboard
+cash KPIs are labeled explicitly and the sum of all segment costs is separate.

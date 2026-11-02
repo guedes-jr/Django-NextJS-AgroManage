@@ -20,5 +20,5 @@ def daily_feeding(organization):
             "deliveries": [{"id": str(row.pk), "quantity_kg": row.quantidade, "item_name": row.item_estoque.nome,
                             "recorded_by": row.usuario.full_name if row.usuario else "", "created_at": row.created_at, "notes": row.observacao} for row in batch.today_feeds]})
     formulas = list(FormulaRacao.objects.filter(organization=organization, ativa=True, especie_animal__in=["", "bovino", "multiplo"]).order_by("nome").values("id", "nome", "item_final_id"))
-    products = list(ItemEstoque.objects.filter(organization=organization, ativo=True, categoria__in=["racao", "suplemento"], unidade_medida="kg", especie_animal__in=["", "bovino", "multiplo"]).order_by("nome").values("id", "nome"))
+    products = list(ItemEstoque.objects.filter(organization=organization, ativo=True, categoria__in=["racao", "suplemento", "nucleo"], unidade_medida="kg", especie_animal__in=["", "bovino", "multiplo"]).order_by("nome").values("id", "nome"))
     return {"date": today, "results": rows, "formulas": formulas, "products": products}
