@@ -335,3 +335,38 @@ class CattleImprovementTests(APITestCase):
         self.assertEqual(self.client.get(self.base+"milk-trends/").data["produced"],0)
         self.assertEqual(self.client.get(self.base+"milk-trends/",{"farm":str(self.foreign.pk)}).status_code,400)
         self.assertEqual(self.client.get(self.base+"costs/",{"start":"invalid"}).status_code,400)
+
+    def test_navigation_links_follow_dairy_sources_and_expose_read_only_purpose(self):
+        response=self.post("occurrences",{"farm":str(self.farm.pk),"animal":str(self.cow.pk),"kind":"animal","date":str(self.today),"description":"Conferir vaca leiteira","assigned_to":str(self.user.pk),"due_date":str(self.today)})
+        self.assertEqual(response.status_code,201,response.data)
+        occurrence=CattleOccurrence.objects.get(pk=response.data["id"])
+        task=self.client.get(f"/api/v1/tasks/{occurrence.task_id}/")
+        self.assertEqual(task.data["operational_link"],"/home/seguimento/pecuaria-leiteira/operacoes?tab=occurrences")
+        animal=self.client.get(f"/api/v1/livestock/animals/{self.cow.pk}/")
+        self.assertEqual(animal.data["cattle_purpose"],"dairy")
+        from apps.finance.models import Transaction
+        from apps.finance.serializers import TransactionSerializer
+        title=Transaction.objects.get(reference=f"PURCHASE-BATCH-{self.source.pk}")
+        self.assertEqual(TransactionSerializer(title).data["animal_batch_purpose"],"beef")
+
+    def test_feeding_and_trough_reports_keep_segment_farm_and_tenant_scope(self):
+        from apps.inventory.models import ConsumoRacao
+        from apps.livestock.models import CattleTroughReading, HistoricoEvento
+        dairy=self.batch("MILK-FEED",quantity=5,cattle_purpose="dairy")
+        foreign=self.batch("FOREIGN-FEED",quantity=5,cattle_purpose="dairy",farm=self.foreign)
+        item=ItemEstoque.objects.create(organization=self.org,nome="Ração",categoria="racao",unidade_medida="kg")
+        for batch in [self.source,dairy,foreign]:
+            ConsumoRacao.objects.create(organization=batch.farm.organization,farm=batch.farm,lote_animal=batch,item_estoque=item if batch.farm_id != self.foreign.pk else ItemEstoque.objects.create(organization=self.foreign.organization,nome="Ração externa",categoria="racao",unidade_medida="kg"),data_inicio=self.today,data_fim=self.today,quantidade=10,custo_total=20)
+            CattleTroughReading.objects.create(batch=batch,date=self.today,session="morning",score=2,head_count=batch.quantity,request_key=uuid4(),created_by=self.user)
+        history=HistoricoEvento.objects.count();movements=MovimentacaoEstoque.objects.count()
+        for resource,identifier in [("feed","lote_codigo"),("trough-readings","batch_code")]:
+            url=f"/api/v1/livestock/cattle/{resource}/"
+            for production,code in [("beef",self.source.batch_code),("dairy",dairy.batch_code)]:
+                result=self.client.get(url,{"production":production,"farm":str(self.farm.pk),"page_size":1})
+                self.assertEqual(result.status_code,200,result.data)
+                self.assertEqual(result.data["count"],1)
+                self.assertEqual(result.data["results"][0][identifier],code)
+            self.assertEqual(self.client.get(url,{"production":"dairy","farm":str(self.foreign.pk)}).data["count"],0)
+            self.assertEqual(self.client.get(url,{"production":"invalid"}).status_code,400)
+        self.assertEqual(HistoricoEvento.objects.count(),history)
+        self.assertEqual(MovimentacaoEstoque.objects.count(),movements)

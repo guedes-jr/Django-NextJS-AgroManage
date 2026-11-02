@@ -639,7 +639,11 @@ class CattleMilkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"animal": "Não altere a vaca de uma ordenha existente."}
             )
-        return super().update(instance, self.validate(validated_data))
+        from .milk_tanks import protect_production
+        old_day = instance.date
+        result = super().update(instance, self.validate(validated_data))
+        protect_production(result.animal.farm, old_day, result.date)
+        return result
 
 
 class CattleWeightInput(serializers.Serializer):
@@ -1085,7 +1089,11 @@ class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         self.locked_save(validated_data)
-        return super().update(instance, validated_data)
+        from .milk_tanks import protect_production
+        old_day = instance.date
+        result = super().update(instance, validated_data)
+        protect_production(result.farm, old_day, result.date)
+        return result
 
 
 class CattleSaleInput(serializers.Serializer):

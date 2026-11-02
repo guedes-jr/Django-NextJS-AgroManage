@@ -234,7 +234,7 @@ class NotificationService:
                     ),
                     notif_type=NotificationType.ANIMAL,
                     priority=NotificationPriority.HIGH,
-                    link="/home/rebanho/suinos/reproducao?tab=maternidade",
+                    link="/home/seguimento/suinos/reproducao?tab=maternidade",
                     event_key=f"livestock.reproductive_vaccine.birth:{birth.id}",
                 )
                 birth.reproductive_vaccine_notification_sent = True
@@ -266,7 +266,7 @@ class NotificationService:
                     ),
                     notif_type=NotificationType.ANIMAL,
                     priority=NotificationPriority.HIGH,
-                    link="/home/rebanho/suinos/reproducao?tab=gestacao",
+                    link="/home/seguimento/suinos/reproducao?tab=gestacao",
                     event_key=f"livestock.reproductive_vaccine.mating:{mating.id}",
                 )
                 mating.reproductive_vaccine_notification_sent = True
@@ -299,7 +299,7 @@ class NotificationService:
                     ),
                     notif_type=NotificationType.ANIMAL,
                     priority=NotificationPriority.HIGH,
-                    link="/home/rebanho/suinos/reproducao?tab=matrizes",
+                    link="/home/seguimento/suinos/reproducao?tab=matrizes",
                     event_key=f"livestock.next_mating:{litter.id}",
                 )
                 litter.next_mating_notification_sent = True

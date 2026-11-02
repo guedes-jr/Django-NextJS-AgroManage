@@ -1,3 +1,4 @@
+import { cattleAccessPath, legacyCattleRoot } from "./cattleNavigation";
 import apiClient, { setOrganizationOperatorMode } from "./api";
 
 export type OrganizationAccess = {
@@ -10,10 +11,11 @@ export type OrganizationAccess = {
 };
 
 export function canAccessOrganizationPath(access: OrganizationAccess | null, path: string) {
+  path = cattleAccessPath(path);
   if (!access) return path === "/home";
   if (access.role === "feeder") {
     return ["/home/profile", "/home/notifications", "/home/suporte"].some(prefix => path === prefix || path.startsWith(`${prefix}/`))
-      || ((access.livestock_species || []).includes("bovinos") && path === "/home/rebanho/bovinos/racao/tratos");
+      || ((access.livestock_species || []).includes("bovinos") && path === `${legacyCattleRoot}/racao/tratos`);
   }
   if (access.role !== "operator") {
     return !path.startsWith("/home/usuarios") || access.can_manage_users;
@@ -24,7 +26,7 @@ export function canAccessOrganizationPath(access: OrganizationAccess | null, pat
   if (path.startsWith("/home/plantacoes")) {
     return access.can_operate_crops && !["estrutura", "mao-obra", "colheita", "historico"].includes(segments[4]);
   }
-  if (path.startsWith("/home/rebanho/")) {
+  if (path.startsWith("/home/seguimento/")) {
     if (["vendas", "mao-de-obra"].includes(segments[4])) return false;
     return (access.livestock_species || []).includes(segments[3]);
   }

@@ -8,7 +8,7 @@ export type FinanceTransaction = {
   id: string; description: string; amount: string; category: string; category_name: string; category_type: string;
   due_date: string; payment_date: string | null; status: string; reference: string; notes: string;
   bank_account: string | null; bank_account_name?: string; farm: string | null; farm_name?: string;
-  species: string | null; species_name?: string; animal_batch: string | null; animal_batch_name?: string;
+  species: string | null; species_name?: string; animal_batch: string | null; animal_batch_name?: string; animal_batch_purpose?: string;
   planting_cycle: string | null; planting_cycle_name?: string; payment_events: PaymentEvent[];
   series_kind: string; series_number: number | null; series_count: number | null;
 };

@@ -74,6 +74,7 @@ class TransactionSerializer(serializers.ModelSerializer):
     bank_account_name = serializers.CharField(source="bank_account.name", read_only=True)
     farm_name = serializers.CharField(source="farm.name", read_only=True)
     species_name = serializers.CharField(source="species.name", read_only=True)
+    animal_batch_purpose = serializers.CharField(source="animal_batch.cattle_purpose", read_only=True, default="unknown")
     animal_batch_name = serializers.CharField(source="animal_batch.batch_code", read_only=True)
     planting_cycle_name = serializers.CharField(source="planting_cycle.name", read_only=True)
     payment_events = PaymentEventSerializer(many=True, read_only=True)
@@ -86,7 +87,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "reference", "notes", "payment_method", "attachment",
             "bank_account", "bank_account_name", "planting_cycle",
             "animal_batch", "species", "created_by", "created_at",
-            "farm_name", "species_name", "animal_batch_name", "planting_cycle_name", "payment_events",
+            "farm_name", "species_name", "animal_batch_name", "animal_batch_purpose", "planting_cycle_name", "payment_events",
             "series_id", "series_kind", "series_number", "series_count"
         ]
         read_only_fields = ["id", "created_by", "created_at", "series_id", "series_kind", "series_number", "series_count"]

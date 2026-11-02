@@ -1,0 +1,177 @@
+from datetime import timedelta
+from decimal import Decimal
+from uuid import uuid4
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from rest_framework.test import APITestCase
+from apps.organizations.models import Organization
+from apps.farms.models import Farm
+from apps.finance.models import Transaction
+from apps.livestock.models import MilkTank, MilkTankMovement, MilkTankQuality, CattleMilkDailyTotal, Animal, Species
+from apps.platform_admin.exports.capture import check_inventory
+
+
+class MilkTankTests(APITestCase):
+    base = "/api/v1/livestock/cattle/"
+
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.org = Organization.objects.create(name="Tanques",slug="tank-tests")
+        other = Organization.objects.create(name="Outra",slug="tank-tests-other")
+        self.farm = Farm.objects.create(organization=self.org,name="Leite")
+        self.foreign = Farm.objects.create(organization=other,name="Outra")
+        self.species,_ = Species.objects.get_or_create(code="bovinos", defaults={"name":"Bovinos"})
+        self.user = get_user_model().objects.create_user(email="tank@example.invalid",password="test",organization=self.org,role="admin",full_name="Gestor")
+        self.client.force_authenticate(self.user)
+        self.production = CattleMilkDailyTotal.objects.create(farm=self.farm,date=self.today,liters=1000,discarded_liters=50,discard_reason="Descarte na ordenha")
+        response = self.client.post(self.base+"milk-tanks/", {"farm":str(self.farm.pk),"name":"T1","capacity_liters":"1000"}, format="json")
+        self.assertEqual(response.status_code,201,response.data)
+        self.tank = MilkTank.objects.get(pk=response.data["id"])
+
+    def move(self, **changes):
+        data={"tank":str(self.tank.pk),"kind":"production","date":str(self.today),"liters":"600","request_key":str(uuid4()), **changes}
+        return self.client.post(self.base+"milk-tank-movements/",data,format="json")
+
+    def balance(self, tank=None):
+        result=self.client.get(self.base+f"milk-tanks/{(tank or self.tank).pk}/")
+        self.assertEqual(result.status_code,200,result.data)
+        return Decimal(result.data["balance_liters"])
+
+    def cancel(self, movement):
+        return self.client.post(self.base+f"milk-tank-movements/{movement['id']}/cancel/",{"reason":"Correção justificada"},format="json")
+
+    def test_ledger_tracks_only_explicit_usable_production_collections_and_discards(self):
+        self.assertEqual(self.balance(),0)
+        available=self.client.get(self.base+f"milk-tanks/{self.tank.pk}/production-available/").data
+        self.assertEqual(Decimal(available["available"]),950)
+        self.assertEqual(self.move().status_code,201)
+        self.assertEqual(self.move(kind="collection",liters="200",buyer="Laticínio").status_code,201)
+        self.assertEqual(self.move(kind="discard",liters="50",reason="Avaria").status_code,201)
+        self.assertEqual(self.balance(),350)
+        self.assertEqual(self.production.liters,1000)
+        self.assertFalse(Transaction.objects.filter(reference__startswith="SALE-MILK-TANK-").exists())
+
+    def test_receipts_cannot_overallocate_the_same_production_across_tanks(self):
+        self.move()
+        second=MilkTank.objects.create(farm=self.farm,name="T2",capacity_liters=1000)
+        bad=self.move(tank=str(second.pk),liters="351")
+        self.assertEqual(bad.status_code,400,bad.data)
+        self.assertEqual(self.balance(second),0)
+        self.assertEqual(self.move(tank=str(second.pk),liters="350").status_code,201)
+        self.assertEqual(self.move(liters="1").status_code,400)
+        self.assertEqual(self.balance()+self.balance(second),950)
+
+    def test_capacity_and_historical_stock_validation_roll_back_every_effect(self):
+        self.move()
+        self.assertEqual(self.move(kind="collection",liters="601",buyer="Laticínio",unit_price="2",generate_receivable=True).status_code,400)
+        CattleMilkDailyTotal.objects.create(farm=self.farm,date=self.today-timedelta(days=2),liters=1000)
+        self.assertEqual(self.move(date=str(self.today-timedelta(days=2)),liters="600").status_code,400)
+        self.assertEqual(MilkTankMovement.objects.count(),1)
+        self.assertEqual(self.balance(),600)
+        self.assertFalse(Transaction.objects.filter(reference__startswith="SALE-MILK-TANK-").exists())
+
+    def test_collection_retry_creates_one_pending_receivable_and_cancellation_is_audited(self):
+        key=str(uuid4())
+        for _ in range(2): self.assertEqual(self.move(request_key=key).status_code,201)
+        key=str(uuid4())
+        for _ in range(2):
+            result=self.move(kind="collection",liters="200",buyer="Laticínio",unit_price="2.50",generate_receivable=True,request_key=key)
+            self.assertEqual(result.status_code,201,result.data)
+        title=Transaction.objects.get(pk=result.data["receivable"])
+        self.assertEqual((title.status,title.amount,title.farm_id),("pending",Decimal(500),self.farm.pk))
+        self.assertEqual(MilkTankMovement.objects.count(),2)
+        self.assertEqual(self.balance(),400)
+        for _ in range(2): self.assertEqual(self.cancel(result.data).status_code,200)
+        self.assertEqual(self.balance(),600)
+        title.refresh_from_db();self.assertEqual(title.status,"cancelled")
+        row=MilkTankMovement.objects.get(pk=result.data["id"])
+        self.assertEqual(row.cancelled_by,self.user)
+        self.assertTrue(row.cancellation_reason)
+
+    def test_paid_collection_requires_financial_reversal(self):
+        self.move()
+        collection=self.move(kind="collection",liters="100",buyer="Laticínio",unit_price="3",generate_receivable=True).data
+        Transaction.objects.filter(pk=collection["receivable"]).update(status="paid")
+        self.assertEqual(self.cancel(collection).status_code,400)
+        self.assertEqual(self.balance(),500)
+        self.assertIsNone(MilkTankMovement.objects.get(pk=collection["id"]).cancelled_at)
+
+    def test_production_correction_or_deletion_cannot_remove_reserved_milk(self):
+        entry=self.move().data
+        url=self.base+f"milk-totals/{self.production.pk}/"
+        self.assertEqual(self.client.patch(url,{"liters":"550"},format="json").status_code,400)
+        self.assertEqual(self.client.patch(url,{"date":str(self.today-timedelta(days=1))},format="json").status_code,400)
+        self.assertEqual(self.client.delete(url).status_code,400)
+        self.production.refresh_from_db();self.assertEqual(self.production.liters,1000)
+        self.assertEqual(self.client.patch(url,{"liters":"1200"},format="json").status_code,200)
+        self.assertEqual(self.cancel(entry).status_code,200)
+        self.assertEqual(self.client.delete(url).status_code,204)
+
+    def test_individual_milking_is_also_protected_after_tank_receipt(self):
+        cow=Animal.objects.create(farm=self.farm,species=self.species,identifier="V1",category="Vaca",gender="F",entry_date=self.today-timedelta(days=30))
+        day=str(self.today-timedelta(days=1))
+        result=self.client.post(self.base+"milk/",{"animal":str(cow.pk),"date":day,"session":"morning","liters":"50","discarded_liters":"5","discard_reason":"Separação"},format="json")
+        self.assertEqual(result.status_code,201,result.data)
+        self.assertEqual(self.move(date=day,liters="45").status_code,201)
+        url=self.base+f"milk/{result.data['id']}/"
+        self.assertEqual(self.client.patch(url,{"discarded_liters":"10"},format="json").status_code,400)
+        self.assertEqual(self.client.delete(url).status_code,400)
+
+    def test_cancelling_an_entry_cannot_leave_subsequent_collection_negative(self):
+        entry=self.move().data
+        self.move(kind="collection",liters="400",buyer="Laticínio")
+        self.assertEqual(self.cancel(entry).status_code,400)
+        self.assertEqual(self.balance(),200)
+        self.assertIsNone(MilkTankMovement.objects.get(pk=entry["id"]).cancelled_at)
+
+    def test_quality_records_are_independent_and_idempotent(self):
+        self.move()
+        data={"tank":str(self.tank.pk),"date":str(self.today),"fat_percent":"3.7","protein_percent":"3.2","scc":100000,"tbc":2000,"antibiotics":"positive","request_key":str(uuid4())}
+        for _ in range(2):
+            result=self.client.post(self.base+"milk-tank-quality/",data,format="json")
+            self.assertEqual(result.status_code,201,result.data)
+        self.assertEqual(MilkTankQuality.objects.count(),1)
+        self.assertEqual(self.balance(),600)
+        data.update(request_key=str(uuid4()),fat_percent="101")
+        self.assertEqual(self.client.post(self.base+"milk-tank-quality/",data,format="json").status_code,400)
+
+    def test_tenant_isolation_future_dates_and_inactive_tank(self):
+        foreign=MilkTank.objects.create(farm=self.foreign,name="Secret",capacity_liters=500)
+        self.assertEqual(self.client.get(self.base+f"milk-tanks/{foreign.pk}/").status_code,404)
+        self.assertEqual(self.move(tank=str(foreign.pk)).status_code,400)
+        self.assertEqual(self.move(date=str(self.today+timedelta(days=1))).status_code,400)
+        self.assertEqual(self.move(kind="discard",liters="1").status_code,400)
+        self.assertEqual(self.client.patch(self.base+f"milk-tanks/{self.tank.pk}/",{"is_active":False},format="json").status_code,200)
+        self.assertEqual(self.move().status_code,400)
+        self.assertEqual(self.client.get(self.base+"milk-tank-movements/",{"farm":str(self.foreign.pk)}).data["count"],0)
+
+    def test_tank_cannot_be_shrunk_moved_deactivated_or_deleted_with_balance(self):
+        self.move()
+        url=self.base+f"milk-tanks/{self.tank.pk}/"
+        self.assertEqual(self.client.patch(url,{"capacity_liters":"500"},format="json").status_code,400)
+        self.assertEqual(self.client.patch(url,{"is_active":False},format="json").status_code,400)
+        self.assertEqual(self.client.patch(url,{"farm":str(self.foreign.pk)},format="json").status_code,400)
+        self.assertEqual(self.client.delete(url).status_code,405)
+        self.assertEqual(self.balance(),600)
+
+    def test_operator_scope_read_only_and_financial_fields(self):
+        self.move()
+        self.move(kind="collection",liters="100",buyer="Laticínio",unit_price="2",generate_receivable=True)
+        self.user.role="operator";self.user.save()
+        self.assertEqual(self.client.get(self.base+"milk-tanks/").status_code,403)
+        self.user.allowed_livestock.add(self.species)
+        result=self.client.get(self.base+"milk-tank-movements/")
+        self.assertEqual(result.status_code,200)
+        self.assertNotIn("amount",result.data["results"][0])
+        self.assertNotIn("receivable",result.data["results"][0])
+        self.assertEqual(self.move(kind="collection",liters="1",buyer="Laticínio",unit_price="2").status_code,403)
+        self.assertEqual(self.move(kind="collection",liters="1",buyer="Laticínio").status_code,201)
+        self.assertEqual(self.client.post(self.base+"milk-tanks/",{"farm":str(self.farm.pk),"name":"No","capacity_liters":"100"},format="json").status_code,403)
+        self.user.operator_read_only=True;self.user.save()
+        self.assertEqual(self.move(kind="discard",liters="1",reason="No").status_code,403)
+
+    def test_inventory_and_read_queries_create_no_movements(self):
+        check_inventory()
+        self.client.get(self.base+"milk-tanks/")
+        self.client.get(self.base+f"milk-tanks/{self.tank.pk}/production-available/")
+        self.assertEqual(MilkTankMovement.objects.count(),0)

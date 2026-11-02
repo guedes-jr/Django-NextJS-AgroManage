@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { cattleHome, cattleHref, type CattleProduction } from "@/services/cattleNavigation";
 import { ArrowLeft, Plus, RefreshCw, ClipboardList, ArrowRightLeft, Bell, FileUp, ListChecks, Milk, ChartNoAxesCombined, Download, Check } from "lucide-react";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -17,7 +18,7 @@ const purposeOptions = Object.entries(purposeLabels).map(([value,label]) => ({va
 const occurrenceKinds = {animal:"Animal",water:"Água",fence:"Cerca",pasture:"Pasto",other:"Outro"};
 const ids = (rows: OperationRow[]) => rows.map(row => row.id);
 
-export function CattleOperationsWorkspace({ initialTab = "classification" }: { initialTab?: string }) {
+export function CattleOperationsWorkspace({ initialTab = "classification", production = "beef" }: { initialTab?: string; production?: CattleProduction }) {
   const access = useOrganizationAccess();
   const manager = !!access && ["admin","manager"].includes(access.role);
   const canWrite = !!access && !access.read_only && ["admin","manager","operator"].includes(access.role);
@@ -168,7 +169,7 @@ export function CattleOperationsWorkspace({ initialTab = "classification" }: { i
       {loading&&<p role="status" className="small text-muted-foreground">Carregando…</p>}
       {!["import","milk-trends","costs"].includes(tab)&&<DataTable key={`${tab}-${targetType}-${protocolView}`} rows={rows} rowKey="id" title={tab==="classification" ? targetType==="purpose-history" ? "Histórico de classificação" : targetType==="animals" ? "Animais por finalidade" : "Lotes por finalidade" : tab==="transfers" ? "Transferências registradas" : tab==="occurrences" ? "Ocorrências" : "Protocolos reprodutivos"} columns={columns} searchValue={tab==="classification"&&targetType!=="purpose-history"?search:undefined} onSearchChange={tab==="classification"&&targetType!=="purpose-history" ? value=>{setSearch(value);setPage(0);} : undefined} searchPlaceholder="Buscar brinco, nome ou lote…" pagination={{page,pageSize:10,total:count,onPageChange:setPage,onPageSizeChange:()=>{}}} pageSizeOptions={[10]} selectable={tab==="classification"&&targetType!=="purpose-history"&&manager} batchActions={tab==="classification"&&manager&&targetType!=="purpose-history"?[{label:"Classificar selecionados",onClick:classify}]:undefined} actions={tab==="classification"&&manager&&targetType!=="purpose-history"?[{label:"Alterar finalidade",onClick:row=>classify([row])}]:tab==="occurrences"&&canWrite?[{label:"Resolver ocorrência",onClick:resolve,shouldShow:row=>!row.resolved_at}]:[]} emptyText={loading?"Carregando…":"Nenhum registro encontrado."}/>}
     </section>
-    <div className={styles.controls}><Link className="btn btn-outline-secondary btn-sm" href="/home/rebanho/bovinos/manejos">Manejo sanitário coletivo</Link><Link className="btn btn-outline-secondary btn-sm" href="/home/rebanho/bovinos/leite">Lançar produção de leite</Link><Link className="contextual-back-button" href="/home/rebanho/bovinos"><ArrowLeft size={18}/> Voltar para bovinos</Link></div>
+    <div className={styles.controls}><Link className="btn btn-outline-secondary btn-sm" href={cattleHref("/home/seguimento/gado-de-corte/manejos", production)}>Manejo sanitário coletivo</Link><Link className="btn btn-outline-secondary btn-sm" href="/home/seguimento/pecuaria-leiteira/leite">Lançar produção de leite</Link><Link className="contextual-back-button" href={cattleHome(production)}><ArrowLeft size={18}/> Voltar para {production === "dairy" ? "Pecuária leiteira" : "Gado de corte"}</Link></div>
     {form&&<CattleForm spec={form} onClose={()=>setForm(null)} onSaved={saved}/>}
     {review&&<Modal isOpen title="Conferir transferência" description="Origem e destino serão atualizados juntos." onClose={()=>{if(!saving)setReview(null);}}><div className="p-3"><p><strong>{String(review.snapshot.source_code)}</strong> → <strong>{String(review.snapshot.destination_code)}</strong></p><p>Quantidade: {String(review.snapshot.quantity)} animais</p><p>Origem: {String(review.snapshot.source_before ?? "—")} → {String(review.snapshot.source_after ?? "—")}</p><p>Destino: {String(review.snapshot.destination_before ?? "—")} → {String(review.snapshot.destination_after ?? "—")}</p><p>{String(review.snapshot.reason)}</p>{error&&<p role="alert" className="text-danger">{error}</p>}<button className="btn btn-success" disabled={saving} onClick={async()=>{setSaving(true);setError("");try{await service.command(review.data.operation === "move-pasture" ? "move-pasture" : "transfers",{...review.data,preview:false});setReview(null);setNotice("Transferência concluída sem duplicar o efetivo.");refresh();}catch(error){setError(cattleError(error));}finally{setSaving(false);}}}>Confirmar transferência</button></div></Modal>}
   </div>;

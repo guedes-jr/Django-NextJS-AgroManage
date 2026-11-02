@@ -70,3 +70,11 @@ class OrganizationAgendaTests(APITestCase):
         rows = self.agenda(domain="livestock")["results"]
         self.assertTrue({"weaning", "heat"}.issubset({row["kind"] for row in rows}), rows)
         self.assertTrue(all(row["date"] == self.today.isoformat() for row in rows))
+
+    def test_bovine_source_links_use_production_segment_without_legacy_routes(self):
+        dairy=Animal.objects.create(farm=self.farm,species=self.species,identifier="DAIRY",gender="F",entry_date=self.today,cattle_purpose="dairy")
+        VaccinationRecord.objects.create(farm=self.farm,species=self.species,animal=dairy,vaccine_name="Leite",application_date=self.today,next_dose_date=self.today)
+        rows=self.agenda(domain="livestock")["results"]
+        dairy_event=next(row for row in rows if "Leite" in row["title"])
+        self.assertEqual(dairy_event["source_url"],"/home/seguimento/pecuaria-leiteira/sanidade")
+        self.assertTrue(all("/bovinos" not in row["source_url"] for row in rows))

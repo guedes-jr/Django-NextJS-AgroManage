@@ -1,3 +1,4 @@
+import { cattleHome } from "./cattleNavigation";
 import { apiClient } from "./api";
 import { canAccessOrganizationPath, type OrganizationAccess } from "./organizationAccess";
 
@@ -10,7 +11,7 @@ export interface NavbarSearchResult {
   href?: string;
 }
 interface SearchPage<T> { results: T[] }
-interface AnimalHit { id: string; identifier: string; species_name: string; species_code: string; farm_name: string }
+interface AnimalHit { cattle_purpose?: string; id: string; identifier: string; species_name: string; species_code: string; farm_name: string }
 interface BatchHit { id: string; batch_code: string; name?: string; species_code: string; farm_name: string }
 interface InventoryHit { id: string; nome: string; categoria_display: string; unidade_medida_display: string }
 interface StructureHit { id: string; name: string; category_label: string; farm: string; farm_name: string }
@@ -28,8 +29,8 @@ export async function searchNavbar(query: string, signal: AbortSignal, access: O
           species: animal.species_name || speciesLabels[animal.species_code] || animal.species_code,
           farm: animal.farm_name,
           href: animal.species_code === "suinos"
-            ? `/home/rebanho/suinos/animal/${encodeURIComponent(animal.id)}`
-            : `/home/rebanho/${encodeURIComponent(animal.species_code)}`,
+            ? `/home/seguimento/suinos/animal/${encodeURIComponent(animal.id)}`
+            : animal.species_code === "bovinos" ? `${cattleHome(animal.cattle_purpose === "dairy" ? "dairy" : "beef")}/cadastro` : `/home/seguimento/${encodeURIComponent(animal.species_code)}`,
         }))),
       apiClient.get<SearchPage<BatchHit> | BatchHit[]>("/livestock/batches/", { params, signal })
         .then(({ data }) => rows(data).map((batch): NavbarSearchResult => ({

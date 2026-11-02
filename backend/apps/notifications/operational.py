@@ -133,7 +133,7 @@ def collect_operational_notifications():
                     priority="high"
                     if alert["type"] in ["danger", "error", "warning"]
                     else "medium",
-                    link=f"/home/rebanho/{code}",
+                    link="/home/seguimento/gado-de-corte" if code == "bovinos" else f"/home/seguimento/{code}",
                     event_key=key,
                     in_app=False,
                     schedule=False,

@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useCattleSegment } from "./CattleSegmentContext";
+import { cattleHref } from "@/services/cattleNavigation";
 import { cattleService, cattleError, type CattleAgendaEvent, type CattleManagement, type Page } from "@/services/cattleService";
 import { CattleForm, type CattleFormSpec } from "./CattleForm";
 import styles from "./cattle.module.css";
@@ -9,6 +11,7 @@ export function CattleAgenda({ farm, refresh, canWrite, manager, onAnimalAction,
   farm: string; refresh: number; canWrite: boolean; manager: boolean;
   onAnimalAction: (event: CattleAgendaEvent) => void; onChanged: () => void;
 }) {
+  const segment = useCattleSegment() || "beef";
   const [period, setPeriod] = useState("current");
   const [kind, setKind] = useState("all");
   const [page, setPage] = useState(1);
@@ -52,7 +55,7 @@ export function CattleAgenda({ farm, refresh, canWrite, manager, onAnimalAction,
         <time>{new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR")} · {event.period === "overdue" ? "Atrasado — conferir" : event.period === "today" ? "Hoje" : "Previsto"}</time>
         <strong>{event.title}</strong><p className="small mb-2">{event.farm_name}</p>
         {canWrite && event.animal && <button className="btn btn-sm btn-outline-success" onClick={() => onAnimalAction(event)}>{event.kind === "birth" ? "Registrar parto" : "Registrar diagnóstico"}</button>}
-        {event.kind === "sanitary" && manager && <div className={styles.actions}><Link href="/home/rebanho/bovinos/manejos" className="btn btn-sm btn-outline-secondary">Abrir manejos</Link>{canWrite && <button className="btn btn-sm btn-outline-success" disabled={preparing} onClick={() => resolve(event)}>Resolver previsão</button>}</div>}
+        {event.kind === "sanitary" && manager && <div className={styles.actions}><Link href={cattleHref("/home/seguimento/gado-de-corte/manejos", segment)} className="btn btn-sm btn-outline-secondary">Abrir manejos</Link>{canWrite && <button className="btn btn-sm btn-outline-success" disabled={preparing} onClick={() => resolve(event)}>Resolver previsão</button>}</div>}
       </article>)}
       {!data?.results.length && <p className={styles.empty}>Nenhuma atividade neste filtro. Consulte também os atrasados.</p>}
       <div className={styles.pagination}><span>{data?.count || 0} atividades · página {page}</span><button className="btn btn-sm btn-outline-secondary" disabled={page === 1} onClick={() => { setPage(page - 1); setLoading(true); }}>Anterior</button><button className="btn btn-sm btn-outline-secondary" disabled={!data?.next} onClick={() => { setPage(page + 1); setLoading(true); }}>Próxima</button></div>

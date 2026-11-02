@@ -495,6 +495,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
 
 
 class AnimalSerializer(serializers.ModelSerializer):
+    cattle_purpose = serializers.CharField(read_only=True)
     # Field to receive data
     species_code_input = serializers.CharField(write_only=True, required=False)
     breed_name_input = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -518,7 +519,7 @@ class AnimalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Animal
         fields = [
-            'id', 'farm', 'farm_name', 'species', 'species_name', 'species_code', 'breed', 'breed_name',
+            'id', 'farm', 'farm_name', 'species', 'species_name', 'species_code', 'breed', 'breed_name', 'cattle_purpose',
             'batch', 'batch_code', 'batch_origin', 'identifier', 'birth_date', 'entry_date',
             'gender', 'category', 'status', 'reproductive_status',
             'initial_weight_kg', 'current_weight_kg', 'notes',

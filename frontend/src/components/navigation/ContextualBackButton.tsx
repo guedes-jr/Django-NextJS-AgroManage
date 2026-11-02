@@ -4,17 +4,16 @@ import { ArrowLeft } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { cattleParent, isCattlePath } from "@/services/cattleNavigation";
+
 type ParentRoute = { href: string; label: string };
 
 function homeParent(pathname: string, searchParams: URLSearchParams | null): ParentRoute | null {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] !== "home" || parts.length < 3) return null;
-  if (pathname.startsWith("/home/rebanho/bovinos/pecuaria-leiteira")) {
-    const dairyRoot = "/home/rebanho/bovinos/pecuaria-leiteira";
-    return pathname === dairyRoot ? null : { href: dairyRoot, label: "Voltar para Pecuária leiteira" };
-  }
-  if (parts[1] === "rebanho" && parts[2]) {
-    const speciesRoot = `/home/rebanho/${parts[2]}`;
+  if (isCattlePath(pathname)) return cattleParent(pathname, searchParams);
+  if (parts[1] === "seguimento" && parts[2]) {
+    const speciesRoot = `/home/seguimento/${parts[2]}`;
     return pathname === speciesRoot ? null : { href: speciesRoot, label: `Voltar para ${parts[2]}` };
   }
   if (parts[1] === "estoque" && pathname !== "/home/estoque/resumo") return { href: "/home/estoque/resumo", label: "Voltar para Estoque" };
@@ -25,8 +24,9 @@ function homeParent(pathname: string, searchParams: URLSearchParams | null): Par
   if (parts[1] === "clinico") return { href: "/home/clinico", label: "Voltar para Clínico" };
   if (parts[1] === "relatorios") {
     const species = searchParams?.get("species");
+    if (species === "bovinos") return cattleParent(pathname, searchParams);
     if (species) {
-      return { href: `/home/rebanho/${species}`, label: `Voltar para ${species}` };
+      return { href: `/home/seguimento/${species}`, label: `Voltar para ${species}` };
     }
     return { href: "/home", label: "Voltar ao início" };
   }

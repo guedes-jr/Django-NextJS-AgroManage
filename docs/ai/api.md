@@ -1353,7 +1353,8 @@ own authorized actor. Requests, execution, result, failure and downloads are aud
 
 ## Bovine workspace (beef and dairy)
 
-The bovine pages under `/home/rebanho/bovinos/` use the isolated
+The cattle pages under `/home/seguimento/gado-de-corte/` and
+`/home/seguimento/pecuaria-leiteira/` use the isolated
 `/api/v1/livestock/cattle/` API. Existing swine, poultry and generic livestock
 routes retain their contracts. The bovine workspace replaces its former
 under-development gate and sample reproduction data with persisted records.
@@ -1709,7 +1710,7 @@ feeders can post. It reuses `deliver_feed`: today only, locks, current plan
 validation, tenant checks, stock ledger, operator attribution, quantity/head
 snapshots, and idempotency. The response contains only `id`, `date` and
 `quantity_kg`. No direct stock balance update or extra financial title occurs.
-The page is `/home/rebanho/bovinos/racao/tratos`, linked from cattle nutrition;
+Daily feeding uses each segment’s `/racao/tratos` page, linked from cattle nutrition;
 feeders enter directly here and receive a dedicated sidebar entry.
 
 
@@ -1727,14 +1728,14 @@ Zero milk records return zero volumes and a null average.
 
 `GET /livestock/cattle/animals/?young_females=true` limits the existing authorized
 queryset to females categorized Bezerro or Novilha. The dairy home shortcut
-opens `/home/rebanho/bovinos/cadastro?group=young-females`; CSV export preserves
+opens `/home/seguimento/pecuaria-leiteira/cadastro?group=young-females`; CSV export preserves
 this filter. The dairy landing uses existing milk, reproduction, health, feeding,
 feed factory and report routes. Milk tank management remains explicitly planned.
 
 
 ### Dairy animal list and optional bovine name
 
-The dairy registry is `/home/rebanho/bovinos/pecuaria-leiteira/animais`.
+The dairy registry is `/home/seguimento/pecuaria-leiteira/cadastro`.
 It reuses the cattle endpoints and permissions, with a compact table without
 photos and category counts matching the active farm/search/status filters.
 The displayed herd remains the shared bovine registry; this UI change does not
@@ -1860,7 +1861,8 @@ read-only, ownership and manager deletion rules remain in force.
 ## Bovine operational improvements — 2026-11-01
 
 The eight approved improvements are exposed through the existing bovine pages
-and `/home/rebanho/bovinos/operacoes` (Central de manejo). No feeding-plan or
+and `/home/seguimento/gado-de-corte/operacoes` and
+`/home/seguimento/pecuaria-leiteira/operacoes` (Central de manejo). No feeding-plan or
 manual headcount-adjustment operation was reintroduced.
 
 ### Productive purpose
@@ -2001,3 +2003,67 @@ Stock receipt inputs accept non-future `data_entrada` for a new receipt lot,
 independent of purchase_due_date. Existing lot chronology cannot be silently
 backdated. FEFO, expiry and consumption chronology remain enforced. Dashboard
 cash KPIs are labeled explicitly and the sum of all segment costs is separate.
+
+
+### Segment web URLs
+
+Web destinations now use `/home/seguimento/gado-de-corte/...` or
+`/home/seguimento/pecuaria-leiteira/...`; old `/home/seguimento/bovinos/...` addresses
+redirect with filters preserved. API endpoints, species codes, organization
+scopes and productive-purpose values remain unchanged. Generic animal responses
+expose read-only cattle_purpose for search destination selection. Finance title
+responses expose read-only animal_batch_purpose (unknown when unlinked) for
+correct source links. Task operational_link and agenda source_url use canonical
+segment paths, selecting dairy for known dairy sources. Unclassified/dual or
+organization-wide cattle links default to beef; they do not invent a purpose.
+
+
+Cattle feed and trough-reading GET collections accept optional `production`
+using the existing purpose rules (beef/dairy include dual; missing keeps the
+previous unfiltered behavior). Farm and tenant scopes remain applied. Reports
+show complete consumption launches and do not presume an allocation for a
+shared group. Current animal/batch purpose defines the segment filter.
+
+### Milk tanks (livestock migration 0044)
+
+`/livestock/cattle/milk-tanks/` provides tenant/farm-scoped tank GET/POST/PATCH.
+Manager/admin creates and edits equipment; operators with bovine scope can read.
+There is no writable balance or delete endpoint. Capacity is positive and cannot
+change after movement history; an occupied tank cannot be deactivated.
+
+`GET milk-tanks/{id}/production-available/?date=YYYY-MM-DD` returns produced_usable,
+allocated and available decimal strings for the tank's farm/day. Individual and
+daily-total production remain mutually exclusive; discarded milking volume is
+excluded. An entry is explicitly received; production is not silently duplicated
+into every tank. Multiple tanks share one production reservation under a farm lock.
+
+`/livestock/cattle/milk-tank-movements/` is paginated GET/POST, with farm, tank,
+date and kind filters. Kinds: production, collection, discard. Required: tank,
+date, positive liters, UUID request_key. Entry date identifies the source
+production day. Collection requires buyer; discard requires reason. Source milk,
+historical balance and capacity are checked atomically, including backdated
+launches. Repeated requests return the original record. Movements are immutable;
+manager/admin `POST {id}/cancel/` requires reason, keeps author/time/history and
+revalidates all surviving movements. Cancelling an entry consumed by a later
+collection is rejected if the history would become negative.
+
+Collection optionally records unit_price and generate_receivable (manager/admin
+only). It creates one pending revenue with farm/species, reference
+SALE-MILK-TANK-{movement-id}, and due_date or collection date. It never proves
+payment. Pending/cancelled titles can follow movement cancellation; paid titles
+require financial reversal first. Original price/amount are snapshots; the title
+has its own normal financial lifecycle. Operators do not receive financial fields.
+Finance “Abrir origem” links back to the dairy tank page.
+
+`/livestock/cattle/milk-tank-quality/` is paginated GET/POST, with farm/tank/date
+filters. Records sample, measured temperature, fat/protein percentages, CCS in
+cells/mL, CBT in UFC/mL and antibiotic test (not_tested/negative/positive). At least
+one measured/tested result is required. UUID request_key prevents duplicate
+records. Observations do not change stock or certify later milk entries. No legal
+threshold or automatic sanitary approval is inferred. Future operational dates
+are rejected. Feeders remain restricted to their existing daily-feeding endpoint.
+
+Milk record/total updates and deletions lock the farm and cannot reduce usable
+production below tank reservations. Cancellation of the corresponding entry is
+required first. No existing milk/stock balances are migrated or automatically
+received. All three new models are in the explicit organization export registry.

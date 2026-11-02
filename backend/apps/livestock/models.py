@@ -1325,3 +1325,59 @@ class CattleProtocolStep(BaseModel):
 
     class Meta(BaseModel.Meta):
         constraints = [models.UniqueConstraint(fields=["run", "number"], name="unique_cattle_protocol_step")]
+
+
+class MilkTank(BaseModel):
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT, related_name="milk_tanks")
+    name = models.CharField(max_length=100)
+    capacity_liters = models.DecimalField(max_digits=11, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=1000, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["farm__name", "name", "id"]
+        constraints = [models.UniqueConstraint(fields=["farm", "name"], name="unique_milk_tank_name"), models.CheckConstraint(condition=models.Q(capacity_liters__gt=0), name="positive_milk_tank_capacity")]
+
+
+class MilkTankMovement(BaseModel):
+    tank = models.ForeignKey(MilkTank, on_delete=models.PROTECT, related_name="movements")
+    kind = models.CharField(max_length=12, choices=[("production", "Entrada da produção"), ("collection", "Coleta"), ("discard", "Descarte")])
+    date = models.DateField()
+    liters = models.DecimalField(max_digits=11, decimal_places=2)
+    buyer = models.CharField(max_length=200, blank=True)
+    driver = models.CharField(max_length=200, blank=True)
+    vehicle = models.CharField(max_length=30, blank=True)
+    document = models.CharField(max_length=100, blank=True)
+    reason = models.CharField(max_length=500, blank=True)
+    notes = models.CharField(max_length=1000, blank=True)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    receivable = models.OneToOneField("finance.Transaction", null=True, blank=True, on_delete=models.PROTECT, related_name="milk_tank_collection")
+    request_key = models.UUIDField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="milk_tank_movements")
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="cancelled_milk_tank_movements")
+    cancellation_reason = models.CharField(max_length=500, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-date", "-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["tank", "request_key"], name="unique_milk_tank_movement_request"), models.CheckConstraint(condition=models.Q(liters__gt=0), name="positive_milk_tank_movement"), models.CheckConstraint(condition=models.Q(kind__in=["production", "collection", "discard"]), name="valid_milk_tank_movement_kind")]
+
+
+class MilkTankQuality(BaseModel):
+    tank = models.ForeignKey(MilkTank, on_delete=models.PROTECT, related_name="quality_records")
+    date = models.DateField()
+    sample = models.CharField(max_length=100, blank=True)
+    temperature_c = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    fat_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    protein_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    scc = models.PositiveIntegerField(null=True, blank=True, help_text="CCS em células/mL")
+    tbc = models.PositiveIntegerField(null=True, blank=True, help_text="CBT em UFC/mL")
+    antibiotics = models.CharField(max_length=12, choices=[("not_tested", "Não testado"), ("negative", "Negativo"), ("positive", "Positivo")], default="not_tested")
+    notes = models.CharField(max_length=1000, blank=True)
+    request_key = models.UUIDField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-date", "-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["tank", "request_key"], name="unique_milk_tank_quality_request"), models.CheckConstraint(condition=models.Q(fat_percent__isnull=True) | models.Q(fat_percent__gte=0, fat_percent__lte=100), name="valid_milk_tank_fat"), models.CheckConstraint(condition=models.Q(protein_percent__isnull=True) | models.Q(protein_percent__gte=0, protein_percent__lte=100), name="valid_milk_tank_protein")]

@@ -18,7 +18,12 @@ from .cattle_views import (
     CattleManagementViewSet, CattleAgendaView, CattleFeedPlanViewSet, CattleDailyFeedingView, CattleTroughReadingViewSet,
 )
 
+from .milk_tank_api import MilkTankViewSet, MilkTankMovementViewSet, MilkTankQualityViewSet
+
 router = DefaultRouter()
+router.register(r"cattle/milk-tanks", MilkTankViewSet, basename="milk-tank")
+router.register(r"cattle/milk-tank-movements", MilkTankMovementViewSet, basename="milk-tank-movement")
+router.register(r"cattle/milk-tank-quality", MilkTankQualityViewSet, basename="milk-tank-quality")
 router.register(r'batches', AnimalBatchViewSet, basename='animalbatch')
 router.register(r'animals', AnimalViewSet, basename='animal')
 router.register(r'matings', MatingViewSet, basename='mating')

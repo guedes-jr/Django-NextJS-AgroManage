@@ -35,7 +35,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         organization = getattr(self.request.user, "organization", None)
         if not organization:
             return Task.objects.none()
-        qs = Task.objects.filter(organization=organization).select_related("farm", "assigned_to", "created_by", "reminder_delivery", "cattleprotocolstep", "cattleoccurrence")
+        qs = Task.objects.filter(organization=organization).select_related("farm", "assigned_to", "created_by", "reminder_delivery", "cattleprotocolstep__run__animal", "cattleoccurrence__animal", "cattleoccurrence__batch")
         if self.request.user.role == "operator":
             qs = qs.filter(Q(assigned_to=self.request.user) | Q(created_by=self.request.user))
         return qs

@@ -63,11 +63,11 @@ const sidebarSections: SidebarSection[] = [
   {
     label: "Segmentos",
     items: [
-      { title: "Suinocultura", href: "/home/rebanho/suinos", icon: PigIcon, iconTone: "rose" },
-      { title: "Tratos bovinos", href: "/home/rebanho/bovinos/racao/tratos", icon: Wheat, iconTone: "amber" },
-      { title: "Gado de corte", href: "/home/rebanho/bovinos/corte", icon: BullIcon, iconTone: "amber" },
-      { title: "Pecuária leiteira", href: "/home/rebanho/bovinos/pecuaria-leiteira", icon: LactationIcon, iconTone: "cyan" },
-      { title: "Aves", href: "/home/rebanho/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
+      { title: "Suinocultura", href: "/home/seguimento/suinos", icon: PigIcon, iconTone: "rose" },
+      { title: "Tratos bovinos", href: "/home/seguimento/gado-de-corte/racao/tratos", icon: Wheat, iconTone: "amber" },
+      { title: "Gado de corte", href: "/home/seguimento/gado-de-corte", icon: BullIcon, iconTone: "amber" },
+      { title: "Pecuária leiteira", href: "/home/seguimento/pecuaria-leiteira", icon: LactationIcon, iconTone: "cyan" },
+      { title: "Aves", href: "/home/seguimento/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
       { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope, iconTone: "teal" },
     ],
   },
@@ -174,11 +174,11 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
 
       <div className="sidebar-nav-container">
         <nav className="sidebar-navigation" aria-label="Áreas do sistema">
-          {sidebarSections.filter(section => section.items.some(item => (item.href !== "/home/rebanho/bovinos/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
+          {sidebarSections.filter(section => section.items.some(item => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
               <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
               <div className="sidebar-section-items">
-                {section.items.filter((item) => (item.href !== "/home/rebanho/bovinos/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
+                {section.items.filter((item) => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
                   const active = isActive(item.href);
                   return (
                     <div key={item.href}>

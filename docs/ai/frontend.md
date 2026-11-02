@@ -89,7 +89,63 @@ permissions rather than introducing another visual pattern per culture.
 sizing and scoped theme tokens. Operations include productive-purpose review,
 transfer previews, occurrences, assisted CSV import, protocol stages and milk/cost
 queries. API access and CSV parsing live in cattleOperationsService. Contextual
-beef/dairy links preserve the production query; purpose is independent of aptitude
+beef/dairy links preserve the segment path; purpose is independent of aptitude
 and lactation. Existing dairy milk records stay visible even when current purpose
 or lactation changes. Generated Agenda tasks show their operational source link
 instead of allowing edits that would disconnect source execution from the agenda.
+
+## Cattle navigation and legacy routes
+
+Canonical web trees are `/home/seguimento/gado-de-corte` and
+`/home/seguimento/pecuaria-leiteira`. Every function lives below its segment
+(`cadastro`, `lotes`, `reproducao`, `racao`, `pastos`, `manejos`, `operacoes`,
+`vendas`, `relatorios`). Milk production lives at `pecuaria-leiteira/leite`;
+`pecuaria-leiteira/animais` redirects to its `cadastro`, preserving filters.
+
+The former `/home/seguimento/bovinos/**` pages contain compatibility redirects
+only. `CattleLegacyRedirect` preserves query filters, resolves legacy production
+context and removes the obsolete `production` query. Old bookmarks still work;
+new links must not point into that tree. Context-free legacy addresses default
+to beef, while milk and old nested dairy paths intrinsically resolve to dairy.
+
+`CattleSegmentPage` supplies existing shared screens with the purpose fixed by
+the route, rather than a query that could conflict with the URL. The components
+remain shared to preserve the existing design and domain operations.
+`CattleSegmentProvider` supplies route context to food production/formulas and
+other embedded components. `cattleNavigation` centralizes canonical link/parent
+resolution. Neither changes authentication or tenant scope.
+
+Internal species/API identity remains `bovinos`/`bovino`. Web access checks map
+both new trees to the existing bovine species scope; operators retain the same
+financial restrictions and feeders can only access daily feeding. Sidebar,
+search, finance origins, task origins, agenda and new notifications generate
+canonical URLs. Historical stored links remain valid through the redirects.
+
+
+All livestock web routes use `/home/seguimento/...`, including swine and birds.
+The physical App Router tree is `app/home/seguimento`. Next redirects the former
+`/home/rebanho/:path*` prefix permanently before page handling, preserving suffix
+and query parameters. Existing bovinos aliases then resolve as described above.
+Only the web namespace changed: API endpoints, data, species scopes, roles and
+operational flows remain unchanged. Permission checks normalize legacy URLs.
+Dairy home cards show daily launches first, followed by monitoring, registration,
+management and reports; planned functions stay last.
+
+
+The segment homes expose daily feeding through “Lançar ração”; they no longer
+show a separate Alimentação card. Reports reuse CattleFeedingReport for scoped,
+searchable, paginated consumption/cost history and read-only CattleNutrition for
+trough observations. Read-only observations do not fetch daily supply choices.
+Operational period consumption, trough registration and formula/production
+screens remain accessible through explicit report links. No stock movements or
+financial entries are created by opening these reports.
+
+MilkTankWorkspace at `/home/seguimento/pecuaria-leiteira/tanque-de-leite` reuses
+compact cattle panels, tables and CattleForm/Modal. Its card follows milk, feed
+and medication launches as the last daily shortcut. Tank/farm selection scopes
+balances, production availability and paginated movement/quality tabs. Intake
+uses the selected production day; collections, discards, observations and
+justified cancellations use existing modal styling. Equipment and financial
+controls are manager/admin only; bovine operators retain operational access and
+read-only restrictions. API calls live in milkTankService. Ledger balances are
+never edited in the UI and no opening balance is presumed.

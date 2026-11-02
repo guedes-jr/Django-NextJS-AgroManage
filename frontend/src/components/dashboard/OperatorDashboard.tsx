@@ -57,7 +57,7 @@ export default function OperatorDashboard({ data }: { data: OperationalDashboard
                   <div><strong className="fs-2">{herd?.quantity || 0}</strong><small className="d-block text-muted">Animais nos lotes</small></div>
                 </div>
                 <p className="small text-muted mt-2">{herd?.individuals || 0} animais com cadastro individual</p>
-                <Link href={`/home/rebanho/${encodeURIComponent(code)}`} className="btn btn-success btn-sm">Acessar rebanho</Link>
+                <Link href={`/home/seguimento/${encodeURIComponent(code)}`} className="btn btn-success btn-sm">Acessar rebanho</Link>
               </article>
             </div>
           );

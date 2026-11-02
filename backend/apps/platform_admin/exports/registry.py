@@ -2,6 +2,9 @@
 INVENTORY_VERSION = 1
 APPS = ('accounts', 'organizations', 'farms', 'crops', 'livestock', 'inventory', 'finance', 'tasks', 'reports', 'audit', 'ai_assistant', 'billing', 'notifications')
 REGISTRY = {
+    'livestock.milktank': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'name', 'capacity_liters', 'is_active', 'notes'), "m2m": ()},
+    'livestock.milktankmovement': {"scope": 'tank__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'tank', 'kind', 'date', 'liters', 'buyer', 'driver', 'vehicle', 'document', 'reason', 'notes', 'unit_price', 'amount', 'receivable', 'request_key', 'created_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason'), "m2m": ()},
+    'livestock.milktankquality': {"scope": 'tank__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'tank', 'date', 'sample', 'temperature_c', 'fat_percent', 'protein_percent', 'scc', 'tbc', 'antibiotics', 'notes', 'request_key', 'created_by'), "m2m": ()},
     'livestock.cattleprotocolstep': {"scope": 'run__animal__farm__organization', "fields": ('inventory_cost_snapshot', 'id', 'created_at', 'updated_at', 'inventory_lot', 'inventory_quantity', 'inventory_movement', 'mating', 'run', 'number', 'task', 'executed_at', 'executed_date', 'executed_by', 'notes'), "m2m": ()},
     'livestock.cattleprotocolrun': {"scope": 'animal__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'animal', 'protocol', 'start_date', 'request_key', 'steps_snapshot', 'created_by'), "m2m": ()},
     'livestock.cattleprotocol': {"scope": 'organization', "fields": ('id', 'created_at', 'updated_at', 'organization', 'name', 'version', 'steps', 'created_by'), "m2m": ()},

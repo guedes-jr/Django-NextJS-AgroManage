@@ -41,7 +41,7 @@ export default function HomeLayout({
     };
   }, []);
   useEffect(() => {
-    if (access?.role === "feeder" && pathname === "/home" && access.livestock_species?.includes("bovinos")) router.replace("/home/rebanho/bovinos/racao/tratos");
+    if (access?.role === "feeder" && pathname === "/home" && access.livestock_species?.includes("bovinos")) router.replace("/home/seguimento/gado-de-corte/racao/tratos");
   }, [access, pathname, router]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const openSidebar = useCallback(() => setIsSidebarOpen(true), []);

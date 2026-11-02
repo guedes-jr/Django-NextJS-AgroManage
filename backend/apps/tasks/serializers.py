@@ -8,9 +8,14 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_operational_link(self, obj):
         if hasattr(obj, "cattleprotocolstep"):
-            return "/home/rebanho/bovinos/operacoes?tab=protocols"
+            purpose = obj.cattleprotocolstep.run.animal.cattle_purpose
+            segment = "pecuaria-leiteira" if purpose == "dairy" else "gado-de-corte"
+            return f"/home/seguimento/{segment}/operacoes?tab=protocols"
         if hasattr(obj, "cattleoccurrence"):
-            return "/home/rebanho/bovinos/operacoes?tab=occurrences"
+            occurrence = obj.cattleoccurrence
+            target = occurrence.animal or occurrence.batch
+            segment = "pecuaria-leiteira" if target and target.cattle_purpose == "dairy" else "gado-de-corte"
+            return f"/home/seguimento/{segment}/operacoes?tab=occurrences"
         return None
 
     farm_name = serializers.CharField(source="farm.name", read_only=True)

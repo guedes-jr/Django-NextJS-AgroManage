@@ -2,10 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { cattleHref, cattleRoot } from "@/services/cattleNavigation";
 import { useRouter } from "next/navigation";
 import { CowIcon, BullIcon, CowIcon as CattleIcon, LactationIcon } from "./CattleIcons";
 import homeStyles from "@/components/livestock/species-module-home.module.css";
-import { LayoutDashboard, Tags, Scale, HeartPulse, VenusAndMars, Venus, Mars, Layers3, ClipboardCheck, Wheat, MapPin, Milk, BadgeDollarSign, ChartNoAxesCombined, RefreshCw, Plus, ChevronRight, MoreHorizontal, Search, ClipboardList, CheckCircle2 } from "lucide-react";
+import { LayoutDashboard, Tags, Scale, HeartPulse, VenusAndMars, Venus, Mars, Layers3, ClipboardCheck, Wheat, Syringe, MapPin, Milk, BadgeDollarSign, ChartNoAxesCombined, RefreshCw, Plus, ChevronRight, MoreHorizontal, Search, ClipboardList, CheckCircle2 } from "lucide-react";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { Modal } from "@/components/ui/Modal";
 import { clinicalService } from "@/services/clinicalService";
@@ -13,6 +14,7 @@ import { cattleService, cattleError, type CattleAnimal, type CattleBatchResult, 
 import { CattleForm, type CattleField, type CattleFormSpec } from "./CattleForm";
 import styles from "./cattle.module.css";
 import { CattleAgenda } from "./CattleAgenda";
+import { CattleFeedingReport } from "./CattleFeedingReport";
 import { CattleNutrition } from "./CattleNutrition";
 import { CattleGenealogy } from "./CattleGenealogy";
 import { CattleReproductionForm } from "./CattleReproductionForm";
@@ -22,7 +24,7 @@ import { CattleManagementWorkspace } from "./CattleManagementWorkspace";
 
 export type CattleView = "overview" | "animals" | "batches" | "weights" | "reproduction" | "health" | "pastures" | "grazings" | "milk" | "sales" | "feeding" | "reports" | "management";
 type Row = CattleAnimal | CattleBatch | CattlePasture | CattleGrazing | CattleMilk | CattleFeed;
-const root = "/home/rebanho/bovinos";
+const root = cattleRoot;
 const modules = [
   { id: "overview", label: "Visão geral", href: root, icon: LayoutDashboard, description: "Indicadores do rebanho de corte e leite" },
   { id: "animals", label: "Cadastro", href: `${root}/cadastro`, icon: ClipboardList, description: "Animais, matrizes e lotes" },
@@ -34,11 +36,13 @@ const modules = [
   { id: "pastures", label: "Pastagens", href: `${root}/pastos`, icon: MapPin, description: "Piquetes, área e ocupação por lote" },
   { id: "operations", label: "Central de manejo", href: `${root}/operacoes`, icon: ClipboardList, description: "Finalidade, transferências, ocorrências, importação e protocolos" },
   { id: "milk", label: "Leite", href: `${root}/leite`, icon: Milk, description: "Ordenhas por vaca e turno, produção e descarte" },
+  { id: "feed-entry", label: "Lançar ração", href: `${root}/racao/tratos`, icon: Wheat, description: "Registre o fornecimento por lote com baixa no estoque" },
+  { id: "medication-entry", label: "Aplicar medicamentos", href: `${root}/manejos?launch=medication`, icon: Syringe, description: "Registre aplicações, doses e períodos de carência" },
   { id: "feeding", label: "Alimentação", href: `${root}/racao`, icon: Wheat, description: "Consumo, fórmulas e produção de ração" },
   { id: "sales", label: "Vendas", href: `${root}/vendas`, icon: BadgeDollarSign, description: "Venda de lotes e receitas no financeiro" },
-  { id: "reports", label: "Relatórios", href: `${root}/relatorios`, icon: ChartNoAxesCombined, description: "Inventário, custos e resultados do rebanho" },
+  { id: "reports", label: "Relatórios", href: `${root}/relatorios`, icon: ChartNoAxesCombined, description: "Inventário, alimentação, custos e resultados do rebanho" },
 ];
-const moduleTones: Record<string, string> = { animals: "green", batches: "orange", pastures: "emerald", management: "slate", weights: "blue", reproduction: "purple", health: "green", milk: "cyan", feeding: "blue", sales: "emerald", reports: "cyan" };
+const moduleTones: Record<string, string> = { "feed-entry": "orange", "medication-entry": "emerald", animals: "green", batches: "orange", pastures: "emerald", management: "slate", weights: "blue", reproduction: "purple", health: "green", milk: "cyan", feeding: "blue", sales: "emerald", reports: "cyan" };
 const categories = ["Bezerro", "Garrote", "Novilha", "Touro", "Matriz", "Vaca", "Terminação", "Reprodutor"];
 const phases: Record<string, string> = { creche: "Cria", crescimento: "Recria", engorda: "Engorda", reproducao: "Reprodução" };
 const statuses: Record<string, string> = { active: "Ativo", sold: "Vendido", finished: "Encerrado", dead: "Morto", em_preparo: "Em preparo", vazia: "Vazia", pronta: "Pronta", coberta: "Aguardando diagnóstico", gestante: "Gestante", lactante: "Em lactação", descanso: "Em descanso", ativa: "Ativo", aguardando_cobertura: "Aguardando cobertura" };
@@ -85,7 +89,7 @@ function AnimalRowActions({ compact, identifier, children }: { compact: boolean;
   </details>;
 }
 
-export function CattleWorkspace({ view = "overview", production, youngFemales = false, dairyAnimals = false, initialReproductionTab = "dashboard" }: { initialReproductionTab?: string; view?: CattleView; production?: "beef" | "dairy"; youngFemales?: boolean; dairyAnimals?: boolean }) {
+export function CattleWorkspace({ view = "overview", production, youngFemales = false, dairyAnimals = false, initialReproductionTab = "dashboard", initialMedication = false }: { initialMedication?: boolean; initialReproductionTab?: string; view?: CattleView; production?: "beef" | "dairy"; youngFemales?: boolean; dairyAnimals?: boolean }) {
   const router = useRouter();
   const access = useOrganizationAccess();
   const operator = access?.role === "operator";
@@ -392,7 +396,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       return cattleService.action("batches", batch.id, "register-sale", visible);
     } });
   }
-  const activeModules = modules.filter(module => (manager || !["sales", "reports", "management"].includes(module.id)) && (production !== "beef" || module.id !== "milk")).sort((a, b) => production === "dairy" ? Number(b.id === "milk") - Number(a.id === "milk") : 0);
+  const activeModules = modules.filter(module => (manager || !["sales", "reports", "management", "feed-entry", "medication-entry"].includes(module.id)) && (production !== "beef" || module.id !== "milk")).sort((a, b) => production === "dairy" ? Number(b.id === "milk") - Number(a.id === "milk") : 0);
   const productionTitle = production === "dairy" ? "Pecuária leiteira" : production === "beef" ? "Gado de corte" : "Bovinos";
   const currentModule = modules.find(module => module.id === (view === "grazings" ? "pastures" : view));
   const title = youngFemales ? "Bezerras e novilhas" : view === "grazings" ? "Ocupação dos pastos" : modules.find(module => module.id === view)?.label;
@@ -438,7 +442,7 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
     {success && <div role="status" className="alert alert-success py-2">{success}</div>}
     {error && <div role="alert" className="alert alert-danger">{error} <button className="btn btn-sm btn-outline-danger" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</button></div>}
     {loading && !overview ? <div className={styles.empty} role="status">Carregando dados do rebanho...</div> : !error && <>
-      {production && <p className="alert alert-info py-2 small">Este segmento considera a finalidade {production === "dairy" ? "leite" : "corte"} e dupla finalidade. <Link href="/home/rebanho/bovinos/operacoes?tab=classification">Revisar animais e lotes não classificados</Link>.</p>}
+      {production && <p className="alert alert-info py-2 small">Este segmento considera a finalidade {production === "dairy" ? "leite" : "corte"} e dupla finalidade. <Link href={cattleHref(`${root}/operacoes?tab=classification`, production || "beef")}>Revisar animais e lotes não classificados</Link>.</p>}
       {(["overview", "reports", "milk"].includes(view)) && <section className={homeStyles.summaryPanel} aria-labelledby="cattle-summary-title">
         <div className={homeStyles.sectionHeading}><div><span>{view === "milk" ? "Produção leiteira" : "Visão geral do rebanho"}</span><h2 id="cattle-summary-title">{view === "milk" ? "Resumo da produção de leite" : production ? `Resumo · ${productionTitle}` : "Resumo da Bovinocultura"}</h2></div><small className={styles.summaryScope}>{farm ? farms.find(item => item.id === farm)?.name : "Todas as fazendas"}</small></div>
         <div className={homeStyles.metricsGrid} aria-busy={loading}>{metrics.map(([label, value], index) => {
@@ -454,19 +458,20 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
       {view === "reproduction" && <CattleReproduction production={production} counts={reproductionCounts} selected={reproductionGroup} loading={loading || preparing}
         headerActions={<><label className={styles.farmFilter}><span>Fazenda</span><select aria-label="Filtrar por fazenda" className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">Todas as fazendas</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="btn btn-outline-secondary btn-sm" disabled={loading} onClick={() => setRefresh(value => value+1)}><RefreshCw size={15} aria-hidden="true"/> Atualizar</button></>}
         onNew={canWrite ? () => newAnimal({ gender: "F", category: reproductionGroup === "heifers" ? "Novilha" : "Vaca" }) : undefined}
-        onSelect={value => { setReproductionGroup(value); setPage(1); setSearch(""); setReproductionStatus(""); setRows([]); router.replace(`${root}/reproducao?production=${production || "beef"}&tab=${value}`, { scroll: false }); }}
+        onSelect={value => { setReproductionGroup(value); setPage(1); setSearch(""); setReproductionStatus(""); setRows([]); router.replace(cattleHref(`${root}/reproducao?tab=${value}`, production || "beef"), { scroll: false }); }}
         animals={rows as CattleAnimal[]} pagination={{ page: page-1, pageSize: reproductionPageSize, total: count, onPageChange: value => setPage(value+1), onPageSizeChange: value => { setReproductionPageSize(value); setPage(1); } }}
         search={search} onSearch={value => { setSearch(value); setPage(1); }} status={reproductionStatus} onStatus={value => { setReproductionStatus(value); setPage(1); }}
         canWrite={canWrite && !loading && !preparing} manager={manager} onMating={mating} onDiagnosis={diagnosis} onBirth={birth} onEvent={event} onHistory={openHistory} onEdit={editAnimal} />}
 
       {view === "health" && <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} />}
-      {view === "management" ? (manager ? <CattleManagementWorkspace production={production} farms={farms} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} /> : <p role="alert">Manejos coletivos exigem gerente ou administrador.</p>) : ["overview", "reports"].includes(view) ? <>
+      {view === "management" ? (manager ? <CattleManagementWorkspace key={initialMedication ? "medication" : "management"} initialMedication={initialMedication} production={production} farms={farms} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} /> : <p role="alert">Manejos coletivos exigem gerente ou administrador.</p>) : ["overview", "reports"].includes(view) ? <>
         {view === "overview" && <section aria-labelledby="cattle-modules-title" className={styles.operations}>
           <div className={homeStyles.modulesHeading}><div><span>Operações</span><h2 id="cattle-modules-title">O que você deseja acessar?</h2></div><p>Escolha uma área para continuar a gestão do rebanho.</p></div>
-          <div className={homeStyles.moduleGrid}>{activeModules.filter(module => module.id !== "overview").map(module => <Link className={homeStyles.moduleCard} data-tone={moduleTones[module.id]} href={production && ["animals","batches","weights","health","sales","reports","management","reproduction"].includes(module.id) ? `${module.href}?production=${production}` : module.id === "reproduction" ? `${module.href}?production=beef` : module.href} key={module.id}><div className={homeStyles.moduleIcon} aria-hidden="true"><module.icon size={26} strokeWidth={1.8} /></div><div className={homeStyles.moduleCopy}><h3>{module.label}</h3><p>{module.description}</p></div><span className={homeStyles.moduleAction}>Acessar <ChevronRight size={19} aria-hidden="true" /></span></Link>)}</div>
+          <div className={homeStyles.moduleGrid}>{activeModules.filter(module => module.id !== "overview" && module.id !== "feeding").map(module => <Link className={homeStyles.moduleCard} data-tone={moduleTones[module.id]} href={cattleHref(module.href, production || "beef")} key={module.id}><div className={homeStyles.moduleIcon} aria-hidden="true"><module.icon size={26} strokeWidth={1.8} /></div><div className={homeStyles.moduleCopy}><h3>{module.label}</h3><p>{module.description}</p></div><span className={homeStyles.moduleAction}>Acessar <ChevronRight size={19} aria-hidden="true" /></span></Link>)}</div>
         </section>}
         <div className={styles.insightGrid}><section className={styles.panel}><div className={styles.sectionTitle}><ChartNoAxesCombined size={20} aria-hidden="true" /><div><span>Inventário</span><h2>Composição do rebanho ativo</h2></div></div>{overview?.categories.length ? overview.categories.map(item => <div className={styles.category} key={item.category}><span>{item.category}</span><progress value={item.quantity} max={overview.total_head} aria-label={item.category} /><strong>{number(item.quantity)}</strong></div>) : <p className={styles.muted}>Nenhum animal ativo cadastrado. Comece pelo cadastro individual ou pelos lotes.</p>}</section>
         <CattleAgenda key={farm || "all"} farm={farm} refresh={refresh} canWrite={canWrite && !preparing} manager={manager} onAnimalAction={agendaAnimalAction} onChanged={() => setRefresh(value => value + 1)} /></div>
+        {view === "reports" && manager && <CattleFeedingReport key={`${farm}:${production}`} farm={farm} production={production || "beef"} />}
         {view === "reports" && manager && <section className={styles.panel}><h2>Fechamento econômico por lote</h2><p>Compra, consumo, sanidade, custos adicionais, vendas, margem, mortalidade, GMD e custo por arroba de carcaça.</p><button disabled={preparing} className="btn btn-success btn-sm mb-3" onClick={chooseBatchResult}>Consultar resultado do lote</button><h2>Exportar registros bovinos</h2><div className={styles.actions}>{(["animals", "batches", "milk"] as const).map(resource => <button key={resource} disabled={preparing} className="btn btn-outline-success btn-sm" onClick={() => exportCsv(resource)}>{preparing ? "Preparando..." : { animals: "Animais (CSV)", batches: "Lotes (CSV)", milk: "Ordenhas (CSV)" }[resource]}</button>)}</div></section>}
 
       </> : <>
@@ -583,11 +588,11 @@ export function CattleWorkspace({ view = "overview", production, youngFemales = 
           {(resource === "animals" || resource === "batches") && <select aria-label="Situação" className="form-select form-select-sm" value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}>{Object.entries({ "": "Todas as situações", active: "Ativos", sold: "Vendidos", dead: "Mortos", finished: "Encerrados" }).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>}
           {resource === "animals" && !dairyAnimals && <select aria-label="Categoria" className="form-select form-select-sm" value={category} onChange={event => { setCategory(event.target.value); setPage(1); }}><option value="">Todas as categorias</option>{categories.map(value => <option key={value}>{value}</option>)}</select>}
           {resource === "animals" && <select aria-label="Filtrar carências" className="form-select form-select-sm" value={withdrawal} onChange={event => { setWithdrawal(event.target.value); setPage(1); }}><option value="">Todas as carências</option><option value="milk">Em carência de leite</option><option value="meat">Em carência de abate</option></select>}
-        </div><div className={styles.actions}>{manager && ["animals", "batches", "milk"].includes(view) && <button disabled={preparing} className="btn btn-outline-secondary btn-sm" onClick={() => exportCsv(resource as "animals" | "batches" | "milk")}>Exportar filtro (CSV)</button>}{view === "pastures" && <Link className="btn btn-outline-secondary btn-sm" href={`${root}/pastos/ocupacoes`}>Ver ocupações</Link>}{newAction && canWrite && <button className="btn btn-success btn-sm" disabled={preparing} onClick={newAction}><Plus size={15} aria-hidden="true" /> {({ animals: "Cadastrar animal", batches: "Cadastrar lote", milk: "Registrar ordenha", feeding: "Registrar consumo", pastures: "Cadastrar pasto" } as Partial<Record<CattleView, string>>)[view] || "Novo registro"}</button>}</div></div>
+        </div><div className={styles.actions}>{manager && ["animals", "batches", "milk"].includes(view) && <button disabled={preparing} className="btn btn-outline-secondary btn-sm" onClick={() => exportCsv(resource as "animals" | "batches" | "milk")}>Exportar filtro (CSV)</button>}{view === "pastures" && <Link className="btn btn-outline-secondary btn-sm" href={cattleHref(`${root}/pastos/ocupacoes`, production || "beef")}>Ver ocupações</Link>}{newAction && canWrite && <button className="btn btn-success btn-sm" disabled={preparing} onClick={newAction}><Plus size={15} aria-hidden="true" /> {({ animals: "Cadastrar animal", batches: "Cadastrar lote", milk: "Registrar ordenha", feeding: "Registrar consumo", pastures: "Cadastrar pasto" } as Partial<Record<CattleView, string>>)[view] || "Novo registro"}</button>}</div></div>
         {dairyAnimals && <nav className={styles.categoryTabs} aria-label="Categorias de animais leiteiros">{[
           ["all", "Todos"], ["cows", "Vacas"], ["heifers", "Novilhas"], ["calves", "Bezerras"], ["bulls", "Touros"],
         ].map(([value, label]) => <button type="button" key={value} className={styles.categoryTab} aria-pressed={dairyTab === value} onClick={() => { setDairyTab(value); setPage(1); }} disabled={loading}>{label} <span>({loading ? "…" : categoryCounts[value] ?? 0})</span></button>)}</nav>}
-        {view === "feeding" && manager && <div className={`${styles.actions} mb-3`} aria-label="Produção de ração"><Link className="btn btn-outline-secondary btn-sm" href={`${root}/racao/producao`}>Fábrica de ração</Link><Link className="btn btn-outline-secondary btn-sm" href={`${root}/racao/gerenciar-formulas`}>Gerenciar fórmulas</Link></div>}
+        {view === "feeding" && manager && <div className={`${styles.actions} mb-3`} aria-label="Produção de ração"><Link className="btn btn-outline-secondary btn-sm" href={cattleHref(`${root}/racao/producao`, production || "beef")}>Fábrica de ração</Link><Link className="btn btn-outline-secondary btn-sm" href={cattleHref(`${root}/racao/gerenciar-formulas`, production || "beef")}>Gerenciar fórmulas</Link></div>}
         {view === "feeding" && <Table columns={["Período", "Destino", "Ração", "Consumo", ...(manager ? ["Custo total"] : [])]}>{(rows as CattleFeed[]).map(row => <tr key={row.id}><td>{date(row.data_inicio)}<small>até {date(row.data_fim)}</small></td><td>{row.lote_codigo || row.animais_identificadores.join(", ")}</td><td>{row.item_nome}</td><td>{number(row.quantidade)} kg</td>{manager && <td>{Number(row.custo_total || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>}</tr>)}</Table>}
         {view === "pastures" && <p className={styles.muted}>Lotação atual dos lotes coletivos em ocupação, usando seus pesos médios. 1 UA = 450 kg. Animais sem peso impedem o cálculo da capacidade.</p>}
         {view === "batches" && <p className={styles.muted}>Lotes coletivos de animais sem identificação individual. Para registrar uma pesagem, informe o peso médio por animal.</p>}

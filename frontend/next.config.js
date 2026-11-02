@@ -13,6 +13,14 @@ const nextConfig = {
     "retrace-epileptic-varsity.ngrok-free.dev",
   ],
 
+  async redirects() {
+    return [{
+      source: "/home/rebanho/:path*",
+      destination: "/home/seguimento/:path*",
+      permanent: true,
+    }];
+  },
+
   async rewrites() {
     return [
       {

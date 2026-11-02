@@ -1,4 +1,6 @@
 "use client";
+import { useCattleSegment } from "@/components/cattle/CattleSegmentContext";
+import { cattleHome } from "@/services/cattleNavigation";
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
@@ -39,6 +41,7 @@ interface FeedFormulaManagerDashboardProps {
 }
 
 export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashboardProps = {}) {
+  const segment = useCattleSegment();
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -199,7 +202,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
               <span>{SPECIES_LABEL[species] ?? species}</span>
               <ChevronRight size={14} />
               <Link
-                href={`/home/rebanho/${species === 'suino' ? 'suinos' : species === 'ave' ? 'aves' : 'bovinos'}/racao`}
+                href={species === "bovino" ? `${cattleHome(segment || "beef")}/racao` : `/home/seguimento/${species === "suino" ? "suinos" : "aves"}/racao`}
                 className="text-decoration-none text-muted-foreground hover-text-primary"
               >Ração</Link>
             </>

@@ -535,7 +535,7 @@ export function ReproducaoDashboard({
 
     switch (action.type) {
       case 'sale_redirect':
-        router.push(`/home/rebanho/${config.especie}/vendas`);
+        router.push(`/home/seguimento/${config.especie}/vendas`);
         break;
       case 'batch_mortality': {
         const availableRows = rows.length > 0 ? rows : (currentTab?.rows || []);
@@ -2027,7 +2027,7 @@ export function ReproducaoDashboard({
                       setSelectedBatchId(id as string | number);
                       setBatchSheetOpen(true);
                     } else {
-                      router.push(`/home/rebanho/${config.especie}/animal/${id}`);
+                      router.push(`/home/seguimento/${config.especie}/animal/${id}`);
                     }
                   }
                 }}
@@ -2211,7 +2211,7 @@ export function ReproducaoDashboard({
 
             <div className="repro-modal-footer d-flex flex-column gap-2 w-100" style={{ padding: "0 1.5rem 1.5rem" }}>
               <Link
-                href={`/home/rebanho/${config.especie}/cadastro`}
+                href={`/home/seguimento/${config.especie}/cadastro`}
                 className="repro-btn-primary w-100 justify-content-center text-decoration-none text-center d-flex align-items-center gap-2"
                 style={{ background: "oklch(0.55 0.16 145)", border: "none", boxShadow: "0 4px 12px oklch(0.55 0.16 145 / 0.2)" }}
                 onClick={() => setNoReproducersWarningOpen(false)}

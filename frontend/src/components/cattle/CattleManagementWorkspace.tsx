@@ -12,14 +12,14 @@ const displayDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateS
 type Draft = { inventory_lot: string; inventory_quantity_per_animal: string; id?: string; farm: string; kind: CattleManagement["kind"]; date: string; description: string; responsible: string; treatment_type: string; cost_per_animal: string; next_procedure_date: string; milk_withdrawal_until: string; meat_withdrawal_until: string; notes: string; entries: Record<string, string> };
 const blank = (farm: string): Draft => ({ inventory_lot: "", inventory_quantity_per_animal: "", farm, kind: "weighing", date: today(), description: "", responsible: "", treatment_type: "other", cost_per_animal: "0", next_procedure_date: "", milk_withdrawal_until: "", meat_withdrawal_until: "", notes: "", entries: {} });
 
-export function CattleManagementWorkspace({ farms, canWrite, onChanged, production }: { production?: "dairy" | "beef"; farms: { id: string; name: string }[]; canWrite: boolean; onChanged: () => void }) {
+export function CattleManagementWorkspace({ farms, canWrite, onChanged, production, initialMedication = false }: { initialMedication?: boolean; production?: "dairy" | "beef"; farms: { id: string; name: string }[]; canWrite: boolean; onChanged: () => void }) {
   const [stockLots, setStockLots] = useState<StockLotOption[]>([]);
   const [rows, setRows] = useState<CattleManagement[]>([]);
   const [status, setStatus] = useState("draft");
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
   const [refresh, setRefresh] = useState(0);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(() => initialMedication && canWrite ? { ...blank(farms.length === 1 ? farms[0].id : ""), kind: "sanitary", treatment_type: "medication" } : null);
   const [animals, setAnimals] = useState<CattleAnimal[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);

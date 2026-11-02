@@ -21,7 +21,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => setMounted(true));
     if (isOpen) {
       document.body.style.overflow = "hidden";
     } else {
@@ -69,7 +69,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, m
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               className={`${maxWidth} mx-auto w-100 pe-auto`}
             >
-              <div className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
+              <div role="dialog" aria-modal="true" aria-label={title || "Janela de diálogo"} className="dashboard-card overflow-hidden shadow-lg border border-border" style={{ maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
                 
                 {(title || description) && (
                   <div className="py-2 px-3 py-md-3 px-md-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>

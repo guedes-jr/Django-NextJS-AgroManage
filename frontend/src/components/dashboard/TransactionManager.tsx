@@ -1,4 +1,5 @@
 "use client";
+import { cattleHome } from "@/services/cattleNavigation";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -94,8 +95,9 @@ export function TransactionManager() {
     try { await financeService.update(row.id, { status: "cancelled" }); reload(); } catch (error) { showToast(financeError(error), "error"); }
   }
   function source(row: FinanceTransaction) {
+    if (row.reference.startsWith("SALE-MILK-TANK-")) return `${cattleHome("dairy")}/tanque-de-leite`;
     if (row.reference.startsWith("STOCK-MOV-") || row.reference.startsWith("LOTE-")) return "/home/estoque/movimentacoes";
-    if (row.animal_batch) return `/home/rebanho/${row.species_name?.toLowerCase().includes("bovin") ? "bovinos/vendas" : "suinos/lotes"}`;
+    if (row.animal_batch) return row.species_name?.toLowerCase().includes("bovin") ? `${cattleHome(row.animal_batch_purpose === "dairy" ? "dairy" : "beef")}/${row.category_type === "revenue" ? "vendas" : "lotes"}` : "/home/seguimento/suinos/lotes";
     if (row.planting_cycle) return `/home/plantacoes/${row.planting_cycle}`;
     return null;
   }

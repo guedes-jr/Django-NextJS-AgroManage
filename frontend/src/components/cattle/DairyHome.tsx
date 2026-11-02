@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
+import { cattleHref, cattleHome } from "@/services/cattleNavigation";
 import {
+  type LucideProps,
   ClipboardList,
   VenusAndMars,
   MilkOff,
@@ -11,6 +13,7 @@ import {
   Wheat,
   Factory,
   ShieldPlus,
+  Syringe,
   ChartNoAxesCombined,
   Cylinder,
   ChevronRight,
@@ -26,7 +29,7 @@ import shared from "@/components/livestock/species-module-home.module.css";
 import base from "./cattle.module.css";
 import styles from "./dairy-home.module.css";
 
-const root = "/home/rebanho/bovinos";
+const root = cattleHome("dairy");
 const today = () => {
   const day = new Date();
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
@@ -38,19 +41,11 @@ const shortcuts: Array<{
   title: string;
   description: string;
   href?: string;
-  icon: any;
+  icon: ComponentType<LucideProps>;
   tone: "green" | "orange" | "purple" | "blue" | "cyan" | "emerald" | "pink" | "slate";
   financial?: boolean;
   planned?: boolean;
 }> = [
-  { title: "Central de manejo", description: "Classificação, ocorrências e protocolos", href: `${root}/operacoes`, icon: ClipboardList, tone: "green" },
-  {
-    title: "Cadastro",
-    description: "Vacas, bezerras, touros e lotes",
-    href: `${root}/pecuaria-leiteira/cadastro`,
-    icon: ClipboardList,
-    tone: "green",
-  },
   {
     title: "Lançar produção de leite",
     description: "Registre ordenhas, turnos e descartes",
@@ -59,18 +54,27 @@ const shortcuts: Array<{
     tone: "cyan",
   },
   {
-    title: "Reprodução",
-    description: "Coberturas, diagnóstico, gestação e parto",
-    href: `${root}/reproducao?production=dairy`,
-    icon: VenusAndMars,
-    tone: "purple",
+    title: "Lançar ração",
+    description: "Registre o fornecimento por lote com baixa no estoque",
+    href: `${root}/racao/tratos`,
+    icon: Wheat,
+    tone: "orange",
+    financial: true,
   },
   {
-    title: "Bezerras e novilhas",
-    description: "Acompanhe o desenvolvimento das fêmeas jovens",
-    href: `${root}/pecuaria-leiteira/cadastro?group=young-females`,
-    icon: CowIcon,
-    tone: "pink",
+    title: "Aplicar medicamentos",
+    description: "Registre aplicações, doses e períodos de carência",
+    href: `${root}/manejos?launch=medication`,
+    icon: Syringe,
+    tone: "emerald",
+    financial: true,
+  },
+  {
+    title: "Tanque de leite",
+    description: "Coletas e qualidade do leite",
+    icon: Cylinder,
+    tone: "slate",
+    href: `${root}/tanque-de-leite`,
   },
   {
     title: "Sanidade",
@@ -80,12 +84,27 @@ const shortcuts: Array<{
     tone: "emerald",
   },
   {
-    title: "Alimentação",
-    description: "Planeje e acompanhe o fornecimento de alimentos",
-    href: `${root}/racao`,
-    icon: Wheat,
-    tone: "blue",
+    title: "Reprodução",
+    description: "Coberturas, diagnóstico, gestação e parto",
+    href: `${root}/reproducao?production=dairy`,
+    icon: VenusAndMars,
+    tone: "purple",
   },
+  {
+    title: "Cadastro",
+    description: "Vacas, bezerras, touros e lotes",
+    href: `${root}/cadastro`,
+    icon: ClipboardList,
+    tone: "green",
+  },
+  {
+    title: "Bezerras e novilhas",
+    description: "Acompanhe o desenvolvimento das fêmeas jovens",
+    href: `${root}/cadastro?group=young-females`,
+    icon: CowIcon,
+    tone: "pink",
+  },
+  { title: "Central de manejo", description: "Classificação, ocorrências e protocolos", href: `${root}/operacoes`, icon: ClipboardList, tone: "green" },
   {
     title: "Fábrica de ração",
     description: "Formule e produza a ração do rebanho",
@@ -95,20 +114,14 @@ const shortcuts: Array<{
     financial: true,
   },
   {
-    title: "Tanque de leite",
-    description: "Coletas e qualidade do leite",
-    icon: Cylinder,
-    tone: "slate",
-    planned: true,
-  },
-  {
     title: "Relatórios",
-    description: "Consulte e exporte os registros do rebanho",
+    description: "Consulte alimentação, custos e registros do rebanho",
     href: `${root}/relatorios?production=dairy`,
     icon: ChartNoAxesCombined,
     tone: "cyan",
     financial: true,
   },
+
 ];
 
 export function DairyHome() {
@@ -286,7 +299,7 @@ export function DairyHome() {
             <span>Operações</span>
             <h2 id="dairy-modules-title">O que você deseja acessar?</h2>
           </div>
-          <p>Escolha uma área para continuar a gestão do rebanho leiteiro.</p>
+          <p>Comece pelos lançamentos do dia; depois acompanhe os animais, a gestão e os relatórios.</p>
         </div>
 
         <div className={shared.moduleGrid}>
@@ -315,7 +328,7 @@ export function DairyHome() {
               );
 
               return item.href ? (
-                <Link key={item.title} href={item.href} className={shared.moduleCard} data-tone={item.tone}>
+                <Link key={item.title} href={cattleHref(item.href, "dairy")} className={shared.moduleCard} data-tone={item.tone}>
                   {cardContent}
                 </Link>
               ) : (

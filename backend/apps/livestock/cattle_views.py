@@ -533,6 +533,10 @@ class CattleMilkViewSet(viewsets.ModelViewSet):
     filterset_fields = ["animal", "date", "session"]
     search_fields = ["animal__identifier"]
 
+    def perform_destroy(self, instance):
+        from .milk_tanks import delete_milk
+        delete_milk(instance)
+
     def get_queryset(self):
         queryset = CattleMilkRecord.objects.filter(
             animal__farm__organization=self.request.user.organization,
@@ -588,6 +592,10 @@ class CattleMilkDailyTotalViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["farm", "date"]
 
+    def perform_destroy(self, instance):
+        from .milk_tanks import delete_milk
+        delete_milk(instance)
+
     def get_queryset(self):
         return CattleMilkDailyTotal.objects.filter(farm__organization=self.request.user.organization).select_related("farm")
 
@@ -622,6 +630,12 @@ class CattleFeedViewSet(viewsets.ModelViewSet):
                     self.request.query_params["farm"]
                 )
             )
+        production = self.request.query_params.get("production")
+        if production:
+            from .cattle_improvements import filter_purpose
+            batches = filter_purpose(AnimalBatch.objects.filter(farm__organization=self.request.user.organization, species__code="bovinos"), production)
+            animals = filter_purpose(Animal.objects.filter(farm__organization=self.request.user.organization, species__code="bovinos"), production)
+            queryset = queryset.filter(Q(lote_animal__in=batches) | Q(animais__in=animals)).distinct()
         return queryset
 
     def perform_create(self, serializer):
@@ -744,6 +758,10 @@ class CattleTroughReadingViewSet(viewsets.GenericViewSet):
         for field, path in [("farm", "batch__farm_id"), ("batch", "batch_id")]:
             if self.request.query_params.get(field):
                 rows = rows.filter(**{path: serializers.UUIDField().run_validation(self.request.query_params[field])})
+        if self.request.query_params.get("production"):
+            from .cattle_improvements import filter_purpose
+            batches = filter_purpose(AnimalBatch.objects.filter(farm__organization=self.request.user.organization, species__code="bovinos"), self.request.query_params["production"])
+            rows = rows.filter(batch__in=batches)
         return rows.order_by("-date", "-created_at", "-id")
 
     def list(self, request):

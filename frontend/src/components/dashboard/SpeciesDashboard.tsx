@@ -528,7 +528,7 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
                               </button>
                               <button
                                 className="btn btn-sm btn-light me-2 rounded-circle p-2 text-muted-foreground hover-text-primary hover-bg-primary/10 transition-colors border-0"
-                                onClick={() => router.push(`/home/rebanho/suinos/animal/${row.id}`)}
+                                onClick={() => router.push(`/home/seguimento/suinos/animal/${row.id}`)}
                                 title="Ver detalhes do animal"
                                 style={{ width: '36px', height: '36px' }}
                               >
