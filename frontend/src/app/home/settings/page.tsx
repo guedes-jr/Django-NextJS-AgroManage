@@ -30,7 +30,8 @@ import {
   Sun,
   Moon,
   Contrast,
-  Languages
+  Languages,
+  ChevronDown
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { isAxiosError } from "axios";
@@ -257,6 +258,7 @@ export default function SettingsPage() {
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [languageDraft, setLanguageDraft] = useState<typeof language | null>(null);
   const [savingLanguage, setSavingLanguage] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [invoices] = useState([
     { id: '1', date: '2024-04-15', amount: 199.00, status: 'paid' },
     { id: '2', date: '2024-03-15', amount: 199.00, status: 'paid' },
@@ -923,7 +925,7 @@ export default function SettingsPage() {
 
                     <hr className="my-5" />
 
-                    <form onSubmit={handleUpdateOrg} className="mb-5">
+                    <form onSubmit={handleUpdateOrg} className="mb-5 organization-profile-form">
                       <div className="section-header mb-4">
                         <h2 className="fw-bold h5 mb-1">{t("settings.org.basicProfile")}</h2>
                         <p className="small text-muted-foreground">{t("settings.org.identificationDescription")}</p>
@@ -932,11 +934,11 @@ export default function SettingsPage() {
                       <div className="row g-4">
                         <div className="col-12 col-md-6">
                           <label className="form-label small fw-bold">{t("settings.org.companyName")}</label>
-                          <div className="input-group-custom">
-                            <Building2 size={18} className="input-icon" />
+                          <div className="organization-input-group">
+                            <Building2 size={18} className="organization-input-icon" />
                             <input
                               type="text"
-                              className="form-control-custom"
+                              className="organization-input"
                               value={org.name}
                               onChange={(e) => setOrg({ ...org, name: e.target.value })}
                             />
@@ -945,11 +947,11 @@ export default function SettingsPage() {
 
                         <div className="col-12 col-md-6">
                           <label className="form-label small fw-bold">{t("settings.org.document")}</label>
-                          <div className="input-group-custom">
-                            <FileText size={18} className="input-icon" />
+                          <div className="organization-input-group">
+                            <FileText size={18} className="organization-input-icon" />
                             <input
                               type="text"
-                              className="form-control-custom"
+                              className="organization-input"
                               value={org.document}
                               onChange={(e) => setOrg({ ...org, document: maskDocument(e.target.value) })}
                               placeholder="00.000.000/0001-00"
@@ -1222,11 +1224,17 @@ export default function SettingsPage() {
                       <div className="row g-3 align-items-end">
                         <div className="col-12 col-md-7">
                           <label htmlFor="organization-language" className="form-label small fw-bold">{t("settings.language.label")}</label>
-                          <div className="input-group-custom">
-                            <Languages size={18} className="input-icon" />
-                            <select id="organization-language" className="form-control-custom" value={languageDraft ?? language} onChange={event => setLanguageDraft(event.target.value as typeof language)} disabled={currentUser?.role !== "admin" || savingLanguage}>
-                              {organizationLanguages.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                            </select>
+                          <div className="language-picker">
+                            <button id="organization-language" type="button" className="language-picker-trigger" aria-haspopup="listbox" aria-expanded={languageMenuOpen} onClick={() => setLanguageMenuOpen(open => !open)} disabled={currentUser?.role !== "admin" || savingLanguage}>
+                              <span className="language-flag" data-language={languageDraft ?? language} aria-hidden="true" />
+                              <span>{organizationLanguages.find(option => option.value === (languageDraft ?? language))?.label}</span>
+                              <ChevronDown size={17} aria-hidden="true" />
+                            </button>
+                            {languageMenuOpen && <div className="language-picker-menu" role="listbox" aria-labelledby="organization-language">
+                              {organizationLanguages.map(option => <button type="button" role="option" aria-selected={option.value === (languageDraft ?? language)} className="language-picker-option" key={option.value} onClick={() => { setLanguageDraft(option.value); setLanguageMenuOpen(false); }}>
+                                <span className="language-flag" data-language={option.value} aria-hidden="true" />{option.label}
+                              </button>)}
+                            </div>}
                           </div>
                         </div>
                         <div className="col-12 col-md-5 d-flex justify-content-md-end">
@@ -2050,6 +2058,36 @@ export default function SettingsPage() {
         .input-group-custom {
           position: relative;
         }
+        .organization-profile-form { padding:1.3rem; border:1px solid var(--border); border-radius:14px; background:var(--card); }
+        .organization-profile-form .section-header { margin-bottom:1.25rem !important; }
+        .organization-input-group { position:relative; }
+        .organization-input {
+          width:100%; min-height:2.65rem; padding:.6rem .85rem .6rem 2.7rem;
+          border:1px solid color-mix(in srgb,var(--border),var(--primary) 9%); border-radius:10px;
+          background:var(--background); color:var(--foreground); font-size:.875rem; font-weight:600;
+          transition:border-color .2s,box-shadow .2s,background-color .2s;
+        }
+        .organization-input::placeholder { color:var(--muted-foreground); font-weight:500; }
+        .organization-input:hover { border-color:color-mix(in srgb,var(--primary),var(--border) 55%); }
+        .organization-input:focus { outline:0; border-color:var(--primary); box-shadow:0 0 0 3px color-mix(in srgb,var(--primary),transparent 88%); }
+        .organization-input-icon { position:absolute; z-index:1; left:.85rem; top:50%; width:1rem; height:1rem; transform:translateY(-50%); color:var(--muted-foreground); pointer-events:none; }
+        .organization-profile-form .btn-primary-elegant { min-height:2.65rem; border-radius:10px; }
+        @media(max-width:767px){.organization-profile-form{padding:1rem}.organization-profile-form .btn-primary-elegant{width:100%}}
+        .language-picker { position:relative; max-width:30rem; }
+        .language-picker-trigger,.language-picker-option { display:flex; align-items:center; gap:.7rem; width:100%; border:1px solid var(--border); background:var(--background); color:var(--foreground); font:inherit; text-align:left; }
+        .language-picker-trigger { min-height:2.8rem; padding:.55rem .8rem; border-radius:12px; font-size:.875rem; font-weight:700; }
+        .language-picker-trigger svg { margin-left:auto; transition:transform .2s; }
+        .language-picker-trigger[aria-expanded=true] svg { transform:rotate(180deg); }
+        .language-picker-trigger:hover:not(:disabled),.language-picker-trigger:focus-visible { border-color:var(--primary); outline:0; box-shadow:0 0 0 4px oklch(0.5 0.15 145 / .1); }
+        .language-picker-trigger:disabled { opacity:.65; cursor:not-allowed; }
+        .language-picker-menu { position:absolute; z-index:20; top:calc(100% + .35rem); width:100%; overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--card); box-shadow:var(--shadow-elegant); }
+        .language-picker-option { min-height:2.7rem; padding:.55rem .8rem; border:0; border-radius:0; font-size:.84rem; cursor:pointer; }
+        .language-picker-option:hover,.language-picker-option[aria-selected=true] { background:color-mix(in srgb,var(--primary),transparent 91%); color:var(--primary); }
+        .language-flag { display:inline-block; width:1.35rem; height:.9rem; flex:0 0 1.35rem; border:1px solid color-mix(in srgb,var(--foreground),transparent 75%); border-radius:2px; box-shadow:0 1px 2px rgb(0 0 0 / .12); }
+        .language-flag[data-language="pt-BR"] { background:radial-gradient(circle,#2d6b35 0 20%,transparent 22%),linear-gradient(35deg,transparent 42%,#f9d54b 43% 57%,transparent 58%),#159447; }
+        .language-flag[data-language="en"] { background:linear-gradient(90deg,#b22234 0 14%,#fff 14% 28%,#b22234 28% 42%,#fff 42% 56%,#b22234 56% 70%,#fff 70% 84%,#b22234 84%); }
+        .language-flag[data-language="es"] { background:linear-gradient(#aa151b 0 25%,#f1bf00 25% 75%,#aa151b 75%); }
+        .language-flag[data-language="pt-PT"] { background:linear-gradient(90deg,#046a38 0 40%,#da291c 40%); }
         .input-icon {
           position: absolute;
           left: 1rem;
