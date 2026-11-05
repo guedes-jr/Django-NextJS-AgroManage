@@ -12,8 +12,6 @@ import {
   Droplets,
   Wheat,
   Factory,
-  ShieldPlus,
-  Syringe,
   ChartNoAxesCombined,
   Cylinder,
   ChevronRight,
@@ -42,13 +40,13 @@ const shortcuts: Array<{
   description: string;
   href?: string;
   icon: ComponentType<LucideProps>;
-  tone: "green" | "orange" | "purple" | "blue" | "cyan" | "emerald" | "pink" | "slate";
+  tone: "green" | "orange" | "purple" | "blue" | "cyan" | "emerald" | "pink" | "slate" | "amber";
   financial?: boolean;
   planned?: boolean;
 }> = [
   {
     title: "Lançar produção de leite",
-    description: "Registre ordenhas, turnos e descartes",
+    description: "Registre ordenhas, turnos e descartes por vaca ou em total diário",
     href: `${root}/leite`,
     icon: Milk,
     tone: "cyan",
@@ -62,26 +60,11 @@ const shortcuts: Array<{
     financial: true,
   },
   {
-    title: "Aplicar medicamentos",
-    description: "Registre aplicações, doses e períodos de carência",
-    href: `${root}/manejos?launch=medication`,
-    icon: Syringe,
-    tone: "emerald",
-    financial: true,
-  },
-  {
     title: "Tanque de leite",
     description: "Coletas e qualidade do leite",
     icon: Cylinder,
     tone: "slate",
     href: `${root}/tanque-de-leite`,
-  },
-  {
-    title: "Sanidade",
-    description: "Vacinações, tratamentos e carências",
-    href: `${root}/sanidade?production=dairy`,
-    icon: ShieldPlus,
-    tone: "emerald",
   },
   {
     title: "Reprodução",
@@ -98,14 +81,6 @@ const shortcuts: Array<{
     tone: "green",
   },
   {
-    title: "Bezerras e novilhas",
-    description: "Acompanhe o desenvolvimento das fêmeas jovens",
-    href: `${root}/cadastro?group=young-females`,
-    icon: CowIcon,
-    tone: "pink",
-  },
-  { title: "Central de manejo", description: "Classificação, ocorrências e protocolos", href: `${root}/operacoes`, icon: ClipboardList, tone: "green" },
-  {
     title: "Fábrica de ração",
     description: "Formule e produza a ração do rebanho",
     href: `${root}/racao/producao`,
@@ -121,7 +96,6 @@ const shortcuts: Array<{
     tone: "cyan",
     financial: true,
   },
-
 ];
 
 export function DairyHome() {
@@ -170,11 +144,11 @@ export function DairyHome() {
 
   const metrics = [
     { label: "Vacas em lactação", value: data?.lactating_cows, icon: LactationIcon, tone: "green", detail: "Fêmeas identificadas em lactação atualmente" },
-    { label: date === today() ? "Produção de hoje" : "Produção do dia", value: data ? `${number(data.produced_liters)} L` : undefined, icon: Milk, tone: "blue", detail: "Produção registrada na data" },
-    { label: "Média por vaca ordenhada", value: data ? (data.average_per_milked_cow === null ? "—" : `${number(data.average_per_milked_cow)} L`) : undefined, icon: Droplets, tone: "green", detail: data?.milked_cows === null ? "Lançamento total sem identificação das vacas" : `${data?.milked_cows || 0} vacas com ordenha registrada no dia` },
-    { label: "Leite aproveitável", value: data ? `${number(data.usable_liters)} L` : undefined, icon: Milk, tone: "emerald", detail: `Produção menos ${number(data?.discarded_liters)} L de descarte` },
+    { label: "Produção mensal", value: data ? `${number(data.monthly_produced_liters)} L` : undefined, icon: Milk, tone: "blue", detail: "Produção acumulada desde o início do mês até a data de referência" },
+    { label: "Média mensal por vaca", value: data ? (data.monthly_average_per_lactating_cow === null ? "—" : `${number(data.monthly_average_per_lactating_cow)} L`) : undefined, icon: Droplets, tone: "green", detail: `Produção mensal dividida por ${data?.lactating_cows || 0} vacas em lactação` },
+    { label: "Leite descartado", value: data ? `${number(data.monthly_discarded_liters)} L` : undefined, icon: MilkOff, tone: "amber", detail: "Descarte acumulado desde o início do mês até a data de referência" },
     { label: "Total de vacas", value: data?.total_cows, icon: CowIcon, tone: "blue", detail: "Vacas e matrizes identificadas ativas" },
-    { label: "Vacas fora de lactação", value: data?.non_lactating_cows, icon: MilkOff, tone: "amber", detail: "Vacas e matrizes ativas sem indicação de lactação" },
+    { label: "Vacas secas", value: data?.non_lactating_cows, icon: MilkOff, tone: "amber", detail: "Vacas e matrizes ativas sem indicação de lactação" },
     { label: "Bezerras / novilhas", value: data?.young_females, icon: CowIcon, tone: "slate", detail: "Fêmeas identificadas ativas nessas categorias" },
     { label: "Touros", value: data?.bulls, icon: BullIcon, tone: "green", detail: "Touros e reprodutores identificados ativos" },
   ];
@@ -212,7 +186,7 @@ export function DairyHome() {
           </label>
           <label>
             <span>
-              <CalendarDays size={14} aria-hidden="true" /> Data da produção
+              <CalendarDays size={14} aria-hidden="true" /> Data de referência
             </span>
             <input
               type="date"
@@ -284,13 +258,16 @@ export function DairyHome() {
       </section>
 
       <p className={styles.scope}>
-        Produção e média correspondem à data selecionada. As contagens consideram os animais classificados como leite ou dupla finalidade. Revise os cadastros não informados na Central de manejo.
+        Produção, descarte e média acumulam os registros desde o início do mês até a data de referência. A média mensal é calculada pela produção mensal dividida pelas vacas em lactação. As contagens consideram os animais classificados como leite ou dupla finalidade.
       </p>
 
       {!loading && !error && data?.milked_cows === 0 && (
-        <p className="alert alert-info py-2 small" role="status">
-          Nenhuma ordenha registrada nesta data. Use “Lançar produção de leite” para registrar a produção.
-        </p>
+        <div className="alert alert-info py-2 small d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+          <span>Nenhuma ordenha registrada nesta data.</span>
+          <Link href={cattleHref(`${root}/leite`, "dairy")} className="btn btn-outline-success btn-sm">
+            Lançar produção de leite
+          </Link>
+        </div>
       )}
 
       <section aria-labelledby="dairy-modules-title" className={base.operations}>

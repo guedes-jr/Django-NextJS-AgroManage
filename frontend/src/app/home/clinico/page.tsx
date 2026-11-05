@@ -5,9 +5,11 @@ import { Stethoscope, Syringe, Pill, Microscope, ChevronRight, Loader2 } from "l
 import Link from "next/link";
 import { clinicalService } from "@/services/clinicalService";
 import { useToast } from "@/components/ui/Toast";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export default function ClinicoDashboardPage() {
   const { showToast } = useToast();
+  const { t } = useOrganizationLocale();
   const [loading, setLoading] = useState(true);
   
   const [dashboardStats, setDashboardStats] = useState({
@@ -45,7 +47,7 @@ export default function ClinicoDashboardPage() {
 
       } catch (err) {
         console.error("Erro ao carregar dados clínicos:", err);
-        showToast("Erro ao carregar dados", "error");
+        showToast(t("clinical.loadError"), "error");
       } finally {
         setLoading(false);
       }
@@ -59,16 +61,16 @@ export default function ClinicoDashboardPage() {
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
           <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Dashboard</Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Clínico/Veterinário</span>
+          <span className="fw-semibold text-foreground">{t("clinical.dashboard")}</span>
         </nav>
       </div>
 
       <div className="mb-4">
         <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
-          Visão Geral Clínica
+          {t("clinical.overview")}
         </h1>
         <p className="text-muted-foreground mb-0">
-          Acompanhamento geral de consultas, medicações e exames do plantel.
+          {t("clinical.overviewDescription")}
         </p>
       </div>
 
@@ -87,7 +89,7 @@ export default function ClinicoDashboardPage() {
                   </div>
                   <div>
                     <div className="fs-3 fw-black text-foreground">{dashboardStats.consultasHoje}</div>
-                    <div className="text-muted-foreground small fw-semibold">Consultas Hoje</div>
+                    <div className="text-muted-foreground small fw-semibold">{t("clinical.todayConsultations")}</div>
                   </div>
                 </div>
               </div>
@@ -102,7 +104,7 @@ export default function ClinicoDashboardPage() {
                   </div>
                   <div>
                     <div className="fs-3 fw-black text-foreground">{dashboardStats.vacinasAplicadas}</div>
-                    <div className="text-muted-foreground small fw-semibold">Vacinas Aplicadas</div>
+                    <div className="text-muted-foreground small fw-semibold">{t("clinical.vaccinationsApplied")}</div>
                   </div>
                 </div>
               </div>
@@ -117,7 +119,7 @@ export default function ClinicoDashboardPage() {
                   </div>
                   <div>
                     <div className="fs-3 fw-black text-foreground">{dashboardStats.medicamentosAtivos}</div>
-                    <div className="text-muted-foreground small fw-semibold">Medicamentos (Estoque)</div>
+                    <div className="text-muted-foreground small fw-semibold">{t("clinical.medicationStock")}</div>
                   </div>
                 </div>
               </div>
@@ -132,7 +134,7 @@ export default function ClinicoDashboardPage() {
                   </div>
                   <div>
                     <div className="fs-3 fw-black text-foreground">{dashboardStats.examesPendentes}</div>
-                    <div className="text-muted-foreground small fw-semibold">Exames Realizados</div>
+                    <div className="text-muted-foreground small fw-semibold">{t("clinical.examsCompleted")}</div>
                   </div>
                 </div>
               </div>

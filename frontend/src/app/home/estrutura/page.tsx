@@ -13,6 +13,7 @@ import { apiClient } from "@/services/api";
 import { farmStructureService } from "@/services/farmStructureService";
 import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
 import { useToast } from "@/components/ui/Toast";
+import { type TranslationKey, useOrganizationLocale } from "@/lib/locale";
 
 import styles from "./structure.module.css";
 import axios from "axios";
@@ -22,23 +23,19 @@ interface StoredUser { role?: string }
 
 const categories: Array<{
   value: FarmStructureCategory;
-  label: string;
-  description: string;
+  labelKey: TranslationKey;
+  descriptionKey: TranslationKey;
   icon: LucideIcon;
 }> = [
-  { value: "pigsty", label: "Chiqueiro", description: "Estruturas destinadas à criação e ao manejo de suínos.", icon: PiggyBank },
-  { value: "poultry_house", label: "Galinheiro", description: "Instalações para aves, postura, corte e reprodução.", icon: Bird },
-  { value: "warehouse", label: "Depósitos e armazéns", description: "Armazenamento de grãos, insumos e materiais.", icon: Warehouse },
-  { value: "irrigation", label: "Irrigação", description: "Sistemas e equipamentos de distribuição de água.", icon: Droplets },
-  { value: "water_reservoir", label: "Reservatórios e água", description: "Caixas, açudes, reservatórios e captação.", icon: Waves },
-  { value: "facility", label: "Instalações", description: "Oficinas, casas, galpões e estruturas elétricas.", icon: Building2 },
-  { value: "fence", label: "Cercas e divisões", description: "Cercas, porteiras e divisões internas da propriedade.", icon: PanelsTopLeft },
-  { value: "other", label: "Outros", description: "Outras estruturas não enquadradas nas categorias anteriores.", icon: Ellipsis },
+  { value: "pigsty", labelKey: "structure.category.pigsty", descriptionKey: "structure.category.pigstyDescription", icon: PiggyBank },
+  { value: "poultry_house", labelKey: "structure.category.poultry", descriptionKey: "structure.category.poultryDescription", icon: Bird },
+  { value: "warehouse", labelKey: "structure.category.warehouse", descriptionKey: "structure.category.warehouseDescription", icon: Warehouse },
+  { value: "irrigation", labelKey: "structure.category.irrigation", descriptionKey: "structure.category.irrigationDescription", icon: Droplets },
+  { value: "water_reservoir", labelKey: "structure.category.reservoir", descriptionKey: "structure.category.reservoirDescription", icon: Waves },
+  { value: "facility", labelKey: "structure.category.facility", descriptionKey: "structure.category.facilityDescription", icon: Building2 },
+  { value: "fence", labelKey: "structure.category.fence", descriptionKey: "structure.category.fenceDescription", icon: PanelsTopLeft },
+  { value: "other", labelKey: "structure.category.other", descriptionKey: "structure.category.otherDescription", icon: Ellipsis },
 ];
-
-const money = (value: string | number) => Number(value || 0).toLocaleString("pt-BR", {
-  style: "currency", currency: "BRL",
-});
 
 const apiMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error) || !error.response?.data) return fallback;
@@ -58,10 +55,16 @@ const getCategoryPath = (cat: FarmStructureCategory) => {
 };
 
 export default function FarmStructurePage() {
-  return <Suspense fallback={<div className="p-5 text-center text-muted">Carregando estruturas...</div>}><FarmStructureContent /></Suspense>;
+  return <Suspense fallback={<StructurePageLoading />}><FarmStructureContent /></Suspense>;
+}
+
+function StructurePageLoading() {
+  const { t } = useOrganizationLocale();
+  return <div className="p-5 text-center text-muted">{t("structure.home.loading")}</div>;
 }
 
 function FarmStructureContent() {
+  const { language, t } = useOrganizationLocale();
   const searchParams = useSearchParams();
   const requestedFarm = searchParams.get("farm") || "";
   const requestedSearch = searchParams.get("search") || "";
@@ -81,6 +84,20 @@ function FarmStructureContent() {
   });
 
   const canDelete = role === "owner" || role === "admin";
+  const categoryLabelKeys: Record<FarmStructureCategory, string> = {
+    corral: "structure.home.corral",
+    pigsty: "structure.category.pigsty",
+    poultry_house: "structure.category.poultry",
+    warehouse: "structure.category.warehouse",
+    irrigation: "structure.category.irrigation",
+    water_reservoir: "structure.category.reservoir",
+    facility: "structure.category.facility",
+    fence: "structure.category.fence",
+    other: "structure.category.other",
+  };
+  const formatMoney = (value: string | number) => Number(value || 0).toLocaleString(language, {
+    style: "currency", currency: "BRL",
+  });
 
   const loadStructures = useCallback(async (selectedFarm: string) => {
     if (!selectedFarm) return;
@@ -93,11 +110,11 @@ function FarmStructureContent() {
       setItems(listResponse.data.results);
       setSummary(summaryResponse.data);
     } catch (requestError) {
-      setError(apiMessage(requestError, "Não foi possível carregar a estrutura desta fazenda."));
+      setError(apiMessage(requestError, t("structure.home.loadFailed")));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let active = true;
@@ -112,9 +129,9 @@ function FarmStructureContent() {
         if (initialFarmId) void loadStructures(initialFarmId);
         else setLoading(false);
       })
-      .catch(() => { if (active) { setError("Não foi possível carregar as fazendas."); setLoading(false); } });
+      .catch(() => { if (active) { setError(t("structure.home.loadFarmsFailed")); setLoading(false); } });
     return () => { active = false; };
-  }, [loadStructures, requestedFarm, requestedSearch]);
+  }, [loadStructures, requestedFarm, requestedSearch, t]);
 
   const reportRows = useMemo(() => items
     .flatMap((structure) => [
@@ -135,9 +152,9 @@ function FarmStructureContent() {
     ]), [items]);
 
   const filteredReportRows = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase("pt-BR").includes(term));
-  }, [reportRows, search]);
+    const term = search.trim().toLocaleLowerCase(language);
+    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase(language).includes(term));
+  }, [reportRows, search, language]);
 
   const openCreate = (category: FarmStructureCategory) => {
     router.push(`/home/estrutura/${getCategoryPath(category)}`);
@@ -148,13 +165,13 @@ function FarmStructureContent() {
   };
 
   const remove = async (item: FarmStructure) => {
-    if (!confirm(`Excluir a estrutura “${item.name}”?`)) return;
+    if (!confirm(`${t("structure.home.delete")}: “${item.name}”?`)) return;
     try {
       await farmStructureService.remove(item.id);
       await loadStructures(farmId);
-      showToast("Estrutura excluída.", "success");
+      showToast(t("structure.home.deleted"), "success");
     } catch {
-      setError("Não foi possível excluir esta estrutura.");
+      setError(t("structure.home.deleteFailed"));
     }
   };
 
@@ -163,53 +180,53 @@ function FarmStructureContent() {
       <header className={styles.hero}>
         <div className="d-flex align-items-center gap-3">
           <div className={styles.heroIcon}><Warehouse size={30} /></div>
-          <div><h1>Estrutura da Fazenda</h1><p>Cadastre e gerencie toda a estrutura da propriedade</p></div>
+          <div><h1>{t("structure.home.title")}</h1><p>{t("structure.home.description")}</p></div>
         </div>
       </header>
 
       <div className={styles.content}>
         <div className={`${styles.infoBar} d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3`}>
-          <div className={styles.info}><Info size={21} /><span><strong>Organize a estrutura da fazenda por categorias.</strong><br />Cada item fica vinculado à propriedade selecionada.</span></div>
+          <div className={styles.info}><Info size={21} /><span><strong>{t("structure.home.organize")}</strong><br />{t("structure.home.linked")}</span></div>
           <select className="form-select" style={{ maxWidth: 320 }} value={farmId} onChange={(event) => { const nextFarm = event.target.value; setFarmId(nextFarm); void loadStructures(nextFarm); }}>
             {farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}
           </select>
         </div>
 
-        {error && <div className={styles.errorState} role="alert"><CircleAlert size={20} /><span>{error}</span><button onClick={() => void loadStructures(farmId)}>Tentar novamente</button></div>}
-        {!farms.length && !loading && <div className="alert alert-warning">Cadastre uma fazenda antes de adicionar estruturas.</div>}
+        {error && <div className={styles.errorState} role="alert"><CircleAlert size={20} /><span>{error}</span><button onClick={() => void loadStructures(farmId)}>{t("structure.home.retry")}</button></div>}
+        {!farms.length && !loading && <div className="alert alert-warning">{t("structure.home.farmsBeforeAdd")}</div>}
 
-        <section className="mb-4"><h2 className={styles.sectionTitle}>Resumo geral da estrutura</h2><div className={styles.summaryGrid}>
-          <SummaryCard icon={ClipboardList} label="Total de itens" value={String(summary?.total_items || 0)} detail={`${summary?.total_records || 0} registros`} />
-          <SummaryCard icon={Calculator} label="Valor total pago" value={money(summary?.acquisition_value || 0)} detail="Valor de aquisição" />
-          <SummaryCard icon={Warehouse} label="Valor líquido atual" value={money(summary?.current_value || 0)} detail="Estrutura atual" />
+        <section className="mb-4"><h2 className={styles.sectionTitle}>{t("structure.home.summaryHeading")}</h2><div className={styles.summaryGrid}>
+          <SummaryCard icon={ClipboardList} label={t("structure.home.totalItems")} value={(summary?.total_items || 0).toLocaleString(language)} detail={t("structure.home.recordsCount", { count: (summary?.total_records || 0).toLocaleString(language) })} />
+          <SummaryCard icon={Calculator} label={t("structure.home.totalPaid")} value={formatMoney(summary?.acquisition_value || 0)} detail={t("structure.home.acquisitionValue")} />
+          <SummaryCard icon={Warehouse} label={t("structure.home.netCurrentValue")} value={formatMoney(summary?.current_value || 0)} detail={t("structure.home.currentStructure")} />
         </div></section>
 
         <section className={styles.categorySection}>
           <div className={styles.categoryHeading}>
             <div>
-              <h2 className={styles.sectionTitle}>1. Escolha a categoria da estrutura</h2>
-              <p>Selecione uma opção para acessar o módulo correspondente.</p>
+              <h2 className={styles.sectionTitle}>{t("structure.home.categoryHeading")}</h2>
+              <p>{t("structure.home.categoryDescription")}</p>
             </div>
           </div>
           <div className={styles.categoryGrid}>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/propriedade")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Building2 size={34} /></div><div><h3>Propriedade</h3><p>Cadastre uma nova fazenda para organizar talhões, plantações e estruturas.</p></div></div>
-              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Building2 size={34} /></div><div><h3>{t("structure.home.property")}</h3><p>{t("structure.home.propertyDescription")}</p></div></div>
+              <div className={styles.categoryFooter}><span>{t("structure.home.openModule")}</span><strong>{t("structure.home.open")} <ChevronRight size={16} /></strong></div>
             </button>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/maquinas")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>Máquinas agrícolas e veículos</h3><p>Máquinas, implementos, caminhões e veículos da propriedade.</p></div></div>
-              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Tractor size={34} /></div><div><h3>{t("structure.home.machines")}</h3><p>{t("structure.home.machinesDescription")}</p></div></div>
+              <div className={styles.categoryFooter}><span>{t("structure.home.openModule")}</span><strong>{t("structure.home.open")} <ChevronRight size={16} /></strong></div>
             </button>
             <button className={styles.categoryCard} onClick={() => router.push("/home/estrutura/curral")}>
-              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Beef size={34} /></div><div><h3>Curral</h3><p>Estruturas de manejo para bovinos e criações de grande porte.</p></div></div>
-              <div className={styles.categoryFooter}><span>Acessar módulo</span><strong>Abrir <ChevronRight size={16} /></strong></div>
+              <div className={styles.categoryMain}><div className={styles.categoryIcon}><Beef size={34} /></div><div><h3>{t("structure.home.corral")}</h3><p>{t("structure.home.corralDescription")}</p></div></div>
+              <div className={styles.categoryFooter}><span>{t("structure.home.openModule")}</span><strong>{t("structure.home.open")} <ChevronRight size={16} /></strong></div>
             </button>
-            {categories.map(({ value, label, description, icon: Icon }) => (
+            {categories.map(({ value, labelKey, descriptionKey, icon: Icon }) => (
               <button key={value} className={styles.categoryCard} onClick={() => openCreate(value)}>
-                <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{label}</h3><p>{description}</p></div></div>
+                <div className={styles.categoryMain}><div className={styles.categoryIcon}><Icon size={34} /></div><div><h3>{t(labelKey)}</h3><p>{t(descriptionKey)}</p></div></div>
                 <div className={styles.categoryFooter}>
-                  <span>Acessar módulo</span>
-                  <strong>Abrir <ChevronRight size={16} /></strong>
+                  <span>{t("structure.home.openModule")}</span>
+                  <strong>{t("structure.home.open")} <ChevronRight size={16} /></strong>
                 </div>
               </button>
             ))}
@@ -219,30 +236,30 @@ function FarmStructureContent() {
         <section id="structure-report" className="mt-4" style={{ order: 4 }}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
             <div>
-              <h2 className={`${styles.sectionTitle} mb-1`}>Relatório completo das estruturas e itens</h2>
-              <p className="text-muted small mb-0">Todas as estruturas e todos os materiais utilizados na fazenda selecionada.</p>
+              <h2 className={`${styles.sectionTitle} mb-1`}>{t("structure.home.reportTitle")}</h2>
+              <p className="text-muted small mb-0">{t("structure.home.report")}</p>
             </div>
-            <div className={styles.search}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar estrutura ou item" /></div>
+            <div className={styles.search}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("structure.home.search")} /></div>
           </div>
           <div className={styles.tableCard}>
             <div className="table-responsive"><table className="table align-middle mb-0">
-              <thead><tr><th>Tipo</th><th>Estrutura / Item</th><th>Vinculado a</th><th>Área / Unidade</th><th>Quantidade</th><th>Valor pago</th><th>Valor atual</th><th className="text-end">Ações</th></tr></thead>
+              <thead><tr><th>{t("structure.home.type")}</th><th>{t("structure.home.structureItem")}</th><th>{t("structure.home.linkedTo")}</th><th>{t("structure.home.areaUnit")}</th><th>{t("structure.home.quantity")}</th><th>{t("structure.home.paid")}</th><th>{t("structure.home.current")}</th><th className="text-end">{t("structure.home.tableActions")}</th></tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={8} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
                   : filteredReportRows.length ? filteredReportRows.map((row) => row.kind === "structure"
-                    ? <StructureReportRow key={row.key} structure={row.structure} canDelete={canDelete} onEdit={openEdit} onRemove={remove} />
-                    : <MaterialReportRow key={row.key} structure={row.structure} material={row.material!} canDelete={canDelete} onRemoved={() => loadStructures(farmId)} />
-                  ) : <tr><td colSpan={8} className="text-center text-muted py-5">Nenhuma estrutura ou item encontrado.</td></tr>}
+                    ? <StructureReportRow key={row.key} structure={row.structure} categoryLabel={t(categoryLabelKeys[row.structure.category] as Parameters<typeof t>[0])} canDelete={canDelete} onEdit={openEdit} onRemove={remove} language={language} t={t} />
+                    : <MaterialReportRow key={row.key} structure={row.structure} material={row.material!} canDelete={canDelete} onRemoved={() => loadStructures(farmId)} language={language} t={t} />
+                  ) : <tr><td colSpan={8} className="text-center text-muted py-5">{t("structure.home.emptyReport")}</td></tr>}
               </tbody>
-              {!!items.length && <tfoot><tr className={styles.reportTotal}><td colSpan={4}>Total geral da fazenda</td><td>{reportRows.length} registros</td><td>{money(summary?.acquisition_value || 0)}</td><td>{money(summary?.current_value || 0)}</td><td /></tr></tfoot>}
+              {!!items.length && <tfoot><tr className={styles.reportTotal}><td colSpan={4}>{t("structure.home.farmTotal")}</td><td>{t("structure.home.recordsCount", { count: reportRows.length.toLocaleString(language) })}</td><td>{Number(summary?.acquisition_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td><td>{Number(summary?.current_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td><td /></tr></tfoot>}
             </table></div>
           </div>
         </section>
 
         <section className={styles.quickActions} style={{ order: 3 }}>
-          <h2 className={styles.sectionTitle}>Ações rápidas</h2>
+          <h2 className={styles.sectionTitle}>{t("structure.home.quickActions")}</h2>
           <div>
-            <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>Ver todos os itens</strong><small>Lista consolidada</small></span></button>
+            <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>{t("structure.home.viewAllItems")}</strong><small>{t("structure.home.consolidatedList")}</small></span></button>
           </div>
         </section>
       </div>
@@ -259,46 +276,51 @@ function SummaryCard({ icon: Icon, label, value, detail }: { icon: LucideIcon; l
   );
 }
 
-function StructureReportRow({ structure, canDelete, onEdit, onRemove }: {
+function StructureReportRow({ structure, categoryLabel, canDelete, onEdit, onRemove, language, t }: {
   structure: FarmStructure;
+  categoryLabel: string;
   canDelete: boolean;
   onEdit: (item: FarmStructure) => void;
   onRemove: (item: FarmStructure) => Promise<void>;
+  language: string;
+  t: ReturnType<typeof useOrganizationLocale>["t"];
 }) {
   return (
     <tr>
-      <td><span className={`badge border ${styles.badge} ${styles.badgeStructure}`}>{structure.category_label}</span></td>
+      <td><span className={`badge border ${styles.badge} ${styles.badgeStructure}`}>{categoryLabel}</span></td>
       <td><strong>{structure.name}</strong>{structure.description && <div className="text-muted small text-truncate" style={{ maxWidth: 250 }}>{structure.description}</div>}</td>
-      <td>Estrutura principal</td>
+      <td>{t("structure.home.structure")}</td>
       <td>{structure.built_area_m2 ? `${structure.built_area_m2} m²` : "—"}</td>
       <td>{structure.quantity}</td>
-      <td>{money(Number(structure.acquisition_value) * structure.quantity)}</td>
-      <td className="text-success fw-semibold">{money(Number(structure.current_value) * structure.quantity)}</td>
+      <td>{(Number(structure.acquisition_value) * structure.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
+      <td className="text-success fw-semibold">{(Number(structure.current_value) * structure.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
-        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title="Editar dados da estrutura"><Pencil size={15} /></button>
-        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title="Excluir estrutura"><Trash2 size={15} /></button>}
+        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title={t("structure.home.edit")}><Pencil size={15} /></button>
+        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title={t("structure.home.delete")}><Trash2 size={15} /></button>}
       </td>
     </tr>
   );
 }
 
-function MaterialReportRow({ structure, material, canDelete, onRemoved }: {
+function MaterialReportRow({ structure, material, canDelete, onRemoved, language, t }: {
   structure: FarmStructure;
   material: FarmStructureItem;
   canDelete: boolean;
   onRemoved: () => void;
+  language: string;
+  t: ReturnType<typeof useOrganizationLocale>["t"];
 }) {
   return (
     <tr className={styles.materialRow}>
-      <td><span className={`badge border ${styles.badge} ${styles.badgeMaterial}`}>Item utilizado</span></td>
+      <td><span className={`badge border ${styles.badge} ${styles.badgeMaterial}`}>{t("structure.home.material")}</span></td>
       <td><strong>{material.name}</strong></td>
       <td className="text-truncate" style={{ maxWidth: 150 }}>{structure.name}</td>
       <td>—</td>
       <td>{material.quantity} {material.unit}</td>
-      <td>{money(material.value)}</td>
+      <td>{Number(material.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td>—</td>
       <td className="text-end">
-        {canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title="Remover item da estrutura"><Trash2 size={15} /></button>}
+        {canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title={t("structure.home.removeItem")}><Trash2 size={15} /></button>}
       </td>
     </tr>
   );

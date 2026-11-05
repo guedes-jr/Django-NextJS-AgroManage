@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
-import { apiClient } from "@/services/api";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export type InventoryCategory =
   | "racao"
@@ -60,10 +60,6 @@ const CATEGORY_CONFIG: Record<InventoryCategory, { label: string; unidade: strin
 
 const UNIDADES = ["kg", "g", "l", "ml", "unidade", "dose", "saco", "caixa", "m", "m2"];
 const ESPECIES = ["bovino", "suino", "ave", "ovino", "caprino", "equino", "multiplo", "outro"];
-const ESPECIES_LABELS: Record<string, string> = {
-  bovino: "Bovino", suino: "Suíno", ave: "Ave", ovino: "Ovino",
-  caprino: "Caprino", equino: "Equino", multiplo: "Múltiplas espécies", outro: "Outro",
-};
 const LOCAIS = [
   { value: "deposito", label: "Depósito Geral" },
   { value: "camara_fria", label: "Câmara Fria" },
@@ -116,6 +112,7 @@ function InputField({ label, required, icon: Icon, children }: any) {
 }
 
 export function InventoryFormModal({ isOpen, onClose, category, onSave, initialData }: InventoryFormModalProps) {
+  const { t } = useOrganizationLocale();
   const [rows, setRows] = useState([emptyRow(category)]);
   const [loading, setLoading] = useState(false);
 
@@ -231,6 +228,26 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
   };
 
   const cfg = category ? CATEGORY_CONFIG[category] : null;
+  const categoryLabel = (value: InventoryCategory) => {
+    const keys: Record<InventoryCategory, string> = {
+      racao: "inventory.products.feed",
+      nucleo: "inventory.products.supplements",
+      suplemento: "inventory.products.animalSupplements",
+      semente: "inventory.products.seeds",
+      fertilizante: "inventory.products.fertilizers",
+      foliar: "inventory.products.cropProtection",
+      fertirrigacao: "inventory.products.fertigation",
+      defensivo: "inventory.products.cropProtection",
+      corretivo: "inventory.products.amendments",
+      medicamento: "inventory.products.medicines",
+      vacina: "inventory.products.medicines",
+      medicamento_vacina: "inventory.products.medicines",
+      material: "inventory.products.otherMaterials",
+      semen: "inventory.products.semen",
+      outro: "inventory.products.otherMaterials",
+    };
+    return t(keys[value] as Parameters<typeof t>[0]);
+  };
   const categoryEntries = Object.entries(CATEGORY_CONFIG).filter(([value]) => {
     if (value === "foliar") return rows.some((row) => row.categoria === value || row.categorias.includes(value as InventoryCategory));
     if (!["medicamento", "vacina"].includes(value)) return true;
@@ -243,20 +260,20 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? "Editar produto" : cfg ? `Cadastrar — ${cfg.label}` : "Cadastrar Item de Estoque"}
-      description={isEditing ? "Atualize os dados do produto cadastrado." : "Preencha os dados seguindo as etapas de cadastro."}
+      title={isEditing ? t("inventory.form.editProduct") : cfg ? `${t("inventory.form.register")} — ${categoryLabel(category!)}` : t("inventory.form.registerStockItem")}
+      description={isEditing ? t("inventory.form.updateDescription") : t("inventory.form.createDescription")}
       maxWidth="max-w-6xl"
       footer={
         <div className="d-flex align-items-center justify-content-between w-100 p-3 bg-muted/5">
           <div className="d-flex align-items-center gap-2 text-muted-foreground fw-semibold small">
             <span className="badge bg-primary/10 text-primary px-3 py-1 rounded-pill">{rows.length}</span>
-            <span>{rows.length === 1 ? "item" : "itens"} sendo configurados</span>
+            <span>{t(rows.length === 1 ? "inventory.products.oneItem" : "inventory.products.manyItems")} {t("inventory.form.beingConfigured")}</span>
           </div>
           <div className="d-flex gap-2">
-            <Button variant="outline-secondary" onClick={onClose} disabled={loading} className="rounded-xl">Cancelar</Button>
+            <Button variant="outline-secondary" onClick={onClose} disabled={loading} className="rounded-xl">{t("inventory.form.cancel")}</Button>
             
             <Button onClick={handleSubmit} disabled={loading} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl shadow-lg">
-              {loading ? "Salvando..." : isEditing ? "Salvar alterações" : "Finalizar Cadastro"}
+              {loading ? t("inventory.form.saving") : isEditing ? t("inventory.form.saveChanges") : t("inventory.form.finishRegistration")}
             </Button>
           </div>
         </div>
@@ -288,7 +305,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                           {index + 1}
                         </span>
                         <h5 className="fw-black mb-0 text-uppercase small" style={{ letterSpacing: '0.05em' }}>
-                          {cfg ? cfg.label : "Item de Estoque"}
+                          {cfg ? categoryLabel(category!) : t("inventory.form.stockItem")}
                         </h5>
                       </div>
                       <button
@@ -303,13 +320,13 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                     {/* Form Content */}
                       <div>
                         <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
-                          <Package size={14} className="me-1" /> Informações Básicas de Identidade
+                          <Package size={14} className="me-1" /> {t("inventory.form.basicInformation")}
                         </p>
                         <div className="row g-4">
                           <div className="col-12 col-md-6">
-                            <InputField label="Nome do item" required icon={Tag}>
+                            <InputField label={t("inventory.form.itemName")} required icon={Tag}>
                               <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                placeholder="Ex: Milho Grão, Vacina Aftosa..." value={row.nome}
+                                placeholder={t("inventory.form.itemNamePlaceholder")} value={row.nome}
                                 onChange={e => update(row.id as any, "nome", e.target.value)} />
                             </InputField>
                           </div>
@@ -317,7 +334,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                           {!category && (
                             <div className="col-12 col-md-3">
                               <div className="login-input-group mb-0">
-                                <label className="login-label fw-semibold text-xs">Categoria <span className="text-danger">*</span></label>
+                                <label className="login-label fw-semibold text-xs">{t("stock.category")} <span className="text-danger">*</span></label>
                                 <div className="d-flex gap-2">
                                   <select
                                     multiple
@@ -338,11 +355,11 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                       }
                                     }}
                                   >
-                                    {categoryEntries.map(([v, c]) => (
-                                      <option key={v} value={v}>{c.label}</option>
+                                    {categoryEntries.map(([v]) => (
+                                      <option key={v} value={v}>{categoryLabel(v as InventoryCategory)}</option>
                                     ))}
                                     {customCategories.length > 0 && (
-                                      <optgroup label="Categorias cadastradas">
+                                      <optgroup label={t("inventory.form.registeredCategories")}>
                                         {customCategories.map((item) => (
                                           <option key={item.id} value={`custom:${item.id}`}>{item.label}</option>
                                         ))}
@@ -352,8 +369,8 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                   <button
                                     type="button"
                                     className="btn btn-outline-primary d-flex align-items-center justify-content-center"
-                                    title="Cadastrar nova categoria"
-                                    aria-label="Cadastrar nova categoria"
+                                    title={t("inventory.form.addCategory")}
+                                    aria-label={t("inventory.form.addCategory")}
                                     onClick={() => openCategoryDialog(row.id)}
                                     style={{ width: 46, height: 46, borderRadius: 12, flex: "0 0 46px" }}
                                   >
@@ -363,7 +380,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 <div className="d-flex flex-wrap gap-1 mt-2">
                                   {categorySelectValue(row).map((value) => (
                                     <span key={value} className="badge bg-primary/10 text-primary border border-primary/10">
-                                      {CATEGORY_CONFIG[value as InventoryCategory]?.label || value}
+                                      {CATEGORY_CONFIG[value as InventoryCategory] ? categoryLabel(value as InventoryCategory) : value}
                                     </span>
                                   ))}
                                   {row.categoria_personalizada && (
@@ -378,7 +395,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
 
                           <div className="col-12 col-md-3">
                             <div className="login-input-group mb-0">
-                              <label className="login-label fw-semibold text-xs">Unidade <span className="text-danger">*</span></label>
+                              <label className="login-label fw-semibold text-xs">{t("inventory.form.unit")} <span className="text-danger">*</span></label>
                               <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
                                 value={row.unidade_medida} onChange={e => update(row.id as any, "unidade_medida", e.target.value)}>
                                 {UNIDADES.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
@@ -386,19 +403,19 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                             </div>
                           </div>
                           <div className="col-12 col-md-4">
-                            <InputField label="Fabricante">
+                            <InputField label={t("inventory.form.manufacturer")}>
                               <input type="text" className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }}
-                                placeholder="Fabricante..." value={row.fabricante}
+                                placeholder={t("inventory.form.manufacturer")} value={row.fabricante}
                                 onChange={e => update(row.id as any, "fabricante", e.target.value)} />
                             </InputField>
                           </div>
                           <div className="col-12 col-md-4">
                             <div className="login-input-group mb-0">
-                              <label className="login-label fw-semibold text-xs">Espécie Animal</label>
+                              <label className="login-label fw-semibold text-xs">{t("inventory.form.animalSpecies")}</label>
                               <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
                                 value={row.especie_animal} onChange={e => update(row.id as any, "especie_animal", e.target.value)}>
-                                <option value="">Todas / N/A</option>
-                                {ESPECIES.map(e => <option key={e} value={e}>{ESPECIES_LABELS[e]}</option>)}
+                                <option value="">{t("inventory.form.allOrNotApplicable")}</option>
+                                {ESPECIES.map(e => <option key={e} value={e}>{t(`inventory.form.species.${e}` as Parameters<typeof t>[0])}</option>)}
                               </select>
                             </div>
                           </div>
@@ -407,24 +424,24 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
 
                       <div className="mt-4 pt-3 border-top">
                         <p className="small fw-black text-muted-foreground text-uppercase mb-4" style={{ letterSpacing: "0.1em", fontSize: "0.6rem" }}>
-                          <Warehouse size={14} className="me-1" /> Entrada Inicial de Estoque
+                          <Warehouse size={14} className="me-1" /> {t("inventory.form.initialStock")}
                         </p>
                         <div className="row g-4">
 
                           <div className="col-12 col-md-3">
-                            <InputField label="Estoque Mínimo" icon={AlertTriangle}>
+                            <InputField label={t("inventory.products.minimum")} icon={AlertTriangle}>
                               <input type="number" step="0.01" className="login-input login-input-icon-left bg-transparent text-foreground"
-                                placeholder="Alerta em..." value={row.estoque_minimo}
+                                placeholder={t("inventory.form.alertAt")} value={row.estoque_minimo}
                                 onChange={e => update(row.id as any, "estoque_minimo", e.target.value)} />
                             </InputField>
                           </div>
                           <div className="col-12 col-md-6">
                             <div className="login-input-group mb-0">
-                              <label className="login-label fw-semibold text-xs">Local de Armazenamento</label>
+                              <label className="login-label fw-semibold text-xs">{t("inventory.form.storageLocation")}</label>
                               <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
                                 value={row.local_armazenamento} onChange={e => update(row.id as any, "local_armazenamento", e.target.value)}>
-                                <option value="">Selecione...</option>
-                                {LOCAIS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                                <option value="">{t("inventory.form.select")}</option>
+                                {LOCAIS.map(l => <option key={l.value} value={l.value}>{t(`inventory.form.storage.${l.value}` as Parameters<typeof t>[0])}</option>)}
                               </select>
                             </div>
                           </div>
@@ -442,7 +459,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
               onClick={addRow}
               style={{ borderStyle: "dashed", backgroundColor: 'var(--muted-foreground-5)' }}
             >
-              <Plus size={20} /> ADICIONAR OUTRO ITEM AO LOTE
+              <Plus size={20} /> {t("inventory.form.addAnotherItem").toLocaleUpperCase()}
             </button>
           )}
         </div>
@@ -452,32 +469,32 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
     <Modal
       isOpen={categoryDialogRowId !== null}
       onClose={closeCategoryDialog}
-      title="Cadastrar nova categoria"
-      description="Crie uma opção personalizada para usar no cadastro deste item."
+      title={t("inventory.form.addCategory")}
+      description={t("inventory.form.addCategoryDescription")}
       maxWidth="max-w-md"
       footer={
         <div className="d-flex justify-content-end gap-2 w-100">
-          <Button variant="outline-secondary" onClick={closeCategoryDialog}>Cancelar</Button>
+          <Button variant="outline-secondary" onClick={closeCategoryDialog}>{t("inventory.form.cancel")}</Button>
           <Button onClick={handleCreateCategory} disabled={!newCategoryName.trim()}>
             <Plus size={16} />
-            Cadastrar
+            {t("inventory.form.register")}
           </Button>
         </div>
       }
     >
       <div className="p-4">
         <div className="login-input-group mb-3">
-          <label className="login-label fw-semibold">Nome da categoria <span className="text-danger">*</span></label>
+          <label className="login-label fw-semibold">{t("inventory.form.categoryName")} <span className="text-danger">*</span></label>
           <input
             className="login-input bg-transparent text-foreground"
             value={newCategoryName}
             onChange={(event) => setNewCategoryName(event.target.value)}
-            placeholder="Ex: Inoculantes, Peças, Combustíveis..."
+            placeholder={t("inventory.form.categoryNamePlaceholder")}
             style={{ paddingLeft: "1rem" }}
           />
         </div>
         <div className="login-input-group mb-0">
-          <label className="login-label fw-semibold">Unidade padrão</label>
+          <label className="login-label fw-semibold">{t("inventory.form.defaultUnit")}</label>
           <select
             className="login-input bg-transparent text-foreground rounded-xl"
             value={newCategoryUnit}
@@ -488,7 +505,7 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
           </select>
         </div>
         <p className="text-muted-foreground small mb-0 mt-3">
-          A categoria personalizada será usada nesta tela e salva tecnicamente como Outro.
+          {t("inventory.form.customCategoryHelp")}
         </p>
       </div>
     </Modal>

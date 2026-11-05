@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { Eye } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { getReproductionDashboard } from "@/services/livestockService";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export default function AvesReproducaoPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const { t } = useOrganizationLocale();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,60 +30,60 @@ export default function AvesReproducaoPage() {
     especie: "aves",
     emoji: "🐔",
     titulo: "Aves",
-    subtitulo: "Módulo de gestão de postura e incubação de aves.",
+    subtitulo: t("poultryReproduction.subtitle"),
     badgeColor: "oklch(0.97 0.04 80)",
     badgeTextColor: "oklch(0.5 0.14 75)",
     kpis: [
-      { label: "Matrizes (Lotes)", value: kpis.lotes !== undefined ? kpis.lotes : "2.5k", icon: "🐔", color: "oklch(0.95 0.05 145)", trend: "neutral" },
-      { label: "Produção Diária", value: "1.8k", icon: "🥚", color: "oklch(0.97 0.04 80)", trend: "up" },
-      { label: "Ovos Incubados", value: kpis.ovos_incubados !== undefined ? kpis.ovos_incubados : "4.5k", icon: "🌡️", color: "oklch(0.94 0.04 230)", trend: "up" },
-      { label: "Eclosão Média", value: "88%", icon: "🐣", color: "oklch(0.96 0.04 290)", trend: "neutral" },
+      { label: t("poultryReproduction.breederLots"), value: kpis.lotes !== undefined ? kpis.lotes : "2.5k", icon: "🐔", color: "oklch(0.95 0.05 145)", trend: "neutral" },
+      { label: t("poultryReproduction.dailyProduction"), value: "1.8k", icon: "🥚", color: "oklch(0.97 0.04 80)", trend: "up" },
+      { label: t("poultryReproduction.incubatedEggs"), value: kpis.ovos_incubados !== undefined ? kpis.ovos_incubados : "4.5k", icon: "🌡️", color: "oklch(0.94 0.04 230)", trend: "up" },
+      { label: t("poultryReproduction.averageHatch"), value: "88%", icon: "🐣", color: "oklch(0.96 0.04 290)", trend: "neutral" },
     ],
     flowSteps: [
-      { icon: "🐔", label: "Matrizes", count: 2500, color: "oklch(0.99 0.01 145)", borderColor: "oklch(0.95 0.05 145)" },
-      { icon: "🥚", label: "Postura", count: 1800, color: "oklch(0.99 0.01 80)", borderColor: "oklch(0.97 0.04 80)" },
-      { icon: "🌡️", label: "Incubação", count: 4500, color: "oklch(0.99 0.01 230)", borderColor: "oklch(0.94 0.04 230)" },
-      { icon: "🐣", label: "Nascimento", count: 3960, color: "oklch(0.99 0.01 290)", borderColor: "oklch(0.96 0.04 290)" },
-      { icon: "🐥", label: "Crescimento", count: 8000, color: "oklch(0.99 0.01 185)", borderColor: "oklch(0.95 0.04 185)" },
-      { icon: "📦", label: "Abate/Venda", count: 0, color: "var(--muted)", borderColor: "var(--border)" },
+      { icon: "🐔", label: t("poultryReproduction.breederLots"), count: 2500, color: "oklch(0.99 0.01 145)", borderColor: "oklch(0.95 0.05 145)" },
+      { icon: "🥚", label: t("poultryReproduction.laying"), count: 1800, color: "oklch(0.99 0.01 80)", borderColor: "oklch(0.97 0.04 80)" },
+      { icon: "🌡️", label: t("poultryReproduction.hatching"), count: 4500, color: "oklch(0.99 0.01 230)", borderColor: "oklch(0.94 0.04 230)" },
+      { icon: "🐣", label: t("poultryReproduction.birth"), count: 3960, color: "oklch(0.99 0.01 290)", borderColor: "oklch(0.96 0.04 290)" },
+      { icon: "🐥", label: t("poultryReproduction.growth"), count: 8000, color: "oklch(0.99 0.01 185)", borderColor: "oklch(0.95 0.04 185)" },
+      { icon: "📦", label: t("poultryReproduction.slaughterSale"), count: 0, color: "var(--muted)", borderColor: "var(--border)" },
     ],
     alerts: alerts.length > 0 ? alerts : [
-      { type: "warning", icon: "🌡️", text: "Lote de incubação I-45 atinge 21 dias amanhã.", time: "Hoje" },
-      { type: "danger", icon: "📉", text: "Queda de postura no galpão 2 detectada (-5%).", time: "Há 4 horas" },
+      { type: "warning", icon: "🌡️", text: t("poultryReproduction.incubationAlert"), time: t("poultryReproduction.today") },
+      { type: "danger", icon: "📉", text: t("poultryReproduction.layingAlert"), time: t("poultryReproduction.hoursAgo", { count: 4 }) },
     ],
     activities: [
-      { icon: "🥚", text: "Coleta diária Galpão 1 — 1.080 ovos (95% incubáveis)", time: "Há 1 h", type: "success" },
-      { icon: "🌡️", text: "Incubadora I-45 — transferência para nacedouro", time: "Há 3 h", type: "info" },
-      { icon: "🐣", text: "Eclosão I-44 concluída — 1.780 pintos alojados", time: "Há 6 h", type: "success" },
-      { icon: "📉", text: "Queda de postura no Galpão 2 detectada (-5%)", time: "Há 8 h", type: "warning" },
-      { icon: "🐔", text: "Novo lote de matrizes alojado no Galpão 3", time: "Ontem", type: "system" },
-      { icon: "💉", text: "Vacinação do lote Crescimento 1 concluída", time: "Ontem", type: "info" },
+      { icon: "🥚", text: t("poultryReproduction.dailyCollection"), time: t("poultryReproduction.oneHourAgo"), type: "success" },
+      { icon: "🌡️", text: t("poultryReproduction.hatcherTransfer"), time: t("poultryReproduction.hoursAgo", { count: 3 }), type: "info" },
+      { icon: "🐣", text: t("poultryReproduction.hatchCompleted"), time: t("poultryReproduction.hoursAgo", { count: 6 }), type: "success" },
+      { icon: "📉", text: t("poultryReproduction.layingAlert"), time: t("poultryReproduction.hoursAgo", { count: 8 }), type: "warning" },
+      { icon: "🐔", text: t("poultryReproduction.newBreederLot"), time: t("poultryReproduction.yesterday"), type: "system" },
+      { icon: "💉", text: t("poultryReproduction.vaccinationCompleted"), time: t("poultryReproduction.yesterday"), type: "info" },
     ],
     aiSuggestions: aiSuggestions.length > 0 ? aiSuggestions : [
-      { text: "A taxa de eclosão do lote I-42 foi de 84%. Analisar temperatura das incubadoras na semana 2." },
+      { text: t("poultryReproduction.aiSuggestion") },
     ],
     tabs: [
       {
         id: "matrizes",
         icon: "🐔",
-        label: "Matrizes",
+        label: t("poultryReproduction.breederLots"),
         count: 2500,
-        primaryActionLabel: "Alojamento",
+        primaryActionLabel: t("poultryReproduction.housing"),
         primaryActionModalFields: [
-          { name: "galpao", label: "Galpão", type: "text", required: true },
-          { name: "data", label: "Data Alojamento", type: "date", required: true },
-          { name: "qtd", label: "Quantidade", type: "number" },
-          { name: "linhagem", label: "Linhagem", type: "text" },
+          { name: "galpao", label: t("poultryReproduction.shed"), type: "text", required: true },
+          { name: "data", label: t("poultryReproduction.housingDate"), type: "date", required: true },
+          { name: "qtd", label: t("poultryReproduction.quantity"), type: "number" },
+          { name: "linhagem", label: t("poultryReproduction.lineage"), type: "text" },
         ],
         columns: [
-          { key: "lote", label: "Galpão/Lote", render: (v) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "idade", label: "Idade (semanas)" },
-          { key: "qtd", label: "Quantidade" },
-          { key: "mortalidade", label: "Mortalidade" },
+          { key: "lote", label: t("poultryReproduction.shedBatch"), render: (v) => <span className="repro-table-id">{String(v)}</span> },
+          { key: "idade", label: t("poultryReproduction.ageWeeks") },
+          { key: "qtd", label: t("poultryReproduction.quantity") },
+          { key: "mortalidade", label: t("poultryReproduction.mortality") },
         ],
         actions: [
           {
-            label: "Ver Ficha Técnica",
+            label: t("poultryReproduction.technicalSheet"),
             icon: <Eye size={16} />,
             variant: "secondary",
             type: 'technical_sheet',
@@ -93,30 +95,30 @@ export default function AvesReproducaoPage() {
         ],
         statusKey: "status",
         statusMap: {
-          "Produção": { label: "Em Postura", variant: "green" },
+          "Produção": { label: t("poultryReproduction.layingStatus"), variant: "green" },
         },
       },
       {
         id: "postura",
         icon: "🥚",
-        label: "Coleta Diária",
-        primaryActionLabel: "Registrar Coleta",
+        label: t("poultryReproduction.dailyCollectionTab"),
+        primaryActionLabel: t("poultryReproduction.registerCollection"),
         primaryActionModalFields: [
-          { name: "galpao", label: "Galpão", type: "text", required: true },
-          { name: "data", label: "Data", type: "date", required: true },
-          { name: "incubaveis", label: "Ovos Incubáveis", type: "number" },
-          { name: "comerciais", label: "Ovos Comerciais", type: "number" },
-          { name: "descarte", label: "Descarte", type: "number" },
+          { name: "galpao", label: t("poultryReproduction.shed"), type: "text", required: true },
+          { name: "data", label: t("poultryReproduction.date"), type: "date", required: true },
+          { name: "incubaveis", label: t("poultryReproduction.incubatableEggs"), type: "number" },
+          { name: "comerciais", label: t("poultryReproduction.commercialEggs"), type: "number" },
+          { name: "descarte", label: t("poultryReproduction.discard"), type: "number" },
         ],
         columns: [
-          { key: "data", label: "Data" },
-          { key: "galpao", label: "Galpão" },
-          { key: "total", label: "Total Ovos" },
-          { key: "incubaveis", label: "Incubáveis (%)" },
+          { key: "data", label: t("poultryReproduction.date") },
+          { key: "galpao", label: t("poultryReproduction.shed") },
+          { key: "total", label: t("poultryReproduction.totalEggs") },
+          { key: "incubaveis", label: t("poultryReproduction.incubatablePercent") },
         ],
         actions: [
           {
-            label: "Ver Ficha Técnica",
+            label: t("poultryReproduction.technicalSheet"),
             icon: <Eye size={16} />,
             variant: "secondary",
             type: 'technical_sheet',
@@ -128,30 +130,30 @@ export default function AvesReproducaoPage() {
         ],
         statusKey: "status",
         statusMap: {
-          "Coletado": { label: "Finalizado", variant: "gray" },
+          "Coletado": { label: t("poultryReproduction.completed"), variant: "gray" },
         },
       },
       {
         id: "incubacao",
         icon: "🌡️",
-        label: "Incubação",
+        label: t("poultryReproduction.hatching"),
         count: 4500,
-        primaryActionLabel: "Nova Carga",
+        primaryActionLabel: t("poultryReproduction.newLoad"),
         primaryActionModalFields: [
-          { name: "maquina", label: "Incubadora", type: "text", required: true },
-          { name: "data", label: "Data Carregamento", type: "date", required: true },
-          { name: "qtd", label: "Qtd. Ovos", type: "number" },
+          { name: "maquina", label: t("poultryReproduction.incubator"), type: "text", required: true },
+          { name: "data", label: t("poultryReproduction.loadingDate"), type: "date", required: true },
+          { name: "qtd", label: t("poultryReproduction.eggQuantity"), type: "number" },
         ],
         columns: [
-          { key: "lote", label: "Lote Inc.", render: (v) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "data", label: "Data Carga" },
-          { key: "qtd", label: "Qtd. Ovos" },
-          { key: "dias", label: "Dias" },
-          { key: "previsao", label: "Prev. Eclosão" },
+          { key: "lote", label: t("poultryReproduction.incubatorBatch"), render: (v) => <span className="repro-table-id">{String(v)}</span> },
+          { key: "data", label: t("poultryReproduction.loading") },
+          { key: "qtd", label: t("poultryReproduction.eggQuantity") },
+          { key: "dias", label: t("poultryReproduction.days") },
+          { key: "previsao", label: t("poultryReproduction.expectedHatch") },
         ],
         actions: [
           {
-            label: "Ver Ficha Técnica",
+            label: t("poultryReproduction.technicalSheet"),
             icon: <Eye size={16} />,
             variant: "secondary",
             type: 'technical_sheet',
@@ -163,23 +165,23 @@ export default function AvesReproducaoPage() {
         ],
         statusKey: "status",
         statusMap: {
-          "Transferência": { label: "Nacedouro", variant: "amber" },
-          "Incubadora": { label: "Incubadora", variant: "blue" },
+          "Transferência": { label: t("poultryReproduction.hatcher"), variant: "amber" },
+          "Incubadora": { label: t("poultryReproduction.incubator"), variant: "blue" },
         },
       },
       {
         id: "nascimento",
         icon: "🐣",
-        label: "Nascimento",
+        label: t("poultryReproduction.birth"),
         columns: [
-          { key: "lote", label: "Lote Origem" },
-          { key: "data", label: "Data Eclosão" },
-          { key: "pintos", label: "Pintinhos (vivos)" },
-          { key: "eclosao", label: "Eclosão (%)" },
+          { key: "lote", label: t("poultryReproduction.sourceBatch") },
+          { key: "data", label: t("poultryReproduction.hatchDate") },
+          { key: "pintos", label: t("poultryReproduction.liveChicks") },
+          { key: "eclosao", label: t("poultryReproduction.hatchRate") },
         ],
         actions: [
           {
-            label: "Ver Ficha Técnica",
+            label: t("poultryReproduction.technicalSheet"),
             icon: <Eye size={16} />,
             variant: "secondary",
             type: 'technical_sheet',
@@ -190,23 +192,23 @@ export default function AvesReproducaoPage() {
         ],
         statusKey: "status",
         statusMap: {
-          "Alojado": { label: "Enviado Crescimento", variant: "green" },
+          "Alojado": { label: t("poultryReproduction.sentToGrowth"), variant: "green" },
         },
       },
       {
         id: "crescimento",
         icon: "🐥",
-        label: "Crescimento",
+        label: t("poultryReproduction.growth"),
         count: 8000,
         columns: [
-          { key: "galpao", label: "Galpão" },
-          { key: "idade", label: "Idade (dias)" },
-          { key: "qtd", label: "Qtd. Atual" },
-          { key: "peso", label: "Peso Médio" },
+          { key: "galpao", label: t("poultryReproduction.shed") },
+          { key: "idade", label: t("poultryReproduction.days") },
+          { key: "qtd", label: t("poultryReproduction.currentQuantity") },
+          { key: "peso", label: t("poultryReproduction.averageWeight") },
         ],
         actions: [
           {
-            label: "Ver Ficha Técnica",
+            label: t("poultryReproduction.technicalSheet"),
             icon: <Eye size={16} />,
             variant: "secondary",
             type: 'technical_sheet',
@@ -218,7 +220,7 @@ export default function AvesReproducaoPage() {
         ],
         statusKey: "status",
         statusMap: {
-          "Dentro da Curva": { label: "OK", variant: "green" },
+          "Dentro da Curva": { label: t("poultryReproduction.onTrack"), variant: "green" },
         },
       },
     ]

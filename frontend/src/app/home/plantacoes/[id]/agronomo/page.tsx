@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   CheckCircle2,
   ClipboardList,
   Download,
@@ -23,6 +22,7 @@ import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
+import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 type Plantation = {
   id: string;
@@ -88,17 +88,9 @@ const emptyProduct: RecommendationProduct = {
   notes: "",
 };
 
-const priorityOptions = [
-  { value: "low", label: "Baixa" },
-  { value: "medium", label: "Média" },
-  { value: "high", label: "Alta" },
-];
+const priorityOptions = ["low", "medium", "high"] as const;
 
-const statusOptions = [
-  { value: "pending", label: "Pendente" },
-  { value: "in_progress", label: "Em execução" },
-  { value: "completed", label: "Concluída" },
-];
+const statusOptions = ["pending", "in_progress", "completed"] as const;
 
 const doseUnitOptions = [
   { value: "l_ha", label: "L/ha" },
@@ -107,17 +99,9 @@ const doseUnitOptions = [
   { value: "g_ha", label: "g/ha" },
 ];
 
-const agriculturalCategoryOptions = [
-  { value: "semente", label: "Sementes/mudas" },
-  { value: "fertilizante", label: "Adubos" },
-  { value: "fertirrigacao", label: "Fertirrigação" },
-  { value: "corretivo", label: "Corretivo de Solo" },
-  { value: "defensivo", label: "Foliares / Defensivos" },
-  { value: "material", label: "Material" },
-  { value: "outro", label: "Outro" },
-];
+const agriculturalCategoryOptions = ["semente", "fertilizante", "fertirrigacao", "corretivo", "defensivo", "material", "outro"] as const;
 
-const agriculturalCategoryValues = [...agriculturalCategoryOptions.map((category) => category.value), "foliar"];
+const agriculturalCategoryValues = [...agriculturalCategoryOptions, "foliar"];
 
 const statusVariant = (status: Recommendation["status"]) => {
   if (status === "completed") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
@@ -125,9 +109,9 @@ const statusVariant = (status: Recommendation["status"]) => {
   return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
 };
 
-const formatDate = (value?: string | null) => {
+const formatDate = (value: string | null | undefined, language: string) => {
   if (!value) return "-";
-  return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
+  return new Date(`${value}T12:00:00`).toLocaleDateString(language);
 };
 
 const today = () => new Date().toISOString().split("T")[0];
@@ -145,12 +129,13 @@ const parseDecimal = (value?: string | number | null) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const formatDecimal = (value: number) => {
+const formatDecimal = (value: number, language: string) => {
   if (!Number.isFinite(value)) return "";
-  return value.toFixed(2);
+  return value.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 export default function AgronomoPage() {
+  const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -205,7 +190,7 @@ export default function AgronomoPage() {
   const calculateTotalQuantity = (product: RecommendationProduct) => {
     const dose = parseDecimal(product.dose_per_ha);
     if (dose === null || recommendationAreaHa === null) return "";
-    return formatDecimal(dose * recommendationAreaHa);
+    return formatDecimal(dose * recommendationAreaHa, language);
   };
 
   useEffect(() => {
@@ -224,7 +209,7 @@ export default function AgronomoPage() {
         setSoilAnalyses(Array.isArray(soilRes.data?.results) ? soilRes.data.results : []);
         setRecommendations(Array.isArray(recommendationsRes.data?.results) ? recommendationsRes.data.results : []);
       } catch (error) {
-        console.error("Erro ao carregar área do agrônomo", error);
+        console.error("Failed to load agronomist area", error);
       } finally {
         setLoading(false);
       }
@@ -294,8 +279,8 @@ export default function AgronomoPage() {
       const response = await apiClient.post("/crops/soil-analyses/", data);
       setSoilAnalyses((prev) => [response.data, ...prev]);
     } catch (error) {
-      console.error("Erro ao anexar análise de solo", error);
-      alert("Não foi possível anexar a análise de solo.");
+      console.error("Failed to upload soil analysis", error);
+      alert(t("plantations.agronomist.uploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -334,7 +319,7 @@ export default function AgronomoPage() {
   };
 
   const handleDeleteRecommendation = async (id: string) => {
-    if (!window.confirm("Deseja realmente excluir esta recomendação?")) return;
+    if (!window.confirm(t("plantations.agronomist.deleteConfirm"))) return;
     try {
       setDeletingRecommendationId(id);
       await cropService.deleteAgronomistRecommendation(id);
@@ -352,22 +337,22 @@ export default function AgronomoPage() {
         setProducts([{ ...emptyProduct }]);
       }
     } catch (error) {
-      console.error("Erro ao excluir recomendação", error);
-      alert("Não foi possível excluir a recomendação.");
+      console.error("Failed to delete recommendation", error);
+      alert(t("plantations.agronomist.deleteFailed"));
     } finally {
       setDeletingRecommendationId(null);
     }
   };
 
   const handleDeleteSoilAnalysis = async (id: string) => {
-    if (!window.confirm("Deseja realmente excluir esta análise de solo?")) return;
+    if (!window.confirm(t("plantations.agronomist.deleteAnalysisConfirm"))) return;
     try {
       setDeletingSoilAnalysisId(id);
       await cropService.deleteSoilAnalysis(id);
       setSoilAnalyses((prev) => prev.filter((a) => a.id !== id));
     } catch (error) {
-      console.error("Erro ao excluir análise de solo", error);
-      alert("Não foi possível excluir a análise de solo.");
+      console.error("Failed to delete soil analysis", error);
+      alert(t("plantations.agronomist.deleteAnalysisFailed"));
     } finally {
       setDeletingSoilAnalysisId(null);
     }
@@ -377,7 +362,7 @@ export default function AgronomoPage() {
     if (!id || !form.title.trim()) return;
     const unresolvedProduct = products.find((product) => product.item_search.trim() && !product.item);
     if (unresolvedProduct) {
-      alert("Selecione o produto pela sugestão exibida antes de salvar.");
+      alert(t("plantations.agronomist.selectSuggestion"));
       return;
     }
     const validProducts = products.filter((product) => product.item);
@@ -420,8 +405,8 @@ export default function AgronomoPage() {
       });
       setProducts([{ ...emptyProduct }]);
     } catch (error) {
-      console.error("Erro ao salvar recomendação", error);
-      alert("Não foi possível salvar a recomendação.");
+      console.error("Failed to save recommendation", error);
+      alert(t("plantations.agronomist.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -434,8 +419,8 @@ export default function AgronomoPage() {
       const updated = response.data as Recommendation;
       setRecommendations((prev) => prev.map((recommendation) => recommendation.id === recommendationId ? updated : recommendation));
     } catch (error) {
-      console.error("Erro ao concluir recomendação", error);
-      alert("Não foi possível marcar a recomendação como feita.");
+      console.error("Failed to complete recommendation", error);
+      alert(t("plantations.agronomist.completeFailed"));
     } finally {
       setCompletingRecommendationId(null);
     }
@@ -455,7 +440,7 @@ export default function AgronomoPage() {
   }
 
   if (!plantation) {
-    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+    return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
   }
 
   return (
@@ -465,31 +450,31 @@ export default function AgronomoPage() {
 
           <div>
             <h1 className="fw-black mb-1 d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-              <FlaskConical size={28} className="text-success" /> Área do Agrônomo
+              <FlaskConical size={28} className="text-success" /> {t("plantations.agronomist.title")}
             </h1>
             <p className="text-muted mb-0 small">
-              {plantation.name || plantation.crop_name} › {plantation.field_name || "Talhão"}
+              {plantation.name || plantation.crop_name} › {plantation.field_name || t("plantations.field")}
             </p>
           </div>
         </div>
         <Button variant="outline-secondary" onClick={() => router.push(`/home/plantacoes/${id}`)}>
-          Voltar para a plantação
+          {t("plantations.back")}
         </Button>
       </div>
 
       <div className="row g-4">
         <div className="col-lg-5">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><FlaskConical size={18} /> Análise de solo</h6>
-            <p className="text-muted small mb-4">Anexe e consulte a análise de solo vinculada a este talhão.</p>
+            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><FlaskConical size={18} /> {t("plantations.agronomist.soilAnalysis")}</h6>
+            <p className="text-muted small mb-4">{t("plantations.agronomist.soilDescription")}</p>
 
             <label
               className="border rounded d-flex flex-column align-items-center justify-content-center text-center p-4 mb-4"
               style={{ minHeight: 180, cursor: "pointer", background: "var(--bs-tertiary-bg, #f8f9fa)" }}
             >
               <UploadCloud size={42} className="text-success mb-2" />
-              <strong>{uploading ? "Enviando análise..." : "Anexar análise de solo"}</strong>
-              <span className="text-muted small mt-2">PDF, JPG ou PNG até 10MB</span>
+              <strong>{uploading ? t("plantations.agronomist.uploading") : t("plantations.agronomist.attach")}</strong>
+              <span className="text-muted small mt-2">{t("plantations.agronomist.fileTypes")}</span>
               <input
                 className="d-none"
                 type="file"
@@ -499,25 +484,25 @@ export default function AgronomoPage() {
               />
             </label>
 
-            <h6 className="fw-bold small mb-3">Análises anexadas</h6>
+            <h6 className="fw-bold small mb-3">{t("plantations.agronomist.attached")}</h6>
             {soilAnalyses.length === 0 ? (
-              <p className="text-muted small mb-0">Nenhuma análise de solo anexada.</p>
+              <p className="text-muted small mb-0">{t("plantations.agronomist.noAnalysis")}</p>
             ) : (
               <div className="d-flex flex-column gap-2">
                 {soilAnalyses.map((analysis) => (
                   <div key={analysis.id} className="border rounded p-3 d-flex align-items-center gap-3">
                     <FileText size={30} className="text-danger flex-shrink-0" />
                     <div className="flex-grow-1 min-w-0">
-                      <div className="fw-semibold text-truncate">{analysis.original_name || "Análise de solo"}</div>
+                      <div className="fw-semibold text-truncate">{analysis.original_name || t("plantations.agronomist.soilAnalysis")}</div>
                       <div className="text-muted small">
-                        Anexado em: {new Date(analysis.created_at).toLocaleDateString("pt-BR")}
-                        {analysis.uploaded_by_name ? ` por ${analysis.uploaded_by_name}` : ""}
+                        {t("plantations.agronomist.attachDate")} {new Date(analysis.created_at).toLocaleDateString(language)}
+                        {analysis.uploaded_by_name ? ` ${t("plantations.agronomist.uploadedBy")} ${analysis.uploaded_by_name}` : ""}
                       </div>
                     </div>
-                    <Button variant="outline-secondary" size="sm" onClick={() => window.open(analysis.file_url, "_blank")} title="Visualizar">
+                    <Button variant="outline-secondary" size="sm" onClick={() => window.open(analysis.file_url, "_blank")} title={t("plantations.agronomist.view")}>
                       <Eye size={16} />
                     </Button>
-                    <a className="btn btn-outline-secondary btn-sm" href={analysis.file_url} download title="Baixar">
+                    <a className="btn btn-outline-secondary btn-sm" href={analysis.file_url} download title={t("plantations.agronomist.download")}>
                       <Download size={16} />
                     </a>
                     <Button
@@ -525,7 +510,7 @@ export default function AgronomoPage() {
                       size="sm"
                       disabled={deletingSoilAnalysisId === analysis.id}
                       onClick={() => handleDeleteSoilAnalysis(analysis.id)}
-                      title="Excluir"
+                      title={t("plantations.agronomist.delete")}
                     >
                       <Trash2 size={16} />
                     </Button>
@@ -540,16 +525,16 @@ export default function AgronomoPage() {
           <div className="dashboard-card p-4 h-100">
             <div className="d-flex align-items-center justify-content-between gap-2 mb-4">
               <div>
-                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Recomendações ativas</h6>
-                <p className="text-muted small mb-0">Orientações pendentes ou em execução nesta cultura.</p>
+                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> {t("plantations.agronomist.active")}</h6>
+                <p className="text-muted small mb-0">{t("plantations.agronomist.activeDescription")}</p>
               </div>
               <Button variant="agro" size="sm" onClick={() => document.getElementById("nova-recomendacao")?.scrollIntoView({ behavior: "smooth" })}>
-                <Plus size={16} /> Nova recomendação
+                <Plus size={16} /> {t("plantations.agronomist.new")}
               </Button>
             </div>
 
             {activeRecommendations.length === 0 ? (
-              <p className="text-muted small mb-0">Nenhuma recomendação ativa.</p>
+              <p className="text-muted small mb-0">{t("plantations.agronomist.noneActive")}</p>
             ) : (
               <div className="d-flex flex-column gap-3">
                 {activeRecommendations.slice(0, 5).map((recommendation, index) => (
@@ -557,11 +542,11 @@ export default function AgronomoPage() {
                     <div className="d-flex align-items-start justify-content-between gap-2">
                       <div className="d-flex align-items-center gap-3 flex-wrap">
                         <Badge style={{ background: "#047857", color: "#fff" }}>#{String(activeRecommendations.length - index).padStart(2, "0")}</Badge>
-                        <span className="small">{formatDate(recommendation.recommendation_date)}</span>
-                        <span className="small">Aplicação sugerida: {formatDate(recommendation.suggested_application_date)}</span>
+                        <span className="small">{formatDate(recommendation.recommendation_date, language)}</span>
+                        <span className="small">{t("plantations.agronomist.suggestedApplication")} {formatDate(recommendation.suggested_application_date, language)}</span>
                       </div>
                       <div className="d-flex align-items-center gap-2">
-                        <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
+                        <Badge style={statusVariant(recommendation.status)}>{t(`plantations.agronomist.status${recommendation.status === "in_progress" ? "InProgress" : recommendation.status === "completed" ? "Completed" : "Pending"}` as TranslationKey)}</Badge>
                         <Button
                           variant="outline-success"
                           size="sm"
@@ -569,9 +554,9 @@ export default function AgronomoPage() {
                           onClick={() => handleCompleteRecommendation(recommendation.id)}
                         >
                           <CheckCircle2 size={15} />
-                          {completingRecommendationId === recommendation.id ? "Concluindo..." : "Feito"}
+                          {completingRecommendationId === recommendation.id ? t("plantations.agronomist.completing") : t("plantations.agronomist.done")}
                         </Button>
-                        <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title="Editar">
+                        <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title={t("plantations.agronomist.edit")}>
                           <Edit3 size={15} />
                         </Button>
                         <Button 
@@ -579,7 +564,7 @@ export default function AgronomoPage() {
                           size="sm" 
                           disabled={deletingRecommendationId === recommendation.id}
                           onClick={() => handleDeleteRecommendation(recommendation.id)} 
-                          title="Excluir"
+                          title={t("plantations.agronomist.delete")}
                         >
                           <Trash2 size={15} />
                         </Button>
@@ -587,9 +572,9 @@ export default function AgronomoPage() {
                     </div>
                     <div className="fw-bold mt-2">{recommendation.title}</div>
                     <div className="d-flex gap-4 text-muted small mt-2 flex-wrap">
-                      <span>Produtos: {recommendation.products?.length || 0} item{(recommendation.products?.length || 0) === 1 ? "" : "s"}</span>
-                      <span>Área: {recommendation.area_ha || plantation.planted_area_ha || "-"} ha</span>
-                      <span>Prioridade: {recommendation.priority_display || recommendation.priority}</span>
+                      <span>{t("plantations.agronomist.productsCount").replace("{count}", String(recommendation.products?.length || 0))}</span>
+                      <span>{t("plantations.agronomist.area").replace("{area}", String(recommendation.area_ha || plantation.planted_area_ha || "-"))}</span>
+                      <span>{t("plantations.agronomist.priority")} {t(`plantations.agronomist.priority${recommendation.priority === "medium" ? "Medium" : recommendation.priority === "high" ? "High" : "Low"}` as TranslationKey)}</span>
                     </div>
                   </div>
                 ))}
@@ -602,8 +587,8 @@ export default function AgronomoPage() {
           <div className="dashboard-card p-4 mb-4">
             <div className="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
               <div>
-                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><History size={18} /> Histórico recente</h6>
-                <p className="text-muted small mb-0">Últimas recomendações registradas para esta plantação.</p>
+                <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><History size={18} /> {t("plantations.agronomist.historyRecent")}</h6>
+                <p className="text-muted small mb-0">{t("plantations.agronomist.historyDescription")}</p>
               </div>
               <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/historico`)}>
                 Ver relatório completo
@@ -611,7 +596,7 @@ export default function AgronomoPage() {
             </div>
 
             {recentRecommendations.length === 0 ? (
-              <p className="text-muted small mb-0">Nenhum registro recente de recomendação.</p>
+              <p className="text-muted small mb-0">{t("plantations.agronomist.noneRecent")}</p>
             ) : (
               <div className="d-flex flex-column gap-2">
                 {recentRecommendations.map((recommendation) => (
@@ -619,7 +604,7 @@ export default function AgronomoPage() {
                     <div>
                       <div className="fw-semibold">{recommendation.title}</div>
                       <div className="text-muted small">
-                        {formatDate(recommendation.recommendation_date)} • {recommendation.status_display || recommendation.status}
+                        {formatDate(recommendation.recommendation_date, language)} • {recommendation.status_display || recommendation.status}
                       </div>
                     </div>
                     <div className="d-flex align-items-center gap-2">
@@ -646,22 +631,22 @@ export default function AgronomoPage() {
 
         <div className="col-12">
           <div className="dashboard-card p-4">
-            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> Histórico de recomendações concluídas</h6>
-            <p className="text-muted small mb-4">Orientações já executadas nesta cultura.</p>
+            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2"><ClipboardList size={18} /> {t("plantations.agronomist.historyCompleted")}</h6>
+            <p className="text-muted small mb-4">{t("plantations.agronomist.completedDescription")}</p>
 
             {completedRecommendations.length === 0 ? (
-              <p className="text-muted small mb-0">Nenhuma recomendação concluída ainda.</p>
+              <p className="text-muted small mb-0">{t("plantations.agronomist.noneCompleted")}</p>
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover align-middle mb-0 agro-table">
                   <thead>
                     <tr>
-                      <th>Recomendação</th>
-                      <th>Aplicação sugerida</th>
-                      <th>Produtos</th>
-                      <th>Prioridade</th>
-                      <th>Status</th>
-                      <th className="text-end">Ações</th>
+                      <th>{t("plantations.agronomist.recommendation")}</th>
+                      <th>{t("plantations.agronomist.applicationDate")}</th>
+                      <th>{t("plantations.agronomist.products")}</th>
+                      <th>{t("plantations.agronomist.priority").replace(":", "")}</th>
+                      <th>{t("plantations.agronomist.status")}</th>
+                      <th className="text-end">{t("plantations.agronomist.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -671,7 +656,7 @@ export default function AgronomoPage() {
                           <div className="fw-bold">{recommendation.title}</div>
                           {recommendation.objective ? <div className="text-muted small">{recommendation.objective}</div> : null}
                         </td>
-                        <td>{formatDate(recommendation.suggested_application_date)}</td>
+                        <td>{formatDate(recommendation.suggested_application_date, language)}</td>
                         <td>{recommendation.products?.length || 0} item{(recommendation.products?.length || 0) === 1 ? "" : "s"}</td>
                         <td>{recommendation.priority_display || recommendation.priority}</td>
                         <td><Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || "Concluída"}</Badge></td>
@@ -705,42 +690,42 @@ export default function AgronomoPage() {
             <h6 className="fw-bold mb-1 d-flex align-items-center gap-2">
               <ClipboardList size={18} /> {editingRecommendationId ? "Editar recomendação" : "Nova recomendação"}
             </h6>
-            <p className="text-muted small mb-4">Preencha os dados da recomendação agrícola.</p>
+            <p className="text-muted small mb-4">{t("plantations.agronomist.formDescription")}</p>
 
             <div className="row g-3 mb-4">
               <div className="col-lg-6">
-                <label className="form-label small fw-medium">Título da recomendação *</label>
-                <input className="form-control" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex.: Aplicar herbicida pós-emergente" />
+                <label className="form-label small fw-medium">{t("plantations.agronomist.titleLabel")}</label>
+                <input className="form-control" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={t("plantations.agronomist.titlePlaceholder")} />
               </div>
               <div className="col-md-3">
-                <label className="form-label small fw-medium">Data da recomendação *</label>
+                <label className="form-label small fw-medium">{t("plantations.agronomist.recommendationDate")}</label>
                 <input className="form-control" type="date" value={form.recommendation_date} onChange={(e) => setForm({ ...form, recommendation_date: e.target.value })} />
               </div>
               <div className="col-md-3">
-                <label className="form-label small fw-medium">Data sugerida para aplicação</label>
+                <label className="form-label small fw-medium">{t("plantations.agronomist.applicationDate")}</label>
                 <input className="form-control" type="date" value={form.suggested_application_date} onChange={(e) => setForm({ ...form, suggested_application_date: e.target.value })} />
               </div>
               <div className="col-lg-6">
-                <label className="form-label small fw-medium">Observações / objetivo</label>
-                <textarea className="form-control" rows={2} maxLength={300} value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder="Descreva o objetivo da recomendação..." />
+                <label className="form-label small fw-medium">{t("plantations.agronomist.objective")}</label>
+                <textarea className="form-control" rows={2} maxLength={300} value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder={t("plantations.agronomist.objectivePlaceholder")} />
                 <div className="text-end text-muted small">{form.objective.length}/300</div>
               </div>
               <div className="col-md-3">
-                <label className="form-label small fw-medium">Prioridade</label>
+                <label className="form-label small fw-medium">{t("plantations.agronomist.priority").replace(":", "")}</label>
                 <select className="form-select" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                  {priorityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {priorityOptions.map((option) => <option key={option} value={option}>{t(`plantations.agronomist.priority${option === "medium" ? "Medium" : option === "high" ? "High" : "Low"}` as TranslationKey)}</option>)}
                 </select>
               </div>
               <div className="col-md-3">
-                <label className="form-label small fw-medium">Status</label>
+                <label className="form-label small fw-medium">{t("plantations.agronomist.status")}</label>
                 <select className="form-select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                  {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {statusOptions.map((option) => <option key={option} value={option}>{t(`plantations.agronomist.status${option === "in_progress" ? "InProgress" : option === "completed" ? "Completed" : "Pending"}` as TranslationKey)}</option>)}
                 </select>
               </div>
             </div>
 
-            <h6 className="fw-bold text-success mb-1">Produtos em estoque</h6>
-            <p className="text-muted small mb-3">Selecione os produtos agrícolas disponíveis no estoque para usar nesta cultura.</p>
+            <h6 className="fw-bold text-success mb-1">{t("plantations.agronomist.stockProducts")}</h6>
+            <p className="text-muted small mb-3">{t("plantations.agronomist.stockDescription")}</p>
             <div className="table-responsive mb-3">
               <table className={`table table-hover align-middle mb-0 agro-table ${styles.productsTable}`}>
                 <colgroup>
@@ -754,13 +739,13 @@ export default function AgronomoPage() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Categoria</th>
-                    <th>Produto</th>
-                    <th>Dose/ha</th>
-                    <th>Unidade</th>
-                    <th>Quantidade total</th>
-                    <th>Observações</th>
-                    <th className="text-center">Ações</th>
+                    <th>{t("plantations.agronomist.category")}</th>
+                    <th>{t("plantations.agronomist.product")}</th>
+                    <th>{t("plantations.agronomist.dose")}</th>
+                    <th>{t("plantations.agronomist.unit")}</th>
+                    <th>{t("plantations.agronomist.totalQuantity")}</th>
+                    <th>{t("plantations.agronomist.notes")}</th>
+                    <th className="text-center">{t("plantations.agronomist.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -772,9 +757,9 @@ export default function AgronomoPage() {
                           value={product.category}
                           onChange={(e) => updateProduct(index, { category: e.target.value, item: "", item_search: "" })}
                         >
-                          <option value="">Todas</option>
+                          <option value="">{t("plantations.agronomist.all")}</option>
                           {agriculturalCategoryOptions.map((category) => (
-                            <option key={category.value} value={category.value}>{category.label}</option>
+                            <option key={category} value={category}>{t(`plantations.agronomist.category.${category}` as TranslationKey)}</option>
                           ))}
                         </select>
                       </td>
@@ -784,13 +769,13 @@ export default function AgronomoPage() {
                             className="form-control form-control-sm"
                             value={product.item_search}
                             onChange={(e) => handleProductSearchChange(index, e.target.value)}
-                            placeholder="Buscar produto"
+                            placeholder={t("plantations.agronomist.searchProduct")}
                             list={`agronomo-produtos-${index}`}
                           />
                           <datalist id={`agronomo-produtos-${index}`}>
                             {getProductSuggestions(product).map((item) => (
                               <option key={item.id} value={item.nome}>
-                                {item.categoria_display || item.categoria || "Sem categoria"}
+                                {item.categoria_display || item.categoria || t("plantations.agronomist.noCategory")}
                               </option>
                             ))}
                           </datalist>
@@ -805,11 +790,11 @@ export default function AgronomoPage() {
                                 aria-label={item.nome}
                               >
                                 {item.nome.length > 30 ? `${item.nome.slice(0, 30)}...` : item.nome}
-                                <span className={styles.productDetails}>({item.estoque_atual} {item.unidade_medida || "un."} em estoque · {item.categoria_display || item.categoria || "Sem categoria"})</span>
+                                <span className={styles.productDetails}>({t("plantations.agronomist.stockAvailable").replace("{quantity}", String(item.estoque_atual)).replace("{unit}", item.unidade_medida || "un.")} · {item.categoria_display || item.categoria || t("plantations.agronomist.noCategory")})</span>
                               </button>
                             ))}
                             {getProductSuggestions(product).length === 0 && (
-                              <span className="text-muted small">Nenhum produto agrícola com saldo disponível encontrado para esta busca.</span>
+                              <span className="text-muted small">{t("plantations.agronomist.noProducts")}</span>
                             )}
                           </div>
                         </div>
@@ -826,7 +811,7 @@ export default function AgronomoPage() {
                         <input className="form-control form-control-sm" type="number" step="0.01" value={calculateTotalQuantity(product)} readOnly placeholder="0,00" />
                       </td>
                       <td>
-                        <input className="form-control form-control-sm" value={product.notes} onChange={(e) => updateProduct(index, { notes: e.target.value })} placeholder="Observações" />
+                        <input className="form-control form-control-sm" value={product.notes} onChange={(e) => updateProduct(index, { notes: e.target.value })}                         placeholder={t("plantations.agronomist.notes")} />
                       </td>
                       <td className="text-center">
                         <Button variant="outline-danger" size="sm" onClick={() => setProducts((prev) => prev.length === 1 ? [{ ...emptyProduct }] : prev.filter((_, productIndex) => productIndex !== index))}>
@@ -863,7 +848,7 @@ export default function AgronomoPage() {
                   Cancelar
                 </Button>
                 <Button variant="agro" onClick={handleSaveRecommendation} disabled={saving}>
-                  <Save size={16} /> {saving ? "Salvando..." : editingRecommendationId ? "Atualizar recomendação" : "Salvar recomendação"}
+                  <Save size={16} /> {saving ? t("plantations.agronomist.saving") : editingRecommendationId ? t("plantations.agronomist.update") : t("plantations.agronomist.save")}
                 </Button>
               </div>
             </div>

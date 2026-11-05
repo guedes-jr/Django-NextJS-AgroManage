@@ -13,6 +13,7 @@ import { farmStructureService, type FarmStructureItemPayload, type FarmStructure
 import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
 import { LocationPicker } from "@/components/farm/LocationPicker";
 import { useToast } from "@/components/ui/Toast";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import styles from "./StructureDedicatedPage.module.css";
 import axios from "axios";
@@ -34,12 +35,6 @@ export interface StructureDedicatedPageProps {
 
 const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "0.00" };
 
-const money = (value: string | number) =>
-  Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-const fmtArea = (v: string | number | null | undefined) =>
-  v ? Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) + " m²" : "—";
-
 const apiMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error) || !error.response?.data) return fallback;
   const first = Object.entries(error.response.data as Record<string, unknown>)[0];
@@ -59,6 +54,17 @@ const CATEGORY_NAV: Array<{ value: FarmStructureCategory; label: string; icon: s
   { value: "fence",          label: "Cercas",          icon: "🔒" },
   { value: "other",          label: "Outros",          icon: "⋯" },
 ];
+const CATEGORY_LABEL_KEYS: Record<FarmStructureCategory, string> = {
+  corral: "structure.home.corral",
+  pigsty: "structure.category.pigsty",
+  poultry_house: "structure.category.poultry",
+  irrigation: "structure.category.irrigation",
+  warehouse: "structure.category.warehouse",
+  water_reservoir: "structure.category.reservoir",
+  facility: "structure.category.facility",
+  fence: "structure.category.fence",
+  other: "structure.category.other",
+};
 
 const getCategoryPath = (cat: FarmStructureCategory) => {
   const map: Record<FarmStructureCategory, string> = {
@@ -70,8 +76,9 @@ const getCategoryPath = (cat: FarmStructureCategory) => {
 };
 
 export function StructureDedicatedPage({
-  category, categoryLabel, categoryPlural, title, subtitle, icon: Icon, defaultMaterials, defaultName
+  category, icon: Icon, defaultMaterials, defaultName
 }: StructureDedicatedPageProps) {
+  const { language, t } = useOrganizationLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
@@ -105,6 +112,13 @@ export function StructureDedicatedPage({
     try { return (JSON.parse(localStorage.getItem("user") || "{}") as StoredUser).role || ""; } catch { return ""; }
   });
   const canDelete = role === "owner" || role === "admin";
+  const categoryLabel = t(CATEGORY_LABEL_KEYS[category] as Parameters<typeof t>[0]);
+  const title = categoryLabel;
+  const subtitle = t("structure.dedicated.subtitle");
+  const formatMoney = (value: string | number) =>
+    Number(value || 0).toLocaleString(language, { style: "currency", currency: "BRL" });
+  const formatArea = (value: string | number | null | undefined) =>
+    value ? `${Number(value).toLocaleString(language, { minimumFractionDigits: 2 })} m²` : "—";
 
   useEffect(() => {
     let active = true;
@@ -115,9 +129,9 @@ export function StructureDedicatedPage({
       setFarmId(list[0]?.id || "");
       setForm((v) => ({ ...v, farm: list[0]?.id || "" }));
       if (!list.length) setLoading(false);
-    }).catch(() => { if (active) { setError("Não foi possível carregar as fazendas."); setLoading(false); } });
+    }).catch(() => { if (active) { setError(t("structure.dedicated.loadFarmsFailed")); setLoading(false); } });
     return () => { active = false; };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!farmId) return;
@@ -139,11 +153,11 @@ export function StructureDedicatedPage({
           }
         }
       })
-      .catch(() => { if (active) setError(`Não foi possível carregar: ${categoryPlural}.`); })
+      .catch(() => { if (active) setError(t("structure.dedicated.loadCategoryFailed", { category: categoryLabel })); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farmId, category]);
+  }, [farmId, category, categoryLabel, t]);
 
   const refresh = async () => {
     const [listResponse, summaryResponse] = await Promise.all([
@@ -169,9 +183,9 @@ export function StructureDedicatedPage({
   ]), [structures]);
 
   const filteredReportRows = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase("pt-BR").includes(term));
-  }, [reportRows, search]);
+    const term = search.trim().toLocaleLowerCase(language);
+    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase(language).includes(term));
+  }, [reportRows, search, language]);
 
   const lastRegisteredLocation = useMemo(() => {
     const asset = structures.find((s) => s.latitude && s.longitude);
@@ -211,9 +225,9 @@ export function StructureDedicatedPage({
       setEditing(response.data); setSelected(response.data);
       setStructureItem({ ...emptyItem, structure: response.data.id });
       await refresh();
-      showToast(editing ? `${categoryLabel} atualizado.` : `${categoryLabel} salvo.`, "success");
+      showToast(editing ? t("structure.dedicated.updateSuccess") : t("structure.dedicated.saveSuccess"), "success");
     } catch (err) {
-      const msg = apiMessage(err, `Não foi possível salvar os dados de ${categoryLabel.toLowerCase()}.`);
+      const msg = apiMessage(err, t("structure.dedicated.save"));
       setError(msg); showToast(msg, "error");
     } finally { setSaving(false); }
   };
@@ -225,27 +239,27 @@ export function StructureDedicatedPage({
       setStructureItem({ ...emptyItem, structure: selected.id });
       setShowAddItem(false);
       await refresh();
-      showToast("Item adicionado.", "success");
+      showToast(t("structure.dedicated.itemAdded"), "success");
     } catch (err) {
-      const msg = apiMessage(err, "Não foi possível adicionar o item.");
+      const msg = apiMessage(err, t("structure.dedicated.addItemFailed"));
       setError(msg); showToast(msg, "error");
     }
   };
 
   const removeStructure = async (asset: FarmStructure) => {
-    if (!confirm(`Excluir: ${asset.name}?`)) return;
+    if (!confirm(t("structure.dedicated.deleteConfirm", { name: asset.name }))) return;
     try {
       await farmStructureService.remove(asset.id);
       if (selected?.id === asset.id) resetForm();
       await refresh();
-      showToast("Excluído com sucesso.", "success");
-    } catch { setError("Não foi possível excluir o item."); }
+      showToast(t("structure.dedicated.deleted"), "success");
+    } catch { setError(t("structure.dedicated.deleteFailed")); }
   };
 
   // Summary totals
   const totalItems = selected?.items.length || 0;
   const acquisitionDate = selected?.acquisition_date
-    ? new Date(selected.acquisition_date).toLocaleDateString("pt-BR")
+    ? new Date(selected.acquisition_date).toLocaleDateString(language)
     : "—";
 
   return (
@@ -263,7 +277,7 @@ export function StructureDedicatedPage({
           </div>
         </div>
         <button className={styles.heroBtn} onClick={resetForm}>
-          <Plus size={16} /> Nova Estrutura
+          <Plus size={16} /> {t("structure.dedicated.new")}
         </button>
       </header>
 
@@ -283,17 +297,17 @@ export function StructureDedicatedPage({
         {error && <div className={styles.error}>{error}</div>}
 
         {/* ── 1. Category nav ── */}
-        <p className={styles.stepLabel}>1. Escolha a categoria da estrutura</p>
+        <p className={styles.stepLabel}>{t("structure.dedicated.stepCategory")}</p>
         <div className={styles.categoryRow}>
-          {CATEGORY_NAV.map(({ value, label, icon }) => (
+          {CATEGORY_NAV.map(({ value, icon }) => (
             <button
               key={value}
               className={`${styles.catCard} ${value === category ? styles.active : ""}`}
               onClick={() => router.push(`/home/estrutura/${getCategoryPath(value)}`)}
             >
               <div className={styles.catIcon}>{icon}</div>
-              <h3>{label}</h3>
-              <span>{allCategoryCounts[value] ?? 0} itens</span>
+              <h3>{t(CATEGORY_LABEL_KEYS[value] as Parameters<typeof t>[0])}</h3>
+              <span>{t("structure.home.categoryCount", { count: (allCategoryCounts[value] ?? 0).toLocaleString(language) })}</span>
             </button>
           ))}
         </div>
@@ -302,23 +316,23 @@ export function StructureDedicatedPage({
         <form onSubmit={saveStructure}>
           <div className={styles.launchPanel}>
             <p className={styles.launchTitle}>
-              2. Lançamento da estrutura — {categoryLabel}
+              {t("structure.dedicated.launch")} — {categoryLabel}
             </p>
 
             {/* top field row */}
             <div className="row g-3 mb-4">
               <div className="col-md-4 col-12">
-                <label className="form-label fw-semibold small mb-1">Nome da estrutura *</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.name")}</label>
                 <input
                   required
                   className="form-control"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder={`Ex.: ${defaultName}`}
+                  placeholder={t("structure.dedicated.name")}
                 />
               </div>
               <div className="col-md-2 col-6">
-                <label className="form-label fw-semibold small mb-1">Quantidade</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.quantity")}</label>
                 <input
                   required type="number" min={1}
                   className="form-control"
@@ -327,7 +341,7 @@ export function StructureDedicatedPage({
                 />
               </div>
               <div className="col-md-3 col-6">
-                <label className="form-label fw-semibold small mb-1">Data de aquisição</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.acquisitionDate")}</label>
                 <input
                   type="date"
                   className="form-control"
@@ -336,18 +350,18 @@ export function StructureDedicatedPage({
                 />
               </div>
               <div className="col-md-3 col-6">
-                <label className="form-label fw-semibold small mb-1">Situação</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.status")}</label>
                 <select
                   className="form-select"
                   value={form.is_active ? "active" : "inactive"}
                   onChange={(e) => setForm({ ...form, is_active: e.target.value === "active" })}
                 >
-                  <option value="active">Ativa</option>
-                  <option value="inactive">Inativa</option>
+                  <option value="active">{t("structure.dedicated.active")}</option>
+                  <option value="inactive">{t("structure.dedicated.inactive")}</option>
                 </select>
               </div>
               <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">Valor pago (R$) *</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.paid")}</label>
                 <input
                   required type="number" min="0" step="0.01"
                   className="form-control"
@@ -356,7 +370,7 @@ export function StructureDedicatedPage({
                 />
               </div>
               <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">Valor atual (R$) *</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.current")}</label>
                 <input
                   required type="number" min="0" step="0.01"
                   className="form-control"
@@ -365,12 +379,12 @@ export function StructureDedicatedPage({
                 />
               </div>
               <div className="col-md-12">
-                <label className="form-label fw-semibold small mb-1">Descrição</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.description")}</label>
                 <input
                   className="form-control"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Observações sobre a estrutura..."
+                  placeholder={t("structure.dedicated.descriptionPlaceholder")}
                 />
               </div>
             </div>
@@ -382,26 +396,26 @@ export function StructureDedicatedPage({
                 <div className={styles.itemsPanelHeader}>
                   <div className={styles.itemsPanelTitle}>
                     <span className={styles.itemsNum}>1</span>
-                    Itens Utilizados
+                    {t("structure.dedicated.items")}
                   </div>
                   {selected && (
                     <button type="button" className={styles.addItemBtn} onClick={() => setShowAddItem(!showAddItem)}>
-                      <Plus size={14} /> Adicionar item
+                      <Plus size={14} /> {t("structure.dedicated.addItem")}
                     </button>
                   )}
                 </div>
                 {!selected && (
                   <div className="p-3 text-muted small">
-                    Salve a estrutura acima para adicionar itens.
+                    {t("structure.dedicated.saveBeforeItems")}
                   </div>
                 )}
                 {selected && (
                   <table className={styles.itemsTable}>
                     <thead>
                       <tr>
-                        <th>Item</th>
-                        <th>Quantidade</th>
-                        <th>Unidade</th>
+                        <th>{t("structure.dedicated.item")}</th>
+                        <th>{t("structure.dedicated.quantity")}</th>
+                        <th>{t("structure.dedicated.unit")}</th>
                         <th />
                       </tr>
                     </thead>
@@ -414,7 +428,7 @@ export function StructureDedicatedPage({
                               value={structureItem.name}
                               onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })}
                               list="dedicated-materials"
-                              placeholder="Nome do item..."
+                              placeholder={t("structure.dedicated.itemName")}
                             />
                             <datalist id="dedicated-materials">
                               {defaultMaterials.map((opt) => <option key={opt} value={opt} />)}
@@ -459,14 +473,14 @@ export function StructureDedicatedPage({
                       {selected.items.length === 0 && !showAddItem && (
                         <tr>
                           <td colSpan={4} className="text-center text-muted small py-3">
-                            Nenhum item adicionado ainda.
+                            {t("structure.dedicated.noItems")}
                           </td>
                         </tr>
                       )}
                       {selected.items.map((item) => (
                         <tr key={item.id}>
                           <td className="fw-medium">{item.name}</td>
-                          <td>{Number(item.quantity).toLocaleString("pt-BR")}</td>
+                          <td>{Number(item.quantity).toLocaleString(language)}</td>
                           <td>{item.unit}</td>
                           <td>
                             {canDelete && (
@@ -474,7 +488,7 @@ export function StructureDedicatedPage({
                                 type="button"
                                 className="btn btn-sm text-danger p-0"
                                 onClick={() => void farmStructureService.removeItem(item.id).then(refresh)}
-                                title="Remover item"
+                                title={t("structure.dedicated.removeItem")}
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -492,11 +506,11 @@ export function StructureDedicatedPage({
                 <div className={styles.locationPanelHeader}>
                   <div className={styles.locationPanelTitle}>
                     <span className={styles.locationNum}>2</span>
-                    Localização (opcional)
+                    {t("structure.dedicated.location")}
                   </div>
                 </div>
                 <div className={styles.locationBody}>
-                  <p className={styles.locationSubtitle}>Marque no mapa a localização do sistema</p>
+                  <p className={styles.locationSubtitle}>{t("structure.dedicated.mapHint")}</p>
                   <LocationPicker
                     latitude={form.latitude}
                     longitude={form.longitude}
@@ -505,7 +519,7 @@ export function StructureDedicatedPage({
                   />
                   <div className="mt-2">
                     <label className="form-label small text-muted mb-1 d-flex align-items-center gap-1">
-                      <MapPin size={12} /> Coordenadas (opcional)
+                      <MapPin size={12} /> {t("structure.dedicated.coordinates")}
                     </label>
                     <input
                       className="form-control form-control-sm"
@@ -523,11 +537,11 @@ export function StructureDedicatedPage({
               <div className={styles.dimTitle}>
                 <span className={styles.dimNum}>3</span>
                 <RulerIcon size={14} />
-                Dimensões
+                {t("structure.dedicated.dimensions")}
               </div>
               <div className={styles.dimGrid}>
                 <div className={styles.dimField}>
-                  <label>Área construída (m²)</label>
+                  <label>{t("structure.dedicated.builtArea")}</label>
                   <input
                     type="number" min="0" step="0.01"
                     placeholder="Ex.: 500,00"
@@ -536,7 +550,7 @@ export function StructureDedicatedPage({
                   />
                 </div>
                 <div className={styles.dimField}>
-                  <label>Comprimento (m)</label>
+                  <label>{t("structure.dedicated.length")}</label>
                   <input
                     type="number" min="0" step="0.01"
                     placeholder="Ex.: 250,00"
@@ -545,7 +559,7 @@ export function StructureDedicatedPage({
                   />
                 </div>
                 <div className={styles.dimField}>
-                  <label>Largura (m)</label>
+                  <label>{t("structure.dedicated.width")}</label>
                   <input
                     type="number" min="0" step="0.01"
                     placeholder="Ex.: 200,00"
@@ -558,9 +572,9 @@ export function StructureDedicatedPage({
 
             {/* Actions */}
             <div className={styles.formActions}>
-              <button type="button" className={styles.btnSecondary} onClick={resetForm}>Limpar</button>
+              <button type="button" className={styles.btnSecondary} onClick={resetForm}>{t("structure.dedicated.clear")}</button>
               <button className={styles.btnPrimary} disabled={saving || !farmId}>
-                {saving ? "Salvando..." : editing ? "Atualizar" : "Salvar"}
+                {saving ? t("structure.dedicated.saving") : editing ? t("structure.dedicated.update") : t("structure.dedicated.save")}
               </button>
             </div>
           </div>
@@ -568,35 +582,35 @@ export function StructureDedicatedPage({
 
         {/* ── Summary Total ── */}
         <div className={styles.summaryTotal}>
-          <p className={styles.summaryTotalTitle}>4. Resumo Total</p>
+          <p className={styles.summaryTotalTitle}>{t("structure.dedicated.totalSummary")}</p>
           <div className={styles.summaryCards}>
             <div className={styles.summaryCard}>
               <div className={styles.summaryCardIcon}><ClipboardList size={20} /></div>
               <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>Total de Itens</span>
-                <span className={styles.summaryCardValue}>{totalItems}</span>
-                <span className={styles.summaryCardSub}>itens cadastrados</span>
+                <span className={styles.summaryCardLabel}>{t("structure.dedicated.registeredItems")}</span>
+                <span className={styles.summaryCardValue}>{totalItems.toLocaleString(language)}</span>
+                <span className={styles.summaryCardSub}>{t("structure.dedicated.registeredItemsHelp")}</span>
               </div>
             </div>
             <div className={styles.summaryCard}>
               <div className={styles.summaryCardIcon}><DollarSign size={20} /></div>
               <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>Categoria</span>
+                <span className={styles.summaryCardLabel}>{t("structure.dedicated.category")}</span>
                 <span className={styles.summaryCardValue}>{categoryLabel}</span>
-                <span className={styles.summaryCardSub}>{structures.length} {structures.length === 1 ? "registro" : "registros"} no total</span>
+                <span className={styles.summaryCardSub}>{t("structure.dedicated.records", { count: structures.length.toLocaleString(language) })}</span>
               </div>
             </div>
             <div className={styles.summaryCard}>
               <div className={styles.summaryCardIcon}><Maximize2 size={20} /></div>
               <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>Área Construída</span>
-                <span className={styles.summaryCardValue}>{fmtArea(selected?.built_area_m2)}</span>
+                <span className={styles.summaryCardLabel}>{t("structure.dedicated.builtArea")}</span>
+                <span className={styles.summaryCardValue}>{formatArea(selected?.built_area_m2)}</span>
               </div>
             </div>
             <div className={styles.summaryCard}>
               <div className={styles.summaryCardIcon}><CalendarDays size={20} /></div>
               <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>Data de Cadastro</span>
+                <span className={styles.summaryCardLabel}>{t("structure.dedicated.registrationDate")}</span>
                 <span className={styles.summaryCardValue} style={{ fontSize: "1rem" }}>{acquisitionDate}</span>
               </div>
             </div>
@@ -606,23 +620,23 @@ export function StructureDedicatedPage({
         {/* ── Complete report ── */}
         <div className={styles.reportPanel}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-            <p className={styles.reportTitle} style={{ margin: 0 }}>Relatório completo — {categoryPlural}</p>
+            <p className={styles.reportTitle} style={{ margin: 0 }}>{t("structure.dedicated.report")} — {categoryLabel}</p>
             <div className={styles.search}>
               <Search size={15} />
-              <input placeholder="Buscar estrutura ou item" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input placeholder={t("structure.dedicated.search")} value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
           <div className="table-responsive">
             <table className="table align-middle">
               <thead>
                 <tr>
-                  <th>Tipo</th>
-                  <th>Item</th>
-                  <th>Vinculado a</th>
-                  <th>Área</th>
-                  <th>Quantidade</th>
-                  <th>Valor pago</th>
-                  <th>Valor atual</th>
+                  <th>{t("structure.dedicated.type")}</th>
+                  <th>{t("structure.dedicated.item")}</th>
+                  <th>{t("structure.dedicated.linkedTo")}</th>
+                  <th>{t("structure.dedicated.area")}</th>
+                  <th>{t("structure.dedicated.quantity")}</th>
+                  <th>{t("structure.dedicated.paidValue")}</th>
+                  <th>{t("structure.dedicated.currentValue")}</th>
                   <th />
                 </tr>
               </thead>
@@ -632,10 +646,10 @@ export function StructureDedicatedPage({
                   : filteredReportRows.length
                     ? filteredReportRows.map((row) =>
                         row.kind === "structure"
-                          ? <StructureReportRow key={row.key} asset={row.asset} categoryLabel={categoryLabel} canDelete={canDelete} onEdit={editStructure} onRemove={removeStructure} />
-                          : <MaterialReportRow key={row.key} asset={row.asset} item={row.item!} canDelete={canDelete} onRemoved={refresh} />
+                          ? <StructureReportRow key={row.key} asset={row.asset} categoryLabel={categoryLabel} canDelete={canDelete} onEdit={editStructure} onRemove={removeStructure} language={language} t={t} />
+                          : <MaterialReportRow key={row.key} asset={row.asset} item={row.item!} canDelete={canDelete} onRemoved={refresh} language={language} t={t} />
                       )
-                    : <tr><td colSpan={8} className="text-center text-muted py-5">Nenhum registro encontrado.</td></tr>
+                    : <tr><td colSpan={8} className="text-center text-muted py-5">{t("structure.dedicated.noRecords")}</td></tr>
                 }
               </tbody>
             </table>
@@ -648,42 +662,44 @@ export function StructureDedicatedPage({
 
 // ── Report rows ─────────────────────────────────────────────────────────────
 
-function StructureReportRow({ asset, categoryLabel, canDelete, onEdit, onRemove }: {
+function StructureReportRow({ asset, categoryLabel, canDelete, onEdit, onRemove, language, t }: {
   asset: FarmStructure; categoryLabel: string; canDelete: boolean;
   onEdit: (a: FarmStructure) => void; onRemove: (a: FarmStructure) => Promise<void>;
+  language: string; t: ReturnType<typeof useOrganizationLocale>["t"];
 }) {
   return (
     <tr>
       <td><span className="badge bg-success-subtle text-success border border-success-subtle">{categoryLabel}</span></td>
       <td><strong>{asset.name}</strong>{asset.description && <div className="text-muted small">{asset.description}</div>}</td>
-      <td>Estrutura principal</td>
+      <td>{t("structure.dedicated.mainStructure")}</td>
       <td>{asset.built_area_m2 ? `${asset.built_area_m2} m²` : "—"}</td>
       <td>{asset.quantity}</td>
-      <td>{money(Number(asset.acquisition_value) * asset.quantity)}</td>
-      <td className="text-success fw-semibold">{money(Number(asset.current_value) * asset.quantity)}</td>
+      <td>{(Number(asset.acquisition_value) * asset.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
+      <td className="text-success fw-semibold">{(Number(asset.current_value) * asset.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
-        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(asset)} title="Editar"><Pencil size={14} /></button>
-        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(asset)} title="Excluir"><Trash2 size={14} /></button>}
+        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(asset)} title={t("structure.home.edit")}><Pencil size={14} /></button>
+        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(asset)} title={t("structure.home.delete")}><Trash2 size={14} /></button>}
       </td>
     </tr>
   );
 }
 
-function MaterialReportRow({ asset, item, canDelete, onRemoved }: {
+function MaterialReportRow({ asset, item, canDelete, onRemoved, language, t }: {
   asset: FarmStructure; item: FarmStructureItem; canDelete: boolean; onRemoved: () => Promise<void>;
+  language: string; t: ReturnType<typeof useOrganizationLocale>["t"];
 }) {
   return (
     <tr className={styles.implementRow}>
-      <td><span className="badge bg-secondary-subtle text-secondary border">Item utilizado</span></td>
+      <td><span className="badge bg-secondary-subtle text-secondary border">{t("structure.dedicated.usedItem")}</span></td>
       <td><strong>{item.name}</strong></td>
       <td>{asset.name}</td>
       <td>—</td>
       <td>{item.quantity} {item.unit}</td>
-      <td>{money(item.value)}</td>
+      <td>{Number(item.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td>—</td>
       <td className="text-end">
         {canDelete && (
-          <button className="btn btn-sm btn-outline-danger" onClick={() => void farmStructureService.removeItem(item.id).then(onRemoved)} title="Excluir item">
+          <button className="btn btn-sm btn-outline-danger" onClick={() => void farmStructureService.removeItem(item.id).then(onRemoved)} title={t("structure.dedicated.removeItem")}>
             <Trash2 size={14} />
           </button>
         )}

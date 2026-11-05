@@ -22,6 +22,7 @@ import { apiClient } from "@/services/api";
 import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
 import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 import { HistoryTimeline, TimelineEvent } from "@/components/ui/HistoryTimeline";
+import { useOrganizationLocale } from "@/lib/locale";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,13 +164,14 @@ function TabSkeleton() {
 // ─── Loading overlay for background refetch ────────────────────────────────────
 
 function RefetchOverlay() {
+  const { t } = useOrganizationLocale();
   return (
     <div
       className="d-flex align-items-center justify-content-center py-5 text-muted-foreground gap-2"
       style={{ fontSize: "0.85rem" }}
     >
       <Loader2 size={18} className="spin-animation" />
-      <span>Atualizando dados...</span>
+      <span>{t("reproduction.refreshing")}</span>
     </div>
   );
 }
@@ -222,6 +224,7 @@ export function ReproducaoDashboard({
 }) {
   const router = useRouter();
   const { showToast } = useToast();
+  const { language, t } = useOrganizationLocale();
   const [internalActiveTab, setInternalActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
   const [noReproducersWarningOpen, setNoReproducersWarningOpen] = useState(false);
@@ -317,6 +320,7 @@ export function ReproducaoDashboard({
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = controlledOnTabChange ?? setInternalActiveTab;
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
+  const isSwineMatingTab = (tab?: TabConfig) => config.especie === "suinos" && tab?.id === "matrizes";
 
   // Reset selection when tab changes
   useEffect(() => {
@@ -341,7 +345,7 @@ export function ReproducaoDashboard({
     const availableRows = activeTabRows.length > 0 ? activeTabRows : (currentTab?.rows || []);
 
     if (availableRows.length === 0) {
-      alert("Nenhum lote selecionado para transferência.");
+      alert(t("reproduction.noBatchSelected"));
       return;
     }
 
@@ -369,16 +373,18 @@ export function ReproducaoDashboard({
     const avgWeight = totalQtyForWeight > 0 ? (totalWeightProduct / totalQtyForWeight) : 0;
     const initialAvgWeight = avgWeight > 0 ? Math.round(avgWeight * 100) / 100 : (parseWeight(firstRow?.peso || firstRow?.avg_weight_kg) || "");
 
-    const title = targetPhase === "crescimento" ? "Transferir para Crescimento" : "Transferir para Engorda";
+    const title = targetPhase === "crescimento"
+      ? t("reproduction.transferGrowth")
+      : t("reproduction.transferFattening");
     const subtitle = targetRows.length > 1
-      ? `Transferindo ${targetRows.length} lotes selecionados`
-      : `Transferindo lote ${initialBatchCode}`;
+      ? t("reproduction.transferringBatches", { count: targetRows.length })
+      : t("reproduction.transferringBatch", { batch: initialBatchCode });
 
     const fields: ModalField[] = [];
 
     fields.push({
       name: "batch_code_display",
-      label: targetRows.length > 1 ? "Lotes Selecionados" : "Lote",
+      label: targetRows.length > 1 ? t("reproduction.selectedBatches") : t("reproduction.batch"),
       type: "text",
       initialValue: targetRows.length > 1
         ? targetRows.map(r => r.lote || r.batch_code).join(", ")
@@ -391,53 +397,53 @@ export function ReproducaoDashboard({
     if (isMultiSelect) {
       fields.push({
         name: "merge_batches",
-        label: "Juntar lotes em um único lote?",
+        label: t("reproduction.mergeBatchesQuestion"),
         type: "select",
         options: [
-          { value: "Não", label: "Não (Transferir lotes individualmente)" },
-          { value: "Sim", label: "Sim (Mesclar lotes em um novo lote)" }
+          { value: "no", label: t("reproduction.transferIndividually") },
+          { value: "yes", label: t("reproduction.mergeIntoNewBatch") }
         ],
-        initialValue: "Não",
+        initialValue: "no",
         required: true,
         colSpan: "full"
       });
 
       fields.push({
         name: "new_batch_code",
-        label: "Código do Novo Lote",
+        label: t("reproduction.newBatchCode"),
         type: "text",
-        placeholder: `L-${targetPhase.toUpperCase()}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
-        initialValue: `L-${targetPhase.toUpperCase()}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+        placeholder: `L-${targetPhase.toUpperCase()}-${new Date().toLocaleDateString(language).replace(/\//g, '')}`,
+        initialValue: `L-${targetPhase.toUpperCase()}-${new Date().toLocaleDateString(language).replace(/\//g, '')}`,
         required: true,
         colSpan: "full",
-        showIf: (values) => values.merge_batches === "Sim"
+        showIf: (values) => values.merge_batches === "yes"
       });
     }
 
     fields.push({
       name: "quantity",
-      label: "Quantidade de Animais",
+      label: t("reproduction.animalQuantity"),
       type: "number",
       initialValue: initialQty,
       required: true,
       colSpan: "half",
-      showIf: (values) => !isMultiSelect || values.merge_batches === "Sim"
+      showIf: (values) => !isMultiSelect || values.merge_batches === "yes"
     });
 
     fields.push({
       name: "avg_weight_kg",
-      label: "Peso Médio (kg)",
+      label: t("reproduction.averageWeight"),
       type: "number",
       placeholder: "0.00",
       initialValue: initialAvgWeight,
       required: true,
       colSpan: "half",
-      showIf: (values) => !isMultiSelect || values.merge_batches === "Sim"
+      showIf: (values) => !isMultiSelect || values.merge_batches === "yes"
     });
 
     fields.push({
       name: "entry_date",
-      label: "Data da Transferência",
+      label: t("reproduction.transferDate"),
       type: "date",
       initialValue: new Date().toISOString().split('T')[0],
       required: true,
@@ -450,7 +456,7 @@ export function ReproducaoDashboard({
       subtitle,
       fields,
       onConfirm: async (data) => {
-        const isMerging = data.merge_batches === "Sim";
+        const isMerging = data.merge_batches === "yes";
 
         try {
           if (isMerging) {
@@ -469,7 +475,9 @@ export function ReproducaoDashboard({
               species_code_input: "suinos",
               farm_id: firstBatchDetail.farm_id || firstBatchDetail.farm,
               entry_date: data.entry_date,
-              notes: `Lote criado a partir da junção dos lotes: ${targetRows.map(r => r.lote || r.batch_code).join(", ")}`,
+              notes: t("reproduction.mergedBatchesNote", {
+                batches: targetRows.map(r => r.lote || r.batch_code).join(", "),
+              }),
               source_batch_ids: targetRows.map(r => r.id)
             });
 
@@ -478,7 +486,7 @@ export function ReproducaoDashboard({
               updateAnimalBatch(r.id as number, { status: "finished" })
             ));
 
-            showToast("Lotes mesclados e transferidos com sucesso!", "success");
+            showToast(t("reproduction.mergeTransferSuccess"), "success");
           } else {
             // Transferring individually — congela a fase anterior via change-phase
             if (targetRows.length === 1) {
@@ -500,13 +508,18 @@ export function ReproducaoDashboard({
                 });
               }));
             }
-            showToast(`${targetRows.length} lote(s) transferido(s) com sucesso!`, "success");
+            showToast(
+              targetRows.length === 1
+                ? t("reproduction.batchTransferred")
+                : t("reproduction.batchesTransferred", { count: targetRows.length }),
+              "success"
+            );
           }
           onSuccess?.();
           setActionModal(prev => ({ ...prev, open: false }));
         } catch (err: any) {
           console.error("Erro ao transferir lotes:", err);
-          showToast(err.response?.data?.detail || "Erro ao transferir lotes. Verifique as informações.", "error");
+          showToast(err.response?.data?.detail || t("reproduction.batchTransferFailed"), "error");
         }
       }
     });
@@ -514,7 +527,7 @@ export function ReproducaoDashboard({
 
   const handleAction = (action: any, rows: any[] = []) => {
     const currentTab = config.tabs.find((t) => t.id === activeTab);
-    const isMatingAction = action.type === 'mating_marra' || (action.type === 'primary' && currentTab?.primaryActionLabel === "Registrar Cobertura");
+    const isMatingAction = action.type === 'mating_marra' || (action.type === 'primary' && isSwineMatingTab(currentTab));
 
     if (isMatingAction && !hasReproducers && !hasSemenStock) {
       setNoReproducersWarningOpen(true);
@@ -530,7 +543,7 @@ export function ReproducaoDashboard({
       // Em Gestação/Maternidade, `id` pertence ao evento reprodutivo.
       // As ações sanitárias devem sempre apontar para a matriz vinculada.
       value: String(r.animal_id || r.id || r.pk || r.identifier || ""),
-      label: String(r.identifier || r.batch_code || r.name || r.id || r.pk || "Sem ID")
+      label: String(r.identifier || r.batch_code || r.name || r.id || r.pk || t("reproduction.noIdentifier"))
     })).filter(o => o.value);
 
     switch (action.type) {
@@ -541,32 +554,32 @@ export function ReproducaoDashboard({
         const availableRows = rows.length > 0 ? rows : (currentTab?.rows || []);
         const batchOptions = availableRows.map(r => ({
           value: String(r.id || r.pk || ""),
-          label: String(r.lote || r.batch_code || r.name || r.id || "Lote"),
+          label: String(r.lote || r.batch_code || r.name || r.id || t("reproduction.batch")),
         })).filter(option => option.value);
         setActionModal({
           open: true,
-          title: "Registrar Mortalidade",
-          subtitle: "A quantidade informada será baixada do lote selecionado.",
+          title: t("reproduction.batchMortalityTitle"),
+          subtitle: t("reproduction.batchMortalitySubtitle"),
           fields: [
             {
               name: "id",
-              label: "Lote",
+              label: t("reproduction.batch"),
               type: batchOptions.length > 0 ? "select" : "text",
               options: batchOptions,
               initialValue: batchOptions.length === 1 ? batchOptions[0].value : undefined,
               required: true,
             },
-            { name: "quantidade", label: "Quantidade de animais mortos", type: "number", required: true },
-            { name: "data", label: "Data da ocorrência", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
-            { name: "causa", label: "Causa provável", type: "select", required: true, options: [
-              { value: "DOENCA", label: "Doença" },
-              { value: "ACIDENTE", label: "Acidente" },
-              { value: "ESMAGAMENTO", label: "Esmagamento" },
-              { value: "REFUGO", label: "Baixo desenvolvimento / Refugo" },
-              { value: "DESCONHECIDA", label: "Causa desconhecida" },
-              { value: "OUTRA", label: "Outra" },
+            { name: "quantidade", label: t("reproduction.deadAnimalCount"), type: "number", required: true },
+            { name: "data", label: t("reproduction.occurrenceDate"), type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "causa", label: t("reproduction.probableCause"), type: "select", required: true, options: [
+              { value: "DOENCA", label: t("reproduction.disease") },
+              { value: "ACIDENTE", label: t("reproduction.accident") },
+              { value: "ESMAGAMENTO", label: t("reproduction.crushing") },
+              { value: "REFUGO", label: t("reproduction.poorDevelopment") },
+              { value: "DESCONHECIDA", label: t("reproduction.unknownCause") },
+              { value: "OUTRA", label: t("reproduction.other") },
             ] },
-            { name: "observacao", label: "Observações", type: "textarea" },
+            { name: "observacao", label: t("reproduction.observations"), type: "textarea" },
           ],
           onConfirm: async (data) => {
             await registerBatchMortality(data.id, {
@@ -575,7 +588,7 @@ export function ReproducaoDashboard({
               causa: data.causa,
               observacao: data.observacao,
             });
-            showToast("Mortalidade registrada e quantidade do lote atualizada.", "success");
+            showToast(t("reproduction.batchMortalitySaved"), "success");
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           },
@@ -585,20 +598,20 @@ export function ReproducaoDashboard({
       case 'weight':
         setActionModal({
           open: true,
-          title: "Registrar Pesagem",
-          subtitle: "Informe o peso atual do animal ou lote",
+          title: t("reproduction.weightTitle"),
+          subtitle: t("reproduction.weightSubtitle"),
           fields: [
             {
               name: "id",
-              label: "Animal / Lote",
+              label: t("reproduction.animalOrBatch"),
               type: animalOptions.length > 0 ? "select" : "text",
               options: animalOptions,
-              placeholder: "Brinco ou Lote",
+              placeholder: t("reproduction.earTagOrBatch"),
               required: true
             },
-            { name: "weight_kg", label: "Peso (kg)", type: "number", placeholder: "0.00", required: true },
-            { name: "weighing_date", label: "Data da Pesagem", type: "date", required: true },
-            { name: "notes", label: "Observações", type: "textarea" },
+            { name: "weight_kg", label: t("reproduction.weight"), type: "number", placeholder: "0.00", required: true },
+            { name: "weighing_date", label: t("reproduction.weighingDate"), type: "date", required: true },
+            { name: "notes", label: t("reproduction.observations"), type: "textarea" },
           ],
           onConfirm: async (data) => {
             const payload = { weight_kg: parseFloat(data.weight_kg), weighing_date: data.weighing_date, notes: data.notes };
@@ -616,40 +629,43 @@ export function ReproducaoDashboard({
         const isBatchVaccination = ["creche", "crescimento", "engorda"].includes(currentTab?.id || "");
         const vaccineOpts = (vaccineItems || []).map(v => ({
           value: String(v.id),
-          label: `${v.nome}${v.estoque_atual != null ? ` (Estoque: ${v.estoque_atual} ${v.unidade_display || v.unidade_medida || 'un'})` : ''}`,
+          label: `${v.nome}${v.estoque_atual != null ? ` (${t("reproduction.stockCount", {
+            count: v.estoque_atual,
+            unit: v.unidade_display || v.unidade_medida || "un",
+          })})` : ''}`,
         }));
         const targetRows = isBatchVaccination
           ? (rows.length > 0 ? rows : (currentTab?.rows || []))
           : rows;
         const targetOptions = targetRows.map((row: any) => ({
           value: String(row.id || row.pk || ""),
-          label: String(row.lote || row.batch_code || row.identifier || row.name || "Lote"),
+          label: String(row.lote || row.batch_code || row.identifier || row.name || t("reproduction.batch")),
         })).filter((option: { value: string }) => option.value);
         setActionModal({
           open: true,
-          title: "Registrar Vacina",
-          subtitle: vaccineItems.length === 0 ? "Nenhuma vacina cadastrada no estoque." : undefined,
+          title: t("reproduction.vaccineTitle"),
+          subtitle: vaccineItems.length === 0 ? t("reproduction.noVaccineStock") : undefined,
           fields: [
             {
               name: "id",
-              label: isBatchVaccination ? "Lote" : "Identificador",
+              label: isBatchVaccination ? t("reproduction.batch") : t("reproduction.identifier"),
               type: targetOptions.length > 0 ? "select" : "text",
               options: targetOptions,
               required: true
             },
             {
               name: "vaccine_applications",
-              label: "Vacinas",
+              label: t("reproduction.vaccines"),
               type: "inventory-list",
               required: true,
               colSpan: "full",
               initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
               options: vaccineOpts,
             },
-            { name: "application_date", label: "Data de Aplicação", type: "date", required: true, initialValue: new Date().toISOString().split("T")[0] },
-            { name: "dose_type", label: "Tipo de Dose", type: "select", options: [
-              { value: "unica", label: "Dose Única" },
-              { value: "reforco", label: "Reforço" },
+            { name: "application_date", label: t("reproduction.applicationDate"), type: "date", required: true, initialValue: new Date().toISOString().split("T")[0] },
+            { name: "dose_type", label: t("reproduction.doseType"), type: "select", options: [
+              { value: "unica", label: t("reproduction.singleDose") },
+              { value: "reforco", label: t("reproduction.boosterDose") },
             ] , initialValue: "unica"},
           ],
           onConfirm: async (data) => {
@@ -671,14 +687,14 @@ export function ReproducaoDashboard({
                   await registerVaccination(data.id, payload);
                 }
               }
-              showToast(applications.length > 1 ? "Vacinas registradas. Estoque, ficha e relatório atualizados." : "Vacina registrada. Estoque, ficha e relatório atualizados.", "success");
+              showToast(applications.length > 1 ? t("reproduction.vaccinesSaved") : t("reproduction.vaccineSaved"), "success");
               onSuccess?.();
               setActionModal(prev => ({ ...prev, open: false }));
             } catch (error: any) {
               const response = error?.response?.data;
               const dosageError = response?.dosage_ml;
               const detail = (Array.isArray(dosageError) ? dosageError[0] : dosageError) || response?.error || response?.detail;
-              showToast(detail || "Não foi possível registrar a vacina.", "error");
+              showToast(detail || t("reproduction.vaccineSaveFailed"), "error");
               throw error;
             }
           }
@@ -688,24 +704,26 @@ export function ReproducaoDashboard({
       case 'diagnosis':
         setActionModal({
           open: true,
-          title: rows.length > 1 ? `Diagnóstico em Lote (${rows.length})` : "Diagnóstico de Prenhez",
+          title: rows.length > 1
+            ? t("reproduction.batchDiagnosisTitle", { count: rows.length })
+            : t("reproduction.diagnosisTitle"),
           fields: [
             {
               name: "id",
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)",
+              label: rows.length > 1 ? t("reproduction.selectedMatrices") : t("reproduction.matrixTag"),
               type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? t("reproduction.multipleSelected") : undefined),
               disabled: rows.length >= 1,
               required: true
             },
-            { name: "result", label: "Resultado", type: "select", required: true, options: [
-              { value: "positive", label: "Positivo (Gestante)" },
-              { value: "negative", label: "Negativo (Vazia)" },
+            { name: "result", label: t("reproduction.result"), type: "select", required: true, options: [
+              { value: "positive", label: t("reproduction.positivePregnant") },
+              { value: "negative", label: t("reproduction.negativeEmpty") },
             ]},
             {
               name: "diagnosis_date",
-              label: "Data do Diagnóstico",
+              label: t("reproduction.diagnosisDate"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
@@ -727,29 +745,29 @@ export function ReproducaoDashboard({
       case 'discard':
         setActionModal({
           open: true,
-          title: "Descartar Matriz",
+          title: t("reproduction.discardMatrixTitle"),
           fields: [
             {
               name: "id",
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)",
+              label: rows.length > 1 ? t("reproduction.selectedMatrices") : t("reproduction.matrixTag"),
               type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? t("reproduction.multipleSelected") : undefined),
               disabled: rows.length >= 1,
               required: true
             },
-            { name: "data_descarte", label: "Data do Descarte", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
-            { name: "motivo", label: "Motivo / Justificativa", type: "text", required: true },
-            { name: "tipo_descarte", label: "Tipo de Descarte", type: "select", options: [
-              { value: "VENDA", label: "Venda" },
-              { value: "MORTE", label: "Morte" },
-              { value: "DESCARTE_SANITARIO", label: "Descarte Sanitário" },
-              { value: "BAIXA_PRODUTIVA", label: "Baixa Produtiva" },
-              { value: "OUTRO", label: "Outro" },
+            { name: "data_descarte", label: t("reproduction.discardDate"), type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "motivo", label: t("reproduction.reasonJustification"), type: "text", required: true },
+            { name: "tipo_descarte", label: t("reproduction.discardType"), type: "select", options: [
+              { value: "VENDA", label: t("reproduction.sale") },
+              { value: "MORTE", label: t("reproduction.death") },
+              { value: "DESCARTE_SANITARIO", label: t("reproduction.sanitaryDiscard") },
+              { value: "BAIXA_PRODUTIVA", label: t("reproduction.lowProduction") },
+              { value: "OUTRO", label: t("reproduction.other") },
             ]},
-            { name: "peso", label: "Peso (kg)", type: "number" },
-            { name: "valor_venda", label: "Valor de Venda (R$)", type: "number" },
-            { name: "observacao", label: "Observações", type: "textarea" },
+            { name: "peso", label: t("reproduction.weight"), type: "number" },
+            { name: "valor_venda", label: t("reproduction.saleValue"), type: "number" },
+            { name: "observacao", label: t("reproduction.observations"), type: "textarea" },
           ],
           onConfirm: async (data) => {
             if (rows.length > 1) {
@@ -765,25 +783,25 @@ export function ReproducaoDashboard({
       case 'loss':
         setActionModal({
           open: true,
-          title: "Registrar Perda na Gestação",
+          title: t("reproduction.pregnancyLossTitle"),
           fields: [
             {
               name: "id",
-              label: rows.length > 1 ? "Gestação / Matriz" : "Gestação / Matriz",
+              label: t("reproduction.gestationMatrix"),
               type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? t("reproduction.multipleSelected") : undefined),
               disabled: rows.length >= 1,
               required: true
             },
-            { name: "data", label: "Data da Perda", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
-            { name: "tipo_perda", label: "Tipo de Perda", type: "select", required: true, options: [
-              { value: "ABORTO", label: "Aborto" },
-              { value: "REABSORCAO", label: "Reabsorção" },
-              { value: "RETORNO_CIO", label: "Retorno de Cio" },
-              { value: "OUTRO", label: "Outro" },
+            { name: "data", label: t("reproduction.lossDate"), type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "tipo_perda", label: t("reproduction.lossType"), type: "select", required: true, options: [
+              { value: "ABORTO", label: t("reproduction.abortion") },
+              { value: "REABSORCAO", label: t("reproduction.resorption") },
+              { value: "RETORNO_CIO", label: t("reproduction.heatReturn") },
+              { value: "OUTRO", label: t("reproduction.other") },
             ]},
-            { name: "observacao", label: "Observações", type: "textarea" },
+            { name: "observacao", label: t("reproduction.observations"), type: "textarea" },
           ],
           onConfirm: async (data) => {
             if (rows.length > 1) {
@@ -800,7 +818,7 @@ export function ReproducaoDashboard({
         const availableLitters = rows.length > 0 ? rows : (currentTab?.rows || []);
         const litterOptions = availableLitters.map((row) => ({
           value: String(row.id || row.pk || ""),
-          label: `Matriz ${row.identifier || row.name || row.id}`,
+          label: `${t("reproduction.matrix")} ${row.identifier || row.name || row.id}`,
         })).filter((option) => option.value);
         const selectedSourceIds = new Set(
           rows.map((row) => String(row.id || row.pk || "")).filter(Boolean)
@@ -813,34 +831,34 @@ export function ReproducaoDashboard({
                 String(row.id || row.pk),
                 {
                   value: String(row.id || row.pk),
-                  label: `Matriz ${row.identifier}`,
+                  label: `${t("reproduction.matrix")} ${row.identifier}`,
                 },
               ])
           ).values()
         );
         setActionModal({
           open: true,
-          title: "Registrar Procedimento / Manejo",
-          subtitle: "Selecione o tipo de manejo para a leitegada",
+          title: t("reproduction.procedureTitle"),
+          subtitle: t("reproduction.procedureSubtitle"),
           fields: [
             {
               name: "id",
-              label: "Leitegada / Matriz",
+              label: t("reproduction.litterMatrix"),
               type: rows.length > 1 ? "text" : (litterOptions.length > 0 ? "select" : "text"),
               options: litterOptions,
-              initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? "Múltiplos selecionados" : litterOptions[0]?.value),
+              initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? t("reproduction.multipleSelected") : litterOptions[0]?.value),
               disabled: rows.length >= 1,
               required: true
             },
             {
               name: "tipo",
-              label: "Tipo de Procedimento",
+              label: t("reproduction.procedureType"),
               type: "select",
               required: true,
               options: [
-                { value: "TRANSFERENCIA_LEITAO", label: "🔄 Transferência de Leitões" },
-                { value: "APLICACAO_MEDICAMENTO", label: "💊 Aplicação de Medicamentos" },
-                { value: "APLICACAO_VACINA", label: "💉 Aplicação de Vacina" },
+                { value: "TRANSFERENCIA_LEITAO", label: `🔄 ${t("reproduction.pigletTransfer")}` },
+                { value: "APLICACAO_MEDICAMENTO", label: `💊 ${t("reproduction.medicationApplication")}` },
+                { value: "APLICACAO_VACINA", label: `💉 ${t("reproduction.vaccineApplication")}` },
               ],
               initialValue: "TRANSFERENCIA_LEITAO",
               colSpan: "full"
@@ -848,14 +866,14 @@ export function ReproducaoDashboard({
             // Campos para Transferência de Leitões
             {
               name: "quantidade",
-              label: "Quantidade de Leitões",
+              label: t("reproduction.pigletCount"),
               type: "number",
               required: true,
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
             {
               name: "destino_birth_id",
-              label: "Matriz de Destino (Maternidade)",
+              label: t("reproduction.destinationMatrix"),
               type: "select",
               options: destinationOptions,
               required: true,
@@ -863,7 +881,7 @@ export function ReproducaoDashboard({
             },
             {
               name: "data",
-              label: "Data",
+              label: t("reproduction.date"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0],
@@ -871,40 +889,46 @@ export function ReproducaoDashboard({
             },
             {
               name: "observacao",
-              label: "Observação",
+              label: t("reproduction.observation"),
               type: "textarea",
               showIf: (values: any) => values.tipo === "TRANSFERENCIA_LEITAO"
             },
             // Campos para Aplicação de Medicamentos
             {
               name: "medication_applications",
-              label: "Medicamento",
+              label: t("reproduction.medication"),
               type: "inventory-list",
               required: true,
               colSpan: "full",
               initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
               options: medicationItems.map((item) => ({
                 value: String(item.id),
-                label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
+                label: `${item.nome} (${t("reproduction.stockCount", {
+                  count: item.estoque_atual,
+                  unit: item.unidade_medida,
+                })})`,
               })),
               showIf: (values: any) => values.tipo === "APLICACAO_MEDICAMENTO"
             },
             {
               name: "vaccine_applications",
-              label: "Vacina",
+              label: t("reproduction.vaccine"),
               type: "inventory-list",
               required: true,
               colSpan: "full",
               initialValue: JSON.stringify([{ inventory_item: "", dose_per_animal: "" }]),
               options: vaccineItems.map((item) => ({
                 value: String(item.id),
-                label: `${item.nome} (Estoque: ${item.estoque_atual} ${item.unidade_medida})`,
+                label: `${item.nome} (${t("reproduction.stockCount", {
+                  count: item.estoque_atual,
+                  unit: item.unidade_medida,
+                })})`,
               })),
               showIf: (values: any) => values.tipo === "APLICACAO_VACINA"
             },
             {
               name: "animal_count",
-              label: "Quantidade de Leitões",
+              label: t("reproduction.pigletCount"),
               type: "number",
               required: true,
               min: 1,
@@ -913,7 +937,7 @@ export function ReproducaoDashboard({
             },
             {
               name: "data",
-              label: "Data de Aplicação",
+              label: t("reproduction.applicationDate"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0],
@@ -921,16 +945,16 @@ export function ReproducaoDashboard({
             },
             {
               name: "motivo",
-              label: "Motivo",
+              label: t("reproduction.applicationReason"),
               type: "text",
-              placeholder: "Ex: Prevenção de anemia",
+              placeholder: t("reproduction.anemiaPreventionExample"),
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
             {
               name: "responsavel",
-              label: "Responsável",
+              label: t("reproduction.responsible"),
               type: "text",
-              placeholder: "Nome do responsável",
+              placeholder: t("reproduction.responsibleName"),
               showIf: (values: any) => ["APLICACAO_MEDICAMENTO", "APLICACAO_VACINA"].includes(values.tipo)
             },
           ],
@@ -949,10 +973,10 @@ export function ReproducaoDashboard({
             }
             if (rows.length > 1) {
               await Promise.all(rows.map(r => registerProcedure(r.id as number, data)));
-              showToast(`Procedimento registrado para ${rows.length} leitegadas.`, "success");
+              showToast(t("reproduction.procedureSavedForLitters", { count: rows.length }), "success");
             } else {
               const result = await registerProcedure(data.id, data);
-              showToast(result?.message || "Procedimento registrado com sucesso.", "success");
+              showToast(result?.message || t("reproduction.procedureSaved"), "success");
             }
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
@@ -967,7 +991,7 @@ export function ReproducaoDashboard({
             String(row.animal_id || ""),
             {
               value: String(row.animal_id || ""),
-              label: `Matriz ${row.identifier || row.name || row.animal_id}`,
+              label: `${t("reproduction.matrix")} ${row.identifier || row.name || row.animal_id}`,
             },
           ])).values()
         ).filter((option) => option.value);
@@ -976,23 +1000,26 @@ export function ReproducaoDashboard({
         const selectedMotherLabels = motherOptions.map((option) => option.label).join(", ");
         const vaccineOpts = (vaccineItems || []).map((item) => ({
           value: String(item.id),
-          label: `${item.nome}${item.estoque_atual != null ? ` (Estoque: ${item.estoque_atual} ${item.unidade_display || item.unidade_medida || "un"})` : ""}`,
+          label: `${item.nome}${item.estoque_atual != null ? ` (${t("reproduction.stockCount", {
+            count: item.estoque_atual,
+            unit: item.unidade_display || item.unidade_medida || "un",
+          })})` : ""}`,
         }));
         setActionModal({
           open: true,
           title: isBatchVaccination
-            ? `Registrar Vacinação Pós-parto em Lote (${rows.length})`
-            : "Registrar Vacinação Pós-parto",
+            ? t("reproduction.postpartumVaccineBatchTitle", { count: rows.length })
+            : t("reproduction.postpartumVaccineTitle"),
           subtitle: vaccineItems.length === 0
-            ? "Nenhuma vacina disponível no estoque."
+            ? t("reproduction.noVaccineAvailable")
             : isBatchVaccination
-              ? "A vacina será registrada nas matrizes selecionadas e descontada automaticamente do estoque."
-              : "A vacina será registrada na ficha da matriz e descontada automaticamente do estoque.",
+              ? t("reproduction.batchVaccineInventoryNote")
+              : t("reproduction.singleVaccineInventoryNote"),
           fields: [
             ...(isBatchVaccination
               ? [{
                   name: "selected_mothers",
-                  label: "Matrizes selecionadas",
+                  label: t("reproduction.selectedMatrices"),
                   type: "text" as const,
                   initialValue: selectedMotherLabels,
                   disabled: true,
@@ -1000,7 +1027,7 @@ export function ReproducaoDashboard({
                 }]
               : [{
                   name: "id",
-                  label: "Matriz",
+                  label: t("reproduction.matrix"),
                   type: motherOptions.length > 0 ? "select" as const : "text" as const,
                   options: motherOptions,
                   initialValue: selectedMother ? String(selectedMother.animal_id) : undefined,
@@ -1009,7 +1036,7 @@ export function ReproducaoDashboard({
                 }]),
             {
               name: "vaccine_applications",
-              label: "Vacinas",
+              label: t("reproduction.vaccines"),
               type: "inventory-list",
               required: true,
               colSpan: "full",
@@ -1018,22 +1045,22 @@ export function ReproducaoDashboard({
             },
             {
               name: "application_date",
-              label: "Data da Aplicação",
+              label: t("reproduction.applicationDateCapitalized"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0],
             },
             {
               name: "dose_type",
-              label: "Tipo de Dose",
+              label: t("reproduction.doseType"),
               type: "select",
               options: [
-                { value: "unica", label: "Dose Única" },
-                { value: "reforco", label: "Reforço" },
+                { value: "unica", label: t("reproduction.singleDose") },
+                { value: "reforco", label: t("reproduction.boosterDose") },
               ],
               initialValue: "unica",
             },
-            { name: "notes", label: "Observações", type: "textarea", colSpan: "full" },
+            { name: "notes", label: t("reproduction.observations"), type: "textarea", colSpan: "full" },
           ],
           onConfirm: async (data) => {
             const targetMotherIds = isBatchVaccination
@@ -1058,8 +1085,8 @@ export function ReproducaoDashboard({
             }
             showToast(
               isBatchVaccination
-                ? `Vacinação pós-parto registrada para ${targetMotherIds.length} matrizes e estoque atualizado.`
-                : "Vacinação pós-parto registrada na matriz e estoque atualizado.",
+                ? t("reproduction.postpartumBatchSaved", { count: targetMotherIds.length })
+                : t("reproduction.postpartumSaved"),
               "success"
             );
             onSuccess?.();
@@ -1072,32 +1099,32 @@ export function ReproducaoDashboard({
         const availableLitters = rows.length > 0 ? rows : (currentTab?.rows || []);
         const mortalityOptions = availableLitters.map((row) => ({
           value: String(row.id || row.pk || ""),
-          label: `Matriz ${row.identifier || row.name || row.id}`,
+          label: `${t("reproduction.matrix")} ${row.identifier || row.name || row.id}`,
         })).filter((option) => option.value);
         setActionModal({
           open: true,
-          title: "Registrar Mortalidade (Maternidade)",
+          title: t("reproduction.maternityMortalityTitle"),
           fields: [
             {
               name: "id",
-              label: "Leitegada / Matriz",
+              label: t("reproduction.litterMatrix"),
               type: rows.length > 1 ? "text" : (mortalityOptions.length > 0 ? "select" : "text"),
               options: mortalityOptions,
-              initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? "Múltiplos selecionados" : mortalityOptions[0]?.value),
+              initialValue: rows.length === 1 ? String(rows[0].id) : (rows.length > 1 ? t("reproduction.multipleSelected") : mortalityOptions[0]?.value),
               disabled: rows.length >= 1,
               required: true
             },
-            { name: "data", label: "Data do Óbito", type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
-            { name: "quantidade", label: "Qtd de Leitões Mortos", type: "number", required: true },
-            { name: "causa", label: "Causa Provável", type: "select", required: true, options: [
-              { value: "ESMAGAMENTO", label: "Esmagamento" },
-              { value: "NATIMORTO", label: "Natimorto" },
-              { value: "FRACO", label: "Fraco" },
-              { value: "DOENCA", label: "Doença" },
-              { value: "DESCONHECIDA", label: "Desconhecida" },
-              { value: "OUTRA", label: "Outra" },
+            { name: "data", label: t("reproduction.deathDate"), type: "date", required: true, initialValue: new Date().toISOString().split('T')[0] },
+            { name: "quantidade", label: t("reproduction.deadPigletCount"), type: "number", required: true },
+            { name: "causa", label: t("reproduction.probableCause"), type: "select", required: true, options: [
+              { value: "ESMAGAMENTO", label: t("reproduction.crushing") },
+              { value: "NATIMORTO", label: t("reproduction.stillborn") },
+              { value: "FRACO", label: t("reproduction.weakPiglet") },
+              { value: "DOENCA", label: t("reproduction.disease") },
+              { value: "DESCONHECIDA", label: t("reproduction.unknown") },
+              { value: "OUTRA", label: t("reproduction.other") },
             ]},
-            { name: "observacao", label: "Observações", type: "textarea" },
+            { name: "observacao", label: t("reproduction.observations"), type: "textarea" },
           ],
           onConfirm: async (data) => {
             if (rows.length > 1) {
@@ -1105,7 +1132,7 @@ export function ReproducaoDashboard({
             } else {
               await registerMortality(data.id, data);
             }
-            showToast("Mortalidade registrada e saldo da leitegada atualizado.", "success");
+            showToast(t("reproduction.litterMortalitySaved"), "success");
             onSuccess?.();
             setActionModal(prev => ({ ...prev, open: false }));
           }
@@ -1115,43 +1142,48 @@ export function ReproducaoDashboard({
       case 'birth': {
         const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
           value: String(v.id),
-          label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+          label: `${v.nome}${v.estoque_atual ? ` (${t("reproduction.stockCount", {
+            count: v.estoque_atual,
+            unit: v.unidade || "un",
+          })})` : ''}`,
         }));
         setActionModal({
             open: true,
-            title: rows.length > 1 ? `Confirmar Parto em Lote (${rows.length})` : "Confirmar Parto",
+            title: rows.length > 1
+              ? t("reproduction.batchBirthTitle", { count: rows.length })
+              : t("reproduction.birthTitle"),
             fields: [
               {
                 name: "female_identifier",
-                label: rows.length > 1 ? `Matrizes Selecionadas` : "Matriz (Brinco)",
+                label: rows.length > 1 ? t("reproduction.selectedMatrices") : t("reproduction.matrixTag"),
                 type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
                 options: animalOptions,
-                initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+                initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? t("reproduction.multipleSelected") : undefined),
                 disabled: rows.length >= 1,
                 required: true
               },
               {
                 name: "birth_date",
-                label: "Data do Parto",
+                label: t("reproduction.birthDate"),
                 type: "date",
                 required: true,
                 initialValue: new Date().toISOString().split('T')[0]
               },
               {
                 name: "birth_time_start",
-                label: "Hora de Início do Parto",
+                label: t("reproduction.birthStartTime"),
                 type: "time",
                 required: false,
               },
               {
                 name: "birth_time_end",
-                label: "Hora de Término do Parto",
+                label: t("reproduction.birthEndTime"),
                 type: "time",
                 required: false,
               },
               {
                 name: "expected_weaning_days",
-                label: "Previsão de Desmame (dias)",
+                label: t("reproduction.weaningForecastDays"),
                 type: "number",
                 required: true,
                 initialValue: 21,
@@ -1160,18 +1192,18 @@ export function ReproducaoDashboard({
               },
               {
                 name: "schedule_reproductive_vaccine",
-                label: "Agendar vac. reprod.?",
+                label: t("reproduction.scheduleReproductiveVaccine"),
                 type: "select",
                 options: [
-                  { value: "no", label: "Não agendar" },
-                  { value: "yes", label: "Agendar aviso" },
+                  { value: "no", label: t("reproduction.doNotSchedule") },
+                  { value: "yes", label: t("reproduction.scheduleReminder") },
                 ],
                 initialValue: "no",
                 required: true,
               },
               {
                 name: "reproductive_vaccine_item",
-                label: "Vacina reprodutiva",
+                label: t("reproduction.reproductiveVaccine"),
                 type: "select",
                 options: reproductiveVaccineOpts,
                 required: true,
@@ -1179,7 +1211,7 @@ export function ReproducaoDashboard({
               },
               {
                 name: "reproductive_vaccine_days",
-                label: "Avisar após (dias)",
+                label: t("reproduction.remindAfterDays"),
                 type: "number",
                 required: true,
                 initialValue: 70,
@@ -1189,26 +1221,26 @@ export function ReproducaoDashboard({
               },
               {
                 name: "live_born",
-                label: "Nascidos Vivos",
+                label: t("reproduction.liveBorn"),
                 type: "number",
                 required: true,
                 initialValue: 12
               },
               {
                 name: "stillborn",
-                label: "Óbitos",
+                label: t("reproduction.death"),
                 type: "number",
                 initialValue: 0
               },
               {
                 name: "mummified",
-                label: "Mumificados",
+                label: t("reproduction.mummified"),
                 type: "number",
                 initialValue: 0
               },
               {
                 name: "avg_weight_kg",
-                label: "Peso Médio dos Leitões (kg)",
+                label: t("reproduction.pigletAverageWeight"),
                 type: "number",
                 required: true,
                 initialValue: 1.4
@@ -1284,74 +1316,76 @@ export function ReproducaoDashboard({
       case 'wean': {
         const weanOptions = (rows.length > 0 ? rows : (config.tabs.find(t => t.id === 'maternidade')?.rows || [])).map(r => ({
           value: String(r.id), // Birth ID
-          label: String(r.identifier || `Matriz ${r.animal_id || r.id}`) // Matrix Identifier
+          label: String(r.identifier || `${t("reproduction.matrix")} ${r.animal_id || r.id}`) // Matrix Identifier
         }));
 
         if (weanOptions.length === 0) {
-          alert("Não há matrizes em lactação disponíveis para desmame.");
+          alert(t("reproduction.weanUnavailable"));
           return;
         }
 
         setActionModal({
           open: true,
-          title: rows.length > 1 ? `Confirmar Desmame em Lote (${rows.length})` : "Confirmar Desmame",
-          subtitle: "Registre o desmame e destine os leitões para a creche",
+          title: rows.length > 1
+            ? t("reproduction.batchWeaningTitle", { count: rows.length })
+            : t("reproduction.weaningTitle"),
+          subtitle: t("reproduction.weaningSubtitle"),
           fields: [
             {
               name: "birth_id",
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Matriz (Brinco)",
+              label: rows.length > 1 ? t("reproduction.selectedMatrices") : t("reproduction.matrixTag"),
               type: rows.length > 1 ? "text" : "select",
               options: weanOptions,
-              initialValue: rows.length === 1 ? weanOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : weanOptions[0]?.value),
+              initialValue: rows.length === 1 ? weanOptions[0]?.value : (rows.length > 1 ? t("reproduction.multipleSelected") : weanOptions[0]?.value),
               disabled: rows.length >= 1,
               required: true
             },
             {
               name: "weaning_date",
-              label: "Data do Desmame",
+              label: t("reproduction.weaningDate"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
             },
             {
               name: "weaned_quantity",
-              label: "Quantidade Desmamada",
+              label: t("reproduction.weanedQuantity"),
               type: "number",
               required: true,
               initialValue: rows.length === 1 ? (rows[0].vivos_atual || rows[0].vivos || 10) : 10,
-              placeholder: "Quantidade de leitões"
+              placeholder: t("reproduction.pigletQuantity")
             },
             {
               name: "avg_weaning_weight_kg",
-              label: "Peso Médio ao Desmame (kg)",
+              label: t("reproduction.averageWeaningWeight"),
               type: "number",
               required: true,
               initialValue: 6.5,
-              placeholder: "Ex: 6.5"
+              placeholder: t("reproduction.weightExample")
             },
             {
               name: "weaning_type",
-              label: "Tipo de Desmame",
+              label: t("reproduction.weaningType"),
               type: "select",
               required: true,
               options: [
-                { value: "total", label: "Desmame Total (Matriz retorna para Cobertura)" },
-                { value: "parcial", label: "Desmame Parcial (Matriz continua em Lactação)" }
+                { value: "total", label: t("reproduction.totalWeaning") },
+                { value: "parcial", label: t("reproduction.partialWeaning") }
               ],
               initialValue: "total"
             },
             {
               name: "batch_code",
-              label: "Código do Novo Lote na Creche",
+              label: t("reproduction.newNurseryBatchCode"),
               type: "text",
               required: true,
               initialValue: rows.length === 1
-                ? `L-CRECHE-${rows[0].identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
-                : `L-CRECHE-LOTE-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`
+                ? `L-CRECHE-${rows[0].identifier}-${new Date().toLocaleDateString(language).replace(/\//g, '')}`
+                : `L-CRECHE-LOTE-${new Date().toLocaleDateString(language).replace(/\//g, '')}`
             },
             {
               name: "next_mating_notice_days",
-              label: "Dias após o desmame para o próximo cio",
+              label: t("reproduction.daysToNextHeat"),
               type: "number",
               required: true,
               initialValue: 7,
@@ -1369,7 +1403,7 @@ export function ReproducaoDashboard({
               try {
                 const batchQty = parseInt(data.weaned_quantity) || vivosAtual;
                 await weanBirth(birthId, {
-                  batch_code: data.batch_code || `L-CRECHE-${identifier}-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+                  batch_code: data.batch_code || `L-CRECHE-${identifier}-${new Date().toLocaleDateString(language).replace(/\//g, '')}`,
                   weaned_quantity: batchQty,
                   weaning_date: data.weaning_date,
                   weaning_type: data.weaning_type,
@@ -1406,45 +1440,56 @@ export function ReproducaoDashboard({
           label: `${r.name || r.identifier}${r.name && r.name !== r.identifier ? ` — ${r.identifier}` : ''}${r.category ? ` (${r.category})` : ''}`,
         }));
         const semenOpts = (semenItems || []).map(s => {
-          const classif = s.tipo_semen_display || (s.tipo_semen === 'sexado_macho' ? 'Sexado Macho' : s.tipo_semen === 'sexado_femea' ? 'Sexado Fêmea' : 'Convencional');
+          const classif = s.tipo_semen === 'sexado_macho'
+            ? t("reproduction.sexedMale")
+            : s.tipo_semen === 'sexado_femea'
+              ? t("reproduction.sexedFemale")
+              : t("reproduction.conventional");
           return {
             value: String(s.id),
-            label: `${s.nome} [${classif}] (Estoque: ${s.estoque_atual || 0} doses)`,
+            label: `${s.nome} [${classif}] (${t("reproduction.semenDosesStock", { count: s.estoque_atual || 0 })})`,
           };
         });
         const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
           value: String(v.id),
-          label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+          label: `${v.nome}${v.estoque_atual ? ` (${t("reproduction.stockCount", {
+            count: v.estoque_atual,
+            unit: v.unidade || "un",
+          })})` : ''}`,
         }));
         setActionModal({
           open: true,
-          title: rows.length > 1 ? `💖 Registrar Cobertura em Lote (${rows.length})` : "💖 Registrar Cobertura da Marrã",
-          subtitle: rows.length > 1 ? "Registre a cobertura para as matrizes selecionadas" : "Registre a primeira cobertura e inicie o ciclo reprodutivo",
+          title: rows.length > 1
+            ? `💖 ${t("reproduction.batchMatingTitle", { count: rows.length })}`
+            : `💖 ${t("reproduction.giltMatingTitle")}`,
+          subtitle: rows.length > 1
+            ? t("reproduction.batchMatingSubtitle")
+            : t("reproduction.giltMatingSubtitle"),
           fields: [
             {
               name: "id",
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Marrã (Brinco)",
+              label: rows.length > 1 ? t("reproduction.selectedMatrices") : t("reproduction.giltTag"),
               type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? `${rows.length} selecionadas` : undefined),
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? t("reproduction.selectedCount", { count: rows.length }) : undefined),
               disabled: rows.length >= 1,
-              placeholder: "Selecione a marrã",
+              placeholder: t("reproduction.selectGilt"),
               required: true,
             },
             {
               name: "mating_date",
-              label: "Data da Cobertura",
+              label: t("reproduction.matingDate"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
             },
             {
               name: "mating_type",
-              label: "Tipo de Cobertura",
+              label: t("reproduction.matingType"),
               type: "select",
               options: [
-                { value: "natural", label: "Monta Natural" },
-                { value: "ai", label: "Inseminação Artificial" },
+                { value: "natural", label: t("reproduction.naturalMating") },
+                { value: "ai", label: t("reproduction.artificialInsemination") },
                 { value: "iatf", label: "IATF" },
               ],
               initialValue: "natural",
@@ -1452,11 +1497,11 @@ export function ReproducaoDashboard({
             },
             {
               name: "material_origin",
-              label: "Origem do Sêmen / Material",
+              label: t("reproduction.semenMaterialOrigin"),
               type: "select",
               options: [
-                { value: "reprodutor", label: "Reprodutor Cadastrado" },
-                { value: "semen", label: "Sêmen do Estoque" },
+                { value: "reprodutor", label: t("reproduction.registeredReproducer") },
+                { value: "semen", label: t("reproduction.semenFromStock") },
               ],
               initialValue: "reprodutor",
               required: true,
@@ -1464,25 +1509,25 @@ export function ReproducaoDashboard({
             },
             {
               name: "sire_id",
-              label: sireOpts.length > 0 ? "Reprodutor (Cachaço)" : "Reprodutor (não há machos cadastrados)",
+              label: sireOpts.length > 0 ? t("reproduction.reproducerBoar") : t("reproduction.noMalesRegistered"),
               type: sireOpts.length > 0 ? "select" : "text",
               options: sireOpts.length > 0 ? sireOpts : undefined,
-              placeholder: sireOpts.length > 0 ? "Selecione o reprodutor" : "Não há reprodutores cadastrados",
+              placeholder: sireOpts.length > 0 ? t("reproduction.selectReproducer") : t("reproduction.noReproducersRegistered"),
               required: true,
               showIf: (vals) => vals.mating_type === "natural" || vals.material_origin === "reprodutor",
             },
             {
               name: "semen_item_id",
-              label: "Selecionar Sêmen do Estoque",
+              label: t("reproduction.selectSemenStock"),
               type: "select",
               options: semenOpts.length > 0 ? semenOpts : undefined,
-              placeholder: semenOpts.length > 0 ? "Selecione o sêmen..." : "Não há sêmen cadastrado no estoque",
+              placeholder: semenOpts.length > 0 ? t("reproduction.selectSemen") : t("reproduction.noSemenRegistered"),
               required: true,
               showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
             {
               name: "semen_doses",
-              label: "Doses de sêmen utilizadas por matriz",
+              label: t("reproduction.semenDosesUsed"),
               type: "number",
               initialValue: 1,
               min: 1,
@@ -1492,25 +1537,25 @@ export function ReproducaoDashboard({
             },
             {
               name: "sire_info",
-              label: "Identificação do Sêmen (texto livre)",
+              label: t("reproduction.semenIdentification"),
               type: "text",
-              placeholder: "Ex: Raça, lote do cachaço externo, etc.",
+              placeholder: t("reproduction.semenExample"),
               showIf: (vals) => (vals.mating_type === "ai" || vals.mating_type === "iatf") && vals.material_origin === "semen",
             },
             {
               name: "schedule_reproductive_vaccine",
-              label: "Agendar vacina reprodutiva?",
+              label: t("reproduction.scheduleReproductiveVaccine"),
               type: "select",
               options: [
-                { value: "no", label: "Não agendar" },
-                { value: "yes", label: "Agendar aviso" },
+                { value: "no", label: t("reproduction.doNotSchedule") },
+                { value: "yes", label: t("reproduction.scheduleReminder") },
               ],
               initialValue: "no",
               required: true,
             },
             {
               name: "reproductive_vaccine_item",
-              label: "Vacina reprodutiva",
+              label: t("reproduction.reproductiveVaccine"),
               type: "select",
               options: reproductiveVaccineOpts,
               required: true,
@@ -1518,7 +1563,7 @@ export function ReproducaoDashboard({
             },
             {
               name: "reproductive_vaccine_days",
-              label: "Avisar após (dias)",
+              label: t("reproduction.remindAfterDays"),
               type: "number",
               required: true,
               initialValue: 21,
@@ -1526,14 +1571,14 @@ export function ReproducaoDashboard({
               max: 365,
               showIf: (vals) => vals.schedule_reproductive_vaccine === "yes",
             },
-            { name: "notes", label: "Observações", type: "textarea" },
+            { name: "notes", label: t("reproduction.observations"), type: "textarea" },
           ],
           onConfirm: async (data) => {
             let computedSireInfo = data.sire_info || "";
             if (data.material_origin === "semen" && data.semen_item_id) {
               const selectedSemen = (semenItems || []).find(s => String(s.id) === String(data.semen_item_id));
               if (selectedSemen) {
-                computedSireInfo = `Sêmen: ${selectedSemen.nome}`;
+                computedSireInfo = `${t("reproduction.semenPrefix")}: ${selectedSemen.nome}`;
               }
             }
 
@@ -1568,7 +1613,7 @@ export function ReproducaoDashboard({
               ? rows.map(r => r.animal_id || r.id || r.pk || r.identifier)
               : [data.id || (rows.length === 1 ? (rows[0].animal_id || rows[0].id || rows[0].pk || rows[0].identifier) : null)];
 
-            if (animalIds.some(id => !id)) throw new Error("Selecione a fêmea/marrã");
+            if (animalIds.some(id => !id)) throw new Error(t("reproduction.chooseFemale"));
 
             // 1. Register the coverages
             await Promise.all(animalIds.map(animalId => registerMating(String(animalId), payload)));
@@ -1581,7 +1626,10 @@ export function ReproducaoDashboard({
                   item: data.semen_item_id,
                   tipo: "consumo",
                   quantidade: dosesPerFemale * Math.max(1, targetRows.length),
-                  observacao: `Consumo automático de ${dosesPerFemale} dose(s) por matriz em inseminação artificial: ${animalIds.join(", ")}.`,
+                  observacao: t("reproduction.semenConsumptionNote", {
+                    count: dosesPerFemale,
+                    animals: animalIds.join(", "),
+                  }),
                 });
               } catch (movErr) {
                 console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);
@@ -1597,28 +1645,28 @@ export function ReproducaoDashboard({
       case 'heat':
         setActionModal({
           open: true,
-          title: "Registrar Cio",
-          subtitle: "Registre o 1º cio para prever os próximos",
+          title: t("reproduction.heatTitle"),
+          subtitle: t("reproduction.heatSubtitle"),
           fields: [
             {
               name: "id",
-              label: rows.length > 1 ? "Matrizes Selecionadas" : "Marrã / Matriz (Brinco)",
+              label: rows.length > 1 ? t("reproduction.selectedMatrices") : t("reproduction.giltMatrixTag"),
               type: rows.length > 1 ? "text" : (animalOptions.length > 0 ? "select" : "text"),
               options: animalOptions,
-              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? "Múltiplos selecionados" : undefined),
+              initialValue: rows.length === 1 ? animalOptions[0]?.value : (rows.length > 1 ? t("reproduction.multipleSelected") : undefined),
               disabled: rows.length >= 1,
               required: true,
             },
             {
               name: "heat_date",
-              label: "Data do Cio",
+              label: t("reproduction.heatDate"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
             },
             {
               name: "notes",
-              label: "Observações",
+              label: t("reproduction.observations"),
               type: "textarea"
             }
           ],
@@ -1635,17 +1683,17 @@ export function ReproducaoDashboard({
         break;
       case 'merge_batches':
         if (rows.length < 2) {
-          alert("Selecione pelo menos 2 lotes para juntar.");
+          alert(t("reproduction.selectTwoBatches"));
           return;
         }
         setActionModal({
           open: true,
-          title: "Juntar Lotes",
-          subtitle: `Você está prestes a juntar ${rows.length} lotes em um só.`,
+          title: t("reproduction.mergeBatchesTitle"),
+          subtitle: t("reproduction.mergeBatchesSubtitle", { count: rows.length }),
           fields: [
             {
               name: "source_batches",
-              label: "Lotes Selecionados",
+              label: t("reproduction.selectedBatches"),
               type: "text",
               initialValue: rows.map(r => r.lote || r.batch_code).join(", "),
               disabled: true,
@@ -1653,22 +1701,22 @@ export function ReproducaoDashboard({
             },
             {
               name: "new_batch_code",
-              label: "Código do Novo Lote",
+              label: t("reproduction.newBatchCode"),
               type: "text",
               required: true,
-              initialValue: `L-JUNCAO-${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
+              initialValue: `L-JUNCAO-${new Date().toLocaleDateString(language).replace(/\//g, '')}`,
               colSpan: "full",
             },
             {
               name: "entry_date",
-              label: "Data da Junção",
+              label: t("reproduction.mergeDate"),
               type: "date",
               required: true,
               initialValue: new Date().toISOString().split('T')[0]
             },
             {
               name: "notes",
-              label: "Observações",
+              label: t("reproduction.observations"),
               type: "textarea"
             }
           ],
@@ -1693,12 +1741,12 @@ export function ReproducaoDashboard({
       case 'promote':
         setActionModal({
           open: true,
-          title: "Promover para Cobertura",
-          subtitle: "Confirme se o animal está pronto para o ciclo reprodutivo",
+          title: t("reproduction.promoteTitle"),
+          subtitle: t("reproduction.promoteSubtitle"),
           fields: [
             {
               name: "id",
-              label: "Identificador",
+              label: t("reproduction.identifier"),
               type: animalOptions.length > 0 ? "select" : "text",
               options: animalOptions,
               required: true
@@ -1724,7 +1772,7 @@ export function ReproducaoDashboard({
               type: TYPE_COLOR[e.type as string] || 'system',
             })));
           }).catch(() => {
-            showToast("Erro ao carregar histórico", "error");
+            showToast(t("reproduction.historyError"), "error");
           }).finally(() => {
             setHistoryLoading(false);
           });
@@ -1749,7 +1797,7 @@ export function ReproducaoDashboard({
   };
 
   const allTabs = [
-    { id: "dashboard", icon: "📊", label: "Dashboard", count: undefined },
+    { id: "dashboard", icon: "📊", label: t("sidebar.dashboard"), count: undefined },
     ...config.tabs,
   ];
 
@@ -1758,54 +1806,61 @@ export function ReproducaoDashboard({
     ? initialLoading
     : tabLoading?.[activeTab] ?? false;
   const getPrimaryModalFields = (): ModalField[] => {
-    if (currentTab?.primaryActionLabel === "Registrar Cobertura") {
+    if (isSwineMatingTab(currentTab)) {
       const sireOpts = (reproducerOptions || []).map(r => ({
         value: String(r.id),
         label: `${r.identifier}${r.category ? ` (${r.category})` : ''}`,
       }));
       const semenOpts = (semenItems || []).map(s => {
-        const classif = s.tipo_semen_display || (s.tipo_semen === 'sexado_macho' ? 'Sexado Macho' : s.tipo_semen === 'sexado_femea' ? 'Sexado Fêmea' : 'Convencional');
+        const classif = s.tipo_semen === 'sexado_macho'
+          ? t("reproduction.sexedMale")
+          : s.tipo_semen === 'sexado_femea'
+            ? t("reproduction.sexedFemale")
+            : t("reproduction.conventional");
         return {
           value: String(s.id),
-          label: `${s.nome} [${classif}] (Estoque: ${s.estoque_atual || 0} doses)`,
+          label: `${s.nome} [${classif}] (${t("reproduction.semenDosesStock", { count: s.estoque_atual || 0 })})`,
         };
       });
       const reproductiveVaccineOpts = (vaccineItems || []).map(v => ({
         value: String(v.id),
-        label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual} ${v.unidade || 'un'})` : ''}`,
+        label: `${v.nome}${v.estoque_atual ? ` (${t("reproduction.stockCount", {
+          count: v.estoque_atual,
+          unit: v.unidade || "un",
+        })})` : ''}`,
       }));
       return [
         {
           name: "matriz",
-          label: "Matriz (Brinco)",
+          label: t("reproduction.matrixEarTag"),
           type: "text",
           required: true,
         },
         {
           name: "data_cobertura",
-          label: "Data da Cobertura",
+          label: t("reproduction.matingDate"),
           type: "date",
           required: true,
           initialValue: new Date().toISOString().split('T')[0]
         },
         {
           name: "tipo",
-          label: "Tipo de Cobertura",
+          label: t("reproduction.matingType"),
           type: "select",
           options: [
-            { value: "MN", label: "Monta Natural" },
-            { value: "IA", label: "Inseminação Artificial" },
+            { value: "MN", label: t("reproduction.naturalMating") },
+            { value: "IA", label: t("reproduction.artificialInsemination") },
           ],
           initialValue: "MN",
           required: true,
         },
         {
           name: "material_origin",
-          label: "Origem do Sêmen / Material",
+          label: t("reproduction.semenMaterialOrigin"),
           type: "select",
           options: [
-            { value: "reprodutor", label: "Reprodutor Cadastrado" },
-            { value: "semen", label: "Sêmen do Estoque" },
+            { value: "reprodutor", label: t("reproduction.registeredReproducer") },
+            { value: "semen", label: t("reproduction.semenFromStock") },
           ],
           initialValue: "reprodutor",
           required: true,
@@ -1813,25 +1868,25 @@ export function ReproducaoDashboard({
         },
         {
           name: "sire_id",
-          label: sireOpts.length > 0 ? "Reprodutor (Cachaço)" : "Reprodutor (não há machos cadastrados)",
+          label: sireOpts.length > 0 ? t("reproduction.reproducerBoar") : t("reproduction.noMalesRegistered"),
           type: sireOpts.length > 0 ? "select" : "text",
           options: sireOpts.length > 0 ? sireOpts : undefined,
-          placeholder: sireOpts.length > 0 ? "Selecione o reprodutor" : "Não há reprodutores cadastrados",
+          placeholder: sireOpts.length > 0 ? t("reproduction.selectReproducer") : t("reproduction.noReproducersRegistered"),
           required: true,
           showIf: (vals: Record<string, string>) => vals.tipo === "MN" || vals.material_origin === "reprodutor",
         },
         {
           name: "semen_item_id",
-          label: "Selecionar Sêmen do Estoque",
+          label: t("reproduction.selectSemenStock"),
           type: "select",
           options: semenOpts.length > 0 ? semenOpts : undefined,
-          placeholder: semenOpts.length > 0 ? "Selecione o sêmen..." : "Não há sêmen cadastrado no estoque",
+          placeholder: semenOpts.length > 0 ? t("reproduction.selectSemen") : t("reproduction.noSemenRegistered"),
           required: true,
           showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
         },
         {
           name: "semen_doses",
-          label: "Doses de sêmen utilizadas",
+          label: t("reproduction.semenDosesUsed"),
           type: "number",
           initialValue: 1,
           min: 1,
@@ -1841,25 +1896,25 @@ export function ReproducaoDashboard({
         },
         {
           name: "sire_info",
-          label: "Identificação do Sêmen (texto livre)",
+          label: t("reproduction.semenIdentification"),
           type: "text",
-          placeholder: "Ex: Raça, lote do cachaço externo, etc.",
+          placeholder: t("reproduction.semenExample"),
           showIf: (vals: Record<string, string>) => vals.tipo === "IA" && vals.material_origin === "semen",
         },
         {
           name: "apply_reproductive_vaccine",
-          label: "Vac. reprod.?",
+          label: t("reproduction.applyReproductiveVaccine"),
           type: "select",
           options: [
-            { value: "no", label: "Não aplicar" },
-            { value: "yes", label: "Aplicar agora" },
+            { value: "no", label: t("reproduction.doNotApply") },
+            { value: "yes", label: t("reproduction.applyNow") },
           ],
           initialValue: "no",
           required: true,
         },
         {
           name: "reproductive_vaccine_item_id",
-          label: "Vacina reprodutiva",
+          label: t("reproduction.reproductiveVaccine"),
           type: "select",
           options: reproductiveVaccineOpts,
           required: true,
@@ -1867,7 +1922,7 @@ export function ReproducaoDashboard({
         },
         {
           name: "reproductive_vaccine_dosage_ml",
-          label: "Dose (ml)",
+          label: t("reproduction.doseMl"),
           type: "number",
           showIf: (vals: Record<string, string>) => vals.apply_reproductive_vaccine === "yes",
         },
@@ -1877,7 +1932,7 @@ export function ReproducaoDashboard({
   };
 
   const handlePrimaryConfirm = async (data: Record<string, string>) => {
-    if (currentTab?.primaryActionLabel === "Registrar Cobertura") {
+    if (isSwineMatingTab(currentTab)) {
       // Support both the simplified primary form and the rich mating_marra form
       const mating_type = data.mating_type || (data.tipo === "IA" ? "ai" : data.tipo === "MN" ? "natural" : "natural");
       const sire_info = data.sire_info || data.reprodutor || "";
@@ -1888,7 +1943,7 @@ export function ReproducaoDashboard({
       if (material_origin === "semen" && semen_item_id) {
         const selectedSemen = (semenItems || []).find(s => String(s.id) === String(semen_item_id));
         if (selectedSemen) {
-          computedSireInfo = `Sêmen: ${selectedSemen.nome}`;
+          computedSireInfo = `${t("reproduction.semenPrefix")}: ${selectedSemen.nome}`;
         }
       }
 
@@ -1919,7 +1974,7 @@ export function ReproducaoDashboard({
           application_date: data.data_cobertura || data.mating_date,
           dose_type: "unica",
           dosage_ml: data.reproductive_vaccine_dosage_ml ? Number(data.reproductive_vaccine_dosage_ml) : undefined,
-          notes: "Vacina reprodutiva aplicada durante o registro da cobertura.",
+          notes: t("reproduction.reproductiveVaccineDuringMatingNote"),
         });
       }
 
@@ -1931,7 +1986,10 @@ export function ReproducaoDashboard({
             item: semen_item_id,
             tipo: "consumo",
             quantidade: semenDoses,
-            observacao: `Consumo automático de ${semenDoses} dose(s) por Inseminação Artificial na fêmea ${female_id}.`,
+            observacao: t("reproduction.semenConsumptionNote", {
+              count: semenDoses,
+              animals: String(female_id),
+            }),
           });
         } catch (movErr) {
           console.error("Erro ao dar baixa automática do sêmen no estoque:", movErr);
@@ -1946,6 +2004,12 @@ export function ReproducaoDashboard({
   const hasReproducers = reproducerOptions && reproducerOptions.length > 0;
   const hasSemenProduct = semenItems && semenItems.length > 0;
   const hasSemenStock = semenItems && semenItems.some(s => parseFloat(s.estoque_atual || 0) > 0);
+  const speciesLabel = (species?: string, display?: string) => {
+    if (species === "suinos" || species === "suino") return t("reproduction.speciesSwine");
+    if (species === "bovinos" || species === "bovino") return t("reproduction.speciesCattle");
+    if (species === "aves" || species === "ave") return t("reproduction.speciesPoultry");
+    return display ?? species ?? "";
+  };
 
   const hasTabData = activeTab === "dashboard" || currentTab?.count !== undefined;
 
@@ -1954,11 +2018,11 @@ export function ReproducaoDashboard({
       {/* ─── Breadcrumb dinâmico ─── */}
       <div className="repro-breadcrumb mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-          <span style={{ color: "var(--muted-foreground)" }}>Rebanho</span>
+          <span style={{ color: "var(--muted-foreground)" }}>{t("reproduction.herd")}</span>
           <span className="text-muted-foreground">›</span>
           <span className="fw-semibold text-foreground">{config.titulo}</span>
           <span className="text-muted-foreground">›</span>
-          <span>Reprodução</span>
+          <span>{t("reproduction.sectionReproduction")}</span>
           {activeTab !== "dashboard" && currentTab && (
             <>
               <span className="text-muted-foreground">›</span>
@@ -1974,7 +2038,7 @@ export function ReproducaoDashboard({
             className="btn btn-primary d-inline-flex align-items-center gap-2 fw-semibold px-4 py-2 shadow-sm rounded-pill transition-all hover-scale"
             style={{ fontSize: '0.9rem', backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' }}
             onClick={() => {
-              if (currentTab.primaryActionLabel === "Registrar Cobertura" && !hasReproducers && !hasSemenStock) {
+              if (isSwineMatingTab(currentTab) && !hasReproducers && !hasSemenStock) {
                 setNoReproducersWarningOpen(true);
               } else {
                 setModalOpen(true);
@@ -2063,10 +2127,10 @@ export function ReproducaoDashboard({
         <ReproducaoModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
-          title={currentTab.primaryActionModalTitle ?? currentTab.primaryActionLabel ?? "Novo registro"}
+          title={currentTab.primaryActionModalTitle ?? currentTab.primaryActionLabel ?? t("reproduction.newRecord")}
           subtitle={currentTab.primaryActionModalSubtitle}
           fields={getPrimaryModalFields()}
-          confirmLabel="Salvar"
+          confirmLabel={t("reproduction.save")}
           onConfirm={handlePrimaryConfirm}
         />
       )}
@@ -2100,8 +2164,8 @@ export function ReproducaoDashboard({
           <div className="repro-modal" onClick={e => e.stopPropagation()}>
             <div className="repro-modal-header">
               <div>
-                <div className="repro-modal-title">📋 Histórico da Matriz</div>
-                <div className="repro-modal-subtitle">Linha do tempo de eventos</div>
+                <div className="repro-modal-title">📋 {t("reproduction.historyTitle")}</div>
+                <div className="repro-modal-subtitle">{t("reproduction.eventTimeline")}</div>
               </div>
               <button className="repro-modal-close" onClick={() => setHistoryModalOpen(false)} type="button">
                 <X size={16} />
@@ -2125,7 +2189,7 @@ export function ReproducaoDashboard({
         title={actionModal.title}
         subtitle={actionModal.subtitle}
         fields={actionModal.fields}
-        confirmLabel="Confirmar"
+        confirmLabel={t("reproduction.confirm")}
         onConfirm={actionModal.onConfirm}
       />
 
@@ -2136,7 +2200,7 @@ export function ReproducaoDashboard({
             <div className="repro-modal-header" style={{ paddingBottom: "0.5rem" }}>
               <div>
                 <div className="repro-modal-title text-danger d-flex align-items-center gap-2" style={{ fontSize: "1.25rem" }}>
-                  <span>⚠️</span> Sem Material Reprodutor Disponível
+                  <span>⚠️</span> {t("reproduction.noReproducerAvailable")}
                 </div>
               </div>
               <button className="repro-modal-close" onClick={() => setNoReproducersWarningOpen(false)} type="button">
@@ -2149,7 +2213,7 @@ export function ReproducaoDashboard({
                 🧪
               </div>
               <h5 className="fw-black text-foreground mb-3 text-uppercase small" style={{ letterSpacing: '0.05em' }}>
-                Diagnóstico de Disponibilidade
+                {t("reproduction.availabilityDiagnosis")}
               </h5>
 
               <div className="text-start px-3 py-3 bg-muted/10 rounded-xl mb-4 border border-border/40" style={{ fontSize: '0.85rem' }}>
@@ -2158,9 +2222,9 @@ export function ReproducaoDashboard({
                     {hasReproducers ? "✔" : "❌"}
                   </span>
                   <div>
-                    <strong>Reprodutores:</strong> {hasReproducers
-                      ? `${reproducerOptions.length} ativos.`
-                      : "Nenhum macho reprodutor ativo cadastrado."}
+                    <strong>{t("reproduction.reproducers")}:</strong> {hasReproducers
+                      ? t("reproduction.activeCount", { count: reproducerOptions.length })
+                      : t("reproduction.noActiveMale")}
                   </div>
                 </div>
 
@@ -2169,32 +2233,30 @@ export function ReproducaoDashboard({
                     {hasSemenStock ? "✔" : "❌"}
                   </span>
                   <div>
-                    <strong>Sêmen em Estoque:</strong>{" "}
+                    <strong>{t("reproduction.semenInStock")}:</strong>{" "}
                     {hasSemenStock ? (
-                      "Disponível para uso."
+                      t("reproduction.availableForUse")
                     ) : (
                       <>
                         {semenItems.length === 0 ? (
                           <>
-                            Nenhum produto cadastrado para <strong>{config.especie === 'suinos' ? 'Suínos' : config.especie === 'bovinos' ? 'Bovinos' : 'Aves'}</strong>.
+                            {t("reproduction.noProductsForSpecies", { species: speciesLabel(config.especie) })}
                             {allSemenItems.length > 0 && (
                               <div className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>
-                                💡 Nota: Identificamos sêmen cadastrado para outra(s) espécie(s) ({
-                                  Array.from(new Set(allSemenItems.map(s => {
-                                    if (s.especie_animal === 'suino') return 'Suínos';
-                                    if (s.especie_animal === 'bovino') return 'Bovinos';
-                                    if (s.especie_animal === 'ave') return 'Aves';
-                                    return s.especie_animal_display || s.especie_animal;
-                                  }))).join(', ')
-                                }), mas nenhum para <strong>{config.especie === 'suinos' ? 'Suínos' : config.especie === 'bovinos' ? 'Bovinos' : 'Aves'}</strong>. Por favor, verifique se selecionou a espécie correta ao cadastrar o produto no estoque.
+                                💡 {t("reproduction.otherSpeciesSemen", {
+                                  species: Array.from(new Set(allSemenItems.map(item =>
+                                    speciesLabel(item.especie_animal, item.especie_animal_display),
+                                  ))).join(", "),
+                                  currentSpecies: speciesLabel(config.especie),
+                                })}
                               </div>
                             )}
                           </>
                         ) : (
                           <>
-                            Cadastrado, mas está <strong>sem estoque (0 doses)</strong>.
+                            {t("reproduction.semenOutOfStock")}
                             <div className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>
-                              Produtos encontrados: {semenItems.map(s => s.nome).join(', ')}.
+                              {t("reproduction.productsFound", { products: semenItems.map(s => s.nome).join(", ") })}
                             </div>
                           </>
                         )}
@@ -2205,7 +2267,7 @@ export function ReproducaoDashboard({
               </div>
 
               <p className="text-muted-foreground mb-0" style={{ fontSize: "0.82rem", lineHeight: "1.5" }}>
-                Para registrar uma cobertura, você precisa possuir pelo menos um reprodutor ativo cadastrado OU sêmen com saldo disponível no estoque para a espécie correspondente.
+                {t("reproduction.matingPrerequisite")}
               </p>
             </div>
 
@@ -2216,7 +2278,7 @@ export function ReproducaoDashboard({
                 style={{ background: "oklch(0.55 0.16 145)", border: "none", boxShadow: "0 4px 12px oklch(0.55 0.16 145 / 0.2)" }}
                 onClick={() => setNoReproducersWarningOpen(false)}
               >
-                Cadastrar Novo Reprodutor
+                {t("reproduction.registerNewReproducer")}
               </Link>
               <Link
                 href={`/home/estoque/produtos?openModal=true&category=semen`}
@@ -2224,14 +2286,14 @@ export function ReproducaoDashboard({
                 style={{ background: "oklch(0.65 0.22 350)", border: "none", boxShadow: "0 4px 12px oklch(0.65 0.22 350 / 0.2)" }}
                 onClick={() => setNoReproducersWarningOpen(false)}
               >
-                Adicionar Sêmen ao Estoque
+                {t("reproduction.addSemenToInventory")}
               </Link>
               <button
                 type="button"
                 className="repro-btn-secondary w-100 justify-content-center"
                 onClick={() => setNoReproducersWarningOpen(false)}
               >
-                Voltar
+                {t("reproduction.back")}
               </button>
             </div>
           </div>

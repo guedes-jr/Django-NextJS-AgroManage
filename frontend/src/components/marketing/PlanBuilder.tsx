@@ -20,6 +20,7 @@ import {
   Sprout,
   Trash2,
 } from "lucide-react";
+import { usePublicLocale } from "@/lib/publicLocale";
 
 type Tier = { id: string; label: string; price: number | null };
 type Segment = {
@@ -104,13 +105,13 @@ const planSteps = [
   { number: 3, title: "Finalize", text: "Faça sua assinatura" },
 ] as const;
 
-const formatMoney = (value: number) => value.toLocaleString("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  minimumFractionDigits: 2,
-});
-
 export function PlanBuilder() {
+  const { language, t } = usePublicLocale();
+  const formatMoney = (value: number) => value.toLocaleString(language, {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
   const [segments, setSegments] = useState<Segment[]>(defaultSegments);
   const [step, setStep] = useState<1 | 2>(1);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
@@ -241,7 +242,7 @@ export function PlanBuilder() {
                   {segment.tiers.map((tier, tierIndex) => <label className={selected[segment.id] === tierIndex ? "active" : ""} key={tier.label}>
                     <input type="radio" name={segment.id} checked={selected[segment.id] === tierIndex} onChange={() => selectTier(segment.id, tierIndex)}/>
                     <span>{tier.label}</span>
-                    <strong>{tier.price === null ? "Fale com a equipe" : <>{formatMoney(tier.price)}<small>/mês</small></>}</strong>
+                    <strong>{tier.price === null ? t("plans.quote") : <>{formatMoney(tier.price)}<small>{t("plans.perMonth")}</small></>}</strong>
                   </label>)}
                 </div>
                 <div className="segment-discount"><BadgePercent/><span><strong>{segment.annualDiscountPercent}% de desconto no plano anual</strong><small>Economia aplicada a qualquer faixa.</small></span></div>
@@ -255,11 +256,11 @@ export function PlanBuilder() {
             <h3><ShoppingCart/> Seu plano selecionado</h3>
             {chosen.length ? chosen.map(({ segment, tier }) => <div className={`selected-plan ${segment.accent}`} key={segment.id}>
               <segment.Icon/><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span>
-              <b>{tier.price === null ? "Sob consulta" : formatMoney(tier.price)}</b>
+              <b>{tier.price === null ? t("plans.quote") : formatMoney(tier.price)}</b>
               <button onClick={() => toggleSegment(segment.id)} aria-label={`Remover ${segment.title}`}><Trash2/></button>
             </div>) : <p className="empty-selection">Selecione ao menos um segmento para montar seu plano.</p>}
-            <div className="selection-total"><span>{billing === "yearly" ? "Equivalente mensal" : "Total mensal"}</span><strong>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}<small>/mês</small></strong></div>
-            {billing === "yearly" && !hasCustomPrice && <div className="selection-annual-total"><span>Montante da compra (12 meses)</span><strong>{formatMoney(annualTotal)}</strong></div>}
+            <div className="selection-total"><span>{billing === "yearly" ? t("plans.monthlyEquivalent") : t("plans.monthlyTotal")}</span><strong>{hasCustomPrice ? t("plans.quote") : formatMoney(total)}<small>{t("plans.perMonth")}</small></strong></div>
+            {billing === "yearly" && !hasCustomPrice && <div className="selection-annual-total"><span>{t("plans.purchaseTotal")}</span><strong>{formatMoney(annualTotal)}</strong></div>}
           </div>
           <div className="selection-checkout">
             <BillingChoice billing={billing} setBilling={setBilling}/>
@@ -269,26 +270,26 @@ export function PlanBuilder() {
         </section>
       </> : <>
         <header className="plan-builder-heading review-heading">
-          <div><span>Quase lá</span><h2>Revise seu pedido</h2><p>Confira os segmentos selecionados e escolha o tipo de assinatura.</p></div>
+          <div><span>{t("plans.almostThere")}</span><h2>{t("plans.reviewOrder")}</h2><p>{t("plans.reviewDescription")}</p></div>
           <div><ShoppingCart/><span>Você pode adicionar quantos segmentos quiser ao mesmo plano.</span></div>
         </header>
 
         <div className="plan-review-grid">
           <div>
             <section className="review-card review-products">
-              <h3><ShoppingCart/> Planos selecionados</h3>
+              <h3><ShoppingCart/> {t("plans.selectedPlans")}</h3>
               {chosen.map(({ segment, tier }) => <div className={`review-line ${segment.accent}`} key={segment.id}>
-                <segment.Icon/><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? "Sob consulta" : <>{formatMoney(tier.price)}<small>/mês</small></>}</b><button onClick={() => toggleSegment(segment.id)} aria-label={`Remover ${segment.title}`}><Trash2/></button>
+                <segment.Icon/><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? t("plans.quote") : <>{formatMoney(tier.price)}<small>{t("plans.perMonth")}</small></>}</b><button onClick={() => toggleSegment(segment.id)} aria-label={`${t("plans.remove")} ${segment.title}`}><Trash2/></button>
               </div>)}
-              <button className="add-segment" onClick={() => setStep(1)}><Plus/> Adicionar outro segmento</button>
+              <button className="add-segment" onClick={() => setStep(1)}><Plus/> {t("plans.addSegment")}</button>
             </section>
-            <section className="review-card"><h3>Tipo de assinatura</h3><BillingChoice billing={billing} setBilling={setBilling} expanded/>{billing === "yearly" && <div className="annual-callout"><BadgePercent/><span><strong>Desconto anual aplicado por segmento</strong><small>O valor integral dos 12 meses aparece no resumo antes da contratação.</small></span></div>}</section>
+            <section className="review-card"><h3>{t("plans.subscriptionType")}</h3><BillingChoice billing={billing} setBilling={setBilling} expanded/>{billing === "yearly" && <div className="annual-callout"><BadgePercent/><span><strong>{t("plans.annualDiscount")}</strong><small>{t("plans.annualDiscountDescription")}</small></span></div>}</section>
           </div>
           <aside>
             <section className="review-card order-summary">
-              <h3><ClipboardList/> Resumo do pedido</h3>
-              {chosen.map(({ segment, tier }) => <div key={segment.id}><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? "Sob consulta" : formatMoney(billing === "yearly" ? tier.price * (1 - segment.annualDiscountPercent / 100) : tier.price)}</b></div>)}
-              <div className="review-total"><strong>{billing === "yearly" ? "Equivalente mensal" : "Total mensal"}</strong><b>{hasCustomPrice ? "Sob consulta" : formatMoney(total)}</b></div>
+              <h3><ClipboardList/> {t("plans.orderSummary")}</h3>
+              {chosen.map(({ segment, tier }) => <div key={segment.id}><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span><b>{tier.price === null ? t("plans.quote") : formatMoney(billing === "yearly" ? tier.price * (1 - segment.annualDiscountPercent / 100) : tier.price)}</b></div>)}
+              <div className="review-total"><strong>{billing === "yearly" ? t("plans.monthlyEquivalent") : t("plans.monthlyTotal")}</strong><b>{hasCustomPrice ? t("plans.quote") : formatMoney(total)}</b></div>
               {billing === "yearly" && !hasCustomPrice && <><div className="review-billing-total"><strong>Total da compra</strong><b>{formatMoney(annualTotal)}</b></div><p>Economia de {formatMoney(annualSavings)} por ano.</p></>}
             </section>
             <section className="review-card included-card"><h3>O que você recebe</h3>{["Acesso completo aos módulos selecionados", "Atualizações sem custo adicional", "Suporte especializado", "Dados seguros na nuvem", "Cancele quando quiser"].map((item) => <p key={item}><CheckCircle2/>{item}</p>)}</section>

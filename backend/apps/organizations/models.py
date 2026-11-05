@@ -23,10 +23,17 @@ class Organization(BaseModel):
         PRO = "pro", "Pro"
         ENTERPRISE = "enterprise", "Enterprise"
 
+    class Language(models.TextChoices):
+        PORTUGUESE_BRAZIL = "pt-BR", "Português (Brasil)"
+        ENGLISH = "en", "English"
+        SPANISH = "es", "Español"
+        PORTUGUESE_PORTUGAL = "pt-PT", "Português (Portugal)"
+
     name = models.CharField(max_length=255, db_index=True)
     slug = models.SlugField(unique=True, max_length=100)
     document = models.CharField(max_length=20, blank=True, help_text="CNPJ or CPF")
     plan = models.CharField(max_length=20, choices=Plan.choices, default=Plan.FREE)
+    language = models.CharField(max_length=5, choices=Language.choices, default=Language.PORTUGUESE_BRAZIL)
     is_active = models.BooleanField(default=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE, db_index=True)
     status_reason = models.CharField(max_length=1000, blank=True)
@@ -136,4 +143,3 @@ class OrganizationContact(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.get_contact_type_display()}: {self.value})"
-

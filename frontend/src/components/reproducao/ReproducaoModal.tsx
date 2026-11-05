@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, Plus, Trash2 } from "lucide-react";
 import "./reproducao.css";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export interface ModalField {
   name: string;
@@ -38,12 +39,13 @@ export function ReproducaoModal({
   title,
   subtitle,
   fields,
-  confirmLabel = "Salvar",
+  confirmLabel,
   onConfirm,
 }: ReproducaoModalProps) {
   const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
+  const { language, t } = useOrganizationLocale();
 
   // Reset/Initialize values when modal opens or fields change
   useEffect(() => {
@@ -66,7 +68,7 @@ export function ReproducaoModal({
   const normalizeDecimalInput = (value: string) => {
     const digits = value.replace(/\D/g, "");
     if (!digits) return "";
-    return (Number(digits) / 100).toLocaleString("pt-BR", {
+    return (Number(digits) / 100).toLocaleString(language, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
@@ -111,7 +113,7 @@ export function ReproducaoModal({
           ? String(message[0])
           : typeof message === "string"
             ? message
-            : "Não foi possível concluir o registro. Revise os dados e tente novamente."
+            : t("reproduction.submitFailed")
       );
     } finally {
       setLoading(false);
@@ -162,14 +164,14 @@ export function ReproducaoModal({
                             required={field.required}
                             disabled={loading || field.disabled}
                             value={row.inventory_item || ""}
-                            aria-label={`${field.label} ${index + 1}`}
+                            aria-label={t("reproduction.doseAria", { field: field.label, index: index + 1 })}
                             onChange={(event) => {
                               const next = [...rows];
                               next[index] = { ...row, inventory_item: event.target.value };
                               updateInventoryRows(field, next);
                             }}
                           >
-                            <option value="">Selecione...</option>
+                            <option value="">{t("reproduction.select")}</option>
                             {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </select>
                           <input
@@ -177,10 +179,10 @@ export function ReproducaoModal({
                             required
                             min="0.01"
                             step="0.01"
-                            placeholder="Dose/leitão"
+                            placeholder={t("reproduction.dosePlaceholder")}
                             value={row.dose_per_animal || ""}
                             disabled={loading || field.disabled}
-                            aria-label={`Dose do ${field.label.toLowerCase()} ${index + 1}`}
+                            aria-label={t("reproduction.doseAria", { field: field.label, index: index + 1 })}
                             onChange={(event) => {
                               const next = [...rows];
                               next[index] = { ...row, dose_per_animal: event.target.value };
@@ -188,14 +190,14 @@ export function ReproducaoModal({
                             }}
                           />
                           {rows.length > 1 && (
-                            <button type="button" className="repro-inventory-remove" aria-label={`Remover ${field.label.toLowerCase()} ${index + 1}`} onClick={() => updateInventoryRows(field, rows.filter((_, rowIndex) => rowIndex !== index))}>
+                            <button type="button" className="repro-inventory-remove" aria-label={t("reproduction.removeFieldAria", { field: field.label.toLowerCase(), index: index + 1 })} onClick={() => updateInventoryRows(field, rows.filter((_, rowIndex) => rowIndex !== index))}>
                               <Trash2 size={17} />
                             </button>
                           )}
                         </div>
                       ))}
                       <button type="button" className="repro-inventory-add" onClick={() => updateInventoryRows(field, [...inventoryRows(field), { inventory_item: "", dose_per_animal: "" }])}>
-                        <Plus size={17} /> Adicionar {field.label.toLowerCase()}
+                        <Plus size={17} /> {t("reproduction.addField", { field: field.label.toLowerCase() })}
                       </button>
                     </div>
                   ) : field.type === "select" ? (
@@ -208,7 +210,7 @@ export function ReproducaoModal({
                       onChange={(e) => handleFieldChange(field.name, isDecimalMask ? normalizeDecimalInput(e.target.value) : e.target.value)}
                       onBlur={(e) => { if (isDecimalMask) handleFieldChange(field.name, formatDecimalInput(e.target.value)); }}
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">{t("reproduction.select")}</option>
                       {field.options?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
@@ -258,11 +260,11 @@ export function ReproducaoModal({
 
           <div className="repro-modal-footer">
             <button type="button" className="repro-btn-secondary" onClick={onClose} disabled={loading}>
-              Cancelar
+              {t("reproduction.cancel")}
             </button>
             <button type="submit" className="repro-btn-primary" disabled={loading}>
               {loading ? <Loader2 size={16} className="spinner" /> : null}
-              {loading ? "Salvando..." : confirmLabel}
+              {loading ? t("reproduction.saving") : confirmLabel ?? t("reproduction.save")}
             </button>
           </div>
         </form>

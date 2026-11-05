@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { apiClient, getMediaUrl } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import { User, Mail, Phone, Shield, Calendar, Edit2, Camera, Check, X, Trash2 } from "lucide-react";
+import { type TranslationKey, useOrganizationLocale } from "@/lib/locale";
 
 interface UserProfile {
   id: string;
@@ -22,14 +23,15 @@ interface UserProfile {
   updated_at: string;
 }
 
-const roleLabels: Record<string, string> = {
-  admin: "Administrador",
-  manager: "Gerente",
-  operator: "Operador",
+const roleLabels: Record<string, TranslationKey> = {
+  admin: "users.role.admin",
+  manager: "users.role.manager",
+  operator: "users.role.operator",
 };
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { language, t } = useOrganizationLocale();
   const { showToast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,17 +103,17 @@ export default function ProfilePage() {
       setEditing(false);
       setAvatarPreview(null);
       setAvatarFile(null);
-      showToast("Perfil salvo com sucesso! 🎉", "success", 15000);
+      showToast(t("profile.saved"), "success", 15000);
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
-      showToast("Não foi possível salvar o perfil. Confira o telefone e tente novamente.", "error");
+      showToast(t("profile.saveFailed"), "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleRemoveAvatar = async () => {
-    if (!confirm("Tem certeza que deseja remover a foto?")) return;
+    if (!confirm(t("profile.removeAvatarConfirm"))) return;
     
     setSaving(true);
     try {
@@ -132,17 +134,24 @@ export default function ProfilePage() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("pt-BR", {
+    return new Date(dateStr).toLocaleDateString(language, {
       day: "2-digit",
       month: "long",
       year: "numeric",
     });
   };
 
+  const recentActivity: Array<{ action: TranslationKey; detail: TranslationKey; date: TranslationKey }> = [
+    { action: "profile.activity.profileUpdated", detail: "profile.activity.profileDetails", date: "profile.activity.twoHours" },
+    { action: "profile.activity.passwordChanged", detail: "profile.activity.passwordDetails", date: "profile.activity.fiveDays" },
+    { action: "profile.activity.newLogin", detail: "profile.activity.loginDetails", date: "profile.activity.oneWeek" },
+    { action: "profile.activity.accountCreated", detail: "profile.activity.accountDetails", date: "profile.activity.twoWeeks" },
+  ];
+
   if (loading) {
     return (
       <div className="d-flex align-items-center justify-content-center" style={{ minHeight: "60vh" }}>
-        <span className="text-muted">Carregando...</span>
+        <span className="text-muted">{t("profile.loading")}</span>
       </div>
     );
   }
@@ -151,9 +160,9 @@ export default function ProfilePage() {
     <>
       <div className="mb-5">
         <h1 className="fw-black mb-1" style={{ color: "var(--foreground)", fontSize: '1.875rem', letterSpacing: '-0.02em' }}>
-          Meu Perfil
+          {t("profile.title")}
         </h1>
-        <p className="mb-0 text-muted-foreground fw-medium">Gerencie suas informações pessoais</p>
+        <p className="mb-0 text-muted-foreground fw-medium">{t("profile.description")}</p>
       </div>
 
       <div className="row g-4">
@@ -185,7 +194,7 @@ export default function ProfilePage() {
                   <div className="position-relative">
                     <img
                       src={avatarPreview || (user?.avatar ? getMediaUrl(user.avatar) : "")}
-                      alt={user?.full_name || "Avatar"}
+                      alt={user?.full_name || t("profile.avatar")}
                       className="rounded-circle object-fit-cover"
                       style={{ width: '150px', height: '150px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
                     />
@@ -199,7 +208,7 @@ export default function ProfilePage() {
                               disabled={saving}
                               className="rounded-circle d-flex align-items-center justify-content-center"
                               style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
-                              title="Salvar"
+                              title={t("profile.save")}
                             >
                               {saving ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -212,7 +221,7 @@ export default function ProfilePage() {
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAvatarPreview(null); setAvatarFile(null); }}
                               className="rounded-circle d-flex align-items-center justify-content-center"
                               style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
-                              title="Cancelar"
+                              title={t("profile.cancel")}
                             >
                               <X size={20} className="text-white" />
                             </button>
@@ -224,7 +233,7 @@ export default function ProfilePage() {
                               onClick={(e) => { e.preventDefault(); document.getElementById('avatar-upload')?.click(); }}
                               className="rounded-circle d-flex align-items-center justify-content-center"
                               style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
-                              title="Alterar foto"
+                              title={t("profile.changePhoto")}
                             >
                               <Edit2 size={20} className="text-white" />
                             </button>
@@ -233,7 +242,7 @@ export default function ProfilePage() {
                               onClick={(e) => { e.preventDefault(); handleRemoveAvatar(); }}
                               className="rounded-circle d-flex align-items-center justify-content-center"
                               style={{ border: '2px solid #22c55e', width: '44px', height: '44px' }}
-                              title="Remover foto"
+                              title={t("profile.removePhoto")}
                             >
                               <Trash2 size={20} className="text-white" />
                             </button>
@@ -256,7 +265,7 @@ export default function ProfilePage() {
                       htmlFor="avatar-upload"
                       className="rounded-circle d-flex align-items-center justify-content-center"
                       style={{ border: '2px solid #22c55e', width: '40px', height: '40px', cursor: 'pointer' }}
-                      title="Adicionar foto"
+                      title={t("profile.addPhoto")}
                     >
                       <Camera size={18} className="text-white" />
                     </label>
@@ -272,7 +281,7 @@ export default function ProfilePage() {
         <div className="col-12">
           <div className="dashboard-card p-4">
             <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3 className="fw-bold mb-0" style={{ fontSize: "1.125rem" }}>Informações Pessoais</h3>
+              <h3 className="fw-bold mb-0" style={{ fontSize: "1.125rem" }}>{t("profile.personalInfo")}</h3>
               {!editing ? (
                 <button
                   className="btn d-flex align-items-center gap-2 px-3 py-1.5 rounded-lg"
@@ -280,7 +289,7 @@ export default function ProfilePage() {
                   onClick={() => setEditing(true)}
                 >
                   <Edit2 size={16} />
-                  Editar
+                  {t("profile.edit")}
                 </button>
               ) : (
                 <div className="d-flex gap-2">
@@ -298,14 +307,14 @@ export default function ProfilePage() {
                       });
                     }}
                   >
-                    Cancelar
+                    {t("profile.cancel")}
                   </button>
                   <button
                     className="btn text-white px-3 py-1.5 rounded-lg"
                     style={{ background: 'var(--primary)' }}
                     onClick={handleSave}
                   >
-                    Salvar
+                    {t("profile.save")}
                   </button>
                 </div>
               )}
@@ -318,7 +327,7 @@ export default function ProfilePage() {
                     <User size={20} style={{ color: '#22c55e' }} />
                   </div>
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="text-muted-foreground small fw-medium">Nome Completo</div>
+                    <div className="text-muted-foreground small fw-medium">{t("profile.fullName")}</div>
                     {editing ? (
                       <input
                         type="text"
@@ -340,7 +349,7 @@ export default function ProfilePage() {
                     <Mail size={20} style={{ color: '#22c55e' }} />
                   </div>
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="text-muted-foreground small fw-medium">E-mail</div>
+                    <div className="text-muted-foreground small fw-medium">{t("profile.email")}</div>
                     {editing ? (
                       <input
                         type="email"
@@ -362,7 +371,7 @@ export default function ProfilePage() {
                     <Phone size={20} style={{ color: '#22c55e' }} />
                   </div>
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="text-muted-foreground small fw-medium">Telefone</div>
+                    <div className="text-muted-foreground small fw-medium">{t("profile.phone")}</div>
                     {editing ? (
                       <input
                         type="text"
@@ -372,7 +381,7 @@ export default function ProfilePage() {
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       />
                     ) : (
-                      <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{user?.phone || "Não informado"}</div>
+                      <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{user?.phone || t("profile.notProvided")}</div>
                     )}
                   </div>
                 </div>
@@ -388,8 +397,8 @@ export default function ProfilePage() {
                     <Shield size={20} style={{ color: '#22c55e' }} />
                   </div>
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="text-muted-foreground small fw-medium">Função</div>
-                    <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{roleLabels[user?.role || "operator"] || user?.role}</div>
+                    <div className="text-muted-foreground small fw-medium">{t("profile.role")}</div>
+                    <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{roleLabels[user?.role || "operator"] ? t(roleLabels[user?.role || "operator"]) : user?.role}</div>
                   </div>
                 </div>
               </div>
@@ -400,7 +409,7 @@ export default function ProfilePage() {
                     <Calendar size={20} style={{ color: '#22c55e' }} />
                   </div>
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="text-muted-foreground small fw-medium">Membro desde</div>
+                    <div className="text-muted-foreground small fw-medium">{t("profile.memberSince")}</div>
                     <div className="fw-bold" style={{ color: 'var(--foreground)' }}>{user?.created_at ? formatDate(user.created_at) : "-"}</div>
                   </div>
                 </div>
@@ -411,20 +420,15 @@ export default function ProfilePage() {
 
         <div className="col-12">
           <div className="dashboard-card p-4">
-            <h3 className="fw-bold mb-4" style={{ fontSize: "1.125rem" }}>Últimas Alterações</h3>
+            <h3 className="fw-bold mb-4" style={{ fontSize: "1.125rem" }}>{t("profile.lastChanges")}</h3>
             <div className="d-flex flex-column gap-3">
-              {[
-                { action: "Perfil atualizado", detail: "Dados pessoais foram alterados", date: "2 horas atrás", icon: "user" },
-                { action: "Senha alterada", detail: "Sua senha foi atualizada com sucesso", date: "5 dias atrás", icon: "lock" },
-                { action: "Novo acesso", detail: "Login realizado em novo dispositivo", date: "1 semana atrás", icon: "login" },
-                { action: "Conta criada", detail: "Sua conta foi registrada no sistema", date: "2 semanas atrás", icon: "add" },
-              ].map((item, idx) => (
+              {recentActivity.map((item, idx) => (
                 <div key={idx} className="d-flex align-items-center gap-3 py-2">
-                  <div className="text-muted-foreground small flex-shrink-0" style={{ width: '100px' }}>{item.date}</div>
+                  <div className="text-muted-foreground small flex-shrink-0" style={{ width: '100px' }}>{t(item.date)}</div>
                   <div className="flex-grow-1">
-                    <div className="fw-medium" style={{ color: 'var(--foreground)' }}>{item.action}</div>
+                    <div className="fw-medium" style={{ color: 'var(--foreground)' }}>{t(item.action)}</div>
                   </div>
-                  <div className="text-muted-foreground small">{item.detail}</div>
+                  <div className="text-muted-foreground small">{t(item.detail)}</div>
                 </div>
               ))}
             </div>

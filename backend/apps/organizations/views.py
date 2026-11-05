@@ -2,7 +2,7 @@ from rest_framework import status, viewsets
 from common.permissions import OrganizationRolePermission
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from common.permissions import IsTenantAccessAllowed as IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
 import os
 import subprocess
@@ -23,7 +23,7 @@ from apps.billing.services import create_manual_invoice, create_subscription_quo
 
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
-@parser_classes([MultiPartParser, FormParser])
+@parser_classes([JSONParser, MultiPartParser, FormParser])
 def my_organization_view(request):
     """Get or update current user's organization."""
     org = getattr(request.user, "organization", None)
@@ -36,7 +36,7 @@ def my_organization_view(request):
 
     if request.method == "GET":
         if request.user.role == "operator":
-            return Response({"id": str(org.pk), "name": org.name, "subscription": None})
+            return Response({"id": str(org.pk), "name": org.name, "language": org.language, "subscription": None})
         return Response(OrganizationSerializer(org).data)
 
     # Permission check: Only Owners or Admins can edit organization data

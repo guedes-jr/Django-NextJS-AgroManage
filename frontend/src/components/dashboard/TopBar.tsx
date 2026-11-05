@@ -8,6 +8,7 @@ import { ContextualBackButton } from "@/components/navigation/ContextualBackButt
 import { NotificationBell } from "@/components/notifications";
 import { NavbarSearch } from "./NavbarSearch";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
+import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 interface UserData {
   id: number;
@@ -30,12 +31,11 @@ const getStoredUser = (): UserData | null => {
   return null;
 };
 
-// Map technical roles to user-friendly Portuguese labels and colors
-const roleConfig: Record<string, { label: string; color: string; bg: string }> = {
-  admin: { label: "Administrador", color: "#1e40af", bg: "#dbeafe" }, // Blue
-  manager: { label: "Gerente", color: "#166534", bg: "#dcfce7" }, // Green
-  feeder: { label: "Tratador", color: "#166534", bg: "#dcfce7" },
-  operator: { label: "Operador", color: "#374151", bg: "#f3f4f6" }, // Grey/Zinc
+const roleConfig: Record<string, { label: TranslationKey; color: string; bg: string }> = {
+  admin: { label: "role.admin", color: "#1e40af", bg: "#dbeafe" },
+  manager: { label: "role.manager", color: "#166534", bg: "#dcfce7" },
+  feeder: { label: "role.feeder", color: "#166534", bg: "#dcfce7" },
+  operator: { label: "role.operator", color: "#374151", bg: "#f3f4f6" },
 };
 
 interface TopBarProps {
@@ -46,6 +46,7 @@ interface TopBarProps {
 export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
   const router = useRouter();
   const access = useOrganizationAccess();
+  const { t } = useOrganizationLocale();
   const [user, setUser] = useState<UserData | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -86,7 +87,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
           type="button"
           className="btn btn-link p-0 d-lg-none text-foreground" 
           onClick={onMenuClick}
-          aria-label="Abrir menu de navegação"
+          aria-label={t("topbar.openMenu")}
           aria-controls="dashboard-sidebar"
           aria-expanded={isMenuOpen}
         >
@@ -147,20 +148,20 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
                      padding: '4px 12px' // Increased padding as requested
                    }}
                 >
-                  {roleAttr.label}
+                  {t(roleAttr.label)}
                 </span>
               </div>
               <button 
                 onClick={() => { router.push('/home/profile'); setShowDropdown(false); }}
                 className="w-100 btn btn-link text-decoration-none text-start px-3 py-2 text-muted-foreground hover-bg-muted hover-text-foreground transition-colors d-flex align-items-center gap-2"
               >
-                <User size={16} /> Meu Perfil
+                <User size={16} /> {t("topbar.profile")}
               </button>
               <button 
                 onClick={handleLogout}
                 className="w-100 btn btn-link text-decoration-none text-start px-3 py-2 mt-1 text-danger hover-bg-danger/10 transition-colors border-top border-border rounded-0 d-flex align-items-center gap-2"
               >
-                <LogOut size={16} /> Sair
+                <LogOut size={16} /> {t("topbar.logout")}
               </button>
             </div>
           )}

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { financeService, FinanceAccount, NamedOption } from "@/services/financeService";
 import { apiClient } from "@/services/api";
+import { useOrganizationLocale } from "@/lib/locale";
 
 interface InventoryItem {
   id: string;
@@ -64,6 +65,7 @@ const DESTINATION_OPTIONS = [
 ];
 
 export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: initialType }: QuickMovementModalProps) {
+  const { t } = useOrganizationLocale();
   const [loading, setLoading] = useState(false);
   const [mainType, setMainType] = useState<"in" | "out">(initialType);
   const [subType, setSubType] = useState<string>("");
@@ -142,10 +144,10 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       
       fetchFornecedores();
       setPaymentStatus("pending"); setFarmId(""); setAccountId("");
-      Promise.all([financeService.farms(), financeService.accounts()]).then(([farms, accounts]) => { setFarms(farms); setAccounts(accounts); }).catch(() => setError("Não foi possível carregar propriedades e contas."));
+      Promise.all([financeService.farms(), financeService.accounts()]).then(([farms, accounts]) => { setFarms(farms); setAccounts(accounts); }).catch(() => setError(t("inventory.movements.loadOptionsFailed")));
     });
     return () => { cancelled = true; };
-  }, [isOpen, initialItem, initialType]);
+  }, [isOpen, initialItem, initialType, t]);
 
   useEffect(() => {
     if (isOpen && selectedItem && mainType === "out") {
@@ -178,15 +180,15 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedItem) { setError("Selecione um produto."); return; }
+    if (!selectedItem) { setError(t("inventory.movements.selectProduct")); return; }
     const quantidadeNumber = parseDecimalValue(quantidade);
 
     if (!quantidade || Number.isNaN(quantidadeNumber) || quantidadeNumber <= 0) {
-      setError("Informe uma quantidade válida.");
+      setError(t("inventory.movements.invalidQuantity"));
       return;
     }
     if (mainType === "out" && !destino.trim()) {
-      setError("Informe o destino da saída.");
+      setError(t("inventory.movements.destinationRequired"));
       return;
     }
     setLoading(true);
@@ -232,7 +234,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
         if (value && typeof value === "object") return Object.values(value).map(describe).filter(Boolean).join(" ");
         return "";
       };
-      setError(describe(errorData) || "Erro ao processar a movimentação. Tente novamente.");
+      setError(describe(errorData) || t("inventory.movements.saveFailed"));
     } finally {
       setLoading(false);
     }
@@ -278,8 +280,8 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
             {/* Header */}
             <div className="p-4 border-bottom d-flex justify-content-between align-items-center">
               <div>
-                <h2 className="fw-bold mb-0 text-dark" style={{ fontSize: "1.25rem" }}>Registrar Movimentação</h2>
-                <p className="text-muted small mb-0">Entrada ou saída de itens do estoque</p>
+                <h2 className="fw-bold mb-0 text-dark" style={{ fontSize: "1.25rem" }}>{t("inventory.movements.register")}</h2>
+                <p className="text-muted small mb-0">{t("inventory.movements.entryOrExit")}</p>
               </div>
               <button onClick={onClose} className="btn btn-link text-dark p-2 border-0">
                 <X size={20} />
@@ -295,7 +297,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                   onClick={() => { setMainType("in"); setSubType("compra"); }}
                   className={`flex-grow-1 rounded-pill border-0 fw-bold d-flex align-items-center justify-content-center gap-2 transition-all ${mainType === "in" ? "bg-success text-white shadow-sm" : "bg-transparent text-muted"}`}
                 >
-                  <Plus size={18} /> Entrada
+                  <Plus size={18} /> {t("inventory.movements.entry")}
                 </button>
                 <button 
                   type="button"
@@ -303,24 +305,24 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                   className={`flex-grow-1 rounded-pill border-0 fw-bold d-flex align-items-center justify-content-center gap-2 transition-all ${mainType === "out" ? "bg-danger-subtle text-danger shadow-sm" : "bg-transparent text-muted"}`}
                   style={mainType === "out" ? { backgroundColor: "#d66b7a", color: "white" } : {}}
                 >
-                  <ArrowDownRight size={18} /> Saída
+                  <ArrowDownRight size={18} /> {t("inventory.movements.exit")}
                 </button>
               </div>
 
               {/* Sub-type Specific */}
               <div className="mb-4">
-                <label className={labelStyle}>Tipo Específico</label>
+                <label className={labelStyle}>{t("inventory.movements.specificType")}</label>
                 <div className="row g-2">
                   {mainType === "in" ? (
                     <>
                       <div className="col-6">
                         <button type="button" onClick={() => setSubType("compra")} className={`btn w-100 py-3 rounded-xl border d-flex align-items-center gap-2 fw-bold transition-all ${subType === "compra" ? "bg-success-subtle border-success text-success" : "bg-light border-light text-muted"}`}>
-                          <ShoppingCart size={18} /> Compra
+                          <ShoppingCart size={18} /> {t("inventory.movements.purchase")}
                         </button>
                       </div>
                       <div className="col-6">
                         <button type="button" onClick={() => setSubType("entrada")} className={`btn w-100 py-3 rounded-xl border d-flex align-items-center gap-2 fw-bold transition-all ${subType === "entrada" ? "bg-success-subtle border-success text-success" : "bg-light border-light text-muted"}`}>
-                          <Plus size={18} /> Entrada avulsa
+                          <Plus size={18} /> {t("inventory.movements.oneOffEntry")}
                         </button>
                       </div>
                     </>
@@ -328,17 +330,17 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                     <>
                       <div className="col-4">
                         <button type="button" onClick={() => setSubType("consumo")} className={`btn w-100 py-3 rounded-xl border d-flex align-items-center gap-2 fw-bold transition-all ${subType === "consumo" ? "bg-danger-subtle border-danger text-danger" : "bg-light border-light text-muted"}`} style={subType === "consumo" ? { backgroundColor: "#fce7e9", borderColor: "#fecaca" } : {}}>
-                          <Utensils size={18} /> Consumo
+                          <Utensils size={18} /> {t("inventory.movements.consumption")}
                         </button>
                       </div>
                       <div className="col-4">
                         <button type="button" onClick={() => setSubType("venda")} className={`btn w-100 py-3 rounded-xl border d-flex align-items-center gap-2 fw-bold transition-all ${subType === "venda" ? "bg-light border-light text-dark" : "bg-light border-light text-muted"}`}>
-                          <ArrowDownRight size={18} /> Venda
+                          <ArrowDownRight size={18} /> {t("inventory.movements.sale")}
                         </button>
                       </div>
                       <div className="col-4">
                         <button type="button" onClick={() => setSubType("perda")} className={`btn w-100 py-3 rounded-xl border d-flex align-items-center gap-2 fw-bold transition-all ${subType === "perda" ? "bg-light border-light text-dark" : "bg-light border-light text-muted"}`}>
-                          <AlertTriangle size={18} /> Perda
+                          <AlertTriangle size={18} /> {t("inventory.movements.loss")}
                         </button>
                       </div>
                     </>
@@ -348,13 +350,13 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
 
               {/* Product Selection */}
               <div className="mb-4">
-                <label className={labelStyle}>Produto</label>
+                <label className={labelStyle}>{t("inventory.products.product")}</label>
                 {!selectedItem ? (
                   <div className="position-relative">
                     <input
                       type="text"
                       style={inputStyle}
-                      placeholder="Selecione o produto..."
+                      placeholder={t("inventory.movements.selectProductPlaceholder")}
                       value={productSearch}
                       onChange={(e) => handleProductSearch(e.target.value)}
                     />
@@ -380,45 +382,45 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
               {/* Qty & Lot */}
               <div className="row g-3 mb-4">
                 <div className="col-6">
-                  <label className={labelStyle}>Quantidade</label>
+                  <label className={labelStyle}>{t("inventory.movements.quantity")}</label>
                   <input type="number" style={inputStyle} placeholder="0.00" value={quantidade} onChange={e => setQuantidade(e.target.value)} />
                 </div>
                 <div className="col-6">
-                  <label className={labelStyle}>{mainType === "in" ? "Nº do Lote" : "Lote (Opcional)"}</label>
+                  <label className={labelStyle}>{mainType === "in" ? t("inventory.movements.lotNumber") : t("inventory.movements.optionalLot")}</label>
                   {mainType === "in" ? (
                     <input type="text" style={inputStyle} placeholder="Ex: LOT-001" value={numeroLote} onChange={e => setNumeroLote(e.target.value)} />
                   ) : (
                     <select style={inputStyle} value={loteId} onChange={e => setLoteId(e.target.value)}>
-                      <option value="">Padrão (FIFO)</option>
+                      <option value="">{t("inventory.movements.defaultFifo")}</option>
                       {lotes.map(l => (
-                        <option key={l.id} value={l.id}>{l.numero_lote} - Saldo: {l.quantidade_atual}</option>
+                        <option key={l.id} value={l.id}>{l.numero_lote} - {t("inventory.movements.balance")}: {l.quantidade_atual}</option>
                       ))}
                     </select>
                   )}
                 </div>
               </div>
 
-              {mainType === "in" && <div className="mb-3"><label className={labelStyle}>Data de recebimento no estoque</label><input required type="date" className="form-control" max={localToday()} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} /><small className="text-muted">Para lançamentos retroativos, informe quando o produto foi realmente recebido.</small></div>}
+              {mainType === "in" && <div className="mb-3"><label className={labelStyle}>{t("inventory.movements.receiptDate")}</label><input required type="date" className="form-control" max={localToday()} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} /><small className="text-muted">{t("inventory.movements.receiptDateHelp")}</small></div>}
               {/* Specific Purchase Section */}
               {mainType === "in" && subType === "compra" && (
                 <div className="p-4 rounded-xl border mb-4 bg-white">
                   <div className="d-flex align-items-center gap-2 mb-3 text-success fw-bold small">
-                    <CreditCard size={16} /> Dados da Compra
+                    <CreditCard size={16} /> {t("inventory.movements.purchaseDetails")}
                   </div>
                   <div className="row g-3 mb-3">
                     <div className="col-6">
-                      <label className={labelStyle}>Custo Unitário (R$)</label>
+                      <label className={labelStyle}>{t("inventory.movements.unitCost")}</label>
                       <input type="number" style={inputStyle} placeholder="0.00" value={custoUnitario} onChange={e => setCustoUnitario(e.target.value)} step="0.01" />
                     </div>
                     <div className="col-6">
-                      <label className={labelStyle}>Data Validade</label>
+                      <label className={labelStyle}>{t("inventory.movements.expirationDate")}</label>
                       <input type="date" style={inputStyle} value={dataValidade} onChange={e => setDataValidade(e.target.value)} />
                     </div>
                   </div>
                   <div className="mb-0">
-                    <label className={labelStyle}>Fornecedor</label>
+                    <label className={labelStyle}>{t("inventory.home.suppliers")}</label>
                     <select style={inputStyle} value={fornecedorId} onChange={e => setFornecedorId(e.target.value)}>
-                      <option value="">Selecione...</option>
+                      <option value="">{t("inventory.movements.select")}</option>
                       {fornecedores.map(f => (
                         <option key={f.id} value={f.id}>{f.nome}</option>
                       ))}
@@ -429,13 +431,13 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
 
               {mainType === "out" && (
                 <div className="mb-4">
-                  <label className={labelStyle}>Destino</label>
+                  <label className={labelStyle}>{t("inventory.movements.destination")}</label>
                   <div className="position-relative">
                     <input
                       type="text"
                       list="quick-stock-destinations"
                       style={{ ...inputStyle, paddingRight: "2.75rem" }}
-                      placeholder="Ex: Suínos, Plantio, Almoxarifado..."
+                      placeholder={t("inventory.movements.destinationPlaceholder")}
                       value={destino}
                       onChange={(e) => setDestino(e.target.value)}
                       required
@@ -451,26 +453,26 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
               )}
 
               <div className="mb-3">
-                <label className={labelStyle}>Propriedade da movimentação</label>
-                <select style={inputStyle} value={farmId} onChange={e => setFarmId(e.target.value)}><option value="">Estoque geral da organização</option>{farms.map(farm => <option key={farm.id} value={farm.id}>{farm.name}</option>)}</select>
+                <label className={labelStyle}>{t("inventory.movements.movementFarm")}</label>
+                <select style={inputStyle} value={farmId} onChange={e => setFarmId(e.target.value)}><option value="">{t("inventory.movements.organizationStock")}</option>{farms.map(farm => <option key={farm.id} value={farm.id}>{farm.name}</option>)}</select>
               </div>
               {subType === "compra" && <div className="row g-3 mb-4">
-                <label className={`col-12 col-md-6 ${labelStyle}`}>Condição de pagamento<select style={inputStyle} value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}><option value="pending">A pagar / a prazo</option><option value="paid">Pago à vista</option></select></label>
-                <label className={`col-12 col-md-6 ${labelStyle}`}>Vencimento<input style={inputStyle} type="date" required value={purchaseDueDate} onChange={e => setPurchaseDueDate(e.target.value)} /></label>
+                <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.paymentCondition")}<select style={inputStyle} value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}><option value="pending">{t("inventory.movements.toPay")}</option><option value="paid">{t("inventory.movements.paid")}</option></select></label>
+                <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.dueDate")}<input style={inputStyle} type="date" required value={purchaseDueDate} onChange={e => setPurchaseDueDate(e.target.value)} /></label>
                 {paymentStatus === "paid" && <>
-                  <label className={`col-12 ${labelStyle}`}>Forma de pagamento<select style={inputStyle} value={purchasePaymentMethod} onChange={e => setPurchasePaymentMethod(e.target.value)}>{Object.entries({ pix: "PIX", boleto: "Boleto", transfer: "Transferência", cash: "Dinheiro", credit_card: "Cartão de crédito" }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                  <label className={`col-12 col-md-6 ${labelStyle}`}>Conta do pagamento<select style={inputStyle} required value={accountId} onChange={e => setAccountId(e.target.value)}><option value="">Selecione</option>{accounts.filter(account => account.is_active).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                  <label className={`col-12 col-md-6 ${labelStyle}`}>Data do pagamento<input style={inputStyle} type="date" required max={new Date().toLocaleDateString("en-CA")} value={purchasePaymentDate} onChange={e => setPurchasePaymentDate(e.target.value)} /></label>
+                  <label className={`col-12 ${labelStyle}`}>{t("inventory.movements.paymentMethod")}<select style={inputStyle} value={purchasePaymentMethod} onChange={e => setPurchasePaymentMethod(e.target.value)}><option value="pix">PIX</option><option value="boleto">{t("inventory.movements.paymentBoleto")}</option><option value="transfer">{t("inventory.movements.paymentTransfer")}</option><option value="cash">{t("inventory.movements.paymentCash")}</option><option value="credit_card">{t("inventory.movements.paymentCreditCard")}</option></select></label>
+                  <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.paymentAccount")}<select style={inputStyle} required value={accountId} onChange={e => setAccountId(e.target.value)}><option value="">{t("inventory.movements.select")}</option>{accounts.filter(account => account.is_active).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                  <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.paymentDate")}<input style={inputStyle} type="date" required max={new Date().toLocaleDateString("en-CA")} value={purchasePaymentDate} onChange={e => setPurchasePaymentDate(e.target.value)} /></label>
                 </>}
-                <p className="small text-muted mb-0">Compras com custo geram um título financeiro. Somente pagamentos confirmados alteram o saldo da conta.</p>
+                <p className="small text-muted mb-0">{t("inventory.movements.paymentHelp")}</p>
               </div>}
 
               {/* Observation */}
               <div className="mb-0">
-                <label className={labelStyle}>Observação / Motivo</label>
+                <label className={labelStyle}>{t("inventory.movements.noteReason")}</label>
                 <textarea
                   style={{ ...inputStyle, height: '100px', padding: '0.75rem', resize: 'none' }}
-                  placeholder="Descreva o motivo desta movimentação..."
+                  placeholder={t("inventory.movements.notePlaceholder")}
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
                 />
@@ -486,7 +488,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
             {/* Footer */}
             <div className="p-4 border-top d-flex align-items-center justify-content-end gap-3">
               <button type="button" onClick={onClose} className="btn border-0 fw-bold text-dark">
-                Cancelar
+                {t("inventory.form.cancel")}
               </button>
               <button
                 type="submit"
@@ -495,7 +497,7 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                 className={`btn py-3 px-4 rounded-xl fw-bold text-white shadow-sm d-flex align-items-center gap-2 border-0 ${mainType === "in" ? "bg-success" : "bg-danger"}`}
                 style={mainType === "out" ? { backgroundColor: "#d66b7a" } : {}}
               >
-                {loading ? <div className="spinner-border spinner-border-sm" /> : <><Save size={18} /> Confirmar Registro</>}
+                {loading ? <div className="spinner-border spinner-border-sm" /> : <><Save size={18} /> {t("inventory.movements.confirmRecord")}</>}
               </button>
             </div>
           </motion.div>

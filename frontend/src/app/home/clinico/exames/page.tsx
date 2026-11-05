@@ -7,9 +7,11 @@ import { clinicalService } from "@/services/clinicalService";
 import { DataTable } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { ClinicalModal, ModalField } from "@/components/clinico/ClinicalModal";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export default function ExamesPage() {
   const { showToast } = useToast();
+  const { language, t } = useOrganizationLocale();
   const [loading, setLoading] = useState(true);
   const [exams, setExams] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,7 +24,7 @@ export default function ExamesPage() {
       setExams(res.data.results || res.data || []);
     } catch (err) {
       console.error("Erro ao carregar exames:", err);
-      showToast("Erro ao carregar exames", "error");
+      showToast(t("clinical.loadExamsFailed"), "error");
     } finally {
       setLoading(false);
     }
@@ -34,31 +36,30 @@ export default function ExamesPage() {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
-    const [y, m, d] = dateStr.split("T")[0].split("-");
-    return `${d}/${m}/${y}`;
+    return new Date(`${dateStr.split("T")[0]}T00:00:00`).toLocaleDateString(language);
   };
 
   const formatCurrency = (val: number | string | null) => {
     if (val === null || val === undefined || val === "") return "—";
     const num = typeof val === "string" ? parseFloat(val) : val;
-    return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return new Intl.NumberFormat(language, { style: "currency", currency: "BRL" }).format(num);
   };
 
   const columns = [
-    { key: "application_date", label: "Data", render: (v: any) => formatDate(v) },
+    { key: "application_date", label: t("clinical.date"), render: (v: any) => formatDate(v) },
     {
       key: "animal_identifier",
-      label: "Animal",
+      label: t("clinical.animal"),
       render: (v: any) => (
         <span className="badge bg-light text-dark border px-2 py-1 rounded-pill">
-          🐖 Brinco: {v || "—"}
+          🐖 {t("clinical.animalTag")}: {v || "—"}
         </span>
       ),
     },
-    { key: "description", label: "Descrição / Objetivo" },
-    { key: "veterinary", label: "Veterinário", render: (v: any) => v || "—" },
-    { key: "cost", label: "Custo", render: (v: any) => formatCurrency(v) },
-    { key: "notes", label: "Observações", render: (v: any) => v || "—" },
+    { key: "description", label: t("clinical.descriptionObjective") },
+    { key: "veterinary", label: t("clinical.veterinarian"), render: (v: any) => v || "—" },
+    { key: "cost", label: t("clinical.cost"), render: (v: any) => formatCurrency(v) },
+    { key: "notes", label: t("clinical.notes"), render: (v: any) => v || "—" },
   ];
 
   const handleCreateExam = async (data: any) => {
@@ -74,29 +75,29 @@ export default function ExamesPage() {
       };
 
       await clinicalService.createHealthRecord(payload);
-      showToast("Exame registrado com sucesso!", "success");
+      showToast(t("clinical.examSuccess"), "success");
       setIsModalOpen(false);
       fetchData();
     } catch (err: any) {
       console.error(err);
-      showToast(err.response?.data?.detail || "Erro ao registrar exame", "error");
+      showToast(err.response?.data?.detail || t("clinical.examFailed"), "error");
     }
   };
 
   const modalFields: ModalField[] = [
-    { name: "animal_identifier", label: "Brinco do Animal", type: "text", required: true, colSpan: "half" },
+    { name: "animal_identifier", label: t("clinical.animalTag"), type: "text", required: true, colSpan: "half" },
     {
       name: "application_date",
-      label: "Data do Exame",
+      label: t("clinical.examDate"),
       type: "date",
       required: true,
       initialValue: new Date().toISOString().split("T")[0],
       colSpan: "half",
     },
-    { name: "description", label: "Descrição / Objetivo do Exame", type: "text", required: true, colSpan: "full", placeholder: "Ex: Hemograma completo, Ultrassom gestacional" },
-    { name: "veterinary", label: "Veterinário Responsável", type: "text", colSpan: "half" },
-    { name: "cost", label: "Custo do Exame (R$)", type: "number", colSpan: "half" },
-    { name: "notes", label: "Observações / Detalhes Adicionais", type: "textarea", colSpan: "full" },
+    { name: "description", label: t("clinical.examDescriptionLabel"), type: "text", required: true, colSpan: "full", placeholder: t("clinical.examDescriptionPlaceholder") },
+    { name: "veterinary", label: t("clinical.responsibleVeterinarian"), type: "text", colSpan: "half" },
+    { name: "cost", label: t("clinical.examCost"), type: "number", colSpan: "half" },
+    { name: "notes", label: t("clinical.additionalNotes"), type: "textarea", colSpan: "full" },
   ];
 
   // Dynamic statistics
@@ -108,11 +109,11 @@ export default function ExamesPage() {
     <div className="animate-fade-in">
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Dashboard</Link>
+          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>{t("sidebar.dashboard")}</Link>
           <ChevronRight size={14} />
-          <Link href="/home/clinico" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Clínico</Link>
+          <Link href="/home/clinico" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>{t("clinical.dashboard")}</Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Exames</span>
+          <span className="fw-semibold text-foreground">{t("clinical.exams")}</span>
         </nav>
       </div>
 
@@ -123,10 +124,10 @@ export default function ExamesPage() {
           </div>
           <div>
             <h1 className="fw-black mb-1" style={{ fontSize: "1.9rem", letterSpacing: "-0.03em" }}>
-              Exames Laboratoriais
+              {t("clinical.labExams")}
             </h1>
             <p className="text-muted-foreground mb-0">
-              Registro e acompanhamento de análises clínicas, exames de imagem e diagnósticos laboratoriais.
+              {t("clinical.examDescription")}
             </p>
           </div>
         </div>
@@ -136,7 +137,7 @@ export default function ExamesPage() {
           onClick={() => setIsModalOpen(true)}
         >
           <Plus size={18} />
-          Novo Exame
+          {t("clinical.newExam")}
         </button>
       </div>
 
@@ -150,7 +151,7 @@ export default function ExamesPage() {
               </div>
               <div>
                 <div className="fs-4 fw-black">{totalExams}</div>
-                <div className="text-muted-foreground small fw-semibold">Exames Realizados</div>
+                <div className="text-muted-foreground small fw-semibold">{t("clinical.examCompleted")}</div>
               </div>
             </div>
           </div>
@@ -163,7 +164,7 @@ export default function ExamesPage() {
               </div>
               <div>
                 <div className="fs-4 fw-black">{formatCurrency(totalCost)}</div>
-                <div className="text-muted-foreground small fw-semibold">Investimento Total</div>
+                <div className="text-muted-foreground small fw-semibold">{t("clinical.totalInvestment")}</div>
               </div>
             </div>
           </div>
@@ -176,7 +177,7 @@ export default function ExamesPage() {
               </div>
               <div>
                 <div className="fs-4 fw-black">{uniqueVeterinaries}</div>
-                <div className="text-muted-foreground small fw-semibold">Veterinários</div>
+                <div className="text-muted-foreground small fw-semibold">{t("clinical.veterinarians")}</div>
               </div>
             </div>
           </div>
@@ -192,18 +193,18 @@ export default function ExamesPage() {
           columns={columns}
           rows={exams}
           emptyIcon="🔬"
-          emptyText="Nenhum exame laboratorial registrado."
+          emptyText={t("clinical.examEmpty")}
         />
       )}
 
       <ClinicalModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Registrar Novo Exame"
-        subtitle="Preencha os detalhes do exame clínico ou laboratorial realizado"
+        title={t("clinical.examTitle")}
+        subtitle={t("clinical.examSubtitle")}
         fields={modalFields}
         onConfirm={handleCreateExam}
-        confirmLabel="Salvar Exame"
+        confirmLabel={t("clinical.saveExam")}
       />
     </div>
   );

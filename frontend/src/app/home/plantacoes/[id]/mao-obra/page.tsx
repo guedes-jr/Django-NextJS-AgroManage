@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Calendar,
   CalendarDays,
   DollarSign,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cropService } from "@/services/cropService";
+import { useOrganizationLocale } from "@/lib/locale";
 
 type Plantation = {
   id: string;
@@ -78,8 +78,8 @@ const activityOptions = [
 
 const today = () => new Date().toISOString().split("T")[0];
 
-const currency = (value: number) =>
-  value.toLocaleString("pt-BR", {
+const currency = (value: number, language: string) =>
+  value.toLocaleString(language, {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
@@ -105,10 +105,9 @@ const recordDailyQuantity = (record: LaborRecord) => decimalValue(record.daily_q
 const recordDailyRate = (record: LaborRecord) => decimalValue(record.daily_rate);
 const recordTotal = (record: LaborRecord) => recordDailyQuantity(record) * recordDailyRate(record);
 
-const formatDate = (value: string) => {
+const formatDate = (value: string, language: string) => {
   if (!value) return "-";
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
+  return new Date(`${value}T12:00:00`).toLocaleDateString(language);
 };
 
 const extractArray = <T,>(data: unknown): T[] => {
@@ -121,6 +120,7 @@ const extractArray = <T,>(data: unknown): T[] => {
 };
 
 export default function MaoObraPage() {
+  const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
@@ -181,7 +181,7 @@ export default function MaoObraPage() {
       })
       .catch(() => {
         if (!active) return;
-        setError("Não foi possível carregar os dados de mão de obra.");
+        setError(t("plantations.labor.loadFailed"));
       })
       .finally(() => {
         if (!active) return;
@@ -191,7 +191,7 @@ export default function MaoObraPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, t]);
 
   const total = useMemo(() => {
     return decimalValue(form.daily_quantity) * decimalValue(form.daily_rate);
@@ -208,12 +208,12 @@ export default function MaoObraPage() {
   };
 
   const validateForm = () => {
-    if (!form.activity_type) return "Selecione o tipo de atividade.";
-    if (!form.worker) return "Selecione um funcionário ou prestador.";
-    if (!form.activity_date) return "Informe a data da atividade.";
-    if (decimalValue(form.daily_quantity) <= 0) return "A quantidade de diárias deve ser maior que zero.";
-    if (decimalValue(form.daily_rate) <= 0) return "O valor da diária deve ser maior que zero.";
-    if (form.notes.length > 300) return "As observações devem ter no máximo 300 caracteres.";
+    if (!form.activity_type) return t("plantations.labor.selectActivityType");
+    if (!form.worker) return t("plantations.labor.selectWorker");
+    if (!form.activity_date) return t("plantations.labor.dateRequired");
+    if (decimalValue(form.daily_quantity) <= 0) return t("plantations.labor.dailyQuantity");
+    if (decimalValue(form.daily_rate) <= 0) return t("plantations.labor.rateRequired");
+    if (form.notes.length > 300) return t("plantations.labor.notesTooLong");
     return "";
   };
 
@@ -243,7 +243,7 @@ export default function MaoObraPage() {
       });
       setShowWorkerForm(false);
     } catch {
-      setError("Não foi possível cadastrar o trabalhador.");
+      setError(t("plantations.labor.createFailed"));
     } finally {
       setSavingWorker(false);
     }
@@ -283,7 +283,7 @@ export default function MaoObraPage() {
         notes: "",
       });
     } catch {
-      setError("Erro ao salvar o lançamento. Verifique os dados e tente novamente.");
+      setError(t("plantations.labor.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -317,20 +317,20 @@ export default function MaoObraPage() {
       setLaborRecords(extractArray<LaborRecord>(response.data));
       closeEditRecord();
     } catch {
-      setError("Erro ao editar o registro. Tente novamente.");
+      setError(t("plantations.labor.editFailed"));
     } finally {
       setEditSaving(false);
     }
   };
 
   const handleDeleteRecord = async (recordId: string) => {
-    if (!confirm("Tem certeza que deseja remover este registro?")) return;
+    if (!confirm(t("plantations.labor.removeConfirm"))) return;
     try {
       setDeletingId(recordId);
       await cropService.deleteLaborRecord(recordId);
       setLaborRecords((prev) => prev.filter((r) => r.id !== recordId));
     } catch {
-      setError("Erro ao remover o registro. Tente novamente.");
+      setError(t("plantations.labor.deleteFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -347,7 +347,7 @@ export default function MaoObraPage() {
   }
 
   if (!plantation) {
-    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+    return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
   }
 
   return (
@@ -368,10 +368,10 @@ export default function MaoObraPage() {
           </div>
           <div>
             <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.75rem" }}>
-              Mão de Obra
+              {t("plantations.labor.title")}
             </h1>
             <p className="text-muted-foreground mb-0">
-              Registre os funcionários ou prestadores de serviço que trabalharam na lavoura.
+              {t("plantations.labor.description")}
             </p>
           </div>
         </div>
@@ -387,13 +387,13 @@ export default function MaoObraPage() {
 
       <div className="dashboard-card p-4 mb-3">
         <h2 className="fw-black text-foreground mb-4" style={{ fontSize: "1.2rem" }}>
-          Registrar mão de obra
+          {t("plantations.labor.register")}
         </h2>
 
         <div className="row g-4 align-items-end mb-4">
           <div className="col-12 col-lg-6">
             <label className="form-label fw-bold text-foreground">
-              Tipo de atividade <span className="text-danger">*</span>
+              {t("plantations.labor.activityType")} <span className="text-danger">*</span>
             </label>
             <select
               className="form-select"
@@ -403,7 +403,7 @@ export default function MaoObraPage() {
             >
               {activityOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(`plantations.labor.${option.value === "land_preparation" ? "landPreparation" : option.value === "planting" ? "planting" : option.value === "fertilization" ? "fertilization" : option.value === "fertigation" ? "fertigation" : option.value === "pesticide_application" ? "pesticide" : option.value === "irrigation" ? "irrigation" : option.value === "harvest" ? "harvest" : "other"}` as "plantations.labor.other")}
                 </option>
               ))}
             </select>
@@ -411,7 +411,7 @@ export default function MaoObraPage() {
 
           <div className="col-12 col-lg-5">
             <label className="form-label fw-bold text-foreground">
-              Funcionário / Prestador <span className="text-danger">*</span>
+              {t("plantations.labor.worker")} / {t("plantations.labor.provider")} <span className="text-danger">*</span>
             </label>
             <select
               className="form-select"
@@ -419,7 +419,7 @@ export default function MaoObraPage() {
               onChange={(event) => updateForm({ worker: event.target.value })}
               style={{ height: 50, borderRadius: 10 }}
             >
-              <option value="">Selecione</option>
+              <option value="">{t("plantations.harvest.select")}</option>
               {workers.map((worker) => (
                 <option key={worker.id} value={worker.id}>
                   {worker.name}
@@ -436,13 +436,13 @@ export default function MaoObraPage() {
               style={{ height: 50, minWidth: 132, borderRadius: 10, fontWeight: 800 }}
             >
               <Plus size={20} />
-              Cadastrar
+              {t("plantations.labor.register")}
             </button>
           </div>
         </div>
 
         <div className="mb-4">
-          <div className="form-label fw-bold text-foreground mb-2">Forma de pagamento</div>
+          <div className="form-label fw-bold text-foreground mb-2">{t("plantations.labor.paymentMethod")}</div>
           <label
             className="d-flex align-items-center gap-3 p-3"
             htmlFor="daily-payment"
@@ -463,9 +463,9 @@ export default function MaoObraPage() {
             />
             <CalendarDays size={34} className="text-muted-foreground" />
             <span>
-              <span className="d-block fw-black text-foreground">Por diária</span>
+              <span className="d-block fw-black text-foreground">{t("plantations.labor.perDay")}</span>
               <span className="d-block text-muted-foreground small">
-                Pagamento de acordo com a quantidade de diárias trabalhadas
+                {t("plantations.labor.paymentDescription")}
               </span>
             </span>
           </label>
@@ -474,7 +474,7 @@ export default function MaoObraPage() {
         <div className="row g-4 mb-4">
           <div className="col-12 col-md-4">
             <label className="form-label fw-bold text-foreground">
-              Data da atividade <span className="text-danger">*</span>
+              {t("plantations.labor.activityDate")} <span className="text-danger">*</span>
             </label>
             <input
               className="form-control"
@@ -487,7 +487,7 @@ export default function MaoObraPage() {
 
           <div className="col-12 col-md-4">
             <label className="form-label fw-bold text-foreground">
-              Quantidade de diárias <span className="text-danger">*</span>
+              {t("plantations.labor.dailyCount")} <span className="text-danger">*</span>
             </label>
             <div className="input-group">
               <input
@@ -500,28 +500,28 @@ export default function MaoObraPage() {
                 style={{ height: 50, borderRadius: "10px 0 0 10px" }}
               />
               <span className="input-group-text bg-white text-muted-foreground" style={{ borderRadius: "0 10px 10px 0" }}>
-                diária(s)
+                {t("plantations.labor.dailyUnits")}
               </span>
             </div>
           </div>
 
           <div className="col-12 col-md-4">
             <label className="form-label fw-bold text-foreground">
-              Valor da diária (R$) <span className="text-danger">*</span>
+              {t("plantations.labor.dailyRate")} <span className="text-danger">*</span>
             </label>
             <input
               className="form-control"
               inputMode="decimal"
               value={form.daily_rate}
               onChange={(event) => updateForm({ daily_rate: event.target.value })}
-              placeholder="150,00"
+              placeholder="150.00"
               style={{ height: 50, borderRadius: 10 }}
             />
           </div>
         </div>
 
         <div>
-          <label className="form-label fw-bold text-foreground">Observações</label>
+          <label className="form-label fw-bold text-foreground">{t("plantations.notes")}</label>
           <div className="position-relative">
             <textarea
               className="form-control"
@@ -529,7 +529,7 @@ export default function MaoObraPage() {
               maxLength={300}
               value={form.notes}
               onChange={(event) => updateForm({ notes: event.target.value })}
-              placeholder="Descreva detalhes da atividade executada, local, equipe, equipamentos utilizados, etc."
+              placeholder={t("plantations.labor.detailsPlaceholder")}
               style={{ borderRadius: 10, resize: "none", paddingBottom: 32 }}
             />
             <span
@@ -549,7 +549,7 @@ export default function MaoObraPage() {
         }}
       >
         <h3 className="fw-black text-foreground mb-3" style={{ fontSize: "0.95rem" }}>
-          Resumo do lançamento
+          {t("plantations.labor.summary")}
         </h3>
 
         <div className="row g-3">
@@ -557,32 +557,32 @@ export default function MaoObraPage() {
             <SummaryCard
               icon={<Calendar size={26} />}
               color="oklch(0.5 0.16 145)"
-              label="Data da atividade"
-              value={formatDate(form.activity_date)}
+              label={t("plantations.labor.activityDate")}
+              value={formatDate(form.activity_date, language)}
             />
           </div>
           <div className="col-12 col-md-6 col-xl-3">
             <SummaryCard
               icon={<CalendarDays size={26} />}
               color="oklch(0.58 0.16 245)"
-              label="Quantidade de diárias"
-              value={`${decimalValue(form.daily_quantity) || 0} diárias`}
+              label={t("plantations.labor.dailyCount")}
+              value={`${decimalValue(form.daily_quantity) || 0} ${t("plantations.labor.dailyPlural")}`}
             />
           </div>
           <div className="col-12 col-md-6 col-xl-3">
             <SummaryCard
               icon={<DollarSign size={26} />}
               color="oklch(0.7 0.18 70)"
-              label="Valor da diária"
-              value={currency(decimalValue(form.daily_rate))}
+              label={t("plantations.labor.dailyRateColumn")}
+              value={currency(decimalValue(form.daily_rate), language)}
             />
           </div>
           <div className="col-12 col-md-6 col-xl-3">
             <SummaryCard
               icon={<DollarSign size={26} />}
               color="oklch(0.5 0.16 145)"
-              label="Valor total"
-              value={currency(total)}
+              label={t("plantations.labor.total")}
+              value={currency(total, language)}
             />
           </div>
         </div>
@@ -592,29 +592,29 @@ export default function MaoObraPage() {
         <div className="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
           <div>
             <h3 className="fw-black text-foreground mb-1" style={{ fontSize: "1.05rem" }}>
-              <History size={18} className="me-2" /> Histórico recente
+              <History size={18} className="me-2" /> {t("plantations.harvest.recentHistory")}
             </h3>
-            <p className="text-muted-foreground small mb-0">Últimos registros de mão de obra e custos desta plantação.</p>
+            <p className="text-muted-foreground small mb-0">{t("plantations.labor.historyDescription")}</p>
           </div>
           <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => router.push(`/home/plantacoes/${id}/historico`)}>
-            Ver relatório completo
+            {t("plantations.harvest.viewHistory")}
           </button>
         </div>
 
         {laborRecords.length === 0 ? (
-          <p className="text-muted-foreground small mb-0">Nenhum lançamento recente de mão de obra.</p>
+          <p className="text-muted-foreground small mb-0">{t("plantations.labor.noRecent")}</p>
         ) : (
           <div className="d-flex flex-column gap-2">
             {laborRecords.slice(0, 4).map((record) => (
               <div key={record.id} className="border rounded p-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
                 <div>
-                  <div className="fw-semibold">{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "Atividade"}</div>
-                  <div className="text-muted-foreground small">{formatDate(record.activity_date)} • {record.worker_name || "Trabalhador"}</div>
+                  <div className="fw-semibold">{record.activity_type_display || t("plantations.labor.activity")}</div>
+                  <div className="text-muted-foreground small">{formatDate(record.activity_date, language)} • {record.worker_name || t("plantations.labor.worker")}</div>
                 </div>
                 <div className="text-end">
-                  <div className="fw-bold">{currency(recordTotal(record))}</div>
+                  <div className="fw-bold">{currency(recordTotal(record), language)}</div>
                   <div className="text-muted-foreground small">
-                    {recordDailyQuantity(record).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} diária(s)
+                    {recordDailyQuantity(record).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {t("plantations.labor.dailyUnits")}
                   </div>
                 </div>
               </div>
@@ -625,20 +625,20 @@ export default function MaoObraPage() {
 
       <div className="dashboard-card p-4 mb-4">
         <h3 className="fw-black text-foreground mb-3" style={{ fontSize: "1.05rem" }}>
-          Histórico de mão de obra
+          {t("plantations.labor.historyTitle")}
         </h3>
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0 agro-table">
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Atividade</th>
-                <th>Trabalhador</th>
-                <th>Diárias</th>
-                <th>Valor diária</th>
-                <th>Total</th>
-                <th>Observações</th>
-                <th className="text-center" style={{ width: 90 }}>Ações</th>
+                <th>{t("plantations.operation.date")}</th>
+                <th>{t("plantations.labor.activity")}</th>
+                <th>{t("plantations.labor.worker")}</th>
+                <th>{t("plantations.labor.dailyCount")}</th>
+                <th>{t("plantations.labor.dailyRateColumn")}</th>
+                <th>{t("plantations.labor.total")}</th>
+                <th>{t("plantations.notes")}</th>
+                <th className="text-center" style={{ width: 90 }}>{t("plantations.operation.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -652,18 +652,19 @@ export default function MaoObraPage() {
                 <>
                   {laborRecords.map((record) => (
                     <tr key={record.id}>
-                      <td>{formatDate(record.activity_date)}</td>
-                      <td>{record.activity_type_display || activityOptions.find((option) => option.value === record.activity_type)?.label || "-"}</td>
+                      <td>{formatDate(record.activity_date, language)}</td>
+                      <td>{record.activity_type_display || t(`plantations.labor.${record.activity_type === "land_preparation" ? "landPreparation" : record.activity_type === "planting" ? "planting" : record.activity_type === "fertilization" ? "fertilization" : record.activity_type === "fertigation" ? "fertigation" : record.activity_type === "pesticide_application" ? "pesticide" : record.activity_type === "irrigation" ? "irrigation" : record.activity_type === "harvest" ? "harvest" : "other"}` as "plantations.labor.other")}</td>
                       <td>{record.worker_name || "-"}</td>
-                      <td>{recordDailyQuantity(record).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>{currency(recordDailyRate(record))}</td>
-                      <td className="fw-bold">{currency(recordTotal(record))}</td>
+                      <td>{recordDailyQuantity(record).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>{currency(recordDailyRate(record), language)}</td>
+                      <td className="fw-bold">{currency(recordTotal(record), language)}</td>
                       <td className="text-muted-foreground small">{record.notes || "-"}</td>
                       <td className="text-center">
                         <div className="d-flex gap-1 justify-content-center">
                           <button
                             type="button"
-                            title="Editar"
+                            title={t("plantations.edit")}
+                            aria-label={t("plantations.edit")}
                             className="btn btn-sm d-flex align-items-center justify-content-center"
                             style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
                             onClick={() => openEditRecord(record)}
@@ -672,7 +673,8 @@ export default function MaoObraPage() {
                           </button>
                           <button
                             type="button"
-                            title="Remover"
+                            title={t("plantations.operation.removeRecord")}
+                            aria-label={t("plantations.operation.removeRecord")}
                             className="btn btn-sm d-flex align-items-center justify-content-center"
                             style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
                             disabled={deletingId === record.id}
@@ -687,9 +689,9 @@ export default function MaoObraPage() {
                     </tr>
                   ))}
                   <tr className="table-light">
-                    <td colSpan={5} className="text-end fw-bold">Total Geral:</td>
+                    <td colSpan={5} className="text-end fw-bold">{t("plantations.labor.totalGeneral")}:</td>
                     <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
-                      {currency(laborRecords.reduce((acc, record) => acc + recordTotal(record), 0))}
+                      {currency(laborRecords.reduce((acc, record) => acc + recordTotal(record), 0), language)}
                     </td>
                     <td colSpan={2}></td>
                   </tr>
@@ -717,7 +719,7 @@ export default function MaoObraPage() {
           style={{ height: 48, borderRadius: 10, fontWeight: 800, minWidth: 210 }}
         >
           <Save size={18} />
-          {saving ? "Salvando..." : "Salvar lançamento"}
+          {saving ? t("plantations.labor.saving") : t("plantations.labor.save")}
         </button>
       </div>
 
@@ -729,13 +731,13 @@ export default function MaoObraPage() {
           <div className="dashboard-card p-4 w-100" style={{ maxWidth: 560 }}>
             <div className="d-flex align-items-center justify-content-between mb-3">
               <h4 className="fw-black text-foreground mb-0" style={{ fontSize: "1.1rem" }}>
-                Cadastrar funcionário / prestador
+                {t("plantations.labor.registerWorker")}
               </h4>
               <button
                 type="button"
                 className="btn btn-link text-muted-foreground p-1"
                 onClick={() => setShowWorkerForm(false)}
-                aria-label="Fechar cadastro"
+                aria-label={t("plantations.harvest.closeBuyerForm")}
               >
                 <X size={22} />
               </button>
@@ -744,20 +746,20 @@ export default function MaoObraPage() {
             <form className="row g-3" onSubmit={handleSaveWorker}>
               <div className="col-12">
                 <label className="form-label fw-bold text-foreground">
-                  Nome <span className="text-danger">*</span>
+                  {t("plantations.labor.workerName")} <span className="text-danger">*</span>
                 </label>
                 <input
                   className="form-control"
                   required
                   value={workerForm.name}
                   onChange={(event) => updateWorkerForm({ name: event.target.value })}
-                  placeholder="Ex.: João Silva"
+                  placeholder={t("plantations.labor.namePlaceholder")}
                   style={{ height: 46, borderRadius: 10 }}
                 />
               </div>
 
               <div className="col-12 col-md-6">
-                <label className="form-label fw-bold text-foreground">Tipo</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.labor.workerType")}</label>
                 <select
                   className="form-select"
                   value={workerForm.worker_type}
@@ -766,24 +768,24 @@ export default function MaoObraPage() {
                   }
                   style={{ height: 46, borderRadius: 10 }}
                 >
-                  <option value="employee">Funcionário</option>
-                  <option value="provider">Prestador</option>
+                  <option value="employee">{t("plantations.labor.employee")}</option>
+                  <option value="provider">{t("plantations.labor.provider")}</option>
                 </select>
               </div>
 
               <div className="col-12 col-md-6">
-                <label className="form-label fw-bold text-foreground">Documento</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.labor.document")}</label>
                 <input
                   className="form-control"
                   value={workerForm.document}
                   onChange={(event) => updateWorkerForm({ document: event.target.value })}
-                  placeholder="CPF/CNPJ"
+                  placeholder={t("plantations.labor.taxId")}
                   style={{ height: 46, borderRadius: 10 }}
                 />
               </div>
 
               <div className="col-12">
-                <label className="form-label fw-bold text-foreground">Telefone</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.labor.phone")}</label>
                 <input
                   className="form-control"
                   value={workerForm.phone}
@@ -794,7 +796,7 @@ export default function MaoObraPage() {
               </div>
 
               <div className="col-12">
-                <label className="form-label fw-bold text-foreground">Observações</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.notes")}</label>
                 <textarea
                   className="form-control"
                   rows={3}
@@ -811,7 +813,7 @@ export default function MaoObraPage() {
                   onClick={() => setShowWorkerForm(false)}
                   style={{ borderRadius: 10, fontWeight: 700 }}
                 >
-                  Cancelar
+                  {t("plantations.cancel")}
                 </button>
                 <button
                   type="submit"
@@ -819,7 +821,7 @@ export default function MaoObraPage() {
                   disabled={savingWorker || !workerForm.name.trim()}
                   style={{ borderRadius: 10, fontWeight: 800 }}
                 >
-                  {savingWorker ? "Cadastrando..." : "Cadastrar"}
+                  {savingWorker ? t("plantations.harvest.registering") : t("plantations.labor.register")}
                 </button>
               </div>
             </form>
@@ -855,7 +857,7 @@ export default function MaoObraPage() {
             </div>
 
             <div className="mb-3">
-              <label className="form-label fw-semibold small mb-1">Tipo de atividade</label>
+              <label className="form-label fw-semibold small mb-1">{t("plantations.labor.activityType")}</label>
               <select
                 className="form-select"
                 style={{ borderRadius: 10, height: 42 }}
@@ -881,7 +883,7 @@ export default function MaoObraPage() {
 
             <div className="row g-3 mb-3">
               <div className="col-6">
-                <label className="form-label fw-semibold small mb-1">Diárias</label>
+                <label className="form-label fw-semibold small mb-1">{t("plantations.labor.dailyCount")}</label>
                 <input
                   type="number" step="0.01" min="0"
                   className="form-control"
@@ -891,7 +893,7 @@ export default function MaoObraPage() {
                 />
               </div>
               <div className="col-6">
-                <label className="form-label fw-semibold small mb-1">Valor da diária (R$)</label>
+                <label className="form-label fw-semibold small mb-1">{t("plantations.labor.dailyRate")}</label>
                 <input
                   type="number" step="0.01" min="0"
                   className="form-control"
@@ -903,7 +905,7 @@ export default function MaoObraPage() {
             </div>
 
             <div className="mb-4">
-              <label className="form-label fw-semibold small mb-1">Observações</label>
+              <label className="form-label fw-semibold small mb-1">{t("plantations.notes")}</label>
               <textarea
                 className="form-control"
                 rows={3}
@@ -926,8 +928,8 @@ export default function MaoObraPage() {
                 disabled={editSaving}
               >
                 {editSaving
-                  ? <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> Salvando...</>
-                  : <><Save size={14} /> Salvar alterações</>}
+                  ? <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> {t("plantations.saving")}</>
+                  : <><Save size={14} /> {t("plantations.labor.saveChanges")}</>}
               </button>
             </div>
           </div>

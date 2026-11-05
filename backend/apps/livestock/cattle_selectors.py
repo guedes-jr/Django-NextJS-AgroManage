@@ -124,9 +124,16 @@ def cattle_overview(organization, farm=None, production=None):
 def dairy_overview(organization, day, farm=None):
     animals = Animal.objects.filter(farm__organization=organization, species__code="bovinos", status="active")
     milk = CattleMilkRecord.objects.filter(animal__farm__organization=organization, animal__species__code="bovinos", date=day)
+    monthly_milk = CattleMilkRecord.objects.filter(
+        animal__farm__organization=organization,
+        animal__species__code="bovinos",
+        date__gte=day.replace(day=1),
+        date__lte=day,
+    )
     if farm:
         animals = animals.filter(farm_id=farm)
         milk = milk.filter(animal__farm_id=farm)
+        monthly_milk = monthly_milk.filter(animal__farm_id=farm)
     animals = animals.filter(cattle_purpose__in=["dairy", "dual"])
     lactating = Q(gender="F") & (Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante"))
     cows = Q(gender="F", category__in=["Vaca", "Matriz"])
@@ -147,10 +154,26 @@ def dairy_overview(organization, day, farm=None):
     volumes["discarded"] = (volumes["discarded"] or Decimal(0)) + (aggregate_totals["discarded"] or Decimal(0))
     produced = volumes["produced"] or Decimal(0)
     discarded = volumes["discarded"] or Decimal(0)
+    monthly_volumes = monthly_milk.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"))
+    monthly_totals = CattleMilkDailyTotal.objects.filter(
+        farm__organization=organization,
+        date__gte=day.replace(day=1),
+        date__lte=day,
+    )
+    if farm:
+        monthly_totals = monthly_totals.filter(farm_id=farm)
+    monthly_aggregate_totals = monthly_totals.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"))
+    monthly_produced = (monthly_volumes["produced"] or Decimal(0)) + (monthly_aggregate_totals["produced"] or Decimal(0))
+    monthly_discarded = (monthly_volumes["discarded"] or Decimal(0)) + (monthly_aggregate_totals["discarded"] or Decimal(0))
+    lactating_cows = counts["lactating_cows"]
     return {**counts, "date": day, "herd_as_of": timezone.localdate(),
             "produced_liters": produced, "discarded_liters": discarded,
             "usable_liters": produced - discarded, "milked_cows": None if has_total else volumes["milked_cows"],
-            "average_per_milked_cow": produced / volumes["milked_cows"] if volumes["milked_cows"] and not has_total else None}
+            "average_per_milked_cow": produced / volumes["milked_cows"] if volumes["milked_cows"] and not has_total else None,
+            "monthly_produced_liters": monthly_produced,
+            "monthly_discarded_liters": monthly_discarded,
+            "monthly_usable_liters": monthly_produced - monthly_discarded,
+            "monthly_average_per_lactating_cow": monthly_produced / lactating_cows if lactating_cows else None}
 
 
 def milk_withdrawal_for(animal, day):

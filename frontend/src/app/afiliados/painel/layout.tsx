@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, FileChartColumn, Handshake, LayoutDashboard, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, X } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import styles from "./portal.module.css";
+import { PublicLocaleProvider } from "@/lib/publicLocale";
 
 const navigation = [
   { href: "/afiliados/painel", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -34,7 +35,7 @@ export default function AffiliatePortalLayout({ children }: { children: React.Re
     router.replace("/login");
   };
 
-  return <div className={`app-workspace ${styles.shell}`}>
+  return <PublicLocaleProvider><div className={`app-workspace ${styles.shell}`}>
     <aside className={`workspace-fixed-sidebar ${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ""}`}>
       <div className={styles.brand}><span className={styles.brandIcon}><Handshake size={23} /></span><div><strong>Portal do Afiliado</strong><span>Fazenda Mais</span></div><button className={styles.closeMenu} onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X /></button></div>
       <nav className={styles.navigation} aria-label="Navegação do portal"><span className={styles.navLabel}>Visão geral</span>{navigation.map((item) => { const active = item.exact ? pathname === item.href : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={active ? styles.activeLink : ""}><item.icon size={19} /><span>{item.label}</span></Link>; })}</nav>
@@ -42,5 +43,5 @@ export default function AffiliatePortalLayout({ children }: { children: React.Re
     </aside>
     {menuOpen && <button className={styles.backdrop} onClick={() => setMenuOpen(false)} aria-label="Fechar menu" />}
     <div className={`workspace-fixed-offset ${styles.contentArea}`}><header className={`workspace-topbar ${styles.topbar}`}><button className={styles.menuButton} onClick={() => setMenuOpen(true)} aria-label="Abrir menu"><Menu /></button><div className={styles.welcome}><span>Bem-vindo(a),</span><strong>{name}</strong></div><div className={styles.topActions}><button className={styles.iconButton} onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Alternar tema" aria-label="Alternar tema">{theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}</button><button className={styles.logout} onClick={logout}><LogOut size={17} /><span>Sair</span></button></div></header><main className={`workspace-content ${styles.main}`}>{children}</main></div>
-  </div>;
+  </div></PublicLocaleProvider>;
 }

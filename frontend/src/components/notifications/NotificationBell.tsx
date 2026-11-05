@@ -4,10 +4,12 @@ import { useState } from "react";
 import { Bell } from "lucide-react";
 import useNotifications from "@/hooks/useNotifications";
 import NotificationDropdown from "./NotificationDropdown";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const { unreadCount, fetchNotifications, operationalAlerts, fetchOperationalAlerts } = useNotifications();
+  const { t } = useOrganizationLocale();
 
   const toggleDropdown = () => {
     const opening = !isOpen;
@@ -22,7 +24,7 @@ export default function NotificationBell() {
         className={`btn-icon-muted p-2 ${operationalAlerts.length ? "pending-alerts" : ""}`}
         onClick={toggleDropdown}
         style={{ background: "transparent", border: "none", cursor: "pointer" }}
-        aria-label={`Notificações: ${count} pendentes`}
+        aria-label={t("notifications.bellAria", { count })}
         aria-expanded={isOpen}
       >
         <Bell size={20} />

@@ -26,6 +26,7 @@ import { apiClient } from "@/services/api";
 import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
 import { QuickMovementModal } from "@/components/dashboard/QuickMovementModal";
 import { Badge } from "@/components/ui/Badge";
+import { useOrganizationLocale } from "@/lib/locale";
 import "@/app/home/estoque/estoque.css";
 
 type InventoryItem = {
@@ -96,15 +97,13 @@ function toNumber(value: string | number | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function money(value: string | number | null | undefined): string {
-  return toNumber(value).toLocaleString("pt-BR", {
+export function ProdutosDashboard() {
+  const { language, t } = useOrganizationLocale();
+  const money = (value: string | number | null | undefined) => toNumber(value).toLocaleString(language, {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
   });
-}
-
-export function ProdutosDashboard() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -296,7 +295,7 @@ export function ProdutosDashboard() {
 
   const handleDeleteItem = async (item: InventoryItem) => {
     const confirmed = window.confirm(
-      `Deseja realmente remover "${item.nome}" do estoque?\n\nO produto sairá da listagem, mas o histórico de lotes e movimentações será preservado.`
+      t("inventory.products.removeConfirm", { name: item.nome })
     );
     if (!confirmed) return;
 
@@ -306,7 +305,7 @@ export function ProdutosDashboard() {
       await fetchItems(page);
     } catch (error: any) {
       console.error("Erro ao remover produto:", error?.response?.data || error);
-      alert(error?.response?.data?.detail || "Não foi possível remover o produto.");
+      alert(error?.response?.data?.detail || t("inventory.products.removeFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -339,31 +338,31 @@ export function ProdutosDashboard() {
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-4">
           <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">
-            Estoque
+            {t("inventory.home.title")}
           </Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Produtos</span>
+          <span className="fw-semibold text-foreground">{t("inventory.home.products")}</span>
         </nav>
 
         <h1 className="fw-black mb-1" style={{ fontSize: "2.25rem", letterSpacing: "-0.04em", color: "var(--foreground)" }}>
-          Produtos
+          {t("inventory.home.products")}
         </h1>
         <p className="mb-0 text-muted-foreground fw-medium">
-          Controle completo dos produtos, rações, medicamentos e materiais da sua granja.
+          {t("inventory.home.description")}
         </p>
       </div>
 
       <div className="row g-4 mb-4">
         <div className="col-12 col-md-4">
           <div className="dashboard-card p-4">
-            <div className="text-muted-foreground small fw-bold text-uppercase mb-1">Itens Cadastrados</div>
-            <div className="fw-black text-foreground" style={{ fontSize: "1.5rem" }}>{stats.total}</div>
+            <div className="text-muted-foreground small fw-bold text-uppercase mb-1">{t("inventory.products.registered")}</div>
+            <div className="fw-black text-foreground" style={{ fontSize: "1.5rem" }}>{stats.total.toLocaleString(language)}</div>
           </div>
         </div>
         <div className="col-12 col-md-4">
           <div className="dashboard-card p-4">
-            <div className="text-muted-foreground small fw-bold text-uppercase mb-1">Estoque Total (unid.)</div>
-            <div className="fw-black text-foreground" style={{ fontSize: "1.5rem" }}>{stats.totalEstoque.toFixed(2)}</div>
+            <div className="text-muted-foreground small fw-bold text-uppercase mb-1">{t("inventory.products.totalQuantity")}</div>
+            <div className="fw-black text-foreground" style={{ fontSize: "1.5rem" }}>{stats.totalEstoque.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
         </div>
         <div className="col-12 col-md-4">
@@ -371,10 +370,10 @@ export function ProdutosDashboard() {
             className="dashboard-card p-4"
             style={{ cursor: "pointer", transition: "transform 0.2s" }}
             onClick={() => setStatusFilter("baixo")}
-            title="Clique para filtrar itens com estoque baixo"
+            title={t("inventory.products.lowStock")}
           >
-            <div className="text-muted-foreground small fw-bold text-uppercase mb-1">Estoque Baixo</div>
-            <div className="fw-black text-warning" style={{ fontSize: "1.5rem" }}>{stats.baixos}</div>
+            <div className="text-muted-foreground small fw-bold text-uppercase mb-1">{t("inventory.products.lowStock")}</div>
+            <div className="fw-black text-warning" style={{ fontSize: "1.5rem" }}>{stats.baixos.toLocaleString(language)}</div>
           </div>
         </div>
       </div>
@@ -383,14 +382,17 @@ export function ProdutosDashboard() {
         <div className="d-flex align-items-center gap-3">
           <AlertTriangle className="text-warning" size={22} />
           <div className="fw-bold text-orange-950">
-            Atenção! Você possui {stats.baixos} {stats.baixos === 1 ? "item com estoque baixo" : "itens com estoque baixo"}.
+            {t("inventory.products.lowAlert", {
+              count: stats.baixos.toLocaleString(language),
+              items: t(stats.baixos === 1 ? "inventory.products.oneItem" : "inventory.products.manyItems"),
+            })}
           </div>
         </div>
       </div>
 
       <div className="mb-4">
         <div className="d-flex align-items-center justify-content-between mb-3">
-          <h3 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>Cadastre novos produtos</h3>
+          <h3 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>{t("inventory.products.newProducts")}</h3>
         </div>
         <div className="d-flex flex-wrap gap-3 align-items-stretch">
           <button
@@ -399,19 +401,19 @@ export function ProdutosDashboard() {
             onClick={() => setModalConfig({ open: true })}
           >
             <Plus size={24} strokeWidth={3} />
-            <span className="fw-bold">Novo produto</span>
+            <span className="fw-bold">{t("inventory.products.newProduct")}</span>
           </button>
           {[
-            { key: "racao", title: "Ração / Grãos", desc: "Milho, soja, farelo...", color: "oklch(0.7 0.15 85)" },
-            { key: "nucleo", title: "Suplementos", desc: "Núcleos, premix e suplementos...", color: "oklch(0.65 0.16 230)" },
-            { key: "medicamento_vacina", title: "Medicamentos e Vacinas", desc: "Produtos sanitários e preventivos...", color: "oklch(0.7 0.18 25)" },
-            { key: "fertilizante", title: "Adubos", desc: "NPK, ureia e formulações...", color: "oklch(0.68 0.16 120)" },
-            { key: "fertirrigacao", title: "Fertirrigação", desc: "Soluções e produtos via irrigação...", color: "oklch(0.62 0.14 205)" },
-            { key: "semente", title: "Sementes/mudas", desc: "Milho, soja, sorgo, mudas...", color: "oklch(0.62 0.16 145)" },
-            { key: "defensivo", title: "Foliares / Defensivos", desc: "Foliares, herbicidas, inseticidas...", color: "oklch(0.62 0.14 220)" },
-            { key: "corretivo", title: "Corretivos", desc: "Calcário, gesso agrícola...", color: "oklch(0.55 0.12 70)" },
-            { key: "semen", title: "Sêmen / Doses", desc: "Doses para inseminação...", color: "oklch(0.65 0.22 350)" },
-            { key: "material", title: "Outros Materiais", desc: "Materiais e equipamentos...", color: "oklch(0.6 0.05 240)" },
+            { key: "racao", titleKey: "inventory.products.feed", descKey: "inventory.products.feedDescription", color: "oklch(0.7 0.15 85)" },
+            { key: "nucleo", titleKey: "inventory.products.supplements", descKey: "inventory.products.supplementsDescription", color: "oklch(0.65 0.16 230)" },
+            { key: "medicamento_vacina", titleKey: "inventory.products.medicines", descKey: "inventory.products.medicinesDescription", color: "oklch(0.7 0.18 25)" },
+            { key: "fertilizante", titleKey: "inventory.products.fertilizers", descKey: "inventory.products.fertilizersDescription", color: "oklch(0.68 0.16 120)" },
+            { key: "fertirrigacao", titleKey: "inventory.products.fertigation", descKey: "inventory.products.fertigationDescription", color: "oklch(0.62 0.14 205)" },
+            { key: "semente", titleKey: "inventory.products.seeds", descKey: "inventory.products.seedsDescription", color: "oklch(0.62 0.16 145)" },
+            { key: "defensivo", titleKey: "inventory.products.cropProtection", descKey: "inventory.products.cropProtectionDescription", color: "oklch(0.62 0.14 220)" },
+            { key: "corretivo", titleKey: "inventory.products.amendments", descKey: "inventory.products.amendmentsDescription", color: "oklch(0.55 0.12 70)" },
+            { key: "semen", titleKey: "inventory.products.semen", descKey: "inventory.products.semenDescription", color: "oklch(0.65 0.22 350)" },
+            { key: "material", titleKey: "inventory.products.otherMaterials", descKey: "inventory.products.otherDescription", color: "oklch(0.6 0.05 240)" },
           ].map((cat) => (
             <button
               key={cat.key}
@@ -430,8 +432,8 @@ export function ProdutosDashboard() {
                 {CATEGORY_ICONS[cat.key] || <Package size={16} />}
               </div>
               <div>
-                <div className="inv-category-title">{cat.title}</div>
-                <div className="inv-category-desc">{cat.desc}</div>
+                <div className="inv-category-title">{t(cat.titleKey as Parameters<typeof t>[0])}</div>
+                <div className="inv-category-desc">{t(cat.descKey as Parameters<typeof t>[0])}</div>
               </div>
             </button>
           ))}
@@ -446,7 +448,7 @@ export function ProdutosDashboard() {
               <input
                 type="text"
                 className="form-control ps-5 rounded-xl border-2 transition-all focus-ring"
-                placeholder="Buscar ou cadastrar lote rápido..."
+                placeholder={t("inventory.products.search")}
                 value={searchTerm}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
@@ -459,7 +461,7 @@ export function ProdutosDashboard() {
             {showSuggestions && suggestions.length > 0 && (
               <div className="position-absolute w-100 mt-2 bg-white border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2" style={{ zIndex: 1100 }}>
                 <div className="p-2 bg-muted/10 text-xs fw-black text-muted-foreground text-uppercase border-bottom" style={{ letterSpacing: '0.05em' }}>
-                  Resultados Encontrados
+                  {t("inventory.products.searchResults")}
                 </div>
                 {suggestions.map((p) => (
                   <div
@@ -477,7 +479,7 @@ export function ProdutosDashboard() {
                       </div>
                     </div>
                     <div className="badge bg-primary/10 text-primary text-xs rounded-pill px-2 py-1">
-                      Selecionar
+                      {t("inventory.products.selectSuggestion")}
                     </div>
                   </div>
                 ))}
@@ -486,31 +488,31 @@ export function ProdutosDashboard() {
           </div>
           <div className="col-6 col-lg-3">
             <select className="form-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-              <option value="todas">Todas as categorias</option>
-              <option value="racao">Ração / Grãos</option>
-              <option value="nucleo">Suplementos</option>
-              <option value="suplemento">Suplemento Animal</option>
-              <option value="medicamento_vacina">Medicamentos e Vacinas</option>
-              <option value="fertilizante">Adubos</option>
-              <option value="fertirrigacao">Fertirrigação</option>
-              <option value="semente">Sementes/mudas</option>
-              <option value="defensivo">Foliares / Defensivos</option>
-              <option value="corretivo">Corretivo de Solo</option>
-              <option value="semen">Sêmen</option>
-              <option value="material">Material</option>
+              <option value="todas">{t("inventory.products.allCategories")}</option>
+              <option value="racao">{t("inventory.products.feed")}</option>
+              <option value="nucleo">{t("inventory.products.supplements")}</option>
+              <option value="suplemento">{t("inventory.products.animalSupplements")}</option>
+              <option value="medicamento_vacina">{t("inventory.products.medicines")}</option>
+              <option value="fertilizante">{t("inventory.products.fertilizers")}</option>
+              <option value="fertirrigacao">{t("inventory.products.fertigation")}</option>
+              <option value="semente">{t("inventory.products.seeds")}</option>
+              <option value="defensivo">{t("inventory.products.cropProtection")}</option>
+              <option value="corretivo">{t("inventory.products.amendments")}</option>
+              <option value="semen">{t("inventory.products.semen")}</option>
+              <option value="material">{t("inventory.products.otherMaterials")}</option>
             </select>
           </div>
           <div className="col-6 col-lg-3">
             <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="todos">Todos os status</option>
-              <option value="normal">Normal</option>
-              <option value="baixo">Estoque baixo</option>
+              <option value="todos">{t("inventory.products.allStatuses")}</option>
+              <option value="normal">{t("inventory.products.normal")}</option>
+              <option value="baixo">{t("inventory.products.lowStock")}</option>
             </select>
           </div>
           <div className="col-12 col-lg-2">
             <button className="btn w-100 fw-semibold" style={{ background: "var(--primary)", color: "white" }} onClick={() => setModalConfig({ open: true })}>
               <Plus size={16} className="me-1" />
-              Novo
+              {t("inventory.products.newProduct")}
             </button>
           </div>
         </div>
@@ -518,27 +520,27 @@ export function ProdutosDashboard() {
 
       <div className="dashboard-card p-0 overflow-hidden">
         {loading ? (
-          <div className="p-5 text-center text-muted-foreground">Carregando produtos...</div>
+          <div className="p-5 text-center text-muted-foreground">{t("inventory.products.loading")}</div>
         ) : (
           <div className="table-responsive">
             <table className="table mb-0 align-middle">
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">INSUMO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CATEGORIA</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">ESTOQUE ATUAL</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">UNIDADE</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">VALOR MÉDIO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">ESTOQUE MÍNIMO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
-                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.products.product")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.category")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.currentStock")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.unit")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.unitValue")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.products.minimum")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.status")}</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">{t("inventory.products.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-5 text-muted-foreground">
-                      Nenhum produto encontrado.
+                      {t("inventory.products.noItems")}
                     </td>
                   </tr>
                 ) : (
@@ -549,18 +551,35 @@ export function ProdutosDashboard() {
                         <td className="px-4 py-3 fw-semibold">{item.nome}</td>
                         <td className="px-3 py-3">
                           <div className="d-flex flex-wrap gap-1">
-                            {(item.categorias_display?.length ? item.categorias_display : [item.categoria_display]).map((label) => (
-                              <Badge key={label} variant="default" className="text-xs">{label}</Badge>
-                            ))}
+                            {(item.categorias?.length ? item.categorias : [item.categoria]).map((category, index) => {
+                              const categoryKeys: Record<string, string> = {
+                                racao: "inventory.products.feed",
+                                nucleo: "inventory.products.supplements",
+                                suplemento: "inventory.products.animalSupplements",
+                                semente: "inventory.products.seeds",
+                                fertilizante: "inventory.products.fertilizers",
+                                fertirrigacao: "inventory.products.fertigation",
+                                defensivo: "inventory.products.cropProtection",
+                                corretivo: "inventory.products.amendments",
+                                medicamento: "inventory.products.medicines",
+                                vacina: "inventory.products.medicines",
+                                medicamento_vacina: "inventory.products.medicines",
+                                semen: "inventory.products.semen",
+                                material: "inventory.products.otherMaterials",
+                              };
+                              const key = categoryKeys[category];
+                              const label = key ? t(key as Parameters<typeof t>[0]) : item.categorias_display?.[index] || item.categoria_display;
+                              return <Badge key={category} variant="default" className="text-xs">{label}</Badge>;
+                            })}
                           </div>
                         </td>
-                        <td className="px-3 py-3">{toNumber(item.estoque_atual).toFixed(2)}</td>
+                        <td className="px-3 py-3">{toNumber(item.estoque_atual).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td className="px-3 py-3">{item.unidade_medida}</td>
                         <td className="px-3 py-3 fw-semibold">{money(item.custo_medio)}</td>
-                        <td className="px-3 py-3">{toNumber(item.estoque_minimo).toFixed(2)}</td>
+                        <td className="px-3 py-3">{toNumber(item.estoque_minimo).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td className="px-3 py-3">
                           <Badge variant={baixo ? "warning" : "success"} className="text-xs">
-                            {baixo ? "Baixo" : "Normal"}
+                            {baixo ? t("inventory.products.low") : t("inventory.products.normal")}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-end">
@@ -569,20 +588,20 @@ export function ProdutosDashboard() {
                               type="button"
                               className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
                               onClick={() => handleEditItem(item)}
-                              title="Editar produto"
+                              title={t("inventory.products.editTitle")}
                             >
                               <Pencil size={14} />
-                              Editar
+                              {t("inventory.products.edit")}
                             </button>
                             <button
                               type="button"
                               className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
                               onClick={() => handleDeleteItem(item)}
                               disabled={deletingId === item.id}
-                              title="Remover produto"
+                              title={t("inventory.products.removeTitle")}
                             >
                               <Trash2 size={14} />
-                              {deletingId === item.id ? "Removendo..." : "Remover"}
+                              {deletingId === item.id ? t("inventory.products.removing") : t("inventory.products.remove")}
                             </button>
                           </div>
                         </td>
@@ -597,7 +616,7 @@ export function ProdutosDashboard() {
       </div>
 
       <div className="d-flex align-items-center justify-content-between mt-3">
-        <div className="text-muted-foreground small">Mostrando página {page} de {totalPages} ({totalCount} itens)</div>
+        <div className="text-muted-foreground small">{t("inventory.products.showing", { page: page.toLocaleString(language), pages: totalPages.toLocaleString(language), count: totalCount.toLocaleString(language) })}</div>
         <div className="d-flex gap-2">
           <button className="btn btn-light btn-sm" disabled={page <= 1} onClick={() => fetchItems(page - 1, { search: searchTerm, categoria: categoryFilter, status: statusFilter })}>
             <ChevronLeft size={14} />
@@ -648,10 +667,10 @@ export function ProdutosDashboard() {
                 🎉
               </div>
               <h3 className="fw-black text-dark mb-2" style={{ fontSize: "1.25rem" }}>
-                Produto Cadastrado!
+                {t("inventory.products.created")}
               </h3>
               <p className="text-muted-foreground small mb-4">
-                O produto <strong>{askMovementModal.item?.nome}</strong> foi criado com sucesso. Deseja realizar o <strong>primeiro lançamento (entrada de estoque)</strong> para ele agora?
+                {t("inventory.products.createdPrompt", { name: askMovementModal.item?.nome ?? "" })}
               </p>
               
               <div className="d-flex gap-3">
@@ -661,7 +680,7 @@ export function ProdutosDashboard() {
                   style={{ background: "#e2e8f0", color: "#475569", cursor: 'pointer' }}
                   onClick={() => setAskMovementModal({ open: false, item: null })}
                 >
-                  Não, depois
+                  {t("inventory.products.later")}
                 </button>
                 <button
                   type="button"
@@ -677,7 +696,7 @@ export function ProdutosDashboard() {
                     });
                   }}
                 >
-                  Sim, lançar agora
+                  {t("inventory.products.now")}
                 </button>
               </div>
             </div>

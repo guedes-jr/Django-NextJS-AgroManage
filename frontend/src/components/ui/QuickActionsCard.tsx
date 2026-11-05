@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import { useOrganizationLocale } from "@/lib/locale";
 
 interface QuickAction {
   label: string;
@@ -19,7 +20,8 @@ interface QuickActionsCardProps {
   renderIcon?: (icon: string) => ReactNode;
 }
 
-export function QuickActionsCard({ title = "Ações Rápidas", subtitle, actions, className = "", renderIcon }: QuickActionsCardProps) {
+export function QuickActionsCard({ title, subtitle, actions, className = "", renderIcon }: QuickActionsCardProps) {
+  const { t } = useOrganizationLocale();
   if (!actions || actions.length === 0) return null;
 
   return (
@@ -27,7 +29,7 @@ export function QuickActionsCard({ title = "Ações Rápidas", subtitle, actions
       {title && (
         <div className="mb-3">
           <h3 className="fw-bold mb-0" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>
-            {title}
+            {title ?? t("reproduction.quickActions")}
           </h3>
           {subtitle && <p className="text-muted-foreground small mb-0 fw-medium">{subtitle}</p>}
         </div>

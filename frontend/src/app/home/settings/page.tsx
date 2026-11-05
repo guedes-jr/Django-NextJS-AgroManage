@@ -4,7 +4,7 @@ import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 import OperatorScopeOptions, {emptyOperatorScope} from "@/components/auth/OperatorScopeOptions";
 import { Member, UserRole, roleLabels, canManageMembers, canChangeMemberRole, updateMemberRole, memberError } from "@/services/memberService";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Building2, 
   Users, 
@@ -29,7 +29,8 @@ import {
   User,
   Sun,
   Moon,
-  Contrast
+  Contrast,
+  Languages
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { isAxiosError } from "axios";
@@ -37,8 +38,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { THEME_LABELS, Theme } from "@/lib/theme";
+import { Theme } from "@/lib/theme";
 import "@/components/dashboard/dashboard.css";
+import { organizationLanguages, useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,7 @@ interface Organization {
   address: string;
   phone: string;
   email: string;
+  language: string;
   addresses?: OrganizationAddress[];
   contacts?: OrganizationContact[];
   farms_count?: number;
@@ -161,6 +164,23 @@ const getInitialPreferences = (): UserPreferences => {
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { language, updateLanguage, t } = useOrganizationLocale();
+  const localizedRoleLabels: Record<UserRole, TranslationKey> = {
+    admin: "role.admin",
+    manager: "role.manager",
+    operator: "role.operator",
+    feeder: "role.feeder",
+  };
+  const themeLabels: Record<Theme, TranslationKey> = {
+    light: "settings.preferences.themeLight",
+    dark: "settings.preferences.themeDark",
+    contrast: "settings.preferences.themeContrast",
+  };
+  const themeDescriptionKeys: Record<Theme, TranslationKey> = {
+    light: "settings.preferences.themeLightDescription",
+    dark: "settings.preferences.themeDarkDescription",
+    contrast: "settings.preferences.themeContrastDescription",
+  };
   const [activeTab, setActiveTab] = useState<Tab>("organization");
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => getStoredCurrentUser());
   const [org, setOrg] = useState<Organization | null>(null);
@@ -235,10 +255,12 @@ export default function SettingsPage() {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(() => getInitialPreferences());
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [languageDraft, setLanguageDraft] = useState<typeof language | null>(null);
+  const [savingLanguage, setSavingLanguage] = useState(false);
   const [invoices] = useState([
-    { id: '1', date: '2024-04-15', amount: 199.00, status: 'paid', description: 'Plano Pro - Abril 2024' },
-    { id: '2', date: '2024-03-15', amount: 199.00, status: 'paid', description: 'Plano Pro - Março 2024' },
-    { id: '3', date: '2024-02-15', amount: 199.00, status: 'paid', description: 'Plano Pro - Fevereiro 2024' },
+    { id: '1', date: '2024-04-15', amount: 199.00, status: 'paid' },
+    { id: '2', date: '2024-03-15', amount: 199.00, status: 'paid' },
+    { id: '3', date: '2024-02-15', amount: 199.00, status: 'paid' },
   ]);
   const [paymentMethod] = useState({
     type: 'card',
@@ -353,9 +375,9 @@ export default function SettingsPage() {
     } catch (err: any) {
       console.error(err);
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network')) {
-        setError("Erro de conexão. Verifique se o servidor está rodando.");
+        setError(t("settings.networkError"));
       } else {
-        setError("Erro ao carregar dados.");
+        setError(t("settings.loadError"));
       }
     } finally {
       setLoading(false);
@@ -373,7 +395,7 @@ export default function SettingsPage() {
       setSelectedBilling(org?.subscription?.billing_cycle || "monthly");
       setPlanSelectorOpen(true);
     } catch {
-      setError("Não foi possível carregar os planos disponíveis.");
+      setError(t("settings.plansLoadError"));
     } finally {
       setPlanChangeLoading(false);
     }
@@ -388,7 +410,7 @@ export default function SettingsPage() {
       const { data } = await apiClient.post<ChangePreview>("/organizations/me/subscription/change-preview/", { tier_ids: tierIds, billing_cycle: selectedBilling });
       setChangePreview(data);
     } catch {
-      setError("Não foi possível calcular a alteração do plano.");
+      setError(t("settings.planPreviewError"));
     } finally {
       setPlanChangeLoading(false);
     }
@@ -401,21 +423,38 @@ export default function SettingsPage() {
     try {
       const { data } = await apiClient.post("/organizations/me/subscription/change/", { quote_token: changePreview.quote.public_token });
       setOrg(current => current ? { ...current, subscription: data.subscription } : current);
-      setSuccess(data.detail || "Plano atualizado com sucesso.");
+      setSuccess(data.detail || t("settings.planUpdated"));
       setPlanSelectorOpen(false);
       setChangePreview(null);
     } catch (requestError: unknown) {
-      setError(isAxiosError(requestError) ? requestError.response?.data?.detail || "Não foi possível confirmar a alteração." : "Não foi possível confirmar a alteração.");
+      setError(isAxiosError(requestError) ? requestError.response?.data?.detail || t("settings.planConfirmError") : t("settings.planConfirmError"));
     } finally {
       setPlanChangeLoading(false);
     }
   };
 
-  const money = (value: string | number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const money = (value: string | number) => Number(value || 0).toLocaleString(language, { style: "currency", currency: "BRL" });
+  const numberFormat = useMemo(() => new Intl.NumberFormat(language), [language]);
 
   useEffect(() => {
     fetchData();
   }, [activeTab]);
+
+  const handleSaveLanguage = async () => {
+    setSavingLanguage(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const savedLanguage = await updateLanguage(languageDraft ?? language);
+      setLanguageDraft(savedLanguage);
+      setSuccess(t("settings.language.saved"));
+    } catch (saveError) {
+      console.error("Could not save organization language.", saveError);
+      setError(t("settings.language.failed"));
+    } finally {
+      setSavingLanguage(false);
+    }
+  };
 
   const handleUpdateOrg = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -425,9 +464,9 @@ export default function SettingsPage() {
     try {
       const res = await apiClient.patch("/organizations/me/", org);
       setOrg(res.data);
-      setSuccess("Organização atualizada com sucesso!");
+      setSuccess(t("settings.org.organizationSaved"));
     } catch {
-      setError("Erro ao salvar alterações.");
+      setError(t("settings.org.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -438,12 +477,12 @@ export default function SettingsPage() {
     if (!file || !org) return;
     
     if (!file.type.startsWith('image/')) {
-      setError("Por favor, selecione uma imagem.");
+      setError(t("settings.org.imageOnly"));
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      setError("A imagem deve ter no máximo 2MB.");
+      setError(t("settings.org.imageTooLarge"));
       return;
     }
 
@@ -457,9 +496,9 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setOrg(res.data);
-      setSuccess("Logo atualizado com sucesso!");
+      setSuccess(t("settings.org.logoSaved"));
     } catch {
-      setError("Erro ao fazer upload do logo.");
+      setError(t("settings.org.logoUploadFailed"));
     } finally {
       setUploadingLogo(false);
     }
@@ -477,9 +516,9 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setOrg(res.data);
-      setSuccess("Logo removido.");
+      setSuccess(t("settings.org.logoRemoved"));
     } catch {
-      setError("Erro ao remover logo.");
+      setError(t("settings.org.logoRemoveFailed"));
     } finally {
       setUploadingLogo(false);
     }
@@ -530,22 +569,22 @@ export default function SettingsPage() {
         setOrg(prev => prev ? { ...prev, addresses: [...(prev.addresses || []), res.data] } : null);
       }
       setAddressModalOpen(false);
-      setSuccess(addressModalMode === 'edit' ? 'Endereço atualizado!' : 'Endereço adicionado!');
+      setSuccess(addressModalMode === 'edit' ? t("settings.org.addressSaved") : t("settings.org.addressAdded"));
     } catch {
-      setError('Erro ao salvar endereço.');
+      setError(t("settings.org.addressSaveFailed"));
     } finally {
       setSavingAddress(false);
     }
   };
 
   const handleDeleteAddress = async (addressId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este endereço?')) return;
+    if (!confirm(t("settings.org.confirmDeleteAddress"))) return;
     try {
       await apiClient.delete(`/organizations/addresses/${addressId}/`);
       setOrg(prev => prev ? { ...prev, addresses: prev.addresses?.filter((a: any) => a.id !== addressId) } : null);
-      setSuccess('Endereço excluído!');
+      setSuccess(t("settings.org.addressDeleted"));
     } catch {
-      setError('Erro ao excluir endereço.');
+      setError(t("settings.org.addressDeleteFailed"));
     }
   };
 
@@ -584,22 +623,22 @@ export default function SettingsPage() {
         setOrg(prev => prev ? { ...prev, contacts: [...(prev.contacts || []), res.data] } : null);
       }
       setContactModalOpen(false);
-      setSuccess(contactModalMode === 'edit' ? 'Contato atualizado!' : 'Contato adicionado!');
+      setSuccess(contactModalMode === 'edit' ? t("settings.org.contactSaved") : t("settings.org.contactAdded"));
     } catch {
-      setError('Erro ao salvar contato.');
+      setError(t("settings.org.contactSaveFailed"));
     } finally {
       setSavingContact(false);
     }
   };
 
   const handleDeleteContact = async (contactId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
+    if (!confirm(t("settings.org.confirmDeleteContact"))) return;
     try {
       await apiClient.delete(`/organizations/contacts/${contactId}/`);
       setOrg(prev => prev ? { ...prev, contacts: prev.contacts?.filter((c: any) => c.id !== contactId) } : null);
-      setSuccess('Contato excluído!');
+      setSuccess(t("settings.org.contactDeleted"));
     } catch {
-      setError('Erro ao excluir contato.');
+      setError(t("settings.org.contactDeleteFailed"));
     }
   };
 
@@ -609,9 +648,9 @@ export default function SettingsPage() {
     try {
       const member = await updateMemberRole(memberId, newRole);
       setMembers(prev => prev.map(item => item.id === memberId ? member : item));
-      setSuccess("Cargo atualizado!");
+      setSuccess(t("settings.roleUpdated"));
     } catch (error) {
-      setError(memberError(error, "Não foi possível atualizar o cargo."));
+      setError(memberError(error, t("settings.roleUpdateError")));
     } finally { setUpdatingMember(null); }
   };
 
@@ -642,7 +681,7 @@ export default function SettingsPage() {
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (memberModalMode === 'create' && memberData.password !== memberData.password_confirm) {
-      setError("As senhas não conferem.");
+      setError(t("settings.passwordsMismatch"));
       return;
     }
     setMemberLoading(true);
@@ -651,7 +690,7 @@ export default function SettingsPage() {
       if (memberModalMode === 'create') {
         const res = await apiClient.post("/auth/members/create/", memberData);
         setMembers(prev => [...prev, res.data]);
-        setSuccess("Membro cadastrado com sucesso!");
+        setSuccess(t("settings.memberCreated"));
       } else {
         const payload: any = {
           full_name: memberData.full_name,
@@ -667,12 +706,12 @@ export default function SettingsPage() {
         }
         const res = await apiClient.patch(`/auth/members/${selectedMemberId}/`, payload);
         setMembers(prev => prev.map(m => m.id === selectedMemberId ? res.data : m));
-        setSuccess("Membro atualizado com sucesso!");
+        setSuccess(t("settings.memberUpdated"));
       }
       setMemberModalOpen(false);
     } catch (err: any) {
       console.error(err.response?.data);
-      let errorMsg = `Erro ao ${memberModalMode === 'create' ? 'cadastrar' : 'atualizar'} membro.`;
+      let errorMsg = t("settings.memberSaveError");
       if (err.response?.data) {
         if (err.response.data.detail) {
           errorMsg = err.response.data.detail;
@@ -692,27 +731,27 @@ export default function SettingsPage() {
     try {
       const res = await apiClient.patch(`/auth/members/${id}/`, { is_active: !currentStatus });
       setMembers(prev => prev.map(m => m.id === id ? res.data : m));
-      setSuccess(`Membro ${!currentStatus ? 'ativado' : 'desativado'} com sucesso!`);
+      setSuccess(!currentStatus ? t("settings.memberActivated") : t("settings.memberDeactivated"));
     } catch {
-      setError("Erro ao alterar o status do membro.");
+      setError(t("settings.memberStatusError"));
     }
   };
 
   const handleDeleteMember = async (id: string) => {
-    if (!window.confirm("Tem certeza que deseja remover este membro da organização? O acesso dele será revogado.")) return;
+    if (!window.confirm(t("settings.memberDeleteConfirm"))) return;
     try {
       await apiClient.delete(`/auth/members/${id}/`);
       setMembers(prev => prev.filter(m => m.id !== id));
-      setSuccess("Membro removido com sucesso!");
+      setSuccess(t("settings.memberDeleted"));
     } catch {
-      setError("Erro ao remover membro.");
+      setError(t("settings.memberDeleteError"));
     }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordForm.new_password !== passwordForm.new_password_confirm) {
-      setError("As senhas não conferem.");
+      setError(t("settings.passwordsMismatch"));
       return;
     }
     setSavingPassword(true);
@@ -725,9 +764,9 @@ export default function SettingsPage() {
       });
       setPasswordModalOpen(false);
       setPasswordForm({ old_password: '', new_password: '', new_password_confirm: '' });
-      setSuccess("Senha alterada com sucesso!");
+      setSuccess(t("settings.passwordChanged"));
     } catch (err: any) {
-      const msg = err.response?.data?.old_password || err.response?.data?.detail || "Erro ao alterar senha.";
+      const msg = err.response?.data?.old_password || err.response?.data?.detail || t("settings.passwordChangeError");
       setError(msg);
     } finally {
       setSavingPassword(false);
@@ -739,13 +778,13 @@ export default function SettingsPage() {
       if (twoFactorEnabled) {
         await apiClient.post("/auth/disable-2fa/");
         setTwoFactorEnabled(false);
-        setSuccess("2FA desativado!");
+        setSuccess(t("settings.twoFactorDisabled"));
       } else {
-        setSuccess("Configure o 2FA no app autenticador.");
+        setSuccess(t("settings.twoFactorSetup"));
         setTwoFactorEnabled(true);
       }
     } catch {
-      setError("Erro ao alterar configuração.");
+      setError(t("settings.twoFactorError"));
     }
   };
 
@@ -763,29 +802,29 @@ export default function SettingsPage() {
         localStorage.setItem("user", JSON.stringify(updatedUser));
         setCurrentUser(updatedUser);
       }
-      setSuccess("Preferências salvas!");
+      setSuccess(t("settings.preferencesSaved"));
     } catch {
-      setError("Erro ao salvar preferências.");
+      setError(t("settings.preferencesError"));
     } finally {
       setSavingPreferences(false);
     }
   };
 
   const tabs = [
-    { id: "organization", label: "Organização", icon: Building2 },
-    { id: "members", label: "Membros", icon: Users },
-    { id: "subscription", label: "Assinatura", icon: CreditCard },
-    { id: "security", label: "Segurança", icon: ShieldCheck },
-    { id: "preferences", label: "Preferências", icon: Settings },
+    { id: "organization", label: t("settings.tabs.organization"), icon: Building2 },
+    { id: "members", label: t("settings.tabs.members"), icon: Users },
+    { id: "subscription", label: t("settings.tabs.subscription"), icon: CreditCard },
+    { id: "security", label: t("settings.tabs.security"), icon: ShieldCheck },
+    { id: "preferences", label: t("settings.tabs.preferences"), icon: Settings },
   ];
 
   return (
     <div className="settings-container">
       <div className="mb-5">
         <h1 className="fw-black mb-1" style={{ color: "var(--foreground)", fontSize: '1.875rem', letterSpacing: '-0.02em' }}>
-          Configurações
+          {t("settings.title")}
         </h1>
-        <p className="text-muted-foreground fw-medium">Gerencie sua organização e preferências do sistema</p>
+        <p className="text-muted-foreground fw-medium">{t("settings.description")}</p>
       </div>
 
       <div className="dashboard-card overflow-hidden">
@@ -822,11 +861,53 @@ export default function SettingsPage() {
                 {/* --- Organization Tab --- */}
                 {activeTab === "organization" && org && (
                   <div className="fade-in">
+                    <section className="dashboard-card p-3 p-md-4 mb-4">
+                      <div className="section-header mb-3">
+                        <h2 className="fw-bold h5 mb-1">{t("settings.language.title")}</h2>
+                        <p className="small text-muted-foreground mb-0">{t("settings.language.description")}</p>
+                      </div>
+                      <div className="row g-3 align-items-end">
+                        <div className="col-12 col-md-7">
+                          <label htmlFor="organization-language" className="form-label small fw-bold">
+                            {t("settings.language.label")}
+                          </label>
+                          <div className="input-group-custom">
+                            <Languages size={18} className="input-icon" />
+                            <select
+                              id="organization-language"
+                              className="form-control-custom"
+                              value={languageDraft ?? language}
+                              onChange={event => setLanguageDraft(event.target.value as typeof language)}
+                              disabled={currentUser?.role !== "admin" || savingLanguage}
+                            >
+                              {organizationLanguages.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="col-12 col-md-5 d-flex justify-content-md-end">
+                          <button
+                            type="button"
+                            onClick={handleSaveLanguage}
+                            disabled={currentUser?.role !== "admin" || savingLanguage || (languageDraft ?? language) === language}
+                            className="btn-primary-elegant px-4 py-2 d-flex align-items-center justify-content-center gap-2 w-100 w-md-auto"
+                          >
+                            {savingLanguage ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                            {savingLanguage ? t("settings.language.saving") : t("settings.language.save")}
+                          </button>
+                        </div>
+                      </div>
+                      {currentUser?.role !== "admin" && (
+                        <p className="small text-muted-foreground mt-3 mb-0">{t("settings.language.adminOnly")}</p>
+                      )}
+                    </section>
+
                     {/* Logo Upload Section */}
                     <div className="mb-5">
                       <div className="section-header mb-4">
-                        <h2 className="fw-bold h5 mb-1">Logo da Empresa</h2>
-                        <p className="small text-muted-foreground">Imagem que aparece na interface</p>
+                        <h2 className="fw-bold h5 mb-1">{t("settings.org.logoTitle")}</h2>
+                        <p className="small text-muted-foreground">{t("settings.org.logoDescription")}</p>
                       </div>
 
                       <div className="d-flex align-items-center gap-4">
@@ -835,7 +916,7 @@ export default function SettingsPage() {
                             <div className="position-relative">
                               <img 
                                 src={org.logo} 
-                                alt="Logo" 
+                                alt={t("settings.org.logoTitle")}
                                 className="logo-preview rounded-3"
                               />
                               {uploadingLogo && (
@@ -854,7 +935,7 @@ export default function SettingsPage() {
                         <div className="d-flex flex-column gap-2">
                           <label className="btn-primary-elegant btn-sm px-3 py-2 d-flex align-items-center gap-2 cursor-pointer">
                             <Upload size={16} />
-                            {uploadingLogo ? 'Enviando...' : 'Selecionar Imagem'}
+                            {uploadingLogo ? t("settings.org.uploading") : t("settings.org.selectImage")}
                             <input 
                               type="file" 
                               accept="image/*"
@@ -872,11 +953,11 @@ export default function SettingsPage() {
                               style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                             >
                               <X size={14} />
-                              <span className="extra-small">Remover</span>
+                              <span className="extra-small">{t("settings.org.remove")}</span>
                             </button>
                           )}
                           <p className="extra-small text-muted-foreground mb-0">
-                            PNG, JPG ou GIF. máx 2MB
+                            {t("settings.org.logoHelp")}
                           </p>
                         </div>
                       </div>
@@ -886,13 +967,13 @@ export default function SettingsPage() {
 
                     <form onSubmit={handleUpdateOrg} className="mb-5">
                       <div className="section-header mb-4">
-                        <h2 className="fw-bold h5 mb-1">Perfil Básico</h2>
-                        <p className="small text-muted-foreground">Identificação principal da empresa</p>
+                        <h2 className="fw-bold h5 mb-1">{t("settings.org.basicProfile")}</h2>
+                        <p className="small text-muted-foreground">{t("settings.org.identificationDescription")}</p>
                       </div>
 
                       <div className="row g-4">
                         <div className="col-12 col-md-6">
-                          <label className="form-label small fw-bold">Nome da Empresa</label>
+                          <label className="form-label small fw-bold">{t("settings.org.companyName")}</label>
                           <div className="input-group-custom">
                             <Building2 size={18} className="input-icon" />
                             <input
@@ -905,7 +986,7 @@ export default function SettingsPage() {
                         </div>
 
                         <div className="col-12 col-md-6">
-                          <label className="form-label small fw-bold">CNPJ / CPF</label>
+                          <label className="form-label small fw-bold">{t("settings.org.document")}</label>
                           <div className="input-group-custom">
                             <FileText size={18} className="input-icon" />
                             <input
@@ -927,7 +1008,7 @@ export default function SettingsPage() {
                           className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2"
                         >
                           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                          Salvar Identificação
+                          {t("settings.org.saveIdentification")}
                         </button>
                       </div>
                     </form>
@@ -938,14 +1019,14 @@ export default function SettingsPage() {
                     <div className="mb-5">
                       <div className="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                          <h2 className="fw-bold h5 mb-1">Endereços</h2>
-                          <p className="small text-muted-foreground">Sedes, filiais e locais de operação</p>
+                          <h2 className="fw-bold h5 mb-1">{t("settings.org.addresses")}</h2>
+                          <p className="small text-muted-foreground">{t("settings.org.addressDescription")}</p>
                         </div>
                         <button 
                           onClick={() => openAddressModal('add')}
                           className="btn-secondary-elegant py-2 px-3 fw-bold small"
                         >
-                          + Adicionar Endereço
+                          {t("settings.org.addAddress")}
                         </button>
                       </div>
                       
@@ -953,10 +1034,10 @@ export default function SettingsPage() {
                         <table className="table table-borderless align-middle">
                           <thead className="bg-muted/30">
                             <tr>
-                              <th className="small fw-black text-muted-foreground py-3 px-3">Identificação</th>
-                              <th className="small fw-black text-muted-foreground py-3">Localização</th>
-                              <th className="small fw-black text-muted-foreground py-3">Principal</th>
-                              <th className="small fw-black text-muted-foreground py-3 text-end">Ações</th>
+                              <th className="small fw-black text-muted-foreground py-3 px-3">{t("settings.org.identification")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.org.location")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.org.main")}</th>
+                              <th className="small fw-black text-muted-foreground py-3 text-end">{t("settings.org.actions")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -968,7 +1049,7 @@ export default function SettingsPage() {
                                     {addr.street}, {addr.number} - {addr.city}/{addr.state}
                                   </td>
                                   <td className="py-3">
-                                    {addr.is_main && <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">SIM</Badge>}
+                                    {addr.is_main && <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">{t("settings.org.yes")}</Badge>}
                                   </td>
                                   <td className="py-3 text-end">
                                     <button 
@@ -988,7 +1069,7 @@ export default function SettingsPage() {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={4} className="text-center py-4 text-muted small">Nenhum endereço cadastrado</td>
+                                <td colSpan={4} className="text-center py-4 text-muted small">{t("settings.org.noAddress")}</td>
                               </tr>
                             )}
                           </tbody>
@@ -1002,14 +1083,14 @@ export default function SettingsPage() {
                     <div className="mb-4">
                       <div className="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                          <h2 className="fw-bold h5 mb-1">Canais de Contato</h2>
-                          <p className="small text-muted-foreground">Emails e telefones dos responsáveis</p>
+                          <h2 className="fw-bold h5 mb-1">{t("settings.org.contacts")}</h2>
+                          <p className="small text-muted-foreground">{t("settings.org.contactsDescription")}</p>
                         </div>
                         <button 
                           onClick={() => openContactModal('add')}
                           className="btn-secondary-elegant py-2 px-3 fw-bold small"
                         >
-                          + Adicionar Contato
+                          {t("settings.org.addContact")}
                         </button>
                       </div>
 
@@ -1017,10 +1098,10 @@ export default function SettingsPage() {
                         <table className="table table-borderless align-middle">
                           <thead className="bg-muted/30">
                             <tr>
-                              <th className="small fw-black text-muted-foreground py-3 px-3">Nome / Setor</th>
-                              <th className="small fw-black text-muted-foreground py-3">Tipo</th>
-                              <th className="small fw-black text-muted-foreground py-3">Valor</th>
-                              <th className="small fw-black text-muted-foreground py-3 text-end">Ações</th>
+                              <th className="small fw-black text-muted-foreground py-3 px-3">{t("settings.org.nameSector")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.org.type")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.org.value")}</th>
+                              <th className="small fw-black text-muted-foreground py-3 text-end">{t("settings.org.actions")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1038,14 +1119,14 @@ export default function SettingsPage() {
                                     <button 
                                       onClick={() => openContactModal('edit', contact)}
                                       className="btn-icon-muted me-2"
-                                      title="Editar Contato"
+                                      title={t("settings.org.editContact")}
                                     >
                                       <FileText size={14} />
                                     </button>
                                     <button 
                                       onClick={() => handleDeleteContact(contact.id)}
                                       className="btn-icon-danger"
-                                      title="Excluir Contato"
+                                      title={t("settings.org.deleteContact")}
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -1054,7 +1135,7 @@ export default function SettingsPage() {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={4} className="text-center py-4 text-muted small">Nenhum contato cadastrado</td>
+                                <td colSpan={4} className="text-center py-4 text-muted small">{t("settings.org.noContact")}</td>
                               </tr>
                             )}
                           </tbody>
@@ -1070,15 +1151,15 @@ export default function SettingsPage() {
                   <div className="fade-in">
                     <div className="d-flex justify-content-between align-items-center mb-4">
                       <div>
-                        <div className="d-flex align-items-center gap-2"><h2 className="fw-bold h5 mb-1">Membros da Equipe</h2><button type="button" className="btn btn-sm btn-outline-secondary" title="Permissões dos cargos" aria-label="Consultar permissões dos cargos" onClick={() => setRolesOpen(true)}><Settings size={16}/></button></div>
-                        <p className="small text-muted-foreground">Defina o cargo e as áreas autorizadas de cada membro. Somente administradores gerenciam os usuários da organização.</p>
+                        <div className="d-flex align-items-center gap-2"><h2 className="fw-bold h5 mb-1">{t("settings.members.title")}</h2><button type="button" className="btn btn-sm btn-outline-secondary" title={t("settings.members.permissions")} aria-label={t("settings.members.consultPermissions")} onClick={() => setRolesOpen(true)}><Settings size={16}/></button></div>
+                        <p className="small text-muted-foreground">{t("settings.members.description")}</p>
                       </div>
                       <button 
                         onClick={openCreateMemberModal}
                         disabled={!canManageMembers(currentUser?.role)}
                         className="btn-secondary-elegant py-2 px-3 fw-bold small"
                       >
-                        + Novo Membro
+                        {t("settings.members.new")}
                       </button>
                     </div>
 
@@ -1086,10 +1167,10 @@ export default function SettingsPage() {
                       <table className="table table-borderless align-middle">
                         <thead>
                           <tr className="border-bottom">
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3">Membro</th>
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3">Cargo</th>
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3">Status</th>
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3 text-end">Ações</th>
+                            <th className="small fw-black text-muted-foreground text-uppercase py-3">{t("settings.members.member")}</th>
+                            <th className="small fw-black text-muted-foreground text-uppercase py-3">{t("settings.members.role")}</th>
+                            <th className="small fw-black text-muted-foreground text-uppercase py-3">{t("settings.members.status")}</th>
+                            <th className="small fw-black text-muted-foreground text-uppercase py-3 text-end">{t("settings.members.actions")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1111,7 +1192,7 @@ export default function SettingsPage() {
                                   className="form-select-minimal fw-semibold small"
                                   value={member.role}
                                   disabled={updatingMember !== null || !canChangeMemberRole(currentUser, member)}
-                                  aria-label={`Cargo de ${member.full_name}`}
+                                  aria-label={`${t("settings.members.role")} - ${member.full_name}`}
                                   onChange={(e) => void handleUpdateMemberRole(member.id, e.target.value as UserRole)}
                                 >
                                   {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{roleLabels[role]}</option>)}
@@ -1123,7 +1204,7 @@ export default function SettingsPage() {
                                     member.is_active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
                                   }`}
                                 >
-                                  {member.is_active ? "Ativo" : "Inativo"}
+                                  {member.is_active ? t("settings.members.active") : t("settings.members.inactive")}
                                 </Badge>
                               </td>
                               <td className="text-end">
@@ -1132,7 +1213,7 @@ export default function SettingsPage() {
                                     onClick={() => openEditMemberModal(member)}
                                     disabled={!canManageMembers(currentUser?.role) || member.organization_responsible}
                                     className="btn-icon-muted"
-                                    title="Editar"
+                                    title={t("settings.members.edit")}
                                   >
                                     <FileText size={16} />
                                   </button>
@@ -1140,7 +1221,7 @@ export default function SettingsPage() {
                                     onClick={() => handleToggleMemberStatus(member.id, member.is_active)}
                                     disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || member.organization_responsible}
                                     className={`btn-icon-${member.is_active ? 'warning' : 'success'}`}
-                                    title={member.is_active ? "Inativar" : "Ativar"}
+                                    title={member.is_active ? t("settings.members.deactivate") : t("settings.members.activate")}
                                   >
                                     {member.is_active ? <AlertTriangle size={16} /> : <Save size={16} />}
                                   </button>
@@ -1148,7 +1229,7 @@ export default function SettingsPage() {
                                     onClick={() => handleDeleteMember(member.id)}
                                     disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || member.organization_responsible}
                                     className="btn-icon-danger"
-                                    title="Excluir"
+                                    title={t("settings.members.delete")}
                                   >
                                     <Trash2 size={16} />
                                   </button>
@@ -1166,8 +1247,8 @@ export default function SettingsPage() {
                 {activeTab === "preferences" && (
                   <div className="fade-in">
                     <div className="section-header mb-5">
-                      <h2 className="fw-bold h5 mb-1">Preferências do Sistema</h2>
-                      <p className="small text-muted-foreground">Configure como o sistema se comporta</p>
+                      <h2 className="fw-bold h5 mb-1">{t("settings.preferences.title")}</h2>
+                      <p className="small text-muted-foreground">{t("settings.preferences.description")}</p>
                     </div>
 
                     <div className="dashboard-card p-4 border-dashed mb-4">
@@ -1176,8 +1257,8 @@ export default function SettingsPage() {
                           <Settings size={20} />
                         </div>
                         <div>
-                          <h4 className="fw-bold small mb-1">Tema da Interface</h4>
-                          <p className="extra-small text-muted-foreground mb-0">Escolha a aparência do sistema nesta conta</p>
+                          <h4 className="fw-bold small mb-1">{t("settings.preferences.theme")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.preferences.themeDescription")}</p>
                         </div>
                       </div>
 
@@ -1202,11 +1283,11 @@ export default function SettingsPage() {
                                     <span className="theme-option-icon">
                                       <Icon size={18} />
                                     </span>
-                                    <span className="fw-bold small">{THEME_LABELS[option.value]}</span>
+                                    <span className="fw-bold small">{t(themeLabels[option.value])}</span>
                                   </div>
                                   <span className="theme-option-check" />
                                 </div>
-                                <p className="extra-small text-muted-foreground mb-0">{option.description}</p>
+                                <p className="extra-small text-muted-foreground mb-0">{t(themeDescriptionKeys[option.value])}</p>
                               </button>
                             </div>
                           );
@@ -1220,8 +1301,8 @@ export default function SettingsPage() {
                           <Bell size={20} />
                         </div>
                         <div>
-                          <h4 className="fw-bold small mb-1">Notificações por Email</h4>
-                          <p className="extra-small text-muted-foreground mb-0">Receba alertas e relatórios no seu email</p>
+                          <h4 className="fw-bold small mb-1">{t("settings.preferences.email")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.preferences.emailDescription")}</p>
                         </div>
                       </div>
                       <div className="form-check form-switch">
@@ -1233,7 +1314,7 @@ export default function SettingsPage() {
                           onChange={e => setPreferences({...preferences, email_notifications: e.target.checked})}
                         />
                         <label className="form-check-label small" htmlFor="email_notifications">
-                          Ativar notificações
+                          {t("settings.preferences.enableNotifications")}
                         </label>
                       </div>
                     </div>
@@ -1244,8 +1325,8 @@ export default function SettingsPage() {
                           <AlertTriangle size={20} />
                         </div>
                         <div>
-                          <h4 className="fw-bold small mb-1">Alertas de Estoque</h4>
-                          <p className="extra-small text-muted-foreground mb-0">Avise quando produtos atingirem limite mínimo</p>
+                          <h4 className="fw-bold small mb-1">{t("settings.preferences.stockAlerts")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.preferences.stockAlertsDescription")}</p>
                         </div>
                       </div>
                       <div className="form-check form-switch mb-3">
@@ -1257,13 +1338,13 @@ export default function SettingsPage() {
                           onChange={e => setPreferences({...preferences, stock_alerts: e.target.checked})}
                         />
                         <label className="form-check-label small" htmlFor="stock_alerts">
-                          Ativar alertas de estoque
+                          {t("settings.preferences.enableStockAlerts")}
                         </label>
                       </div>
                       {preferences.stock_alerts && (
                         <div className="row align-items-center">
                           <div className="col-auto">
-                            <label className="small fw-bold">Limite mínimo:</label>
+                            <label className="small fw-bold">{t("settings.preferences.minimumLimit")}</label>
                           </div>
                           <div className="col-auto">
                             <input
@@ -1276,7 +1357,7 @@ export default function SettingsPage() {
                             />
                           </div>
                           <div className="col-auto">
-                            <span className="small text-muted-foreground">unidades</span>
+                            <span className="small text-muted-foreground">{t("settings.preferences.units")}</span>
                           </div>
                         </div>
                       )}
@@ -1288,8 +1369,8 @@ export default function SettingsPage() {
                           <Scale size={20} />
                         </div>
                         <div>
-                          <h4 className="fw-bold small mb-1">Unidade de Medida Padrão</h4>
-                          <p className="extra-small text-muted-foreground mb-0">Unidade usada em cadastros e relatórios</p>
+                          <h4 className="fw-bold small mb-1">{t("settings.preferences.defaultUnit")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.preferences.defaultUnitDescription")}</p>
                         </div>
                       </div>
                       <select
@@ -1297,10 +1378,10 @@ export default function SettingsPage() {
                         value={preferences.default_unit}
                         onChange={e => setPreferences({...preferences, default_unit: e.target.value})}
                       >
-                        <option value="kg">Quilogramas (kg)</option>
-                        <option value="ton">Toneladas (ton)</option>
-                        <option value="head">Cabeças (cabeça)</option>
-                        <option value="liters">Litros (L)</option>
+                        <option value="kg">{t("settings.preferences.kilograms")}</option>
+                        <option value="ton">{t("settings.preferences.tons")}</option>
+                        <option value="head">{t("settings.preferences.heads")}</option>
+                        <option value="liters">{t("settings.preferences.liters")}</option>
                       </select>
                     </div>
 
@@ -1311,7 +1392,7 @@ export default function SettingsPage() {
                         className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2"
                       >
                         {savingPreferences ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                        Salvar Preferências
+                        {t("settings.preferences.save")}
                       </button>
                     </div>
                   </div>
@@ -1322,23 +1403,23 @@ export default function SettingsPage() {
                   <div className="fade-in py-4">
                     <div className="plan-card p-5 rounded-3xl border d-flex justify-content-between align-items-center" style={{ background: 'var(--primary)', color: 'white' }}>
                       <div>
-                        <div className="small fw-bold text-white/70 text-uppercase mb-2">Plano Atual</div>
-                        <h3 className="fw-black h1 mb-1">{org?.subscription?.items?.length ? `${org.subscription.items.length} segmento${org.subscription.items.length > 1 ? "s" : ""}` : org?.subscription?.plan_name || org?.plan_display || 'FREE'}</h3>
-                        <p className="mb-0 text-white/80 fw-medium">Cobrança {org?.subscription?.billing_cycle === "yearly" ? "anual" : "mensal"}</p>
+                        <div className="small fw-bold text-white/70 text-uppercase mb-2">{t("settings.subscription.current")}</div>
+                        <h3 className="fw-black h1 mb-1">{org?.subscription?.items?.length ? t("settings.subscription.segments").replace("{count}", numberFormat.format(org.subscription.items.length)) : org?.subscription?.plan_name || org?.plan_display || 'FREE'}</h3>
+                        <p className="mb-0 text-white/80 fw-medium">{t("settings.subscription.billing")} {org?.subscription?.billing_cycle === "yearly" ? t("settings.subscription.yearly") : t("settings.subscription.monthly")}</p>
                       </div>
                       <div className="text-end">
-                        <div className="h3 fw-black mb-0">{money(org?.subscription?.monthly_total || 0)}<small className="fs-6 fw-normal">/mês</small></div>
-                        {org?.subscription?.billing_cycle === "yearly" && <div className="small text-white-50 mt-1">{money(org.subscription.billing_total)} por 12 meses</div>}
-                        <button onClick={openPlanSelector} disabled={planChangeLoading} className="btn btn-light mt-3 fw-bold rounded-xl px-4 py-2 border-0">{planChangeLoading ? "Carregando..." : "Alterar plano"}</button>
+                        <div className="h3 fw-black mb-0">{money(org?.subscription?.monthly_total || 0)}<small className="fs-6 fw-normal">{t("settings.subscription.perMonth")}</small></div>
+                        {org?.subscription?.billing_cycle === "yearly" && <div className="small text-white-50 mt-1">{money(org.subscription.billing_total)} {t("settings.subscription.forYear")}</div>}
+                        <button onClick={openPlanSelector} disabled={planChangeLoading} className="btn btn-light mt-3 fw-bold rounded-xl px-4 py-2 border-0">{planChangeLoading ? t("settings.subscription.loading") : t("settings.subscription.change")}</button>
                       </div>
                     </div>
 
-                    {!!org?.subscription?.items?.length && <div className="row g-3 mt-2">{org.subscription.items.map(item => <div className="col-md-6" key={item.id}><div className="dashboard-card p-3 border-dashed h-100"><div className="extra-small text-uppercase fw-bold text-success">{item.segment_name}</div><div className="fw-bold mt-1">{item.segment_subtitle}</div><div className="small text-muted-foreground mt-1">{item.tier_label}</div><div className="fw-black mt-2">{item.final_monthly_price === null ? "Sob consulta" : `${money(item.final_monthly_price)}/mês`}</div></div></div>)}</div>}
+                    {!!org?.subscription?.items?.length && <div className="row g-3 mt-2">{org.subscription.items.map(item => <div className="col-md-6" key={item.id}><div className="dashboard-card p-3 border-dashed h-100"><div className="extra-small text-uppercase fw-bold text-success">{item.segment_name}</div><div className="fw-bold mt-1">{item.segment_subtitle}</div><div className="small text-muted-foreground mt-1">{item.tier_label}</div><div className="fw-black mt-2">{item.final_monthly_price === null ? t("settings.subscription.quote") : `${money(item.final_monthly_price)}${t("settings.subscription.perMonth")}`}</div></div></div>)}</div>}
 
                     <div className="row g-4 mt-4">
                       <div className="col-md-4">
                         <div className="dashboard-card p-4 text-center border-dashed">
-                          <h4 className="small fw-bold text-muted-foreground mb-3">Fazendas</h4>
+                          <h4 className="small fw-bold text-muted-foreground mb-3">{t("settings.subscription.farms")}</h4>
                           <div className="h3 fw-black">{subscriptionStats.farmsCount} / {subscriptionStats.farmsLimit === 999 ? '∞' : subscriptionStats.farmsLimit}</div>
                           <div className="progress mt-3" style={{ height: '6px' }}>
                             <div className="progress-bar bg-primary" style={{ width: `${Math.min((subscriptionStats.farmsCount / subscriptionStats.farmsLimit) * 100, 100)}%` }}></div>
@@ -1347,13 +1428,13 @@ export default function SettingsPage() {
                       </div>
                       <div className="col-md-4">
                         <div className="dashboard-card p-4 text-center border-dashed">
-                          <h4 className="small fw-bold text-muted-foreground mb-3">Membros</h4>
+                          <h4 className="small fw-bold text-muted-foreground mb-3">{t("settings.subscription.members")}</h4>
                           <div className="h3 fw-black">{subscriptionStats.membersCount} / {subscriptionStats.membersLimit === 999 ? '∞' : subscriptionStats.membersLimit}</div>
                         </div>
                       </div>
                       <div className="col-md-4">
                         <div className="dashboard-card p-4 text-center border-dashed">
-                          <h4 className="small fw-bold text-muted-foreground mb-3">Armazenamento</h4>
+                          <h4 className="small fw-bold text-muted-foreground mb-3">{t("settings.subscription.storage")}</h4>
                           <div className="h3 fw-black">{formatStorage(subscriptionStats.storageUsed)} / {subscriptionStats.storageLimit === 999 ? '∞' : formatStorage(subscriptionStats.storageLimit)}</div>
                           <div className="progress mt-3" style={{ height: '6px' }}>
                             <div className="progress-bar bg-primary" style={{ width: `${Math.min((subscriptionStats.storageUsed / subscriptionStats.storageLimit) * 100, 100)}%` }}></div>
@@ -1368,8 +1449,8 @@ export default function SettingsPage() {
                     <div className="mb-5">
                       <div className="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                          <h2 className="fw-bold h5 mb-1">Método de Pagamento</h2>
-                          <p className="small text-muted-foreground">Forma de cobrança da assinatura</p>
+                          <h2 className="fw-bold h5 mb-1">{t("settings.subscription.paymentMethod")}</h2>
+                          <p className="small text-muted-foreground">{t("settings.subscription.paymentDescription")}</p>
                         </div>
                       </div>
 
@@ -1381,10 +1462,10 @@ export default function SettingsPage() {
                             </div>
                             <div>
                               <h4 className="fw-bold small mb-1">{paymentMethod.brand} •••• {paymentMethod.last4}</h4>
-                              <p className="extra-small text-muted-foreground mb-0">Expira {paymentMethod.expiry}</p>
+                              <p className="extra-small text-muted-foreground mb-0">{t("settings.subscription.expires")} {paymentMethod.expiry}</p>
                             </div>
                           </div>
-                          <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">Ativo</Badge>
+                          <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">{t("settings.subscription.active")}</Badge>
                         </div>
                       </div>
                     </div>
@@ -1393,8 +1474,8 @@ export default function SettingsPage() {
                     <div>
                       <div className="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                          <h2 className="fw-bold h5 mb-1">Histórico de Cobranças</h2>
-                          <p className="small text-muted-foreground">Todas as faturas e pagamentos</p>
+                          <h2 className="fw-bold h5 mb-1">{t("settings.subscription.history")}</h2>
+                          <p className="small text-muted-foreground">{t("settings.subscription.allInvoices")}</p>
                         </div>
                       </div>
 
@@ -1402,24 +1483,24 @@ export default function SettingsPage() {
                         <table className="table table-borderless align-middle">
                           <thead className="bg-muted/30">
                             <tr>
-                              <th className="small fw-black text-muted-foreground py-3 px-3">Data</th>
-                              <th className="small fw-black text-muted-foreground py-3">Descrição</th>
-                              <th className="small fw-black text-muted-foreground py-3">Valor</th>
-                              <th className="small fw-black text-muted-foreground py-3">Status</th>
-                              <th className="small fw-black text-muted-foreground py-3 text-end">Ação</th>
+                              <th className="small fw-black text-muted-foreground py-3 px-3">{t("settings.subscription.date")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.subscription.description")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.subscription.value")}</th>
+                              <th className="small fw-black text-muted-foreground py-3">{t("settings.subscription.status")}</th>
+                              <th className="small fw-black text-muted-foreground py-3 text-end">{t("settings.subscription.action")}</th>
                             </tr>
                           </thead>
                           <tbody>
                             {invoices.map((invoice) => (
                               <tr key={invoice.id} className="border-bottom-dashed">
-                                <td className="py-3 px-3 small">{new Date(invoice.date).toLocaleDateString('pt-BR')}</td>
-                                <td className="py-3 small text-muted-foreground">{invoice.description}</td>
-                                <td className="py-3 small fw-bold">R$ {invoice.amount.toFixed(2)}</td>
+                                <td className="py-3 px-3 small">{new Date(invoice.date).toLocaleDateString(language)}</td>
+                                <td className="py-3 small text-muted-foreground">{t("settings.subscription.planPro").replace("{date}", new Date(`${invoice.date}T00:00:00`).toLocaleDateString(language, { month: "long", year: "numeric" }))}</td>
+                                <td className="py-3 small fw-bold">{money(invoice.amount)}</td>
                                 <td className="py-3">
-                                  <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">Pago</Badge>
+                                  <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">{t("settings.subscription.paid")}</Badge>
                                 </td>
                                 <td className="py-3 text-end">
-                                  <button className="btn-icon-muted" title="Baixar PDF">
+                                  <button className="btn-icon-muted" title={t("settings.downloadPdf")}>
                                     <Download size={16} />
                                   </button>
                                 </td>
@@ -1436,21 +1517,21 @@ export default function SettingsPage() {
                 {activeTab === "security" && (
                   <div className="fade-in">
                      <div className="section-header mb-5">
-                      <h2 className="fw-bold h5 mb-1">Segurança e Acesso</h2>
-                      <p className="small text-muted-foreground">Proteja sua conta e monitore acessos</p>
+                      <h2 className="fw-bold h5 mb-1">{t("settings.security.title")}</h2>
+                      <p className="small text-muted-foreground">{t("settings.security.description")}</p>
                     </div>
 
                     <div className="dashboard-card p-4 border-dashed mb-4">
                       <div className="d-flex justify-content-between align-items-center">
                         <div>
-                          <h4 className="fw-bold small mb-1">Alterar Senha</h4>
-                          <p className="extra-small text-muted-foreground mb-0">Recomendamos uma senha forte com símbolos</p>
+                          <h4 className="fw-bold small mb-1">{t("settings.security.changePassword")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.security.passwordTip")}</p>
                         </div>
                         <button 
                           onClick={() => setPasswordModalOpen(true)}
                           className="btn-secondary-elegant py-2 px-4 small fw-bold"
                         >
-                          Alterar
+                          {t("settings.security.change")}
                         </button>
                       </div>
                     </div>
@@ -1458,14 +1539,14 @@ export default function SettingsPage() {
                     <div className="dashboard-card p-4 border-dashed">
                       <div className="d-flex justify-content-between align-items-center">
                         <div>
-                          <h4 className="fw-bold small mb-1">Autenticação de Dois Fatores (2FA)</h4>
-                          <p className="extra-small text-muted-foreground mb-0">Adicione uma camada extra de segurança</p>
+                          <h4 className="fw-bold small mb-1">{t("settings.security.twoFactor")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.security.twoFactorDescription")}</p>
                         </div>
                         <button 
                           onClick={handleToggle2FA}
                           className={`btn-sm px-3 py-1 fw-bold rounded-xl border-0 ${twoFactorEnabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}
                         >
-                          {twoFactorEnabled ? 'Ativado' : 'Desativado'}
+                          {twoFactorEnabled ? t("settings.security.enabled") : t("settings.security.disabled")}
                         </button>
                       </div>
                     </div>
@@ -1479,30 +1560,29 @@ export default function SettingsPage() {
       </div>
 
       {/* Create / Edit Member Modal */}
-      <Modal isOpen={rolesOpen} onClose={() => setRolesOpen(false)} title="Cargos e permissões" description="As permissões também são verificadas no servidor.">
+      <Modal isOpen={rolesOpen} onClose={() => setRolesOpen(false)} title={t("settings.members.permissions")} description={t("settings.roles.note")}>
         <div className="d-grid gap-3">
           {[
-            ["Administrador", "Gerencia a organização, seus membros, configurações, operações e financeiro."],
-            ["Gerente", "Gerencia operações, planejamentos e financeiro. Não gerencia membros da organização."],
-            ["Operador", "Atua nas plantações e rebanhos autorizados, sem acesso financeiro ou gestão de membros. Correções seguem as regras de autoria e histórico do sistema."],
-            ["Tratador", "Consulta os tratos bovinos de hoje e registra fornecimentos dos planos vigentes, com conferência da sobra no cocho e baixa de estoque por lançamento. Não altera planos, saldos ou custos."],
+            [t("role.admin"), t("settings.roles.admin")],
+            [t("role.manager"), t("settings.roles.manager")],
+            [t("role.operator"), t("settings.roles.operator")],
+            [t("role.feeder"), t("settings.roles.feeder")],
           ].map(([name, description]) => <article key={name} className="border rounded-3 p-3"><h3 className="h6">{name}</h3><p className="small text-muted-foreground mb-0">{description}</p></article>)}
-          <p className="small mb-0">Operador e tratador precisam de áreas autorizadas. A opção “Somente consulta” bloqueia lançamentos. O responsável pela organização mantém as proteções de acesso existentes.</p>
         </div>
       </Modal>
       <Modal
         isOpen={memberModalOpen}
         onClose={() => setMemberModalOpen(false)}
-        title={memberModalMode === 'create' ? 'Cadastrar Membro' : 'Editar Membro'}
-        description={memberModalMode === 'create' ? 'Adicione um novo membro à sua organização' : 'Atualize os dados de acesso do membro'}
+        title={memberModalMode === 'create' ? t("settings.member.create") : t("settings.member.edit")}
+        description={memberModalMode === 'create' ? t("settings.member.createDescription") : t("settings.member.editDescription")}
         maxWidth="max-w-xl"
         footer={
           <div className="d-flex align-items-center justify-content-end w-100 p-3 bg-muted/5 gap-2">
             <Button variant="outline-secondary" onClick={() => setMemberModalOpen(false)} disabled={memberLoading} className="rounded-xl">
-              Cancelar
+              {t("settings.member.cancel")}
             </Button>
             <Button onClick={handleSaveMember} disabled={memberLoading} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl shadow-lg">
-              {memberLoading ? "Salvando..." : (memberModalMode === 'create' ? "Cadastrar" : "Salvar")}
+              {memberLoading ? t("settings.member.saving") : (memberModalMode === 'create' ? t("settings.member.create") : t("settings.member.save"))}
             </Button>
           </div>
         }
@@ -1512,7 +1592,7 @@ export default function SettingsPage() {
             <div className="row g-4">
               <div className="col-12 col-md-6">
                 <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">Nome Completo <span className="text-danger">*</span></label>
+                  <label className="login-label fw-semibold">{t("settings.member.fullName")} <span className="text-danger">*</span></label>
                   <div className="login-input-wrapper">
                     <input
                       type="text"
@@ -1528,7 +1608,7 @@ export default function SettingsPage() {
 
               <div className="col-12 col-md-6">
                 <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">Email <span className="text-danger">*</span></label>
+                  <label className="login-label fw-semibold">{t("settings.member.email")} <span className="text-danger">*</span></label>
                   <div className="login-input-wrapper">
                     <input
                       type="email"
@@ -1545,7 +1625,7 @@ export default function SettingsPage() {
 
               <div className="col-12 col-md-6">
                 <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">Telefone (opcional)</label>
+                  <label className="login-label fw-semibold">{t("settings.member.phoneOptional")}</label>
                   <div className="login-input-wrapper">
                     <input
                       type="text"
@@ -1560,7 +1640,7 @@ export default function SettingsPage() {
 
               <div className="col-12 col-md-6">
                 <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">Cargo <span className="text-danger">*</span></label>
+                  <label className="login-label fw-semibold">{t("settings.member.role")} <span className="text-danger">*</span></label>
                   <div className="login-input-wrapper">
                     <select
                       className="login-input login-input-icon-left bg-transparent text-foreground"
@@ -1568,7 +1648,7 @@ export default function SettingsPage() {
                       disabled={memberModalMode === "edit" && !canChangeMemberRole(currentUser, members.find(member => member.id === selectedMemberId) || { ...memberData, id: selectedMemberId || "", role: memberData.role as UserRole, role_display: "", is_active: true, organization_responsible: false })}
                       onChange={e => setMemberData({...memberData, ...(!["operator", "feeder"].includes(e.target.value) ? emptyOperatorScope : e.target.value === "feeder" ? {can_operate_crops: false, allowed_livestock: []} : {}), role: e.target.value})}
                     >
-                      {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{roleLabels[role]}</option>)}
+                      {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{t(localizedRoleLabels[role])}</option>)}
                     </select>
                     <ShieldCheck className="login-input-icon text-muted-foreground" size={15} />
                   </div>
@@ -1582,7 +1662,7 @@ export default function SettingsPage() {
                 <>
                   <div className="col-12 col-md-6">
                     <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Senha <span className="text-danger">*</span></label>
+                      <label className="login-label fw-semibold">{t("settings.member.password")} <span className="text-danger">*</span></label>
                       <div className="login-input-wrapper">
                         <input
                           type="password"
@@ -1595,17 +1675,17 @@ export default function SettingsPage() {
                         <Lock className={`login-input-icon ${memberData.password && memberData.password.length < 8 ? 'text-danger' : (memberData.password.length >= 8 ? 'text-success' : 'text-muted-foreground')}`} size={15} />
                       </div>
                       {memberData.password && memberData.password.length < 8 && (
-                        <div className="text-danger extra-small mt-1 fw-bold">Mínimo de 8 caracteres.</div>
+                        <div className="text-danger extra-small mt-1 fw-bold">{t("settings.member.passwordShort")}</div>
                       )}
                       {memberData.password && memberData.password.length >= 8 && (
-                        <div className="text-success extra-small mt-1 fw-bold">Tamanho da senha adequado.</div>
+                        <div className="text-success extra-small mt-1 fw-bold">{t("settings.member.passwordGood")}</div>
                       )}
                     </div>
                   </div>
 
                   <div className="col-12 col-md-6">
                     <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">Confirmar Senha <span className="text-danger">*</span></label>
+                      <label className="login-label fw-semibold">{t("settings.member.confirmPassword")} <span className="text-danger">*</span></label>
                       <div className="login-input-wrapper">
                         <input
                           type="password"
@@ -1618,10 +1698,10 @@ export default function SettingsPage() {
                         <Lock className={`login-input-icon ${memberData.password_confirm && memberData.password !== memberData.password_confirm ? 'text-danger' : (memberData.password_confirm && memberData.password === memberData.password_confirm ? 'text-success' : 'text-muted-foreground')}`} size={15} />
                       </div>
                       {memberData.password_confirm && memberData.password !== memberData.password_confirm && (
-                        <div className="text-danger extra-small mt-1 fw-bold">As senhas não conferem.</div>
+                        <div className="text-danger extra-small mt-1 fw-bold">{t("settings.member.passwordsDiffer")}</div>
                       )}
                       {memberData.password_confirm && memberData.password === memberData.password_confirm && (
-                        <div className="text-success extra-small mt-1 fw-bold">As senhas conferem.</div>
+                        <div className="text-success extra-small mt-1 fw-bold">{t("settings.member.passwordsMatch")}</div>
                       )}
                     </div>
                   </div>
@@ -1638,8 +1718,8 @@ export default function SettingsPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header d-flex justify-content-between align-items-center mb-4">
               <div>
-                <h3 className="fw-bold h5 mb-1">{addressModalMode === 'edit' ? 'Editar Endereço' : 'Novo Endereço'}</h3>
-                <p className="small text-muted-foreground mb-0">Endereço da organização</p>
+                <h3 className="fw-bold h5 mb-1">{addressModalMode === 'edit' ? t("settings.org.editAddress") : t("settings.org.newAddress")}</h3>
+                <p className="small text-muted-foreground mb-0">{t("settings.org.organizationAddress")}</p>
               </div>
               <button onClick={() => setAddressModalOpen(false)} className="btn-icon-muted">
                 <X size={20} />
@@ -1647,19 +1727,19 @@ export default function SettingsPage() {
             </div>
             <form onSubmit={handleSaveAddress}>
               <div className="mb-3">
-                <label className="form-label small fw-bold">Identificação</label>
+                <label className="form-label small fw-bold">{t("settings.org.addressLabel")}</label>
                 <input
                   type="text"
                   className="form-control-custom"
                   value={addressForm.label}
                   onChange={e => setAddressForm({...addressForm, label: e.target.value})}
-                  placeholder="Ex: Sede, Filial, Depósito"
+                  placeholder={t("settings.org.addressLabelPlaceholder")}
                   required
                 />
               </div>
               <div className="row g-3 mb-3">
                 <div className="col-4">
-                  <label className="form-label small fw-bold">CEP</label>
+                  <label className="form-label small fw-bold">{t("settings.org.postalCode")}</label>
                   <input
                     type="text"
                     className="form-control-custom"
@@ -1668,7 +1748,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="col-8">
-                  <label className="form-label small fw-bold">Rua</label>
+                  <label className="form-label small fw-bold">{t("settings.org.street")}</label>
                   <input
                     type="text"
                     className="form-control-custom"
@@ -1680,7 +1760,7 @@ export default function SettingsPage() {
               </div>
               <div className="row g-3 mb-3">
                 <div className="col-3">
-                  <label className="form-label small fw-bold">Número</label>
+                  <label className="form-label small fw-bold">{t("settings.org.number")}</label>
                   <input
                     type="text"
                     className="form-control-custom"
@@ -1689,7 +1769,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="col-9">
-                  <label className="form-label small fw-bold">Complemento</label>
+                  <label className="form-label small fw-bold">{t("settings.org.complement")}</label>
                   <input
                     type="text"
                     className="form-control-custom"
@@ -1699,7 +1779,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="mb-3">
-                <label className="form-label small fw-bold">Bairro</label>
+                <label className="form-label small fw-bold">{t("settings.org.neighborhood")}</label>
                 <input
                   type="text"
                   className="form-control-custom"
@@ -1709,7 +1789,7 @@ export default function SettingsPage() {
               </div>
               <div className="row g-3 mb-4">
                 <div className="col-8">
-                  <label className="form-label small fw-bold">Cidade</label>
+                  <label className="form-label small fw-bold">{t("settings.org.city")}</label>
                   <input
                     type="text"
                     className="form-control-custom"
@@ -1719,7 +1799,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="col-4">
-                  <label className="form-label small fw-bold">UF</label>
+                  <label className="form-label small fw-bold">{t("settings.org.state")}</label>
                   <input
                     type="text"
                     className="form-control-custom"
@@ -1739,16 +1819,16 @@ export default function SettingsPage() {
                   onChange={e => setAddressForm({...addressForm, is_main: e.target.checked})}
                 />
                 <label className="form-check-label small" htmlFor="is_main">
-                  Endereço principal
+                  {t("settings.org.primaryAddress")}
                 </label>
               </div>
               <div className="d-flex justify-content-end gap-3">
                 <button type="button" onClick={() => setAddressModalOpen(false)} className="btn-secondary-elegant px-4 py-2">
-                  Cancelar
+                  {t("settings.org.cancel")}
                 </button>
                 <button type="submit" disabled={savingAddress} className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2">
                   {savingAddress ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                  Salvar
+                  {t("settings.org.save")}
                 </button>
               </div>
             </form>
@@ -1762,8 +1842,8 @@ export default function SettingsPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header d-flex justify-content-between align-items-center mb-4">
               <div>
-                <h3 className="fw-bold h5 mb-1">{contactModalMode === 'edit' ? 'Editar Contato' : 'Novo Contato'}</h3>
-                <p className="small text-muted-foreground mb-0">Canal de contato da organização</p>
+                <h3 className="fw-bold h5 mb-1">{contactModalMode === 'edit' ? t("settings.org.editContact") : t("settings.org.newContact")}</h3>
+                <p className="small text-muted-foreground mb-0">{t("settings.org.organizationContact")}</p>
               </div>
               <button onClick={() => setContactModalOpen(false)} className="btn-icon-muted">
                 <X size={20} />
@@ -1771,37 +1851,37 @@ export default function SettingsPage() {
             </div>
             <form onSubmit={handleSaveContact}>
               <div className="mb-3">
-                <label className="form-label small fw-bold">Nome / Setor</label>
+                <label className="form-label small fw-bold">{t("settings.org.contactName")}</label>
                 <input
                   type="text"
                   className="form-control-custom"
                   value={contactForm.name}
                   onChange={e => setContactForm({...contactForm, name: e.target.value})}
-                  placeholder="Ex: João, Financeiro, Comercial"
+                  placeholder={t("settings.org.contactNamePlaceholder")}
                   required
                 />
               </div>
               <div className="mb-3">
-                <label className="form-label small fw-bold">Tipo</label>
+                <label className="form-label small fw-bold">{t("settings.org.type")}</label>
                 <select
                   className="form-control-custom"
                   value={contactForm.contact_type}
                   onChange={e => setContactForm({...contactForm, contact_type: e.target.value})}
                 >
-                  <option value="phone">Telefone</option>
-                  <option value="email">Email</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="other">Outro</option>
+                  <option value="phone">{t("settings.org.phone")}</option>
+                  <option value="email">{t("settings.org.email")}</option>
+                  <option value="whatsapp">{t("settings.org.whatsapp")}</option>
+                  <option value="other">{t("settings.org.other")}</option>
                 </select>
               </div>
               <div className="mb-4">
-                <label className="form-label small fw-bold">Valor</label>
+                <label className="form-label small fw-bold">{t("settings.org.value")}</label>
                 <input
                   type="text"
                   className="form-control-custom"
                   value={contactForm.value}
                   onChange={e => setContactForm({...contactForm, value: e.target.value})}
-                  placeholder={contactForm.contact_type === 'email' ? 'email@exemplo.com' : '(00) 00000-0000'}
+                  placeholder={contactForm.contact_type === 'email' ? t("settings.org.contactValuePlaceholder") : '(00) 00000-0000'}
                   required
                 />
               </div>
@@ -1814,16 +1894,16 @@ export default function SettingsPage() {
                   onChange={e => setContactForm({...contactForm, is_main: e.target.checked})}
                 />
                 <label className="form-check-label small" htmlFor="contact_is_main">
-                  Contato principal
+                  {t("settings.org.primaryContact")}
                 </label>
               </div>
               <div className="d-flex justify-content-end gap-3">
                 <button type="button" onClick={() => setContactModalOpen(false)} className="btn-secondary-elegant px-4 py-2">
-                  Cancelar
+                  {t("settings.org.cancel")}
                 </button>
                 <button type="submit" disabled={savingContact} className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2">
                   {savingContact ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                  Salvar
+                  {t("settings.org.save")}
                 </button>
               </div>
             </form>
@@ -1837,35 +1917,35 @@ export default function SettingsPage() {
       <Modal
         isOpen={planSelectorOpen}
         onClose={() => setPlanSelectorOpen(false)}
-        title="Alterar plano"
-        description="Selecione os segmentos e veja a diferença em relação à assinatura atual."
+        title={t("settings.plan.changeTitle")}
+        description={t("settings.plan.changeDescription")}
         maxWidth="plan-selector-modal"
         footer={<>
-          <button type="button" className="btn-secondary-elegant px-4 py-2" onClick={() => { setPlanSelectorOpen(false); setChangePreview(null); }}>Cancelar</button>
-          {!changePreview ? <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || !Object.keys(selectedTiers).length} onClick={previewPlanChange}>{planChangeLoading ? "Calculando..." : "Calcular alteração"}</button> : <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || changePreview.quote.requires_contact || changePreview.effective_at === "next_renewal"} onClick={confirmPlanChange}>{planChangeLoading ? "Confirmando..." : changePreview.quote.requires_contact ? "Falar com especialista" : changePreview.effective_at === "next_renewal" ? "Downgrade na renovação" : "Confirmar alteração"}</button>}
+          <button type="button" className="btn-secondary-elegant px-4 py-2" onClick={() => { setPlanSelectorOpen(false); setChangePreview(null); }}>{t("settings.plan.cancel")}</button>
+          {!changePreview ? <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || !Object.keys(selectedTiers).length} onClick={previewPlanChange}>{planChangeLoading ? t("settings.plan.calculating") : t("settings.plan.calculate")}</button> : <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || changePreview.quote.requires_contact || changePreview.effective_at === "next_renewal"} onClick={confirmPlanChange}>{planChangeLoading ? t("settings.plan.confirming") : changePreview.quote.requires_contact ? t("settings.plan.specialist") : changePreview.effective_at === "next_renewal" ? t("settings.plan.downgradeRenewal") : t("settings.plan.confirm")}</button>}
         </>}
       >
         <div className="p-3 p-md-4 plan-selector-content">
           <div className="billing-selector mb-4">
-            <button className={selectedBilling === "monthly" ? "active" : ""} onClick={() => { setSelectedBilling("monthly"); setChangePreview(null); }}>Mensal</button>
-            <button className={selectedBilling === "yearly" ? "active" : ""} onClick={() => { setSelectedBilling("yearly"); setChangePreview(null); }}>Anual com desconto</button>
+            <button className={selectedBilling === "monthly" ? "active" : ""} onClick={() => { setSelectedBilling("monthly"); setChangePreview(null); }}>{t("settings.plan.monthly")}</button>
+            <button className={selectedBilling === "yearly" ? "active" : ""} onClick={() => { setSelectedBilling("yearly"); setChangePreview(null); }}>{t("settings.plan.annualDiscount")}</button>
           </div>
           <div className="plan-selector-grid">
             {planCatalog.map(segment => <article className={`plan-segment-option ${segment.accent}`} key={segment.code}>
-              <div className="d-flex justify-content-between gap-3"><div><div className="plan-segment-kicker">{segment.name}</div><h3>{segment.subtitle}</h3></div>{selectedTiers[segment.code] && <button className="remove-segment" onClick={() => { setSelectedTiers(current => { const next = { ...current }; delete next[segment.code]; return next; }); setChangePreview(null); }}>Remover</button>}</div>
+              <div className="d-flex justify-content-between gap-3"><div><div className="plan-segment-kicker">{segment.name}</div><h3>{segment.subtitle}</h3></div>{selectedTiers[segment.code] && <button className="remove-segment" onClick={() => { setSelectedTiers(current => { const next = { ...current }; delete next[segment.code]; return next; }); setChangePreview(null); }}>{t("settings.plan.remove")}</button>}</div>
               <p>{segment.description}</p>
-              <div className="plan-tier-options">{segment.tiers.map(tier => <label className={selectedTiers[segment.code] === tier.id ? "active" : ""} key={tier.id}><input type="radio" name={`settings-${segment.code}`} checked={selectedTiers[segment.code] === tier.id} onChange={() => { setSelectedTiers(current => ({ ...current, [segment.code]: tier.id })); setChangePreview(null); }}/><span>{tier.label}</span><strong>{tier.requires_quote || tier.monthly_price === null ? "Sob consulta" : `${money(tier.monthly_price)}/mês`}</strong></label>)}</div>
-              {selectedBilling === "yearly" && <small className="annual-discount-note">{Number(segment.annual_discount_percent)}% de desconto no anual</small>}
+              <div className="plan-tier-options">{segment.tiers.map(tier => <label className={selectedTiers[segment.code] === tier.id ? "active" : ""} key={tier.id}><input type="radio" name={`settings-${segment.code}`} checked={selectedTiers[segment.code] === tier.id} onChange={() => { setSelectedTiers(current => ({ ...current, [segment.code]: tier.id })); setChangePreview(null); }}/><span>{tier.label}</span><strong>{tier.requires_quote || tier.monthly_price === null ? t("settings.subscription.quote") : `${money(tier.monthly_price)}${t("settings.subscription.perMonth")}`}</strong></label>)}</div>
+              {selectedBilling === "yearly" && <small className="annual-discount-note">{t("settings.plan.discount").replace("{percent}", numberFormat.format(Number(segment.annual_discount_percent)))}</small>}
             </article>)}
           </div>
           {changePreview && <section className="change-preview mt-4">
-            <h3>Resumo da alteração</h3>
-            <div><span>Plano atual</span><strong>{money(changePreview.current_monthly_total)}/mês</strong></div>
-            <div><span>Novo plano</span><strong>{money(changePreview.new_monthly_total)}/mês</strong></div>
-            <div><span>Diferença mensal</span><strong>{Number(changePreview.monthly_difference) >= 0 ? "+" : ""}{money(changePreview.monthly_difference)}</strong></div>
-            {selectedBilling === "yearly" && <div className="purchase-total"><span>Montante da compra — 12 meses</span><strong>{money(changePreview.quote.billing_total)}</strong></div>}
-            {changePreview.effective_at === "immediately" && Number(changePreview.prorated_difference) > 0 && <p>Valor estimado para aplicar a alteração agora: <strong>{money(changePreview.prorated_difference)}</strong>.</p>}
-            {changePreview.effective_at === "next_renewal" && <p>Esta alteração reduz o valor atual e deverá ser agendada para a próxima renovação.</p>}
+            <h3>{t("settings.plan.summary")}</h3>
+            <div><span>{t("settings.subscription.current")}</span><strong>{money(changePreview.current_monthly_total)}{t("settings.subscription.perMonth")}</strong></div>
+            <div><span>{t("settings.plan.new")}</span><strong>{money(changePreview.new_monthly_total)}{t("settings.subscription.perMonth")}</strong></div>
+            <div><span>{t("settings.plan.difference")}</span><strong>{Number(changePreview.monthly_difference) >= 0 ? "+" : ""}{money(changePreview.monthly_difference)}</strong></div>
+            {selectedBilling === "yearly" && <div className="purchase-total"><span>{t("settings.plan.purchaseTotal")}</span><strong>{money(changePreview.quote.billing_total)}</strong></div>}
+            {changePreview.effective_at === "immediately" && Number(changePreview.prorated_difference) > 0 && <p>{t("settings.plan.applyNow")} <strong>{money(changePreview.prorated_difference)}</strong>.</p>}
+            {changePreview.effective_at === "next_renewal" && <p>{t("settings.plan.nextRenewal")}</p>}
           </section>}
         </div>
       </Modal>
@@ -1875,8 +1955,8 @@ export default function SettingsPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header d-flex justify-content-between align-items-center mb-4">
               <div>
-                <h3 className="fw-bold h5 mb-1">Alterar Senha</h3>
-                <p className="small text-muted-foreground mb-0">Crie uma senha forte</p>
+                <h3 className="fw-bold h5 mb-1">{t("settings.password.title")}</h3>
+                <p className="small text-muted-foreground mb-0">{t("settings.password.description")}</p>
               </div>
               <button onClick={() => setPasswordModalOpen(false)} className="btn-icon-muted">
                 <X size={20} />
@@ -1884,7 +1964,7 @@ export default function SettingsPage() {
             </div>
             <form onSubmit={handleChangePassword}>
               <div className="mb-3">
-                <label className="form-label small fw-bold">Senha Atual</label>
+                <label className="form-label small fw-bold">{t("settings.password.current")}</label>
                 <input
                   type="password"
                   className="form-control-custom"
@@ -1894,7 +1974,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="mb-3">
-                <label className="form-label small fw-bold">Nova Senha</label>
+                <label className="form-label small fw-bold">{t("settings.password.new")}</label>
                 <input
                   type="password"
                   className="form-control-custom"
@@ -1905,7 +1985,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="mb-4">
-                <label className="form-label small fw-bold">Confirmar Nova Senha</label>
+                <label className="form-label small fw-bold">{t("settings.password.confirmNew")}</label>
                 <input
                   type="password"
                   className="form-control-custom"
@@ -1917,11 +1997,11 @@ export default function SettingsPage() {
               </div>
               <div className="d-flex justify-content-end gap-3">
                 <button type="button" onClick={() => setPasswordModalOpen(false)} className="btn-secondary-elegant px-4 py-2">
-                  Cancelar
+                  {t("settings.member.cancel")}
                 </button>
                 <button type="submit" disabled={savingPassword} className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2">
                   {savingPassword ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                  Alterar Senha
+                  {t("settings.security.changePassword")}
                 </button>
               </div>
             </form>

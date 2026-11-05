@@ -9,6 +9,7 @@ import {
 import { apiClient, getMediaUrl, uploadFile } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import { FormInput, FormSelect, FormError } from "@/components/ui/FormError";
+import { useOrganizationLocale } from "@/lib/locale";
 
 const formatCNPJ = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 14);
@@ -44,12 +45,13 @@ interface FornecedorModalProps {
 export type TipoContrato = "spot" | "mensal" | "anual";
 
 const tipoContratoOptions = [
-  { id: "spot", label: "Eventual", desc: "Compras pontuais" },
-  { id: "mensal", label: "Mensal", desc: "Recorrente mensal" },
-  { id: "anual", label: "Anual", desc: "Contrato longo prazo" },
+  { id: "spot", labelKey: "inventory.suppliers.contractSpot", descriptionKey: "inventory.suppliers.contractSpotDescription" },
+  { id: "mensal", labelKey: "inventory.suppliers.contractMonthly", descriptionKey: "inventory.suppliers.contractMonthlyDescription" },
+  { id: "anual", labelKey: "inventory.suppliers.contractAnnual", descriptionKey: "inventory.suppliers.contractAnnualDescription" },
 ];
 
 export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: FornecedorModalProps) {
+  const { t } = useOrganizationLocale();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -118,10 +120,10 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
   // Validation functions
   const validateNome = (value: string): string => {
     if (!value || !value.trim()) {
-      return "Nome é obrigatório";
+      return t("inventory.suppliers.nameRequired");
     }
     if (value.trim().length < 3) {
-      return "Nome deve ter pelo menos 3 caracteres";
+      return t("inventory.suppliers.nameTooShort");
     }
     return "";
   };
@@ -130,18 +132,18 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     if (!value) return ""; // Email é opcional
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(value)) {
-      return "E-mail inválido. Use formato: nome@empresa.com";
+      return t("inventory.suppliers.invalidEmail");
     }
     return "";
   };
 
   const validateTipoContrato = (value: string): string => {
     if (!value) {
-      return "Tipo de contrato é obrigatório";
+      return t("inventory.suppliers.contractRequired");
     }
     const validChoices = ["spot", "mensal", "anual"];
     if (!validChoices.includes(value)) {
-      return "Selecione um tipo de contrato válido";
+      return t("inventory.suppliers.invalidContract");
     }
     return "";
   };
@@ -150,11 +152,11 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     if (!value) return ""; // CNPJ é opcional
     const digits = value.replace(/\D/g, "");
     if (digits.length !== 14) {
-      return "CNPJ deve ter 14 dígitos";
+      return t("inventory.suppliers.cnpjLength");
     }
     // Simple CNPJ validation (first digit check)
     if (digits === "00000000000000") {
-      return "CNPJ inválido";
+      return t("inventory.suppliers.invalidCnpj");
     }
     return "";
   };
@@ -162,7 +164,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
   const validateEstado = (value: string): string => {
     if (!value) return ""; // Estado é opcional
     if (value.length > 2) {
-      return "Estado deve ter no máximo 2 caracteres (ex: SP)";
+      return t("inventory.suppliers.stateLength");
     }
     return "";
   };
@@ -273,7 +275,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
               fetchFallbackCoordinates(targetIdx, newAddress.logradouro, newAddress.numero, newAddress.cidade, newAddress.estado);
             });
         }
-        showToast("Dados do CNPJ carregados com sucesso!", "success");
+        showToast(t("inventory.suppliers.cnpjLoaded"), "success");
       }
     } catch (error) {
       console.error("Erro ao buscar CNPJ:", error);
@@ -306,7 +308,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
           ...prev,
           enderecos: [...prev.enderecos, newAddress]
         }));
-        showToast("Endereço carregado via CEP!", "success");
+        showToast(t("inventory.suppliers.addressLoaded"), "success");
       }
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
@@ -413,7 +415,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     setFieldErrors(cleanErrors);
     
     if (Object.keys(cleanErrors).length > 0) {
-      showToast("Corrija os erros no formulário", "warning", 15000);
+      showToast(t("inventory.suppliers.fixErrors"), "warning", 15000);
       return false;
     }
     
@@ -485,7 +487,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
           }
         }
 
-        let errorMessage = "Erro ao salvar fornecedor.";
+        let errorMessage = t("inventory.suppliers.saveFailed");
         
         if (data && typeof data === "object" && Object.keys(data).length > 0) {
           const messages = Object.entries(data)
@@ -511,7 +513,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
             );
             
             if (isDuplicate) {
-              errorMessage = "Fornecedor já cadastrado no sistema.";
+              errorMessage = t("inventory.suppliers.duplicate");
             } else {
               errorMessage = messages.join("\n");
             }
@@ -552,7 +554,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        showToast("Imagem deve ter menos de 5MB", "warning", 15000);
+        showToast(t("inventory.suppliers.imageTooLarge"), "warning", 15000);
         return;
       }
       const previewUrl = URL.createObjectURL(file);
@@ -613,10 +615,10 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                 <div className="p-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)" }}>
                   <div>
                     <h2 className="fw-bold mb-1" style={{ fontSize: "1.25rem", color: "var(--foreground)" }}>
-                      {fornecedorInitial ? "Editar Fornecedor" : "Novo Fornecedor"}
+                      {fornecedorInitial ? t("inventory.suppliers.modalEdit") : t("inventory.suppliers.modalCreate")}
                     </h2>
                     <p className="text-muted-foreground small mb-0">
-                      {fornecedorInitial ? "Atualize os dados do parceiro" : "Cadastre um novo parceiro comercial"}
+                      {fornecedorInitial ? t("inventory.suppliers.editDescription") : t("inventory.suppliers.createDescription")}
                     </p>
                   </div>
                   <button
@@ -647,7 +649,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                         {imagePreview ? (
                           <img
                             src={imagePreview}
-                            alt={formData.nome || "Fornecedor"}
+                            alt={formData.nome || t("inventory.suppliers.supplier")}
                             className="w-100 h-100 object-fit-cover"
                           />
                         ) : (
@@ -667,17 +669,17 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">Logo do fornecedor</p>
+                    <p className="text-xs text-muted-foreground">{t("inventory.suppliers.logo")}</p>
                   </div>
 
                   {/* Dados Principais */}
                   <div className="mb-4">
-                    <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Dados Principais</h3>
+                    <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>{t("inventory.suppliers.mainDetails")}</h3>
                     <div className="row g-3">
                       <div className="col-12">
                         <div className="position-relative">
                           <FormInput
-                            label="CNPJ"
+                            label={t("inventory.suppliers.cnpj")}
                             type="text"
                             placeholder="00.000.000/0001-00"
                             value={formData.cnpj}
@@ -688,17 +690,17 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                           {isFetchingCNPJ && (
                             <div className="position-absolute d-flex align-items-center gap-2" style={{ right: '10px', top: '38px' }}>
                               <div className="spinner-border spinner-border-sm text-primary" style={{ width: '14px', height: '14px' }} />
-                              <span className="text-xs text-primary fw-medium">Buscando...</span>
+                              <span className="text-xs text-primary fw-medium">{t("inventory.suppliers.searching")}</span>
                             </div>
                           )}
                         </div>
                       </div>
                       <div className="col-12">
                         <FormInput
-                          label="Razão Social / Nome"
+                          label={t("inventory.suppliers.legalName")}
                           required
                           type="text"
-                          placeholder="Ex: AgroNutri Alimentos Ltda"
+                          placeholder={t("inventory.suppliers.legalNamePlaceholder")}
                           value={formData.nome}
                           onChange={(e) => handleFieldChange("nome", e.target.value)}
                           error={fieldErrors.nome}
@@ -711,7 +713,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                   {/* Endereços Dinâmicos */}
                   <div className="mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-3">
-                      <h3 className="fw-bold mb-0" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Endereços</h3>
+                      <h3 className="fw-bold mb-0" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>{t("inventory.suppliers.addresses")}</h3>
                       <button
                         type="button"
                         onClick={() => setFormData({
@@ -724,7 +726,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                         })}
                         className="btn btn-sm btn-outline-primary rounded-pill px-3"
                       >
-                        + Adicionar Endereço
+                        + {t("inventory.suppliers.addAddress")}
                       </button>
                     </div>
                     
@@ -744,7 +746,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                           
                           <div className="row g-2">
                             <div className="col-12 col-md-3">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">CEP</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.postalCode")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
@@ -780,11 +782,11 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-5">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Logradouro</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.street")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
-                                placeholder="Ex: Av. Brasil"
+                                placeholder={t("inventory.suppliers.streetPlaceholder")}
                                 value={addr.logradouro || ""}
                                 onChange={(e) => {
                                   const newE = [...formData.enderecos];
@@ -794,7 +796,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-2">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Número</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.number")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
@@ -808,11 +810,11 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-2">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Bairro</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.neighborhood")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
-                                placeholder="Ex: Centro"
+                                placeholder={t("inventory.suppliers.neighborhoodPlaceholder")}
                                 value={addr.bairro || ""}
                                 onChange={(e) => {
                                   const newE = [...formData.enderecos];
@@ -822,11 +824,11 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-4">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Complemento</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.complement")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
-                                placeholder="Ex: Bloco A"
+                                placeholder={t("inventory.suppliers.complementPlaceholder")}
                                 value={addr.complemento || ""}
                                 onChange={(e) => {
                                   const newE = [...formData.enderecos];
@@ -836,7 +838,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-4">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Cidade</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.city")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
@@ -849,7 +851,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-2">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">UF</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.state")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
@@ -863,7 +865,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-6">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Latitude</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.latitude")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
@@ -877,7 +879,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-6">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Longitude</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.longitude")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg"
@@ -899,7 +901,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                   {/* Contatos Dinâmicos */}
                   <div className="mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-3">
-                      <h3 className="fw-bold mb-0" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Contatos</h3>
+                      <h3 className="fw-bold mb-0" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>{t("inventory.suppliers.contacts")}</h3>
                       <button
                         type="button"
                         onClick={() => setFormData({
@@ -908,7 +910,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                         })}
                         className="btn btn-sm btn-outline-primary rounded-pill px-3"
                       >
-                        + Adicionar
+                        + {t("inventory.suppliers.addContact")}
                       </button>
                     </div>
                     
@@ -928,7 +930,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                           
                           <div className="row g-2">
                             <div className="col-12 col-md-4">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Tipo</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.contactType")}</label>
                               <select 
                                 className="form-select form-select-sm rounded-lg shadow-sm"
                                 value={contato.tipo}
@@ -938,16 +940,16 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                                   setFormData({ ...formData, contatos: newC });
                                 }}
                               >
-                                <option value="telefone">Telefone</option>
-                                <option value="email">E-mail</option>
+                                <option value="telefone">{t("inventory.suppliers.phone")}</option>
+                                <option value="email">{t("inventory.suppliers.email")}</option>
                               </select>
                             </div>
                             <div className="col-12 col-md-4">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Etiqueta</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.label")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg shadow-sm"
-                                placeholder="Ex: Financeiro"
+                                placeholder={t("inventory.suppliers.contactLabelPlaceholder")}
                                 value={contato.label}
                                 onChange={(e) => {
                                   const newC = [...formData.contatos];
@@ -957,7 +959,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                               />
                             </div>
                             <div className="col-12 col-md-4">
-                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">Valor</label>
+                              <label className="text-xs fw-bold text-muted-foreground mb-1 d-block">{t("inventory.suppliers.value")}</label>
                               <input
                                 type="text"
                                 className="form-control form-control-sm rounded-lg shadow-sm"
@@ -983,7 +985,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
 
                   {/* Tipo de Contrato */}
                   <div className="mb-4">
-                    <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>Modalidade de Contrato <span className="text-danger">*</span></h3>
+                    <h3 className="fw-bold mb-3" style={{ fontSize: "0.875rem", color: "var(--foreground)" }}>{t("inventory.suppliers.contractType")} <span className="text-danger">*</span></h3>
                     {fieldErrors.tipo_contrato && <FormError message={fieldErrors.tipo_contrato} className="mb-3" />}
                     <div className="row g-2">
                       {tipoContratoOptions.map((tipo) => (
@@ -1000,9 +1002,9 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                             }`}
                           >
                             <span className={`d-block fw-semibold ${formData.tipo_contrato === tipo.id ? 'text-primary' : ''}`}>
-                              {tipo.label}
+                              {t(tipo.labelKey as Parameters<typeof t>[0])}
                             </span>
-                            <span className="d-block text-xs text-muted-foreground">{tipo.desc}</span>
+                            <span className="d-block text-xs text-muted-foreground">{t(tipo.descriptionKey as Parameters<typeof t>[0])}</span>
                           </button>
                         </div>
                       ))}
@@ -1020,7 +1022,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                       onChange={(e) => setFormData({...formData, ativo: e.target.checked})}
                     />
                     <label htmlFor="fornecedor_ativo" className="form-check-label fw-semibold">
-                      Fornecedor Ativo
+                      {t("inventory.suppliers.activeSupplier")}
                     </label>
                   </div>
                 </div>
@@ -1031,7 +1033,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                     onClick={onClose}
                     className="btn btn-light px-4 py-2"
                   >
-                    Cancelar
+                    {t("inventory.suppliers.cancel")}
                   </button>
                   <button
                     type="submit"
@@ -1044,7 +1046,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
                     ) : (
                       <>
                         <Save size={16} className="me-2" />
-                        {fornecedorInitial ? "Atualizar" : "Salvar Fornecedor"}
+                        {fornecedorInitial ? t("inventory.suppliers.update") : t("inventory.suppliers.save")}
                       </>
                     )}
                   </button>

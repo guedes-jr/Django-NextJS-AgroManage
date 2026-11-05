@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 type PlantationDetail = Plantation & PlantationDashboard;
 type PlantingOperation = {
@@ -128,15 +129,7 @@ const statusColors: Record<PlantationStatus, string> = {
   cancelled: "#ef4444",
 };
 
-const statusOptions = [
-  { value: "planned", label: "Planejada" },
-  { value: "planting", label: "Em plantio" },
-  { value: "growing", label: "Em desenvolvimento" },
-  { value: "management", label: "Em manejo" },
-  { value: "harvesting", label: "Em colheita" },
-  { value: "finished", label: "Finalizada" },
-  { value: "cancelled", label: "Cancelada" },
-];
+const statusOptions: PlantationStatus[] = ["planned", "planting", "growing", "management", "harvesting", "finished", "cancelled"];
 
 const recommendationStatusVariant = (status: AgronomistRecommendation["status"]) => {
   if (status === "completed") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
@@ -241,14 +234,14 @@ const stringifyApiError = (value: unknown): string => {
   return String(value);
 };
 
-const getErrorMessage = (error: unknown) => {
+const getErrorMessage = (error: unknown, t: (key: TranslationKey) => string) => {
   if (typeof error === "object" && error && "response" in error) {
     const response = (error as { response?: { data?: unknown } }).response;
     const apiMessage = stringifyApiError(response?.data);
     if (apiMessage) return apiMessage;
   }
   if (error instanceof Error && error.message) return error.message;
-  return "Erro ao salvar o lançamento. Verifique os dados informados.";
+  return t("plantations.operation.errorSave");
 };
 
 const shortcutStages = {
@@ -394,6 +387,7 @@ function ShortcutCard({
 }
 
 export default function PlantacaoDetailPage() {
+  const { language, t } = useOrganizationLocale();
   const access = useOrganizationAccess();
   const financial = !!access?.can_view_financial;
   const { id } = useParams<{ id: string }>();
@@ -532,7 +526,7 @@ export default function PlantacaoDetailPage() {
   }, [showAdubacao, showDefensivo, showFertirrigacao, showPlantio]);
 
   const handleDelete = async () => {
-    if (!plantation || !confirm("Excluir esta plantação permanentemente?")) return;
+    if (!plantation || !confirm(t("plantations.detail.deleteConfirm"))) return;
     try {
       await cropService.delete(plantation.id);
       router.push("/home/plantacoes");
@@ -721,7 +715,7 @@ export default function PlantacaoDetailPage() {
       await refreshDashboard();
     } catch (error) {
       console.error("Failed to create fertigation", error);
-      alert(getErrorMessage(error));
+      alert(getErrorMessage(error, t));
     }
     finally { setSavingFertirrigacao(false); }
   };
@@ -777,7 +771,7 @@ export default function PlantacaoDetailPage() {
       await refreshDashboard();
     } catch (error) {
       console.error("Failed to create pesticide application", error);
-      alert(getErrorMessage(error));
+      alert(getErrorMessage(error, t));
     }
     finally { setSavingDefensivo(false); }
   };
@@ -875,22 +869,22 @@ export default function PlantacaoDetailPage() {
     if (v === null || v === undefined || v === "") return "-";
     const n = numericValue(v);
     if (!Number.isFinite(n)) return "-";
-    return n.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return n.toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
   const money = (v: string | number | null | undefined) => {
     if (v === null || v === undefined || v === "") return "-";
-    return `R$ ${fmt(v)}`;
+    return numericValue(v).toLocaleString(language, { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const percent = (v: number | null | undefined) => {
     if (v === null || v === undefined || Number.isNaN(v)) return "-";
-    return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+    return `${v.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
   };
 
   const formatDate = (value?: string | null) => {
     if (!value) return "-";
-    return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
+    return new Date(`${value}T12:00:00`).toLocaleDateString(language);
   };
 
   if (loading) {
@@ -907,7 +901,7 @@ export default function PlantacaoDetailPage() {
   }
 
   if (!plantation) {
-    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+    return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
   }
 
   const cultureVisual = getCultureVisual(plantation.crop_name, plantation.name);
@@ -950,13 +944,13 @@ export default function PlantacaoDetailPage() {
   const lucroPorKg = harvestedKg > 0 ? realProfit / harvestedKg : null;
 
   const costData = [
-    { name: "Estrutura do setor", value: structureCost, fill: "oklch(0.55 0.14 145)" },
-    { name: "Sementes", value: seedCost, fill: "var(--bs-success)" },
-    { name: "Fertilizantes", value: fertilizationCost + fertigationCost, fill: "var(--bs-primary)" },
-    { name: "Foliares / Defensivos", value: pesticideCost, fill: "var(--bs-danger)" },
-    { name: "Irrigação", value: irrigationCost, fill: "var(--bs-info)" },
-    { name: "Serviços Mecanizados", value: landPreparationCost, fill: "var(--bs-warning)" },
-    { name: "Mão de Obra", value: laborCost, fill: "var(--bs-secondary)" },
+    { name: t("plantations.structure.title"), value: structureCost, fill: "oklch(0.55 0.14 145)" },
+    { name: t("plantations.operation.seeds.title"), value: seedCost, fill: "var(--bs-success)" },
+    { name: t("plantations.operation.fertilization.title"), value: fertilizationCost + fertigationCost, fill: "var(--bs-primary)" },
+    { name: t("plantations.operation.pesticide.title"), value: pesticideCost, fill: "var(--bs-danger)" },
+    { name: t("plantations.operation.irrigation.title"), value: irrigationCost, fill: "var(--bs-info)" },
+    { name: t("plantations.common.mechanizedServices"), value: landPreparationCost, fill: "var(--bs-warning)" },
+    { name: t("plantations.labor.title"), value: laborCost, fill: "var(--bs-secondary)" },
   ].filter(item => item.value > 0);
 
   const itemCategories = (item: InventoryItem) =>
@@ -995,12 +989,12 @@ export default function PlantacaoDetailPage() {
             <div className="text-muted-foreground fw-medium small">{plantation.farm_name} › {plantation.field_name}</div>
           </div>
           <Badge style={{ background: statusColors[plantation.status] || "#6b7280", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", borderRadius: "8px" }}>
-            {plantation.status_display}
+            {t(`plantations.status.${plantation.status}` as TranslationKey)}
           </Badge>
           {financial && (<Button variant="outline-secondary" size="sm" onClick={() => setShowEdit(true)}>
-            <Edit3 size={14} /> Editar
+            <Edit3 size={14} /> {t("plantations.edit")}
           </Button>)}
-          {financial && (<Button variant="outline-secondary" size="sm" onClick={handleDelete} title="Excluir">
+          {financial && (<Button variant="outline-secondary" size="sm" onClick={handleDelete} title={t("plantations.operation.removeRecord")}>
             <Trash2 size={14} />
           </Button>)}
         </div>
@@ -1018,15 +1012,15 @@ export default function PlantacaoDetailPage() {
               </div>
               <div>
                 <h2 className="fw-black mb-1" style={{ fontSize: "1.05rem" }}>
-                  Alertas do agrônomo
+                      {t("plantations.detail.agronomistAlerts")}
                 </h2>
                 <p className="text-muted-foreground small mb-0">
-                  Recomendações pendentes para este setor. Marque como feito depois de executar e lançar o procedimento.
+                  {t("plantations.detail.agronomistAlertDescription")}
                 </p>
               </div>
             </div>
             <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/agronomo`)}>
-              Ver área do agrônomo
+              {t("plantations.detail.viewAgronomist")}
             </Button>
           </div>
 
@@ -1036,9 +1030,9 @@ export default function PlantacaoDetailPage() {
                 <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap">
                   <div className="min-w-0">
                     <div className="d-flex align-items-center gap-2 flex-wrap mb-2">
-                      <Badge style={recommendationStatusVariant(recommendation.status)}>{recommendation.status_display || "Pendente"}</Badge>
-                      <span className="small text-muted-foreground">Aplicação: {formatDate(recommendation.suggested_application_date)}</span>
-                      <span className="small text-muted-foreground">Prioridade: {recommendation.priority_display || recommendation.priority}</span>
+                      <Badge style={recommendationStatusVariant(recommendation.status)}>{t(`plantations.agronomist.status${recommendation.status === "in_progress" ? "InProgress" : recommendation.status === "completed" ? "Completed" : "Pending"}` as TranslationKey)}</Badge>
+                      <span className="small text-muted-foreground">{t("plantations.agronomist.suggestedApplication")} {formatDate(recommendation.suggested_application_date)}</span>
+                      <span className="small text-muted-foreground">{t("plantations.agronomist.priority")} {t(`plantations.agronomist.priority${recommendation.priority === "medium" ? "Medium" : recommendation.priority === "high" ? "High" : "Low"}` as TranslationKey)}</span>
                     </div>
                     <div className="fw-bold text-foreground">{recommendation.title}</div>
                     {recommendation.objective && (
@@ -1048,9 +1042,9 @@ export default function PlantacaoDetailPage() {
                       <div className="d-flex flex-wrap gap-2 mt-2">
                         {recommendation.products.map((product, productIndex) => (
                           <span key={`${recommendation.id}-${productIndex}`} className="badge bg-success-subtle text-success border border-success-subtle">
-                            {product.item_name || "Produto"}
+                            {product.item_name || t("plantations.agronomist.product")}
                             {product.dose_per_ha ? ` - ${fmt(product.dose_per_ha)} ${product.dose_unit || ""}` : ""}
-                            {product.total_quantity ? ` | Total: ${fmt(product.total_quantity)} ${product.total_unit || ""}` : ""}
+                            {product.total_quantity ? ` | ${t("plantations.detail.total")}: ${fmt(product.total_quantity)} ${product.total_unit || ""}` : ""}
                           </span>
                         ))}
                       </div>
@@ -1063,7 +1057,7 @@ export default function PlantacaoDetailPage() {
                     onClick={() => handleCompleteRecommendation(recommendation.id)}
                   >
                     <CheckCircle2 size={16} />
-                    {completingRecommendationId === recommendation.id ? "Concluindo..." : "Marcar como feito"}
+                    {completingRecommendationId === recommendation.id ? t("plantations.agronomist.completing") : t("plantations.detail.markDone")}
                   </Button>
                 </div>
               </div>
@@ -1076,88 +1070,88 @@ export default function PlantacaoDetailPage() {
       <div className="mb-4">
         <div className="d-flex align-items-end justify-content-between mb-3 gap-3 flex-wrap">
           <div>
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.15rem" }}>Atalhos da plantação</h2>
-            <p className="text-muted-foreground small mb-0">Etapas operacionais do ciclo produtivo desta plantação.</p>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.15rem" }}>{t("plantations.detail.shortcuts")}</h2>
+            <p className="text-muted-foreground small mb-0">{t("plantations.detail.shortcutsDescription")}</p>
           </div>
         </div>
         <div className="row g-3">
           {[
             {
               number: 1,
-              label: "Serviços Mecanizados",
-              desc: "Calagem, colheita, gradagem e mais",
+              label: t("plantations.common.mechanizedServices"),
+              desc: t("plantations.detail.preparationDescription"),
               stage: shortcutStages.preparo,
               onClick: () => router.push(`/home/plantacoes/${id}/preparo-terra`),
               featuredImage: true,
             },
             {
               number: 2,
-              label: "Adubação de Base",
-              desc: "Produtos, doses, quantidades e custo",
+              label: t("plantations.operation.fertilization.title"),
+              desc: t("plantations.operation.fertilization.subtitle"),
               stage: shortcutStages.adubacao,
               onClick: () => router.push(`/home/plantacoes/${id}/adubacao`),
               featuredImage: true,
             },
             {
               number: 3,
-              label: "Sementes/mudas",
-              desc: "Híbrido, mudas, quantidade, sacas e custo",
+              label: t("plantations.operation.seeds.title"),
+              desc: t("plantations.operation.seeds.subtitle"),
               stage: shortcutStages.plantio,
               onClick: () => router.push(`/home/plantacoes/${id}/sementes`),
               featuredImage: true,
             },
             {
               number: 4,
-              label: "Fertirrigação",
-              desc: "Adubos via fertirrigação, doses, volume e custo",
+              label: t("plantations.operation.fertigation.title"),
+              desc: t("plantations.operation.fertigation.subtitle"),
               stage: shortcutStages.fertirrigacao,
               onClick: () => router.push(`/home/plantacoes/${id}/fertirrigacao`),
               featuredImage: true,
             },
             {
               number: 5,
-              label: "Foliares / Defensivos",
-              desc: "Produtos, doses, volume e custo",
+              label: t("plantations.operation.pesticide.title"),
+              desc: t("plantations.operation.pesticide.subtitle"),
               stage: shortcutStages.foliarDefensivos,
               onClick: () => router.push(`/home/plantacoes/${id}/defensivos`),
               featuredImage: true,
             },
             {
               number: 6,
-              label: "Irrigação",
-              desc: "Manejo de irrigação, gotejo, aspersão e cálculos",
+              label: t("plantations.operation.irrigation.title"),
+              desc: t("plantations.operation.irrigation.subtitle"),
               stage: shortcutStages.irrigacao,
               onClick: () => router.push(`/home/plantacoes/${id}/irrigacao`),
               featuredImage: true,
             },
             {
               number: 7,
-              label: "Área do Agrônomo",
-              desc: "Recomendações, programações e acompanhamentos",
+              label: t("plantations.agronomist.title"),
+              desc: t("plantations.detail.agronomistDescription"),
               stage: shortcutStages.agronomo,
               onClick: () => router.push(`/home/plantacoes/${id}/agronomo`),
               featuredImage: true,
             },
             {
               number: 8,
-              label: "Mão de Obra",
-              desc: "Atividades, horas trabalhadas e custos",
+              label: t("plantations.labor.title"),
+              desc: t("plantations.labor.description"),
               stage: shortcutStages.maoObra,
               onClick: () => router.push(`/home/plantacoes/${id}/mao-obra`),
               featuredImage: true,
             },
             {
               number: 9,
-              label: "Relatório",
-              desc: "Gerar PDF completo ou resumo da produção",
+              label: t("plantations.report"),
+              desc: t("plantations.history.reportDescription"),
               stage: shortcutStages.relatorio,
               onClick: () => window.open(`/home/plantacoes/${id}/historico`, "_blank", "noopener,noreferrer"),
               featuredImage: true,
             },
             {
               number: 10,
-              label: "Colheita",
-              desc: "Produção, sacas, umidade e valor",
+              label: t("plantations.harvest.title"),
+              desc: t("plantations.harvest.description"),
               stage: shortcutStages.colheita,
               onClick: () => router.push(`/home/plantacoes/${id}/colheita`),
               featuredImage: true,
@@ -1180,39 +1174,39 @@ export default function PlantacaoDetailPage() {
       {/* Main KPIs */}
       <div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Calendar size={14} />} label="Dias de Cultivo" value={plantation.days_in_cultivation != null ? `${plantation.days_in_cultivation} dias` : "-"} variant="info" />
+          <MetricCard icon={<Calendar size={14} />} label={t("plantations.detail.daysCultivation")} value={plantation.days_in_cultivation != null ? `${plantation.days_in_cultivation} ${t("plantations.detail.daysSuffix")}` : "-"} variant="info" />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Clock size={14} />} label="Dias Restantes" value={plantation.days_remaining != null ? `${plantation.days_remaining} dias` : "-"} variant="warning" />
+          <MetricCard icon={<Clock size={14} />} label={t("plantations.detail.daysRemaining")} value={plantation.days_remaining != null ? `${plantation.days_remaining} ${t("plantations.detail.daysSuffix")}` : "-"} variant="warning" />
         </div>
         {financial && (<div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Investimento" value={money(investmentTotal)} variant="danger" />
+          <MetricCard icon={<DollarSign size={14} />} label={t("plantations.investment")} value={money(investmentTotal)} variant="danger" />
         </div>)}
         <div className="col-md-3 col-6">
-          <MetricCard icon={<Ruler size={14} />} label="Área Plantada" value={plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"} variant="info" />
+          <MetricCard icon={<Ruler size={14} />} label={t("plantations.plantedArea")} value={plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"} variant="info" />
         </div>
       </div>
 
       {/* Second row — financial KPIs */}
       {financial && (<div className="row g-4 mb-4">
         <div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Investimento Total" value={money(investmentTotal)} variant="danger" />
+          <MetricCard icon={<DollarSign size={14} />} label={t("plantations.totalInvested")} value={money(investmentTotal)} variant="danger" />
         </div>
         <div className="col-md-3 col-6">
           <MetricCard
             icon={<Sprout size={14} />}
-            label="Receita Estimada"
-            value={estimatedRevenue > 0 ? money(estimatedRevenue) : "Não informada"}
+            label={t("plantations.estimatedRevenue")}
+            value={estimatedRevenue > 0 ? money(estimatedRevenue) : t("plantations.detail.notProvided")}
             variant={estimatedRevenue > 0 ? "success" : "info"}
           />
         </div>
         <div className="col-md-3 col-6">
-          <MetricCard icon={<DollarSign size={14} />} label="Receita Real (Colheita)" value={money(harvestRevenue)} variant="success" />
+          <MetricCard icon={<DollarSign size={14} />} label={t("plantations.harvest.revenue")} value={money(harvestRevenue)} variant="success" />
         </div>
         <div className="col-md-3 col-6">
           <MetricCard
             icon={<Target size={14} />}
-            label={estimatedProfit !== null ? "Lucro Estimado" : "Lucro Real"}
+            label={t(estimatedProfit !== null ? "plantations.detail.estimatedProfit" : "plantations.detail.realProfit")}
             value={estimatedProfit !== null ? money(estimatedProfit) : money(realProfit)}
             variant={(estimatedProfit ?? realProfit) >= 0 ? "success" : "danger"}
           />
@@ -1224,15 +1218,15 @@ export default function PlantacaoDetailPage() {
         {/* Culture Data */}
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-3"><Sprout size={16} className="me-1" /> Dados da Cultura</h6>
+            <h6 className="fw-bold mb-3"><Sprout size={16} className="me-1" /> {t("plantations.crop")}</h6>
             <table className="table table-sm mb-0 agro-table">
               <tbody>
-                <tr><td className="text-muted small" style={{ width: "40%" }}>Cultura</td><td className="fw-medium">{plantation.crop_name}</td></tr>
-                <tr><td className="text-muted small">Tipo</td><td className="fw-medium">{plantation.crop_type_display || "-"}</td></tr>
-                <tr><td className="text-muted small">Variedade</td><td className="fw-medium">{plantation.variety || "-"}</td></tr>
-                <tr><td className="text-muted small">Híbrido</td><td className="fw-medium">{plantation.hybrid || "-"}</td></tr>
-                <tr><td className="text-muted small">População</td><td className="fw-medium">{plantation.population ? `${fmt(plantation.population, 0)} plantas/ha` : "-"}</td></tr>
-                <tr><td className="text-muted small">Espaçamento</td><td className="fw-medium">{plantation.spacing || "-"}</td></tr>
+                <tr><td className="text-muted small" style={{ width: "40%" }}>{t("plantations.crop")}</td><td className="fw-medium">{plantation.crop_name}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.cropType")}</td><td className="fw-medium">{plantation.crop_type_display || "-"}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.variety")}</td><td className="fw-medium">{plantation.variety || "-"}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.hybrid")}</td><td className="fw-medium">{plantation.hybrid || "-"}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.plants")}</td><td className="fw-medium">{plantation.population ? `${fmt(plantation.population, 0)} /ha` : "-"}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.spacing")}</td><td className="fw-medium">{plantation.spacing || "-"}</td></tr>
               </tbody>
             </table>
           </div>
@@ -1241,13 +1235,13 @@ export default function PlantacaoDetailPage() {
         {/* Dates */}
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-3"><Calendar size={16} className="me-1" /> Datas</h6>
+            <h6 className="fw-bold mb-3"><Calendar size={16} className="me-1" /> {t("plantations.operation.date")}</h6>
             <table className="table table-sm mb-0 agro-table">
               <tbody>
-                <tr><td className="text-muted small" style={{ width: "40%" }}>Plantio</td><td className="fw-medium">{plantation.planting_date ? new Date(plantation.planting_date).toLocaleDateString("pt-BR") : "-"}</td></tr>
-                <tr><td className="text-muted small">Previsão de Colheita</td><td className="fw-medium">{plantation.expected_harvest_date ? new Date(plantation.expected_harvest_date).toLocaleDateString("pt-BR") : "-"}</td></tr>
-                <tr><td className="text-muted small">Colheita Real</td><td className="fw-medium">{plantation.actual_harvest_date ? new Date(plantation.actual_harvest_date).toLocaleDateString("pt-BR") : "-"}</td></tr>
-                <tr><td className="text-muted small">Responsável</td><td className="fw-medium">{plantation.responsible_name || "-"}</td></tr>
+                <tr><td className="text-muted small" style={{ width: "40%" }}>{t("plantations.operation.plantingDate")}</td><td className="fw-medium">{formatDate(plantation.planting_date)}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.nextHarvest")}</td><td className="fw-medium">{formatDate(plantation.expected_harvest_date)}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.harvest.date")}</td><td className="fw-medium">{formatDate(plantation.actual_harvest_date)}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.responsible")}</td><td className="fw-medium">{plantation.responsible_name || "-"}</td></tr>
               </tbody>
             </table>
           </div>
@@ -1256,13 +1250,13 @@ export default function PlantacaoDetailPage() {
         {/* Financial Summary */}
         {financial && (<div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-3"><DollarSign size={16} className="me-1" /> Resumo Financeiro</h6>
+            <h6 className="fw-bold mb-3"><DollarSign size={16} className="me-1" /> {t("plantations.detail.financialSummary")}</h6>
             <table className="table table-sm mb-0 agro-table">
               <tbody>
-                <tr><td className="text-muted small" style={{ width: "40%" }}>Investimento Total</td><td className="fw-medium">{money(investmentTotal)}</td></tr>
-                <tr><td className="text-muted small">Receita Bruta</td><td className="fw-medium">{money(harvestRevenue)}</td></tr>
-                <tr><td className="text-muted small">Lucro</td><td className={`fw-medium ${realProfit >= 0 ? "text-success" : "text-danger"}`}>{money(realProfit)}</td></tr>
-                <tr><td className="text-muted small">Retorno sobre investimento (ROI)</td><td className={`fw-medium ${roi !== null && roi >= 0 ? "text-success" : roi !== null ? "text-danger" : ""}`}>{percent(roi)}</td></tr>
+                <tr><td className="text-muted small" style={{ width: "40%" }}>{t("plantations.totalInvested")}</td><td className="fw-medium">{money(investmentTotal)}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.grossRevenue")}</td><td className="fw-medium">{money(harvestRevenue)}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.profit")}</td><td className={`fw-medium ${realProfit >= 0 ? "text-success" : "text-danger"}`}>{money(realProfit)}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.roi")}</td><td className={`fw-medium ${roi !== null && roi >= 0 ? "text-success" : roi !== null ? "text-danger" : ""}`}>{percent(roi)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -1271,15 +1265,15 @@ export default function PlantacaoDetailPage() {
         {/* Production Summary */}
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-3"><Warehouse size={16} className="me-1" /> Resumo de Produção</h6>
+            <h6 className="fw-bold mb-3"><Warehouse size={16} className="me-1" /> {t("plantations.detail.productionSummary")}</h6>
             <table className="table table-sm mb-0 agro-table">
               <tbody>
-                <tr><td className="text-muted small" style={{ width: "40%" }}>Quantidade produzida</td><td className="fw-medium">{harvestedKg > 0 ? `${fmt(harvestedKg, 0)} kg` : "-"}</td></tr>
-                <tr><td className="text-muted small">Quantidade vendida</td><td className="fw-medium">{soldKg > 0 ? `${fmt(soldKg, 0)} kg` : "-"}</td></tr>
-                <tr><td className="text-muted small">Área Plantada</td><td className="fw-medium">{plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"}</td></tr>
-                {financial && (<tr><td className="text-muted small">Custo por kg</td><td className="fw-medium">{custoPorKg !== null ? money(custoPorKg) : "-"}</td></tr>)}
-                {financial && (<tr><td className="text-muted small">Venda por kg</td><td className="fw-medium">{vendaPorKg !== null ? money(vendaPorKg) : "-"}</td></tr>)}
-                {financial && (<tr><td className="text-muted small">Lucro por kg</td><td className={`fw-medium ${lucroPorKg !== null && lucroPorKg >= 0 ? "text-success" : lucroPorKg !== null ? "text-danger" : ""}`}>{lucroPorKg !== null ? money(lucroPorKg) : "-"}</td></tr>)}
+                <tr><td className="text-muted small" style={{ width: "40%" }}>{t("plantations.detail.produced")}</td><td className="fw-medium">{harvestedKg > 0 ? `${fmt(harvestedKg, 0)} kg` : "-"}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.detail.sold")}</td><td className="fw-medium">{soldKg > 0 ? `${fmt(soldKg, 0)} kg` : "-"}</td></tr>
+                <tr><td className="text-muted small">{t("plantations.plantedArea")}</td><td className="fw-medium">{plantation.planted_area_ha ? `${fmt(plantation.planted_area_ha, 2)} ha` : "-"}</td></tr>
+                {financial && (<tr><td className="text-muted small">{t("plantations.detail.costPerKg")}</td><td className="fw-medium">{custoPorKg !== null ? money(custoPorKg) : "-"}</td></tr>)}
+                {financial && (<tr><td className="text-muted small">{t("plantations.detail.salePerKg")}</td><td className="fw-medium">{vendaPorKg !== null ? money(vendaPorKg) : "-"}</td></tr>)}
+                {financial && (<tr><td className="text-muted small">{t("plantations.detail.profitPerKg")}</td><td className={`fw-medium ${lucroPorKg !== null && lucroPorKg >= 0 ? "text-success" : lucroPorKg !== null ? "text-danger" : ""}`}>{lucroPorKg !== null ? money(lucroPorKg) : "-"}</td></tr>)}
               </tbody>
             </table>
           </div>
@@ -1288,7 +1282,7 @@ export default function PlantacaoDetailPage() {
         {plantation.notes && (
           <div className="col-12">
             <div className="dashboard-card p-4">
-              <h6 className="fw-bold mb-2">Observações</h6>
+              <h6 className="fw-bold mb-2">{t("plantations.notes")}</h6>
               <p className="mb-0 text-muted">{plantation.notes}</p>
             </div>
           </div>
@@ -1299,7 +1293,7 @@ export default function PlantacaoDetailPage() {
       <div className="row g-4 mb-4 mt-0">
         {financial && (<div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-3">Composição de Custos</h6>
+            <h6 className="fw-bold mb-3">{t("plantations.detail.costComposition")}</h6>
             {costData.length > 0 ? (
               <div style={{ height: 250 }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -1313,17 +1307,17 @@ export default function PlantacaoDetailPage() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="text-muted small">Dados insuficientes para o gráfico.</p>
+              <p className="text-muted small">{t("plantations.detail.chartInsufficient")}</p>
             )}
           </div>
         </div>)}
 
         <div className="col-md-6">
           <div className="dashboard-card p-4 h-100">
-            <h6 className="fw-bold mb-3">Progresso de Colheita</h6>
+            <h6 className="fw-bold mb-3">{t("plantations.detail.harvestProgress")}</h6>
             <div className="mb-3">
               <div className="d-flex justify-content-between small mb-1">
-                <span className="text-muted">Produção (kg)</span>
+                <span className="text-muted">{t("plantations.detail.productionKg")}</span>
                 <span className="fw-medium">{fmt(harvestedKg, 0)} / {fmt(estimatedProductionKg, 0)} kg</span>
               </div>
               <div className="progress" style={{ height: 10 }}>
@@ -1333,7 +1327,7 @@ export default function PlantacaoDetailPage() {
             {financial && (<>
             <div className="mb-3">
               <div className="d-flex justify-content-between small mb-1">
-                <span className="text-muted">Receita Real (R$)</span>
+                <span className="text-muted">{t("plantations.detail.realRevenue")}</span>
                 <span className="fw-medium">{money(harvestRevenue)}</span>
               </div>
               <div className="progress" style={{ height: 10 }}>
@@ -1342,7 +1336,7 @@ export default function PlantacaoDetailPage() {
             </div>
             <div className="mt-4">
               <Button variant="outline-success" size="sm" className="w-100" onClick={() => router.push(`/home/plantacoes/${id}/colheita`)}>
-                Detalhes da Colheita
+                {t("plantations.detail.harvestDetails")}
               </Button>
             </div>
             </>)}
@@ -1870,7 +1864,7 @@ export default function PlantacaoDetailPage() {
             <label className="form-label small fw-medium">Status</label>
             <select className="form-select" value={editForm.status}
               onChange={(e) => setEditForm({ ...editForm, status: e.target.value as PlantationStatus })}>
-              {statusOptions.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+              {statusOptions.map((status) => (<option key={status} value={status}>{t(`plantations.status.${status}` as TranslationKey)}</option>))}
             </select>
           </div>
           <div className="col-6">

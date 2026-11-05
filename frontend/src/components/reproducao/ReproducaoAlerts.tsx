@@ -2,6 +2,7 @@
 
 import "./reproducao.css";
 import { AlertListCard } from "@/components/ui/AlertListCard";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export interface AlertItem {
   due_date?: string; created_at?: string;
@@ -21,6 +22,7 @@ interface ReproducaoAlertsProps {
 }
 
 export function ReproducaoAlerts({ alerts, aiSuggestions }: ReproducaoAlertsProps) {
+  const { t } = useOrganizationLocale();
   return (
     <div className="row g-4">
       {/* Alert list */}
@@ -33,7 +35,7 @@ export function ReproducaoAlerts({ alerts, aiSuggestions }: ReproducaoAlertsProp
         <div className="repro-ai-card h-100">
           <div className="repro-ai-header">
             <span>🤖</span>
-            <span>Assistente IA</span>
+            <span>{t("reproduction.aiAssistant")}</span>
             <span className="repro-ai-badge">Beta</span>
           </div>
           {aiSuggestions.length === 0 ? (
@@ -45,7 +47,7 @@ export function ReproducaoAlerts({ alerts, aiSuggestions }: ReproducaoAlertsProp
                 padding: "1rem",
               }}
             >
-              Nenhuma sugestão no momento
+              {t("reproduction.noSuggestions")}
             </div>
           ) : (
             aiSuggestions.map((s, i) => (

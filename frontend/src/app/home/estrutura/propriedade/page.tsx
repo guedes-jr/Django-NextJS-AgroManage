@@ -8,6 +8,7 @@ import { ArrowLeft, Building2, FileText, MapPin, Pencil, Plus, Ruler, Trash2 } f
 import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import type { Farm } from "@/types";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import styles from "@/components/farm/StructureDedicatedPage.module.css";
 import axios from "axios";
@@ -25,6 +26,7 @@ const apiMessage = (error: unknown, fallback: string) => {
 };
 
 export default function PropriedadePage() {
+  const { language, t } = useOrganizationLocale();
   const router = useRouter();
   const { showToast } = useToast();
   const [farms, setFarms] = useState<Farm[]>([]);
@@ -48,7 +50,7 @@ export default function PropriedadePage() {
       const { data } = await apiClient.get<PaginatedFarms>("/farms/", { params: { page_size: 100 } });
       setFarms(data.results || []);
     } catch {
-      setError("Não foi possível carregar as propriedades.");
+      setError(t("structure.property.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -79,7 +81,7 @@ export default function PropriedadePage() {
 
   const saveFarm = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim()) return setError("Informe o nome da propriedade.");
+    if (!form.name.trim()) return setError(t("structure.property.nameRequired"));
     
     setSaving(true);
     setError("");
@@ -98,15 +100,15 @@ export default function PropriedadePage() {
     try {
       if (editing) {
         await apiClient.put(`/farms/${editing.id}/`, payload);
-        showToast("Propriedade atualizada com sucesso.", "success");
+        showToast(t("structure.property.updated"), "success");
       } else {
         await apiClient.post("/farms/", payload);
-        showToast("Propriedade cadastrada com sucesso.", "success");
+        showToast(t("structure.property.created"), "success");
       }
       resetForm();
       await loadFarms();
     } catch (err) { 
-      const msg = apiMessage(err, "Não foi possível salvar os dados da propriedade.");
+      const msg = apiMessage(err, t("structure.property.saveFailed"));
       setError(msg);
       showToast(msg, "error");
     } finally {
@@ -115,14 +117,14 @@ export default function PropriedadePage() {
   };
 
   const removeFarm = async (farm: Farm) => {
-    if (!confirm(`Excluir a propriedade: ${farm.name}? Esta ação é irreversível.`)) return;
+    if (!confirm(t("structure.property.deleteConfirm", { name: farm.name }))) return;
     try {
       await apiClient.delete(`/farms/${farm.id}/`);
       if (editing?.id === farm.id) resetForm();
       await loadFarms();
-      showToast("Propriedade excluída com sucesso.", "success");
+      showToast(t("structure.property.deleted"), "success");
     } catch {
-      setError("Não foi possível excluir a propriedade.");
+      setError(t("structure.property.deleteFailed"));
     }
   };
 
@@ -132,63 +134,63 @@ export default function PropriedadePage() {
         <div className="d-flex gap-3 align-items-center">
           <button className="btn btn-link text-white p-0" onClick={() => router.push("/home/estrutura")}><ArrowLeft size={28} /></button>
           <Building2 size={38} />
-          <div><h1>Propriedades</h1><p>Cadastre e gerencie as fazendas da sua organização</p></div>
+          <div><h1>{t("structure.property.title")}</h1><p>{t("structure.property.description")}</p></div>
         </div>
-        <button className="btn btn-light fw-semibold" onClick={resetForm}><Plus size={17} /> Nova propriedade</button>
+        <button className="btn btn-light fw-semibold" onClick={resetForm}><Plus size={17} /> {t("structure.property.new")}</button>
       </header>
       
       <main className={styles.content}>
         {error && <div className="alert alert-danger py-2">{error}</div>}
         
         <section className={styles.panel}>
-          <h2>1. Dados da Propriedade</h2>
+          <h2>{t("structure.property.section")}</h2>
           <form onSubmit={saveFarm}>
             <div className="row g-3">
               <div className="col-md-8">
-                <label className="form-label fw-bold">Nome da propriedade *</label>
+                <label className="form-label fw-bold">{t("structure.property.name")}</label>
                 <div className="login-input-wrapper">
-                  <input required className="form-control ps-5" placeholder="Ex.: Fazenda Boa Esperança" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <input required className="form-control ps-5" placeholder={t("structure.property.namePlaceholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                   <Building2 className="position-absolute ms-3 mt-2 text-muted" size={18} style={{ zIndex: 10 }} />
                 </div>
               </div>
               <div className="col-md-4">
-                <label className="form-label fw-bold">Código / CAR</label>
+                <label className="form-label fw-bold">{t("structure.property.code")}</label>
                 <div className="login-input-wrapper">
                   <input className="form-control ps-5" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
                   <FileText className="position-absolute ms-3 mt-2 text-muted" size={18} style={{ zIndex: 10 }} />
                 </div>
               </div>
               <div className="col-md-4">
-                <label className="form-label fw-bold">Área total (ha)</label>
+                <label className="form-label fw-bold">{t("structure.property.area")}</label>
                 <div className="login-input-wrapper">
                   <input type="number" min="0" step="0.01" className="form-control ps-5" value={form.total_area_ha} onChange={(e) => setForm({ ...form, total_area_ha: e.target.value })} />
                   <Ruler className="position-absolute ms-3 mt-2 text-muted" size={18} style={{ zIndex: 10 }} />
                 </div>
               </div>
               <div className="col-md-5">
-                <label className="form-label fw-bold">Cidade</label>
+                <label className="form-label fw-bold">{t("structure.property.city")}</label>
                 <input className="form-control" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
               </div>
               <div className="col-md-3">
-                <label className="form-label fw-bold">UF</label>
+                <label className="form-label fw-bold">{t("structure.property.state")}</label>
                 <input className="form-control text-uppercase" maxLength={2} placeholder="PE" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
               </div>
               <div className="col-12">
-                <label className="form-label fw-bold">Endereço</label>
+                <label className="form-label fw-bold">{t("structure.property.address")}</label>
                 <div className="login-input-wrapper">
                   <input className="form-control ps-5" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
                   <MapPin className="position-absolute ms-3 mt-2 text-muted" size={18} style={{ zIndex: 10 }} />
                 </div>
               </div>
               <div className="col-12">
-                <label className="form-label fw-bold">Observações</label>
+                <label className="form-label fw-bold">{t("structure.property.notes")}</label>
                 <textarea className="form-control" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
             </div>
             
             <div className="d-flex justify-content-end gap-2 mt-4">
-              <button type="button" className="btn btn-outline-secondary" onClick={resetForm}>Limpar</button>
-              <button className="btn btn-success px-4" disabled={saving}>{saving ? "Salvando..." : (editing ? "Atualizar" : "Salvar")}</button>
+              <button type="button" className="btn btn-outline-secondary" onClick={resetForm}>{t("structure.property.clear")}</button>
+              <button className="btn btn-success px-4" disabled={saving}>{saving ? t("structure.property.saving") : (editing ? t("structure.property.update") : t("structure.property.save"))}</button>
             </div>
           </form>
         </section>
@@ -196,18 +198,18 @@ export default function PropriedadePage() {
         <section className={styles.panel}>
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
-              <h2 className="mb-1">2. Fazendas Cadastradas</h2>
-              <p className="text-muted small mb-0">Relação consolidada de todas as propriedades da organização.</p>
+              <h2 className="mb-1">{t("structure.property.farmsTitle")}</h2>
+              <p className="text-muted small mb-0">{t("structure.property.farmsDescription")}</p>
             </div>
           </div>
           <div className="table-responsive mt-3">
             <table className="table align-middle">
               <thead>
                 <tr>
-                  <th>Nome da Propriedade</th>
-                  <th>CAR / Código</th>
-                  <th>Área (ha)</th>
-                  <th>Cidade/UF</th>
+                  <th>{t("structure.property.tableName")}</th>
+                  <th>{t("structure.property.tableCode")}</th>
+                  <th>{t("structure.property.tableArea")}</th>
+                  <th>{t("structure.property.tableCity")}</th>
                   <th />
                 </tr>
               </thead>
@@ -219,16 +221,16 @@ export default function PropriedadePage() {
                     <tr key={farm.id}>
                       <td><strong>{farm.name}</strong></td>
                       <td>{farm.code || "—"}</td>
-                      <td>{farm.total_area_ha || "—"}</td>
+                      <td>{farm.total_area_ha ? Number(farm.total_area_ha).toLocaleString(language) : "—"}</td>
                       <td>{farm.city ? `${farm.city}${farm.state ? ` - ${farm.state}` : ''}` : "—"}</td>
                       <td className="text-end">
-                        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => editFarm(farm)} title="Editar"><Pencil size={15} /></button>
-                        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void removeFarm(farm)} title="Excluir"><Trash2 size={15} /></button>}
+                        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => editFarm(farm)} title={t("structure.machines.edit")}><Pencil size={15} /></button>
+                        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void removeFarm(farm)} title={t("structure.machines.delete")}><Trash2 size={15} /></button>}
                       </td>
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={5} className="text-center text-muted py-5">Nenhuma propriedade cadastrada.</td></tr>
+                  <tr><td colSpan={5} className="text-center text-muted py-5">{t("structure.property.empty")}</td></tr>
                 )}
               </tbody>
             </table>

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {getOrganizationAccess} from "@/services/organizationAccess";
 import notificationService, { Notification } from "@/services/notificationService";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { acknowledgeOperationalAlert, getReproductionDashboard } from "@/services/livestockService";
 
@@ -27,6 +28,7 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useOrganizationLocale();
   const confirmedAlerts = useRef(new Set<string>());
   const lastUnreadCount = useRef<number | null>(null);
   const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
@@ -70,11 +72,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       lastUnreadCount.current = count.unread_count;
     } catch (requestError) {
       console.error("Error fetching notifications:", requestError);
-      setError("Erro ao carregar notificações");
+      setError(t("notifications.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const fetchUnreadCount = useCallback(async () => {
     try {

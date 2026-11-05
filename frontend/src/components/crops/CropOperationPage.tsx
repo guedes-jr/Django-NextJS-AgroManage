@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Droplets, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, Wheat, X } from "lucide-react";
+import { Droplets, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, Wheat, X } from "lucide-react";
 import apiClient from "@/services/api";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useOrganizationLocale } from "@/lib/locale";
 
 type OperationKind = "plantio" | "adubacao" | "fertirrigacao" | "defensivos" | "irrigacao";
 
@@ -179,6 +180,58 @@ const configByKind = {
   },
 } satisfies Record<OperationKind, Record<string, unknown>>;
 
+const configTranslationKeys = {
+  plantio: {
+    title: "plantations.operation.seeds.title",
+    subtitle: "plantations.operation.seeds.subtitle",
+    itemTitle: "plantations.operation.seeds.items",
+    itemColumn: "plantations.operation.seeds.column",
+    itemPlaceholder: "plantations.operation.seeds.placeholder",
+    emptyMessage: "plantations.operation.seeds.empty",
+    totalLabel: "plantations.operation.seeds.total",
+    dateLabel: "plantations.operation.plantingDate",
+    historyTitle: "plantations.operation.seeds.history",
+  },
+  adubacao: {
+    title: "plantations.operation.fertilization.title",
+    subtitle: "plantations.operation.fertilization.subtitle",
+    itemTitle: "plantations.operation.fertilization.items",
+    itemColumn: "plantations.operation.fertilization.column",
+    itemPlaceholder: "plantations.operation.fertilization.placeholder",
+    emptyMessage: "plantations.operation.fertilization.empty",
+    totalLabel: "plantations.operation.fertilization.total",
+    dateLabel: "plantations.operation.date",
+    historyTitle: "plantations.operation.fertilization.history",
+  },
+  fertirrigacao: {
+    title: "plantations.operation.fertigation.title",
+    subtitle: "plantations.operation.fertigation.subtitle",
+    itemTitle: "plantations.operation.fertigation.items",
+    itemColumn: "plantations.operation.fertigation.column",
+    itemPlaceholder: "plantations.operation.fertigation.placeholder",
+    emptyMessage: "plantations.operation.fertigation.empty",
+    totalLabel: "plantations.operation.fertigation.total",
+    dateLabel: "plantations.operation.date",
+    historyTitle: "plantations.operation.fertigation.history",
+  },
+  defensivos: {
+    title: "plantations.operation.pesticide.title",
+    subtitle: "plantations.operation.pesticide.subtitle",
+    itemTitle: "plantations.operation.pesticide.items",
+    itemColumn: "plantations.operation.pesticide.column",
+    itemPlaceholder: "plantations.operation.pesticide.placeholder",
+    emptyMessage: "plantations.operation.pesticide.empty",
+    totalLabel: "plantations.operation.pesticide.total",
+    dateLabel: "plantations.operation.date",
+    historyTitle: "plantations.operation.pesticide.history",
+  },
+  irrigacao: {
+    title: "plantations.operation.irrigation.title",
+    subtitle: "plantations.operation.irrigation.subtitle",
+    historyTitle: "plantations.operation.irrigation.history",
+  },
+} as const;
+
 const emptyLine = (kind: OperationKind): ApplicationLine => ({
   item: "",
   lot: "",
@@ -198,9 +251,9 @@ const extractArray = <T,>(data: unknown): T[] => {
   return [];
 };
 
-const formatDate = (value?: string | null) => {
+const formatDate = (value: string | null | undefined, language: string) => {
   if (!value) return "-";
-  return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
+  return new Date(`${value}T12:00:00`).toLocaleDateString(language);
 };
 
 const numericValue = (value?: string | number | null) => {
@@ -220,18 +273,18 @@ const numericValue = (value?: string | number | null) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const fmt = (value?: string | number | null, decimals = 2) => {
+const fmt = (value: string | number | null | undefined, language: string, decimals = 2) => {
   if (value === null || value === undefined || value === "") return "-";
   const number = numericValue(value);
   if (!Number.isFinite(number)) return "-";
-  return number.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return number.toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
 
-const money = (value?: string | number | null) => {
+const money = (value: string | number | null | undefined, language: string) => {
   if (value === null || value === undefined || value === "") return "R$ 0,00";
   const number = numericValue(value);
   if (!Number.isFinite(number)) return "R$ 0,00";
-  return number.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return number.toLocaleString(language, { style: "currency", currency: "BRL" });
 };
 
 const cvToKw = (cv: string | number) => numericValue(cv) * 0.7355;
@@ -277,9 +330,13 @@ const getErrorMessage = (error: unknown) => {
 };
 
 export function CropOperationPage({ kind }: { kind: OperationKind }) {
+  const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const config = configByKind[kind];
+  const config = Object.fromEntries(
+    Object.entries(configTranslationKeys[kind]).map(([field, key]) => [field, t(key)])
+  ) as Record<string, unknown>;
+  config.icon = configByKind[kind].icon;
   const Icon = config.icon as typeof Sprout;
   const isIrrigation = kind === "irrigacao";
 
@@ -524,7 +581,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       setIrrigationForm({ start_date: "", end_date: "", irrigation_system: "", pump_equipment: "", hours_per_day: "", kwh_value: "", operator: "", notes: "" });
     } catch (error) {
       console.error("Erro ao salvar irrigação", error);
-      alert("Erro ao salvar a irrigação. Verifique os dados informados.");
+      alert(t("plantations.operation.errorSave"));
     } finally {
       setSaving(false);
     }
@@ -567,7 +624,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       }
     } catch (err) {
       console.error("Erro ao remover registro", err);
-      alert("Erro ao remover o registro. Tente novamente.");
+      alert(t("plantations.operation.errorDelete"));
     } finally {
       setDeletingId(null);
     }
@@ -623,7 +680,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       closeEdit();
     } catch (err) {
       console.error("Erro ao editar registro", err);
-      alert("Erro ao editar o registro. Tente novamente.");
+      alert(t("plantations.operation.errorEdit"));
     } finally {
       setEditSaving(false);
     }
@@ -640,7 +697,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
   }
 
   if (!plantation) {
-    return <div className="p-4 text-muted">Plantação nao encontrada.</div>;
+    return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
   }
 
   return (
@@ -697,15 +754,15 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
 
         <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top gap-3 flex-wrap">
           <Button variant="outline-secondary" onClick={() => router.back()} style={{ borderRadius: 10 }}>
-            Cancelar
+            {t("plantations.cancel")}
           </Button>
           <div className="d-flex gap-2">
             <Button variant="outline-primary" disabled={saving} onClick={() => isIrrigation ? handleSaveIrrigation(false) : handleSaveApplications(false)} style={{ borderRadius: 10 }}>
               <Save size={16} />
-              {saving ? "Salvando..." : "Salvar"}
+              {saving ? t("plantations.saving") : t("plantations.save")}
             </Button>
             <Button disabled={saving} onClick={() => isIrrigation ? handleSaveIrrigation(true) : handleSaveApplications(true)} style={{ borderRadius: 10 }}>
-              {saving ? "Salvando..." : "Salvar e concluir"}
+              {saving ? t("plantations.saving") : t("plantations.saveAndFinish")}
             </Button>
           </div>
         </div>
@@ -734,7 +791,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
             <div className="d-flex align-items-center justify-content-between mb-4">
               <h5 className="fw-black mb-0 d-flex align-items-center gap-2" style={{ fontSize: "1.05rem" }}>
                 <Pencil size={17} className="text-primary" />
-                Editar registro
+                {t("plantations.operation.editRecord")}
               </h5>
               <button type="button" className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" style={{ width: 32, height: 32, borderRadius: 8, padding: 0 }} onClick={closeEdit}>
                 <X size={16} />
@@ -744,7 +801,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
             {/* Data */}
             <div className="mb-3">
               <label className="form-label fw-semibold small mb-1">
-                {isIrrigation ? "Data inicial" : (kind === "plantio" ? "Data do plantio" : "Data")}
+                {isIrrigation ? t("plantations.operation.initialDate") : (kind === "plantio" ? t("plantations.operation.plantingDate") : t("plantations.operation.date"))}
               </label>
               <input
                 type="date"
@@ -757,10 +814,10 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
 
             {/* Operator */}
             <div className="mb-3">
-              <label className="form-label fw-semibold small mb-1">Operador</label>
+              <label className="form-label fw-semibold small mb-1">{t("plantations.operation.operator")}</label>
               <input
                 className="form-control"
-                placeholder="Nome do operador"
+                placeholder={t("plantations.operation.operator")}
                 style={{ borderRadius: 10, height: 40 }}
                 value={editForm.operator}
                 onChange={(e) => setEditForm((p) => ({ ...p, operator: e.target.value }))}
@@ -770,7 +827,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
             {/* Hours / Quantity (irrigation) */}
             {isIrrigation && (
               <div className="mb-3">
-                <label className="form-label fw-semibold small mb-1">Horas por dia</label>
+                <label className="form-label fw-semibold small mb-1">{t("plantations.operation.hoursPerDay")}</label>
                 <input
                   type="number" step="0.1"
                   className="form-control"
@@ -784,7 +841,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
             {/* Notes (non-irrigation) */}
             {!isIrrigation && (
               <div className="mb-4">
-                <label className="form-label fw-semibold small mb-1">Observações</label>
+                <label className="form-label fw-semibold small mb-1">{t("plantations.notes")}</label>
                 <textarea
                   className="form-control"
                   rows={3}
@@ -798,7 +855,7 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
 
             <div className="d-flex gap-2 justify-content-end mt-3">
               <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10 }} onClick={closeEdit} disabled={editSaving}>
-                Cancelar
+                {t("plantations.cancel")}
               </button>
               <button
                 type="button"
@@ -808,8 +865,8 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
                 disabled={editSaving}
               >
                 {editSaving
-                  ? <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> Salvando...</>
-                  : <><Save size={14} /> Salvar alterações</>}
+                  ? <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> {t("plantations.saving")}</>
+                  : <><Save size={14} /> {t("plantations.save")}</>}
               </button>
             </div>
           </div>
@@ -819,30 +876,30 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
       <Modal
         isOpen={pumpModalOpen}
         onClose={() => setPumpModalOpen(false)}
-        title="Cadastrar bomba"
+        title={t("plantations.operation.addPump")}
         footer={
           <div className="d-flex gap-2 justify-content-end">
-            <Button variant="outline-secondary" onClick={() => setPumpModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePump} disabled={savingPump}>{savingPump ? "Salvando..." : "Salvar bomba"}</Button>
+            <Button variant="outline-secondary" onClick={() => setPumpModalOpen(false)}>{t("plantations.cancel")}</Button>
+            <Button onClick={handleCreatePump} disabled={savingPump}>{savingPump ? t("plantations.saving") : t("plantations.operation.addPump")}</Button>
           </div>
         }
       >
         <div className="p-4 p-md-5">
           <div className="row g-3">
             <div className="col-12">
-              <label className="form-label small fw-medium">Nome da bomba *</label>
-              <input className="form-control" value={pumpForm.name} onChange={(event) => setPumpForm({ ...pumpForm, name: event.target.value })} placeholder="Ex.: Bomba poço 01" />
+              <label className="form-label small fw-medium">{t("plantations.operation.pumpName")} *</label>
+              <input className="form-control" value={pumpForm.name} onChange={(event) => setPumpForm({ ...pumpForm, name: event.target.value })} placeholder={`${t("plantations.operation.pumpName")} 01`} />
             </div>
             <div className="col-6">
-              <label className="form-label small fw-medium">Potência (CV) *</label>
+              <label className="form-label small fw-medium">{t("plantations.operation.power")} *</label>
               <input className="form-control" type="number" step="0.01" value={pumpForm.power_cv} onChange={(event) => setPumpForm({ ...pumpForm, power_cv: event.target.value })} />
             </div>
             <div className="col-6">
-              <label className="form-label small fw-medium">Potência convertida</label>
-              <div className="form-control bg-light">{fmt(cvToKw(pumpForm.power_cv))} kW</div>
+              <label className="form-label small fw-medium">{t("plantations.operation.convertedPower")}</label>
+              <div className="form-control bg-light">{fmt(cvToKw(pumpForm.power_cv), language)} kW</div>
             </div>
             <div className="col-12">
-              <label className="form-label small fw-medium">Vazão (L/h) *</label>
+              <label className="form-label small fw-medium">{t("plantations.operation.flow")} *</label>
               <input className="form-control" type="number" step="0.01" value={pumpForm.flow_rate_l_per_h} onChange={(event) => setPumpForm({ ...pumpForm, flow_rate_l_per_h: event.target.value })} />
             </div>
           </div>
@@ -877,12 +934,13 @@ function ApplicationForm({
   handleItemChange: (index: number, itemId: string) => void;
   setEquipments: React.Dispatch<React.SetStateAction<{ equipment: string; quantity: string; unit_price: string; total_price: string }[]>>;
 }) {
+  const { language, t } = useOrganizationLocale();
   return (
     <div className="d-flex flex-column gap-3">
       <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <strong className="small text-success">{config.itemTitle as string}</strong>
         <Button variant="outline-success" size="sm" onClick={() => setLines((prev) => [...prev, emptyLine(kind)])}>
-          <Plus size={16} /> Adicionar
+          <Plus size={16} /> {t("plantations.operation.add")}
         </Button>
       </div>
 
@@ -891,12 +949,12 @@ function ApplicationForm({
           <thead>
             <tr>
               <th>{config.itemColumn as string}</th>
-              {kind === "defensivos" && <th style={{ minWidth: 160 }}>Tipo</th>}
-              <th style={{ minWidth: 130 }}>Quantidade</th>
-              <th style={{ minWidth: 120 }}>Unidade</th>
-              <th style={{ minWidth: 140 }}>Preço (R$)</th>
-              <th style={{ minWidth: 150 }}>Valor total</th>
-              <th className="text-center">Ações</th>
+              {kind === "defensivos" && <th style={{ minWidth: 160 }}>{t("plantations.operation.type")}</th>}
+              <th style={{ minWidth: 130 }}>{t("plantations.operation.quantity")}</th>
+              <th style={{ minWidth: 120 }}>{t("plantations.operation.unit")}</th>
+              <th style={{ minWidth: 140 }}>{t("plantations.operation.price")}</th>
+              <th style={{ minWidth: 150 }}>{t("plantations.operation.total")}</th>
+              <th className="text-center">{t("plantations.operation.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -915,7 +973,7 @@ function ApplicationForm({
                 {kind === "defensivos" && (
                   <td>
                     <select className="form-select" value={line.pesticide_type || "other"} onChange={(event) => updateLine(index, { pesticide_type: event.target.value })}>
-                      {pesticideTypeOptions.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                      {pesticideTypeOptions.map((type) => <option key={type.value} value={type.value}>{t(`plantations.pesticide.${type.value}` as "plantations.pesticide.insecticide")}</option>)}
                     </select>
                   </td>
                 )}
@@ -924,14 +982,14 @@ function ApplicationForm({
                 </td>
                 <td>
                   <select className="form-select" value={line.unit} onChange={(event) => updateLine(index, { unit: event.target.value })}>
-                    <option value="">Selecione...</option>
+                    <option value="">{t("plantations.irrigation.select")}</option>
                     {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                   </select>
                 </td>
                 <td>
-                  <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automatico do estoque" />
+                  <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title={t("plantations.operation.autoInventoryPrice")} />
                 </td>
-                <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>
+                <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price, language)}</div></td>
                 <td className="text-center">
                   <Button variant="outline-danger" size="sm" onClick={() => setLines((prev) => prev.length === 1 ? [emptyLine(kind)] : prev.filter((_, lineIndex) => lineIndex !== index))}>
                     <Trash2 size={16} />
@@ -946,8 +1004,8 @@ function ApplicationForm({
       {items.length === 0 && <small className="text-muted">{config.emptyMessage as string}</small>}
 
       <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2 flex-wrap gap-2">
-        <span className="fw-medium">Total de itens: {lines.filter((line) => line.item).length}</span>
-        <strong className="text-success">{config.totalLabel as string}: {money(lines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>
+        <span className="fw-medium">{t("plantations.operation.totalItems")}: {lines.filter((line) => line.item).length}</span>
+        <strong className="text-success">{config.totalLabel as string}: {money(lines.reduce((sum, line) => sum + numericValue(line.total_price), 0), language)}</strong>
       </div>
 
       <div className="row g-3">
@@ -956,11 +1014,11 @@ function ApplicationForm({
           <input className="form-control" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
         </div>
         <div className="col-md-6 col-12">
-          <label className="form-label small fw-medium">Operador</label>
+          <label className="form-label small fw-medium">{t("plantations.operation.operator")}</label>
           <input className="form-control" value={form.operator} onChange={(event) => setForm({ ...form, operator: event.target.value })} />
         </div>
         <div className="col-12">
-          <label className="form-label small fw-medium">Observações</label>
+          <label className="form-label small fw-medium">{t("plantations.notes")}</label>
           <textarea className="form-control" rows={3} maxLength={300} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
           <div className="text-end text-muted small">{form.notes.length}/300</div>
         </div>
@@ -969,27 +1027,27 @@ function ApplicationForm({
       {kind === "defensivos" && (
         <div className="border rounded-3 overflow-hidden" style={{ borderColor: "var(--border)" }}>
           <div className="d-flex align-items-center justify-content-between px-3 py-2 flex-wrap gap-2" style={{ background: "rgba(16, 185, 129, 0.06)", borderBottom: "1px solid var(--border)" }}>
-            <strong className="small text-success">Equipamentos utilizados</strong>
+            <strong className="small text-success">{t("plantations.operation.equipment")}</strong>
             <Button variant="outline-success" size="sm" onClick={() => setEquipments((prev) => [...prev, { equipment: "", quantity: "", unit_price: "", total_price: "" }])}>
-              <Plus size={16} /> Adicionar equipamento
+              <Plus size={16} /> {t("plantations.operation.addEquipment")}
             </Button>
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0 agro-table">
               <thead>
                 <tr>
-                  <th>Equipamento</th>
-                  <th style={{ minWidth: 160 }}>Quantidade</th>
-                  <th style={{ minWidth: 160 }}>Valor unitário</th>
-                  <th style={{ minWidth: 160 }}>Valor total</th>
-                  <th className="text-center">Ações</th>
+                  <th>{t("plantations.operation.equipment")}</th>
+                  <th style={{ minWidth: 160 }}>{t("plantations.operation.quantity")}</th>
+                  <th style={{ minWidth: 160 }}>{t("plantations.operation.unitPrice")}</th>
+                  <th style={{ minWidth: 160 }}>{t("plantations.operation.total")}</th>
+                  <th className="text-center">{t("plantations.operation.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {equipments.map((equipment, index) => (
                   <tr key={index}>
                     <td style={{ minWidth: 240 }}>
-                      <input className="form-control" placeholder="Ex.: Pulverizador costal" value={equipment.equipment} onChange={(event) => setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, equipment: event.target.value }))} />
+                      <input className="form-control" placeholder={t("plantations.operation.equipment")} value={equipment.equipment} onChange={(event) => setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, equipment: event.target.value }))} />
                     </td>
                     <td>
                       <input className="form-control" type="number" step="0.01" value={equipment.quantity} onChange={(event) => {
@@ -1003,7 +1061,7 @@ function ApplicationForm({
                         setEquipments((prev) => prev.map((item, itemIndex) => itemIndex !== index ? item : { ...item, unit_price: unitPrice, total_price: unitPrice && item.quantity ? String(numericValue(unitPrice) * numericValue(item.quantity)) : "" }));
                       }} />
                     </td>
-                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(equipment.total_price)}</div></td>
+                    <td><div className="form-control bg-success-subtle fw-semibold text-success">{money(equipment.total_price, language)}</div></td>
                     <td className="text-center">
                       <Button variant="outline-danger" size="sm" onClick={() => setEquipments((prev) => prev.length === 1 ? [{ equipment: "", quantity: "", unit_price: "", total_price: "" }] : prev.filter((_, itemIndex) => itemIndex !== index))}>
                         <Trash2 size={16} />
@@ -1043,62 +1101,63 @@ function IrrigationForm({
   energyCost: number;
   waterLiters: number;
 }) {
+  const { language, t } = useOrganizationLocale();
   return (
     <div className="row g-3">
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Data inicial *</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.initialDate")} *</label>
         <input className="form-control" type="date" value={form.start_date} onChange={(event) => setForm({ ...form, start_date: event.target.value, end_date: form.end_date || event.target.value })} />
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Data final</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.endDate")}</label>
         <input className="form-control" type="date" value={form.end_date} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Sistema de irrigação</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.irrigationSystem")}</label>
         <select className="form-select" value={form.irrigation_system} onChange={(event) => setForm({ ...form, irrigation_system: event.target.value })}>
-          <option value="">Selecione...</option>
-          {irrigationSystemOptions.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}
+          <option value="">{t("plantations.irrigation.select")}</option>
+          {irrigationSystemOptions.map((system) => <option key={system.value} value={system.value}>{t(`plantations.irrigation.${system.value === "center_pivot" ? "centerPivot" : system.value === "micro_sprinkler" ? "microSprinkler" : system.value}` as "plantations.irrigation.other")}</option>)}
         </select>
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Bomba utilizada *</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.pumpUsed")} *</label>
         <div className="input-group">
           <select className="form-select" value={form.pump_equipment} onChange={(event) => setForm({ ...form, pump_equipment: event.target.value })}>
-            <option value="">Selecione...</option>
+            <option value="">{t("plantations.irrigation.select")}</option>
             {pumps.map((pump) => (
-              <option key={pump.id} value={pump.id}>{pump.name} - {fmt(pump.power_cv)} CV / {fmt(pump.flow_rate_l_per_h, 0)} L/h</option>
+              <option key={pump.id} value={pump.id}>{pump.name} - {fmt(pump.power_cv, language)} CV / {fmt(pump.flow_rate_l_per_h, language, 0)} L/h</option>
             ))}
           </select>
-          <Button variant="outline-success" onClick={onOpenPumpModal} title="Cadastrar nova bomba">
+          <Button variant="outline-success" onClick={onOpenPumpModal} title={t("plantations.operation.addNewPump")}>
             <Plus size={16} />
           </Button>
         </div>
-        {selectedPump && <small className="text-muted">Potência convertida: {fmt(selectedPump.power_kw)} kW</small>}
+        {selectedPump && <small className="text-muted">{t("plantations.operation.convertedPower")}: {fmt(selectedPump.power_kw, language)} kW</small>}
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Horas de funcionamento por dia</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.hoursPerDay")}</label>
         <input className="form-control" type="number" step="0.1" value={form.hours_per_day} onChange={(event) => setForm({ ...form, hours_per_day: event.target.value })} placeholder="Ex.: 6.5" />
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Valor do kWh</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.kwhPrice")}</label>
         <input className="form-control" type="number" step="0.0001" value={form.kwh_value} onChange={(event) => setForm({ ...form, kwh_value: event.target.value })} />
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Operador</label>
+        <label className="form-label small fw-medium">{t("plantations.operation.operator")}</label>
         <input className="form-control" value={form.operator} onChange={(event) => setForm({ ...form, operator: event.target.value })} />
       </div>
       <div className="col-md-6 col-12">
-        <label className="form-label small fw-medium">Observações</label>
+        <label className="form-label small fw-medium">{t("plantations.notes")}</label>
         <textarea className="form-control" rows={2} maxLength={300} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
       </div>
       <div className="col-12">
         <div className="rounded border bg-success-subtle p-3">
           <div className="row g-3 small">
-            <div className="col-6 col-md-3"><span className="text-muted d-block">Dias do período</span><strong>{days}</strong></div>
-            <div className="col-6 col-md-3"><span className="text-muted d-block">Horas totais</span><strong>{fmt(hoursTotal)} h</strong></div>
-            <div className="col-6 col-md-3"><span className="text-muted d-block">Energia</span><strong>{fmt(energyKwh)} kWh</strong></div>
-            <div className="col-6 col-md-3"><span className="text-muted d-block">Custo energia</span><strong>{money(energyCost)}</strong></div>
-            <div className="col-12"><span className="text-muted d-block">Volume total de água aplicado</span><strong>{fmt(waterLiters, 0)} L</strong></div>
+            <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.daysInPeriod")}</span><strong>{days}</strong></div>
+            <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.totalHours")}</span><strong>{fmt(hoursTotal, language)} h</strong></div>
+            <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.energy")}</span><strong>{fmt(energyKwh, language)} kWh</strong></div>
+            <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.energyCost")}</span><strong>{money(energyCost, language)}</strong></div>
+            <div className="col-12"><span className="text-muted d-block">{t("plantations.operation.totalWater")}</span><strong>{fmt(waterLiters, language, 0)} L</strong></div>
           </div>
         </div>
       </div>
@@ -1119,28 +1178,29 @@ function ApplicationHistory({
   onDelete: (id: string) => void;
   onEdit: (record: ApplicationRecord) => void;
 }) {
+  const { language, t } = useOrganizationLocale();
   return (
     <div className="table-responsive">
       <table className="table table-hover align-middle mb-0 agro-table">
         <thead>
           <tr>
-            <th>Data</th>
-            <th>Insumo</th>
-            {kind === "defensivos" && <th>Tipo</th>}
-            <th>Quantidade</th>
-            <th>Preço</th>
-            {kind === "defensivos" && <th>Equipamentos</th>}
-            <th>Total</th>
-            <th>Operador</th>
-            <th>Observações</th>
-            <th className="text-center" style={{ width: 90 }}>Ações</th>
+            <th>{t("plantations.operation.date")}</th>
+            <th>{t("plantations.operation.supply")}</th>
+            {kind === "defensivos" && <th>{t("plantations.operation.type")}</th>}
+            <th>{t("plantations.operation.quantity")}</th>
+            <th>{t("plantations.operation.price")}</th>
+            {kind === "defensivos" && <th>{t("plantations.operation.equipment")}</th>}
+            <th>{t("plantations.operation.total")}</th>
+            <th>{t("plantations.operation.operator")}</th>
+            <th>{t("plantations.notes")}</th>
+            <th className="text-center" style={{ width: 90 }}>{t("plantations.operation.actions")}</th>
           </tr>
         </thead>
         <tbody>
           {records.length === 0 ? (
             <tr>
               <td colSpan={kind === "defensivos" ? 9 : 8} className="text-center text-muted-foreground py-4">
-                Nenhum lançamento registrado ainda.
+                {t("plantations.operation.noRecords")}
               </td>
             </tr>
           ) : (
@@ -1152,32 +1212,33 @@ function ApplicationHistory({
                 
                 return (
                 <tr key={record.id}>
-                  <td>{formatDate(kind === "plantio" ? record.planting_date : record.application_date)}</td>
+                  <td>{formatDate(kind === "plantio" ? record.planting_date : record.application_date, language)}</td>
                   <td>{record.item_name || "-"}</td>
                   {kind === "defensivos" && <td>{record.pesticide_type_display || "-"}</td>}
-                  <td>{fmt(record.quantity)} {record.unit || ""}</td>
-                  <td>{money(record.unit_price)}</td>
+                  <td>{fmt(record.quantity, language)} {record.unit || ""}</td>
+                  <td>{money(record.unit_price, language)}</td>
                   {kind === "defensivos" && (
                     <td>
                       {record.equipments && record.equipments.length > 0 ? (
                         <div className="d-flex flex-column gap-1">
                           {record.equipments.map((eq, i) => (
                             <span key={i} className="small text-muted text-nowrap" title={eq.equipment}>
-                              {eq.equipment.length > 15 ? eq.equipment.substring(0, 15) + "..." : eq.equipment} ({money(eq.total_price)})
+                              {eq.equipment.length > 15 ? eq.equipment.substring(0, 15) + "..." : eq.equipment} ({money(eq.total_price, language)})
                             </span>
                           ))}
                         </div>
                       ) : "-"}
                     </td>
                   )}
-                  <td className="fw-bold">{money(finalTotal)}</td>
+                  <td className="fw-bold">{money(finalTotal, language)}</td>
                   <td>{record.operator || "-"}</td>
                   <td className="text-muted-foreground small">{record.notes || "-"}</td>
                   <td className="text-center">
                     <div className="d-flex gap-1 justify-content-center">
                       <button
                         type="button"
-                        title="Editar"
+                        title={t("plantations.edit")}
+                        aria-label={t("plantations.edit")}
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
                         onClick={() => onEdit(record)}
@@ -1186,7 +1247,8 @@ function ApplicationHistory({
                       </button>
                       <button
                         type="button"
-                        title="Remover"
+                        title={t("plantations.operation.removeRecord")}
+                        aria-label={t("plantations.operation.removeRecord")}
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
                         disabled={deletingId === record.id}
@@ -1202,9 +1264,9 @@ function ApplicationHistory({
               );
               })}
               <tr className="table-light">
-                <td colSpan={kind === "defensivos" ? 6 : 4} className="text-end fw-bold">Total Geral:</td>
+                <td colSpan={kind === "defensivos" ? 6 : 4} className="text-end fw-bold">{t("plantations.structure.total")}:</td>
                 <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
-                  {money(records.reduce((acc, r) => acc + numericValue(r.total_price) + (r.equipments || []).reduce((sum, e) => sum + numericValue(e.total_price), 0), 0))}
+                  {money(records.reduce((acc, r) => acc + numericValue(r.total_price) + (r.equipments || []).reduce((sum, e) => sum + numericValue(e.total_price), 0), 0), language)}
                 </td>
                 <td colSpan={3}></td>
               </tr>
@@ -1227,48 +1289,50 @@ function IrrigationHistory({
   onDelete: (id: string) => void;
   onEdit: (record: IrrigationRecord) => void;
 }) {
+  const { language, t } = useOrganizationLocale();
   return (
     <div className="table-responsive">
       <table className="table table-hover align-middle mb-0 agro-table">
         <thead>
           <tr>
-            <th>Periodo</th>
-            <th>Sistema</th>
-            <th>Bomba</th>
-            <th>Dias</th>
-            <th>Horas</th>
-            <th>Agua</th>
-            <th>Energia</th>
-            <th>Custo</th>
-            <th>Operador</th>
-            <th className="text-center" style={{ width: 90 }}>Ações</th>
+            <th>{t("plantations.operation.period")}</th>
+            <th>{t("plantations.operation.system")}</th>
+            <th>{t("plantations.operation.pump")}</th>
+            <th>{t("plantations.operation.days")}</th>
+            <th>{t("plantations.operation.hours")}</th>
+            <th>{t("plantations.operation.water")}</th>
+            <th>{t("plantations.operation.energy")}</th>
+            <th>{t("plantations.operation.cost")}</th>
+            <th>{t("plantations.operation.operator")}</th>
+            <th className="text-center" style={{ width: 90 }}>{t("plantations.operation.actions")}</th>
           </tr>
         </thead>
         <tbody>
           {records.length === 0 ? (
             <tr>
               <td colSpan={10} className="text-center text-muted-foreground py-4">
-                Nenhuma irrigação registrada ainda.
+                {t("plantations.operation.noIrrigation")}
               </td>
             </tr>
           ) : (
             <>
               {records.map((record) => (
                 <tr key={record.id}>
-                  <td>{formatDate(record.start_date || record.date)}{record.end_date ? ` - ${formatDate(record.end_date)}` : ""}</td>
+                  <td>{formatDate(record.start_date || record.date, language)}{record.end_date ? ` - ${formatDate(record.end_date, language)}` : ""}</td>
                   <td>{record.irrigation_system_display || "-"}</td>
                   <td>{record.pump_name || "-"}</td>
                   <td>{record.operating_days || "-"}</td>
-                  <td>{fmt(record.hours || record.hours_per_day)} h</td>
-                  <td>{fmt(record.liters_used, 0)} L</td>
-                  <td>{fmt(record.energy_kwh)} kWh</td>
-                  <td className="fw-bold">{money(record.energy_cost)}</td>
+                  <td>{fmt(record.hours || record.hours_per_day, language)} h</td>
+                  <td>{fmt(record.liters_used, language, 0)} L</td>
+                  <td>{fmt(record.energy_kwh, language)} kWh</td>
+                  <td className="fw-bold">{money(record.energy_cost, language)}</td>
                   <td>{record.operator || "-"}</td>
                   <td className="text-center">
                     <div className="d-flex gap-1 justify-content-center">
                       <button
                         type="button"
-                        title="Editar"
+                        title={t("plantations.edit")}
+                        aria-label={t("plantations.edit")}
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
                         onClick={() => onEdit(record)}
@@ -1277,7 +1341,8 @@ function IrrigationHistory({
                       </button>
                       <button
                         type="button"
-                        title="Remover"
+                        title={t("plantations.operation.removeRecord")}
+                        aria-label={t("plantations.operation.removeRecord")}
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-danger)", color: "var(--bs-danger)", backgroundColor: "transparent", padding: 0, opacity: deletingId === record.id ? 0.5 : 1 }}
                         disabled={deletingId === record.id}
@@ -1294,7 +1359,7 @@ function IrrigationHistory({
               <tr className="table-light">
                 <td colSpan={7} className="text-end fw-bold">Custo Total:</td>
                 <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
-                  {money(records.reduce((acc, record) => acc + numericValue(record.energy_cost), 0))}
+                  {money(records.reduce((acc, record) => acc + numericValue(record.energy_cost), 0), language)}
                 </td>
                 <td colSpan={2}></td>
               </tr>

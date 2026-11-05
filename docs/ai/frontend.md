@@ -37,6 +37,15 @@ When backend response/request shape changes:
 4. update affected UI,
 5. run type checking.
 
+## Organization language
+
+Authenticated workspace pages use `OrganizationLocaleProvider` from
+`frontend/src/lib/locale.tsx`, mounted by the home layout. Use
+`useOrganizationLocale()` and its typed `t()` function for interface text, and
+format dates/numbers with the returned organization language. The language is
+shared by all members and persisted through `/organizations/me/`; do not store
+it as a per-user preference or add a competing localization mechanism.
+
 ## Performance
 
 Avoid:

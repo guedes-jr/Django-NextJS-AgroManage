@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { useOrganizationLocale } from "@/lib/locale";
 import "@/app/home/estoque/estoque.css";
 
 type AlertaItem = {
@@ -39,10 +40,10 @@ type AlertaItem = {
 };
 
 const priorityOptions = [
-  { value: 'baixa', label: 'Baixa', color: '#10B981' },
-  { value: 'media', label: 'Média', color: '#F59E0B' },
-  { value: 'alta', label: 'Alta', color: '#F97316' },
-  { value: 'critica', label: 'Crítica', color: '#EF4444' },
+  { value: 'baixa', key: 'inventory.alerts.priority.low', color: '#10B981' },
+  { value: 'media', key: 'inventory.alerts.priority.medium', color: '#F59E0B' },
+  { value: 'alta', key: 'inventory.alerts.priority.high', color: '#F97316' },
+  { value: 'critica', key: 'inventory.alerts.priority.critical', color: '#EF4444' },
 ];
 
 const getPriorityDetails = (prioridade: string) =>
@@ -56,6 +57,7 @@ type DashboardStats = {
 };
 
 export function AlertasDashboard() {
+  const { language, t } = useOrganizationLocale();
   const { showToast } = useToast();
   const [alertas, setAlertas] = useState<AlertaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,9 +106,9 @@ export function AlertasDashboard() {
       // or we can keep it as is if there's a specific AlertaEstoque record.
       // For now, let's refresh the list.
       fetchAlertas();
-      showToast("Alerta verificado!", "success");
+      showToast(t("inventory.alerts.checked"), "success");
     } catch (error) {
-      showToast("Erro ao processar", "error");
+      showToast(t("inventory.alerts.processFailed"), "error");
     }
   };
 
@@ -116,7 +118,7 @@ export function AlertasDashboard() {
 
   const filteredAlertas = useMemo(() => {
     return alertas.filter((item) => {
-      const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = item.nome.toLocaleLowerCase(language).includes(searchTerm.toLocaleLowerCase(language));
 
       const atual = parseFloat(String(item.estoque_atual));
       const minimo = parseFloat(String(item.estoque_minimo));
@@ -128,7 +130,7 @@ export function AlertasDashboard() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [alertas, searchTerm, statusFilter]);
+  }, [alertas, searchTerm, statusFilter, language]);
 
   const stats = useMemo((): DashboardStats => {
     const total = alertas.length;
@@ -248,10 +250,10 @@ export function AlertasDashboard() {
       await apiClient.post("/inventory/alertas/gerar_alertas/");
       fetchAlertas();
 
-      showToast("Configuração de alerta salva!", "success");
+      showToast(t("inventory.alerts.saved"), "success");
     } catch (error: any) {
       console.error("Erro ao salvar alerta:", error.response?.data || error);
-      showToast("Erro ao salvar alerta.", "error");
+      showToast(t("inventory.alerts.saveFailed"), "error");
     }
   };
 
@@ -260,15 +262,15 @@ export function AlertasDashboard() {
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-4">
           <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">
-            Estoque
+            {t("inventory.home.title")}
           </Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Alertas</span>
+          <span className="fw-semibold text-foreground">{t("inventory.alerts.title")}</span>
         </nav>
 
         <div className="d-flex align-items-center justify-content-between mb-1">
           <h1 className="fw-black mb-0" style={{ fontSize: "2.25rem", letterSpacing: "-0.04em", color: "var(--foreground)" }}>
-            Alertas de Estoque
+            {t("inventory.alerts.title")}
           </h1>
           <div className="d-flex gap-2">
             <button
@@ -277,7 +279,7 @@ export function AlertasDashboard() {
               onClick={() => setModalOpen(true)}
             >
               <Plus size={18} strokeWidth={3} />
-              <span>Novo alerta</span>
+              <span>{t("inventory.alerts.newAlert")}</span>
             </button>
             <button
               className="btn h-100 px-3 d-flex align-items-center gap-2 rounded-xl border-0 shadow-sm bg-white"
@@ -285,12 +287,12 @@ export function AlertasDashboard() {
               onClick={fetchAlertas}
             >
               <RefreshCw size={18} strokeWidth={3} className="text-muted-foreground" />
-              <span className="text-muted-foreground">Atualizar</span>
+              <span className="text-muted-foreground">{t("inventory.alerts.refresh")}</span>
             </button>
           </div>
         </div>
         <p className="mb-0 text-muted-foreground fw-medium">
-          Itens que precisam de reposição para manter o estoque mínimo.
+          {t("inventory.alerts.description")}
         </p>
       </div>
 
@@ -305,8 +307,8 @@ export function AlertasDashboard() {
                 <Bell size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <div className="text-muted-foreground small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>TOTAL ALERTAS</div>
-                <div className="fw-black text-foreground" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.total_alertas}</div>
+                <div className="text-muted-foreground small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>{t("inventory.alerts.total").toLocaleUpperCase(language)}</div>
+                <div className="fw-black text-foreground" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.total_alertas.toLocaleString(language)}</div>
               </div>
             </div>
           </div>
@@ -321,8 +323,8 @@ export function AlertasDashboard() {
                 <AlertOctagon size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <div className="text-rose-600 small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>CRÍTICOS</div>
-                <div className="fw-black text-rose-700" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.critica}</div>
+                <div className="text-rose-600 small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>{t("inventory.alerts.critical").toLocaleUpperCase(language)}</div>
+                <div className="fw-black text-rose-700" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.critica.toLocaleString(language)}</div>
               </div>
             </div>
           </div>
@@ -337,8 +339,8 @@ export function AlertasDashboard() {
                 <AlertTriangle size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <div className="text-orange-600 small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>PENDENTES</div>
-                <div className="fw-black text-orange-700" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.pendentes}</div>
+                <div className="text-orange-600 small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>{t("inventory.alerts.pending").toLocaleUpperCase(language)}</div>
+                <div className="fw-black text-orange-700" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.pendentes.toLocaleString(language)}</div>
               </div>
             </div>
           </div>
@@ -353,8 +355,8 @@ export function AlertasDashboard() {
                 <CheckCircle2 size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <div className="text-emerald-600 small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>ESTÁVEIS</div>
-                <div className="fw-black text-emerald-700" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.atendidas}</div>
+                <div className="text-emerald-600 small fw-black text-uppercase mb-1" style={{ letterSpacing: '0.05em', fontSize: '0.65rem' }}>{t("inventory.alerts.stable").toLocaleUpperCase(language)}</div>
+                <div className="fw-black text-emerald-700" style={{ fontSize: "1.5rem", lineHeight: 1 }}>{stats.atendidas.toLocaleString(language)}</div>
               </div>
             </div>
           </div>
@@ -366,8 +368,8 @@ export function AlertasDashboard() {
           <AlertTriangle className="text-warning" size={22} />
           <div className="fw-bold text-orange-950">
             {(stats.critica > 0)
-              ? `${stats.critica} item${stats.critica === 1 ? '' : 's'} em nível crítico de estoque!`
-              : `Você possui ${stats.total_alertas} ${stats.total_alertas === 1 ? 'alerta' : 'alertas'} de estoque baixo.`
+              ? t("inventory.alerts.criticalBanner", { count: stats.critica.toLocaleString(language), items: t(stats.critica === 1 ? "inventory.products.oneItem" : "inventory.products.manyItems") })
+              : t("inventory.alerts.lowBanner", { count: stats.total_alertas.toLocaleString(language), alert: t(stats.total_alertas === 1 ? "inventory.alerts.oneAlert" : "inventory.alerts.manyAlerts") })
             }
           </div>
         </div>
@@ -381,7 +383,7 @@ export function AlertasDashboard() {
               <input
                 type="text"
                 className="form-control ps-5"
-                placeholder="Buscar alerta..."
+                placeholder={t("inventory.alerts.search")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -389,15 +391,15 @@ export function AlertasDashboard() {
           </div>
           <div className="col-6 col-lg-3">
             <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="todas">Todos os tipos</option>
-              <option value="baixo">Estoque baixo</option>
-              <option value="vencimento">Vencimento</option>
+              <option value="todas">{t("inventory.alerts.allTypes")}</option>
+              <option value="baixo">{t("inventory.products.lowStock")}</option>
+              <option value="vencimento">{t("inventory.alerts.expiration")}</option>
             </select>
           </div>
           <div className="col-6 col-lg-3">
             <button className="btn w-100" style={{ background: "var(--primary)", color: "white" }} onClick={fetchAlertas}>
               <RefreshCw size={16} className="me-1" />
-              Atualizar
+              {t("inventory.alerts.refresh")}
             </button>
           </div>
         </div>
@@ -405,24 +407,24 @@ export function AlertasDashboard() {
 
       <div className="dashboard-card p-0 overflow-hidden">
         {loading ? (
-          <div className="p-5 text-center text-muted-foreground">Carregando alertas...</div>
+          <div className="p-5 text-center text-muted-foreground">{t("inventory.alerts.loading")}</div>
         ) : (
           <div className="table-responsive">
             <table className="table mb-0 align-middle">
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO MONITORADO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">NÍVEL DE ESTOQUE</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CONFIGURAÇÃO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">PRIORIDADE</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">STATUS</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.alerts.monitoredProduct").toLocaleUpperCase(language)}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.alerts.stockLevel").toLocaleUpperCase(language)}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.alerts.configuration").toLocaleUpperCase(language)}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.alerts.priority").toLocaleUpperCase(language)}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">{t("stock.status").toLocaleUpperCase(language)}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredAlertas.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-5 text-muted-foreground">
-                      Nenhum item configurado para monitoramento.
+                      {t("inventory.alerts.noItems")}
                     </td>
                   </tr>
                 ) : (
@@ -448,7 +450,7 @@ export function AlertasDashboard() {
                           <div className="d-flex flex-column gap-1" style={{ width: '120px' }}>
                             <div className="d-flex justify-content-between align-items-baseline">
                               <span className={`fw-black fs-5 ${isCritico ? 'text-rose-600' : isBaixo ? 'text-orange-600' : 'text-emerald-600'}`}>
-                                {atual}
+                                {atual.toLocaleString(language)}
                               </span>
                               <span className="text-xs text-muted-foreground fw-bold">{item.unidade_medida}</span>
                             </div>
@@ -466,8 +468,8 @@ export function AlertasDashboard() {
                           </div>
                         </td>
                         <td className="px-3 py-3">
-                          <div className="text-xs text-muted-foreground mb-1 fw-medium">Meta {">"} </div>
-                          <div className="fw-black small text-foreground">{minimo} {item.unidade_medida}</div>
+                          <div className="text-xs text-muted-foreground mb-1 fw-medium">{t("inventory.alerts.target")} {">"} </div>
+                          <div className="fw-black small text-foreground">{minimo.toLocaleString(language)} {item.unidade_medida}</div>
                         </td>
                         <td className="px-3 py-3">
                           <span
@@ -482,7 +484,7 @@ export function AlertasDashboard() {
                               letterSpacing: '0.02em'
                             }}
                           >
-                            {item.prioridade_display || item.prioridade}
+                            {t(priority.key as Parameters<typeof t>[0])}
                           </span>
                         </td>
                         <td className="px-3 py-3 text-end">
@@ -496,7 +498,7 @@ export function AlertasDashboard() {
                               }}
                             >
                               <AlertOctagon size={16} />
-                              CRÍTICO
+                              {t("inventory.alerts.critical")}
                             </div>
                           ) : isBaixo ? (
                             <div
@@ -508,7 +510,7 @@ export function AlertasDashboard() {
                               }}
                             >
                               <AlertTriangle size={16} />
-                              BAIXO
+                              {t("inventory.products.lowStock")}
                             </div>
                           ) : (
                             <div
@@ -520,7 +522,7 @@ export function AlertasDashboard() {
                               }}
                             >
                               <CheckCircle2 size={16} className="text-emerald-500" />
-                              ESTÁVEL
+                              {t("inventory.alerts.stable")}
                             </div>
                           )}
                         </td>
@@ -537,8 +539,8 @@ export function AlertasDashboard() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Configurar Monitoramento"
-        description="Defina as regras de alerta para este item de estoque."
+        title={t("inventory.alerts.configure")}
+        description={t("inventory.alerts.configureDescription")}
         maxWidth="max-w-md"
         footer={
           <div className="d-flex justify-content-end gap-2 w-100 p-3 bg-muted/10 rounded-b-3xl">
@@ -548,7 +550,7 @@ export function AlertasDashboard() {
               style={{ background: "transparent", color: "var(--muted-foreground)", border: "1px solid var(--border)" }}
               onClick={() => setModalOpen(false)}
             >
-              Cancelar
+              {t("inventory.form.cancel")}
             </button>
             <button
               type="button"
@@ -558,7 +560,7 @@ export function AlertasDashboard() {
                 if (formRef.current) formRef.current.requestSubmit();
               }}
             >
-              Salvar Configuração
+              {t("inventory.alerts.saveConfiguration")}
             </button>
           </div>
         }
@@ -570,11 +572,11 @@ export function AlertasDashboard() {
               <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <Package size={18} />
               </div>
-              <h6 className="mb-0 fw-black text-uppercase small" style={{ letterSpacing: '0.05em' }}>Identificação do Produto</h6>
+              <h6 className="mb-0 fw-black text-uppercase small" style={{ letterSpacing: '0.05em' }}>{t("inventory.alerts.productIdentification").toLocaleUpperCase(language)}</h6>
             </div>
 
             <div className="mb-3 position-relative">
-              <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">NOME DO PRODUTO</label>
+              <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">{t("inventory.products.product").toLocaleUpperCase(language)}</label>
               <div className="input-group-custom position-relative">
                 <div className="position-absolute h-100 d-flex align-items-center px-3 text-muted-foreground" style={{ zIndex: 10 }}>
                   <Package size={16} />
@@ -582,7 +584,7 @@ export function AlertasDashboard() {
                 <input
                   type="text"
                   className="form-control rounded-xl py-2 ps-5 border-2 bg-muted/5 focus-ring"
-                  placeholder="Ex: Ração Inicial, Vacina A..."
+                  placeholder={t("inventory.alerts.productPlaceholder")}
                   value={formData.nome}
                   onChange={(e) => handleProdutoSearch(e.target.value)}
                   onFocus={() => formData.nome.length >= 3 && setShowSuggestions(true)}
@@ -597,7 +599,7 @@ export function AlertasDashboard() {
                     {isLoadingSuggestions ? (
                       <div className="p-4 text-center">
                         <RefreshCw size={20} className="animate-spin text-primary mx-auto mb-2" />
-                        <div className="text-xs text-muted-foreground fw-bold">Buscando produtos...</div>
+                        <div className="text-xs text-muted-foreground fw-bold">{t("inventory.alerts.searchingProducts")}</div>
                       </div>
                     ) : suggestions.length > 0 ? (
                       suggestions.map((produto) => (
@@ -612,14 +614,14 @@ export function AlertasDashboard() {
                           </div>
                           <div>
                             <div className="fw-bold text-foreground small">{produto.nome}</div>
-                            <div className="text-xs text-muted-foreground">{produto.categoria || 'Sem categoria'}</div>
+                            <div className="text-xs text-muted-foreground">{produto.categoria || t("inventory.alerts.noCategory")}</div>
                           </div>
                         </div>
                       ))
                     ) : (
                       <div className="p-4 text-center text-muted-foreground">
                         <AlertCircle size={20} className="mx-auto mb-2 opacity-20" />
-                        <div className="text-xs fw-bold">Nenhum produto encontrado</div>
+                        <div className="text-xs fw-bold">{t("inventory.alerts.noProducts")}</div>
                       </div>
                     )}
                   </div>
@@ -636,12 +638,12 @@ export function AlertasDashboard() {
               <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
                 <Shield size={18} />
               </div>
-              <h6 className="mb-0 fw-black text-uppercase small" style={{ letterSpacing: '0.05em' }}>Regras de Monitoramento</h6>
+              <h6 className="mb-0 fw-black text-uppercase small" style={{ letterSpacing: '0.05em' }}>{t("inventory.alerts.monitoringRules").toLocaleUpperCase(language)}</h6>
             </div>
 
             <div className="row g-3 mb-4">
               <div className="col-7">
-                <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">ESTOQUE MÍNIMO</label>
+                <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">{t("inventory.products.minimum").toLocaleUpperCase(language)}</label>
                 <div className="position-relative">
                   <div className="position-absolute h-100 d-flex align-items-center px-3 text-muted-foreground" style={{ zIndex: 10 }}>
                     <Hash size={16} />
@@ -658,7 +660,7 @@ export function AlertasDashboard() {
                 </div>
               </div>
               <div className="col-5">
-                <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">UNIDADE</label>
+                <label className="form-label text-xs fw-bold text-muted-foreground mb-1 ml-1">{t("inventory.form.unit").toLocaleUpperCase(language)}</label>
                 <div className="position-relative">
                   <div className="position-absolute h-100 d-flex align-items-center px-3 text-muted-foreground" style={{ zIndex: 10 }}>
                     <Scale size={16} />
@@ -670,19 +672,19 @@ export function AlertasDashboard() {
                     disabled={!!formData.item_id}
                     style={{ fontSize: '0.9rem' }}
                   >
-                    <option value="kg">Quilo (kg)</option>
-                    <option value="saco">Saco</option>
-                    <option value="l">Litro (l)</option>
-                    <option value="un">Unidade (un)</option>
-                    <option value="cx">Caixa (cx)</option>
-                    <option value="dose">Dose</option>
+                    <option value="kg">{t("inventory.alerts.unit.kilogram")}</option>
+                    <option value="saco">{t("inventory.alerts.unit.sack")}</option>
+                    <option value="l">{t("inventory.alerts.unit.liter")}</option>
+                    <option value="un">{t("inventory.alerts.unit.each")}</option>
+                    <option value="cx">{t("inventory.alerts.unit.box")}</option>
+                    <option value="dose">{t("inventory.alerts.unit.dose")}</option>
                   </select>
                 </div>
               </div>
             </div>
 
             <div className="mb-2">
-              <label className="form-label text-xs fw-bold text-muted-foreground mb-2 d-block ml-1">NÍVEL DE PRIORIDADE</label>
+              <label className="form-label text-xs fw-bold text-muted-foreground mb-2 d-block ml-1">{t("inventory.alerts.priority").toLocaleUpperCase(language)}</label>
               <div className="d-flex flex-wrap gap-2 p-2 rounded-2xl bg-muted/5 border border-dashed">
                 {priorityOptions.map(opt => (
                   <button
@@ -701,7 +703,7 @@ export function AlertasDashboard() {
                     }}
                   >
                     {formData.prioridade === opt.value && <div className="rounded-circle bg-white" style={{ width: 4, height: 4 }} />}
-                    {opt.label.toUpperCase()}
+                    {t(opt.key as Parameters<typeof t>[0]).toLocaleUpperCase(language)}
                   </button>
                 ))}
               </div>
@@ -712,7 +714,7 @@ export function AlertasDashboard() {
                 <AlertCircle size={18} />
               </div>
               <div className="text-xs text-orange-800 leading-relaxed">
-                Um alerta será gerado automaticamente assim que o estoque atual for <strong>menor</strong> que o mínimo definido.
+                {t("inventory.alerts.autoGenerated")} <strong>{t("inventory.alerts.lessThan")}</strong> {t("inventory.alerts.minimumDefined")}
               </div>
             </div>
           </div>

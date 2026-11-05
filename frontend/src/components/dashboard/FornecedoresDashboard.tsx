@@ -20,8 +20,10 @@ import { apiClient, getMediaUrl } from "@/services/api";
 import { Badge } from "@/components/ui/Badge";
 import { FornecedorModal } from "./FornecedorModal";
 import Link from "next/link";
+import { useOrganizationLocale } from "@/lib/locale";
 
 export function FornecedoresDashboard() {
+  const { language, t } = useOrganizationLocale();
   const [fornecedores, setFornecedores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -73,14 +75,14 @@ export function FornecedoresDashboard() {
   const filteredFornecedores = useMemo(() => {
     return fornecedores.filter((f) => {
       const matchesSearch =
-        f.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.contatos?.some((c: any) => c.valor.toLowerCase().includes(searchTerm.toLowerCase()));
+        f.nome.toLocaleLowerCase(language).includes(searchTerm.toLocaleLowerCase(language)) ||
+        f.contatos?.some((c: any) => c.valor.toLocaleLowerCase(language).includes(searchTerm.toLocaleLowerCase(language)));
       const matchesStatus = statusFilter === "todos" ||
         (statusFilter === "ativo" && f.ativo) ||
         (statusFilter === "inativo" && !f.ativo);
       return matchesSearch && matchesStatus;
     });
-  }, [fornecedores, searchTerm, statusFilter]);
+  }, [fornecedores, searchTerm, statusFilter, language]);
 
   const handleEdit = (fornecedor: any) => {
     setSelectedFornecedor(fornecedor);
@@ -88,9 +90,10 @@ export function FornecedoresDashboard() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este fornecedor?")) {
+    if (confirm(t("inventory.suppliers.deleteConfirm"))) {
       try {
         await apiClient.delete(`/inventory/fornecedores/${id}/`);
+        window.dispatchEvent(new CustomEvent("app-toast", { detail: { message: t("inventory.suppliers.deleted"), type: "success" } }));
         fetchFornecedores();
       } catch (err) {
         console.error("Erro ao excluir fornecedor:", err);
@@ -106,18 +109,18 @@ export function FornecedoresDashboard() {
       {/* Header */}
       <div className="mb-6">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-4">
-          <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">Estoque</Link>
+          <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">{t("inventory.home.title")}</Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Fornecedores</span>
+          <span className="fw-semibold text-foreground">{t("inventory.home.suppliers")}</span>
         </nav>
 
         <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4">
           <div>
             <h1 className="fw-black mb-1" style={{ fontSize: '2.25rem', letterSpacing: '-0.04em', color: "var(--foreground)" }}>
-              Fornecedores
+              {t("inventory.home.suppliers")}
             </h1>
             <p className="mb-0 text-muted-foreground fw-medium" style={{ paddingBottom: '16px' }}>
-              Cadastre e gerencie os parceiros e fornecedores da sua granja.
+              {t("inventory.suppliers.description")}
             </p>
           </div>
           <button
@@ -129,7 +132,7 @@ export function FornecedoresDashboard() {
             }}
           >
             <Plus size={20} strokeWidth={3} />
-            Novo fornecedor
+            {t("inventory.suppliers.new")}
           </button>
         </div>
       </div>
@@ -142,8 +145,8 @@ export function FornecedoresDashboard() {
               <Building2 size={22} className="text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-0">Total</p>
-              <h3 className="fw-black text-2xl mb-0" style={{ color: "var(--foreground)" }}>{fornecedores.length}</h3>
+              <p className="text-sm text-muted-foreground mb-0">{t("inventory.suppliers.total")}</p>
+              <h3 className="fw-black text-2xl mb-0" style={{ color: "var(--foreground)" }}>{fornecedores.length.toLocaleString(language)}</h3>
             </div>
           </div>
         </div>
@@ -153,8 +156,8 @@ export function FornecedoresDashboard() {
               <Check size={22} className="text-success" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-0">Ativos</p>
-              <h3 className="fw-black text-2xl mb-0 text-success">{totalAtivos}</h3>
+              <p className="text-sm text-muted-foreground mb-0">{t("inventory.suppliers.active")}</p>
+              <h3 className="fw-black text-2xl mb-0 text-success">{totalAtivos.toLocaleString(language)}</h3>
             </div>
           </div>
         </div>
@@ -164,8 +167,8 @@ export function FornecedoresDashboard() {
               <X size={22} className="text-warning" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-0">Inativos</p>
-              <h3 className="fw-black text-2xl mb-0 text-warning">{totalInativos}</h3>
+              <p className="text-sm text-muted-foreground mb-0">{t("inventory.suppliers.inactive")}</p>
+              <h3 className="fw-black text-2xl mb-0 text-warning">{totalInativos.toLocaleString(language)}</h3>
             </div>
           </div>
         </div>
@@ -181,7 +184,7 @@ export function FornecedoresDashboard() {
               </div>
               <input
                 type="text"
-                placeholder="Buscar por nome ou contato..."
+                placeholder={t("inventory.suppliers.search")}
                 className="w-100"
                 style={{ height: '48px', padding: '0 1rem 0 2.75rem', border: '1.5px solid var(--border)', borderRadius: '12px', outline: 'none' }}
                 onFocus={(e) => e.target.style.borderColor = 'oklch(0.48 0.14 145)'}
@@ -197,19 +200,19 @@ export function FornecedoresDashboard() {
               onClick={() => setStatusFilter("todos")}
               className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'todos' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
             >
-              Todos
+              {t("inventory.suppliers.all")}
             </button>
             <button
               onClick={() => setStatusFilter("ativo")}
               className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'ativo' ? 'bg-success text-white' : 'text-muted-foreground hover:text-foreground'}`}
             >
-              Ativos
+              {t("inventory.suppliers.active")}
             </button>
             <button
               onClick={() => setStatusFilter("inativo")}
               className={`btn px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'inativo' ? 'bg-warning text-white' : 'text-muted-foreground hover:text-foreground'}`}
             >
-              Inativos
+              {t("inventory.suppliers.inactive")}
             </button>
           </div>
         </div>
@@ -219,15 +222,15 @@ export function FornecedoresDashboard() {
       {loading ? (
         <div className="d-flex flex-column align-items-center justify-content-center py-5">
           <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />
-          <span className="text-sm font-medium text-muted-foreground">Carregando fornecedores...</span>
+          <span className="text-sm font-medium text-muted-foreground">{t("inventory.suppliers.loading")}</span>
         </div>
       ) : filteredFornecedores.length === 0 ? (
         <div className="dashboard-card p-5 text-center">
           <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-muted d-flex align-items-center justify-content-center">
             <Building2 size={36} className="text-muted-foreground" />
           </div>
-          <h3 className="text-lg fw-bold mb-2">Nenhum fornecedor encontrado</h3>
-          <p className="text-sm text-muted-foreground mb-4">Tente ajustar seus filtros ou cadastre um novo parceiro.</p>
+          <h3 className="text-lg fw-bold mb-2">{t("inventory.suppliers.empty")}</h3>
+          <p className="text-sm text-muted-foreground mb-4">{t("inventory.suppliers.emptyHelp")}</p>
           <button
             className="btn px-4 py-2 rounded-lg font-semibold"
             style={{ background: 'oklch(0.55 0.16 145)', color: 'white' }}
@@ -237,7 +240,7 @@ export function FornecedoresDashboard() {
             }}
           >
             <Plus size={18} className="me-2" />
-            Cadastrar fornecedor
+            {t("inventory.suppliers.register")}
           </button>
         </div>
       ) : (
@@ -246,12 +249,12 @@ export function FornecedoresDashboard() {
             <table className="table mb-0 align-middle">
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">FORNECEDOR</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CONTATO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">LOCALIDADE</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CONTRATO</th>
-                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">STATUS</th>
-                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.suppliers.supplier")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.suppliers.contact")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.suppliers.locality")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.suppliers.contract")}</th>
+                  <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.suppliers.status")}</th>
+                  <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground text-end">{t("inventory.suppliers.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -332,7 +335,7 @@ export function FornecedoresDashboard() {
                     <td className="px-3 py-3">
                       <Badge variant={fornecedor.ativo ? "success" : "warning"} className="text-xs">
                         {fornecedor.ativo ? <Check size={12} className="me-1" /> : <X size={12} className="me-1" />}
-                        {fornecedor.ativo ? "Ativo" : "Inativo"}
+                        {fornecedor.ativo ? t("inventory.suppliers.active") : t("inventory.suppliers.inactive")}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
@@ -340,16 +343,16 @@ export function FornecedoresDashboard() {
                         <button
                           onClick={() => handleEdit(fornecedor)}
                           className="btn btn-light d-flex align-items-center justify-content-center p-2 rounded-lg"
-                          aria-label="Editar fornecedor"
-                          title="Editar fornecedor"
+                          aria-label={t("inventory.suppliers.editAction")}
+                          title={t("inventory.suppliers.editAction")}
                         >
                           <Edit2 size={14} />
                         </button>
                         <button
                           onClick={() => handleDelete(fornecedor.id)}
                           className="btn d-flex align-items-center justify-content-center p-2 rounded-lg bg-danger/10 text-danger hover:bg-danger/20"
-                          aria-label="Excluir fornecedor"
-                          title="Excluir fornecedor"
+                          aria-label={t("inventory.suppliers.deleteAction")}
+                          title={t("inventory.suppliers.deleteAction")}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -367,7 +370,7 @@ export function FornecedoresDashboard() {
       {!loading && filteredFornecedores.length > 0 && (
         <div className="mt-4 text-center" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           <span className="text-sm fw-medium text-muted-foreground">
-            Mostrando {filteredFornecedores.length} de {fornecedores.length} fornecedores
+            {t("inventory.suppliers.showing", { shown: filteredFornecedores.length.toLocaleString(language), total: fornecedores.length.toLocaleString(language) })}
           </span>
         </div>
       )}

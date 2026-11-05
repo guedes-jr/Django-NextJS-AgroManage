@@ -15,6 +15,14 @@ The backend uses Django REST Framework and the frontend consumes the API through
 - Preserve authentication and organization/tenant authorization.
 - Do not expose internal fields or secrets.
 
+## Organization language
+
+`GET /organizations/me/` returns the organization's `language`. An organization
+administrator can update it with `PATCH /organizations/me/`; supported values
+are `pt-BR`, `en`, `es` and `pt-PT`, with `pt-BR` as the default. The value is
+stored on the organization and shared by its members; user-level preferences
+do not override it.
+
 ## Marketing campaign content
 
 Campaigns have a `category`: `system` (service communications and platform billing

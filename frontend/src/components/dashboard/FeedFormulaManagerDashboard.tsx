@@ -6,6 +6,7 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronRight, Plus, Search, Trash2, Save } from "lucide-react";
 import { apiClient } from "@/services/api";
+import { useOrganizationLocale } from "@/lib/locale";
 import "@/app/home/estoque/estoque.css";
 
 type FormulaIngredient = {
@@ -30,18 +31,18 @@ type InventoryItem = {
   nome: string;
 };
 
-const SPECIES_LABEL: Record<string, string> = {
-  suino: "Suínos",
-  ave: "Aves",
-  bovino: "Bovinos",
-};
-
 interface FeedFormulaManagerDashboardProps {
   species?: string;
 }
 
 export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashboardProps = {}) {
+  const { language, t } = useOrganizationLocale();
   const segment = useCattleSegment();
+  const speciesLabel: Record<string, string> = {
+    suino: t("inventory.feed.swine"),
+    ave: t("inventory.feed.birds"),
+    bovino: t("inventory.feed.beef"),
+  };
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -75,9 +76,9 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
   const filteredIndexes = useMemo(() => {
     return formulas
       .map((f, index) => ({ f, index }))
-      .filter(({ f }) => f.nome.toLowerCase().includes(search.toLowerCase()))
+      .filter(({ f }) => f.nome.toLocaleLowerCase(language).includes(search.toLocaleLowerCase(language)))
       .map(({ index }) => index);
-  }, [formulas, search]);
+  }, [formulas, search, language]);
 
   const updateIngredient = (idx: number, field: "percentual" | "item", value: any) => {
     setFormulas((prev) => {
@@ -134,7 +135,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
   const handleSave = async () => {
     if (!selected) return;
     if (totals.percentual !== 100) {
-      alert("A soma dos percentuais deve ser exatamente 100%.");
+      alert(t("inventory.formulas.percentValidation"));
       return;
     }
     
@@ -142,15 +143,15 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
       setSaving(true);
       if (selected.id) {
         await apiClient.put(`inventory/formulas/${selected.id}/`, selected);
-        alert("Fórmula atualizada com sucesso!");
+        alert(t("inventory.formulas.updated"));
       } else {
         const res = await apiClient.post("/inventory/formulas/", selected);
         setFormulas(prev => prev.map((f, i) => i === selectedIndex ? res.data : f));
-        alert("Fórmula criada com sucesso!");
+        alert(t("inventory.formulas.created"));
       }
       fetchData();
     } catch (err) {
-      alert("Erro ao salvar fórmula.");
+      alert(t("inventory.formulas.saveFailed"));
       console.error(err);
     } finally {
       setSaving(false);
@@ -164,15 +165,15 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
       return;
     }
     
-    if (confirm("Tem certeza que deseja excluir esta fórmula?")) {
+    if (confirm(t("inventory.formulas.deleteConfirm"))) {
       try {
         setSaving(true);
         await apiClient.delete(`inventory/formulas/${selected.id}/`);
-        alert("Fórmula excluída.");
+        alert(t("inventory.formulas.deleted"));
         fetchData();
         setSelectedIndex(0);
       } catch (err) {
-        alert("Erro ao excluir.");
+        alert(t("inventory.formulas.deleteFailed"));
         console.error(err);
       } finally {
         setSaving(false);
@@ -188,44 +189,44 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
   }, [selected]);
 
   if (loading && formulas.length === 0) {
-    return <div className="p-5 text-center text-muted-foreground">Carregando fórmulas...</div>;
+    return <div className="p-5 text-center text-muted-foreground">{t("inventory.formulas.loading")}</div>;
   }
 
   return (
     <div className="inventory-container pb-5">
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-3">
-          <Link href="/home" className="text-decoration-none text-muted-foreground hover-text-primary">Rebanho</Link>
+          <Link href="/home" className="text-decoration-none text-muted-foreground hover-text-primary">{t("inventory.formulas.breadcrumbHome")}</Link>
           {species && (
             <>
               <ChevronRight size={14} />
-              <span>{SPECIES_LABEL[species] ?? species}</span>
+              <span>{speciesLabel[species] ?? species}</span>
               <ChevronRight size={14} />
               <Link
                 href={species === "bovino" ? `${cattleHome(segment || "beef")}/racao` : `/home/seguimento/${species === "suino" ? "suinos" : "aves"}/racao`}
                 className="text-decoration-none text-muted-foreground hover-text-primary"
-              >Ração</Link>
+              >{t("inventory.formulas.feed")}</Link>
             </>
           )}
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Gerenciar Fórmulas</span>
+          <span className="fw-semibold text-foreground">{t("inventory.formulas.manage")}</span>
         </nav>
         <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>
-          Gerenciar Fórmula{species ? ` — ${SPECIES_LABEL[species] ?? species}` : ""}
+          {t("inventory.formulas.title")}{species ? ` — ${speciesLabel[species] ?? species}` : ""}
         </h1>
-        <p className="text-muted-foreground mb-0">Cadastre e edite as fórmulas das rações da sua granja.</p>
+        <p className="text-muted-foreground mb-0">{t("inventory.formulas.description")}</p>
       </div>
 
       <div className="row g-4">
         <div className="col-12 col-xl-3">
           <div className="dashboard-card p-3">
             <div className="d-flex align-items-center justify-content-between mb-2">
-              <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>Fórmulas cadastradas</h4>
-              <button onClick={handleCreateNew} className="btn btn-link text-success p-0 small fw-semibold"><Plus size={14} className="me-1" />Nova fórmula</button>
+              <h4 className="fw-bold mb-0" style={{ fontSize: "0.95rem" }}>{t("inventory.formulas.registered")}</h4>
+              <button onClick={handleCreateNew} className="btn btn-link text-success p-0 small fw-semibold"><Plus size={14} className="me-1" />{t("inventory.formulas.new")}</button>
             </div>
             <div className="position-relative mb-2">
               <Search size={14} className="position-absolute text-muted-foreground" style={{ left: 10, top: "50%", transform: "translateY(-50%)" }} />
-              <input className="form-control ps-5" placeholder="Buscar fórmula..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className="form-control ps-5" placeholder={t("inventory.formulas.search")} value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <div className="d-flex flex-column gap-2">
               {filteredIndexes.map((idx) => {
@@ -238,7 +239,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
                     className={`btn text-start p-3 rounded-3 border ${active ? "border-success bg-success-subtle" : "btn-light border-border"}`}
                   >
                     <div className="fw-semibold">{f.nome}</div>
-                    <div className="small text-muted-foreground">{f.ingredientes.length} ingredientes</div>
+                    <div className="small text-muted-foreground">{t("inventory.formulas.ingredients", { count: f.ingredientes.length.toLocaleString(language) })}</div>
                   </button>
                 );
               })}
@@ -251,37 +252,37 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
           <div className="dashboard-card p-4">
             <div className="row g-3 mb-3">
               <div className="col-12">
-                <label className="small fw-semibold mb-1 d-block">Nome da fórmula *</label>
+                <label className="small fw-semibold mb-1 d-block">{t("inventory.formulas.name")}</label>
                 <input className="form-control" value={selected.nome} onChange={(e) => setFormulas((prev) => prev.map((f, i) => i === selectedIndex ? { ...f, nome: e.target.value } : f))} />
               </div>
               <div className="col-12">
-                <label className="small fw-semibold mb-1 d-block">Descrição (opcional)</label>
+                <label className="small fw-semibold mb-1 d-block">{t("inventory.formulas.optionalDescription")}</label>
                 <textarea className="form-control" rows={2} value={selected.descricao} onChange={(e) => setFormulas((prev) => prev.map((f, i) => i === selectedIndex ? { ...f, descricao: e.target.value } : f))} />
               </div>
               <div className="col-12">
-                <label className="small fw-semibold mb-1 d-block">Item gerado no estoque (Produto Final)</label>
+                <label className="small fw-semibold mb-1 d-block">{t("inventory.formulas.generatedItem")}</label>
                 <select 
                   className="form-select" 
                   value={selected.item_final || ""} 
                   onChange={(e) => setFormulas((prev) => prev.map((f, i) => i === selectedIndex ? { ...f, item_final: Number(e.target.value) || null } : f))}
                 >
-                  <option value="">Selecione o item de estoque...</option>
+                  <option value="">{t("inventory.formulas.selectStockItem")}</option>
                   {inventoryItems.map(item => (
                     <option key={item.id} value={item.id}>{item.nome}</option>
                   ))}
                 </select>
-                <small className="text-muted-foreground mt-1 d-block">A produção desta fórmula dará entrada no saldo deste item.</small>
+                <small className="text-muted-foreground mt-1 d-block">{t("inventory.formulas.stockEntryHelp")}</small>
               </div>
             </div>
 
-            <h4 className="fw-bold mb-1" style={{ fontSize: "1rem" }}>Composição da fórmula</h4>
-            <p className="small text-muted-foreground mb-3">Informe os ingredientes e a porcentagem de cada um na fórmula. A soma deve ser 100%.</p>
+            <h4 className="fw-bold mb-1" style={{ fontSize: "1rem" }}>{t("inventory.formulas.composition")}</h4>
+            <p className="small text-muted-foreground mb-3">{t("inventory.formulas.compositionHelp")}</p>
             <div className="table-responsive">
               <table className="table mb-0">
                 <thead className="bg-muted/30">
                   <tr>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground">Ingrediente</th>
-                    <th className="px-3 py-3 border-0 small text-muted-foreground" style={{ width: 140 }}>% na fórmula</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground">{t("inventory.formulas.ingredient")}</th>
+                    <th className="px-3 py-3 border-0 small text-muted-foreground" style={{ width: 140 }}>{t("inventory.formulas.percent")}</th>
                     <th className="px-3 py-3 border-0 small text-muted-foreground" style={{ width: 60 }}></th>
                   </tr>
                 </thead>
@@ -294,7 +295,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
                           value={ing.item} 
                           onChange={(e) => updateIngredient(idx, "item", e.target.value)}
                         >
-                          <option value="">Selecione um ingrediente...</option>
+                          <option value="">{t("inventory.formulas.selectIngredient")}</option>
                           {inventoryItems.map(item => (
                             <option key={item.id} value={item.id}>{item.nome}</option>
                           ))}
@@ -314,30 +315,30 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
                   {selected.ingredientes.length === 0 && (
                     <tr>
                       <td colSpan={3} className="text-center py-4 text-muted-foreground small">
-                        Nenhum ingrediente adicionado.
+                        {t("inventory.formulas.noneAdded")}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <button onClick={addIngredient} className="btn btn-light w-100 mt-3 fw-semibold"><Plus size={14} className="me-1" />Adicionar ingrediente</button>
+            <button onClick={addIngredient} className="btn btn-light w-100 mt-3 fw-semibold"><Plus size={14} className="me-1" />{t("inventory.formulas.addIngredient")}</button>
 
             <div className={`mt-3 p-3 rounded-3 d-flex justify-content-between align-items-center ${totals.percentual === 100 ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-              <span className="fw-bold">Total da fórmula</span>
+              <span className="fw-bold">{t("inventory.formulas.total")}</span>
               <div className="d-flex gap-4 fw-black fs-5">
                 <span>{totals.percentual.toFixed(2).replace(".", ",")} %</span>
               </div>
             </div>
             {totals.percentual !== 100 && (
               <div className="small text-danger fw-semibold mt-2 text-end">
-                A soma dos percentuais deve ser exatamente 100%. (Falta { (100 - totals.percentual).toFixed(2) }%)
+                {t("inventory.formulas.percentError")} ({t("inventory.formulas.missingPercent", { percent: (100 - totals.percentual).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })})
               </div>
             )}
           </div>
           ) : (
             <div className="dashboard-card p-5 text-center text-muted-foreground d-flex align-items-center justify-content-center h-100">
-              Selecione ou crie uma fórmula para gerenciar.
+              {t("inventory.formulas.emptySelection")}
             </div>
           )}
         </div>
@@ -346,21 +347,21 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
           {selected && (
             <>
           <div className="dashboard-card p-4 mb-4">
-            <h4 className="fw-bold mb-3" style={{ fontSize: "1rem" }}>Informações da fórmula</h4>
-            <div className="small text-muted-foreground mb-1">Status</div>
-            <div className="fw-semibold text-success mb-3">{selected.ativa ? "Ativa" : "Inativa"}</div>
+            <h4 className="fw-bold mb-3" style={{ fontSize: "1rem" }}>{t("inventory.formulas.information")}</h4>
+            <div className="small text-muted-foreground mb-1">{t("inventory.formulas.status")}</div>
+            <div className="fw-semibold text-success mb-3">{selected.ativa ? t("inventory.formulas.active") : t("inventory.formulas.inactive")}</div>
             
             <div className="mt-4 p-3 rounded-3" style={{ background: "oklch(0.98 0.03 90)" }}>
-              <div className="small fw-bold mb-1" style={{ color: "oklch(0.55 0.14 85)" }}>Dica</div>
+              <div className="small fw-bold mb-1" style={{ color: "oklch(0.55 0.14 85)" }}>{t("inventory.formulas.tip")}</div>
               <div className="small text-muted-foreground">
-                Somente as fórmulas ativas e com 100% dos ingredientes validados ficarão disponíveis na produção de ração.
+                {t("inventory.formulas.activeOnly")}
               </div>
             </div>
           </div>
 
           <div className="dashboard-card p-4">
             <button onClick={handleDelete} disabled={saving} className="btn btn-light w-100 mb-2 text-danger fw-semibold">
-              Excluir fórmula
+              {t("inventory.formulas.delete")}
             </button>
             <button 
               onClick={handleSave} 
@@ -369,7 +370,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
               style={{ background: "var(--primary)", color: "white" }}
             >
               <Save size={16} />
-              {saving ? "Salvando..." : "Salvar alterações"}
+              {saving ? t("inventory.formulas.saving") : t("inventory.formulas.save")}
             </button>
           </div>
           </>
@@ -379,4 +380,3 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
     </div>
   );
 }
-

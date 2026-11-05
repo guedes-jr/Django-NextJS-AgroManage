@@ -5,6 +5,8 @@ export type DairyOverview = {
   non_lactating_cows: number; young_females: number; bulls: number;
   produced_liters: string; discarded_liters: string; usable_liters: string;
   milked_cows: number | null; average_per_milked_cow: string | null;
+  monthly_produced_liters: string; monthly_discarded_liters: string;
+  monthly_usable_liters: string; monthly_average_per_lactating_cow: string | null;
 };
 export const dairyService = {
   overview: async (date: string, farm: string, signal?: AbortSignal) =>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Save, Loader2, Bell, Package, Beef, Receipt, FileText, MessageCircle } from "lucide-react";
 import notificationService, { NotificationPreference } from "@/services/notificationService";
 import pushService from "@/services/pushNotificationService";
+import { useOrganizationLocale } from "@/lib/locale";
 
 interface Props {
   onSuccess?: (message: string) => void;
@@ -11,26 +12,27 @@ interface Props {
 }
 
 export default function NotificationPreferences({ onSuccess, onError }: Props) {
+  const { t } = useOrganizationLocale();
   const [preferences, setPreferences] = useState<NotificationPreference | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const fetchPreferences = async () => {
+  const fetchPreferences = useCallback(async () => {
     try {
       const data = await notificationService.getPreferences();
       setPreferences(data);
     } catch (err) {
       console.error("Error fetching preferences:", err);
-      onError?.("Erro ao carregar preferências");
+      onError?.(t("notificationPreferences.loadFailed"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [onError, t]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void fetchPreferences(), 0);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [fetchPreferences]);
 
   const handleSave = async () => {
     if (!preferences) return;
@@ -38,10 +40,10 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
     try {
       await notificationService.updatePreferences(preferences);
       if (preferences.push_notifications) await pushService.requestPermission();
-      onSuccess?.("Preferências salvas!");
+      onSuccess?.(t("notificationPreferences.saveSuccess"));
     } catch (err) {
       console.error("Error saving preferences:", err);
-      onError?.("Erro ao salvar preferências");
+      onError?.(t("notificationPreferences.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -60,8 +62,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
   return (
     <div className="notification-preferences">
       <div className="dashboard-card p-4 mb-4">
-        <label className="form-check"><input type="checkbox" className="form-check-input" checked={preferences.marketing_alerts} onChange={event => setPreferences({ ...preferences, marketing_alerts: event.target.checked })} />Desejo receber propagandas e comunicações promocionais</label>
-        <p className="small text-muted mt-2 mb-0">Opcional. Depende também das notificações gerais ativadas no perfil.</p>
+        <label className="form-check"><input type="checkbox" className="form-check-input" checked={preferences.marketing_alerts} onChange={event => setPreferences({ ...preferences, marketing_alerts: event.target.checked })} />{t("notificationPreferences.marketing")}</label>
+        <p className="small text-muted mt-2 mb-0">{t("notificationPreferences.marketingNote")}</p>
       </div>
       <div className="dashboard-card p-4 border-dashed mb-4">
         <div className="d-flex align-items-center gap-3 mb-3">
@@ -69,8 +71,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <Bell size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Notificações por Email</h4>
-            <p className="extra-small text-muted-foreground mb-0">Receba alertas e relatórios no seu email</p>
+            <h4 className="fw-bold small mb-1">{t("notificationPreferences.emailTitle")}</h4>
+            <p className="extra-small text-muted-foreground mb-0">{t("notificationPreferences.emailDescription")}</p>
           </div>
         </div>
         <div className="form-check form-switch">
@@ -82,12 +84,12 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             onChange={e => setPreferences({...preferences, email_notifications: e.target.checked})}
           />
           <label className="form-check-label small" htmlFor="email_notifications">
-            Ativar notificações por email
+            {t("notificationPreferences.emailEnable")}
           </label>
         </div>
         <div className="form-check form-switch mt-3 pt-3 border-top">
           <input className="form-check-input" type="checkbox" id="push_notifications" checked={preferences.push_notifications} onChange={e => setPreferences({...preferences, push_notifications:e.target.checked})}/>
-          <label className="form-check-label small" htmlFor="push_notifications"><strong>Notificações no navegador</strong><span className="d-block text-muted extra-small">Receba atualizações mesmo quando o sistema não estiver aberto.</span></label>
+          <label className="form-check-label small" htmlFor="push_notifications"><strong>{t("notificationPreferences.browserTitle")}</strong><span className="d-block text-muted extra-small">{t("notificationPreferences.browserDescription")}</span></label>
         </div>
       </div>
 
@@ -97,13 +99,13 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <MessageCircle size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Alertas operacionais pelo WhatsApp</h4>
-            <p className="extra-small text-muted-foreground mb-0">Receba avisos de manejo, vacinas, cobertura, parto, desmame, transferências e estoque no telefone cadastrado.</p>
+            <h4 className="fw-bold small mb-1">{t("notificationPreferences.whatsappTitle")}</h4>
+            <p className="extra-small text-muted-foreground mb-0">{t("notificationPreferences.whatsappDescription")}</p>
           </div>
         </div>
         <div className="form-check form-switch">
           <input className="form-check-input" type="checkbox" id="whatsapp_reproductive_alerts" checked={preferences.whatsapp_reproductive_alerts} onChange={e => setPreferences({...preferences, whatsapp_reproductive_alerts: e.target.checked})}/>
-          <label className="form-check-label small" htmlFor="whatsapp_reproductive_alerts">Ativar alertas operacionais por WhatsApp</label>
+          <label className="form-check-label small" htmlFor="whatsapp_reproductive_alerts">{t("notificationPreferences.whatsappEnable")}</label>
         </div>
       </div>
 
@@ -113,8 +115,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <Package size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Alertas de Estoque</h4>
-            <p className="extra-small text-muted-foreground mb-0">Notificações sobre estoque baixo e validade</p>
+            <h4 className="fw-bold small mb-1">{t("notificationPreferences.stockTitle")}</h4>
+            <p className="extra-small text-muted-foreground mb-0">{t("notificationPreferences.stockDescription")}</p>
           </div>
         </div>
         <div className="form-check form-switch">
@@ -126,7 +128,7 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             onChange={e => setPreferences({...preferences, stock_alerts: e.target.checked})}
           />
           <label className="form-check-label small" htmlFor="stock_alerts">
-            Ativar alertas de estoque
+            {t("notificationPreferences.stockEnable")}
           </label>
         </div>
       </div>
@@ -137,8 +139,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <Beef size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Alertas de Animais</h4>
-            <p className="extra-small text-muted-foreground mb-0">Notificações sobre lotes, vaccinações e saúde</p>
+            <h4 className="fw-bold small mb-1">{t("notificationPreferences.animalTitle")}</h4>
+            <p className="extra-small text-muted-foreground mb-0">{t("notificationPreferences.animalDescription")}</p>
           </div>
         </div>
         <div className="form-check form-switch">
@@ -150,7 +152,7 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             onChange={e => setPreferences({...preferences, animal_alerts: e.target.checked})}
           />
           <label className="form-check-label small" htmlFor="animal_alerts">
-            Ativar alertas de animais
+            {t("notificationPreferences.animalEnable")}
           </label>
         </div>
       </div>
@@ -161,8 +163,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <Receipt size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Alertas Financeiros</h4>
-            <p className="extra-small text-muted-foreground mb-0">Notificações sobre faturas e pagamentos</p>
+            <h4 className="fw-bold small mb-1">{t("notificationPreferences.financeTitle")}</h4>
+            <p className="extra-small text-muted-foreground mb-0">{t("notificationPreferences.financeDescription")}</p>
           </div>
         </div>
         <div className="form-check form-switch">
@@ -174,7 +176,7 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             onChange={e => setPreferences({...preferences, financial_alerts: e.target.checked})}
           />
           <label className="form-check-label small" htmlFor="financial_alerts">
-            Ativar alertas financeiros
+            {t("notificationPreferences.financeEnable")}
           </label>
         </div>
       </div>
@@ -185,8 +187,8 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             <FileText size={20} />
           </div>
           <div>
-            <h4 className="fw-bold small mb-1">Alertas de Relatórios</h4>
-            <p className="extra-small text-muted-foreground mb-0">Notificações sobre novos relatórios disponíveis</p>
+            <h4 className="fw-bold small mb-1">{t("notificationPreferences.reportTitle")}</h4>
+            <p className="extra-small text-muted-foreground mb-0">{t("notificationPreferences.reportDescription")}</p>
           </div>
         </div>
         <div className="form-check form-switch">
@@ -198,27 +200,27 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
             onChange={e => setPreferences({...preferences, report_alerts: e.target.checked})}
           />
           <label className="form-check-label small" htmlFor="report_alerts">
-            Ativar alertas de relatórios
+            {t("notificationPreferences.reportEnable")}
           </label>
         </div>
       </div>
 
       <div className="dashboard-card p-4 border-dashed mb-4">
         <div className="mb-3">
-          <label className="form-label small fw-bold">Frequência de Notificações</label>
+          <label className="form-label small fw-bold">{t("notificationPreferences.frequency")}</label>
           <select
             className="form-control-custom"
             value={preferences.frequency}
             onChange={e => setPreferences({...preferences, frequency: e.target.value})}
           >
-            <option value="instant">Instantâneo</option>
-            <option value="daily">Resumo Diário</option>
-            <option value="weekly">Resumo Semanal</option>
+            <option value="instant">{t("notificationPreferences.instant")}</option>
+            <option value="daily">{t("notificationPreferences.daily")}</option>
+            <option value="weekly">{t("notificationPreferences.weekly")}</option>
           </select>
           <p className="extra-small text-muted-foreground mt-1">
-            {preferences.frequency === "instant" && "Receba notificações imediatamente"}
-            {preferences.frequency === "daily" && "Receba um resumo diário das notificações"}
-            {preferences.frequency === "weekly" && "Receba um resumo semanal das notificações"}
+            {preferences.frequency === "instant" && t("notificationPreferences.instantDescription")}
+            {preferences.frequency === "daily" && t("notificationPreferences.dailyDescription")}
+            {preferences.frequency === "weekly" && t("notificationPreferences.weeklyDescription")}
           </p>
         </div>
       </div>
@@ -230,7 +232,7 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
           className="btn-primary-elegant px-4 py-2 d-flex align-items-center gap-2"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-          Salvar Preferências
+          {t("notificationPreferences.save")}
         </button>
       </div>
     </div>

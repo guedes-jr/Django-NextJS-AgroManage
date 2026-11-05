@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Loader2 } from "lucide-react";
+import { useOrganizationLocale } from "@/lib/locale";
 import "./clinico.css";
 
 export interface ModalField {
@@ -36,6 +37,7 @@ export function ClinicalModal({
   confirmLabel = "Salvar",
   onConfirm,
 }: ClinicalModalProps) {
+  const { t } = useOrganizationLocale();
   const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
 
@@ -119,7 +121,7 @@ export function ClinicalModal({
                       value={formValues[field.name] ?? ""}
                       onChange={(e) => handleFieldChange(field.name, e.target.value)}
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">{t("clinical.select")}</option>
                       {field.options?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
@@ -155,11 +157,11 @@ export function ClinicalModal({
 
           <div className="clinico-modal-footer">
             <button type="button" className="clinico-btn-secondary" onClick={onClose} disabled={loading}>
-              Cancelar
+              {t("clinical.cancel")}
             </button>
             <button type="submit" className="clinico-btn-primary" disabled={loading}>
               {loading ? <Loader2 size={16} className="spinner" /> : null}
-              {loading ? "Salvando..." : confirmLabel}
+              {loading ? t("clinical.saving") : confirmLabel}
             </button>
           </div>
         </form>

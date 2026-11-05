@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/Badge";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { StockAdjustmentModal } from "@/components/dashboard/StockAdjustmentModal";
 import { QuickMovementModal } from "@/components/dashboard/QuickMovementModal";
+import { useOrganizationLocale } from "@/lib/locale";
 import "@/app/home/estoque/estoque.css";
 
 type InventoryItem = {
@@ -78,10 +79,6 @@ function numericValue(value: string | number | null | undefined) {
   const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function money(value: string | number | null | undefined) {
-  return numericValue(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function getDestinationBadgeConfig(destination?: string | null) {
@@ -180,16 +177,17 @@ function DestinationBadge({ destination }: { destination?: string | null }) {
   );
 }
 
-const TIPO_COLORS: Record<string, { color: string; label: string }> = {
-  compra: { color: "text-emerald-600", label: "Compra" },
-  entrada: { color: "text-emerald-600", label: "Entrada" },
-  venda: { color: "text-blue-600", label: "Venda" },
-  consumo: { color: "text-rose-600", label: "Consumo" },
-  perda: { color: "text-orange-600", label: "Perda" },
-  ajuste: { color: "text-slate-600", label: "Ajuste" },
+const TIPO_COLORS: Record<string, { color: string; key: string }> = {
+  compra: { color: "text-emerald-600", key: "inventory.movements.purchase" },
+  entrada: { color: "text-emerald-600", key: "inventory.movements.entry" },
+  venda: { color: "text-blue-600", key: "inventory.movements.sale" },
+  consumo: { color: "text-rose-600", key: "inventory.movements.consumption" },
+  perda: { color: "text-orange-600", key: "inventory.movements.loss" },
+  ajuste: { color: "text-slate-600", key: "inventory.movements.adjustment" },
 };
 
 export function MovimentacoesDashboard() {
+  const { language, t } = useOrganizationLocale();
   const [view, setView] = useState<"stock" | "history">("stock");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<Movimentacao[]>([]);
@@ -251,13 +249,13 @@ export function MovimentacoesDashboard() {
 
   const filteredStock = useMemo(() => {
     return items.filter(i => 
-      i.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.categoria_display.toLowerCase().includes(searchTerm.toLowerCase())
+      i.nome.toLocaleLowerCase(language).includes(searchTerm.toLocaleLowerCase(language)) ||
+      i.categoria_display.toLocaleLowerCase(language).includes(searchTerm.toLocaleLowerCase(language))
     );
-  }, [items, searchTerm]);
+  }, [items, searchTerm, language]);
 
   const handleDeleteMovement = async (id: string) => {
-    if (!window.confirm("Deseja realmente excluir este registro? O estoque será revertido.")) return;
+    if (!window.confirm(t("inventory.movements.deleteConfirm"))) return;
     try {
       await apiClient.delete(`/inventory/movimentacoes/${id}/`);
       fetchHistory(page);
@@ -300,7 +298,7 @@ export function MovimentacoesDashboard() {
     if (selectedMovementIds.length === 0) return;
 
     const confirmed = window.confirm(
-      `Deseja realmente excluir ${selectedMovementIds.length} movimentação(ões)? O estoque será revertido.`
+      t("inventory.movements.bulkDeleteConfirm", { count: selectedMovementIds.length.toLocaleString(language) })
     );
 
     if (!confirmed) return;
@@ -323,36 +321,36 @@ export function MovimentacoesDashboard() {
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-4">
           <Link href="/home/estoque/resumo" className="text-decoration-none text-muted-foreground hover-text-primary">
-            Estoque
+            {t("inventory.home.title")}
           </Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Movimentações</span>
+          <span className="fw-semibold text-foreground">{t("inventory.home.movements")}</span>
         </nav>
 
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 mb-4">
           <div>
             <h1 className="fw-black mb-1" style={{ fontSize: "2.25rem", letterSpacing: "-0.04em", color: "var(--foreground)" }}>
-              Movimentações de Estoque
+              {t("inventory.movements.title")}
             </h1>
             <p className="mb-0 text-muted-foreground fw-medium">
-              Gerencie entradas, saídas e acompanhe o histórico completo de movimentações.
+              {t("inventory.movements.description")}
             </p>
           </div>
           <div className="d-flex flex-wrap gap-3">
-            {canAdjust && <button className="btn btn-outline-primary" onClick={() => { fetchStock(); setAdjustmentOpen(true); }}>Ajuste de inventário</button>}
+            {canAdjust && <button className="btn btn-outline-primary" onClick={() => { fetchStock(); setAdjustmentOpen(true); }}>{t("inventory.movements.stockAdjustment")}</button>}
             <button 
               onClick={() => setQuickModal({ open: true, type: "in" })}
               className="btn btn-primary d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm transition-all hover-scale"
               style={{ background: "oklch(0.65 0.14 145)", border: "none" }}
             >
-              <Plus size={20} strokeWidth={3} /> Nova Entrada
+              <Plus size={20} strokeWidth={3} /> {t("inventory.movements.newEntry")}
             </button>
             <button 
               onClick={() => setQuickModal({ open: true, type: "out" })}
               className="btn btn-danger d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm transition-all hover-scale"
               style={{ background: "oklch(0.65 0.14 15)", border: "none" }}
             >
-              <Plus size={20} strokeWidth={3} /> Nova Saída
+              <Plus size={20} strokeWidth={3} /> {t("inventory.movements.newExit")}
             </button>
           </div>
         </div>
@@ -371,7 +369,7 @@ export function MovimentacoesDashboard() {
             style={{ fontSize: '0.95rem', marginBottom: '-1px' }}
           >
             <Layers size={20} className={view === "stock" ? "text-success" : "text-muted"} />
-            Operações
+            {t("inventory.movements.operations")}
           </button>
         </li>
         <li className="nav-item">
@@ -385,7 +383,7 @@ export function MovimentacoesDashboard() {
             style={{ fontSize: '0.95rem', marginBottom: '-1px' }}
           >
             <HistoryIcon size={20} className={view === "history" ? "text-success" : "text-muted"} />
-            Histórico
+            {t("inventory.movements.history")}
           </button>
         </li>
       </ul>
@@ -400,7 +398,7 @@ export function MovimentacoesDashboard() {
                 type="text"
                 className="form-control ps-5 border-0 bg-muted/30 fw-medium"
                 style={{ height: '48px', borderRadius: '12px' }}
-                placeholder={view === "stock" ? "Buscar por produto ou categoria..." : "Buscar no histórico..."}
+                placeholder={view === "stock" ? t("inventory.movements.searchStock") : t("inventory.movements.searchHistory")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -410,7 +408,7 @@ export function MovimentacoesDashboard() {
             <div className="col-12 col-lg-6 d-flex justify-content-lg-end">
               <div className="d-flex gap-2">
                 <Badge className="bg-rose-50 text-rose-600 border-rose-100 px-3 py-2 rounded-lg fw-bold">
-                  {items.filter(i => i.estoque_baixo).length} Itens com estoque baixo
+                  {items.filter(i => i.estoque_baixo).length.toLocaleString(language)} {t("inventory.movements.lowStockItems")}
                 </Badge>
               </div>
             </div>
@@ -422,7 +420,7 @@ export function MovimentacoesDashboard() {
                 className="btn btn-danger d-flex align-items-center gap-2 rounded-xl px-4 py-3 fw-bold shadow-sm"
               >
                 <Trash2 size={18} />
-                Excluir selecionadas ({selectedMovementIds.length})
+                {t("inventory.movements.deleteSelected", { count: selectedMovementIds.length.toLocaleString(language) })}
               </button>
             </div>
           )}
@@ -442,7 +440,7 @@ export function MovimentacoesDashboard() {
             {loading ? (
               <div className="p-5 text-center">
                 <div className="spinner-border text-primary mb-3" role="status" />
-                <div className="text-muted-foreground fw-medium">Carregando dados...</div>
+                <div className="text-muted-foreground fw-medium">{t("inventory.movements.loading")}</div>
               </div>
             ) : view === "stock" ? (
               /* STOCK VIEW - Action Oriented */
@@ -450,21 +448,21 @@ export function MovimentacoesDashboard() {
                 <table className="table mb-0 align-middle table-hover">
                   <thead className="bg-muted/30">
                     <tr>
-                      <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">CATEGORIA</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">SALDO ATUAL</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-center">AÇÕES RÁPIDAS</th>
+                      <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.products.product").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.category").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.movements.currentBalance").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-center">{t("inventory.movements.quickActions").toLocaleUpperCase(language)}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredStock.length === 0 ? (
-                      <tr><td colSpan={4} className="text-center py-5 text-muted-foreground">Nenhum produto encontrado.</td></tr>
+                      <tr><td colSpan={4} className="text-center py-5 text-muted-foreground">{t("inventory.movements.noProducts")}</td></tr>
                     ) : (
                       filteredStock.map(item => (
                         <tr key={item.id} className="border-bottom border-border/50">
                           <td className="px-4 py-3">
                             <div className="fw-bold text-foreground">{item.nome}</div>
-                            <div className="small text-muted-foreground">Mínimo: {item.estoque_minimo} {item.unidade_display}</div>
+                            <div className="small text-muted-foreground">{t("inventory.products.minimum")}: {numericValue(item.estoque_minimo).toLocaleString(language)} {item.unidade_display}</div>
                           </td>
                           <td className="px-3 py-3">
                             <Badge className="bg-muted text-muted-foreground border-0 fw-bold">{item.categoria_display}</Badge>
@@ -475,7 +473,7 @@ export function MovimentacoesDashboard() {
                             </div>
                             {item.estoque_baixo && (
                               <div className="d-flex align-items-center gap-1 text-rose-500 small fw-bold">
-                                <AlertTriangle size={12} /> Estoque Baixo
+                                <AlertTriangle size={12} /> {t("inventory.products.lowStock")}
                               </div>
                             )}
                           </td>
@@ -486,7 +484,7 @@ export function MovimentacoesDashboard() {
                                 className="btn btn-sm d-flex align-items-center gap-2 px-3 py-2 rounded-xl fw-bold border-0 transition-all hover-scale"
                                 style={{ background: "oklch(0.65 0.14 145 / 0.1)", color: "oklch(0.65 0.14 145)" }}
                               >
-                                <ArrowUpRight size={18} /> Entrada
+                                <ArrowUpRight size={18} /> {t("inventory.movements.entry")}
                               </button>
                               <button 
                                 onClick={() => setQuickModal({ open: true, item, type: "out" })}
@@ -494,7 +492,7 @@ export function MovimentacoesDashboard() {
                                 style={{ background: "oklch(0.65 0.14 15 / 0.1)", color: "oklch(0.65 0.14 15)" }}
                                 disabled={Number(item.estoque_atual) <= 0}
                               >
-                                <ArrowDownRight size={18} /> Saída
+                                <ArrowDownRight size={18} /> {t("inventory.movements.exit")}
                               </button>
                             </div>
                           </td>
@@ -518,18 +516,18 @@ export function MovimentacoesDashboard() {
                           onChange={toggleAllCurrentPageMovements}
                         />
                       </th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">VALOR</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DESTINO</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">DATA</th>
-                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">AÇÕES</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.movements.type").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.products.product").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.movements.quantity").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("stock.unitValue").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.movements.destination").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground">{t("inventory.movements.date").toLocaleUpperCase(language)}</th>
+                      <th className="px-3 py-3 border-0 small fw-bold text-muted-foreground text-end">{t("inventory.products.actions").toLocaleUpperCase(language)}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {movements.length === 0 ? (
-                      <tr><td colSpan={8} className="text-center py-5 text-muted-foreground">Nenhum registro encontrado.</td></tr>
+                      <tr><td colSpan={8} className="text-center py-5 text-muted-foreground">{t("inventory.movements.noRecords")}</td></tr>
                     ) : (
                       movements.map(m => (
                         <tr key={m.id} className="border-bottom border-border/50">
@@ -548,7 +546,7 @@ export function MovimentacoesDashboard() {
                                 {m.tipo === 'compra' || m.tipo === 'entrada' ? <Plus size={14} /> : <TrendingDown size={14} />}
                               </div>
                               <span className={`small fw-bold ${TIPO_COLORS[m.tipo]?.color || ""}`}>
-                                {m.tipo_display}
+                                {TIPO_COLORS[m.tipo] ? t(TIPO_COLORS[m.tipo].key as Parameters<typeof t>[0]) : m.tipo_display}
                               </span>
                             </div>
                           </td>
@@ -567,15 +565,15 @@ export function MovimentacoesDashboard() {
                                     border: "1px solid oklch(0.9 0.05 145)"
                                   }}
                                 >
-                                  Ração - {new Date(m.data_movimentacao).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' })}
+                                  {t("inventory.movements.feed")} - {new Date(m.data_movimentacao).toLocaleDateString(language, { day: '2-digit', month: '2-digit' })}
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-3 fw-black">{parseFloat(m.quantidade).toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-3 fw-black">{numericValue(m.quantidade).toLocaleString(language)}</td>
                           <td className="px-3 py-3">
-                            <div className="fw-bold text-foreground">{money(m.custo_total)}</div>
-                            <div className="small text-muted-foreground">{money(m.custo_unitario_movimento)} / un.</div>
+                            <div className="fw-bold text-foreground">{numericValue(m.custo_total).toLocaleString(language, { style: "currency", currency: "BRL" })}</div>
+                            <div className="small text-muted-foreground">{numericValue(m.custo_unitario_movimento).toLocaleString(language, { style: "currency", currency: "BRL" })} / {t("inventory.movements.unitShort")}</div>
                           </td>
                           <td className="px-3 py-3">
                             {OUT_MOVEMENT_TYPES.has(m.tipo) ? <DestinationBadge destination={m.destino} /> : <span className="small text-muted-foreground">-</span>}
@@ -583,7 +581,7 @@ export function MovimentacoesDashboard() {
                           <td className="px-3 py-3 text-muted-foreground small">
                             <div className="d-flex align-items-center gap-1">
                               <Clock size={12} />
-                              {new Date(m.data_movimentacao).toLocaleString("pt-BR")}
+                              {new Date(m.data_movimentacao).toLocaleString(language)}
                             </div>
                           </td>
                           <td className="px-3 py-3 text-end">
@@ -608,7 +606,7 @@ export function MovimentacoesDashboard() {
       {/* Pagination for History */}
       {view === "history" && totalPages > 1 && (
         <div className="d-flex align-items-center justify-content-between mt-4">
-          <div className="text-muted-foreground small fw-medium">Mostrando {movements.length} de {totalCount} registros</div>
+          <div className="text-muted-foreground small fw-medium">{t("inventory.movements.showing", { shown: movements.length.toLocaleString(language), total: totalCount.toLocaleString(language) })}</div>
           <div className="d-flex gap-2">
             <button className="btn btn-light rounded-xl px-3 border border-border shadow-sm" disabled={page <= 1} onClick={() => fetchHistory(page - 1)}>
               <ChevronLeft size={18} />

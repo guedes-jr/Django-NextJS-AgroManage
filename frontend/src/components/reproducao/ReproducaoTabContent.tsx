@@ -10,6 +10,7 @@ import {
   AlertListCard,
   AiSuggestionsCard,
 } from "@/components/ui";
+import { useOrganizationLocale } from "@/lib/locale";
 
 
 export type BadgeVariant = "green" | "blue" | "amber" | "red" | "purple" | "gray" | "teal";
@@ -75,12 +76,12 @@ export function ReproducaoTabContent({
   rows,
   statusKey,
   statusMap = {},
-  searchPlaceholder = "Buscar por lote, animal, data...",
+  searchPlaceholder,
   filterKey,
   filterOptions = [],
   actions = [],
   emptyIcon = "🐾",
-  emptyText = "Nenhum registro encontrado",
+  emptyText,
   kpis,
   tabActions,
   tabAlerts,
@@ -96,6 +97,7 @@ export function ReproducaoTabContent({
   filterValue,
   onFilterChange,
 }: ReproducaoTabContentProps) {
+  const { t } = useOrganizationLocale();
   const [localSearch, setLocalSearch] = useState("");
   const [localFilter, setLocalFilter] = useState("all");
   const search = searchValue ?? localSearch;
@@ -122,7 +124,7 @@ export function ReproducaoTabContent({
   const dtFilters = filterOptions.length > 0 && filterKey
     ? [{
         key: filterKey,
-        label: "Todos os status",
+        label: t("reproduction.allStatuses"),
         value: filterVal,
         options: filterOptions,
         onChange: setFilterVal,
@@ -188,15 +190,15 @@ export function ReproducaoTabContent({
         statusMap={statusMapForDataTable}
         actions={actions}
         emptyIcon={emptyIcon}
-        emptyText={emptyText}
+        emptyText={emptyText ?? t("reproduction.noRecords")}
         selectable={selectable}
         rowKey={rowKey}
         batchActions={batchActions}
         onSelectionChange={onSelectionChange}
-        title="Histórico de Registros"
+        title={t("reproduction.recordsHistory")}
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder={searchPlaceholder}
+        searchPlaceholder={searchPlaceholder ?? t("reproduction.searchPlaceholder")}
         filters={dtFilters}
         onRowClick={onRowClick}
       />

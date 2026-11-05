@@ -26,6 +26,7 @@ import type { LucideIcon } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 type Plantation = {
   id: string;
@@ -81,6 +82,11 @@ const moduleConfig: Record<ReportType, { label: string; description: string; ico
 };
 
 const orderedModules = Object.keys(moduleConfig) as ReportType[];
+const getModuleLabels = (type: ReportType, t: (key: TranslationKey) => string) => ({
+  label: t(`plantations.history.module.${type}` as TranslationKey),
+  description: t(`plantations.history.moduleDescription.${type}` as TranslationKey),
+  unit: t(`plantations.history.unit.${moduleConfig[type].unit === "eventos" ? "events" : moduleConfig[type].unit === "registros" ? "records" : "files"}` as TranslationKey),
+});
 
 const extractArray = <T,>(data: ApiList<T> | unknown): T[] => {
   if (Array.isArray(data)) return data as T[];
@@ -107,12 +113,11 @@ const parseNumber = (value?: string | number | null) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatDate = (value?: string | null) => {
+const formatDate = (value: string | null | undefined, language: string) => {
   if (!value) return "-";
   const dateOnly = value.includes("T") ? value.split("T")[0] : value;
-  const [year, month, day] = dateOnly.split("-");
-  if (!year || !month || !day) return value;
-  return `${day}/${month}/${year}`;
+  const date = new Date(`${dateOnly}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language);
 };
 
 const isoDate = (value?: string | null) => {
@@ -120,19 +125,19 @@ const isoDate = (value?: string | null) => {
   return value.includes("T") ? value.split("T")[0] : value;
 };
 
-const formatAmount = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const formatAmount = (value: number, language: string) =>
+  value.toLocaleString(language, { style: "currency", currency: "BRL" });
 
-const formatNumber = (value: number, decimals = 2) =>
-  value.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+const formatNumber = (value: number, language: string, decimals = 2) =>
+  value.toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
 const compact = (values: Array<string | null | undefined | false>) =>
   values.filter(Boolean) as string[];
 
-const numberText = (value?: string | number | null, suffix = "") => {
+const numberText = (value: string | number | null | undefined, language: string, suffix = "") => {
   const parsed = parseNumber(value);
   if (!parsed) return "";
-  return `${formatNumber(parsed, parsed % 1 === 0 ? 0 : 2)}${suffix}`;
+  return `${formatNumber(parsed, language, parsed % 1 === 0 ? 0 : 2)}${suffix}`;
 };
 
 const fileNameText = (value: string) =>
@@ -142,7 +147,7 @@ const normalizeOperationLabel = (value?: string | null) => {
   const trimmed = value?.trim();
   if (!trimmed) return "-";
   const normalized = trimmed.toLowerCase();
-  if (normalized === "aracao" || normalized === "aração") return "Colheita";
+  if (normalized === "aracao" || normalized === "aração") return "Aração";
   return trimmed;
 };
 
@@ -157,7 +162,7 @@ function buildEvents(plantation: Plantation, sources: {
   recommendations: Recommendation[];
   laborRecords: LaborRecord[];
   harvests: Harvest[];
-}): ReportEvent[] {
+}, language: string): ReportEvent[] {
   const events: ReportEvent[] = [];
 
   sources.landPreparations.forEach((item) => {
@@ -171,8 +176,8 @@ function buildEvents(plantation: Plantation, sources: {
       details: compact([
         item.tractor_name ? `Trator: ${item.tractor_name}` : undefined,
         item.operator ? `Operador: ${item.operator}` : undefined,
-        item.hours_worked ? `Horas: ${numberText(item.hours_worked, " h")}` : undefined,
-        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+        item.hours_worked ? `Horas: ${numberText(item.hours_worked, language, " h")}` : undefined,
+        amount ? `Custo: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
       notes: item.notes,
@@ -188,9 +193,9 @@ function buildEvents(plantation: Plantation, sources: {
       title: item.item_name || "Semente / plantio",
       subtitle: "Registro de plantio",
       details: compact([
-        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.quantity ? `Quantidade: ${numberText(item.quantity, language, item.unit ? ` ${item.unit}` : "")}` : undefined,
         item.operator ? `Operador: ${item.operator}` : undefined,
-        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+        amount ? `Custo: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
       notes: item.notes,
@@ -206,10 +211,10 @@ function buildEvents(plantation: Plantation, sources: {
       title: item.item_name || "Adubação",
       subtitle: item.application_method_display || "Aplicação nutricional",
       details: compact([
-        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
-        item.dose_per_ha ? `Dose: ${numberText(item.dose_per_ha, "/ha")}` : undefined,
+        item.quantity ? `Quantidade: ${numberText(item.quantity, language, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.dose_per_ha ? `Dose: ${numberText(item.dose_per_ha, language, "/ha")}` : undefined,
         item.operator ? `Operador: ${item.operator}` : undefined,
-        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+        amount ? `Custo: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
       notes: item.notes,
@@ -226,9 +231,9 @@ function buildEvents(plantation: Plantation, sources: {
       subtitle: item.pesticide_type_display || "Foliar / defensivo",
       details: compact([
         item.target ? `Alvo: ${item.target}` : undefined,
-        item.quantity ? `Quantidade: ${numberText(item.quantity, item.unit ? ` ${item.unit}` : "")}` : undefined,
+        item.quantity ? `Quantidade: ${numberText(item.quantity, language, item.unit ? ` ${item.unit}` : "")}` : undefined,
         item.operator ? `Operador: ${item.operator}` : undefined,
-        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+        amount ? `Custo: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
       notes: item.notes,
@@ -243,13 +248,13 @@ function buildEvents(plantation: Plantation, sources: {
       type: "irrigacao",
       date,
       title: item.irrigation_system_display || "Irrigação",
-      subtitle: item.end_date && item.end_date !== date ? `${formatDate(date)} a ${formatDate(item.end_date)}` : "Manejo de irrigação",
+      subtitle: item.end_date && item.end_date !== date ? `${formatDate(date, language)} a ${formatDate(item.end_date, language)}` : "Manejo de irrigação",
       details: compact([
         item.pump_name ? `Bomba: ${item.pump_name}` : undefined,
         item.operating_days ? `Dias: ${item.operating_days}` : undefined,
-        item.hours ? `Horas: ${numberText(item.hours, " h")}` : undefined,
-        item.liters_used ? `Água: ${numberText(item.liters_used, " L")}` : undefined,
-        amount ? `Energia: ${formatAmount(amount)}` : undefined,
+        item.hours ? `Horas: ${numberText(item.hours, language, " h")}` : undefined,
+        item.liters_used ? `Água: ${numberText(item.liters_used, language, " L")}` : undefined,
+        amount ? `Energia: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
       notes: item.notes,
@@ -266,7 +271,7 @@ function buildEvents(plantation: Plantation, sources: {
       details: compact([
         item.priority_display ? `Prioridade: ${item.priority_display}` : undefined,
         item.status_display ? `Status: ${item.status_display}` : undefined,
-        item.suggested_application_date ? `Aplicação sugerida: ${formatDate(item.suggested_application_date)}` : undefined,
+        item.suggested_application_date ? `Aplicação sugerida: ${formatDate(item.suggested_application_date, language)}` : undefined,
       ]),
       notes: item.notes,
     });
@@ -282,8 +287,8 @@ function buildEvents(plantation: Plantation, sources: {
       title: item.activity_type_display || "Atividade de mão de obra",
       subtitle: item.worker_name || "Trabalhador",
       details: compact([
-        item.daily_quantity ? `Diárias: ${numberText(item.daily_quantity)}` : undefined,
-        amount ? `Custo: ${formatAmount(amount)}` : undefined,
+        item.daily_quantity ? `Diárias: ${numberText(item.daily_quantity, language)}` : undefined,
+        amount ? `Custo: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
       notes: item.notes,
@@ -300,9 +305,9 @@ function buildEvents(plantation: Plantation, sources: {
       title: item.harvest_type_display || "Colheita registrada",
       subtitle: item.destination_display || "Destino da produção",
       details: compact([
-        item.yield_kg ? `Produção: ${numberText(item.yield_kg, " kg")}` : undefined,
+        item.yield_kg ? `Produção: ${numberText(item.yield_kg, language, " kg")}` : undefined,
         item.buyer_name_display || item.buyer_name ? `Comprador: ${item.buyer_name_display || item.buyer_name}` : undefined,
-        revenue ? `Receita: ${formatAmount(revenue)}` : undefined,
+        revenue ? `Receita: ${formatAmount(revenue, language)}` : undefined,
       ]),
       amount: revenue,
       quantityKg,
@@ -327,6 +332,7 @@ function buildEvents(plantation: Plantation, sources: {
 }
 
 export default function RelatorioPlantacaoPage() {
+  const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -372,7 +378,7 @@ export default function RelatorioPlantacaoPage() {
           recommendations: extractArray<Recommendation>(recommendationRes.data),
           laborRecords: extractArray<LaborRecord>(laborRes.data),
           harvests: extractArray<Harvest>(harvestRes.data),
-        });
+        }, language);
 
         const eventDates = reportEvents.map((event) => isoDate(event.date)).filter(Boolean);
         setPlantation(currentPlantation);
@@ -393,7 +399,7 @@ export default function RelatorioPlantacaoPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, language]);
 
   const periodEvents = useMemo(() => {
     const start = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
@@ -472,7 +478,7 @@ export default function RelatorioPlantacaoPage() {
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.text(title, margin, 18);
-      doc.text(`Gerado em ${new Date().toLocaleDateString("pt-BR")}`, pageWidth - margin, 15, { align: "right" });
+      doc.text(`Gerado em ${new Date().toLocaleDateString(language)}`, pageWidth - margin, 15, { align: "right" });
       doc.setTextColor(...dark);
       y = 33;
     };
@@ -506,7 +512,7 @@ export default function RelatorioPlantacaoPage() {
         plantation?.field_name || "-",
         plantation?.crop_name || title,
         plantation?.status_display || "-",
-        startDate && endDate ? `${formatDate(startDate)} a ${formatDate(endDate)}` : "-",
+        startDate && endDate ? `${formatDate(startDate, language)} a ${formatDate(endDate, language)}` : "-",
       ]],
       headStyles: { fillColor: green, textColor: 255, fontStyle: "bold" },
       bodyStyles: { textColor: dark, fillColor: [255, 255, 255] },
@@ -521,11 +527,11 @@ export default function RelatorioPlantacaoPage() {
       theme: "grid",
       head: [["Investimento", "Receita realizada", "Lucro real", "Margem real", "Produção colhida"]],
       body: [[
-        formatAmount(totals.investment),
-        formatAmount(totals.revenue),
-        formatAmount(totals.profit),
-        `${formatNumber(totals.margin)}%`,
-        totals.harvestedKg ? `${formatNumber(totals.harvestedKg, 2)} kg` : "-",
+        formatAmount(totals.investment, language),
+        formatAmount(totals.revenue, language),
+        formatAmount(totals.profit, language),
+        `${formatNumber(totals.margin, language)}%`,
+        totals.harvestedKg ? `${formatNumber(totals.harvestedKg, language, 2)} kg` : "-",
       ]],
       headStyles: { fillColor: green, textColor: 255, fontStyle: "bold" },
       bodyStyles: { fontSize: 11, fontStyle: "bold", textColor: dark, fillColor: lightGreen },
@@ -538,11 +544,11 @@ export default function RelatorioPlantacaoPage() {
       theme: "grid",
       head: [["Custo/ha", "Receita/ha", "Custo/kg colhido", "Venda/kg vendido", "Lucro/kg colhido"]],
       body: [[
-        totals.costPerHa ? formatAmount(totals.costPerHa) : "-",
-        totals.revenuePerHa ? formatAmount(totals.revenuePerHa) : "-",
-        totals.costPerKg ? formatAmount(totals.costPerKg) : "-",
-        totals.salePerKg ? formatAmount(totals.salePerKg) : "-",
-        totals.profitPerKg ? formatAmount(totals.profitPerKg) : "-",
+        totals.costPerHa ? formatAmount(totals.costPerHa, language) : "-",
+        totals.revenuePerHa ? formatAmount(totals.revenuePerHa, language) : "-",
+        totals.costPerKg ? formatAmount(totals.costPerKg, language) : "-",
+        totals.salePerKg ? formatAmount(totals.salePerKg, language) : "-",
+        totals.profitPerKg ? formatAmount(totals.profitPerKg, language) : "-",
       ]],
       headStyles: { fillColor: [75, 94, 82], textColor: 255 },
       bodyStyles: { textColor: dark },
@@ -563,7 +569,7 @@ export default function RelatorioPlantacaoPage() {
     if (!summaryOnly) {
       orderedModules.filter((type) => selectedModules[type]).forEach((type) => {
         const moduleEvents = selectedEvents.filter((event) => event.type === type);
-        section(moduleConfig[type].label);
+        section(getModuleLabels(type, t).label);
         if (!moduleEvents.length) {
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8);
@@ -576,11 +582,11 @@ export default function RelatorioPlantacaoPage() {
           theme: "striped",
           head: [["Data", "Registro", "Descrição", "Detalhes", "Valor"]],
           body: moduleEvents.map((event) => [
-            formatDate(event.date),
+            formatDate(event.date, language),
             event.title,
             event.subtitle,
             `${event.details.join(" • ")}${event.notes ? `${event.details.length ? " • " : ""}Obs.: ${event.notes}` : ""}` || "-",
-            event.amount ? formatAmount(event.amount) : "-",
+            event.amount ? formatAmount(event.amount, language) : "-",
           ]),
           headStyles: { fillColor: green, textColor: 255 },
           alternateRowStyles: { fillColor: [246, 249, 247] },
@@ -649,44 +655,44 @@ export default function RelatorioPlantacaoPage() {
   }
 
   if (error) return <div className="p-4 text-muted">{error}</div>;
-  if (!plantation) return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+  if (!plantation) return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
 
   return (
     <div className="p-3 p-md-4">
       <div className="d-flex align-items-center justify-content-between gap-3 mb-4 flex-wrap">
         <div>
 
-          <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.85rem" }}>Relatório da Produção</h1>
-          <p className="text-muted-foreground mb-0">Gere um PDF completo com todas as informações e atividades registradas nesta produção.</p>
+          <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.85rem" }}>{t("plantations.report")}</h1>
+          <p className="text-muted-foreground mb-0">{t("plantations.history.pageDescription")}</p>
         </div>
         <div className="d-flex gap-2 flex-wrap">
-          <Button variant="outline-secondary" size="sm" onClick={handlePreviewPdf}><Eye size={15} /> Visualizar PDF</Button>
-          <Button variant="agro" size="sm" onClick={() => handleDownloadPdf(false)}><Download size={15} /> Gerar PDF</Button>
-          <Button variant="outline-primary" size="sm" onClick={handleSendToAgronomist} disabled={sharing}><Send size={15} /> Enviar para agrônomo</Button>
+          <Button variant="outline-secondary" size="sm" onClick={handlePreviewPdf}><Eye size={15} /> {t("plantations.history.previewPdf")}</Button>
+          <Button variant="agro" size="sm" onClick={() => handleDownloadPdf(false)}><Download size={15} /> {t("plantations.history.generatePdf")}</Button>
+          <Button variant="outline-primary" size="sm" onClick={handleSendToAgronomist} disabled={sharing}><Send size={15} /> {t("plantations.history.sendAgronomist")}</Button>
         </div>
       </div>
 
       <div className="row g-4 align-items-start">
         <div className="col-12 col-xl-8">
           <div className="dashboard-card p-4 mb-4">
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Período do relatório</h2>
-            <p className="text-muted-foreground small mb-4">Selecione o período que deseja incluir no relatório.</p>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>{t("plantations.history.period")}</h2>
+            <p className="text-muted-foreground small mb-4">{t("plantations.history.periodDescription")}</p>
             <div className="row g-3 align-items-end">
               <div className="col-md-5">
-                <label className="form-label small fw-semibold">Data inicial</label>
+                <label className="form-label small fw-semibold">{t("plantations.history.startDate")}</label>
                 <input type="date" className="form-control" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
               </div>
-              <div className="col-md-2 text-center text-muted-foreground small pb-2">até</div>
+              <div className="col-md-2 text-center text-muted-foreground small pb-2">{t("plantations.history.through")}</div>
               <div className="col-md-5">
-                <label className="form-label small fw-semibold">Data final</label>
+                <label className="form-label small fw-semibold">{t("plantations.history.endDate")}</label>
                 <input type="date" className="form-control" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
               </div>
             </div>
             <div className="mt-4 p-3 d-flex align-items-start gap-3" style={{ borderRadius: 8, background: "#f0fdf4", border: "1px solid #dcfce7" }}>
               <Info size={20} className="text-success flex-shrink-0 mt-1" />
               <div>
-                <div className="fw-bold text-foreground">Período selecionado: {days || 0} dias</div>
-                <div className="text-muted-foreground small">{startDate ? formatDate(startDate) : "-"} até {endDate ? formatDate(endDate) : "-"}</div>
+                <div className="fw-bold text-foreground">{t("plantations.history.selectedPeriod").replace("{days}", String(days || 0))}</div>
+                <div className="text-muted-foreground small">{startDate ? formatDate(startDate, language) : "-"} {t("plantations.history.through")} {endDate ? formatDate(endDate, language) : "-"}</div>
               </div>
             </div>
           </div>
@@ -694,11 +700,11 @@ export default function RelatorioPlantacaoPage() {
           <div className="dashboard-card p-0 mb-4 overflow-hidden">
             <div className="p-4 d-flex align-items-start justify-content-between gap-3 flex-wrap border-bottom border-border">
               <div>
-                <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>O que deseja incluir no relatório</h2>
-                <p className="text-muted-foreground small mb-0">Escolha os módulos e informações que farão parte do seu relatório.</p>
+                <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>{t("plantations.history.includeTitle")}</h2>
+                <p className="text-muted-foreground small mb-0">{t("plantations.history.includeDescription")}</p>
               </div>
               <button type="button" className="btn btn-link text-success fw-bold text-decoration-none p-0 d-inline-flex align-items-center gap-2" onClick={() => setAllModules(selectedModuleCount !== orderedModules.length)}>
-                {selectedModuleCount === orderedModules.length ? "Desmarcar todos" : "Selecionar todos"}
+                {selectedModuleCount === orderedModules.length ? t("plantations.history.deselectAll") : t("plantations.history.selectAll")}
                 <span className="d-inline-flex align-items-center justify-content-center bg-success text-white" style={{ width: 20, height: 20, borderRadius: 5 }}>
                   <Check size={13} />
                 </span>
@@ -706,6 +712,7 @@ export default function RelatorioPlantacaoPage() {
             </div>
             {orderedModules.map((type) => {
               const config = moduleConfig[type];
+              const labels = getModuleLabels(type, t);
               const Icon = config.icon;
               const checked = selectedModules[type];
               const count = moduleCounts[type] || 0;
@@ -720,10 +727,10 @@ export default function RelatorioPlantacaoPage() {
                     <Icon size={21} />
                   </span>
                   <span className="flex-grow-1 min-w-0">
-                    <span className="d-block fw-bold text-foreground">{config.label}</span>
-                    <span className="d-block text-muted-foreground small">{config.description}</span>
+                    <span className="d-block fw-bold text-foreground">{labels.label}</span>
+                    <span className="d-block text-muted-foreground small">{labels.description}</span>
                   </span>
-                  <span className="text-muted-foreground small fw-semibold text-nowrap">{count} {config.unit}</span>
+                  <span className="text-muted-foreground small fw-semibold text-nowrap">{count} {labels.unit}</span>
                   <span className={`d-inline-flex align-items-center justify-content-center flex-shrink-0 ${checked ? "bg-success text-white" : "bg-body text-muted border border-border"}`} style={{ width: 22, height: 22, borderRadius: 5 }}>
                     {checked ? <Check size={14} /> : null}
                   </span>
@@ -733,16 +740,16 @@ export default function RelatorioPlantacaoPage() {
           </div>
 
           <div className="dashboard-card p-4 mb-4">
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Informações adicionais <span className="text-muted fw-normal">(opcional)</span></h2>
-            <p className="text-muted-foreground small mb-3">Inclua observações ou instruções para o agrônomo.</p>
-            <label className="form-label small fw-semibold">Observações para o agrônomo</label>
-            <textarea className="form-control" rows={4} maxLength={500} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Digite aqui alguma informação importante sobre o relatório..." />
-            <div className="text-muted-foreground small mt-2">{notes.length}/500 caracteres</div>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>{t("plantations.history.additionalInfo")} <span className="text-muted fw-normal">({t("plantations.history.optional")})</span></h2>
+            <p className="text-muted-foreground small mb-3">{t("plantations.history.instructions")}</p>
+            <label className="form-label small fw-semibold">{t("plantations.history.notesLabel")}</label>
+            <textarea className="form-control" rows={4} maxLength={500} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t("plantations.history.notesPlaceholder")} />
+            <div className="text-muted-foreground small mt-2">{notes.length}/500 {t("plantations.history.characters")}</div>
           </div>
 
           <div className="dashboard-card p-4">
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Últimos eventos registrados no período</h2>
-            <p className="text-muted-foreground small mb-3">Resumo rápido das atividades mais recentes.</p>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>{t("plantations.history.recentEvents")}</h2>
+            <p className="text-muted-foreground small mb-3">{t("plantations.history.recentDescription")}</p>
             <div className="d-flex gap-3 overflow-auto pb-1">
               {selectedEvents.slice(-5).reverse().map((event) => {
                 const config = moduleConfig[event.type];
@@ -754,11 +761,11 @@ export default function RelatorioPlantacaoPage() {
                       <span className="fw-bold text-truncate" style={{ fontSize: "0.72rem" }}>{config.label}</span>
                     </div>
                     <div className="fw-semibold text-foreground text-truncate small">{event.title}</div>
-                    <div className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>{formatDate(event.date)}</div>
+                    <div className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>{formatDate(event.date, language)}</div>
                   </div>
                 );
               })}
-              {selectedEvents.length === 0 ? <div className="text-muted-foreground small">Nenhum evento no período selecionado.</div> : null}
+              {selectedEvents.length === 0 ? <div className="text-muted-foreground small">{t("plantations.history.noEvents")}</div> : null}
             </div>
           </div>
         </div>

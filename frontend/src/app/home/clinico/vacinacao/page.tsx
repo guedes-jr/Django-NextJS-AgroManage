@@ -8,9 +8,11 @@ import { fetchVaccines } from "@/services/livestockService";
 import { DataTable } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { ClinicalModal, ModalField } from "@/components/clinico/ClinicalModal";
+import { type TranslationKey, useOrganizationLocale } from "@/lib/locale";
 
 export default function VacinacaoPage() {
   const { showToast } = useToast();
+  const { language, t } = useOrganizationLocale();
   const [loading, setLoading] = useState(true);
   const [vaccinations, setVaccinations] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,7 +25,7 @@ export default function VacinacaoPage() {
       setVaccinations(res.data.results || res.data || []);
     } catch (err) {
       console.error("Erro ao carregar vacinações:", err);
-      showToast("Erro ao carregar vacinações", "error");
+      showToast(t("clinical.loadVaccinationsFailed"), "error");
     } finally {
       setLoading(false);
     }
@@ -36,28 +38,27 @@ export default function VacinacaoPage() {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
-    const [y, m, d] = dateStr.split("T")[0].split("-");
-    return `${d}/${m}/${y}`;
+    return new Date(`${dateStr.split("T")[0]}T00:00:00`).toLocaleDateString(language);
   };
 
   const columns = [
-    { key: "application_date", label: "Data", render: (v: any) => formatDate(v) },
-    { key: "vaccine_name", label: "Vacina" },
+    { key: "application_date", label: t("clinical.date"), render: (v: any) => formatDate(v) },
+    { key: "vaccine_name", label: t("clinical.vaccination") },
     {
       key: "target",
-      label: "Destinatário",
+      label: t("clinical.recipient"),
       render: (_: any, row: any) => {
         if (row.animal_identifier) {
           return (
             <span className="badge bg-light text-dark border px-2 py-1 rounded-pill">
-              🐖 Brinco: {row.animal_identifier}
+              🐖 {t("clinical.animalTag")}: {row.animal_identifier}
             </span>
           );
         }
         if (row.batch_code) {
           return (
             <span className="badge bg-light text-primary border border-primary-subtle px-2 py-1 rounded-pill">
-              📦 Lote: {row.batch_code}
+              📦 {t("clinical.batchCode")}: {row.batch_code}
             </span>
           );
         }
@@ -68,19 +69,19 @@ export default function VacinacaoPage() {
       key: "dose_type",
       label: "Dose",
       render: (v: any) => {
-        const map: Record<string, string> = {
-          unica: "Única",
-          primeira: "1ª Dose",
-          segunda: "2ª Dose",
-          terceira: "3ª Dose",
-          reforco: "Reforço",
+        const map: Record<string, TranslationKey> = {
+          unica: "clinical.singleDose",
+          primeira: "clinical.firstDose",
+          segunda: "clinical.secondDose",
+          terceira: "clinical.thirdDose",
+          reforco: "clinical.booster",
         };
-        return map[v as string] || v;
+        return map[v as string] ? t(map[v as string]) : v;
       },
     },
-    { key: "dosage_ml", label: "Dosagem", render: (v: any) => (v ? `${v} ml` : "—") },
-    { key: "applicator", label: "Aplicador", render: (v: any) => v || "—" },
-    { key: "next_dose_date", label: "Reforço Previsto", render: (v: any) => formatDate(v) },
+    { key: "dosage_ml", label: t("clinical.dosageMl"), render: (v: any) => (v ? `${v} ml` : "—") },
+    { key: "applicator", label: t("clinical.applicationResponsible"), render: (v: any) => v || "—" },
+    { key: "next_dose_date", label: t("clinical.boosterPlanned"), render: (v: any) => formatDate(v) },
   ];
 
   const handleCreateVaccination = async (data: any) => {
@@ -101,31 +102,31 @@ export default function VacinacaoPage() {
       };
 
       await clinicalService.createVaccination(payload);
-      showToast("Vacinação registrada com sucesso!", "success");
+      showToast(t("clinical.vaccinationSuccess"), "success");
       setIsModalOpen(false);
       fetchData();
     } catch (err: any) {
       console.error(err);
-      showToast(err.response?.data?.detail || "Erro ao registrar vacinação", "error");
+      showToast(err.response?.data?.detail || t("clinical.vaccinationFailed"), "error");
     }
   };
 
   const modalFields: ModalField[] = [
     {
       name: "target_type",
-      label: "Aplicar Em",
+      label: t("clinical.applyTo"),
       type: "select",
       required: true,
       colSpan: "full",
       options: [
-        { value: "animal", label: "Animal Individual" },
-        { value: "batch", label: "Lote de Animais" },
+        { value: "animal", label: t("clinical.individualAnimal") },
+        { value: "batch", label: t("clinical.animalBatch") },
       ],
       initialValue: "animal",
     },
     {
       name: "animal_identifier",
-      label: "Brinco do Animal",
+      label: t("clinical.animalTag"),
       type: "text",
       required: true,
       colSpan: "half",
@@ -133,7 +134,7 @@ export default function VacinacaoPage() {
     },
     {
       name: "batch_code",
-      label: "Código do Lote",
+      label: t("clinical.batchCode"),
       type: "text",
       required: true,
       colSpan: "half",
@@ -141,22 +142,22 @@ export default function VacinacaoPage() {
     },
     {
       name: "vaccine_item_id",
-      label: "Vacina",
+      label: t("clinical.vaccination"),
       type: "select",
       required: true,
       colSpan: "half",
       options: (vaccineItems.length > 0
         ? vaccineItems.map((v: any) => ({
             value: String(v.id),
-            label: `${v.nome}${v.estoque_atual ? ` (Estoque: ${v.estoque_atual})` : ''}`,
+            label: `${v.nome}${v.estoque_atual ? ` (${t("clinical.stock")}: ${v.estoque_atual})` : ''}`,
           }))
-        : [{ value: "", label: "Nenhuma vacina no estoque" }]
+        : [{ value: "", label: t("clinical.noVaccineStock") }]
       ),
       initialValue: vaccineItems.length > 0 ? String(vaccineItems[0].id) : "",
     },
     {
       name: "application_date",
-      label: "Data da Aplicação",
+      label: t("clinical.date"),
       type: "date",
       required: true,
       initialValue: new Date().toISOString().split("T")[0],
@@ -164,24 +165,24 @@ export default function VacinacaoPage() {
     },
     {
       name: "dose_type",
-      label: "Tipo de Dose",
+      label: t("clinical.vaccineDoseType"),
       type: "select",
       required: true,
       colSpan: "half",
       options: [
-        { value: "unica", label: "Dose Única" },
-        { value: "primeira", label: "1ª Dose" },
-        { value: "segunda", label: "2ª Dose" },
-        { value: "terceira", label: "3ª Dose" },
-        { value: "reforco", label: "Reforço" },
+        { value: "unica", label: t("clinical.singleDose") },
+        { value: "primeira", label: t("clinical.firstDose") },
+        { value: "segunda", label: t("clinical.secondDose") },
+        { value: "terceira", label: t("clinical.thirdDose") },
+        { value: "reforco", label: t("clinical.booster") },
       ],
       initialValue: "unica",
     },
-    { name: "dosage_ml", label: "Dosagem (ml)", type: "number", colSpan: "half" },
-    { name: "batch_number", label: "Número do Lote da Vacina", type: "text", colSpan: "half" },
-    { name: "applicator", label: "Responsável pela Aplicação", type: "text", colSpan: "half" },
-    { name: "next_dose_date", label: "Data do Próximo Reforço (Opcional)", type: "date", colSpan: "full" },
-    { name: "notes", label: "Observações / Notas", type: "textarea", colSpan: "full" },
+    { name: "dosage_ml", label: t("clinical.dosageMl"), type: "number", colSpan: "half" },
+    { name: "batch_number", label: t("clinical.vaccineBatchNumber"), type: "text", colSpan: "half" },
+    { name: "applicator", label: t("clinical.applicationResponsible"), type: "text", colSpan: "half" },
+    { name: "next_dose_date", label: t("clinical.nextBoosterDate"), type: "date", colSpan: "full" },
+    { name: "notes", label: t("clinical.notesShort"), type: "textarea", colSpan: "full" },
   ];
 
   // Dynamic statistics
@@ -196,11 +197,11 @@ export default function VacinacaoPage() {
     <div className="animate-fade-in">
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Dashboard</Link>
+          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>{t("sidebar.dashboard")}</Link>
           <ChevronRight size={14} />
-          <Link href="/home/clinico" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Clínico</Link>
+          <Link href="/home/clinico" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>{t("clinical.dashboard")}</Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Vacinação</span>
+          <span className="fw-semibold text-foreground">{t("clinical.vaccination")}</span>
         </nav>
       </div>
 
@@ -211,10 +212,10 @@ export default function VacinacaoPage() {
           </div>
           <div>
             <h1 className="fw-black mb-1" style={{ fontSize: "1.9rem", letterSpacing: "-0.03em" }}>
-              Vacinação do Plantel
+              {t("clinical.vaccinationTitle")}
             </h1>
             <p className="text-muted-foreground mb-0">
-              Controle de imunização, aplicação de vacinas e agendamento de reforços.
+              {t("clinical.vaccinationDescription")}
             </p>
           </div>
         </div>
@@ -224,7 +225,7 @@ export default function VacinacaoPage() {
           onClick={() => setIsModalOpen(true)}
         >
           <Plus size={18} />
-          Registrar Vacina
+          {t("clinical.registerVaccine")}
         </button>
       </div>
 
@@ -238,7 +239,7 @@ export default function VacinacaoPage() {
               </div>
               <div>
                 <div className="fs-4 fw-black">{totalApplied}</div>
-                <div className="text-muted-foreground small fw-semibold">Vacinas Aplicadas</div>
+                <div className="text-muted-foreground small fw-semibold">{t("clinical.vaccinationsApplied")}</div>
               </div>
             </div>
           </div>
@@ -251,7 +252,7 @@ export default function VacinacaoPage() {
               </div>
               <div>
                 <div className="fs-4 fw-black">{nextDoses}</div>
-                <div className="text-muted-foreground small fw-semibold">Próximos Reforços</div>
+                <div className="text-muted-foreground small fw-semibold">{t("clinical.nextBoosters")}</div>
               </div>
             </div>
           </div>
@@ -264,7 +265,7 @@ export default function VacinacaoPage() {
               </div>
               <div>
                 <div className="fs-4 fw-black">{uniqueApplicators}</div>
-                <div className="text-muted-foreground small fw-semibold">Responsáveis</div>
+                <div className="text-muted-foreground small fw-semibold">{t("clinical.responsibles")}</div>
               </div>
             </div>
           </div>
@@ -280,18 +281,18 @@ export default function VacinacaoPage() {
           columns={columns}
           rows={vaccinations}
           emptyIcon="💉"
-          emptyText="Nenhuma vacinação registrada no sistema."
+          emptyText={t("clinical.vaccinationEmpty")}
         />
       )}
 
       <ClinicalModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Registrar Aplicação de Vacina"
-        subtitle="Preencha as informações da vacina aplicada no animal ou lote"
+        title={t("clinical.vaccinationTitleModal")}
+        subtitle={t("clinical.vaccinationSubtitle")}
         fields={modalFields}
         onConfirm={handleCreateVaccination}
-        confirmLabel="Salvar Registro"
+        confirmLabel={t("clinical.saveVaccination")}
       />
     </div>
   );

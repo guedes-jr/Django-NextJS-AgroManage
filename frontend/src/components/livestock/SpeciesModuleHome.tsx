@@ -18,6 +18,7 @@ import {
 import { pig, pigHead } from "@lucide/lab";
 import apiClient from "@/services/api";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
+import { type TranslationKey, useOrganizationLocale } from "@/lib/locale";
 import styles from "./species-module-home.module.css";
 import { SwineOverviewInsights } from "./SwineOverviewInsights";
 
@@ -43,68 +44,71 @@ const PigIcon: ModuleIcon = (props) => <Icon iconNode={pig} {...props} />;
 const PigHeadIcon: ModuleIcon = (props) => <Icon iconNode={pigHead} {...props} />;
 
 const modules: Array<{
-  title: string;
-  description: string;
+  title: TranslationKey;
+  description: TranslationKey;
   href: string;
   icon: ModuleIcon;
   tone: "green" | "orange" | "purple" | "blue" | "cyan" | "emerald" | "slate";
+  operatorVisible?: boolean;
 }> = [
   {
-    title: "Cadastro",
-    description: "Animais, matrizes e lotes",
+    title: "swine.home.module.registry",
+    description: "swine.home.module.registryDescription",
     href: "/home/seguimento/suinos/cadastro",
     icon: ClipboardList,
     tone: "green",
+    operatorVisible: true,
   },
   {
-    title: "Reprodução",
-    description: "Matrizes, coberturas e partos",
+    title: "swine.home.module.reproduction",
+    description: "swine.home.module.reproductionDescription",
     href: "/home/seguimento/suinos/reproducao",
     icon: MarsStroke,
     tone: "purple",
+    operatorVisible: true,
   },
   {
-    title: "Alimentação dos Animais",
-    description: "Consumo por fase e por lote",
+    title: "swine.home.module.feeding",
+    description: "swine.home.module.feedingDescription",
     href: "/home/seguimento/suinos/racao?tab=lotes",
     icon: Wheat,
     tone: "blue",
+    operatorVisible: true,
   },
   {
-    title: "Fábrica de Ração",
-    description: "Fórmulas, produção e custos",
+    title: "swine.home.module.feedMill",
+    description: "swine.home.module.feedMillDescription",
     href: "/home/seguimento/suinos/racao?tab=producao",
     icon: Factory,
     tone: "orange",
   },
   {
-    title: "Venda de Animais",
-    description: "Saídas, compradores e receitas",
+    title: "swine.home.module.sales",
+    description: "swine.home.module.salesDescription",
     href: "/home/seguimento/suinos/vendas",
     icon: BadgeDollarSign,
     tone: "emerald",
   },
   {
-    title: "Mão de Obra",
-    description: "Serviços, equipe e custos",
+    title: "swine.home.module.workforce",
+    description: "swine.home.module.workforceDescription",
     href: "/home/seguimento/suinos/mao-de-obra",
     icon: UsersRound,
     tone: "slate",
   },
   {
-    title: "Relatórios",
-    description: "Indicadores e análises do plantel",
+    title: "swine.home.module.reports",
+    description: "swine.home.module.reportsDescription",
     href: "/home/relatorios/rebanho?species=suinos",
     icon: FileChartColumnIncreasing,
     tone: "cyan",
   },
 ];
 
-const numberFormatter = new Intl.NumberFormat("pt-BR");
-
 export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
   const access = useOrganizationAccess();
   const operator = access?.role === "operator";
+  const { language, t } = useOrganizationLocale();
   const [summary, setSummary] = useState<SpeciesSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -127,48 +131,50 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
     };
   }, [species]);
 
-  const metrics = [
+  const metrics: Array<{ label: TranslationKey; value?: string | number; icon: ModuleIcon; tone: string; sensitive?: boolean }> = [
     {
-      label: "Total de Animais",
+      label: "swine.home.totalAnimals",
       value: summary?.total_animals,
       icon: PigIcon,
       tone: "rose",
     },
     {
-      label: "Matrizes Ativas",
+      label: "swine.home.activeFemales",
       value: summary?.active_females,
       icon: PigHeadIcon,
       tone: "pink",
     },
     {
-      label: "Alertas",
+      label: "swine.home.activeAlerts",
       value: summary?.active_alerts,
       icon: BellRing,
       tone: "amber",
     },
     {
-      label: "Ração consumida no mês (kg)",
+      label: "swine.home.feedConsumed",
       value: summary?.feed_consumed_month,
       icon: Wheat,
       tone: "blue",
     },
     {
-      label: "Custo da alimentação no mês",
-      value: summary ? summary.feed_cost_month?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
+      label: "swine.home.feedCost",
+      value: summary ? summary.feed_cost_month?.toLocaleString(language, { style: "currency", currency: "BRL" }) : undefined,
       icon: BadgeDollarSign,
       tone: "emerald",
+      sensitive: true,
     },
     {
-      label: "Sêmen utilizado no mês (doses)",
+      label: "swine.home.semenDoses",
       value: summary?.semen_doses_month,
       icon: MarsStroke,
       tone: "purple",
     },
     {
-      label: "Valor do sêmen utilizado no mês",
-      value: summary ? summary.semen_cost_month?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : undefined,
+      label: "swine.home.semenCost",
+      value: summary ? summary.semen_cost_month?.toLocaleString(language, { style: "currency", currency: "BRL" }) : undefined,
       icon: BadgeDollarSign,
       tone: "cyan",
+      sensitive: true,
     },
   ];
 
@@ -179,22 +185,22 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
           <PigHeadIcon size={30} />
         </div>
         <div>
-          <h1>Suinocultura</h1>
-          <p>Gerencie todas as operações da suinocultura</p>
+          <h1>{t("swine.home.title")}</h1>
+          <p>{t("swine.home.description")}</p>
         </div>
       </header>
 
       <section className={styles.summaryPanel} aria-labelledby="swine-summary-title">
         <div className={styles.sectionHeading}>
           <div>
-            <span>Visão geral do plantel</span>
-            <h2 id="swine-summary-title">Resumo da Suinocultura</h2>
+            <span>{t("swine.home.overview")}</span>
+            <h2 id="swine-summary-title">{t("swine.home.summary")}</h2>
           </div>
-          {error && <small>Não foi possível atualizar os indicadores.</small>}
+          {error && <small>{t("swine.home.loadFailed")}</small>}
         </div>
 
         <div className={styles.metricsGrid} aria-busy={loading}>
-          {metrics.filter((metric) => !operator || !["Custo da alimentação no mês", "Valor do sêmen utilizado no mês"].includes(metric.label)).map((metric) => (
+          {metrics.filter((metric) => !operator || !metric.sensitive).map((metric) => (
             <article className={styles.metricCard} data-tone={metric.tone} key={metric.label}>
               <div className={styles.metricIcon} aria-hidden="true">
                 <metric.icon size={31} strokeWidth={1.9} />
@@ -203,9 +209,9 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
                 {loading ? (
                   <span className={styles.valueSkeleton} />
                 ) : (
-                  <strong>{typeof metric.value === "number" ? numberFormatter.format(metric.value) : metric.value ?? "0"}</strong>
+                  <strong>{typeof metric.value === "number" ? metric.value.toLocaleString(language) : metric.value ?? "0"}</strong>
                 )}
-                <span>{metric.label}</span>
+                <span>{t(metric.label)}</span>
               </div>
             </article>
           ))}
@@ -215,24 +221,24 @@ export function SpeciesModuleHome({ species }: SpeciesModuleHomeProps) {
       <section aria-labelledby="swine-modules-title">
         <div className={styles.modulesHeading}>
           <div>
-            <span>Operações</span>
-            <h2 id="swine-modules-title">O que você deseja acessar?</h2>
+            <span>{t("swine.home.operations")}</span>
+            <h2 id="swine-modules-title">{t("swine.home.chooseModule")}</h2>
           </div>
-          <p>Escolha uma área para continuar a gestão do plantel.</p>
+          <p>{t("swine.home.chooseDescription")}</p>
         </div>
 
         <div className={styles.moduleGrid}>
-          {modules.filter((module) => !operator || ["Cadastro", "Reprodução", "Alimentação dos Animais"].includes(module.title)).map((module) => (
+          {modules.filter((module) => !operator || module.operatorVisible).map((module) => (
             <Link className={styles.moduleCard} data-tone={module.tone} href={module.href} key={module.title}>
               <div className={styles.moduleIcon} aria-hidden="true">
                 <module.icon size={39} strokeWidth={1.75} />
               </div>
               <div className={styles.moduleCopy}>
-                <h3>{module.title}</h3>
-                <p>{module.description}</p>
+                <h3>{t(module.title)}</h3>
+                <p>{t(module.description)}</p>
               </div>
               <span className={styles.moduleAction}>
-                Acessar <ChevronRight size={19} />
+                {t("swine.home.open")} <ChevronRight size={19} />
               </span>
             </Link>
           ))}

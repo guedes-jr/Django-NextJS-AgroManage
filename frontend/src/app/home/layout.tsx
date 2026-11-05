@@ -11,14 +11,20 @@ import { SupportAccessBanner } from "@/components/platform/SupportAccessBanner";
 import { ClientAnnouncementBanner } from "@/components/platform/ClientAnnouncementBanner";
 import { NotificationProvider } from "@/components/notifications";
 import CampaignAlertBanner from "@/components/notifications/CampaignAlertBanner";
+import { OrganizationLocaleProvider, useOrganizationLocale } from "@/lib/locale";
 
 export default function HomeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  return <OrganizationLocaleProvider><HomeLayoutContent>{children}</HomeLayoutContent></OrganizationLocaleProvider>;
+}
+
+function HomeLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useOrganizationLocale();
   const [access,setAccess] = useState<OrganizationAccess | null>(null);
   const [accessLoading,setAccessLoading] = useState(true);
   const [accessError,setAccessError] = useState(false);
@@ -79,7 +85,7 @@ export default function HomeLayout({
         <TopBar onMenuClick={openSidebar} isMenuOpen={isSidebarOpen} />
         <main className="workspace-content flex-grow-1 overflow-auto">
           {!accessLoading && !accessError && <CampaignAlertBanner />}
-          {accessLoading ? <p role="status">Verificando acesso…</p> : accessError ? <div className="alert alert-danger">Não foi possível verificar suas permissões. Recarregue a página.</div> : canAccessOrganizationPath(access,pathname) ? children : <div className="alert alert-info"><h1 className="h5">Área não autorizada</h1><p>Solicite ao administrador a liberação desta área para seu usuário.</p><Link href="/home" className="btn btn-success">Voltar à dashboard</Link></div>}
+          {accessLoading ? <p role="status">{t("layout.verifyingAccess")}</p> : accessError ? <div className="alert alert-danger" role="alert">{t("layout.permissionsError")}</div> : canAccessOrganizationPath(access,pathname) ? children : <div className="alert alert-info"><h1 className="h5">{t("layout.unauthorizedTitle")}</h1><p>{t("layout.unauthorizedDescription")}</p><Link href="/home" className="btn btn-success">{t("layout.backToDashboard")}</Link></div>}
         </main>
       </div>
     </div></NotificationProvider></OrganizationAccessContext.Provider>

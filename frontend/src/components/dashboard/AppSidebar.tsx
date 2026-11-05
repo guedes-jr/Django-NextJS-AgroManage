@@ -26,6 +26,7 @@ import { barn, pigHead } from "@lucide/lab";
 import {canAccessOrganizationPath, type OrganizationAccess} from "@/services/organizationAccess";
 import apiClient from "@/services/api";
 import { BullIcon, LactationIcon } from "@/components/cattle/CattleIcons";
+import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 interface SidebarOrganization {
   name: string;
@@ -101,6 +102,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) {
   const pathname = usePathname();
+  const { t } = useOrganizationLocale();
   const [organization, setOrganization] = useState<SidebarOrganization | null>(null);
   const [isAffiliate, setIsAffiliate] = useState(false);
 
@@ -108,6 +110,29 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
     if (href === "/home") return pathname === href;
     if (href === "/home/estoque/resumo") return pathname.startsWith("/home/estoque");
     return pathname === href || pathname.startsWith(`${href}/`);
+  };
+  const sectionLabels: Record<string, TranslationKey> = {
+    Operação: "sidebar.sections.operation",
+    Segmentos: "sidebar.sections.segments",
+    Gestão: "sidebar.sections.management",
+    Inteligência: "sidebar.sections.intelligence",
+    Administração: "sidebar.sections.administration",
+  };
+  const itemLabels: Record<string, TranslationKey> = {
+    Dashboard: "sidebar.dashboard",
+    Agenda: "sidebar.agenda",
+    Plantações: "sidebar.plantations",
+    Suinocultura: "sidebar.swine",
+    "Tratos bovinos": "sidebar.cattleFeeding",
+    "Gado de corte": "sidebar.beefCattle",
+    "Pecuária leiteira": "sidebar.dairy",
+    Aves: "sidebar.birds",
+    "Clínica veterinária": "sidebar.clinic",
+    Estoque: "sidebar.inventory",
+    Financeiro: "sidebar.finance",
+    "Estrutura da fazenda": "sidebar.farmStructure",
+    "Assistente IA": "sidebar.aiAssistant",
+    "Área do afiliado": "sidebar.affiliate",
   };
 
   useEffect(() => {
@@ -146,7 +171,7 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
     <aside
       id="dashboard-sidebar"
       className={`dashboard-sidebar text-white ${isOpen ? "show" : ""}`}
-      aria-label="Menu principal"
+      aria-label={t("sidebar.aria")}
     >
       <header className="sidebar-brand">
         <div className="sidebar-brand-mark" aria-hidden="true">
@@ -160,23 +185,23 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
         </div>
         <div className="sidebar-brand-copy">
           <strong>Fazenda Mais</strong>
-          <span title={organization?.name}>{organization?.name || "Minha organização"}</span>
+          <span title={organization?.name}>{organization?.name || t("sidebar.organizationFallback")}</span>
         </div>
         <button
           type="button"
           className="sidebar-close d-lg-none"
           onClick={onClose}
-          aria-label="Fechar menu de navegação"
+          aria-label={t("sidebar.close")}
         >
           <X size={22} />
         </button>
       </header>
 
       <div className="sidebar-nav-container">
-        <nav className="sidebar-navigation" aria-label="Áreas do sistema">
+        <nav className="sidebar-navigation" aria-label={t("sidebar.areas")}>
           {sidebarSections.filter(section => section.items.some(item => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
-              <h2 id={`sidebar-${section.label}`}>{section.label}</h2>
+              <h2 id={`sidebar-${section.label}`}>{t(sectionLabels[section.label])}</h2>
               <div className="sidebar-section-items">
                 {section.items.filter((item) => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
                   const active = isActive(item.href);
@@ -191,9 +216,9 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
                       <span className={`sidebar-link-icon tone-${item.iconTone}`} aria-hidden="true">
                         <item.icon size={19} strokeWidth={1.8} />
                       </span>
-                      <span>{item.title}</span>
+                      <span>{t(itemLabels[item.title])}</span>
                       {item.underDevelopment && (
-                        <span className="sidebar-link-badge">Em breve</span>
+                        <span className="sidebar-link-badge">{t("sidebar.comingSoon")}</span>
                       )}
                     </Link>
                     </div>
@@ -205,7 +230,7 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
         </nav>
         <footer className="sidebar-footer">
           <Link href="/home/suporte" className={`sidebar-link sidebar-settings-link ${isActive("/home/suporte") ? "active" : ""}`} onClick={onClose} aria-current={isActive("/home/suporte") ? "page" : undefined}>
-            <span className="sidebar-link-icon" aria-hidden="true"><Headphones size={19} /></span><span>Suporte</span>
+            <span className="sidebar-link-icon" aria-hidden="true"><Headphones size={19} /></span><span>{t("sidebar.support")}</span>
           </Link>
           {access?.role !== "operator" && <Link
             href="/home/settings"
@@ -216,7 +241,7 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
             <span className="sidebar-link-icon" aria-hidden="true">
               <Settings size={19} strokeWidth={isActive("/home/settings") ? 2.3 : 2} />
             </span>
-            <span>Configurações</span>
+            <span>{t("sidebar.settings")}</span>
           </Link>}
         </footer>
       </div>

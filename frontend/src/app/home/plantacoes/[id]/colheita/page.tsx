@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  ArrowLeft,
   BarChart3,
   DollarSign,
   History,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cropService } from "@/services/cropService";
+import { useOrganizationLocale } from "@/lib/locale";
 
 type Plantation = {
   id: string;
@@ -116,23 +116,23 @@ const decimalValue = (value?: string | number | null) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const numberText = (value: number, suffix = "") =>
-  `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}`;
+const numberText = (value: number, suffix = "", language = "pt-BR") =>
+  `${value.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}`;
 
-const money = (value: number) =>
-  value.toLocaleString("pt-BR", {
+const money = (value: number, language = "pt-BR") =>
+  value.toLocaleString(language, {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
   });
 
-const dateText = (value: string) => {
+const dateText = (value: string, language = "pt-BR") => {
   if (!value) return "-";
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
+  return new Date(`${value}T12:00:00`).toLocaleDateString(language);
 };
 
 export default function ColheitaPage() {
+  const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
@@ -183,7 +183,7 @@ export default function ColheitaPage() {
       })
       .catch(() => {
         if (!active) return;
-        setError("Não foi possível carregar os dados de colheita.");
+        setError(t("plantations.harvest.couldNotLoad"));
       })
       .finally(() => {
         if (!active) return;
@@ -193,7 +193,7 @@ export default function ColheitaPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, t]);
 
   const quantity = decimalValue(form.yield_kg);
   const unitPrice = decimalValue(form.unit_price);
@@ -240,12 +240,12 @@ export default function ColheitaPage() {
   };
 
   const validateForm = () => {
-    if (!form.harvest_date) return "Informe a data da colheita.";
-    if (quantity <= 0) return "Informe uma quantidade colhida maior que zero.";
-    if (!form.destination) return "Selecione o destino da produção.";
-    if (form.destination === "sale" && !form.buyer) return "Selecione o comprador/cliente.";
-    if (form.destination === "sale" && unitPrice <= 0) return "Informe um preço de venda maior que zero.";
-    if (form.notes.length > 200) return "As observações devem ter no máximo 200 caracteres.";
+    if (!form.harvest_date) return t("plantations.harvest.dateRequired");
+    if (quantity <= 0) return t("plantations.harvest.quantityRequired");
+    if (!form.destination) return t("plantations.harvest.destinationRequired");
+    if (form.destination === "sale" && !form.buyer) return t("plantations.harvest.buyerRequired");
+    if (form.destination === "sale" && unitPrice <= 0) return t("plantations.harvest.priceRequired");
+    if (form.notes.length > 200) return t("plantations.harvest.notesTooLong");
     return "";
   };
 
@@ -275,7 +275,7 @@ export default function ColheitaPage() {
       setBuyerForm({ name: "", document: "", phone: "", notes: "" });
       setShowBuyerForm(false);
     } catch {
-      setError("Não foi possível cadastrar o comprador.");
+      setError(t("plantations.harvest.buyerCreateFailed"));
     } finally {
       setSavingBuyer(false);
     }
@@ -313,7 +313,7 @@ export default function ColheitaPage() {
       await refreshHarvests();
       resetForm();
     } catch {
-      setError("Erro ao salvar a colheita. Verifique os dados e tente novamente.");
+      setError(t("plantations.harvest.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -335,7 +335,7 @@ export default function ColheitaPage() {
   };
 
   const handleDeleteHarvest = async (harvest: Harvest) => {
-    if (!window.confirm("Remover esta colheita do histórico?")) return;
+    if (!window.confirm(t("plantations.harvest.removeConfirm"))) return;
 
     try {
       setDeletingHarvestId(harvest.id);
@@ -344,7 +344,7 @@ export default function ColheitaPage() {
       if (editingHarvestId === harvest.id) resetForm();
       await refreshHarvests();
     } catch {
-      setError("Não foi possível remover a colheita. Tente novamente.");
+      setError(t("plantations.harvest.deleteFailed"));
     } finally {
       setDeletingHarvestId(null);
     }
@@ -352,24 +352,24 @@ export default function ColheitaPage() {
 
   const handleGeneratePdf = () => {
     const doc = new jsPDF();
-    const title = plantation?.name || plantation?.crop_name || "Colheita";
+    const title = plantation?.name || plantation?.crop_name || t("plantations.harvest.title");
 
     doc.setFontSize(16);
     doc.text(`Relatório de Colheita - ${title}`, 14, 18);
     doc.setFontSize(10);
     doc.text(`Talhão: ${plantation?.field_name || "-"} | Fazenda: ${plantation?.farm_name || "-"}`, 14, 26);
-    doc.text(`Produção acumulada: ${numberText(summary.accumulatedQuantity, " kg")}`, 14, 34);
-    doc.text(`Receita acumulada: ${money(summary.accumulatedRevenue)}`, 14, 42);
+    doc.text(`${t("plantations.harvest.accumulatedProduction")}: ${numberText(summary.accumulatedQuantity, " kg", language)}`, 14, 34);
+    doc.text(`${t("plantations.harvest.totalRevenue")}: ${money(summary.accumulatedRevenue, language)}`, 14, 42);
 
     autoTable(doc, {
       startY: 52,
-      head: [["Data", "Tipo", "Quantidade", "Preço", "Receita", "Comprador"]],
+      head: [[t("plantations.operation.date"), t("plantations.operation.type"), t("plantations.operation.quantity"), t("plantations.operation.price"), t("plantations.harvest.revenue"), t("plantations.harvest.buyer")]],
       body: harvests.map((harvest) => [
-        dateText(harvest.harvest_date),
-        harvest.harvest_type_display || (harvest.harvest_type === "total" ? "Total" : "Parcial"),
-        numberText(decimalValue(harvest.yield_kg), " kg"),
-        `${money(decimalValue(harvest.unit_price))} / kg`,
-        money(decimalValue(harvest.revenue_amount)),
+        dateText(harvest.harvest_date, language),
+        harvest.harvest_type_display || (harvest.harvest_type === "total" ? t("plantations.harvest.total") : t("plantations.harvest.partial")),
+        numberText(decimalValue(harvest.yield_kg), " kg", language),
+        `${money(decimalValue(harvest.unit_price), language)} / kg`,
+        money(decimalValue(harvest.revenue_amount), language),
         harvest.buyer_name_display || harvest.buyer_name || "-",
       ]),
     });
@@ -389,7 +389,7 @@ export default function ColheitaPage() {
   }
 
   if (!plantation) {
-    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+    return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
   }
 
   return (
@@ -410,10 +410,10 @@ export default function ColheitaPage() {
           </div>
           <div>
             <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.75rem" }}>
-              Colheita
+              {t("plantations.harvest.title")}
             </h1>
             <p className="text-muted-foreground mb-0">
-              Registre as informações de cada colheita realizada nesta cultura.
+              {t("plantations.harvest.description")}
             </p>
           </div>
         </div>
@@ -429,26 +429,26 @@ export default function ColheitaPage() {
 
       <div className="dashboard-card p-4 mb-3">
         <h2 className="fw-black text-foreground mb-4" style={{ fontSize: "1.2rem" }}>
-          {editingHarvestId ? "Editar colheita" : "Registrar colheita"}
+          {editingHarvestId ? t("plantations.harvest.edit") : t("plantations.harvest.register")}
         </h2>
 
         <div className="row g-4 mb-4">
           <div className="col-12 col-lg-6">
-            <label className="form-label fw-bold text-foreground">Tipo de colheita</label>
+            <label className="form-label fw-bold text-foreground">{t("plantations.harvest.type")}</label>
             <div className="row g-3">
               <div className="col-12 col-md-6">
                 <HarvestTypeCard
                   selected={form.harvest_type === "partial"}
-                  title="Colheita parcial"
-                  description="Colheita realizada em etapas"
+                  title={t("plantations.harvest.partial")}
+                  description={t("plantations.harvest.partialDescription")}
                   onClick={() => updateForm({ harvest_type: "partial" })}
                 />
               </div>
               <div className="col-12 col-md-6">
                 <HarvestTypeCard
                   selected={form.harvest_type === "total"}
-                  title="Colheita total"
-                  description="Colheita de toda a área"
+                  title={t("plantations.harvest.total")}
+                  description={t("plantations.harvest.totalDescription")}
                   onClick={() => updateForm({ harvest_type: "total" })}
                 />
               </div>
@@ -456,7 +456,7 @@ export default function ColheitaPage() {
           </div>
 
           <div className="col-12 col-lg-6">
-            <label className="form-label fw-bold text-foreground">Data da colheita</label>
+            <label className="form-label fw-bold text-foreground">{t("plantations.harvest.date")}</label>
             <input
               className="form-control"
               type="date"
@@ -470,7 +470,7 @@ export default function ColheitaPage() {
         <div className="row g-4 mb-4">
           <div className="col-12 col-lg-6">
             <label className="form-label fw-bold text-foreground">
-              Quantidade colhida <span className="text-danger">*</span>
+              {t("plantations.harvest.quantity")} <span className="text-danger">*</span>
             </label>
             <div className="input-group">
               <input
@@ -478,19 +478,19 @@ export default function ColheitaPage() {
                 inputMode="decimal"
                 value={form.yield_kg}
                 onChange={(event) => updateForm({ yield_kg: event.target.value })}
-                placeholder="25.000,00"
+                placeholder={t("plantations.exampleSeeds")}
                 style={{ height: 50, borderRadius: "10px 0 0 10px" }}
               />
               <span className="input-group-text bg-white fw-bold" style={{ borderRadius: "0 10px 10px 0" }}>
                 kg
               </span>
             </div>
-            <div className="text-muted-foreground small mt-2">Informe a quantidade colhida nesta etapa.</div>
+            <div className="text-muted-foreground small mt-2">{t("plantations.harvest.informQuantity")}</div>
           </div>
 
           <div className="col-12 col-lg-6">
             <label className="form-label fw-bold text-foreground">
-              Destino da produção <span className="text-danger">*</span>
+              {t("plantations.harvest.destination")} <span className="text-danger">*</span>
             </label>
             <select
               className="form-select"
@@ -500,18 +500,18 @@ export default function ColheitaPage() {
             >
               {destinationOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(`plantations.destination.${option.value}` as "plantations.destination.sale")}
                 </option>
               ))}
             </select>
-            <div className="text-muted-foreground small mt-2">Para onde será destinada esta produção.</div>
+            <div className="text-muted-foreground small mt-2">{t("plantations.harvest.destinationDescription")}</div>
           </div>
         </div>
 
         <div className="row g-4 mb-4">
           <div className="col-12 col-lg-6">
             <label className="form-label fw-bold text-foreground">
-              Comprador / Cliente <span className="text-danger">*</span>
+              {t("plantations.harvest.selectBuyer")} <span className="text-danger">*</span>
             </label>
             <div className="row g-3">
               <div className="col">
@@ -522,7 +522,7 @@ export default function ColheitaPage() {
                   onChange={(event) => updateForm({ buyer: event.target.value })}
                   style={{ height: 50, borderRadius: 10 }}
                 >
-                  <option value="">Selecione</option>
+                  <option value="">{t("plantations.harvest.select")}</option>
                   {buyers.map((buyer) => (
                     <option key={buyer.id} value={buyer.id}>
                       {buyer.name}
@@ -539,16 +539,16 @@ export default function ColheitaPage() {
                   style={{ height: 50, borderRadius: 10, fontWeight: 800 }}
                 >
                   <Plus size={18} />
-                  Novo cliente
+                  {t("plantations.harvest.newBuyer")}
                 </button>
               </div>
             </div>
-            <div className="text-muted-foreground small mt-2">Selecione para quem foi vendida a produção.</div>
+            <div className="text-muted-foreground small mt-2">{t("plantations.harvest.buyerDescription")}</div>
           </div>
 
           <div className="col-12 col-lg-6">
             <label className="form-label fw-bold text-foreground">
-              Preço de venda <span className="text-danger">*</span>
+              {t("plantations.harvest.salePrice")} <span className="text-danger">*</span>
             </label>
             <div className="input-group">
               <input
@@ -561,10 +561,10 @@ export default function ColheitaPage() {
                 style={{ height: 50, borderRadius: "10px 0 0 10px" }}
               />
               <span className="input-group-text bg-white fw-bold" style={{ borderRadius: "0 10px 10px 0" }}>
-                R$ / kg
+                {t("plantations.harvest.pricePerKg")}
               </span>
             </div>
-            <div className="text-muted-foreground small mt-2">Informe o preço de venda por unidade.</div>
+            <div className="text-muted-foreground small mt-2">{t("plantations.harvest.unitPriceDescription")}</div>
           </div>
         </div>
 
@@ -583,23 +583,23 @@ export default function ColheitaPage() {
               <DollarSign size={25} />
             </div>
             <div>
-              <div className="fw-bold text-foreground small">Receita desta colheita</div>
+              <div className="fw-bold text-foreground small">{t("plantations.harvest.revenue")}</div>
               <div className="fw-black text-foreground" style={{ fontSize: "1.35rem" }}>
-                {money(currentRevenue)}
+                {money(currentRevenue, language)}
               </div>
             </div>
           </div>
 
           <div>
-            <div className="text-muted-foreground small mb-1">Cálculo automático</div>
+            <div className="text-muted-foreground small mb-1">{t("plantations.harvest.automaticCalculation")}</div>
             <div className="fw-medium text-foreground">
-              {numberText(quantity, " kg")} x {money(unitPrice)}
+              {numberText(quantity, " kg", language)} x {money(unitPrice, language)}
             </div>
           </div>
         </div>
 
         <div>
-          <label className="form-label fw-bold text-foreground">Observações (opcional)</label>
+          <label className="form-label fw-bold text-foreground">{t("plantations.harvest.optionalNotes")}</label>
           <div className="position-relative">
             <textarea
               className="form-control"
@@ -607,7 +607,7 @@ export default function ColheitaPage() {
               maxLength={200}
               value={form.notes}
               onChange={(event) => updateForm({ notes: event.target.value })}
-              placeholder="Primeira colheita da safra. Frutos de excelente qualidade."
+              placeholder={t("plantations.harvest.notesPlaceholder")}
               style={{ borderRadius: 10, resize: "none", paddingBottom: 32 }}
             />
             <span className="position-absolute text-muted-foreground small" style={{ right: 14, bottom: 12 }}>
@@ -619,18 +619,18 @@ export default function ColheitaPage() {
 
       <div className="dashboard-card p-4 mb-3">
         <h3 className="fw-black text-foreground mb-3" style={{ fontSize: "1rem" }}>
-          Resumo da colheita
+          {t("plantations.harvest.summary")}
         </h3>
         <div className="row g-3">
-          <SummaryCard icon={<ShoppingBag size={24} />} color="oklch(0.58 0.16 145)" label="Quantidade colhida" value={numberText(quantity, " kg")} helper="nesta etapa" />
-          <SummaryCard icon={<DollarSign size={24} />} color="oklch(0.58 0.16 245)" label="Receita desta colheita" value={money(currentRevenue)} helper="valor desta etapa" />
-          <SummaryCard icon={<BarChart3 size={24} />} color="oklch(0.72 0.17 75)" label="Produção acumulada" value={numberText(summary.projectedQuantity, " kg")} helper="na cultura" />
-          <SummaryCard icon={<WalletCards size={24} />} color="oklch(0.62 0.14 305)" label="Receita acumulada" value={money(summary.projectedRevenue)} helper="na cultura" />
-          <SummaryCard icon={<BarChart3 size={24} />} color="oklch(0.62 0.14 185)" label="Média de preço" value={`${money(summary.averagePrice)} / kg`} helper="média dos kg vendidos" />
+          <SummaryCard icon={<ShoppingBag size={24} />} color="oklch(0.58 0.16 145)" label={t("plantations.harvest.quantity")} value={numberText(quantity, " kg", language)} helper={t("plantations.harvest.currentStep")} />
+          <SummaryCard icon={<DollarSign size={24} />} color="oklch(0.58 0.16 245)" label={t("plantations.harvest.revenue")} value={money(currentRevenue, language)} helper={t("plantations.harvest.stageValue")} />
+          <SummaryCard icon={<BarChart3 size={24} />} color="oklch(0.72 0.17 75)" label={t("plantations.harvest.accumulatedProduction")} value={numberText(summary.projectedQuantity, " kg", language)} helper={t("plantations.harvest.inCulture")} />
+          <SummaryCard icon={<WalletCards size={24} />} color="oklch(0.62 0.14 305)" label={t("plantations.harvest.totalRevenue")} value={money(summary.projectedRevenue, language)} helper={t("plantations.harvest.inCulture")} />
+          <SummaryCard icon={<BarChart3 size={24} />} color="oklch(0.62 0.14 185)" label={t("plantations.harvest.averagePrice")} value={`${money(summary.averagePrice, language)} / kg`} helper={t("plantations.harvest.soldKgAverage")} />
         </div>
         <div className="d-flex align-items-center gap-2 text-muted-foreground small mt-3">
           <Info size={16} />
-          Os valores acumulados consideram todas as colheitas já registradas nesta cultura.
+          {t("plantations.harvest.accumulatedValuesHint")}
         </div>
       </div>
 
@@ -638,28 +638,28 @@ export default function ColheitaPage() {
         <div className="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
           <div>
             <h3 className="fw-black text-foreground mb-1" style={{ fontSize: "1rem" }}>
-              <History size={18} className="me-2" /> Histórico recente
+              <History size={18} className="me-2" /> {t("plantations.harvest.recentHistory")}
             </h3>
-            <p className="text-muted-foreground small mb-0">Últimas colheitas registradas nesta cultura.</p>
+            <p className="text-muted-foreground small mb-0">{t("plantations.harvest.lastHarvests")}</p>
           </div>
           <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowAllHistory((current) => !current)}>
-            {showAllHistory ? "Ocultar" : "Ver todas"}
+            {showAllHistory ? t("plantations.harvest.hide") : t("plantations.harvest.viewAll")}
           </button>
         </div>
 
         {harvests.length === 0 ? (
-          <p className="text-muted-foreground small mb-0">Nenhuma colheita recente registrada.</p>
+          <p className="text-muted-foreground small mb-0">{t("plantations.harvest.noRecent")}</p>
         ) : (
           <div className="d-flex flex-column gap-2">
             {harvests.slice(0, 4).map((harvest) => (
               <div key={harvest.id} className="border rounded p-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
                 <div>
-                  <div className="fw-semibold">{harvest.harvest_type_display || (harvest.harvest_type === "total" ? "Total" : "Parcial")}</div>
-                  <div className="text-muted-foreground small">{dateText(harvest.harvest_date)} • {harvest.buyer_name_display || harvest.buyer_name || "Destino não informado"}</div>
+                  <div className="fw-semibold">{harvest.harvest_type_display || (harvest.harvest_type === "total" ? t("plantations.harvest.total") : t("plantations.harvest.partial"))}</div>
+                  <div className="text-muted-foreground small">{dateText(harvest.harvest_date, language)} • {harvest.buyer_name_display || harvest.buyer_name || t("plantations.harvest.unknownDestination")}</div>
                 </div>
                 <div className="text-end">
-                  <div className="fw-bold">{numberText(decimalValue(harvest.yield_kg), " kg")}</div>
-                  <div className="text-muted-foreground small">{money(decimalValue(harvest.revenue_amount))}</div>
+                  <div className="fw-bold">{numberText(decimalValue(harvest.yield_kg), " kg", language)}</div>
+                  <div className="text-muted-foreground small">{money(decimalValue(harvest.revenue_amount), language)}</div>
                 </div>
               </div>
             ))}
@@ -669,41 +669,41 @@ export default function ColheitaPage() {
 
       <div className="dashboard-card p-4 mb-3">
         <h3 className="fw-black text-foreground mb-3" style={{ fontSize: "1rem" }}>
-          Histórico de colheitas
+          {t("plantations.harvest.history")}
         </h3>
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0 agro-table">
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Quantidade</th>
-                <th>Preço (R$)</th>
-                <th>Receita (R$)</th>
-                <th>Comprador</th>
-                <th className="text-end">Ações</th>
+                <th>{t("plantations.operation.date")}</th>
+                <th>{t("plantations.operation.type")}</th>
+                <th>{t("plantations.operation.quantity")}</th>
+                <th>{t("plantations.operation.price")} ({t("plantations.harvest.pricePerKg")})</th>
+                <th>{t("plantations.harvest.revenue")}</th>
+                <th>{t("plantations.harvest.buyer")}</th>
+                <th className="text-end">{t("plantations.operation.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {visibleHarvests.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center text-muted-foreground py-4">
-                    Nenhuma colheita registrada ainda.
+                    {t("plantations.harvest.noRecent")}
                   </td>
                 </tr>
               ) : (
                 <>
                   {visibleHarvests.map((harvest) => (
                     <tr key={harvest.id}>
-                      <td>{dateText(harvest.harvest_date)}</td>
+                      <td>{dateText(harvest.harvest_date, language)}</td>
                       <td>
                         <span className="badge bg-success-subtle text-success">
-                          {harvest.harvest_type_display || (harvest.harvest_type === "total" ? "Total" : "Parcial")}
+                          {harvest.harvest_type_display || (harvest.harvest_type === "total" ? t("plantations.harvest.total") : t("plantations.harvest.partial"))}
                         </span>
                       </td>
-                      <td>{numberText(decimalValue(harvest.yield_kg), " kg")}</td>
-                      <td>{money(decimalValue(harvest.unit_price))} / kg</td>
-                      <td className="fw-bold">{money(decimalValue(harvest.revenue_amount))}</td>
+                      <td>{numberText(decimalValue(harvest.yield_kg), " kg", language)}</td>
+                      <td>{money(decimalValue(harvest.unit_price), language)} / kg</td>
+                      <td className="fw-bold">{money(decimalValue(harvest.revenue_amount), language)}</td>
                       <td>{harvest.buyer_name_display || harvest.buyer_name || "-"}</td>
                       <td>
                         <div className="d-flex justify-content-end gap-2">
@@ -711,7 +711,8 @@ export default function ColheitaPage() {
                             type="button"
                             className="btn btn-outline-secondary btn-sm"
                             onClick={() => handleEditHarvest(harvest)}
-                            title="Editar colheita"
+                            title={t("plantations.harvest.edit")}
+                            aria-label={t("plantations.harvest.edit")}
                           >
                             <Edit3 size={15} />
                           </button>
@@ -720,7 +721,8 @@ export default function ColheitaPage() {
                             className="btn btn-outline-danger btn-sm"
                             disabled={deletingHarvestId === harvest.id}
                             onClick={() => handleDeleteHarvest(harvest)}
-                            title="Remover colheita"
+                            title={t("plantations.operation.removeRecord")}
+                            aria-label={t("plantations.operation.removeRecord")}
                           >
                             <Trash2 size={15} />
                           </button>
@@ -729,11 +731,11 @@ export default function ColheitaPage() {
                     </tr>
                   ))}
                   <tr className="table-light">
-                    <td colSpan={2} className="text-end fw-bold">Total (Exibido):</td>
-                    <td className="fw-bold">{numberText(visibleHarvests.reduce((acc, h) => acc + decimalValue(h.yield_kg), 0), " kg")}</td>
+                    <td colSpan={2} className="text-end fw-bold">{t("plantations.harvest.totalDisplayed")}:</td>
+                    <td className="fw-bold">{numberText(visibleHarvests.reduce((acc, h) => acc + decimalValue(h.yield_kg), 0), " kg", language)}</td>
                     <td></td>
                     <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
-                      {money(visibleHarvests.reduce((acc, h) => acc + decimalValue(h.revenue_amount), 0))}
+                      {money(visibleHarvests.reduce((acc, h) => acc + decimalValue(h.revenue_amount), 0), language)}
                     </td>
                     <td colSpan={2}></td>
                   </tr>
@@ -750,7 +752,7 @@ export default function ColheitaPage() {
             onClick={() => setShowAllHistory((current) => !current)}
             style={{ borderRadius: 10, fontWeight: 800 }}
           >
-            {showAllHistory ? "Ver menos" : "Ver histórico completo"}
+            {showAllHistory ? t("plantations.harvest.viewLess") : t("plantations.harvest.viewHistory")}
           </button>
         )}
 
@@ -761,7 +763,7 @@ export default function ColheitaPage() {
             onClick={() => (editingHarvestId ? resetForm() : router.push(`/home/plantacoes/${id}`))}
             style={{ height: 48, borderRadius: 10, fontWeight: 800 }}
           >
-            {editingHarvestId ? "Cancelar edição" : "Cancelar"}
+            {editingHarvestId ? t("plantations.harvest.editCancel") : t("plantations.cancel")}
           </button>
           <button
             type="button"
@@ -771,7 +773,7 @@ export default function ColheitaPage() {
             style={{ height: 48, borderRadius: 10, fontWeight: 800, minWidth: 190 }}
           >
             <Save size={18} />
-            {saving ? "Salvando..." : editingHarvestId ? "Atualizar colheita" : "Salvar colheita"}
+            {saving ? t("plantations.saving") : editingHarvestId ? t("plantations.harvest.update") : t("plantations.harvest.save")}
           </button>
         </div>
       </div>
@@ -783,8 +785,8 @@ export default function ColheitaPage() {
         <div className="d-flex align-items-center gap-3">
           <FileText className="text-success" size={25} />
           <div>
-            <div className="fw-black text-success">Gerar relatório em PDF</div>
-            <div className="text-muted-foreground small">Gere um relatório completo desta colheita e de todas as colheitas da cultura.</div>
+            <div className="fw-black text-success">{t("plantations.harvest.reportTitle")}</div>
+            <div className="text-muted-foreground small">{t("plantations.harvest.reportDescription")}</div>
           </div>
         </div>
         <button
@@ -794,7 +796,7 @@ export default function ColheitaPage() {
           style={{ height: 46, borderRadius: 10, fontWeight: 800 }}
         >
           <FileText size={18} />
-          Gerar PDF
+          {t("plantations.harvest.generatePdf")}
         </button>
       </div>
 
@@ -806,13 +808,13 @@ export default function ColheitaPage() {
           <div className="dashboard-card p-4 w-100" style={{ maxWidth: 560 }}>
             <div className="d-flex align-items-center justify-content-between mb-3">
               <h4 className="fw-black text-foreground mb-0" style={{ fontSize: "1.1rem" }}>
-                Novo comprador / cliente
+                {t("plantations.harvest.newBuyerTitle")}
               </h4>
               <button
                 type="button"
                 className="btn btn-link text-muted-foreground p-1"
                 onClick={() => setShowBuyerForm(false)}
-                aria-label="Fechar cadastro"
+                aria-label={t("plantations.harvest.closeBuyerForm")}
               >
                 x
               </button>
@@ -821,31 +823,31 @@ export default function ColheitaPage() {
             <form className="row g-3" onSubmit={handleSaveBuyer}>
               <div className="col-12">
                 <label className="form-label fw-bold text-foreground">
-                  Nome <span className="text-danger">*</span>
+                  {t("plantations.harvest.name")} <span className="text-danger">*</span>
                 </label>
                 <input
                   className="form-control"
                   required
                   value={buyerForm.name}
                   onChange={(event) => updateBuyerForm({ name: event.target.value })}
-                  placeholder="Ex.: CEASA - Centro de Abastecimento"
+                  placeholder={t("plantations.harvest.exampleBuyer")}
                   style={{ height: 46, borderRadius: 10 }}
                 />
               </div>
 
               <div className="col-12 col-md-6">
-                <label className="form-label fw-bold text-foreground">Documento</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.harvest.document")}</label>
                 <input
                   className="form-control"
                   value={buyerForm.document}
                   onChange={(event) => updateBuyerForm({ document: event.target.value })}
-                  placeholder="CPF/CNPJ"
+                  placeholder={t("plantations.harvest.taxId")}
                   style={{ height: 46, borderRadius: 10 }}
                 />
               </div>
 
               <div className="col-12 col-md-6">
-                <label className="form-label fw-bold text-foreground">Telefone</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.harvest.phone")}</label>
                 <input
                   className="form-control"
                   value={buyerForm.phone}
@@ -856,7 +858,7 @@ export default function ColheitaPage() {
               </div>
 
               <div className="col-12">
-                <label className="form-label fw-bold text-foreground">Observações</label>
+                <label className="form-label fw-bold text-foreground">{t("plantations.notes")}</label>
                 <textarea
                   className="form-control"
                   rows={3}
@@ -873,7 +875,7 @@ export default function ColheitaPage() {
                   onClick={() => setShowBuyerForm(false)}
                   style={{ borderRadius: 10, fontWeight: 700 }}
                 >
-                  Cancelar
+                  {t("plantations.cancel")}
                 </button>
                 <button
                   type="submit"
@@ -881,7 +883,7 @@ export default function ColheitaPage() {
                   disabled={savingBuyer || !buyerForm.name.trim()}
                   style={{ borderRadius: 10, fontWeight: 800 }}
                 >
-                  {savingBuyer ? "Cadastrando..." : "Cadastrar"}
+                  {savingBuyer ? t("plantations.harvest.registering") : t("plantations.harvest.registerBuyer")}
                 </button>
               </div>
             </form>

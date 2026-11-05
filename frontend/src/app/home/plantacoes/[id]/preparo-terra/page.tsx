@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
-  ArrowLeft, 
   Tractor, 
   Layers, 
   Grid, 
@@ -23,6 +22,7 @@ import apiClient from "@/services/api";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 interface Plantation {
   id: string;
@@ -60,7 +60,7 @@ type OperationDetails = Record<OperationType, {
 
 const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }> = {
   calagem: { label: "Calagem", icon: FileSpreadsheet },
-  aracao: { label: "Colheita", icon: Tractor },
+  aracao: { label: "Aração", icon: Tractor },
   gradagem: { label: "Gradagem", icon: Grid },
   subsolagem: { label: "Subsolagem", icon: Layers },
   nivelamento: { label: "Nivelamento", icon: AlignJustify },
@@ -89,10 +89,10 @@ const extractArray = <T,>(data: unknown): T[] => {
   return [];
 };
 
-const formatDate = (value?: string | null) => {
+const formatDate = (value: string | null | undefined, language: string) => {
   if (!value) return "-";
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
+  const date = value.includes("T") ? value : `${value}T12:00:00`;
+  return new Date(date).toLocaleDateString(language);
 };
 
 const numericValue = (value?: string | number | null) => {
@@ -112,15 +112,15 @@ const numericValue = (value?: string | number | null) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const numberText = (value?: string | number | null, decimals = 2) => {
+const numberText = (value: string | number | null | undefined, language: string, decimals = 2) => {
   const parsed = numericValue(value);
   return Number.isFinite(parsed)
-    ? parsed.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    ? parsed.toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     : "-";
 };
 
-const money = (value?: string | number | null) =>
-  numericValue(value).toLocaleString("pt-BR", {
+const money = (value: string | number | null | undefined, language: string) =>
+  numericValue(value).toLocaleString(language, {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
@@ -130,11 +130,12 @@ const normalizeOperationLabel = (value?: string | null) => {
   const trimmed = value?.trim();
   if (!trimmed) return "-";
   const normalized = trimmed.toLowerCase();
-  if (normalized === "aracao" || normalized === "aração") return "Colheita";
+  if (normalized === "aracao" || normalized === "aração") return "Aração";
   return trimmed;
 };
 
 export default function PreparoTerraPage() {
+  const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
@@ -200,7 +201,7 @@ export default function PreparoTerraPage() {
         setOperators(Array.isArray(membersRes.data) ? membersRes.data : []);
         setHistory(extractArray<LandPreparationRecord>(historyRes.data));
       } catch (err) {
-        console.error("Erro ao carregar dados de preparação de terra", err);
+        console.error("Failed to load land preparation records", err);
       } finally {
         setLoading(false);
       }
@@ -242,22 +243,22 @@ export default function PreparoTerraPage() {
       setHistory(extractArray<LandPreparationRecord>(response.data));
       closeEditModal();
     } catch (err) {
-      console.error("Erro ao editar registro", err);
-      alert("Erro ao editar o registro. Tente novamente.");
+      console.error("Failed to edit land preparation record", err);
+      alert(t("plantations.preparation.updateFailed"));
     } finally {
       setEditSaving(false);
     }
   };
 
   const handleDelete = async (recordId: string) => {
-    if (!confirm("Tem certeza que deseja remover este registro?")) return;
+    if (!confirm(t("plantations.preparation.deleteConfirm"))) return;
     try {
       setDeletingId(recordId);
       await apiClient.delete(`/crops/land-preparations/${recordId}/`);
       setHistory((prev) => prev.filter((r) => r.id !== recordId));
     } catch (err) {
-      console.error("Erro ao remover registro", err);
-      alert("Erro ao remover o registro. Tente novamente.");
+      console.error("Failed to delete land preparation record", err);
+      alert(t("plantations.preparation.deleteFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -289,7 +290,7 @@ export default function PreparoTerraPage() {
       } else {
         const response = await cropService.listLandPreparations({ plantation: id });
         setHistory(extractArray<LandPreparationRecord>(response.data));
-        alert("Lançamento salvo com sucesso!");
+        alert(t("plantations.preparation.saved"));
         setOperationDetails((prev) => ({
           ...prev,
           [selectedOperation]: { hoursWorked: "", hourlyRate: "" },
@@ -297,8 +298,8 @@ export default function PreparoTerraPage() {
         setNotes("");
       }
     } catch (err) {
-      console.error("Erro ao salvar preparação de terra", err);
-      alert("Erro ao salvar o lançamento. Verifique se os dados estão corretos.");
+      console.error("Failed to save land preparation record", err);
+      alert(t("plantations.preparation.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -315,7 +316,7 @@ export default function PreparoTerraPage() {
   }
 
   if (!plantation) {
-    return <div className="p-4 text-muted">Plantação não encontrada.</div>;
+    return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
   }
 
   return (
@@ -332,7 +333,7 @@ export default function PreparoTerraPage() {
             <span>›</span>
             <span>{plantation.field_name || "Talhão"}</span>
             <span>›</span>
-            <span className="text-primary fw-semibold">Serviços Mecanizados</span>
+            <span className="text-primary fw-semibold">{t("plantations.common.mechanizedServices")}</span>
           </div>
 
           {/* Page Header */}
@@ -340,9 +341,9 @@ export default function PreparoTerraPage() {
 
             <div>
               <h1 className="fw-black mb-1 text-foreground d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-                <Tractor size={28} className="text-primary" /> Serviços Mecanizados
+                <Tractor size={28} className="text-primary" /> {t("plantations.common.mechanizedServices")}
               </h1>
-              <p className="text-muted-foreground small mb-0">Registre as informações dos serviços mecanizados realizados no talhão.</p>
+              <p className="text-muted-foreground small mb-0">{t("plantations.preparation.description")}</p>
             </div>
           </div>
 
@@ -352,12 +353,14 @@ export default function PreparoTerraPage() {
             <div className="mb-4">
               <label className="form-label fw-bold text-foreground mb-3 d-flex align-items-center gap-2">
                 <span className="bg-primary/10 text-primary rounded-circle d-flex align-items-center justify-content-center" style={{ width: 22, height: 22, fontSize: '0.75rem' }}>1</span>
-                Tipo de operação
+                {t("plantations.preparation.operationType")}
               </label>
               
               <div className="d-flex flex-wrap gap-2">
                 {(Object.keys(operationConfig) as OperationType[]).map((type) => {
                   const item = operationConfig[type];
+                  const key = type === "aracao" ? "plowing" : type === "gradagem" ? "harrowing" : type === "subsolagem" ? "subsoiling" : type === "nivelamento" ? "leveling" : type === "rocagem" ? "weeding" : type === "plantio" ? "planting" : type;
+                  const label = t(`plantations.preparation.operation.${key}` as TranslationKey);
                   const Icon = item.icon;
                   const isSelected = selectedOperation === type;
 
@@ -382,7 +385,7 @@ export default function PreparoTerraPage() {
                       onClick={() => setSelectedOperation(type)}
                     >
                       <Icon size={16} className={isSelected ? "text-primary" : "text-muted"} />
-                      {item.label}
+                      {label}
                     </button>
                   );
                 })}
@@ -393,11 +396,11 @@ export default function PreparoTerraPage() {
               <div className="col-md-6 col-12">
                 {/* Operador */}
                 <div className="mb-4">
-                  <label className="form-label fw-bold text-foreground mb-2">Operador</label>
+                  <label className="form-label fw-bold text-foreground mb-2">{t("plantations.preparation.operator")}</label>
                   <input
                     className="form-control"
                     list="preparo-operadores"
-                    placeholder="Selecione ou digite o nome do operador"
+                    placeholder={t("plantations.preparation.operatorPlaceholder")}
                     style={{ borderRadius: 10, height: 44 }}
                     value={selectedOperator}
                     onChange={(e) => setSelectedOperator(e.target.value)}
@@ -413,14 +416,14 @@ export default function PreparoTerraPage() {
               <div className="col-md-6 col-12">
                 {/* Observações */}
                 <div className="mb-4">
-                  <label className="form-label fw-bold text-foreground mb-2">Observações</label>
+                  <label className="form-label fw-bold text-foreground mb-2">{t("plantations.notes")}</label>
                   <div className="position-relative">
                     <textarea
                       className="form-control"
                       rows={4}
                       maxLength={500}
                       style={{ borderRadius: 10, resize: "none" }}
-                      placeholder="Ex.: Condições do solo, umidade, observações gerais..."
+                      placeholder={t("plantations.preparation.notesPlaceholder")}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                     />
@@ -447,12 +450,12 @@ export default function PreparoTerraPage() {
                   }}
                 >
                   <h6 className="fw-bold mb-3 d-flex align-items-center gap-2 text-foreground" style={{ fontSize: "0.9rem" }}>
-                    Horas trabalhadas
+                    {t("plantations.preparation.workHours")}
                   </h6>
                   
                   <div className="row g-3">
                     <div className="col-md-6 col-12">
-                      <label className="form-label text-muted-foreground small mb-1">Horas trabalhadas</label>
+                      <label className="form-label text-muted-foreground small mb-1">{t("plantations.preparation.workHours")}</label>
                       <div className="input-group">
                         <input
                           type="number"
@@ -464,16 +467,16 @@ export default function PreparoTerraPage() {
                           style={{ borderRight: "none", borderRadius: "10px 0 0 10px", height: 40 }}
                         />
                         <span className="input-group-text bg-white text-muted-foreground small" style={{ borderLeft: "none", borderRadius: "0 10px 10px 0", fontSize: '0.78rem' }}>
-                          horas
+                          {t("plantations.preparation.hours")}
                         </span>
                       </div>
                     </div>
                     
                     <div className="col-md-6 col-12">
-                      <label className="form-label text-muted-foreground small mb-1">Valor por hora (R$)</label>
+                      <label className="form-label text-muted-foreground small mb-1">{t("plantations.preparation.hourlyRate")}</label>
                       <div className="input-group">
                         <span className="input-group-text bg-white text-muted-foreground small" style={{ borderRight: "none", borderRadius: "10px 0 0 10px", fontSize: '0.78rem' }}>
-                          Ex.:
+                          {t("plantations.preparation.example")}
                         </span>
                         <input
                           type="number"
@@ -508,7 +511,7 @@ export default function PreparoTerraPage() {
                   style={{ borderRadius: 10 }}
                 >
                   <Save size={16} className="me-1.5" />
-                  {saving ? "Salvando..." : "Salvar"}
+                  {saving ? t("plantations.preparation.saving") : t("plantations.save")}
                 </Button>
                 <Button 
                   onClick={() => handleSubmit(true)}
@@ -516,7 +519,7 @@ export default function PreparoTerraPage() {
                   style={{ borderRadius: 10 }}
                 >
                   <Check size={16} className="me-1.5" />
-                  {saving ? "Salvando..." : "Salvar e concluir"}
+                  {saving ? t("plantations.preparation.saving") : t("plantations.preparation.saveFinish")}
                 </Button>
               </div>
             </div>
@@ -524,45 +527,45 @@ export default function PreparoTerraPage() {
 
           <div className="dashboard-card p-4 mb-4">
             <h2 className="fw-black text-foreground mb-3" style={{ fontSize: "1.05rem" }}>
-              Histórico de serviços mecanizados
+              {t("plantations.preparation.historyTitle")}
             </h2>
             <div className="table-responsive">
               <table className="table table-hover align-middle mb-0 agro-table">
                 <thead>
                   <tr>
-                    <th>Data</th>
-                    <th>Operação</th>
-                    <th>Operador</th>
-                    <th>Horas</th>
-                    <th>Valor/hora</th>
-                    <th>Total</th>
-                    <th>Observações</th>
-                    <th className="text-center" style={{ width: 100 }}>Ações</th>
+                    <th>{t("plantations.preparation.date")}</th>
+                    <th>{t("plantations.preparation.operation")}</th>
+                    <th>{t("plantations.preparation.operator")}</th>
+                    <th>{t("plantations.preparation.hours")}</th>
+                    <th>{t("plantations.preparation.hourlyValue")}</th>
+                    <th>{t("plantations.preparation.total")}</th>
+                    <th>{t("plantations.notes")}</th>
+                    <th className="text-center" style={{ width: 100 }}>{t("plantations.preparation.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="text-center text-muted-foreground py-4">
-                        Nenhum serviço mecanizado registrado ainda.
+                        {t("plantations.preparation.empty")}
                       </td>
                     </tr>
                   ) : (
                     <>
                       {history.map((record) => (
                         <tr key={record.id}>
-                          <td>{formatDate(record.date)}</td>
-                          <td>{normalizeOperationLabel(record.operation_type_display || (record.operation_type ? operationConfig[record.operation_type]?.label : "-"))}</td>
+                          <td>{formatDate(record.date, language)}</td>
+                          <td>{record.operation_type ? t(`plantations.preparation.operation.${record.operation_type === "aracao" ? "plowing" : record.operation_type === "gradagem" ? "harrowing" : record.operation_type === "subsolagem" ? "subsoiling" : record.operation_type === "nivelamento" ? "leveling" : record.operation_type === "rocagem" ? "weeding" : record.operation_type === "plantio" ? "planting" : record.operation_type}` as TranslationKey) : normalizeOperationLabel(record.operation_type_display)}</td>
                           <td>{record.operator || "-"}</td>
-                          <td>{numberText(record.hours_worked)} h</td>
-                          <td>{money(record.hourly_rate)}</td>
-                          <td className="fw-bold">{money(record.total_price)}</td>
+                          <td>{numberText(record.hours_worked, language)} h</td>
+                          <td>{money(record.hourly_rate, language)}</td>
+                          <td className="fw-bold">{money(record.total_price, language)}</td>
                           <td className="text-muted-foreground small">{record.notes || "-"}</td>
                           <td className="text-center">
                             <div className="d-flex gap-1 justify-content-center">
                               <button
                                 type="button"
-                                title="Editar registro"
+                                title={t("plantations.edit")}
                                 className="btn btn-sm d-flex align-items-center justify-content-center"
                                 style={{
                                   width: 32,
@@ -579,7 +582,7 @@ export default function PreparoTerraPage() {
                               </button>
                               <button
                                 type="button"
-                                title="Remover registro"
+                                title={t("plantations.operation.removeRecord")}
                                 className="btn btn-sm d-flex align-items-center justify-content-center"
                                 style={{
                                   width: 32,
@@ -605,9 +608,9 @@ export default function PreparoTerraPage() {
                         </tr>
                       ))}
                       <tr className="table-light">
-                        <td colSpan={5} className="text-end fw-bold">Total Geral:</td>
+                        <td colSpan={5} className="text-end fw-bold">{t("plantations.preparation.grandTotal")}</td>
                         <td className="fw-black text-primary" style={{ fontSize: "1.05rem" }}>
-                          {money(history.reduce((acc, record) => acc + numericValue(record.total_price), 0))}
+                          {money(history.reduce((acc, record) => acc + numericValue(record.total_price), 0), language)}
                         </td>
                         <td colSpan={2}></td>
                       </tr>
@@ -635,7 +638,7 @@ export default function PreparoTerraPage() {
             <div className="d-flex align-items-center justify-content-between mb-4">
               <h5 className="fw-black mb-0 d-flex align-items-center gap-2" style={{ fontSize: "1.1rem" }}>
                 <Pencil size={18} className="text-primary" />
-                Editar Serviço Mecanizado
+                {t("plantations.preparation.editTitle")}
               </h5>
               <button
                 type="button"
@@ -649,7 +652,7 @@ export default function PreparoTerraPage() {
 
             {/* Data */}
             <div className="mb-3">
-              <label className="form-label fw-semibold small text-foreground mb-1">Data</label>
+              <label className="form-label fw-semibold small text-foreground mb-1">{t("plantations.preparation.date")}</label>
               <input
                 type="date"
                 className="form-control"
@@ -661,10 +664,12 @@ export default function PreparoTerraPage() {
 
             {/* Tipo de Operação */}
             <div className="mb-3">
-              <label className="form-label fw-semibold small text-foreground mb-2">Tipo de Operação</label>
+              <label className="form-label fw-semibold small text-foreground mb-2">{t("plantations.preparation.operationType")}</label>
               <div className="d-flex flex-wrap gap-2">
                 {(Object.keys(operationConfig) as OperationType[]).map((type) => {
                   const item = operationConfig[type];
+                  const key = type === "aracao" ? "plowing" : type === "gradagem" ? "harrowing" : type === "subsolagem" ? "subsoiling" : type === "nivelamento" ? "leveling" : type === "rocagem" ? "weeding" : type === "plantio" ? "planting" : type;
+                  const label = t(`plantations.preparation.operation.${key}` as TranslationKey);
                   const Icon = item.icon;
                   const isSelected = editForm.operation_type === type;
                   return (
@@ -678,7 +683,7 @@ export default function PreparoTerraPage() {
                       onClick={() => setEditForm((p) => ({ ...p, operation_type: type }))}
                     >
                       <Icon size={13} />
-                      {item.label}
+                      {label}
                     </button>
                   );
                 })}
@@ -687,11 +692,11 @@ export default function PreparoTerraPage() {
 
             {/* Operador */}
             <div className="mb-3">
-              <label className="form-label fw-semibold small text-foreground mb-1">Operador</label>
+              <label className="form-label fw-semibold small text-foreground mb-1">{t("plantations.preparation.operator")}</label>
               <input
                 className="form-control"
                 list="edit-operadores"
-                placeholder="Nome do operador"
+                placeholder={t("plantations.preparation.operatorName")}
                 style={{ borderRadius: 10, height: 40 }}
                 value={editForm.operator}
                 onChange={(e) => setEditForm((p) => ({ ...p, operator: e.target.value }))}
@@ -706,7 +711,7 @@ export default function PreparoTerraPage() {
             {/* Horas e Valor/hora */}
             <div className="row g-3 mb-3">
               <div className="col-6">
-                <label className="form-label fw-semibold small text-foreground mb-1">Horas trabalhadas</label>
+                <label className="form-label fw-semibold small text-foreground mb-1">{t("plantations.preparation.workHours")}</label>
                 <div className="input-group">
                   <input
                     type="number"
@@ -721,7 +726,7 @@ export default function PreparoTerraPage() {
                 </div>
               </div>
               <div className="col-6">
-                <label className="form-label fw-semibold small text-foreground mb-1">Valor por hora (R$)</label>
+                <label className="form-label fw-semibold small text-foreground mb-1">{t("plantations.preparation.hourlyRate")}</label>
                 <div className="input-group">
                   <span className="input-group-text small" style={{ borderRadius: "10px 0 0 10px", fontSize: "0.75rem" }}>R$</span>
                   <input
@@ -739,13 +744,13 @@ export default function PreparoTerraPage() {
 
             {/* Observações */}
             <div className="mb-4">
-              <label className="form-label fw-semibold small text-foreground mb-1">Observações</label>
+              <label className="form-label fw-semibold small text-foreground mb-1">{t("plantations.notes")}</label>
               <textarea
                 className="form-control"
                 rows={3}
                 maxLength={500}
                 style={{ borderRadius: 10, resize: "none" }}
-                placeholder="Observações gerais..."
+                placeholder={t("plantations.preparation.notesGeneral")}
                 value={editForm.notes}
                 onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
               />
@@ -760,7 +765,7 @@ export default function PreparoTerraPage() {
                 onClick={closeEditModal}
                 disabled={editSaving}
               >
-                Cancelar
+                {t("plantations.preparation.cancel")}
               </button>
               <button
                 type="button"
@@ -770,9 +775,9 @@ export default function PreparoTerraPage() {
                 disabled={editSaving}
               >
                 {editSaving ? (
-                  <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> Salvando...</>
+                  <><span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} /> {t("plantations.preparation.saving")}</>
                 ) : (
-                  <><Save size={14} /> Salvar alterações</>
+                  <><Save size={14} /> {t("plantations.preparation.saveChanges")}</>
                 )}
               </button>
             </div>
