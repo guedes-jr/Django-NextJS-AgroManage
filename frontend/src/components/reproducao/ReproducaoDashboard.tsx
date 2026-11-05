@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { ReproducaoHeader, ReproducaoPhaseCards, ReproducaoPhaseTabs } from "./ReproducaoLayout";
@@ -28,12 +28,11 @@ import { useOrganizationLocale } from "@/lib/locale";
 
 export interface FlowStep {
   id?: string;
-  icon: string;
+  icon: ReactNode;
   label: string;
   count: number;
   color: string;
   borderColor: string;
-  image?: string;
   summary?: string;
   accent?: string;
 }

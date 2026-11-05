@@ -829,7 +829,7 @@ export default function SettingsPage() {
         <p className="text-muted-foreground fw-medium">{t("settings.description")}</p>
       </div>
 
-      <div className="dashboard-card overflow-hidden">
+      <div className="dashboard-card settings-shell">
         <div className="row g-0">
           {/* Sidebar Tabs */}
           <div className="col-12 col-md-3 border-end border-border" style={{ background: "var(--muted)" }}>
@@ -862,7 +862,7 @@ export default function SettingsPage() {
 
                 {/* --- Organization Tab --- */}
                 {activeTab === "organization" && org && (
-                  <div className="fade-in">
+                  <div className="fade-in preferences-page">
                     {/* Logo Upload Section */}
                     <div className="mb-5">
                       <div className="section-header mb-4">
@@ -2073,6 +2073,17 @@ export default function SettingsPage() {
         .organization-input-icon { position:absolute; z-index:1; left:.85rem; top:50%; width:1rem; height:1rem; transform:translateY(-50%); color:var(--muted-foreground); pointer-events:none; }
         .organization-profile-form .btn-primary-elegant { min-height:2.65rem; border-radius:10px; }
         @media(max-width:767px){.organization-profile-form{padding:1rem}.organization-profile-form .btn-primary-elegant{width:100%}}
+        .settings-shell { overflow:visible; }
+        .preferences-page { max-width:980px; }
+        .preferences-page > .dashboard-card {
+          margin:0 !important; padding:1.5rem 0 !important; border:0 !important;
+          border-bottom:1px dashed var(--border) !important; border-radius:0 !important;
+          background:transparent !important; box-shadow:none !important;
+        }
+        .preferences-page > .dashboard-card:first-of-type { padding-top:0 !important; }
+        .preferences-page > .dashboard-card:last-of-type { border-bottom:0 !important; }
+        .preferences-page > .dashboard-card .icon-box { width:2.15rem; height:2.15rem; display:grid; place-items:center; flex:0 0 2.15rem; }
+        .preferences-page .language-picker-menu { z-index:50; }
         .language-picker { position:relative; max-width:30rem; }
         .language-picker-trigger,.language-picker-option { display:flex; align-items:center; gap:.7rem; width:100%; border:1px solid var(--border); background:var(--background); color:var(--foreground); font:inherit; text-align:left; }
         .language-picker-trigger { min-height:2.8rem; padding:.55rem .8rem; border-radius:12px; font-size:.875rem; font-weight:700; }

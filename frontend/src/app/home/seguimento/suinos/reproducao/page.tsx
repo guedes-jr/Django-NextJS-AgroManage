@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Loader2, Eye } from "lucide-react";
+import { Plus, Loader2, Eye, Baby, HeartHandshake, House, PiggyBank, ScanLine, TrendingUp, Weight } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganizationLocale } from "@/lib/locale";
@@ -182,13 +182,13 @@ function ReproducaoPageContent() {
       { label: t("swineReproduction.pregnancyRate"), value: d.tx_prenhez ?? "—", icon: "🎯", color: "var(--muted)", trend: "neutral" },
     ],
     flowSteps: [
-      { id: "marras", icon: "🐖", label: t("swineReproduction.gilts"), count: tab.marras?.rows?.length ?? 0, color: "#fff5f6", borderColor: "#fecdd3", accent: "#e84b67", image: "/images/reproduction/marras.png", summary: `${m.em_preparo ?? 0} ${t("swineReproduction.preparing")}` },
-      { id: "matrizes", icon: "♀", label: t("swineReproduction.matrices"), count: tab.matrizes?.rows?.length ?? 0, color: "#f2f7ff", borderColor: "#bfdbfe", accent: "#3978d4", image: "/images/reproduction/matrizes.png", summary: `${mat.cobertas ?? 0} ${t("swineReproduction.coveragesPending")}` },
-      { id: "gestacao", icon: "🤰", label: t("swineReproduction.gestation"), count: tab.gestacao?.rows?.length ?? 0, color: "#fff8ed", borderColor: "#fed7aa", accent: "#e98727", image: "/images/reproduction/gestacao.png", summary: `${g.aguardando_dg ?? 0} ${t("swineReproduction.waitingDiagnosis")} · ${g.confirmadas ?? 0} ${t("swineReproduction.pregnant")}` },
-      { id: "maternidade", icon: "🍼", label: t("swineReproduction.maternity"), count: tab.maternidade?.rows?.length ?? 0, color: "#faf3ff", borderColor: "#e9d5ff", accent: "#9654d8", image: "/images/reproduction/maternidade.png", summary: `${matn.nascidos_mes ?? 0} ${t("swineReproduction.bornThisMonth")}` },
-      { id: "creche", icon: "🐷", label: t("swineReproduction.nursery"), count: tab.creche?.rows?.length ?? 0, color: "#f1fbf5", borderColor: "#bbf7d0", accent: "#249253", image: "/images/reproduction/marras.png", summary: `${cr.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
-      { id: "crescimento", icon: "↗", label: t("swineReproduction.growth"), count: tab.crescimento?.rows?.length ?? 0, color: "#fffbef", borderColor: "#fde68a", accent: "#d59a16", image: "/images/reproduction/crescimento.png", summary: `${cresc.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
-      { id: "engorda", icon: "⚖", label: t("swineReproduction.fattening"), count: tab.engorda?.rows?.length ?? 0, color: "#effafa", borderColor: "#99f6e4", accent: "#168f86", image: "/images/reproduction/crescimento.png", summary: `${eng.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
+      { id: "marras", icon: <PiggyBank />, label: t("swineReproduction.gilts"), count: tab.marras?.rows?.length ?? 0, color: "#fff5f6", borderColor: "#fecdd3", accent: "#e84b67", summary: `${m.em_preparo ?? 0} ${t("swineReproduction.preparing")}` },
+      { id: "matrizes", icon: <HeartHandshake />, label: t("swineReproduction.matrices"), count: tab.matrizes?.rows?.length ?? 0, color: "#f2f7ff", borderColor: "#bfdbfe", accent: "#3978d4", summary: `${mat.cobertas ?? 0} ${t("swineReproduction.coveragesPending")}` },
+      { id: "gestacao", icon: <ScanLine />, label: t("swineReproduction.gestation"), count: tab.gestacao?.rows?.length ?? 0, color: "#fff8ed", borderColor: "#fed7aa", accent: "#e98727", summary: `${g.aguardando_dg ?? 0} ${t("swineReproduction.waitingDiagnosis")} · ${g.confirmadas ?? 0} ${t("swineReproduction.pregnant")}` },
+      { id: "maternidade", icon: <Baby />, label: t("swineReproduction.maternity"), count: tab.maternidade?.rows?.length ?? 0, color: "#faf3ff", borderColor: "#e9d5ff", accent: "#9654d8", summary: `${matn.nascidos_mes ?? 0} ${t("swineReproduction.bornThisMonth")}` },
+      { id: "creche", icon: <House />, label: t("swineReproduction.nursery"), count: tab.creche?.rows?.length ?? 0, color: "#f1fbf5", borderColor: "#bbf7d0", accent: "#249253", summary: `${cr.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
+      { id: "crescimento", icon: <TrendingUp />, label: t("swineReproduction.growth"), count: tab.crescimento?.rows?.length ?? 0, color: "#fffbef", borderColor: "#fde68a", accent: "#d59a16", summary: `${cresc.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
+      { id: "engorda", icon: <Weight />, label: t("swineReproduction.fattening"), count: tab.engorda?.rows?.length ?? 0, color: "#effafa", borderColor: "#99f6e4", accent: "#168f86", summary: `${eng.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
     ],
     alerts: tab.dashboard?.alerts?.length > 0 ? tab.dashboard.alerts : [],
     activities: [],

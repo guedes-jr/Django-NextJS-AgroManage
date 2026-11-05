@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, type ReactNode, type CSSProperties } from "react";
-import Image from "next/image";
 import { ChevronRight, Grid2X2, List, Loader2 } from "lucide-react";
 import "./reproducao.css";
 import { useOrganizationLocale } from "@/lib/locale";
 
-export type ReproductionPhase = { id: string; label: string; count?: number; icon: ReactNode; image?: string; summary?: string; accent?: string; color?: string };
+export type ReproductionPhase = { id: string; label: string; count?: number; icon: ReactNode; summary?: string; accent?: string; color?: string };
 
 export function ReproducaoHeader({ subtitle, children }: { subtitle: string; children?: ReactNode }) {
   const { t } = useOrganizationLocale();
@@ -25,7 +24,7 @@ export function ReproducaoPhaseCards({ phases, onSelect }: { phases: Reproductio
     <button className={!compactView ? "active" : ""} onClick={() => setCompactView(false)} aria-label={t("reproduction.largeCards")}><Grid2X2 size={17}/></button>
     <button className={compactView ? "active" : ""} onClick={() => setCompactView(true)} aria-label={t("reproduction.compactList")}><List size={17}/></button>
   </div></div><div className={`repro-phase-grid ${compactView ? "is-compact" : ""}`}>{phases.map(phase => <button key={phase.id} className="repro-phase-card" onClick={() => onSelect(phase.id)} style={{ "--phase-accent": phase.accent, "--phase-soft": phase.color } as CSSProperties}>
-    <div className="repro-phase-photo">{phase.image ? <Image src={phase.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 25vw" /> : <span className="repro-phase-placeholder" style={{ color: phase.accent }}>{phase.icon}</span>}</div>
+    <div className="repro-phase-photo"><span className="repro-phase-placeholder" style={{ color: phase.accent }}>{phase.icon}</span></div>
     <div className="repro-phase-body"><div className="repro-phase-copy"><h3>{phase.label}</h3><strong>{phase.count?.toLocaleString(language) ?? "—"} <span>{phase.count === 1 ? t("reproduction.record") : t("reproduction.records")}</span></strong><p><i />{phase.summary ?? t("reproduction.openPhaseRecords")}</p></div><span className="repro-phase-enter">{t("reproduction.enter")} <ChevronRight size={17}/></span></div>
   </button>)}</div></section>;
 }
