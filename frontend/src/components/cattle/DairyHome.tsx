@@ -23,6 +23,7 @@ import { useOrganizationAccess } from "@/components/auth/OrganizationAccessConte
 import { canAccessOrganizationPath } from "@/services/organizationAccess";
 import { cattleService, cattleError } from "@/services/cattleService";
 import { dairyService, type DairyOverview } from "@/services/dairyService";
+import { useOrganizationLocale } from "@/lib/locale";
 import shared from "@/components/livestock/species-module-home.module.css";
 import base from "./cattle.module.css";
 import styles from "./dairy-home.module.css";
@@ -32,8 +33,6 @@ const today = () => {
   const day = new Date();
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
 };
-const number = (value: unknown) =>
-  value === null || value === undefined ? "—" : Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 
 const shortcuts: Array<{
   title: string;
@@ -100,6 +99,9 @@ const shortcuts: Array<{
 
 export function DairyHome() {
   const access = useOrganizationAccess();
+  const { language, t } = useOrganizationLocale();
+  const number = (value: unknown) =>
+    value === null || value === undefined ? "—" : Number(value).toLocaleString(language, { maximumFractionDigits: 1 });
   const [date, setDate] = useState(today);
   const [farm, setFarm] = useState("");
   const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
@@ -161,13 +163,13 @@ export function DairyHome() {
             <LactationIcon size={27} strokeWidth={1.8} />
           </div>
           <div>
-            <h1>Pecuária leiteira</h1>
-            <p>Ordenhas, lactação, reprodução e cuidados do rebanho leiteiro</p>
+            <h1>{t("dairy.home.title")}</h1>
+            <p>{t("dairy.home.description")}</p>
           </div>
         </div>
         <div className={styles.filters}>
           <label>
-            <span>Fazenda</span>
+            <span>{t("dairy.home.farm")}</span>
             <select
               className="form-select form-select-sm"
               value={farm}
@@ -176,7 +178,7 @@ export function DairyHome() {
                 setFarm(event.target.value);
               }}
             >
-              <option value="">Todas as fazendas</option>
+              <option value="">{t("dairy.home.allFarms")}</option>
               {farms.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
@@ -186,7 +188,7 @@ export function DairyHome() {
           </label>
           <label>
             <span>
-              <CalendarDays size={14} aria-hidden="true" /> Data de referência
+              <CalendarDays size={14} aria-hidden="true" /> {t("dairy.home.referenceDate")}
             </span>
             <input
               type="date"
@@ -206,7 +208,7 @@ export function DairyHome() {
             type="button"
             className="btn btn-outline-secondary btn-sm"
             disabled={loading}
-            aria-label="Atualizar indicadores"
+            aria-label={t("dairy.home.refresh")}
             onClick={() => {
               setLoading(true);
               setRefresh((v) => v + 1);

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/services/api";
+import { useOrganizationLocale } from "@/lib/locale";
 import { 
   PieChart, 
   Pie, 
@@ -55,23 +56,25 @@ interface FeedConsumptionDashboardProps {
 
 const COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#ec4899"];
 
-const DEFAULT_CATEGORIES: Category[] = [
-  { id: "lotes", label: "Lotes", icon: "🐖" },
-  { id: "matrizes", label: "Matrizes", icon: "🐖" },
-  { id: "marras", label: "Marrás", icon: "🐖" },
-  { id: "reprodutores", label: "Reprodutores", icon: "🐖" },
-];
-
 export function FeedConsumptionDashboard({ 
   species, 
   showHeader = true, 
   initialCategory = "lotes",
   hideInternalTabs = false,
-  categories = DEFAULT_CATEGORIES,
+  categories,
   showForm: externalShowForm,
   onToggleForm,
   onSubmitSuccess
 }: FeedConsumptionDashboardProps = {}) {
+  const { language, t } = useOrganizationLocale();
+  const resolvedCategories = categories ?? [
+    { id: "lotes", label: t("livestock.feed.tabs.lots"), icon: "🐖" },
+    { id: "matrizes", label: t("livestock.feed.tabs.breeders"), icon: "🐖" },
+    { id: "marras", label: t("swineReproduction.gilts"), icon: "🐖" },
+    { id: "reprodutores", label: t("livestock.registration.reproducers"), icon: "🐖" },
+  ];
+  const number = (value: number, options: Intl.NumberFormatOptions = {}) => new Intl.NumberFormat(language, options).format(value);
+  const money = (value: number) => new Intl.NumberFormat(language, { style: "currency", currency: "BRL" }).format(value);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
 
   // Sincronizar categoria ativa com o prop inicial (vindo do pai/tabs)
@@ -180,18 +183,18 @@ export function FeedConsumptionDashboard({
         categoria_destino: "lotes",
         fase_destino: phaseMapping[selectedBatch?.phase] || selectedBatch?.phase,
       });
-      alert("Lançamento de consumo registrado com sucesso!");
+      alert(t("livestock.feedConsumption.saved"));
       if (onToggleForm) onToggleForm();
       else setInternalShowForm(false);
       
       fetchData();
       if (onSubmitSuccess) onSubmitSuccess();
     } catch (err: any) {
-      alert(err.response?.data?.error || "Erro ao salvar lançamento.");
+      alert(err.response?.data?.error || t("livestock.feedConsumption.saveFailed"));
     }
   };
 
-  if (loading && !stats) return <div className="p-5 text-center">Carregando...</div>;
+  if (loading && !stats) return <div className="p-5 text-center">{t("livestock.loading")}</div>;
 
   return (
     <div className="pb-5">
@@ -202,21 +205,21 @@ export function FeedConsumptionDashboard({
             <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-2">
               <Link href="/home" className="text-decoration-none text-muted-foreground">Fazenda Mais</Link>
               <ChevronRight size={14} />
-              <span className="fw-semibold text-foreground">Consumo de Ração</span>
+              <span className="fw-semibold text-foreground">{t("livestock.feed.consumptionTitle")}</span>
             </nav>
-            <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>Consumo de Ração</h1>
-            <p className="text-muted-foreground mb-0">Lance e acompanhe o consumo de ração dos animais.</p>
+            <h1 className="fw-black mb-1" style={{ fontSize: "2.1rem", letterSpacing: "-0.03em" }}>{t("livestock.feed.consumptionTitle")}</h1>
+            <p className="text-muted-foreground mb-0">{t("livestock.feed.consumptionDescription")}</p>
           </div>
           <div className="d-flex gap-2">
             <button className="btn btn-light fw-semibold d-flex align-items-center gap-2 border-border shadow-sm">
-              <History size={18} /> Histórico de Consumo
+              <History size={18} /> {t("livestock.feed.history")}
             </button>
             <button 
               onClick={() => onToggleForm ? onToggleForm() : setInternalShowForm(!internalShowForm)}
               className="btn btn-primary fw-bold d-flex align-items-center gap-2 shadow-sm border-0"
               style={{ background: "var(--primary)" }}
             >
-              <Plus size={18} /> Novo Lançamento
+              <Plus size={18} /> {t("livestock.feed.newEntry")}
             </button>
           </div>
         </div>
@@ -226,7 +229,7 @@ export function FeedConsumptionDashboard({
 
       {!hideInternalTabs && (
         <div className="d-flex align-items-center gap-2 mb-4 p-1 bg-muted/30 rounded-2xl w-fit border border-border/50">
-          {categories.map(cat => (
+          {resolvedCategories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
@@ -252,12 +255,12 @@ export function FeedConsumptionDashboard({
         <div className="col-12 col-xl-9">
           {showForm && (
             <div className="dashboard-card p-4 mb-4 border animate-fade-in shadow-sm">
-              <h5 className="fw-bold mb-4 text-foreground">Novo Lançamento de Consumo</h5>
+              <h5 className="fw-bold mb-4 text-foreground">{t("livestock.feedConsumption.newEntry")}</h5>
               <form onSubmit={handleSave}>
                 <div className="row g-3 mb-4">
                   {/* Linha 1 */}
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-foreground">Selecionar Lote</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.selectBatch")}</label>
                     <div className="input-group">
                       <span className="input-group-text bg-card border-end-0 text-muted"><Users size={16} /></span>
                       <select 
@@ -266,10 +269,10 @@ export function FeedConsumptionDashboard({
                         value={formData.lote_animal}
                         onChange={e => setFormData({...formData, lote_animal: e.target.value})}
                       >
-                        <option value="">Selecione o lote...</option>
+                        <option value="">{t("livestock.feedConsumption.selectBatchPlaceholder")}</option>
                         {filteredBatches.map(b => (
                           <option key={b.id} value={b.id}>
-                            {b.batch_code} - {b.name || b.category} ({b.phase === "gestacao_maternidade" ? "Maternidade" : b.phase})
+                            {b.batch_code} - {b.name || b.category} ({b.phase === "gestacao_maternidade" ? t("livestock.labor.sector.maternity") : b.phase})
                           </option>
                         ))}
                       </select>
@@ -277,10 +280,10 @@ export function FeedConsumptionDashboard({
                   </div>
                   
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-foreground">Período do Consumo</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.period")}</label>
                     <div className="d-flex align-items-center gap-2">
                       <div className="input-group input-group-sm">
-                        <span className="input-group-text bg-card border-end-0 text-muted" style={{fontSize: '0.7rem'}}>DE</span>
+                        <span className="input-group-text bg-card border-end-0 text-muted" style={{fontSize: '0.7rem'}}>{t("livestock.feedConsumption.from")}</span>
                         <input 
                           type="date" 
                           className="form-control border-start-0 ps-1 text-muted" 
@@ -290,7 +293,7 @@ export function FeedConsumptionDashboard({
                         />
                       </div>
                       <div className="input-group input-group-sm">
-                        <span className="input-group-text bg-card border-end-0 text-muted" style={{fontSize: '0.7rem'}}>ATÉ</span>
+                        <span className="input-group-text bg-card border-end-0 text-muted" style={{fontSize: '0.7rem'}}>{t("livestock.feedConsumption.to")}</span>
                         <input 
                           type="date" 
                           className="form-control border-start-0 ps-1 text-muted" 
@@ -303,7 +306,7 @@ export function FeedConsumptionDashboard({
                   </div>
 
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-foreground">Tipo de Ração</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.feedType")}</label>
                     <div className="input-group">
                       <span className="input-group-text bg-card border-end-0 text-muted"><Scale size={16} /></span>
                       <select 
@@ -312,10 +315,10 @@ export function FeedConsumptionDashboard({
                         value={formData.item_estoque}
                         onChange={e => setFormData({...formData, item_estoque: e.target.value})}
                       >
-                        <option value="">Selecione a ração...</option>
+                        <option value="">{t("livestock.feedConsumption.selectFeed")}</option>
                         {inventoryItems.map(item => (
                           <option key={item.id} value={item.id}>
-                            {item.nome} (Saldo: {parseFloat(item.estoque_atual).toLocaleString("pt-BR")} {item.unidade_display})
+                            {item.nome} ({t("livestock.feedConsumption.balance")}: {number(parseFloat(item.estoque_atual))} {item.unidade_display})
                           </option>
                         ))}
                       </select>
@@ -323,23 +326,23 @@ export function FeedConsumptionDashboard({
                   </div>
 
                   <div className="col-12 col-md-3">
-                    <label className="small fw-bold mb-1 text-foreground">Forma de Registro</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.entryMode")}</label>
                     <select 
                       className="form-select"
                       value={formData.tipo_registro}
                       onChange={e => setFormData({...formData, tipo_registro: e.target.value})}
                     >
-                      <option value="total_periodo">Total no Período</option>
-                      <option value="diario">Consumo Diário</option>
+                      <option value="total_periodo">{t("livestock.feedConsumption.periodTotal")}</option>
+                      <option value="diario">{t("livestock.feedConsumption.daily")}</option>
                     </select>
-                    <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>Informe o total consumido no período selecionado.</div>
+                    <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>{t("livestock.feedConsumption.entryModeHelp")}</div>
                   </div>
                 </div>
 
                 <div className="row g-3 mb-4">
                   {/* Linha 2 */}
                   <div className="col-12 col-md-4">
-                    <label className="small fw-bold mb-1 text-foreground">Quantidade Consumida (total)</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.quantity")}</label>
                     <div className="input-group">
                       <input 
                         type="number" 
@@ -352,47 +355,47 @@ export function FeedConsumptionDashboard({
                       <span className="input-group-text bg-card fw-bold text-muted border-start-0">kg</span>
                     </div>
                     <div className="small text-success mt-1 fw-medium" style={{fontSize: '0.75rem'}}>
-                      <Info size={12} className="me-1" /> Período de 7 dias
+                      <Info size={12} className="me-1" /> {t("livestock.feedConsumption.periodDays")}
                     </div>
                   </div>
 
                   <div className="col-12 col-md-4">
-                    <label className="small fw-bold mb-1 text-foreground">Custo por kg (R$)</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.costKg")}</label>
                     <div className="input-group">
-                      <span className="input-group-text bg-muted/20 text-muted fw-bold">R$</span>
+                      <span className="input-group-text bg-muted/20 text-muted fw-bold">{money(0).replace(/[\d.,\s]/g, "")}</span>
                       <input 
                         type="text" 
                         className="form-control bg-muted/20 text-muted fw-bold" 
-                        value="2,85"
+                        value={number(2.85, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         readOnly
                       />
                       <span className="input-group-text bg-muted/20 text-muted"><Lock size={14} /></span>
                     </div>
-                    <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>Valor obtido automaticamente do estoque.</div>
+                    <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>{t("livestock.feedConsumption.stockCost")}</div>
                   </div>
 
                   <div className="col-12 col-md-4">
-                    <label className="small fw-bold mb-1 text-foreground">Custo Total (R$)</label>
+                    <label className="small fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.totalCost")}</label>
                     <div className="input-group">
-                      <span className="input-group-text bg-muted/20 text-muted fw-bold">R$</span>
+                      <span className="input-group-text bg-muted/20 text-muted fw-bold">{money(0).replace(/[\d.,\s]/g, "")}</span>
                       <input 
                         type="text" 
                         className="form-control bg-muted/20 text-muted fw-bold" 
-                        value="598,50"
+                        value={number(598.5, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         readOnly
                       />
                       <span className="input-group-text bg-muted/20 text-muted"><Lock size={14} /></span>
                     </div>
-                    <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>Calculado automaticamente pelo sistema.</div>
+                    <div className="small text-muted mt-1" style={{fontSize: '0.7rem'}}>{t("livestock.feedConsumption.systemCost")}</div>
                   </div>
                 </div>
 
                 <div className="d-flex align-items-center justify-content-between">
                   <div className="alert alert-primary mb-0 py-2 px-3 d-flex align-items-center gap-2 border-0 bg-primary/10 text-primary w-100 me-3" style={{fontSize: '0.85rem'}}>
-                    <Info size={16} /> O custo da ração é definido no cadastro de estoque e não pode ser alterado aqui.
+                    <Info size={16} /> {t("livestock.feedConsumption.costLocked")}
                   </div>
                   <button type="submit" className="btn btn-primary px-4 fw-bold flex-shrink-0 shadow-sm border-0" style={{ background: "#054f31" }}>
-                    Salvar Lançamento
+                    {t("livestock.feedConsumption.save")}
                   </button>
                 </div>
               </form>
@@ -401,35 +404,35 @@ export function FeedConsumptionDashboard({
 
           {/* History Table */}
           <div className="dashboard-card p-4 border shadow-sm">
-            <h5 className="fw-bold mb-4 text-foreground">Histórico de Consumo</h5>
+            <h5 className="fw-bold mb-4 text-foreground">{t("livestock.feed.history")}</h5>
             
             <div className="row g-2 mb-4">
               <div className="col-12 col-md-3">
-                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Período</label>
+                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.period")}</label>
                 <select className="form-select form-select-sm text-foreground bg-card">
-                  <option>Últimos 30 dias</option>
+                  <option>{t("livestock.feedConsumption.last30Days")}</option>
                 </select>
               </div>
               <div className="col-12 col-md-3">
-                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Tipo de Registro</label>
+                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.entryMode")}</label>
                 <select className="form-select form-select-sm text-foreground bg-card">
-                  <option>Todos</option>
+                  <option>{t("inventory.suppliers.all")}</option>
                 </select>
               </div>
               <div className="col-12 col-md-3">
-                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Tipo de Ração</label>
+                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.feedType")}</label>
                 <select className="form-select form-select-sm text-foreground bg-card">
-                  <option>Todos</option>
+                  <option>{t("inventory.suppliers.all")}</option>
                 </select>
               </div>
               <div className="col-12 col-md-3">
-                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>Categoria</label>
+                <label className="small text-muted mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.registration.category")}</label>
                 <div className="d-flex gap-2">
                   <select className="form-select form-select-sm text-foreground bg-card flex-grow-1">
-                    <option>Todos</option>
+                    <option>{t("inventory.suppliers.all")}</option>
                   </select>
                   <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 bg-card flex-shrink-0 px-3">
-                    <Filter size={14} /> Filtros
+                    <Filter size={14} /> {t("livestock.labor.filter")}
                   </button>
                 </div>
               </div>
@@ -439,35 +442,35 @@ export function FeedConsumptionDashboard({
               <table className="table table-hover align-middle">
                 <thead className="bg-card">
                   <tr>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Data Inicial</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Data Final</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Categoria</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Identificação</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Local / Baia</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Ração</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Qtd. Consumida (kg)</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Custo por kg (R$)</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Custo Total (R$)</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Forma de Registro</th>
-                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>Usuário</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.labor.startDate")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.labor.endDate")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.registration.category")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.registration.identifier")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.location")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("inventory.feed.feed")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.quantity")} (kg)</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.costKg")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.totalCost")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.entryMode")}</th>
+                    <th className="border-bottom small text-muted fw-semibold py-3" style={{fontSize: '0.75rem'}}>{t("inventory.feed.user")}</th>
                     <th className="border-bottom"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats?.latest_entries.map((entry: any) => (
                     <tr key={entry.id}>
-                      <td className="fw-medium text-foreground">{new Date(entry.data_inicio).toLocaleDateString('pt-BR')}</td>
-                      <td className="fw-medium text-foreground">{new Date(entry.data_fim).toLocaleDateString('pt-BR')}</td>
+                      <td className="fw-medium text-foreground">{new Date(entry.data_inicio).toLocaleDateString(language)}</td>
+                      <td className="fw-medium text-foreground">{new Date(entry.data_fim).toLocaleDateString(language)}</td>
                       <td>
-                        <span className="badge bg-success/20 text-success rounded-pill px-2 py-1">Lote</span>
+                        <span className="badge bg-success/20 text-success rounded-pill px-2 py-1">{t("livestock.feed.tabs.lots")}</span>
                       </td>
                       <td className="fw-bold text-foreground">{entry.lote_codigo}</td>
                       <td className="text-foreground small">Setor 02 - Baia 03</td>
                       <td className="fw-medium text-foreground small">{entry.item_nome}</td>
-                      <td className="text-foreground small">{entry.quantidade.toLocaleString()}</td>
-                      <td className="text-foreground small">{Number(entry.custo_unitario).toFixed(2)}</td>
-                      <td className="text-foreground small">{Number(entry.custo_total).toFixed(2)}</td>
-                      <td className="text-foreground small">Total no Período</td>
+                      <td className="text-foreground small">{number(Number(entry.quantidade))}</td>
+                      <td className="text-foreground small">{money(Number(entry.custo_unitario))}</td>
+                      <td className="text-foreground small">{money(Number(entry.custo_total))}</td>
+                      <td className="text-foreground small">{t("livestock.feedConsumption.periodTotal")}</td>
                       <td className="text-foreground small">Administrador</td>
                       <td className="text-end">
                         <button className="btn btn-link text-danger p-0 ms-2"><Trash2 size={16} /></button>
@@ -476,7 +479,7 @@ export function FeedConsumptionDashboard({
                   ))}
                   {stats?.latest_entries.length === 0 && (
                     <tr>
-                      <td colSpan={12} className="text-center py-5 text-muted-foreground">Nenhum lançamento encontrado.</td>
+                      <td colSpan={12} className="text-center py-5 text-muted-foreground">{t("livestock.feedConsumption.noEntries")}</td>
                     </tr>
                   )}
                 </tbody>
@@ -484,21 +487,21 @@ export function FeedConsumptionDashboard({
             </div>
             
             <div className="d-flex justify-content-between align-items-center mt-3 border-top pt-3">
-              <span className="small text-muted">Mostrando {stats?.latest_entries.length || 0} registros</span>
+              <span className="small text-muted">{t("livestock.feedConsumption.showing", { count: (stats?.latest_entries.length || 0).toLocaleString(language) })}</span>
             </div>
           </div>
           
           {/* Dicas Importantes */}
           <div className="row g-3 mt-4">
-            <h5 className="fw-bold mb-2 text-foreground">Dicas importantes</h5>
+            <h5 className="fw-bold mb-2 text-foreground">{t("livestock.feedConsumption.tips")}</h5>
             <div className="col-12 col-md-4">
               <div className="p-3 rounded-3 d-flex gap-3 h-100 border border-border shadow-sm" style={{ background: "var(--card)" }}>
                 <div className="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0" style={{ width: 36, height: 36, background: "color-mix(in srgb, var(--primary), transparent 88%)", color: "var(--primary)" }}>
                   <Calendar size={18} />
                 </div>
                 <div>
-                  <div className="fw-bold small text-foreground">Registre o consumo por período</div>
-                  <div className="small text-muted" style={{fontSize: '0.75rem'}}>Você pode lançar o consumo diário, semanal ou mensal.</div>
+                  <div className="fw-bold small text-foreground">{t("livestock.feedConsumption.tipPeriod")}</div>
+                  <div className="small text-muted" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.tipPeriodText")}</div>
                 </div>
               </div>
             </div>
@@ -508,8 +511,8 @@ export function FeedConsumptionDashboard({
                   <Lock size={18} />
                 </div>
                 <div>
-                  <div className="fw-bold small text-foreground">Custo automático</div>
-                  <div className="small text-muted" style={{fontSize: '0.75rem'}}>O custo por kg é obtido do estoque e não pode ser alterado.</div>
+                  <div className="fw-bold small text-foreground">{t("livestock.feedConsumption.tipCost")}</div>
+                  <div className="small text-muted" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.tipCostText")}</div>
                 </div>
               </div>
             </div>
@@ -519,8 +522,8 @@ export function FeedConsumptionDashboard({
                   <TrendingDown size={18} />
                 </div>
                 <div>
-                  <div className="fw-bold small text-foreground">Acompanhe os resultados</div>
-                  <div className="small text-muted" style={{fontSize: '0.75rem'}}>Consumos regulares ajudam a melhorar o desempenho dos animais.</div>
+                  <div className="fw-bold small text-foreground">{t("livestock.feedConsumption.tipResults")}</div>
+                  <div className="small text-muted" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.tipResultsText")}</div>
                 </div>
               </div>
             </div>
@@ -531,32 +534,32 @@ export function FeedConsumptionDashboard({
         <div className="col-12 col-xl-3">
           {/* Resumo do Período */}
           <div className="dashboard-card p-4 mb-4 shadow-sm border">
-            <h6 className="fw-bold mb-1 text-foreground">Resumo do Período</h6>
+            <h6 className="fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.summary")}</h6>
             <div className="small text-muted mb-4" style={{fontSize: '0.75rem'}}>26/05/2025 até 01/06/2025</div>
             
             <div className="row g-3">
               <div className="col-12 col-sm-6">
                 <div className="p-3 rounded-2 bg-muted/20">
-                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Total Consumido</div>
-                  <div className="h5 fw-black mb-1 text-foreground">{stats?.total_qty.toLocaleString()} kg</div>
+                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.totalConsumed")}</div>
+                  <div className="h5 fw-black mb-1 text-foreground">{number(stats?.total_qty || 0)} kg</div>
                   <div className="small text-muted" style={{fontSize: '0.7rem'}}>~ 30,00 kg/dia (média)</div>
                 </div>
               </div>
               <div className="col-12 col-sm-6">
                 <div className="p-3 rounded-2 bg-muted/20 h-100">
-                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Custo Total</div>
-                  <div className="h5 fw-black mb-0 text-foreground">R$ {stats?.total_cost.toLocaleString()}</div>
+                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.totalCost")}</div>
+                  <div className="h5 fw-black mb-0 text-foreground">{money(stats?.total_cost || 0)}</div>
                 </div>
               </div>
               <div className="col-12 col-sm-6">
                 <div className="p-3 rounded-2 bg-muted/20 border border-light-subtle">
-                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Custo Médio por kg</div>
-                  <div className="h6 fw-bold mb-0 text-foreground">R$ {stats?.avg_cost_kg.toFixed(2)}</div>
+                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.averageCost")}</div>
+                  <div className="h6 fw-bold mb-0 text-foreground">{money(stats?.avg_cost_kg || 0)}</div>
                 </div>
               </div>
               <div className="col-12 col-sm-6">
                 <div className="p-3 rounded-2 bg-muted/20 border border-light-subtle">
-                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>Consumo por Animal (média)</div>
+                  <div className="small text-muted fw-semibold mb-1" style={{fontSize: '0.75rem'}}>{t("livestock.feedConsumption.perAnimal")}</div>
                   <div className="h6 fw-bold mb-0 text-foreground">1,75 kg/animal</div>
                 </div>
               </div>
@@ -565,7 +568,7 @@ export function FeedConsumptionDashboard({
 
           {/* Consumo por Tipo de Ração */}
           <div className="dashboard-card p-4 mb-4 shadow-sm border">
-            <h6 className="fw-bold mb-1 text-foreground">Consumo por Tipo de Ração</h6>
+            <h6 className="fw-bold mb-1 text-foreground">{t("livestock.feedConsumption.byFeed")}</h6>
             <div className="small text-muted mb-4" style={{fontSize: '0.75rem'}}>(Últimos 30 dias)</div>
             
             <div className="d-flex align-items-center mb-3">
@@ -605,7 +608,7 @@ export function FeedConsumptionDashboard({
 
           {/* Últimos Lançamentos */}
           <div className="dashboard-card p-4 shadow-sm border">
-            <h6 className="fw-bold mb-3 text-foreground">Últimos Lançamentos</h6>
+            <h6 className="fw-bold mb-3 text-foreground">{t("livestock.feedConsumption.latest")}</h6>
             
             <div className="d-flex flex-column gap-3">
               {stats?.latest_entries.map((entry: any) => (
@@ -619,19 +622,19 @@ export function FeedConsumptionDashboard({
                       <div className="fw-bold small text-foreground" style={{fontSize: '0.8rem'}}>{entry.quantidade} kg</div>
                     </div>
                     <div className="d-flex justify-content-between align-items-center mt-1">
-                      <div className="small text-muted" style={{fontSize: '0.7rem'}}>{new Date(entry.data_inicio).toLocaleDateString('pt-BR')} a {new Date(entry.data_fim).toLocaleDateString('pt-BR')}</div>
-                      <div className="fw-semibold small text-success" style={{fontSize: '0.75rem'}}>R$ {Number(entry.custo_total).toFixed(2)}</div>
+                      <div className="small text-muted" style={{fontSize: '0.7rem'}}>{new Date(entry.data_inicio).toLocaleDateString(language)} – {new Date(entry.data_fim).toLocaleDateString(language)}</div>
+                      <div className="fw-semibold small text-success" style={{fontSize: '0.75rem'}}>{money(Number(entry.custo_total))}</div>
                     </div>
                   </div>
                 </div>
               ))}
               {stats?.latest_entries.length === 0 && (
-                <div className="text-center py-3 text-muted small">Nenhum lançamento recente.</div>
+                <div className="text-center py-3 text-muted small">{t("livestock.feedConsumption.noneRecent")}</div>
               )}
             </div>
             
             <div className="mt-3 text-center">
-              <button className="btn btn-link text-success text-decoration-none small fw-bold p-0">Ver todos os lançamentos <ChevronRight size={14}/></button>
+              <button className="btn btn-link text-success text-decoration-none small fw-bold p-0">{t("livestock.feedConsumption.viewAll")} <ChevronRight size={14}/></button>
             </div>
           </div>
         </div>

@@ -122,7 +122,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
 
   const handleCreateNew = () => {
     const nova: Formula = {
-      nome: "Nova Fórmula",
+      nome: t("inventory.formulas.newFormula"),
       descricao: "",
       especie_animal: species ?? "",
       ativa: true,
@@ -327,7 +327,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
             <div className={`mt-3 p-3 rounded-3 d-flex justify-content-between align-items-center ${totals.percentual === 100 ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
               <span className="fw-bold">{t("inventory.formulas.total")}</span>
               <div className="d-flex gap-4 fw-black fs-5">
-                <span>{totals.percentual.toFixed(2).replace(".", ",")} %</span>
+                <span>{totals.percentual.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</span>
               </div>
             </div>
             {totals.percentual !== 100 && (

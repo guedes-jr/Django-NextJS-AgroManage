@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Eye } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { getReproductionDashboard } from "@/services/livestockService";
@@ -8,7 +8,14 @@ import { useOrganizationLocale } from "@/lib/locale";
 
 export default function AvesReproducaoPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
-  const { t } = useOrganizationLocale();
+  const { language, t } = useOrganizationLocale();
+  const number = useMemo(() => new Intl.NumberFormat(language), [language]);
+  const formatDate = useCallback((value: unknown) => {
+    if (typeof value !== "string") return "—";
+    const [day, month, year] = value.split("/").map(Number);
+    if (!day || !month || !year) return value;
+    return new Date(year, month - 1, day).toLocaleDateString(language);
+  }, [language]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -29,14 +36,14 @@ export default function AvesReproducaoPage() {
   const config: ReproducaoConfig = {
     especie: "aves",
     emoji: "🐔",
-    titulo: "Aves",
+    titulo: t("sidebar.birds"),
     subtitulo: t("poultryReproduction.subtitle"),
     badgeColor: "oklch(0.97 0.04 80)",
     badgeTextColor: "oklch(0.5 0.14 75)",
     kpis: [
-      { label: t("poultryReproduction.breederLots"), value: kpis.lotes !== undefined ? kpis.lotes : "2.5k", icon: "🐔", color: "oklch(0.95 0.05 145)", trend: "neutral" },
-      { label: t("poultryReproduction.dailyProduction"), value: "1.8k", icon: "🥚", color: "oklch(0.97 0.04 80)", trend: "up" },
-      { label: t("poultryReproduction.incubatedEggs"), value: kpis.ovos_incubados !== undefined ? kpis.ovos_incubados : "4.5k", icon: "🌡️", color: "oklch(0.94 0.04 230)", trend: "up" },
+      { label: t("poultryReproduction.breederLots"), value: kpis.lotes !== undefined ? kpis.lotes : number.format(2500), icon: "🐔", color: "oklch(0.95 0.05 145)", trend: "neutral" },
+      { label: t("poultryReproduction.dailyProduction"), value: number.format(1800), icon: "🥚", color: "oklch(0.97 0.04 80)", trend: "up" },
+      { label: t("poultryReproduction.incubatedEggs"), value: kpis.ovos_incubados !== undefined ? kpis.ovos_incubados : number.format(4500), icon: "🌡️", color: "oklch(0.94 0.04 230)", trend: "up" },
       { label: t("poultryReproduction.averageHatch"), value: "88%", icon: "🐣", color: "oklch(0.96 0.04 290)", trend: "neutral" },
     ],
     flowSteps: [
@@ -111,7 +118,7 @@ export default function AvesReproducaoPage() {
           { name: "descarte", label: t("poultryReproduction.discard"), type: "number" },
         ],
         columns: [
-          { key: "data", label: t("poultryReproduction.date") },
+          { key: "data", label: t("poultryReproduction.date"), render: formatDate },
           { key: "galpao", label: t("poultryReproduction.shed") },
           { key: "total", label: t("poultryReproduction.totalEggs") },
           { key: "incubaveis", label: t("poultryReproduction.incubatablePercent") },
@@ -146,10 +153,10 @@ export default function AvesReproducaoPage() {
         ],
         columns: [
           { key: "lote", label: t("poultryReproduction.incubatorBatch"), render: (v) => <span className="repro-table-id">{String(v)}</span> },
-          { key: "data", label: t("poultryReproduction.loading") },
+          { key: "data", label: t("poultryReproduction.loading"), render: formatDate },
           { key: "qtd", label: t("poultryReproduction.eggQuantity") },
           { key: "dias", label: t("poultryReproduction.days") },
-          { key: "previsao", label: t("poultryReproduction.expectedHatch") },
+          { key: "previsao", label: t("poultryReproduction.expectedHatch"), render: formatDate },
         ],
         actions: [
           {
@@ -175,7 +182,7 @@ export default function AvesReproducaoPage() {
         label: t("poultryReproduction.birth"),
         columns: [
           { key: "lote", label: t("poultryReproduction.sourceBatch") },
-          { key: "data", label: t("poultryReproduction.hatchDate") },
+          { key: "data", label: t("poultryReproduction.hatchDate"), render: formatDate },
           { key: "pintos", label: t("poultryReproduction.liveChicks") },
           { key: "eclosao", label: t("poultryReproduction.hatchRate") },
         ],

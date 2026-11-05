@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchAnimalDetails, fetchAnimalHistory, registerWeight, registerVaccination, registerMating, fetchVaccines } from "@/services/livestockService";
 import { useToast } from "@/components/ui/Toast";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { breedDictionary } from "@/constants/breedInfo";
 import { BreedInfoModal } from "@/components/animal/BreedInfoModal";
@@ -52,7 +53,7 @@ const StatCard = ({ label, value, icon, color, subValue }: any) => (
   </div>
 );
 
-const TimelineItem = ({ event }: { event: any }) => {
+const TimelineItem = ({ event, language }: { event: any; language: string }) => {
   const getIcon = (type: string) => {
     switch (type) {
       case 'weight': return <Scale size={16} />;
@@ -90,7 +91,7 @@ const TimelineItem = ({ event }: { event: any }) => {
       <div className="timeline-content pb-2 w-100">
         <div className="d-flex align-items-center justify-content-between mb-1">
           <div className="d-flex align-items-center gap-2">
-            <span className="small fw-semibold text-muted-foreground">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
+            <span className="small fw-semibold text-muted-foreground">{new Date(event.date).toLocaleDateString(language)}</span>
             <span className="badge bg-muted text-muted-foreground border-0 rounded-pill small" style={{ fontSize: '0.65rem' }}>{event.status}</span>
           </div>
         </div>
@@ -109,6 +110,7 @@ export default function AnimalDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { showToast } = useToast();
+  const { language, t } = useOrganizationLocale();
   
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -131,7 +133,7 @@ export default function AnimalDetailPage() {
       setAnimal(details);
       setHistory(fullHistory);
     } catch (err) {
-      showToast("Erro ao carregar dados do animal", "error");
+      showToast(t("animalDetail.loadFailed"), "error");
       router.back();
     } finally {
       setLoading(false);
@@ -158,12 +160,12 @@ export default function AnimalDetailPage() {
       } else if (qaModal.type === 'mating') {
         await registerMating(animal.id, { mating_date: qaFormData.date, mating_type: qaFormData.mating_type, sire_info: qaFormData.sire });
       }
-      showToast("Ação registrada com sucesso!", "success");
+      showToast(t("animalDetail.actionSaved"), "success");
       setQaModal({ open: false, type: '', title: '' });
       setQaFormData({});
       loadData(); // Refetch
     } catch (err) {
-      showToast("Erro ao registrar ação", "error");
+      showToast(t("animalDetail.actionFailed"), "error");
     }
   };
 
@@ -171,7 +173,7 @@ export default function AnimalDetailPage() {
     return (
       <div className="d-flex flex-column align-items-center justify-content-center min-vh-100 gap-3">
         <Loader2 className="spin-animation text-primary" size={40} />
-        <span className="text-muted-foreground fw-medium">Carregando ficha premium do animal...</span>
+        <span className="text-muted-foreground fw-medium">{t("animalDetail.loading")}</span>
       </div>
     );
   }
@@ -187,7 +189,7 @@ export default function AnimalDetailPage() {
   const now = new Date();
   
   const ageDays = birthDate ? Math.floor((now.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
-  const ageString = ageDays ? `${Math.floor(ageDays / 30)}m ${ageDays % 30}d` : 'N/A';
+  const ageString = ageDays ? `${Math.floor(ageDays / 30)} ${t("animalDetail.monthsShort")} ${ageDays % 30} ${t("animalDetail.daysShort")}` : '—';
 
   const birthsCount = history.filter(e => e.type === 'birth').length;
   const ordemDeParto = isFemale ? birthsCount + 1 : 'N/A';
@@ -209,14 +211,14 @@ export default function AnimalDetailPage() {
   }
 
   const weightChartData = weights.map(w => ({
-    data: new Date(w.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+    data: new Date(w.date).toLocaleDateString(language, { day: '2-digit', month: 'short' }),
     peso: parseFloat(w.subtitle.match(/\\d+(\\.\\d+)?/)?.[0] || '0')
   }));
 
   if (weightChartData.length === 0 && animal.initial_weight_kg) {
-    weightChartData.push({ data: entryDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }), peso: animal.initial_weight_kg });
+    weightChartData.push({ data: entryDate.toLocaleDateString(language, { day: '2-digit', month: 'short' }), peso: animal.initial_weight_kg });
     if (animal.current_weight_kg && animal.current_weight_kg !== animal.initial_weight_kg) {
-        weightChartData.push({ data: now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }), peso: animal.current_weight_kg });
+        weightChartData.push({ data: now.toLocaleDateString(language, { day: '2-digit', month: 'short' }), peso: animal.current_weight_kg });
     }
   }
 
@@ -261,9 +263,9 @@ export default function AnimalDetailPage() {
             <ChevronLeft size={20} />
           </button>
           <div className="d-flex align-items-center gap-2 text-muted-foreground small">
-            <span>Rebanho</span>
+            <span>{t("inventory.formulas.breadcrumbHome")}</span>
             <ChevronRight size={14} />
-            <span>Suínos</span>
+            <span>{t("sidebar.swine")}</span>
             <ChevronRight size={14} />
             <span className="text-foreground fw-semibold">{animal.identifier}</span>
           </div>
@@ -271,17 +273,17 @@ export default function AnimalDetailPage() {
         
         {/* Quick Actions Bar */}
         <div className="d-flex gap-2">
-          <button className="btn btn-primary d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm" onClick={() => setQaModal({ open: true, type: 'weight', title: 'Registrar Peso' })}>
-            <Scale size={16} /> <span className="d-none d-sm-inline">Pesar</span>
+          <button className="btn btn-primary d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm" onClick={() => setQaModal({ open: true, type: 'weight', title: t("swineReproduction.registerWeight") })}>
+            <Scale size={16} /> <span className="d-none d-sm-inline">{t("swineReproduction.registerWeight")}</span>
           </button>
-          <button className="btn btn-light border border-border text-foreground hover-bg-muted d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm" onClick={() => setQaModal({ open: true, type: 'vaccine', title: 'Registrar Vacina' })}>
-            <Syringe size={16} /> <span className="d-none d-sm-inline">Vacinar</span>
+          <button className="btn btn-light border border-border text-foreground hover-bg-muted d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm" onClick={() => setQaModal({ open: true, type: 'vaccine', title: t("swineReproduction.registerVaccine") })}>
+            <Syringe size={16} /> <span className="d-none d-sm-inline">{t("swineReproduction.registerVaccine")}</span>
           </button>
           <button 
             className="btn btn-light border border-border text-foreground hover-bg-muted d-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm"
             onClick={() => setShowTechnicalSheet(true)}
           >
-            <ClipboardList size={16} /> <span className="d-none d-sm-inline">Ficha Técnica</span>
+            <ClipboardList size={16} /> <span className="d-none d-sm-inline">{t("swineReproduction.technicalSheet")}</span>
           </button>
         </div>
       </div>
@@ -299,7 +301,7 @@ export default function AnimalDetailPage() {
                 <div className="d-flex align-items-center gap-3 mb-2">
                   <h1 className="display-6 fw-bold text-foreground mb-0">{animal.identifier}</h1>
                   <span className={`badge rounded-pill px-3 py-1 fw-semibold ${animal.status === 'active' ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'}`}>
-                    {animal.status === 'active' ? 'Ativo' : animal.status}
+                    {animal.status === 'active' ? t("livestock.registration.activeStatus") : animal.status}
                   </span>
                 </div>
                 <div className="d-flex flex-wrap align-items-center gap-x-4 gap-y-2 text-muted-foreground mt-3">
@@ -310,14 +312,14 @@ export default function AnimalDetailPage() {
                   <div 
                     className="d-flex align-items-center gap-1 bg-muted/30 px-2 py-1 rounded-pill cursor-pointer hover-bg-muted transition-colors" 
                     onClick={() => breedInfo && setShowBreedInfo(true)}
-                    title={breedInfo ? "Clique para ver a Ficha Zootécnica completa desta raça" : "Raça sem ficha detalhada"}
+                    title={breedInfo ? t("animalDetail.breedInfo") : t("animalDetail.noBreedInfo")}
                   >
                     <Info size={14} className={breedInfo ? "text-primary" : "text-muted-foreground opacity-50"} />
-                    <span className="small fw-medium">{animal.breed_name || 'Raça Indefinida'}</span>
+                    <span className="small fw-medium">{animal.breed_name || t("animalDetail.unknownBreed")}</span>
                   </div>
                   <div className="d-flex align-items-center gap-1 bg-muted/30 px-2 py-1 rounded-pill">
                     <Activity size={14} />
-                    <span className="text-capitalize small fw-medium">{animal.reproductive_status?.replace('_', ' ') || 'Normal'}</span>
+                    <span className="text-capitalize small fw-medium">{animal.reproductive_status?.replace('_', ' ') || t("animalDetail.normal")}</span>
                   </div>
                 </div>
               </div>
@@ -327,18 +329,18 @@ export default function AnimalDetailPage() {
         <div className="col-lg-5">
           <div className="row g-3 h-100">
             <div className="col-6">
-              <StatCard label="Peso Atual" value={`${animal.current_weight_kg || 0} kg`} icon={<Scale size={20} />} color="oklch(0.6 0.15 220)" subValue={`GPD: ${gpd} kg/dia`} />
+              <StatCard label={t("swineReproduction.weightKg")} value={`${animal.current_weight_kg || 0} kg`} icon={<Scale size={20} />} color="oklch(0.6 0.15 220)" subValue={`${t("animalDetail.dailyGain")}: ${Number(gpd).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg/${t("animalDetail.day")}`} />
             </div>
             <div className="col-6">
-              <StatCard label="Idade" value={ageString} icon={<Calendar size={20} />} color="oklch(0.6 0.15 150)" subValue={`Entrada: ${entryDate.toLocaleDateString('pt-BR')}`} />
+              <StatCard label={t("swineReproduction.ageDays")} value={ageString} icon={<Calendar size={20} />} color="oklch(0.6 0.15 150)" subValue={`${t("swineReproduction.entry")}: ${entryDate.toLocaleDateString(language)}`} />
             </div>
             {isFemale && (
               <>
                 <div className="col-6">
-                  <StatCard label="Próxima ordem de parto" value={ordemDeParto} icon={<Baby size={20} />} color="oklch(0.6 0.15 340)" subValue={isVazia ? "Aguardando cobertura" : "Em reprodução"} />
+                  <StatCard label={t("animalDetail.nextFarrowing")} value={ordemDeParto} icon={<Baby size={20} />} color="oklch(0.6 0.15 340)" subValue={isVazia ? t("swineReproduction.awaitingCoverageCapital") : t("animalDetail.inReproduction")} />
                 </div>
                 <div className="col-6">
-                  <StatCard label="Dias Abertos" value={diasAbertos} icon={<Clock size={20} />} color="oklch(0.6 0.22 27)" subValue="Desde a última cobertura" />
+                  <StatCard label={t("animalDetail.openDays")} value={diasAbertos} icon={<Clock size={20} />} color="oklch(0.6 0.22 27)" subValue={t("animalDetail.sinceLastMating")} />
                 </div>
               </>
             )}
@@ -348,12 +350,12 @@ export default function AnimalDetailPage() {
 
       {/* Tabs */}
       <ul className="nav nav-tabs mb-4 border-bottom w-100 flex-nowrap overflow-auto hide-scrollbar" style={{ borderBottom: '1px solid var(--border)' }}>
-        {["geral", "reproducao", "alimentacao", "clinico"].map((t) => {
-          const isActive = activeTab === t;
+        {(["geral", "reproducao", "alimentacao", "clinico"] as const).map((tab) => {
+          const isActive = activeTab === tab;
           return (
-            <li className="nav-item" key={t}>
+            <li className="nav-item" key={tab}>
               <button
-                onClick={() => setActiveTab(t)}
+                onClick={() => setActiveTab(tab)}
                 className={`nav-link d-flex align-items-center gap-2 py-3 px-4 fw-semibold border-0 border-bottom border-3 rounded-0 text-capitalize whitespace-nowrap ${
                   isActive
                     ? "active text-success border-success bg-transparent"
@@ -361,7 +363,7 @@ export default function AnimalDetailPage() {
                 }`}
                 style={{ fontSize: '0.9rem', marginBottom: '-1px' }}
               >
-                {t}
+                {{ geral: t("animalDetail.general"), reproducao: t("animalDetail.reproduction"), alimentacao: t("animalDetail.feed"), clinico: t("animalDetail.clinical") }[tab]}
               </button>
             </li>
           );
@@ -377,35 +379,35 @@ export default function AnimalDetailPage() {
                 <div className="dashboard-card p-4 rounded-4 bg-card shadow-sm border border-border h-100">
                   <div className="d-flex align-items-center gap-2 mb-4">
                     <History size={20} className="text-primary" />
-                    <h5 className="fw-bold mb-0">Linha do Tempo Completa</h5>
+                    <h5 className="fw-bold mb-0">{t("animalDetail.timeline")}</h5>
                   </div>
                   <div className="timeline-container ps-2 mt-4" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                     {history.length > 0 ? (
-                      history.map((event, i) => <TimelineItem key={i} event={event} />)
+                      history.map((event, i) => <TimelineItem key={i} event={event} language={language} />)
                     ) : (
-                      <div className="text-center py-5 text-muted-foreground">Nenhum registro histórico encontrado.</div>
+                      <div className="text-center py-5 text-muted-foreground">{t("animalDetail.noHistory")}</div>
                     )}
                   </div>
                 </div>
               </div>
               <div className="col-lg-4">
                 <div className="dashboard-card p-4 rounded-4 bg-card shadow-sm border border-border mb-4">
-                  <h6 className="fw-bold mb-3 d-flex align-items-center gap-2"><ClipboardList size={18} className="text-primary"/> Ficha Cadastral</h6>
+                  <h6 className="fw-bold mb-3 d-flex align-items-center gap-2"><ClipboardList size={18} className="text-primary"/> {t("animalDetail.registration")}</h6>
                   <ul className="list-unstyled mb-0 d-flex flex-column gap-3">
                     <li className="d-flex justify-content-between border-bottom border-border pb-2">
-                      <span className="text-muted-foreground small">Lote de Origem</span>
+                      <span className="text-muted-foreground small">{t("animalDetail.originBatch")}</span>
                       <span className="fw-medium">{animal.batch_code || '—'}</span>
                     </li>
                     <li className="d-flex justify-content-between border-bottom border-border pb-2">
-                      <span className="text-muted-foreground small">Data de Nascimento</span>
-                      <span className="fw-medium">{birthDate ? birthDate.toLocaleDateString('pt-BR') : '—'}</span>
+                      <span className="text-muted-foreground small">{t("animalDetail.birthDate")}</span>
+                      <span className="fw-medium">{birthDate ? birthDate.toLocaleDateString(language) : '—'}</span>
                     </li>
                     <li className="d-flex justify-content-between border-bottom border-border pb-2">
-                      <span className="text-muted-foreground small">Peso Inicial</span>
+                      <span className="text-muted-foreground small">{t("animalDetail.initialWeight")}</span>
                       <span className="fw-medium">{animal.initial_weight_kg || 0} kg</span>
                     </li>
                     <li className="d-flex justify-content-between pb-1">
-                      <span className="text-muted-foreground small">Origem</span>
+                      <span className="text-muted-foreground small">{t("animalDetail.origin")}</span>
                       <span className="fw-medium text-capitalize">{animal.origin || '—'}</span>
                     </li>
                   </ul>
@@ -422,7 +424,7 @@ export default function AnimalDetailPage() {
                     <div className="dashboard-card p-4 rounded-4 bg-card shadow-sm border border-border h-100 position-relative overflow-hidden">
                       <div className="position-absolute top-0 start-0 w-2 h-100 bg-primary/50"></div>
                       <div className="d-flex justify-content-between mb-3 ps-2">
-                        <span className="small fw-semibold text-muted-foreground">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
+                        <span className="small fw-semibold text-muted-foreground">{new Date(event.date).toLocaleDateString(language)}</span>
                         <span className="badge bg-primary/10 text-primary border-0 rounded-pill small">{event.type}</span>
                       </div>
                       <h6 className="fw-bold mb-2 ps-2">{event.title}</h6>
@@ -431,7 +433,7 @@ export default function AnimalDetailPage() {
                   </div>
                 ))}
                 {history.filter(e => ['mating', 'pregnancy', 'birth'].includes(e.type)).length === 0 && (
-                  <div className="col-12 text-center py-5 text-muted-foreground">Sem histórico reprodutivo.</div>
+                  <div className="col-12 text-center py-5 text-muted-foreground">{t("animalDetail.noReproduction")}</div>
                 )}
               </div>
             </motion.div>
@@ -443,7 +445,7 @@ export default function AnimalDetailPage() {
                  <div className="dashboard-card p-4 rounded-4 bg-card shadow-sm border border-border">
                     <div className="d-flex align-items-center gap-2 mb-4">
                       <TrendingUp size={20} className="text-primary" />
-                      <h5 className="fw-bold mb-0">Evolução de Peso</h5>
+                      <h5 className="fw-bold mb-0">{t("animalDetail.weightProgress")}</h5>
                     </div>
                     {weightChartData.length > 1 ? (
                       <div style={{ height: '350px', width: '100%' }}>
@@ -462,14 +464,14 @@ export default function AnimalDetailPage() {
                               contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                               itemStyle={{ color: 'var(--foreground)', fontWeight: 600 }}
                             />
-                            <Area type="monotone" dataKey="peso" name="Peso (kg)" stroke="oklch(0.55 0.16 230)" strokeWidth={3} fillOpacity={1} fill="url(#colorPeso)" />
+                            <Area type="monotone" dataKey="peso" name={t("swineReproduction.weightKg")} stroke="oklch(0.55 0.16 230)" strokeWidth={3} fillOpacity={1} fill="url(#colorPeso)" />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
                     ) : (
                       <div className="text-center py-5 text-muted-foreground d-flex flex-column align-items-center gap-2">
                         <Scale size={32} className="opacity-50" />
-                        <span>Dados insuficientes para gerar o gráfico. Registre mais pesagens.</span>
+                        <span>{t("animalDetail.noWeightData")}</span>
                       </div>
                     )}
                  </div>
@@ -489,7 +491,7 @@ export default function AnimalDetailPage() {
                       <div>
                         <div className="d-flex align-items-center gap-2 mb-1">
                           <h6 className="fw-bold mb-0">{event.title}</h6>
-                          <span className="badge bg-muted text-muted-foreground border-0 rounded-pill" style={{ fontSize: '0.65rem' }}>{new Date(event.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="badge bg-muted text-muted-foreground border-0 rounded-pill" style={{ fontSize: '0.65rem' }}>{new Date(event.date).toLocaleDateString(language)}</span>
                         </div>
                         <p className="text-muted-foreground small mb-0">{event.subtitle}</p>
                       </div>
@@ -497,7 +499,7 @@ export default function AnimalDetailPage() {
                   </div>
                 ))}
                 {history.filter(e => ['vaccination', 'health'].includes(e.type)).length === 0 && (
-                  <div className="col-12 text-center py-5 text-muted-foreground">Sem registros clínicos.</div>
+                  <div className="col-12 text-center py-5 text-muted-foreground">{t("animalDetail.noClinical")}</div>
                 )}
               </div>
             </motion.div>
@@ -523,43 +525,43 @@ export default function AnimalDetailPage() {
         title={qaModal.title}
         footer={
           <div className="d-flex justify-content-end gap-2 w-100">
-            <button type="button" className="btn btn-light rounded-pill px-4" onClick={() => setQaModal({ open: false, type: '', title: '' })}>Cancelar</button>
-            <button type="submit" form="quick-action-form" className="btn btn-primary rounded-pill px-4">Salvar Registro</button>
+            <button type="button" className="btn btn-light rounded-pill px-4" onClick={() => setQaModal({ open: false, type: '', title: '' })}>{t("animalDetail.cancel")}</button>
+            <button type="submit" form="quick-action-form" className="btn btn-primary rounded-pill px-4">{t("animalDetail.saveEntry")}</button>
           </div>
         }
       >
         <form id="quick-action-form" onSubmit={handleQuickActionSubmit} className="d-flex flex-column gap-3 p-4">
           {qaModal.type === 'weight' && (
             <>
-              <Input label="Peso (kg)" type="number" step="0.01" required value={qaFormData.weight || ''} onChange={e => setQaFormData({...qaFormData, weight: e.target.value})} />
-              <Input label="Data" type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
+              <Input label={t("swineReproduction.weightKg")} type="number" step="0.01" required value={qaFormData.weight || ''} onChange={e => setQaFormData({...qaFormData, weight: e.target.value})} />
+              <Input label={t("livestock.date")} type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
             </>
           )}
           {qaModal.type === 'vaccine' && (
             <>
               <div className="form-group mb-3">
-                <label className="form-label small fw-medium text-foreground">Vacina <span className="text-danger">*</span></label>
+                <label className="form-label small fw-medium text-foreground">{t("animalDetail.vaccine")} <span className="text-danger">*</span></label>
                 <select className="form-select bg-card text-foreground border-border rounded-3" required value={qaFormData.vaccine_item_id || ''} onChange={e => setQaFormData({...qaFormData, vaccine_item_id: e.target.value})}>
-                  <option value="">{vaccineItems.length === 0 ? 'Nenhuma vacina no estoque' : 'Selecione a vacina...'}</option>
+                  <option value="">{vaccineItems.length === 0 ? t("animalDetail.noVaccines") : t("animalDetail.selectVaccine")}</option>
                   {vaccineItems.map((v: any) => (
-                    <option key={v.id} value={v.id}>{v.nome}{v.estoque_atual ? ` (Estoque: ${v.estoque_atual})` : ''}</option>
+                    <option key={v.id} value={v.id}>{v.nome}{v.estoque_atual ? ` (${t("animalDetail.stock")}: ${Number(v.estoque_atual).toLocaleString(language)})` : ''}</option>
                   ))}
                 </select>
               </div>
-              <Input label="Data" type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
+              <Input label={t("livestock.date")} type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
             </>
           )}
           {qaModal.type === 'mating' && (
             <>
-              <Input label="Data da Cobertura" type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
+              <Input label={t("swineReproduction.matingDate")} type="date" required value={qaFormData.date || new Date().toISOString().split('T')[0]} onChange={e => setQaFormData({...qaFormData, date: e.target.value})} />
               <div className="form-group mb-3">
-                <label className="form-label small fw-medium text-foreground">Tipo de Cobertura</label>
+                <label className="form-label small fw-medium text-foreground">{t("swineReproduction.matingType")}</label>
                 <select className="form-select bg-card text-foreground border-border rounded-3" value={qaFormData.mating_type || 'ai'} onChange={e => setQaFormData({...qaFormData, mating_type: e.target.value})}>
-                  <option value="ai">Inseminação Artificial</option>
-                  <option value="natural">Monta Natural</option>
+                  <option value="ai">{t("swineReproduction.artificialInsemination")}</option>
+                  <option value="natural">{t("swineReproduction.naturalMating")}</option>
                 </select>
               </div>
-              <Input label="Reprodutor" required value={qaFormData.sire || ''} onChange={e => setQaFormData({...qaFormData, sire: e.target.value})} />
+              <Input label={t("swineReproduction.sireDose")} required value={qaFormData.sire || ''} onChange={e => setQaFormData({...qaFormData, sire: e.target.value})} />
             </>
           )}
         </form>
