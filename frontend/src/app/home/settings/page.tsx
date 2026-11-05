@@ -861,48 +861,6 @@ export default function SettingsPage() {
                 {/* --- Organization Tab --- */}
                 {activeTab === "organization" && org && (
                   <div className="fade-in">
-                    <section className="dashboard-card p-3 p-md-4 mb-4">
-                      <div className="section-header mb-3">
-                        <h2 className="fw-bold h5 mb-1">{t("settings.language.title")}</h2>
-                        <p className="small text-muted-foreground mb-0">{t("settings.language.description")}</p>
-                      </div>
-                      <div className="row g-3 align-items-end">
-                        <div className="col-12 col-md-7">
-                          <label htmlFor="organization-language" className="form-label small fw-bold">
-                            {t("settings.language.label")}
-                          </label>
-                          <div className="input-group-custom">
-                            <Languages size={18} className="input-icon" />
-                            <select
-                              id="organization-language"
-                              className="form-control-custom"
-                              value={languageDraft ?? language}
-                              onChange={event => setLanguageDraft(event.target.value as typeof language)}
-                              disabled={currentUser?.role !== "admin" || savingLanguage}
-                            >
-                              {organizationLanguages.map(option => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                        <div className="col-12 col-md-5 d-flex justify-content-md-end">
-                          <button
-                            type="button"
-                            onClick={handleSaveLanguage}
-                            disabled={currentUser?.role !== "admin" || savingLanguage || (languageDraft ?? language) === language}
-                            className="btn-primary-elegant px-4 py-2 d-flex align-items-center justify-content-center gap-2 w-100 w-md-auto"
-                          >
-                            {savingLanguage ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                            {savingLanguage ? t("settings.language.saving") : t("settings.language.save")}
-                          </button>
-                        </div>
-                      </div>
-                      {currentUser?.role !== "admin" && (
-                        <p className="small text-muted-foreground mt-3 mb-0">{t("settings.language.adminOnly")}</p>
-                      )}
-                    </section>
-
                     {/* Logo Upload Section */}
                     <div className="mb-5">
                       <div className="section-header mb-4">
@@ -1250,6 +1208,36 @@ export default function SettingsPage() {
                       <h2 className="fw-bold h5 mb-1">{t("settings.preferences.title")}</h2>
                       <p className="small text-muted-foreground">{t("settings.preferences.description")}</p>
                     </div>
+
+                    <section className="dashboard-card p-4 border-dashed mb-4">
+                      <div className="d-flex align-items-center gap-3 mb-3">
+                        <div className="icon-box bg-primary/10 text-primary rounded-xl p-2">
+                          <Languages size={20} />
+                        </div>
+                        <div>
+                          <h4 className="fw-bold small mb-1">{t("settings.language.title")}</h4>
+                          <p className="extra-small text-muted-foreground mb-0">{t("settings.language.description")}</p>
+                        </div>
+                      </div>
+                      <div className="row g-3 align-items-end">
+                        <div className="col-12 col-md-7">
+                          <label htmlFor="organization-language" className="form-label small fw-bold">{t("settings.language.label")}</label>
+                          <div className="input-group-custom">
+                            <Languages size={18} className="input-icon" />
+                            <select id="organization-language" className="form-control-custom" value={languageDraft ?? language} onChange={event => setLanguageDraft(event.target.value as typeof language)} disabled={currentUser?.role !== "admin" || savingLanguage}>
+                              {organizationLanguages.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="col-12 col-md-5 d-flex justify-content-md-end">
+                          <button type="button" onClick={handleSaveLanguage} disabled={currentUser?.role !== "admin" || savingLanguage || (languageDraft ?? language) === language} className="btn-primary-elegant px-4 py-2 d-flex align-items-center justify-content-center gap-2 w-100 w-md-auto">
+                            {savingLanguage ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                            {savingLanguage ? t("settings.language.saving") : t("settings.language.save")}
+                          </button>
+                        </div>
+                      </div>
+                      {currentUser?.role !== "admin" && <p className="small text-muted-foreground mt-3 mb-0">{t("settings.language.adminOnly")}</p>}
+                    </section>
 
                     <div className="dashboard-card p-4 border-dashed mb-4">
                       <div className="d-flex align-items-center gap-3 mb-3">

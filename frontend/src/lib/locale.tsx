@@ -3051,6 +3051,11 @@ const messages = {
     "campaign.viewAll": "Ver todas as notificações",
     "marketing.imageAlt": "Imagem da divulgação",
     "marketing.learnMore": "Saiba mais",
+    "cattle.form.select": "Selecione",
+    "cattle.form.cancel": "Cancelar",
+    "cattle.form.saving": "Salvando...",
+    "cattle.form.saveRecord": "Salvar registro",
+    "cattle.form.requiredHint": "Preencha as informações do registro. Campos marcados com * são obrigatórios.",
   },
   en: {
     "sidebar.aria": "Main menu",
@@ -6090,6 +6095,11 @@ const messages = {
     "campaign.viewAll": "View all notifications",
     "marketing.imageAlt": "Promotion image",
     "marketing.learnMore": "Learn more",
+    "cattle.form.select": "Select",
+    "cattle.form.cancel": "Cancel",
+    "cattle.form.saving": "Saving...",
+    "cattle.form.saveRecord": "Save record",
+    "cattle.form.requiredHint": "Complete the record details. Fields marked with * are required.",
   },
   es: {
     "sidebar.aria": "Menú principal",
@@ -9129,6 +9139,11 @@ const messages = {
     "campaign.viewAll": "Ver todas las notificaciones",
     "marketing.imageAlt": "Imagen de la promoción",
     "marketing.learnMore": "Más información",
+    "cattle.form.select": "Seleccione",
+    "cattle.form.cancel": "Cancelar",
+    "cattle.form.saving": "Guardando...",
+    "cattle.form.saveRecord": "Guardar registro",
+    "cattle.form.requiredHint": "Complete la información del registro. Los campos marcados con * son obligatorios.",
   },
   "pt-PT": {
     "sidebar.aria": "Menu principal",
@@ -12168,6 +12183,11 @@ const messages = {
     "campaign.viewAll": "Ver todas as notificações",
     "marketing.imageAlt": "Imagem da promoção",
     "marketing.learnMore": "Saber mais",
+    "cattle.form.select": "Selecionar",
+    "cattle.form.cancel": "Cancelar",
+    "cattle.form.saving": "A guardar...",
+    "cattle.form.saveRecord": "Guardar registo",
+    "cattle.form.requiredHint": "Preencha as informações do registo. Os campos assinalados com * são obrigatórios.",
   },
 } as const;
 
