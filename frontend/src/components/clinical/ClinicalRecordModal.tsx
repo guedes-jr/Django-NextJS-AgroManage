@@ -1,4 +1,5 @@
 'use client';
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
@@ -18,6 +19,7 @@ export function ClinicalRecordModal({
   onClose,
   onSuccess,
 }: ClinicalRecordModalProps) {
+  const { t } = useOrganizationLocale();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -81,14 +83,14 @@ export function ClinicalRecordModal({
                     required
                   >
                     <option value="consultation">Consulta de Rotina</option>
-                    <option value="diagnosis">Diagnóstico</option>
+                    <option value="diagnosis">{t("clinical.diagnosis")}</option>
                     <option value="treatment">Tratamento</option>
-                    <option value="follow_up">Acompanhamento</option>
+                    <option value="follow_up">{t("swine.insights.heading")}</option>
                   </select>
                 </div>
 
                 <div className="col-md-6">
-                  <label className="form-label small fw-medium text-muted">Data</label>
+                  <label className="form-label small fw-medium text-muted">{t("lotReport.date")}</label>
                   <input
                     type="date"
                     value={formData.record_date}
@@ -122,7 +124,7 @@ export function ClinicalRecordModal({
                     <option value="mild">Leve</option>
                     <option value="moderate">Moderada</option>
                     <option value="severe">Grave</option>
-                    <option value="critical">Crítica</option>
+                    <option value="critical">{t("clinical.critical")}</option>
                   </select>
                 </div>
 
@@ -159,7 +161,8 @@ export function ClinicalRecordModal({
                 onClick={onClose}
                 disabled={isLoading}
               >
-                Cancelar
+
+                {t("cattle.form.cancel")}
               </button>
               <button
                 type="submit"
@@ -167,7 +170,7 @@ export function ClinicalRecordModal({
                 disabled={isLoading}
               >
                 <Save size={18} />
-                {isLoading ? 'Salvando...' : 'Salvar Ficha'}
+                {isLoading ? t("cattle.form.saving") : 'Salvar Ficha'}
               </button>
             </div>
           </form>

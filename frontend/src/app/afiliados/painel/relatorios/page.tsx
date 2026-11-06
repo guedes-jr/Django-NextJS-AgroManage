@@ -54,14 +54,14 @@ export default function ReportsPage() {
   const exportCsv = () => {
     const rows = [
       [
-        "Cliente",
-        "Organização",
+        t("workspace.customer"),
+        t("settings.tabs.organization"),
         "Plano",
         "Fatura",
-        "Valor da contratação",
-        "Comissão",
+        t("workspace.subscriptionAmount"),
+        t("workspace.commission"),
         "Status",
-        "Conversão",
+        t("workspace.conversion"),
       ],
       ...commissions.map((c) => [
         c.customer,
@@ -93,7 +93,7 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
   if (!dashboard)
-    return <div className={styles.loading}>Carregando relatório…</div>;
+    return <div className={styles.loading}>{t("stock.loading")}</div>;
   const visitorRate = dashboard.unique_visitors
     ? (dashboard.registrations / dashboard.unique_visitors) * 100
     : 0;
@@ -154,22 +154,21 @@ export default function ReportsPage() {
           </div>
           <div className={styles.insights}>
             <div>
-              <strong>{referrals.length} indicações registradas</strong>
-              <span>Contatos atribuídos permanentemente ao seu código.</span>
+              <strong>{referrals.length} {t("workspace.recordedReferrals")}</strong>
+              <span>{t("workspace.contactsPermanentlyAttributedToYourCode")}</span>
             </div>
             <div>
-              <strong>{dashboard.converted_customers} clientes pagantes</strong>
-              <span>Clientes que concluíram uma contratação válida.</span>
+              <strong>{dashboard.converted_customers} {t("workspace.payingCustomersLabel")}</strong>
+              <span>{t("workspace.customersWhoCompletedAValidSubscription")}</span>
             </div>
             <div>
               <strong>
-                {money(dashboard.commissions.approved)} disponível
-              </strong>
-              <span>Saldo aprovado que aguarda pagamento administrativo.</span>
+                {money(dashboard.commissions.approved)} {t("workspace.availableLabel")} </strong>
+              <span>{t("workspace.approvedBalanceAwaitingAdministrativePayment")}</span>
             </div>
             <div>
-              <strong>{money(dashboard.commissions.paid)} recebido</strong>
-              <span>Total de comissões marcadas como pagas.</span>
+              <strong>{money(dashboard.commissions.paid)} {t("workspace.received")}</strong>
+              <span>{t("workspace.totalCommissionsMarkedAsPaid")}</span>
             </div>
           </div>
         </section>

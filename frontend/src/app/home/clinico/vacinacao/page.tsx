@@ -67,7 +67,7 @@ export default function VacinacaoPage() {
     },
     {
       key: "dose_type",
-      label: "Dose",
+      label: t("inventory.alerts.unit.dose"),
       render: (v: any) => {
         const map: Record<string, TranslationKey> = {
           unica: "clinical.singleDose",

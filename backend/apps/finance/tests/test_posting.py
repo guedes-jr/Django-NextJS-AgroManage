@@ -261,3 +261,21 @@ class FinancialPostingTests(APITestCase):
         self.assertEqual(response.data["closing_balance"], Decimal("1400"))
         self.assertEqual(self.client.get(reverse("transaction-projection"), {"bank_account": str(self.other_account.pk)}).status_code, 400)
         self.assertEqual(self.client.get(reverse("transaction-projection"), {"days": 1000}).status_code, 400)
+
+    def test_csv_localizes_headings_without_changing_values_or_tenant_scope(self):
+        import csv
+        import io
+
+        foreign_category = FinancialCategory.objects.create(organization=self.other, name="Receita", category_type="revenue")
+        self.make_document(organization=self.other, category=foreign_category, farm=None, description="Oculto")
+        for language, heading in [("en", "Description"), ("es", "Descripción"), ("pt-PT", "Descrição")]:
+            with self.subTest(language=language):
+                response = self.client.get(reverse("transaction-export"), HTTP_ACCEPT_LANGUAGE=language)
+                self.assertEqual(response.status_code, 200)
+                rows = list(csv.reader(io.StringIO(response.content.decode("utf-8-sig")), delimiter=";"))
+                self.assertEqual(rows[0][0], heading)
+                self.assertEqual(len(rows), 2)
+                self.assertEqual(rows[1][0], "Venda")
+                self.assertEqual(rows[1][-2], "pending")
+                self.assertEqual(rows[1][-1], "400,00")
+                self.assertNotIn("Oculto", response.content.decode())

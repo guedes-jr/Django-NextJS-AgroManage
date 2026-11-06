@@ -1,29 +1,32 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { SegmentLanding } from "@/components/marketing/SegmentLanding";
-export const metadata: Metadata = {
-  title: "Software financeiro rural | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.farmFinanceSoftwareFazendaMais"),
   description:
-    "Controle receitas, despesas e resultados financeiros da propriedade.",
-};
-export default function Page() {
+    t("public.trackPropertyIncomeExpensesAndFinancialResults"),
+}; }
+export default async function Page() {
+  const { t } = await getPublicTranslator();
+
   return (
-    <SegmentLanding
-      eyebrow="Financeiro rural"
-      title="Entenda para onde vai o dinheiro da propriedade"
-      description="Centralize receitas, despesas, contas e indicadores para planejar com mais segurança."
+    <SegmentLanding trackingLabel="Financeiro rural"
+      eyebrow={t("public.farmFinances")}
+      title={t("public.understandWhereThePropertySMoneyGoes")}
+      description={t("public.centralizeIncomeExpensesAccountsAndIndicatorsToPlanWithMore")}
       benefits={[
-        "Fluxo financeiro organizado",
-        "Categorias adequadas à operação",
-        "Visão de custos e receitas",
-        "Indicadores para planejamento",
+        t("public.organizedFinancialFlow"),
+        t("public.categoriesSuitedToTheOperation"),
+        t("public.costsAndIncomeOverview"),
+        t("public.planningIndicators"),
       ]}
       features={[
-        ["Lançamentos", "Registre receitas e despesas com contexto."],
-        ["Contas", "Organize diferentes caixas e bancos."],
-        ["Categorias", "Classifique cada movimentação."],
-        ["Conciliação", "Revise valores e períodos."],
-        ["Indicadores", "Acompanhe saldo e evolução."],
-        ["Relatórios", "Exporte informações para análise."],
+        [t("public.entries"), t("public.recordIncomeAndExpensesInContext")],
+        [t("public.accounts"), t("public.organizeDifferentCashAccountsAndBanks")],
+        [t("public.categories"), t("public.classifyEachMovement")],
+        [t("public.reconciliation"), t("public.reviewAmountsAndPeriods")],
+        [t("public.indicators"), t("public.trackBalancesAndTrends")],
+        [t("affiliate.reports"), t("public.exportInformationForAnalysis")],
       ]}
     />
   );

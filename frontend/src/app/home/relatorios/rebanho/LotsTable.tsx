@@ -19,7 +19,7 @@ export function LotsTable({ items }: { items: LotReportItem[] }) {
     <p className={styles.lotExplanation}>Custos acumulados do lote. Os gastos mensais do reprodutor são divididos entre suas coberturas e acompanham os leitões nas transferências registradas. “—” indica valor ou vínculo não informado.</p>
     <div className={styles.tableScroll}><table className={styles.lotTable}>
       <thead><tr>
-        <th rowSpan={2}>{t("lotReport.actions")}</th><th rowSpan={2}>{t("lotReport.batch")}</th><th rowSpan={2}>Tipo de Produção</th><th rowSpan={2}>Matrizes<small>(mãe dos leitões)</small></th><th rowSpan={2}>Animais Atuais</th><th rowSpan={2}>Status do Lote</th>
+        <th rowSpan={2}>{t("lotReport.actions")}</th><th rowSpan={2}>{t("lotReport.batch")}</th><th rowSpan={2}>Tipo de Produção</th><th rowSpan={2}>{t("swineReproduction.matrices")}<small>(mãe dos leitões)</small></th><th rowSpan={2}>Animais Atuais</th><th rowSpan={2}>Status do Lote</th>
         <th colSpan={4} scope="colgroup">Custo Reprodução (por lote)</th><th colSpan={4} scope="colgroup">Custo por Lote (R$)</th>
         {lotCostColumns.slice(8).map(column => <th key={column.key} rowSpan={2} scope="col">{column.label}</th>)}
       </tr><tr>{lotCostColumns.slice(0, 8).map(column => <th key={column.key} scope="col">{column.label}</th>)}</tr></thead>

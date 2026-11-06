@@ -34,6 +34,10 @@ const today = () => {
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
 };
 
+
+export function DairyHome() {
+  const access = useOrganizationAccess();
+  const { language, t } = useOrganizationLocale();
 const shortcuts: Array<{
   title: string;
   description: string;
@@ -44,52 +48,52 @@ const shortcuts: Array<{
   planned?: boolean;
 }> = [
   {
-    title: "Lançar produção de leite",
-    description: "Registre ordenhas, turnos e descartes por vaca ou em total diário",
+    title: t("workspace.recordMilkProduction"),
+    description: t("workspace.recordMilkingsSessionsAndDiscardsPerCowOrAsA"),
     href: `${root}/leite`,
     icon: Milk,
     tone: "cyan",
   },
   {
-    title: "Lançar ração",
-    description: "Registre o fornecimento por lote com baixa no estoque",
+    title: t("workspace.recordFeed"),
+    description: t("workspace.recordFeedSupplyPerBatchWithStockDeduction"),
     href: `${root}/racao/tratos`,
     icon: Wheat,
     tone: "orange",
     financial: true,
   },
   {
-    title: "Tanque de leite",
-    description: "Coletas e qualidade do leite",
+    title: t("workspace.milkTank"),
+    description: t("workspace.milkCollectionsAndQuality"),
     icon: Cylinder,
     tone: "slate",
     href: `${root}/tanque-de-leite`,
   },
   {
-    title: "Reprodução",
-    description: "Coberturas, diagnóstico, gestação e parto",
+    title: t("cattleReproduction.production"),
+    description: t("workspace.matingsDiagnosisPregnancyAndCalving"),
     href: `${root}/reproducao?production=dairy`,
     icon: VenusAndMars,
     tone: "purple",
   },
   {
-    title: "Cadastro",
-    description: "Vacas, bezerras, touros e lotes",
+    title: t("swine.home.module.registry"),
+    description: t("workspace.cowsCalvesBullsAndBatches"),
     href: `${root}/cadastro`,
     icon: ClipboardList,
     tone: "green",
   },
   {
-    title: "Fábrica de ração",
-    description: "Formule e produza a ração do rebanho",
+    title: t("swine.home.module.feedMill"),
+    description: t("workspace.formulateAndProduceFeedForTheHerd"),
     href: `${root}/racao/producao`,
     icon: Factory,
     tone: "orange",
     financial: true,
   },
   {
-    title: "Relatórios",
-    description: "Consulte alimentação, custos e registros do rebanho",
+    title: t("swine.home.module.reports"),
+    description: t("workspace.viewHerdFeedingCostsAndRecords"),
     href: `${root}/relatorios?production=dairy`,
     icon: ChartNoAxesCombined,
     tone: "cyan",
@@ -97,9 +101,6 @@ const shortcuts: Array<{
   },
 ];
 
-export function DairyHome() {
-  const access = useOrganizationAccess();
-  const { language, t } = useOrganizationLocale();
   const number = (value: unknown) =>
     value === null || value === undefined ? "—" : Number(value).toLocaleString(language, { maximumFractionDigits: 1 });
   const [date, setDate] = useState(today);
@@ -117,10 +118,10 @@ export function DairyHome() {
       .farms(controller.signal)
       .then(setFarms)
       .catch((err) => {
-        if (!controller.signal.aborted) setFarmError(cattleError(err));
+        if (!controller.signal.aborted) setFarmError(cattleError(err, language));
       });
     return () => controller.abort();
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -135,24 +136,24 @@ export function DairyHome() {
       .catch((err) => {
         if (!controller.signal.aborted) {
           setData(null);
-          setError(cattleError(err));
+          setError(cattleError(err, language));
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [date, farm, refresh]);
+  }, [date, farm, refresh, language]);
 
   const metrics = [
-    { label: "Vacas em lactação", value: data?.lactating_cows, icon: LactationIcon, tone: "green", detail: "Fêmeas identificadas em lactação atualmente" },
-    { label: "Produção mensal", value: data ? `${number(data.monthly_produced_liters)} L` : undefined, icon: Milk, tone: "blue", detail: "Produção acumulada desde o início do mês até a data de referência" },
-    { label: "Média mensal por vaca", value: data ? (data.monthly_average_per_lactating_cow === null ? "—" : `${number(data.monthly_average_per_lactating_cow)} L`) : undefined, icon: Droplets, tone: "green", detail: `Produção mensal dividida por ${data?.lactating_cows || 0} vacas em lactação` },
-    { label: "Leite descartado", value: data ? `${number(data.monthly_discarded_liters)} L` : undefined, icon: MilkOff, tone: "amber", detail: "Descarte acumulado desde o início do mês até a data de referência" },
-    { label: "Total de vacas", value: data?.total_cows, icon: CowIcon, tone: "blue", detail: "Vacas e matrizes identificadas ativas" },
-    { label: "Vacas secas", value: data?.non_lactating_cows, icon: MilkOff, tone: "amber", detail: "Vacas e matrizes ativas sem indicação de lactação" },
-    { label: "Bezerras / novilhas", value: data?.young_females, icon: CowIcon, tone: "slate", detail: "Fêmeas identificadas ativas nessas categorias" },
-    { label: "Touros", value: data?.bulls, icon: BullIcon, tone: "green", detail: "Touros e reprodutores identificados ativos" },
+    { label: t("workspace.lactatingCows"), value: data?.lactating_cows, icon: LactationIcon, tone: "green", detail: t("workspace.identifiedFemalesCurrentlyLactating") },
+    { label: t("workspace.monthlyProduction"), value: data ? `${number(data.monthly_produced_liters)} L` : undefined, icon: Milk, tone: "blue", detail: t("workspace.cumulativeProductionFromTheStartOfTheMonthToThe") },
+    { label: t("workspace.monthlyAveragePerCow"), value: data ? (data.monthly_average_per_lactating_cow === null ? "—" : `${number(data.monthly_average_per_lactating_cow)} L`) : undefined, icon: Droplets, tone: "green", detail: t("workspace.monthlyProductionDividedByCountLactatingCows", { count: data?.lactating_cows || 0 }) },
+    { label: t("workspace.discardedMilk"), value: data ? `${number(data.monthly_discarded_liters)} L` : undefined, icon: MilkOff, tone: "amber", detail: t("workspace.cumulativeDiscardsFromTheStartOfTheMonthToThe") },
+    { label: t("workspace.totalCows"), value: data?.total_cows, icon: CowIcon, tone: "blue", detail: t("workspace.activeIdentifiedCowsAndBreedingFemales") },
+    { label: t("cattleReproduction.dry"), value: data?.non_lactating_cows, icon: MilkOff, tone: "amber", detail: t("workspace.activeCowsAndBreedingFemalesNotMarkedAsLactating") },
+    { label: t("workspace.femaleCalvesHeifers"), value: data?.young_females, icon: CowIcon, tone: "slate", detail: t("workspace.activeIdentifiedFemalesInTheseCategories") },
+    { label: t("workspace.bulls"), value: data?.bulls, icon: BullIcon, tone: "green", detail: t("workspace.activeIdentifiedBullsAndBreedingMales") },
   ];
 
   return (
@@ -219,7 +220,7 @@ export function DairyHome() {
         </div>
       </header>
 
-      {farmError && <p role="alert" className="alert alert-warning">Não foi possível carregar as fazendas: {farmError}</p>}
+      {farmError && <p role="alert" className="alert alert-warning">{t("workspace.couldNotLoadFarms")} {farmError}</p>}
       {error && (
         <div role="alert" className="alert alert-danger">
           {error}
@@ -230,7 +231,8 @@ export function DairyHome() {
               setRefresh((v) => v + 1);
             }}
           >
-            Tentar novamente
+
+            {t("lotReport.retry")}
           </button>
         </div>
       )}
@@ -238,10 +240,10 @@ export function DairyHome() {
       <section className={shared.summaryPanel} aria-labelledby="dairy-summary-title">
         <div className={shared.sectionHeading}>
           <div>
-            <span>Visão geral do plantel leiteiro</span>
-            <h2 id="dairy-summary-title">Resumo · Pecuária leiteira</h2>
+            <span>{t("workspace.dairyHerdOverview")}</span>
+            <h2 id="dairy-summary-title">{t("workspace.summaryDairyFarming")}</h2>
           </div>
-          <small className={base.summaryScope}>{farm ? farms.find((item) => item.id === farm)?.name : "Todas as fazendas"}</small>
+          <small className={base.summaryScope}>{farm ? farms.find((item) => item.id === farm)?.name : t("dairy.home.allFarms")}</small>
         </div>
 
         <div className={shared.metricsGrid} aria-busy={loading}>
@@ -251,7 +253,7 @@ export function DairyHome() {
                 <metric.icon size={25} strokeWidth={1.8} />
               </div>
               <div>
-                <strong>{loading ? <span className={shared.valueSkeleton} aria-label="Carregando" /> : typeof metric.value === "number" ? number(metric.value) : metric.value ?? "—"}</strong>
+                <strong>{loading ? <span className={shared.valueSkeleton} aria-label={t("workspace.loading")} /> : typeof metric.value === "number" ? number(metric.value) : metric.value ?? "—"}</strong>
                 <span>{metric.label}</span>
               </div>
             </article>
@@ -260,14 +262,16 @@ export function DairyHome() {
       </section>
 
       <p className={styles.scope}>
-        Produção, descarte e média acumulam os registros desde o início do mês até a data de referência. A média mensal é calculada pela produção mensal dividida pelas vacas em lactação. As contagens consideram os animais classificados como leite ou dupla finalidade.
+
+        {t("workspace.productionDiscardsAndAveragesAccumulateRecordsFromTheStartOf")}
       </p>
 
       {!loading && !error && data?.milked_cows === 0 && (
         <div className="alert alert-info py-2 small d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
-          <span>Nenhuma ordenha registrada nesta data.</span>
+          <span>{t("workspace.noMilkingsRecordedOnThisDate")}</span>
           <Link href={cattleHref(`${root}/leite`, "dairy")} className="btn btn-outline-success btn-sm">
-            Lançar produção de leite
+
+            {t("workspace.recordMilkProduction")}
           </Link>
         </div>
       )}
@@ -275,10 +279,10 @@ export function DairyHome() {
       <section aria-labelledby="dairy-modules-title" className={base.operations}>
         <div className={shared.modulesHeading}>
           <div>
-            <span>Operações</span>
-            <h2 id="dairy-modules-title">O que você deseja acessar?</h2>
+            <span>{t("swine.home.operations")}</span>
+            <h2 id="dairy-modules-title">{t("swine.home.chooseModule")}</h2>
           </div>
-          <p>Comece pelos lançamentos do dia; depois acompanhe os animais, a gestão e os relatórios.</p>
+          <p>{t("workspace.startWithDailyEntriesThenReviewAnimalsManagementAndReports")}</p>
         </div>
 
         <div className={shared.moduleGrid}>
@@ -296,10 +300,11 @@ export function DairyHome() {
                   </div>
                   <span className={shared.moduleAction}>
                     {item.planned ? (
-                      <span className={styles.badge}>Planejado</span>
+                      <span className={styles.badge}>{t("workspace.planned")}</span>
                     ) : (
                       <>
-                        Acessar <ChevronRight size={19} aria-hidden="true" />
+
+                        {t("swine.home.open")} <ChevronRight size={19} aria-hidden="true" />
                       </>
                     )}
                   </span>
@@ -311,7 +316,7 @@ export function DairyHome() {
                   {cardContent}
                 </Link>
               ) : (
-                <article key={item.title} className={`${shared.moduleCard} ${styles.planned}`} data-tone={item.tone} aria-label={`${item.title}: funcionalidade planejada`}>
+                <article key={item.title} className={`${shared.moduleCard} ${styles.planned}`} data-tone={item.tone} aria-label={t("workspace.titlePlannedFeature", { title: item.title })}>
                   {cardContent}
                 </article>
               );

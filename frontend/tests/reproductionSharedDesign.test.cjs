@@ -1,3 +1,4 @@
+const locale = require('./helpers/locale.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -13,6 +14,7 @@ function load(file) {
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 } }).outputText, {
     exports, console,
     require(name) {
+      if (name === '@/lib/locale') return locale;
       if (name === 'react') return {
         useState(initial) { const i = cursor++; if (!(i in state)) state[i] = typeof initial === 'function' ? initial() : initial; return [state[i], value => { state[i] = typeof value === 'function' ? value(state[i]) : value; }]; },
         useMemo: callback => callback(), useCallback: callback => callback, useEffect() {}, useRef: initial => ({ current: initial }),

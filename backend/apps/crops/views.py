@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from common.operator_access import operator_scoped
 from common.permissions import OrganizationRolePermission
 """
@@ -94,14 +95,14 @@ class FieldViewSet(viewsets.ModelViewSet):
         farm = serializer.validated_data.get("farm")
         organization = getattr(self.request.user, "organization", None)
         if not organization or farm.organization_id != organization.id:
-            raise serializers.ValidationError({"farm": "Propriedade inválida para esta organização."})
+            raise serializers.ValidationError({"farm": translate_message("Propriedade inválida para esta organização.")})
         serializer.save()
 
     def perform_update(self, serializer):
         farm = serializer.validated_data.get("farm", serializer.instance.farm)
         organization = getattr(self.request.user, "organization", None)
         if not organization or farm.organization_id != organization.id:
-            raise serializers.ValidationError({"farm": "Propriedade inválida para esta organização."})
+            raise serializers.ValidationError({"farm": translate_message("Propriedade inválida para esta organização.")})
         serializer.save()
 
 
@@ -224,7 +225,7 @@ class HarvestBuyerViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated and self.request.user.organization:
             serializer.save(organization=self.request.user.organization)
         else:
-            raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário deve pertencer a uma organização.")})
 
 
 @operator_scoped
@@ -298,7 +299,7 @@ class FertigationViewSet(viewsets.ModelViewSet):
         )
         if not isinstance(fertigations, list) or not fertigations:
             raise serializers.ValidationError(
-                {"fertigations": "Informe ao menos uma fertirrigação."}
+                {"fertigations": translate_message("Informe ao menos uma fertirrigação.")}
             )
 
         serializers_to_save = []
@@ -348,7 +349,7 @@ class PesticideApplicationViewSet(viewsets.ModelViewSet):
     def bulk_create(self, request):
         applications = request.data.get("applications") if isinstance(request.data, dict) else request.data
         if not isinstance(applications, list) or not applications:
-            raise serializers.ValidationError({"applications": "Informe ao menos uma aplicação."})
+            raise serializers.ValidationError({"applications": translate_message("Informe ao menos uma aplicação.")})
         applications = _consolidate_shared_equipments(applications)
 
         serializers_to_save = []
@@ -408,7 +409,7 @@ class IrrigationPumpViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated and self.request.user.organization:
             serializer.save(organization=self.request.user.organization)
         else:
-            raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário deve pertencer a uma organização.")})
 
 
 @operator_scoped
@@ -436,7 +437,7 @@ class SoilAnalysisViewSet(viewsets.ModelViewSet):
         plantation = serializer.validated_data.get("plantation")
         organization = getattr(self.request.user, "organization", None)
         if not organization or plantation.organization_id != organization.id:
-            raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+            raise serializers.ValidationError({"plantation": translate_message("Plantação inválida para esta organização.")})
         uploaded_file = serializer.validated_data.get("file")
         serializer.save(
             field=plantation.field,
@@ -473,7 +474,7 @@ class CropsDashboardView(APIView):
     def get(self, request):
         org = request.user.organization
         if not org:
-            return Response({"error": "No organization"}, status=400)
+            return Response({"error": translate_message("No organization")}, status=400)
         data = get_crops_dashboard(org)
         return Response(data)
 
@@ -493,7 +494,7 @@ class TractorViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated and self.request.user.organization:
             serializer.save(organization=self.request.user.organization)
         else:
-            raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário deve pertencer a uma organização.")})
 
 
 @operator_scoped
@@ -536,7 +537,7 @@ class LaborWorkerViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated and self.request.user.organization:
             serializer.save(organization=self.request.user.organization)
         else:
-            raise serializers.ValidationError({"organization": "Usuário deve pertencer a uma organização."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário deve pertencer a uma organização.")})
 
 
 @operator_scoped

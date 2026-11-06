@@ -1,4 +1,5 @@
 """System support: global knowledge, private conversations and independent daily allowance."""
+from django.utils.translation import gettext as translate_message
 
 import re
 from urllib.parse import urlencode
@@ -53,7 +54,7 @@ def consume_support_question(user):
     config = configuration()
     if not config.ai_enabled:
         raise PermissionDenied(
-            "O atendimento por IA está indisponível. Use as dúvidas e tutoriais ou fale com um atendente."
+            translate_message("O atendimento por IA está indisponível. Use as dúvidas e tutoriais ou fale com um atendente.")
         )
     usage, _ = SupportUsage.objects.select_for_update().get_or_create(
         organization=user.organization, user=user, day=timezone.localdate()

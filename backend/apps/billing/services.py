@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from decimal import Decimal
 from uuid import uuid4
 
@@ -14,9 +15,9 @@ from .models import Invoice, InvoiceItem, Payment, PaymentAttempt, PlanTier, Sub
 @transaction.atomic
 def create_subscription_quote(*, tier_ids, billing_cycle):
     if billing_cycle not in SubscriptionQuote.BillingCycle.values:
-        raise ValidationError({"billing_cycle": "Ciclo de cobrança inválido."})
+        raise ValidationError({"billing_cycle": translate_message("Ciclo de cobrança inválido.")})
     if not tier_ids:
-        raise ValidationError({"tier_ids": "Selecione ao menos uma faixa."})
+        raise ValidationError({"tier_ids": translate_message("Selecione ao menos uma faixa.")})
 
     tiers = list(PlanTier.objects.select_related("segment").filter(
         id__in=tier_ids,
@@ -25,10 +26,10 @@ def create_subscription_quote(*, tier_ids, billing_cycle):
         segment__is_public=True,
     ))
     if len(tiers) != len(set(tier_ids)):
-        raise ValidationError({"tier_ids": "Uma ou mais faixas não estão disponíveis."})
+        raise ValidationError({"tier_ids": translate_message("Uma ou mais faixas não estão disponíveis.")})
     segment_ids = [tier.segment_id for tier in tiers]
     if len(segment_ids) != len(set(segment_ids)):
-        raise ValidationError({"tier_ids": "Selecione somente uma faixa por segmento."})
+        raise ValidationError({"tier_ids": translate_message("Selecione somente uma faixa por segmento.")})
 
     subtotal = Decimal("0.00")
     discount = Decimal("0.00")
@@ -109,7 +110,7 @@ def record_manual_payment(*, invoice, amount, payment_method="manual", external_
     remaining = invoice.total - invoice.amount_paid
     amount = Decimal(amount)
     if invoice.status in [Invoice.Status.PAID, Invoice.Status.VOID] or amount <= 0 or amount > remaining:
-        raise ValidationError({"amount": "Informe um valor positivo até o saldo em aberto da fatura."})
+        raise ValidationError({"amount": translate_message("Informe um valor positivo até o saldo em aberto da fatura.")})
     paid_at = paid_at or timezone.now()
     payment = Payment.objects.create(
         invoice=invoice,

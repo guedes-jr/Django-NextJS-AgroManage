@@ -2,6 +2,7 @@
 Custom exception handler for standardized API error responses.
 """
 import logging
+from django.utils.translation import gettext as _
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
@@ -39,7 +40,7 @@ def custom_exception_handler(exc, context):
         {
             "error": {
                 "code": "internal_error",
-                "message": "An unexpected error occurred. Please try again later.",
+                "message": _("An unexpected error occurred. Please try again later."),
                 "detail": None,
             }
         },
@@ -64,14 +65,14 @@ def _get_error_code(status_code: int) -> str:
 
 def _get_error_message(status_code: int) -> str:
     messages = {
-        400: "Bad request.",
-        401: "Authentication credentials were not provided or are invalid.",
-        403: "You do not have permission to perform this action.",
-        404: "The requested resource was not found.",
-        405: "Method not allowed.",
-        409: "Conflict with an existing resource.",
-        422: "Validation failed.",
-        429: "Too many requests.",
-        500: "Internal server error.",
+        400: _("Bad request."),
+        401: _("Authentication credentials were not provided or are invalid."),
+        403: _("You do not have permission to perform this action."),
+        404: _("The requested resource was not found."),
+        405: _("Method not allowed."),
+        409: _("Conflict with an existing resource."),
+        422: _("Validation failed."),
+        429: _("Too many requests."),
+        500: _("Internal server error."),
     }
-    return messages.get(status_code, "An error occurred.")
+    return messages.get(status_code, _("An error occurred."))

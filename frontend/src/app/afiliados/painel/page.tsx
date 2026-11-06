@@ -22,14 +22,15 @@ import {
 import styles from "./dashboard.module.css";
 import { usePublicLocale } from "@/lib/publicLocale";
 
-const duration = {
-  first_payment: "1ª mensalidade",
-  first_three_payments: "3 primeiras mensalidades",
-  permanent: "todas as mensalidades",
-};
 
 export default function AffiliateDashboardPage() {
-  const { language } = usePublicLocale();
+  const { language, t } = usePublicLocale();
+const duration = {
+  first_payment: t("workspace.firstMonthlyPayment"),
+  first_three_payments: t("workspace.first3MonthlyPayments"),
+  permanent: t("workspace.allMonthlyPayments"),
+};
+
   const [data, setData] = useState<{
     profile: AffiliateProfile;
     dashboard: AffiliateDashboard;
@@ -53,10 +54,10 @@ export default function AffiliateDashboardPage() {
           commissions: commissions.results,
         }),
       )
-      .catch(() => setError("Não foi possível carregar o dashboard."));
-  }, []);
+      .catch(() => setError(t("workspace.couldNotLoadTheDashboard")));
+  }, [t]);
   if (error) return <div className="alert alert-danger">{error}</div>;
-  if (!data) return <div className={styles.loading}>Carregando dashboard…</div>;
+  if (!data) return <div className={styles.loading}>{t("workspace.loadingDashboard")}</div>;
   const money = (value: string | number) =>
     Number(value).toLocaleString(language, {
       style: "currency",
@@ -79,25 +80,25 @@ export default function AffiliateDashboardPage() {
     : 0;
   const metrics = [
     {
-      label: "Cliques totais",
+      label: t("workspace.totalClicks"),
       value: dashboard.clicks,
       detail: `${dashboard.unique_visitors} visitantes únicos`,
       icon: MousePointerClick,
     },
     {
-      label: "Cadastros",
+      label: t("workspace.registrations"),
       value: dashboard.registrations,
       detail: `${percentage(registrationRate)} dos visitantes`,
       icon: UserPlus,
     },
     {
-      label: "Clientes convertidos",
+      label: t("workspace.convertedCustomers"),
       value: dashboard.converted_customers,
       detail: `${percentage(salesRate)} dos cadastros`,
       icon: UserCheck,
     },
     {
-      label: "Comissões geradas",
+      label: t("workspace.commissionsGenerated"),
       value: money(dashboard.commissions.total),
       detail: `${money(dashboard.commissions.paid)} já pagos`,
       icon: Wallet,
@@ -112,31 +113,29 @@ export default function AffiliateDashboardPage() {
     <div className={styles.page}>
       <div className={styles.heading}>
         <div>
-          <span className={styles.eyebrow}>Visão geral</span>
-          <h1>Dashboard de performance</h1>
-          <p>Acompanhe seu funil de indicações e o saldo das suas comissões.</p>
+          <span className={styles.eyebrow}>{t("swine.tabOverview")}</span>
+          <h1>{t("workspace.performanceDashboard")}</h1>
+          <p>{t("workspace.trackYourReferralFunnelAndCommissionBalance")}</p>
         </div>
         <Link
           href="/afiliados/painel/relatorios"
           className={styles.secondaryButton}
         >
-          <TrendingUp size={17} /> Ver relatório
-        </Link>
+          <TrendingUp size={17} /> {t("workspace.viewReport")} </Link>
       </div>
       <section className={styles.linkCard}>
         <div>
-          <span>Seu link exclusivo</span>
+          <span>{t("workspace.yourUniqueLink")}</span>
           <strong>{link}</strong>
           <small>
             {profile.commission_type === "percentage"
               ? `${Number(profile.commission_value)}%`
-              : money(profile.commission_value)}{" "}
-            em {duration[profile.commission_duration]}
+              : money(profile.commission_value)}{" "} {t("workspace.onLabel")} {duration[profile.commission_duration]}
           </small>
         </div>
         <button onClick={copy}>
           {copied ? <Check size={18} /> : <Copy size={18} />}
-          {copied ? "Copiado" : "Copiar link"}
+          {copied ? t("workspace.copied") : t("workspace.copyLink")}
         </button>
       </section>
       <div className={styles.metricGrid}>
@@ -155,47 +154,47 @@ export default function AffiliateDashboardPage() {
       </div>
       <div className={styles.balanceGrid}>
         <article>
-          <span>Saldo pendente</span>
+          <span>{t("workspace.pendingBalance")}</span>
           <strong>{money(dashboard.commissions.pending)}</strong>
-          <small>Aguardando aprovação</small>
+          <small>{t("workspace.awaitingApproval")}</small>
         </article>
         <article>
-          <span>Saldo aprovado</span>
+          <span>{t("workspace.approvedBalance")}</span>
           <strong>{money(dashboard.commissions.approved)}</strong>
-          <small>Disponível para pagamento</small>
+          <small>{t("workspace.availableForPayment")}</small>
         </article>
         <article>
-          <span>Total recebido</span>
+          <span>{t("workspace.totalReceivedLabel")}</span>
           <strong>{money(dashboard.commissions.paid)}</strong>
-          <small>Comissões já pagas</small>
+          <small>{t("workspace.commissionsAlreadyPaid")}</small>
         </article>
         <article>
-          <span>Cancelado/estornado</span>
+          <span>{t("workspace.cancelledReversed")}</span>
           <strong>{money(dashboard.commissions.cancelled)}</strong>
-          <small>Estornos: {money(dashboard.reversed_total)}</small>
+          <small>{t("workspace.reversals")} {money(dashboard.reversed_total)}</small>
         </article>
       </div>
       <div className={styles.twoColumns}>
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
-              <h2>Funil de conversão</h2>
-              <p>Da visita à contratação do plano.</p>
+              <h2>{t("workspace.conversionFunnel")}</h2>
+              <p>{t("workspace.fromVisitToPlanSubscription")}</p>
             </div>
           </div>
           <div className={styles.funnel}>
             <div>
-              <span>Visitantes únicos</span>
+              <span>{t("affiliate.uniqueVisitors")}</span>
               <strong>{dashboard.unique_visitors}</strong>
               <i style={{ width: "100%" }} />
             </div>
             <div>
-              <span>Cadastros</span>
+              <span>{t("workspace.registrations")}</span>
               <strong>{dashboard.registrations}</strong>
               <i style={{ width: `${Math.max(registrationRate, 4)}%` }} />
             </div>
             <div>
-              <span>Clientes pagos</span>
+              <span>{t("workspace.payingCustomers")}</span>
               <strong>{dashboard.converted_customers}</strong>
               <i
                 style={{
@@ -208,11 +207,10 @@ export default function AffiliateDashboardPage() {
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
-              <h2>Comissões recentes</h2>
-              <p>Últimos lançamentos da carteira.</p>
+              <h2>{t("workspace.recentCommissions")}</h2>
+              <p>{t("workspace.latestWalletEntries")}</p>
             </div>
-            <Link href="/afiliados/painel/comissoes">
-              Ver todas <ArrowRight size={15} />
+            <Link href="/afiliados/painel/comissoes"> {t("plantations.harvest.viewAll")} <ArrowRight size={15} />
             </Link>
           </div>
           <div className={styles.list}>
@@ -232,7 +230,7 @@ export default function AffiliateDashboardPage() {
               </div>
             ))}
             {!commissions.length && (
-              <p className={styles.empty}>Nenhuma comissão gerada.</p>
+              <p className={styles.empty}>{t("workspace.noCommissionsGenerated")}</p>
             )}
           </div>
         </section>
@@ -240,22 +238,21 @@ export default function AffiliateDashboardPage() {
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div>
-            <h2>Indicações recentes</h2>
-            <p>Últimos contatos atribuídos ao seu link.</p>
+            <h2>{t("workspace.recentReferrals")}</h2>
+            <p>{t("workspace.latestContactsAttributedToYourLink")}</p>
           </div>
-          <Link href="/afiliados/painel/indicacoes">
-            Ver todas <ArrowRight size={15} />
+          <Link href="/afiliados/painel/indicacoes"> {t("plantations.harvest.viewAll")} <ArrowRight size={15} />
           </Link>
         </div>
         <div className="table-responsive">
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>Plano</th>
-                <th>Primeiro acesso</th>
-                <th>Cadastro</th>
-                <th>Status</th>
+                <th>{t("affiliate.customer")}</th>
+                <th>{t("affiliate.plan")}</th>
+                <th>{t("affiliate.firstAccess")}</th>
+                <th>{t("swine.home.module.registry")}</th>
+                <th>{t("users.columnStatus")}</th>
               </tr>
             </thead>
             <tbody>
@@ -274,9 +271,7 @@ export default function AffiliateDashboardPage() {
               ))}
               {!referrals.length && (
                 <tr>
-                  <td colSpan={5} className={styles.empty}>
-                    Nenhuma indicação registrada.
-                  </td>
+                  <td colSpan={5} className={styles.empty}> {t("workspace.noReferralsRecorded")} </td>
                 </tr>
               )}
             </tbody>

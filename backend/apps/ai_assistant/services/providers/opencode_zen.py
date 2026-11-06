@@ -67,7 +67,8 @@ class OpenCodeZenProvider(AIProvider):
 
     def generate(self, *, user, conversation, question, history, context=""):
         system_prompt = build_system_prompt(
-            subject=getattr(conversation, "subject", "general"), authorized_context=context
+            language=getattr(getattr(user, "organization", None), "language", "pt-BR"),
+                subject=getattr(conversation, "subject", "general"), authorized_context=context
         )
         if self.endpoint_type == "responses":
             return self._generate_response(

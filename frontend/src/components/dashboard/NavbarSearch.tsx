@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -11,6 +12,7 @@ import styles from "./NavbarSearch.module.css";
 const BatchSheet = dynamic(() => import("@/components/animal/BatchTechnicalSheetModal").then(module => module.BatchTechnicalSheetModal));
 
 export function NavbarSearch() {
+  const { t } = useOrganizationLocale();
   const router = useRouter();
   const access = useOrganizationAccess();
   const allowed = !!access && access.role !== "feeder" && (access.role !== "operator" || !!access.livestock_species?.length);
@@ -84,7 +86,7 @@ export function NavbarSearch() {
       {open && allowed && <div className={styles.dropdown}>
         <div className={styles.heading}>Pesquisa da fazenda <span>Até 5 resultados por tipo</span></div>
         <div role="status" className={styles.status} hidden={term.length >= 2 && !loading && !response?.error && items.length > 0}>
-          {term.length < 2 ? "Digite pelo menos 2 caracteres para pesquisar." : loading ? <><Loader2 size={16} className={styles.spinner} /> Buscando...</> : response?.error ? "Não foi possível pesquisar. Altere o termo para tentar novamente." : "Nenhum resultado encontrado."}
+          {term.length < 2 ? "Digite pelo menos 2 caracteres para pesquisar." : loading ? <><Loader2 size={16} className={styles.spinner} />  {t("inventory.suppliers.searching")}</> : response?.error ? "Não foi possível pesquisar. Altere o termo para tentar novamente." : "Nenhum resultado encontrado."}
         </div>
         <div id="navbar-search-results" role="listbox" aria-label="Resultados da pesquisa">
           {items.map((item, index) => <button type="button" role="option" id={`navbar-search-${index}`} aria-selected={highlight === index}

@@ -1,29 +1,21 @@
 "use client";
+import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
+import { usePublicLocale } from "@/lib/publicLocale";
 import { FormEvent, useEffect, useState } from "react";
 import { LockKeyhole, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { THEME_LABELS, Theme } from "@/lib/theme";
+import type { Theme } from "@/lib/theme";
 import {
   AffiliateAccount,
   affiliateService,
 } from "@/services/affiliateService";
 import styles from "../section.module.css";
-const errorText = (error: unknown): string => {
-  if (typeof error === "object" && error && "response" in error) {
-    const data = (error as { response?: { data?: unknown } }).response?.data;
-    const find = (value: unknown): string | undefined => {
-      if (typeof value === "string") return value;
-      if (Array.isArray(value)) return find(value[0]);
-      if (typeof value === "object" && value)
-        return Object.values(value).map(find).find(Boolean);
-      return undefined;
-    };
-    return find(data) || "Não foi possível salvar.";
-  }
-  return "Não foi possível salvar as alterações.";
-};
 export default function SettingsPage() {
+  const { t } = usePublicLocale();
+  const themeLabels: Record<Theme, string> = { light: t("settings.preferences.themeLight"), dark: t("settings.preferences.themeDark"), contrast: t("settings.preferences.themeContrast") };
+  const errorText = (error: unknown) => getOrganizationErrorMessage(error, t("workspace.couldNotSaveTheChanges"));
+
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [account, setAccount] = useState<AffiliateAccount | null>(null);
@@ -38,8 +30,8 @@ export default function SettingsPage() {
     affiliateService
       .account()
       .then(setAccount)
-      .catch(() => setError("Não foi possível carregar seu perfil."));
-  }, []);
+      .catch(() => setError(t("workspace.couldNotLoadYourProfile")));
+  }, [t]);
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
     if (!account) return;
@@ -61,7 +53,7 @@ export default function SettingsPage() {
           "affiliate_user",
           JSON.stringify({ ...JSON.parse(affiliateStored), ...updated }),
         );
-      setMessage("Perfil atualizado com sucesso.");
+      setMessage(t("workspace.profileUpdatedSuccessfully"));
     } catch (err) {
       setError(errorText(err));
     }
@@ -74,7 +66,7 @@ export default function SettingsPage() {
         await affiliateService.updateAccount({ theme: next });
       } catch {
         setError(
-          "O tema foi aplicado neste dispositivo, mas não foi salvo no perfil.",
+          t("workspace.theThemeWasAppliedOnThisDeviceButCouldNot"),
         );
       }
     }
@@ -101,12 +93,12 @@ export default function SettingsPage() {
     }
   };
   if (!account)
-    return <div className={styles.loading}>Carregando configurações…</div>;
+    return <div className={styles.loading}>{t("workspace.loadingSettings")}</div>;
   return (
     <div className={styles.page}>
       <div className={styles.heading}>
-        <h1>Configurações</h1>
-        <p>Atualize seus dados, aparência do portal e credenciais de acesso.</p>
+        <h1>{t("settings.title")}</h1>
+        <p>{t("workspace.updateYourDetailsPortalAppearanceAndAccessCredentials")}</p>
       </div>
       {message && <div className={styles.feedback}>{message}</div>}
       {error && (
@@ -114,10 +106,10 @@ export default function SettingsPage() {
       )}
       <div className={styles.settingsGrid}>
         <form className={styles.formCard} onSubmit={saveProfile}>
-          <h2>Dados do perfil</h2>
-          <p>Informações usadas para identificação e contato.</p>
+          <h2>{t("workspace.profileDetails")}</h2>
+          <p>{t("workspace.informationUsedForIdentificationAndContact")}</p>
           <div className={styles.field}>
-            <label htmlFor="name">Nome completo</label>
+            <label htmlFor="name">{t("users.name")}</label>
             <input
               id="name"
               value={account.full_name}
@@ -128,7 +120,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="email">E-mail de acesso</label>
+            <label htmlFor="email">{t("workspace.signInEmail")}</label>
             <input
               id="email"
               type="email"
@@ -140,7 +132,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="phone">Telefone / WhatsApp</label>
+            <label htmlFor="phone">{t("workspace.phoneWhatsapp")}</label>
             <input
               id="phone"
               value={account.phone}
@@ -150,14 +142,11 @@ export default function SettingsPage() {
             />
           </div>
           <button className={styles.primaryButton}>
-            <Save size={16} /> Salvar perfil
-          </button>
+            <Save size={16} /> {t("workspace.saveProfile")} </button>
         </form>
         <section className={styles.formCard}>
-          <h2>Aparência</h2>
-          <p>
-            Escolha como o portal será exibido neste e nos próximos acessos.
-          </p>
+          <h2>{t("workspace.appearance")}</h2>
+          <p> {t("workspace.chooseHowThePortalLooksNowAndOnFutureVisits")} </p>
           <div className={styles.themes}>
             {(["light", "dark", "contrast"] as Theme[]).map((item) => (
               <button
@@ -166,20 +155,17 @@ export default function SettingsPage() {
                 onClick={() => chooseTheme(item)}
                 className={`${styles.theme} ${theme === item ? styles.themeActive : ""}`}
               >
-                {THEME_LABELS[item]}
+                {themeLabels[item]}
               </button>
             ))}
           </div>
-          <small>
-            O modo escuro também pode ser alternado rapidamente no topo do
-            portal.
-          </small>
+          <small> {t("workspace.youCanAlsoQuicklyToggleDarkModeAtTheTop")} </small>
         </section>
         <form className={styles.formCard} onSubmit={changePassword}>
-          <h2>Alterar senha</h2>
-          <p>Após a alteração, todos os acessos atuais serão encerrados.</p>
+          <h2>{t("settings.password.title")}</h2>
+          <p>{t("workspace.afterTheChangeAllCurrentSessionsWillEnd")}</p>
           <div className={styles.field}>
-            <label htmlFor="current">Senha atual</label>
+            <label htmlFor="current">{t("settings.password.current")}</label>
             <input
               id="current"
               type="password"
@@ -191,7 +177,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="new">Nova senha</label>
+            <label htmlFor="new">{t("settings.password.new")}</label>
             <input
               id="new"
               type="password"
@@ -204,7 +190,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="confirm">Confirmar nova senha</label>
+            <label htmlFor="confirm">{t("settings.password.confirmNew")}</label>
             <input
               id="confirm"
               type="password"
@@ -220,8 +206,7 @@ export default function SettingsPage() {
             />
           </div>
           <button className={styles.primaryButton}>
-            <LockKeyhole size={16} /> Alterar senha
-          </button>
+            <LockKeyhole size={16} /> {t("settings.password.title")} </button>
         </form>
       </div>
     </div>

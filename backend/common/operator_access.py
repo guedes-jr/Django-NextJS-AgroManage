@@ -1,5 +1,7 @@
 """Organization operator scope, independent of UI visibility."""
 
+from django.utils.translation import gettext as translate_message
+
 from functools import wraps
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -164,7 +166,7 @@ def request_allowed(user, request):
 def enforce_request(user, request):
     if not request_allowed(user, request):
         raise PermissionDenied(
-            "Seu perfil não permite acessar esta área. Solicite autorização ao administrador."
+            translate_message("Seu perfil não permite acessar esta área. Solicite autorização ao administrador.")
         )
 
 
@@ -334,18 +336,18 @@ def validate_related(value, user):
             hasattr(value, "organization_id")
             and value.organization_id != user.organization_id
         ):
-            raise PermissionDenied("Registro fora da sua organização.")
+            raise PermissionDenied(translate_message("Registro fora da sua organização."))
         if (
             hasattr(value, "organization")
             and value.organization
             and value.organization.pk != user.organization_id
         ):
-            raise PermissionDenied("Registro fora da sua organização.")
+            raise PermissionDenied(translate_message("Registro fora da sua organização."))
         if (
             hasattr(value, "farm_id")
             and value.farm.organization_id != user.organization_id
         ):
-            raise PermissionDenied("Registro fora da sua organização.")
+            raise PermissionDenied(translate_message("Registro fora da sua organização."))
         parent_paths = {
             "Birth": "female__farm__organization_id",
             "Mating": "female__farm__organization_id",
@@ -360,7 +362,7 @@ def validate_related(value, user):
                 pk=value.pk, **{parent_path: user.organization_id}
             ).exists()
         ):
-            raise PermissionDenied("Registro fora da sua organização.")
+            raise PermissionDenied(translate_message("Registro fora da sua organização."))
         if (
             value._meta.app_label == "livestock"
             and value.__class__.__name__ in SPECIES_PATHS
@@ -368,7 +370,7 @@ def validate_related(value, user):
                 value.__class__.objects.filter(pk=value.pk), user
             ).exists()
         ):
-            raise PermissionDenied("Rebanho não autorizado.")
+            raise PermissionDenied(translate_message("Rebanho não autorizado."))
     elif isinstance(value, dict):
         for item in value.values():
             validate_related(item, user)
@@ -407,7 +409,7 @@ def validate_raw_references(data, user):
                     DjangoValidationError,
                 ):
                     raise PermissionDenied(
-                        "Referência inválida ou não autorizada."
+                        translate_message("Referência inválida ou não autorizada.")
                     ) from None
                 validate_related(obj, user)
             elif isinstance(value, (dict, list)):
@@ -444,7 +446,7 @@ def operator_scoped(cls):
             and self.__module__.endswith("livestock.views")
             and request.query_params["species"] not in species_codes(request.user)
         ):
-            raise PermissionDenied("Rebanho não autorizado.")
+            raise PermissionDenied(translate_message("Rebanho não autorizado."))
         if request.method not in SAFE_METHODS:
             if isinstance(request.data, dict) and request.data.get("status") in (
                 "sold",
@@ -460,10 +462,10 @@ def operator_scoped(cls):
                 "hatched",
             ):
                 raise PermissionDenied(
-                    "Esta mudança de situação exige um gerente ou administrador."
+                    translate_message("Esta mudança de situação exige um gerente ou administrador.")
                 )
             if contains_sensitive_data(request.data):
-                raise PermissionDenied("Campos financeiros são restritos.")
+                raise PermissionDenied(translate_message("Campos financeiros são restritos."))
             validate_raw_references(request.data, request.user)
         action = getattr(self, "action", None)
         if action in FINANCIAL_ACTIONS and not (
@@ -471,7 +473,7 @@ def operator_scoped(cls):
             and action in ("dashboard", "indicators")
         ):
             raise PermissionDenied(
-                "Indicadores gerenciais e operações financeiras são restritos."
+                translate_message("Indicadores gerenciais e operações financeiras são restritos.")
             )
         if (
             request.method not in SAFE_METHODS
@@ -483,7 +485,7 @@ def operator_scoped(cls):
                 else None
             )
             if request.user.operator_read_only or request.method == "DELETE":
-                raise PermissionDenied("Seu acesso não permite alterar este registro.")
+                raise PermissionDenied(translate_message("Seu acesso não permite alterar este registro."))
             crop_bulk = (
                 self.__module__.endswith("crops.views")
                 and action == "bulk_create"
@@ -496,20 +498,20 @@ def operator_scoped(cls):
                 and action not in OPERATIONAL_ACTIONS
             ):
                 raise PermissionDenied(
-                    "Esta operação exige um gerente ou administrador."
+                    translate_message("Esta operação exige um gerente ou administrador.")
                 )
             if action in ("create", "update", "partial_update") and (
                 not model or model.__name__ not in OPERATIONAL_MODELS
             ):
                 raise PermissionDenied(
-                    "Este cadastro exige um gerente ou administrador."
+                    translate_message("Este cadastro exige um gerente ou administrador.")
                 )
         if not hasattr(self, "get_queryset") and self.__module__.endswith(
             "livestock.views"
         ):
             code = request.query_params.get("species", "suinos")
             if code not in species_codes(request.user):
-                raise PermissionDenied("Rebanho não autorizado.")
+                raise PermissionDenied(translate_message("Rebanho não autorizado."))
 
     cls.initial = guarded_initial
     if hasattr(cls, "get_queryset"):
@@ -534,7 +536,7 @@ def operator_scoped(cls):
                     if sensitive_key(field):
                         target.fields.pop(field)
                 if "data" in kwargs and contains_sensitive_data(kwargs["data"]):
-                    raise PermissionDenied("Campos financeiros são restritos.")
+                    raise PermissionDenied(translate_message("Campos financeiros são restritos."))
             return serializer
 
         cls.get_serializer = get_serializer
@@ -567,7 +569,7 @@ def operator_scoped(cls):
                             and set(serializer.validated_data) - {"notes", "operator"}
                         ):
                             raise PermissionDenied(
-                                "Correções de quantidades, datas ou estoque exigem um gerente ou administrador."
+                                translate_message("Correções de quantidades, datas ou estoque exigem um gerente ou administrador.")
                             )
                         if not creating:
                             instance = serializer.instance
@@ -583,7 +585,7 @@ def operator_scoped(cls):
                                 or record_closed(instance)
                             ):
                                 raise PermissionDenied(
-                                    "Somente registros próprios ainda abertos podem ser corrigidos."
+                                    translate_message("Somente registros próprios ainda abertos podem ser corrigidos.")
                                 )
                     with transaction.atomic():
                         original(self, serializer)

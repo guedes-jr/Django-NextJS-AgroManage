@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 import logging
 
 from django.conf import settings
@@ -59,7 +60,7 @@ class AIConversationViewSet(viewsets.ModelViewSet):
     def ask(self, request, pk=None):
         conversation = self.get_object()
         if not conversation.is_active:
-            return Response({"detail": "Esta conversa está encerrada."}, status=status.HTTP_409_CONFLICT)
+            return Response({"detail": translate_message("Esta conversa está encerrada.")}, status=status.HTTP_409_CONFLICT)
         serializer = AIQuestionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         question = serializer.validated_data["question"]
@@ -93,7 +94,7 @@ class AIConversationViewSet(viewsets.ModelViewSet):
                 message.save(update_fields=("status", "safety_classification", "updated_at"))
                 release_question(request.user)
                 return Response(
-                    {"detail": "Não posso responder a essa solicitação por segurança.", "blocked": True},
+                    {"detail": translate_message("Não posso responder a essa solicitação por segurança."), "blocked": True},
                     status=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 )
 
@@ -129,7 +130,7 @@ class AIConversationViewSet(viewsets.ModelViewSet):
                 message.save(update_fields=("status", "safety_classification", "updated_at"))
                 release_question(request.user)
                 return Response(
-                    {"detail": "A resposta foi retida pela verificação de segurança.", "blocked": True},
+                    {"detail": translate_message("A resposta foi retida pela verificação de segurança."), "blocked": True},
                     status=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 )
 
@@ -184,7 +185,7 @@ class AIConversationViewSet(viewsets.ModelViewSet):
             message.save(update_fields=("status", "error_code", "updated_at"))
             release_question(request.user)
             return Response(
-                {"detail": "Não foi possível concluir a resposta."},
+                {"detail": translate_message("Não foi possível concluir a resposta.")},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
@@ -199,5 +200,5 @@ class AIFeedbackViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
 @permission_classes((IsAuthenticated,))
 def usage(request):
     if not request.user.organization_id:
-        return Response({"detail": "Usuário sem organização."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": translate_message("Usuário sem organização.")}, status=status.HTTP_400_BAD_REQUEST)
     return Response(get_ai_quota(request.user).to_dict())

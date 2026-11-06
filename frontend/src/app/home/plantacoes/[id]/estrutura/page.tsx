@@ -130,7 +130,7 @@ export default function SectorStructurePage() {
           <Info label={t("plantations.property")} value={plantation?.farm_name} />
           <Info label={t("plantations.field")} value={plantation?.sector_name || plantation?.field_name} />
           <Info label={t("plantations.crop")} value={plantation?.crop_name} />
-          <Info label="Área (ha)" value={plantation?.planted_area_ha || "—"} />
+          <Info label={t("plantations.detail.area")} value={plantation?.planted_area_ha || "—"} />
         </div>
       </section>
 
@@ -176,7 +176,7 @@ export default function SectorStructurePage() {
           <div className="col-md-6"><label className="form-label">{t("plantations.structure.itemType")}</label><input required className="form-control" list={`suggestions-${form.group}`} value={form.item_type} onChange={(e) => setForm({ ...form, item_type: e.target.value })} /><datalist id={`suggestions-${form.group}`}>{selectedGroup.suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}</datalist></div>
           <div className="col-md-6"><label className="form-label">{t("plantations.structure.specification")}</label><input className="form-control" placeholder={t("plantations.structure.specificationPlaceholder")} value={form.specification} onChange={(e) => setForm({ ...form, specification: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">{t("plantations.structure.quantity")}</label><input required min="0.01" step="0.01" type="number" className="form-control" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></div>
-          <div className="col-md-3"><label className="form-label">{t("plantations.structure.unit")}</label><select className="form-select" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}><option>un</option><option>m</option><option>m²</option><option>m³</option><option>kg</option><option>L</option><option>kit</option><option>serviço</option></select></div>
+          <div className="col-md-3"><label className="form-label">{t("plantations.structure.unit")}</label><select className="form-select" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}><option>un</option><option>{t("animalDetail.monthsShort")}</option><option>m²</option><option>m³</option><option>kg</option><option>L</option><option>kit</option><option>serviço</option></select></div>
           <div className="col-md-3"><label className="form-label">{t("plantations.structure.unitValue")}</label><input required min="0" step="0.01" type="number" className="form-control" value={form.unit_value} onChange={(e) => setForm({ ...form, unit_value: e.target.value })} /></div>
           <div className="col-md-3"><label className="form-label">{t("plantations.structure.totalValue")}</label><input readOnly className="form-control fw-bold text-success" value={money(number(form.quantity) * number(form.unit_value), language)} /></div>
         </div>

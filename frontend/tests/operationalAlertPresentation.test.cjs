@@ -1,3 +1,4 @@
+const locale = require('./helpers/locale.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -7,7 +8,7 @@ const path = require('node:path');
 function moduleAt(file, imports = {}) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src', file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    exports, require: name => imports[name] || (name === 'react/jsx-runtime' ? { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) } : { default: 'Link' }),
+    exports, require: name => imports[name] || (name === '@/lib/locale' ? locale : null) || (name === 'react/jsx-runtime' ? { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) } : { default: 'Link' }),
   });
   return exports;
 }
@@ -27,7 +28,7 @@ test('alert cards show only ten latest records, retain full count and link to co
   const tree = AlertListCard({ alerts });
   assert.equal(all(tree, n => n.props?.className === 'repro-alert-text').length, 10);
   assert.equal(all(tree, n => n.props?.href === presentation.ALERTS_PAGE).length, 1);
-  assert.ok(all(tree, n => Array.isArray(n.props?.children) && n.props.children[0] === 47).length);
+  assert.equal(all(tree, n => n.props?.className?.includes('repro-badge'))[0].props.children, '47 alertas');
 });
 test('complete alert lookup requests all dates only for the operators permitted species', async () => {
   const requested = [];

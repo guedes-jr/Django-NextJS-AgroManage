@@ -1,282 +1,31 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { setApiLanguage } from "@/services/api";
+import { resolvePublicLanguage, translatePublicMessage, type PublicTranslator, type PublicLanguage } from "./publicMessages";
+export type { PublicLanguage } from "./publicMessages";
 
-export type PublicLanguage = "pt-BR" | "en" | "es" | "pt-PT";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-const messages = {
-  "pt-BR": {
-    "skip": "Pular para o conteúdo",
-    "brandHome": "Fazenda Mais - início",
-    "openMenu": "Abrir menu",
-    "resources": "Recursos",
-    "plans": "Planos",
-    "content": "Conteúdos",
-    "contact": "Contato",
-    "login": "Entrar",
-    "requestDemo": "Solicitar demonstração",
-    "farmCta": "Ver aplicado à minha fazenda",
-    "footerTagline": "Tecnologia para decisões melhores no campo.",
-    "product": "Produto",
-    "demo": "Demonstração",
-    "calculator": "Calculadora",
-    "livestock": "Pecuária",
-    "agriculture": "Agricultura",
-    "guides": "Guias",
-    "privacy": "Privacidade",
-    "terms": "Termos",
-    "copyright": "Todos os direitos reservados.",
-    "affiliate.portal": "Portal do afiliado",
-    "affiliate.overview": "Visão geral",
-    "affiliate.referrals": "Indicações",
-    "affiliate.commissions": "Comissões",
-    "affiliate.reports": "Relatórios",
-    "affiliate.settings": "Configurações",
-    "affiliate.logout": "Sair",
-    "affiliate.referralsDescription": "Acompanhe cada visitante cadastrado e sua evolução até a contratação.",
-    "affiliate.commissionsDescription": "Consulte os lançamentos, aprovações e pagamentos da sua carteira.",
-    "affiliate.reportsDescription": "Analise seu desempenho e exporte o histórico financeiro.",
-    "affiliate.loading": "Carregando…",
-    "affiliate.noReferrals": "Nenhuma indicação neste filtro.",
-    "affiliate.noCommissions": "Nenhuma comissão neste filtro.",
-    "affiliate.filterStatus": "Filtrar por status",
-    "affiliate.all": "Todos",
-    "affiliate.customer": "Cliente",
-    "affiliate.plan": "Plano",
-    "affiliate.status": "Status",
-    "affiliate.registration": "Cadastro",
-    "affiliate.conversion": "Conversão",
-    "affiliate.firstAccess": "Primeiro acesso",
-    "affiliate.currentPlan": "Plano atual",
-    "affiliate.invoice": "Fatura",
-    "affiliate.monthlyFee": "Mensalidade",
-    "affiliate.commission": "Comissão",
-    "affiliate.date": "Data",
-    "affiliate.pending": "Pendente", "affiliate.approved": "Aprovada", "affiliate.paid": "Paga", "affiliate.cancelled": "Cancelada", "affiliate.netTotal": "Total líquido",
-    "affiliate.visited": "Visitou", "affiliate.registered": "Cadastrou", "affiliate.converted": "Converteu", "affiliate.totalAttributed": "Total atribuído", "affiliate.visitors": "Visitantes",
-    "affiliate.exportCsv": "Exportar CSV", "affiliate.consolidatedView": "Visão consolidada dos dados disponíveis", "affiliate.lastSixMonths": "Comissões nos últimos 6 meses", "affiliate.performanceInsights": "Leitura do desempenho",
-    "affiliate.uniqueVisitors": "Visitantes únicos", "affiliate.registrationRate": "Taxa de cadastro", "affiliate.conversionRate": "Taxa de conversão", "affiliate.commissionRevenue": "Receita em comissões",
-    "calculator.title": "Calculadora de retorno", "calculator.farms": "Fazendas", "calculator.people": "Pessoas na gestão", "calculator.hourValue": "Valor médio da hora", "calculator.estimate": "Estimativa", "calculator.cta": "Receber análise personalizada",
-    "calculator.weeklyHours": "Horas semanais em controles manuais", "calculator.monthlyHours": "{hours} horas/mês", "calculator.suggestedPlan": "Plano sugerido:",
-    "calculator.heading": "Quanto tempo uma gestão integrada pode devolver à sua equipe?", "calculator.description": "Faça uma estimativa inicial com base na sua rotina. O resultado é indicativo e pode variar conforme a operação.",
-    "calculator.resultDescription": "Potencial de tempo reorganizado, equivalente a {monthly}/mês ou {yearly}/ano.",
-    "calculator.planEssential": "Essencial", "calculator.planProfessional": "Profissional", "calculator.planPlus": "Gestão Plus",
-    "segment.expectedResults": "Resultados esperados", "segment.operationalControl": "Controle operacional com informação útil para decidir", "segment.resources": "Recursos do segmento", "segment.connectedRoutine": "Uma rotina conectada do início ao resultado", "segment.finalCta": "Veja o sistema Fazenda Mais na realidade da sua propriedade.",
-    "segment.expectedDescription": "Implante por etapas, envolva a equipe e acompanhe os indicadores que realmente importam.", "segment.finalDescription": "Uma demonstração objetiva, com foco nos seus processos.",
-    "contact.name": "Nome", "contact.email": "E-mail profissional", "contact.phone": "Telefone", "contact.send": "Enviar solicitação", "contact.sending": "Enviando...", "contact.success": "Solicitação enviada. O horário escolhido ficará reservado para confirmação da equipe.",
-    "contact.organization": "Organização ou propriedade", "contact.plan": "Plano de interesse", "contact.operationProfile": "Perfil da operação", "contact.message": "O que você deseja organizar?", "contact.selectOption": "Selecione uma opção", "contact.unknownPlan": "Ainda não sei",
-    "contact.preferredTime": "Horário preferido para a demonstração", "contact.scheduleLater": "Prefiro combinar depois", "contact.whatsapp": "Falar pelo WhatsApp", "contact.consent": "Concordo em fornecer estes dados para que a equipe Fazenda Mais entre em contato.",
-    "contact.rateLimit": "Muitas solicitações. Tente novamente mais tarde.", "contact.sendFailed": "Não foi possível enviar a solicitação.",
-    "contact.namePlaceholder": "Como podemos chamar você?", "contact.organizationPlaceholder": "Nome da sua operação", "contact.messagePlaceholder": "Conte brevemente seus principais desafios de gestão.", "contact.supportNote": "A solicitação ficará disponível para análise na Central da Plataforma.",
-    "contact.emailPlaceholder": "voce@empresa.com", "contact.agriculture": "Produção agrícola", "contact.livestock": "Pecuária", "contact.mixed": "Operação mista", "contact.multifarm": "Grupo com várias fazendas", "contact.other": "Outro",
-    "contact.phonePlaceholder": "(00) 00000-0000", "contact.planEssential": "Essencial", "contact.planProfessional": "Profissional", "contact.planPlus": "Gestão Plus", "contact.whatsappMessage": "Olá! Quero conhecer o sistema Fazenda Mais.",
-    "plans.perMonth": "/mês", "plans.quote": "Sob consulta", "plans.monthlyTotal": "Total mensal", "plans.monthlyEquivalent": "Equivalente mensal", "plans.purchaseTotal": "Montante da compra (12 meses)", "plans.remove": "Remover",
-    "plans.almostThere": "Quase lá", "plans.reviewOrder": "Revise seu pedido", "plans.addSegment": "Adicionar outro segmento", "plans.selectedPlans": "Planos selecionados", "plans.subscriptionType": "Tipo de assinatura", "plans.orderSummary": "Resumo do pedido",
-    "plans.reviewDescription": "Confira os segmentos selecionados e escolha o tipo de assinatura.", "plans.annualDiscount": "Desconto anual aplicado por segmento", "plans.annualDiscountDescription": "O valor integral dos 12 meses aparece no resumo antes da contratação.",
-  },
-  en: {
-    "skip": "Skip to content",
-    "brandHome": "Fazenda Mais - home",
-    "openMenu": "Open menu",
-    "resources": "Resources",
-    "plans": "Plans",
-    "content": "Content",
-    "contact": "Contact",
-    "login": "Log in",
-    "requestDemo": "Request a demo",
-    "farmCta": "See it applied to my farm",
-    "footerTagline": "Technology for better decisions in the field.",
-    "product": "Product",
-    "demo": "Demo",
-    "calculator": "Calculator",
-    "livestock": "Livestock",
-    "agriculture": "Agriculture",
-    "guides": "Guides",
-    "privacy": "Privacy",
-    "terms": "Terms",
-    "copyright": "All rights reserved.",
-    "affiliate.portal": "Affiliate portal",
-    "affiliate.overview": "Overview",
-    "affiliate.referrals": "Referrals",
-    "affiliate.commissions": "Commissions",
-    "affiliate.reports": "Reports",
-    "affiliate.settings": "Settings",
-    "affiliate.logout": "Log out",
-    "affiliate.referralsDescription": "Track every registered visitor and their progress until subscription.",
-    "affiliate.commissionsDescription": "Review your account's entries, approvals, and payments.",
-    "affiliate.reportsDescription": "Analyze your performance and export your financial history.",
-    "affiliate.loading": "Loading…",
-    "affiliate.noReferrals": "No referrals in this filter.",
-    "affiliate.noCommissions": "No commissions in this filter.",
-    "affiliate.filterStatus": "Filter by status", "affiliate.all": "All", "affiliate.customer": "Customer", "affiliate.plan": "Plan", "affiliate.status": "Status", "affiliate.registration": "Registration", "affiliate.conversion": "Conversion", "affiliate.firstAccess": "First visit", "affiliate.currentPlan": "Current plan", "affiliate.invoice": "Invoice", "affiliate.monthlyFee": "Monthly fee", "affiliate.commission": "Commission", "affiliate.date": "Date",
-    "affiliate.pending": "Pending", "affiliate.approved": "Approved", "affiliate.paid": "Paid", "affiliate.cancelled": "Cancelled", "affiliate.netTotal": "Net total",
-    "affiliate.visited": "Visited", "affiliate.registered": "Registered", "affiliate.converted": "Converted", "affiliate.totalAttributed": "Total attributed", "affiliate.visitors": "Visitors",
-    "affiliate.exportCsv": "Export CSV", "affiliate.consolidatedView": "Consolidated view of available data", "affiliate.lastSixMonths": "Commissions in the last 6 months", "affiliate.performanceInsights": "Performance insights",
-    "affiliate.uniqueVisitors": "Unique visitors", "affiliate.registrationRate": "Registration rate", "affiliate.conversionRate": "Conversion rate", "affiliate.commissionRevenue": "Commission revenue",
-    "calculator.title": "Return calculator", "calculator.farms": "Farms", "calculator.people": "People in management", "calculator.hourValue": "Average hourly value", "calculator.estimate": "Estimate", "calculator.cta": "Get a personalized analysis",
-    "calculator.weeklyHours": "Weekly hours in manual controls", "calculator.monthlyHours": "{hours} hours/month", "calculator.suggestedPlan": "Suggested plan:",
-    "calculator.heading": "How much time can integrated management give back to your team?", "calculator.description": "Get an initial estimate based on your routine. Results are indicative and may vary by operation.",
-    "calculator.resultDescription": "Potential time reorganized, equivalent to {monthly}/month or {yearly}/year.",
-    "calculator.planEssential": "Essential", "calculator.planProfessional": "Professional", "calculator.planPlus": "Management Plus",
-    "segment.expectedResults": "Expected results", "segment.operationalControl": "Operational control with useful information for decisions", "segment.resources": "Segment resources", "segment.connectedRoutine": "A connected routine from start to result", "segment.finalCta": "See Fazenda Mais in your farm's reality.",
-    "segment.expectedDescription": "Implement in stages, involve your team, and track the indicators that truly matter.", "segment.finalDescription": "An objective demo focused on your processes.",
-    "contact.name": "Name", "contact.email": "Work email", "contact.phone": "Phone", "contact.send": "Send request", "contact.sending": "Sending...", "contact.success": "Request sent. Your chosen time will be reserved pending team confirmation.",
-    "contact.organization": "Organization or farm", "contact.plan": "Plan of interest", "contact.operationProfile": "Operation profile", "contact.message": "What would you like to organize?", "contact.selectOption": "Select an option", "contact.unknownPlan": "I don't know yet",
-    "contact.preferredTime": "Preferred demo time", "contact.scheduleLater": "I'd rather arrange it later", "contact.whatsapp": "Talk on WhatsApp", "contact.consent": "I agree to provide this information so the Fazenda Mais team can contact me.",
-    "contact.rateLimit": "Too many requests. Try again later.", "contact.sendFailed": "Could not send the request.",
-    "contact.namePlaceholder": "How should we call you?", "contact.organizationPlaceholder": "Name of your operation", "contact.messagePlaceholder": "Briefly tell us about your main management challenges.", "contact.supportNote": "Your request will be available for review in the Platform Center.",
-    "contact.emailPlaceholder": "you@company.com", "contact.agriculture": "Agricultural production", "contact.livestock": "Livestock", "contact.mixed": "Mixed operation", "contact.multifarm": "Multi-farm group", "contact.other": "Other",
-    "contact.phonePlaceholder": "+1 000 000 0000", "contact.planEssential": "Essential", "contact.planProfessional": "Professional", "contact.planPlus": "Management Plus", "contact.whatsappMessage": "Hello! I'd like to learn about Fazenda Mais.",
-    "plans.perMonth": "/month", "plans.quote": "Contact us", "plans.monthlyTotal": "Monthly total", "plans.monthlyEquivalent": "Monthly equivalent", "plans.purchaseTotal": "Purchase amount (12 months)", "plans.remove": "Remove",
-    "plans.almostThere": "Almost there", "plans.reviewOrder": "Review your order", "plans.addSegment": "Add another segment", "plans.selectedPlans": "Selected plans", "plans.subscriptionType": "Subscription type", "plans.orderSummary": "Order summary",
-    "plans.reviewDescription": "Review selected segments and choose the subscription type.", "plans.annualDiscount": "Annual discount applied per segment", "plans.annualDiscountDescription": "The full 12-month amount appears in the summary before checkout.",
-  },
-  es: {
-    "skip": "Saltar al contenido",
-    "brandHome": "Fazenda Mais - inicio",
-    "openMenu": "Abrir menú",
-    "resources": "Recursos",
-    "plans": "Planes",
-    "content": "Contenidos",
-    "contact": "Contacto",
-    "login": "Iniciar sesión",
-    "requestDemo": "Solicitar demostración",
-    "farmCta": "Verlo aplicado a mi finca",
-    "footerTagline": "Tecnología para mejores decisiones en el campo.",
-    "product": "Producto",
-    "demo": "Demostración",
-    "calculator": "Calculadora",
-    "livestock": "Ganadería",
-    "agriculture": "Agricultura",
-    "guides": "Guías",
-    "privacy": "Privacidad",
-    "terms": "Términos",
-    "copyright": "Todos los derechos reservados.",
-    "affiliate.portal": "Portal de afiliados",
-    "affiliate.overview": "Resumen",
-    "affiliate.referrals": "Referencias",
-    "affiliate.commissions": "Comisiones",
-    "affiliate.reports": "Informes",
-    "affiliate.settings": "Configuración",
-    "affiliate.logout": "Cerrar sesión",
-    "affiliate.referralsDescription": "Siga a cada visitante registrado y su evolución hasta la contratación.",
-    "affiliate.commissionsDescription": "Consulte los registros, aprobaciones y pagos de su cartera.",
-    "affiliate.reportsDescription": "Analice su rendimiento y exporte el historial financiero.",
-    "affiliate.loading": "Cargando…",
-    "affiliate.noReferrals": "No hay referencias en este filtro.",
-    "affiliate.noCommissions": "No hay comisiones en este filtro.",
-    "affiliate.filterStatus": "Filtrar por estado", "affiliate.all": "Todos", "affiliate.customer": "Cliente", "affiliate.plan": "Plan", "affiliate.status": "Estado", "affiliate.registration": "Registro", "affiliate.conversion": "Conversión", "affiliate.firstAccess": "Primer acceso", "affiliate.currentPlan": "Plan actual", "affiliate.invoice": "Factura", "affiliate.monthlyFee": "Mensualidad", "affiliate.commission": "Comisión", "affiliate.date": "Fecha",
-    "affiliate.pending": "Pendiente", "affiliate.approved": "Aprobada", "affiliate.paid": "Pagada", "affiliate.cancelled": "Cancelada", "affiliate.netTotal": "Total neto",
-    "affiliate.visited": "Visitó", "affiliate.registered": "Registrado", "affiliate.converted": "Convertido", "affiliate.totalAttributed": "Total atribuido", "affiliate.visitors": "Visitantes",
-    "affiliate.exportCsv": "Exportar CSV", "affiliate.consolidatedView": "Vista consolidada de los datos disponibles", "affiliate.lastSixMonths": "Comisiones en los últimos 6 meses", "affiliate.performanceInsights": "Lectura del rendimiento",
-    "affiliate.uniqueVisitors": "Visitantes únicos", "affiliate.registrationRate": "Tasa de registro", "affiliate.conversionRate": "Tasa de conversión", "affiliate.commissionRevenue": "Ingresos por comisiones",
-    "calculator.title": "Calculadora de retorno", "calculator.farms": "Fincas", "calculator.people": "Personas en gestión", "calculator.hourValue": "Valor medio por hora", "calculator.estimate": "Estimación", "calculator.cta": "Recibir análisis personalizado",
-    "calculator.weeklyHours": "Horas semanales en controles manuales", "calculator.monthlyHours": "{hours} horas/mes", "calculator.suggestedPlan": "Plan sugerido:",
-    "calculator.heading": "¿Cuánto tiempo puede devolver una gestión integrada a su equipo?", "calculator.description": "Haga una estimación inicial según su rutina. El resultado es indicativo y puede variar según la operación.",
-    "calculator.resultDescription": "Potencial de tiempo reorganizado, equivalente a {monthly}/mes o {yearly}/año.",
-    "calculator.planEssential": "Esencial", "calculator.planProfessional": "Profesional", "calculator.planPlus": "Gestión Plus",
-    "segment.expectedResults": "Resultados esperados", "segment.operationalControl": "Control operativo con información útil para decidir", "segment.resources": "Recursos del segmento", "segment.connectedRoutine": "Una rutina conectada del inicio al resultado", "segment.finalCta": "Vea Fazenda Mais en la realidad de su finca.",
-    "segment.expectedDescription": "Implemente por etapas, involucre al equipo y siga los indicadores que realmente importan.", "segment.finalDescription": "Una demostración objetiva, centrada en sus procesos.",
-    "contact.name": "Nombre", "contact.email": "Correo profesional", "contact.phone": "Teléfono", "contact.send": "Enviar solicitud", "contact.sending": "Enviando...", "contact.success": "Solicitud enviada. El horario elegido quedará reservado para confirmación del equipo.",
-    "contact.organization": "Organización o finca", "contact.plan": "Plan de interés", "contact.operationProfile": "Perfil de la operación", "contact.message": "¿Qué desea organizar?", "contact.selectOption": "Seleccione una opción", "contact.unknownPlan": "Aún no lo sé",
-    "contact.preferredTime": "Horario preferido para la demostración", "contact.scheduleLater": "Prefiero acordarlo después", "contact.whatsapp": "Hablar por WhatsApp", "contact.consent": "Acepto proporcionar estos datos para que el equipo de Fazenda Mais se ponga en contacto.",
-    "contact.rateLimit": "Demasiadas solicitudes. Inténtelo de nuevo más tarde.", "contact.sendFailed": "No se pudo enviar la solicitud.",
-    "contact.namePlaceholder": "¿Cómo podemos llamarle?", "contact.organizationPlaceholder": "Nombre de su operación", "contact.messagePlaceholder": "Cuente brevemente sus principales desafíos de gestión.", "contact.supportNote": "La solicitud estará disponible para análisis en la Central de la Plataforma.",
-    "contact.emailPlaceholder": "usted@empresa.com", "contact.agriculture": "Producción agrícola", "contact.livestock": "Ganadería", "contact.mixed": "Operación mixta", "contact.multifarm": "Grupo con varias fincas", "contact.other": "Otro",
-    "contact.phonePlaceholder": "+00 000 000 000", "contact.planEssential": "Esencial", "contact.planProfessional": "Profesional", "contact.planPlus": "Gestión Plus", "contact.whatsappMessage": "¡Hola! Quiero conocer Fazenda Mais.",
-    "plans.perMonth": "/mes", "plans.quote": "Consultar", "plans.monthlyTotal": "Total mensual", "plans.monthlyEquivalent": "Equivalente mensual", "plans.purchaseTotal": "Importe de la compra (12 meses)", "plans.remove": "Eliminar",
-    "plans.almostThere": "Casi listo", "plans.reviewOrder": "Revise su pedido", "plans.addSegment": "Añadir otro segmento", "plans.selectedPlans": "Planes seleccionados", "plans.subscriptionType": "Tipo de suscripción", "plans.orderSummary": "Resumen del pedido",
-    "plans.reviewDescription": "Revise los segmentos seleccionados y elija el tipo de suscripción.", "plans.annualDiscount": "Descuento anual aplicado por segmento", "plans.annualDiscountDescription": "El importe completo de 12 meses aparece en el resumen antes de contratar.",
-  },
-  "pt-PT": {
-    "skip": "Saltar para o conteúdo",
-    "brandHome": "Fazenda Mais - início",
-    "openMenu": "Abrir menu",
-    "resources": "Recursos",
-    "plans": "Planos",
-    "content": "Conteúdos",
-    "contact": "Contacto",
-    "login": "Entrar",
-    "requestDemo": "Solicitar demonstração",
-    "farmCta": "Ver aplicado à minha exploração",
-    "footerTagline": "Tecnologia para melhores decisões no campo.",
-    "product": "Produto",
-    "demo": "Demonstração",
-    "calculator": "Calculadora",
-    "livestock": "Pecuária",
-    "agriculture": "Agricultura",
-    "guides": "Guias",
-    "privacy": "Privacidade",
-    "terms": "Termos",
-    "copyright": "Todos os direitos reservados.",
-    "affiliate.portal": "Portal do afiliado",
-    "affiliate.overview": "Visão geral",
-    "affiliate.referrals": "Indicações",
-    "affiliate.commissions": "Comissões",
-    "affiliate.reports": "Relatórios",
-    "affiliate.settings": "Configurações",
-    "affiliate.logout": "Sair",
-    "affiliate.referralsDescription": "Acompanhe cada visitante registado e a sua evolução até à contratação.",
-    "affiliate.commissionsDescription": "Consulte os lançamentos, aprovações e pagamentos da sua carteira.",
-    "affiliate.reportsDescription": "Analise o seu desempenho e exporte o histórico financeiro.",
-    "affiliate.loading": "A carregar…",
-    "affiliate.noReferrals": "Não há indicações neste filtro.",
-    "affiliate.noCommissions": "Não há comissões neste filtro.",
-    "affiliate.filterStatus": "Filtrar por estado", "affiliate.all": "Todos", "affiliate.customer": "Cliente", "affiliate.plan": "Plano", "affiliate.status": "Estado", "affiliate.registration": "Registo", "affiliate.conversion": "Conversão", "affiliate.firstAccess": "Primeiro acesso", "affiliate.currentPlan": "Plano atual", "affiliate.invoice": "Fatura", "affiliate.monthlyFee": "Mensalidade", "affiliate.commission": "Comissão", "affiliate.date": "Data",
-    "affiliate.pending": "Pendente", "affiliate.approved": "Aprovada", "affiliate.paid": "Paga", "affiliate.cancelled": "Cancelada", "affiliate.netTotal": "Total líquido",
-    "affiliate.visited": "Visitou", "affiliate.registered": "Registado", "affiliate.converted": "Convertido", "affiliate.totalAttributed": "Total atribuído", "affiliate.visitors": "Visitantes",
-    "affiliate.exportCsv": "Exportar CSV", "affiliate.consolidatedView": "Visão consolidada dos dados disponíveis", "affiliate.lastSixMonths": "Comissões nos últimos 6 meses", "affiliate.performanceInsights": "Leitura do desempenho",
-    "affiliate.uniqueVisitors": "Visitantes únicos", "affiliate.registrationRate": "Taxa de registo", "affiliate.conversionRate": "Taxa de conversão", "affiliate.commissionRevenue": "Receita em comissões",
-    "calculator.title": "Calculadora de retorno", "calculator.farms": "Explorações", "calculator.people": "Pessoas na gestão", "calculator.hourValue": "Valor médio por hora", "calculator.estimate": "Estimativa", "calculator.cta": "Receber análise personalizada",
-    "calculator.weeklyHours": "Horas semanais em controlos manuais", "calculator.monthlyHours": "{hours} horas/mês", "calculator.suggestedPlan": "Plano sugerido:",
-    "calculator.heading": "Quanto tempo pode uma gestão integrada devolver à sua equipa?", "calculator.description": "Faça uma estimativa inicial com base na sua rotina. O resultado é indicativo e pode variar consoante a operação.",
-    "calculator.resultDescription": "Potencial de tempo reorganizado, equivalente a {monthly}/mês ou {yearly}/ano.",
-    "calculator.planEssential": "Essencial", "calculator.planProfessional": "Profissional", "calculator.planPlus": "Gestão Plus",
-    "segment.expectedResults": "Resultados esperados", "segment.operationalControl": "Controlo operacional com informação útil para decidir", "segment.resources": "Recursos do segmento", "segment.connectedRoutine": "Uma rotina ligada do início ao resultado", "segment.finalCta": "Veja o sistema Fazenda Mais na realidade da sua exploração.",
-    "segment.expectedDescription": "Implemente por etapas, envolva a equipa e acompanhe os indicadores que realmente importam.", "segment.finalDescription": "Uma demonstração objetiva, focada nos seus processos.",
-    "contact.name": "Nome", "contact.email": "E-mail profissional", "contact.phone": "Telefone", "contact.send": "Enviar pedido", "contact.sending": "A enviar...", "contact.success": "Pedido enviado. O horário escolhido ficará reservado para confirmação da equipa.",
-    "contact.organization": "Organização ou exploração", "contact.plan": "Plano de interesse", "contact.operationProfile": "Perfil da operação", "contact.message": "O que pretende organizar?", "contact.selectOption": "Selecione uma opção", "contact.unknownPlan": "Ainda não sei",
-    "contact.preferredTime": "Horário preferido para a demonstração", "contact.scheduleLater": "Prefiro combinar depois", "contact.whatsapp": "Falar pelo WhatsApp", "contact.consent": "Concordo em fornecer estes dados para que a equipa Fazenda Mais entre em contacto.",
-    "contact.rateLimit": "Demasiados pedidos. Tente novamente mais tarde.", "contact.sendFailed": "Não foi possível enviar o pedido.",
-    "contact.namePlaceholder": "Como podemos chamar-lhe?", "contact.organizationPlaceholder": "Nome da sua operação", "contact.messagePlaceholder": "Descreva brevemente os seus principais desafios de gestão.", "contact.supportNote": "O pedido ficará disponível para análise na Central da Plataforma.",
-    "contact.emailPlaceholder": "voce@empresa.pt", "contact.agriculture": "Produção agrícola", "contact.livestock": "Pecuária", "contact.mixed": "Operação mista", "contact.multifarm": "Grupo com várias explorações", "contact.other": "Outro",
-    "contact.phonePlaceholder": "+351 000 000 000", "contact.planEssential": "Essencial", "contact.planProfessional": "Profissional", "contact.planPlus": "Gestão Plus", "contact.whatsappMessage": "Olá! Quero conhecer o sistema Fazenda Mais.",
-    "plans.perMonth": "/mês", "plans.quote": "Sob consulta", "plans.monthlyTotal": "Total mensal", "plans.monthlyEquivalent": "Equivalente mensal", "plans.purchaseTotal": "Montante da compra (12 meses)", "plans.remove": "Remover",
-    "plans.almostThere": "Quase lá", "plans.reviewOrder": "Reveja o seu pedido", "plans.addSegment": "Adicionar outro segmento", "plans.selectedPlans": "Planos selecionados", "plans.subscriptionType": "Tipo de subscrição", "plans.orderSummary": "Resumo do pedido",
-    "plans.reviewDescription": "Reveja os segmentos selecionados e escolha o tipo de subscrição.", "plans.annualDiscount": "Desconto anual aplicado por segmento", "plans.annualDiscountDescription": "O valor total dos 12 meses aparece no resumo antes da contratação.",
-  },
-} as const;
 
-type PublicTranslationKey = keyof (typeof messages)["pt-BR"];
 type PublicLocaleContextValue = {
   language: PublicLanguage;
-  t: (key: PublicTranslationKey, values?: Record<string, string | number>) => string;
+  t: PublicTranslator;
 };
 const PublicLocaleContext = createContext<PublicLocaleContextValue | null>(null);
 
-function browserLanguage(): PublicLanguage {
-  const language = navigator.languages?.[0] || navigator.language;
-  if (language === "pt-PT") return "pt-PT";
-  if (language.startsWith("es")) return "es";
-  if (language.startsWith("en")) return "en";
-  return "pt-BR";
-}
-
-export function PublicLocaleProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<PublicLanguage>("pt-BR");
+export function PublicLocaleProvider({ children, initialLanguage }: { children: React.ReactNode; initialLanguage?: PublicLanguage }) {
+  const [language, setLanguage] = useState<PublicLanguage>(initialLanguage ?? "pt-BR");
   useEffect(() => {
-    const timer = window.setTimeout(() => setLanguage(browserLanguage()), 0);
+    const timer = window.setTimeout(() => { const nextLanguage = initialLanguage ?? resolvePublicLanguage((navigator.languages ?? [navigator.language]).join(",")); setApiLanguage(nextLanguage); setLanguage(nextLanguage); }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
-  const value = useMemo(() => ({
+  }, [initialLanguage]);
+  useLayoutEffect(() => {
+    setApiLanguage(language);
+    document.documentElement.lang = language;
+  }, [language]);
+  const value = useMemo<PublicLocaleContextValue>(() => ({
     language,
-    t: (key: PublicTranslationKey, values?: Record<string, string | number>) => {
-      const message = messages[language][key];
-      if (!values) return message;
-      return message.replace(/\{([^}]+)\}/g, (placeholder, name: string) =>
-        Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : placeholder,
-      );
-    },
+    t: (key, values) => translatePublicMessage(language, key, values),
   }), [language]);
   return <PublicLocaleContext.Provider value={value}>{children}</PublicLocaleContext.Provider>;
 }
@@ -285,4 +34,8 @@ export function usePublicLocale() {
   const context = useContext(PublicLocaleContext);
   if (!context) throw new Error("usePublicLocale must be used within PublicLocaleProvider.");
   return context;
+}
+
+export function useOptionalPublicLocale() {
+  return useContext(PublicLocaleContext);
 }

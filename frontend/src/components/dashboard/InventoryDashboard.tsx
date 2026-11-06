@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useMemo, useEffect } from "react";
 import { InventoryFormModal, type InventoryCategory } from "@/components/dashboard/InventoryFormModal";
@@ -154,6 +155,7 @@ function DestinationBadge({ destination }: { destination?: string | null }) {
 }
 
 export function InventoryDashboard() {
+  const { language, t } = useOrganizationLocale();
   const [modalConfig, setModalConfig] = useState<{ open: boolean; category?: InventoryCategory }>({ open: false });
   const [quickModal, setQuickModal] = useState<{ open: boolean; type: "in" | "out" }>({ open: false, type: "in" });
   const [stats, setStats] = useState({ total_items: 0, total_value: "0", total_qty: 0, estoque_baixo: 0, itens_vencidos: 0 });
@@ -181,24 +183,24 @@ export function InventoryDashboard() {
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
 
   const periodOptions = [
-    { value: "5", label: "Últimos 5 dias" },
-    { value: "15", label: "Últimos 15 dias" },
-    { value: "30", label: "Últimos 30 dias" },
-    { value: "90", label: "Últimos 3 meses" },
-    { value: "180", label: "Últimos 6 meses" },
-    { value: "365", label: "Últimos 12 meses" },
+    { value: "5", label: t("workspace.last5Days") },
+    { value: "15", label: t("workspace.last15Days") },
+    { value: "30", label: t("livestock.feedConsumption.last30Days") },
+    { value: "90", label: t("workspace.last3Months") },
+    { value: "180", label: t("workspace.last6Months") },
+    { value: "365", label: t("workspace.last12Months") },
   ];
 
   const chartTypeOptions = [
-    { value: "area", label: "Área" },
-    { value: "bar", label: "Barras" },
-    { value: "line", label: "Linha" },
+    { value: "area", label: t("plantations.area") },
+    { value: "bar", label: t("workspace.bars") },
+    { value: "line", label: t("workspace.line") },
   ];
 
   const chartFilterOptions = [
-    { value: "all", label: "Todos" },
-    { value: "entrada", label: "Apenas Entradas" },
-    { value: "saida", label: "Apenas Saídas" },
+    { value: "all", label: t("crops.allFields") },
+    { value: "entrada", label: t("workspace.incomeOnly") },
+    { value: "saida", label: t("workspace.expensesOnly") },
   ];
 
   const recentDestinations = useMemo(() => {
@@ -231,10 +233,10 @@ export function InventoryDashboard() {
 
       const formatted = (data.results || []).map((m: any) => ({
         ...m,
-        quantidade: parseFloat(m.quantidade).toLocaleString("pt-BR", {
+        quantidade: parseFloat(m.quantidade).toLocaleString(language, {
           maximumFractionDigits: 2,
         }),
-        data_movimentacao: new Date(m.data_movimentacao).toLocaleString("pt-BR"),
+        data_movimentacao: new Date(m.data_movimentacao).toLocaleString(language),
       }));
 
       setRecentMovements(formatted);
@@ -284,8 +286,8 @@ export function InventoryDashboard() {
         });
         const formatted = (data.results || []).map((m: any) => ({
           ...m,
-          quantidade: parseFloat(m.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 2 }),
-          data_movimentacao: new Date(m.data_movimentacao).toLocaleString("pt-BR"),
+          quantidade: parseFloat(m.quantidade).toLocaleString(language, { maximumFractionDigits: 2 }),
+          data_movimentacao: new Date(m.data_movimentacao).toLocaleString(language),
         }));
         setRecentMovements(formatted);
       } catch (error) {
@@ -293,7 +295,7 @@ export function InventoryDashboard() {
       }
     };
     fetchRecentMovements();
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     const fetchCategoryData = async () => {
@@ -352,18 +354,20 @@ export function InventoryDashboard() {
       {/* Header */}
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small text-muted-foreground mb-4">
-          <Link href="/home" className="text-decoration-none text-muted-foreground hover-text-primary">Estoque</Link>
+          <Link href="/home" className="text-decoration-none text-muted-foreground hover-text-primary">{t("animalDetail.stock")}</Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Resumo</span>
+          <span className="fw-semibold text-foreground">{t("workspace.summary")}</span>
         </nav>
 
         <div className="row align-items-end g-4">
           <div className="col">
             <h1 className="fw-black mb-1" style={{ fontSize: '2.25rem', letterSpacing: '-0.04em', color: "var(--foreground)" }}>
-              Estoque
+
+              {t("animalDetail.stock")}
             </h1>
             <p className="mb-0 text-muted-foreground fw-medium">
-              Controle completo dos produtos, rações, medicamentos e materiais da sua granja.
+
+              {t("inventory.home.description")}
             </p>
           </div>
         </div>
@@ -378,9 +382,9 @@ export function InventoryDashboard() {
                 <Wallet />
               </div>
               <div className="flex-grow-1">
-                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>VALOR TOTAL EM ESTOQUE</div>
-                <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : `R$ ${(parseFloat(stats.total_value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}</div>
-                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Valor de custo total</div>
+                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>{t("workspace.totalStockValue")}</div>
+                <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : `R$ ${(parseFloat(stats.total_value) || 0).toLocaleString(language, { minimumFractionDigits: 2 })}`}</div>
+                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>{t("inventory.home.costValue")}</div>
               </div>
             </div>
           </div>
@@ -392,9 +396,9 @@ export function InventoryDashboard() {
                 <Package />
               </div>
               <div className="flex-grow-1">
-                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>ITENS CADASTRADOS</div>
+                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>{t("workspace.registeredItems")}</div>
                 <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : stats.total_items}</div>
-                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Todos os itens ativos</div>
+                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>{t("inventory.home.activeItems")}</div>
               </div>
             </div>
           </div>
@@ -406,9 +410,9 @@ export function InventoryDashboard() {
                 <AlertTriangle />
               </div>
               <div className="flex-grow-1">
-                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>ESTOQUE BAIXO</div>
+                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>{t("workspace.lowStock")}</div>
                 <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : stats.estoque_baixo}</div>
-                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Itens abaixo do mínimo</div>
+                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>{t("inventory.home.belowMinimum")}</div>
               </div>
             </div>
           </div>
@@ -420,9 +424,9 @@ export function InventoryDashboard() {
                 <Calendar />
               </div>
               <div className="flex-grow-1">
-                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>ITENS VENCIDOS</div>
+                <div className="text-muted-foreground small fw-bold text-uppercase mb-1" style={{ letterSpacing: '0.02em', fontSize: '0.65rem' }}>{t("workspace.expiredItems")}</div>
                 <div className="fw-black text-foreground" style={{ fontSize: '1.25rem' }}>{statsLoading ? "..." : stats.itens_vencidos}</div>
-                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Requer atenção imediata</div>
+                <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>{t("workspace.requiresImmediateAttention")}</div>
               </div>
             </div>
           </div>
@@ -435,11 +439,12 @@ export function InventoryDashboard() {
           <div className="d-flex align-items-center gap-3">
             <AlertTriangle className="text-warning" size={24} />
             <div className="fw-bold text-orange-950">
-              Atenção! Existem {activeAlerts.length} alertas pendentes.
+
+              {t("workspace.warningThereAre")} {activeAlerts.length} alertas pendentes.
               O mais crítico: "{activeAlerts[0].titulo}"
             </div>
           </div>
-          <Link href="/home/estoque/alertas" className="btn btn-sm btn-white border border-warning/30 bg-white shadow-sm px-4 fw-bold text-decoration-none">Ver todos os alertas</Link>
+          <Link href="/home/estoque/alertas" className="btn btn-sm btn-white border border-warning/30 bg-white shadow-sm px-4 fw-bold text-decoration-none">{t("workspace.viewAllAlerts")}</Link>
         </div>
       )}
 
@@ -449,8 +454,8 @@ export function InventoryDashboard() {
           <div className="dashboard-card p-4">
             <div className="d-flex justify-content-between align-items-start mb-4">
               <div>
-                <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>Movimentações (Entradas e Saídas)</h3>
-                <p className="text-muted-foreground small">Resumo das movimentações</p>
+                <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>{t("workspace.movementsInboundAndOutbound")}</h3>
+                <p className="text-muted-foreground small">{t("workspace.movementSummary")}</p>
               </div>
               <div className="d-flex gap-2">
                 <select
@@ -530,9 +535,9 @@ export function InventoryDashboard() {
               {(chartFilter === "all" || chartFilter === "entrada") && (
                 <div className="col-12 col-md-6">
                   <div className="p-3 rounded-xl border border-border bg-emerald-50/10">
-                    <div className="text-muted-foreground small fw-bold mb-1">Entradas</div>
+                    <div className="text-muted-foreground small fw-bold mb-1">{t("workspace.inbound")}</div>
                     <div className="d-flex align-items-baseline gap-2">
-                      <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + (b.entrada || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unid.`}</span>
+                      <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + (b.entrada || 0), 0).toLocaleString(language, { maximumFractionDigits: 0 })} unid.`}</span>
                     </div>
                   </div>
                 </div>
@@ -540,9 +545,9 @@ export function InventoryDashboard() {
               {(chartFilter === "all" || chartFilter === "saida") && (
                 <div className="col-12 col-md-6">
                   <div className="p-3 rounded-xl border border-border bg-rose-50/10">
-                    <div className="text-muted-foreground small fw-bold mb-1">Saídas</div>
+                    <div className="text-muted-foreground small fw-bold mb-1">{t("workspace.outbound")}</div>
                     <div className="d-flex align-items-baseline gap-2">
-                      <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + (b.saida || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unid.`}</span>
+                      <span className="fw-black fs-4">{chartLoading ? "..." : `${chartData.reduce((a, b) => a + (b.saida || 0), 0).toLocaleString(language, { maximumFractionDigits: 0 })} unid.`}</span>
                     </div>
                   </div>
                 </div>
@@ -554,13 +559,13 @@ export function InventoryDashboard() {
         <div className="col-12 col-xl-4">
           <div className="dashboard-card p-4 h-100 flex-column d-flex">
             <div className="mb-4">
-              <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>Itens com Estoque Baixo</h3>
-              <p className="text-muted-foreground small">Itens que estão abaixo do estoque mínimo definido</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>{t("workspace.lowStockItems")}</h3>
+              <p className="text-muted-foreground small">{t("workspace.itemsBelowTheirDefinedMinimumStock")}</p>
             </div>
 
             <div className="flex-grow-1 overflow-auto pe-1">
               {lowStockItems.length === 0 ? (
-                <div className="text-center text-muted-foreground py-4">Nenhum item com estoque baixo</div>
+                <div className="text-center text-muted-foreground py-4">{t("workspace.noLowStockItems")}</div>
               ) : (
                 lowStockItems.map((item, i) => (
                   <div key={item.id || i} className="stock-item-row">
@@ -571,18 +576,18 @@ export function InventoryDashboard() {
                       <div className="flex-grow-1">
                         <div className="fw-bold small text-foreground">{item.nome}</div>
                         <div className="d-flex gap-3 mt-1">
-                          <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Esq. atual: <span className="fw-bold text-dark">{parseFloat(item.estoque_atual).toLocaleString("pt-BR")} {item.unidade_medida}</span></div>
-                          <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>Mínimo: <span className="fw-bold text-dark">{parseFloat(item.estoque_minimo).toLocaleString("pt-BR")} {item.unidade_medida}</span></div>
+                          <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>{t("workspace.currentStock")} <span className="fw-bold text-dark">{parseFloat(item.estoque_atual).toLocaleString(language)} {item.unidade_medida}</span></div>
+                          <div className="text-muted-foreground" style={{ fontSize: '0.65rem' }}>{t("workspace.minimum")} <span className="fw-bold text-dark">{parseFloat(item.estoque_minimo).toLocaleString(language)} {item.unidade_medida}</span></div>
                         </div>
                       </div>
-                      <span className="badge-status atencao">Atenção</span>
+                      <span className="badge-status atencao">{t("dashboard.attention")}</span>
                     </div>
                   </div>
                 ))
               )}
             </div>
 
-            <button className="btn btn-sm btn-outline-secondary border-border w-100 mt-4 fw-bold py-2">Ver todos os itens com estoque baixo</button>
+            <button className="btn btn-sm btn-outline-secondary border-border w-100 mt-4 fw-bold py-2">{t("workspace.viewAllLowStockItems")}</button>
           </div>
         </div>
       </div>
@@ -592,25 +597,25 @@ export function InventoryDashboard() {
         <div className="col-12 col-xl-8">
           <div className="dashboard-card p-0 h-100 overflow-hidden">
             <div className="p-4 border-bottom border-border">
-              <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>Últimas Movimentações</h3>
-              <p className="text-muted-foreground small mb-0">Movimentações mais recentes do estoque</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>{t("workspace.latestMovements")}</h3>
+              <p className="text-muted-foreground small mb-0">{t("workspace.mostRecentStockMovements")}</p>
             </div>
             <div className="table-responsive">
               <table className="table mb-0">
                 <thead className="bg-muted/30">
                   <tr>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">TIPO</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">PRODUTO</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">QUANTIDADE</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">DESTINO</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">VALOR</th>
-                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">DATA/HORA</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("workspace.type")}</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("workspace.product")}</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("workspace.quantity")}</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("workspace.destination")}</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("workspace.value")}</th>
+                    <th className="px-4 py-3 border-0 small fw-bold text-muted-foreground">{t("workspace.dateTime")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-4 text-muted-foreground">Nenhuma movimentação encontrada</td>
+                      <td colSpan={6} className="text-center py-4 text-muted-foreground">{t("workspace.noMovementsFound")}</td>
                     </tr>
                   ) : (
                     recentMovements.map((move, i) => (
@@ -623,7 +628,7 @@ export function InventoryDashboard() {
                               <ArrowDownRight size={16} className="text-rose-500" />
                             )}
                             <span className={`small fw-bold ${move.tipo === 'entrada' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {move.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                              {move.tipo === 'entrada' ? t("swineReproduction.entry") : t("inventory.movements.exit")}
                             </span>
                           </div>
                         </td>
@@ -641,7 +646,8 @@ export function InventoryDashboard() {
                                   border: "1px solid oklch(0.9 0.05 145)"
                                 }}
                               >
-                                Ração - {new Date(move.data_movimentacao).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' })}
+
+                                {t("workspace.feed")} {new Date(move.data_movimentacao).toLocaleDateString(language, { day: '2-digit', month: '2-digit' })}
                               </span>
                             )}
                           </div>
@@ -651,7 +657,7 @@ export function InventoryDashboard() {
                           {OUT_MOVEMENT_TYPES.has(move.tipo) ? <DestinationBadge destination={move.destino} /> : <span className="small text-muted-foreground">-</span>}
                         </td>
                         <td className="px-4 py-3 small text-muted-foreground">
-                          {move.custo_total ? `R$ ${parseFloat(move.custo_total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
+                          {move.custo_total ? `R$ ${parseFloat(move.custo_total).toLocaleString(language, { minimumFractionDigits: 2 })}` : "-"}
                         </td>
                         <td className="px-4 py-3 small text-muted-foreground fw-medium">{move.data_movimentacao}</td>
                       </tr>
@@ -662,7 +668,7 @@ export function InventoryDashboard() {
             </div>
             {recentDestinations.length > 0 && (
               <div className="px-4 pt-3 pb-2 border-top border-border">
-                <div className="small fw-bold text-foreground mb-2">Destinos dos produtos</div>
+                <div className="small fw-bold text-foreground mb-2">{t("workspace.productDestinations")}</div>
                 <div className="d-flex flex-wrap gap-2">
                   {recentDestinations.map((destination) => (
                     <DestinationBadge key={destination} destination={destination} />
@@ -671,7 +677,7 @@ export function InventoryDashboard() {
               </div>
             )}
             <div className="p-3 bg-muted/10 border-top border-border text-center">
-              <button className="btn btn-sm btn-link text-muted-foreground small text-decoration-none fw-bold">Ver todas as movimentações</button>
+              <button className="btn btn-sm btn-link text-muted-foreground small text-decoration-none fw-bold">{t("livestock.registration.movementHistoryDescription")}</button>
             </div>
           </div>
         </div>
@@ -679,8 +685,8 @@ export function InventoryDashboard() {
         <div className="col-12 col-xl-4">
           <div className="dashboard-card p-4 h-100">
             <div className="mb-4">
-              <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>Estoque por Categoria</h3>
-              <p className="text-muted-foreground small">Distribuição do valor do estoque por categoria</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>{t("workspace.stockByCategory")}</h3>
+              <p className="text-muted-foreground small">{t("workspace.stockValueDistributionByCategory")}</p>
             </div>
 
             <div style={{ height: '220px', width: '100%' }}>
@@ -703,7 +709,7 @@ export function InventoryDashboard() {
 
             <div className="mt-4 inv-chart-legend">
               {categoryData.length === 0 ? (
-                <div className="text-center text-muted-foreground py-4">Sem dados</div>
+                <div className="text-center text-muted-foreground py-4">{t("crops.noData")}</div>
               ) : (
                 categoryData.map((cat, i) => (
                   <div key={i} className="legend-item">
@@ -711,26 +717,26 @@ export function InventoryDashboard() {
                       <div className="rounded-circle" style={{ width: 10, height: 10, background: COLORS[i % COLORS.length] }}></div>
                       <span className="fw-medium text-muted-foreground">{cat.name}</span>
                     </div>
-                    <span className="fw-bold text-foreground">R$ {cat.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    <span className="fw-bold text-foreground">R$ {cat.value.toLocaleString(language, { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))
               )}
             </div>
 
-            <button className="btn btn-sm btn-outline-secondary border-border w-100 mt-4 fw-bold py-2">Ver relatório completo</button>
+            <button className="btn btn-sm btn-outline-secondary border-border w-100 mt-4 fw-bold py-2">{t("plantations.labor.fullReport")}</button>
           </div>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <h3 className="fw-bold mb-3 mt-5" style={{ fontSize: '1.1rem' }}>Ações Rápidas</h3>
+      <h3 className="fw-bold mb-3 mt-5" style={{ fontSize: '1.1rem' }}>{t("workspace.quickActions")}</h3>
       <div className="row g-3">
         {[
-          { title: "Nova Entrada", desc: "Registrar entrada no estoque", icon: <ArrowUpRight />, color: "oklch(0.65 0.15 145)" },
-          { title: "Nova Saída", desc: "Registrar saída no estoque", icon: <ArrowDownRight />, color: "oklch(0.6 0.18 25)" },
-          { title: "Transferência", desc: "Transferir entre setores", icon: <RefreshCw />, color: "oklch(0.7 0.15 85)" },
-          { title: "Inventário", desc: "Realizar inventário físico", icon: <History />, color: "oklch(0.65 0.16 230)" },
-          { title: "Relatórios", desc: "Ver relatórios de estoque", icon: <FileText />, color: "oklch(0.6 0.05 240)" },
+          { title: t("workspace.newInboundMovement"), desc: "Registrar entrada no estoque", icon: <ArrowUpRight />, color: "oklch(0.65 0.15 145)" },
+          { title: t("workspace.newOutboundMovement"), desc: "Registrar saída no estoque", icon: <ArrowDownRight />, color: "oklch(0.6 0.18 25)" },
+          { title: t("poultryReproduction.transfer"), desc: "Transferir entre setores", icon: <RefreshCw />, color: "oklch(0.7 0.15 85)" },
+          { title: t("workspace.inventory"), desc: "Realizar inventário físico", icon: <History />, color: "oklch(0.65 0.16 230)" },
+          { title: t("swine.home.module.reports"), desc: "Ver relatórios de estoque", icon: <FileText />, color: "oklch(0.6 0.05 240)" },
         ].map((action, i) => (
           <div key={i} className="col">
             <button 

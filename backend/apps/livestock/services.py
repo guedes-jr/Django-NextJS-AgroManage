@@ -1,4 +1,5 @@
 from __future__ import annotations
+from django.utils.translation import gettext as translate_message
 
 from datetime import date
 from decimal import Decimal
@@ -331,14 +332,14 @@ def finalize_batch_sale(batch, data, quantity, amount):
     sales = list(batch.historicos.filter(tipo_evento='Venda de Animais'))
     if any(event.data_evento > data['date'] for event in sales):
         from rest_framework.exceptions import ValidationError
-        raise ValidationError({'date': 'O fechamento não pode ocorrer antes das vendas anteriores.'})
+        raise ValidationError({'date': translate_message('O fechamento não pode ocorrer antes das vendas anteriores.')})
     sold_quantity = quantity + sum(int(event.metadata['quantity']) for event in sales)
     total_weight = data['weight_kg'] + sum((Decimal(event.metadata['weight_kg']) for event in sales), Decimal('0'))
     total_amount = amount + sum((Decimal(event.metadata['amount']) for event in sales), Decimal('0'))
     average = total_weight / sold_quantity
     if total_amount > Decimal('9999999999.99') or average > Decimal('999999.99'):
         from rest_framework.exceptions import ValidationError
-        raise ValidationError({'weight_kg': 'Os totais do lote excedem os limites permitidos.'})
+        raise ValidationError({'weight_kg': translate_message('Os totais do lote excedem os limites permitidos.')})
     phase = batch.phase_histories.filter(phase=batch.phase, exit_date__isnull=True).first()
     entry_event = batch.historicos.filter(tipo_evento='Entrada de Lote').order_by('data_evento').first()
     entry = entry_event.metadata if entry_event else {}
@@ -374,14 +375,14 @@ def register_batch_sale(batch, data):
 
     batch = AnimalBatch.objects.select_for_update().select_related('farm', 'species').get(pk=batch.pk)
     if batch.status != AnimalBatch.Status.ACTIVE or batch.quantity < 1:
-        raise ValidationError({'batch': 'Selecione um lote ativo com animais disponíveis.'})
+        raise ValidationError({'batch': translate_message('Selecione um lote ativo com animais disponíveis.')})
     quantity = batch.quantity if data['mode'] == 'whole' else data['quantity']
     if quantity > batch.quantity:
-        raise ValidationError({'quantity': 'A quantidade vendida não pode exceder o saldo disponível.'})
+        raise ValidationError({'quantity': translate_message('A quantidade vendida não pode exceder o saldo disponível.')})
     closes_batch = quantity == batch.quantity
     amount = data.get('net_amount', (data['weight_kg'] * data['price_per_kg']).quantize(Decimal('0.01')))
     if amount <= 0 or amount > Decimal('9999999999.99'):
-        raise ValidationError({'price_per_kg': 'Valor total da venda fora do limite permitido.'})
+        raise ValidationError({'price_per_kg': translate_message('Valor total da venda fora do limite permitido.')})
     metadata = {
         'batch_code': batch.batch_code, 'quantity': quantity,
         'weight_kg': str(data['weight_kg']), 'price_per_kg': str(data['price_per_kg']),

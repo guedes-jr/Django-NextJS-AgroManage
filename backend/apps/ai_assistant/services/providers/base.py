@@ -1,3 +1,4 @@
+from django.utils.translation import gettext_lazy as translate_message_lazy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from decimal import Decimal
@@ -13,7 +14,7 @@ class AIProviderError(Exception):
 
 
 class AIFreeTierRestrictionError(AIProviderError):
-    message = (
+    message = translate_message_lazy(
         "O OpenCode Zen permite usar os modelos gratuitos apenas no aplicativo OpenCode. "
         "Peça ao administrador para configurar um modelo liberado para uso pela API."
     )

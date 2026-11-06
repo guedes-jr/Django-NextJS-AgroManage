@@ -13,7 +13,7 @@ function loadService(client) {
   const exports = {};
   vm.runInNewContext(outputText, {
     exports,
-    require: name => name === "axios" ? { isAxiosError: error => !!error?.isAxiosError } : { default: client },
+    require: name => name === "@/lib/localeMessages" ? require("./helpers/locale.cjs") : name === "axios" ? { isAxiosError: error => !!error?.isAxiosError } : { default: client },
   });
   return exports;
 }

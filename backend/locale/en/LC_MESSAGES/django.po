@@ -1,0 +1,909 @@
+msgid ""
+msgstr "Project-Id-Version: AgroManage\nLanguage: en\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n"
+
+msgid "A baixa exige um valor positivo."
+msgstr "Settlement requires a positive amount."
+
+msgid "A baixa informada não é a baixa ativa deste título."
+msgstr "The specified settlement is not this entry's active settlement."
+
+msgid "A baixa não pode ter data futura."
+msgstr "Settlement cannot be dated in the future."
+
+msgid "A categoria não pertence à sua organização."
+msgstr "The category does not belong to your organization."
+
+msgid "A categoria pai não pertence à sua organização."
+msgstr "The parent category does not belong to your organization."
+
+msgid "A conta bancária não pertence à sua organização."
+msgstr "The bank account does not belong to your organization."
+
+msgid "A conta está inativa."
+msgstr "The account is inactive."
+
+msgid "A conta não pertence à sua organização."
+msgstr "The account does not belong to your organization."
+
+msgid "A contagem é igual ao saldo. Não há ajuste a registrar."
+msgstr "The count equals the balance. No adjustment is needed."
+
+msgid "A data final não pode ser anterior à data inicial."
+msgstr "The end date cannot precede the start date."
+
+msgid "A espécie não corresponde ao lote informado."
+msgstr "The species does not match the specified batch."
+
+msgid "A estrutura deve pertencer à mesma fazenda da plantação."
+msgstr "The structure must belong to the same farm as the crop."
+
+msgid "A fazenda informada não foi encontrada."
+msgstr "The specified farm was not found."
+
+msgid "A fazenda não pertence à organização do estoque."
+msgstr "The farm does not belong to the stock's organization."
+
+msgid "A fazenda não pertence à sua organização."
+msgstr "The farm does not belong to your organization."
+
+msgid "A franquia mensal de perguntas foi atingida."
+msgstr "The monthly question allowance has been reached."
+
+msgid "A lista de medicamentos ou vacinas é inválida."
+msgstr "The list of medicines or vaccines is invalid."
+
+msgid "A matriz de destino deve ser diferente da matriz de origem."
+msgstr "The destination breeding female must differ from the source female."
+
+msgid "A organização precisa manter um administrador ativo."
+msgstr "The organization must retain an active administrator."
+
+msgid "A plantação informada não foi encontrada."
+msgstr "The specified crop was not found."
+
+msgid "A plantação não pertence à sua organização."
+msgstr "The crop does not belong to your organization."
+
+msgid "A previsão de diagnóstico não pode anteceder a cobertura."
+msgstr "The expected diagnosis date cannot precede mating."
+
+msgid "A propriedade deve corresponder ao vínculo produtivo."
+msgstr "The property must match the production link."
+
+msgid "A propriedade não pertence à sua organização."
+msgstr "The property does not belong to your organization."
+
+msgid "A propriedade pertence a outra organização."
+msgstr "The property belongs to another organization."
+
+msgid "A quantidade colhida deve ser maior que zero."
+msgstr "The harvested quantity must be greater than zero."
+
+msgid "A quantidade de diárias deve ser maior que zero."
+msgstr "The number of workdays must be greater than zero."
+
+msgid "A quantidade deve ser maior que zero."
+msgstr "Quantity must be greater than zero."
+
+msgid "A quantidade inicial não pode ser editada. Registre um lançamento de ajuste."
+msgstr "The initial quantity cannot be edited. Record an adjustment entry."
+
+msgid "A quantidade transferida deve ser maior que zero."
+msgstr "The transferred quantity must be greater than zero."
+
+msgid "A quantidade vendida não pode exceder o saldo disponível."
+msgstr "The quantity sold cannot exceed the available balance."
+
+msgid "A ração selecionada não é indicada para suínos."
+msgstr "The selected feed is not suitable for swine."
+
+msgid "A resposta foi retida pela verificação de segurança."
+msgstr "The response was withheld by the safety check."
+
+msgid "A seleção contém ajustes de inventário, que não podem ser apagados."
+msgstr "The selection contains inventory adjustments, which cannot be deleted."
+
+msgid "A senha deve ter pelo menos 8 caracteres."
+msgstr "The password must have at least 8 characters."
+
+msgid "A venda não pode ocorrer antes da entrada do lote."
+msgstr "The sale cannot occur before the batch entry date."
+
+msgid "Agende o lembrete no futuro e até o início do evento (ou fim do dia, se não houver horário)."
+msgstr "Schedule the reminder in the future and no later than the event start, or the end of the day for an all-day event."
+
+msgid "Ajustes de inventário não podem ser apagados. Registre uma nova contagem para corrigir o saldo."
+msgstr "Inventory adjustments cannot be deleted. Record a new count to correct the balance."
+
+msgid "Ajustes de inventário preservam o histórico. Registre uma nova contagem para corrigir o saldo."
+msgstr "Inventory adjustments preserve history. Record a new count to correct the balance."
+
+msgid "Alerta confirmado."
+msgstr "Alert acknowledged."
+
+msgid "An error occurred."
+msgstr "An error occurred."
+
+msgid "An unexpected error occurred. Please try again later."
+msgstr "An unexpected error occurred. Please try again later."
+
+msgid "Anexe o comprovante ao título após gerar a série."
+msgstr "Attach the receipt to the entry after generating the series."
+
+msgid "Apenas administradores podem alterar a assinatura."
+msgstr "Only administrators can change the subscription."
+
+msgid "Apenas administradores podem editar dados da organização."
+msgstr "Only administrators can edit organization data."
+
+msgid "Apenas o criador pode configurar seu lembrete de WhatsApp."
+msgstr "Only the creator can configure their WhatsApp reminder."
+
+msgid "As datas devem pertencer ao ano selecionado."
+msgstr "Dates must belong to the selected year."
+
+msgid "As observações devem ter no máximo 200 caracteres."
+msgstr "Notes cannot exceed 200 characters."
+
+msgid "As observações devem ter no máximo 300 caracteres."
+msgstr "Notes cannot exceed 300 characters."
+
+msgid "As restrições de área são exclusivas do operador e do tratador."
+msgstr "Area restrictions apply only to operators and feeders."
+
+msgid "As senhas não conferem ou estão vazias."
+msgstr "Passwords do not match or are empty."
+
+msgid "As senhas não conferem."
+msgstr "The passwords do not match."
+
+msgid "Assinatura não encontrada."
+msgstr "Subscription not found."
+
+msgid "Atualização do projeto iniciada com sucesso em segundo plano. O sistema pode ficar temporariamente indisponível durante a reinicialização dos serviços."
+msgstr "Project update started successfully in the background. The system may be temporarily unavailable while services restart."
+
+msgid "Atualize esta atividade pela Central de manejo bovino para preservar a execução e sua origem."
+msgstr "Update this activity through the Cattle Management Center to preserve execution and its source."
+
+msgid "Authentication credentials were not provided or are invalid."
+msgstr "Authentication credentials were not provided or are invalid."
+
+msgid "Bad request."
+msgstr "Bad request."
+
+msgid "Batch code é obrigatório e não pode estar vazio."
+msgstr "Batch code is required and cannot be empty."
+
+msgid "Batch code é obrigatório."
+msgstr "Batch code is required."
+
+msgid "Bomba inválida para esta organização."
+msgstr "Invalid pump for this organization."
+
+msgid "Cadastre um WhatsApp válido e autorize os alertas no seu perfil."
+msgstr "Register a valid WhatsApp number and authorize alerts in your profile."
+
+msgid "Categoria de destino inválida."
+msgstr "Invalid destination category."
+
+msgid "Ciclo de cobrança inválido."
+msgstr "Invalid billing cycle."
+
+msgid "Cio registrado com sucesso. Previsões geradas automaticamente."
+msgstr "Heat recorded successfully. Forecasts generated automatically."
+
+msgid "Comprador inválido para esta organização."
+msgstr "Invalid buyer for this organization."
+
+msgid "Comprador não pertence à organização da plantação."
+msgstr "The buyer does not belong to the crop's organization."
+
+msgid "Conflict with an existing resource."
+msgstr "Conflict with an existing resource."
+
+msgid "Conta não encontrada nesta organização."
+msgstr "Account not found in this organization."
+
+msgid "Contas com lançamentos devem ser desativadas para preservar o histórico."
+msgstr "Accounts with entries must be deactivated to preserve history."
+
+msgid "Credenciais inválidas."
+msgstr "Invalid credentials."
+
+msgid "Código do novo lote é obrigatório."
+msgstr "The new batch code is required."
+
+msgid "Dados de aves carregados com sucesso."
+msgstr "Poultry data loaded successfully."
+
+msgid "Dashboard API is connected."
+msgstr "Dashboard API is connected."
+
+msgid "Data de entrada é obrigatória."
+msgstr "Entry date is required."
+
+msgid "Data do cio é obrigatória."
+msgstr "Heat date is required."
+
+msgid "Data inválida. Use formato YYYY-MM-DD."
+msgstr "Invalid date. Use YYYY-MM-DD format."
+
+msgid "Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação."
+msgstr "Downgrades will be available after scheduling for the next renewal is integrated."
+
+msgid "E-mail já cadastrado. Use outro e-mail; contas existentes não são movidas automaticamente."
+msgstr "Email already registered. Use another email; existing accounts are not moved automatically."
+
+msgid "Email e senha são obrigatórios."
+msgstr "Email and password are required."
+
+msgid "Email é obrigatório."
+msgstr "Email is required."
+
+msgid "Esta composição precisa de atendimento comercial."
+msgstr "This configuration requires sales assistance."
+
+msgid "Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste."
+msgstr "This purchase has a financial entry. Preserve the intake and correct stock through an adjustment entry."
+
+msgid "Esta conversa está encerrada."
+msgstr "This conversation is closed."
+
+msgid "Esta fazenda não pertence à sua organização."
+msgstr "This farm does not belong to your organization."
+
+msgid "Esta identificação já foi utilizada em outra operação."
+msgstr "This identifier has already been used in another operation."
+
+msgid "Esta identificação já foi utilizada em outro parcelamento/agendamento."
+msgstr "This identifier has already been used in another installment plan or schedule."
+
+msgid "Este feriado já está cadastrado nesta data."
+msgstr "This holiday is already registered on this date."
+
+msgid "Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."
+msgstr "This entry belongs to a cattle feed supply and preserves its history. Correct the balance through an inventory adjustment."
+
+msgid "Este lote já possui outra data de recebimento. Use um novo número de lote para uma nova entrada."
+msgstr "This batch already has a different receipt date. Use a new batch number for a new intake."
+
+msgid "Este orçamento não está mais disponível."
+msgstr "This quote is no longer available."
+
+msgid "Este título possui origem operacional. Preserve o vínculo; cancele o título quando aplicável."
+msgstr "This entry has an operational source. Preserve the link; cancel the entry when applicable."
+
+msgid "Este usuário já é o responsável pela organização."
+msgstr "This user is already responsible for the organization."
+
+msgid "Estrutura inválida para esta organização."
+msgstr "Invalid structure for this organization."
+
+msgid "Fase incompatível com a categoria selecionada."
+msgstr "The phase is incompatible with the selected category."
+
+msgid "Fase produtiva é obrigatória para lotes comprados não-reprodutivos."
+msgstr "A production phase is required for purchased non-breeding batches."
+
+msgid "Formatos aceitos: PDF, JPG ou PNG."
+msgstr "Accepted formats: PDF, JPG or PNG."
+
+msgid "Fornecedor não pertence à sua organização."
+msgstr "The supplier does not belong to your organization."
+
+msgid "Fórmula e quantidade teórica são obrigatórias."
+msgstr "Formula and theoretical quantity are required."
+
+msgid "Fórmula não encontrada."
+msgstr "Formula not found."
+
+msgid "Informe a baixa ativa para estornar; atualize o título antes de continuar."
+msgstr "Specify the active settlement to reverse; refresh the entry before continuing."
+
+msgid "Informe a conta e a data do pagamento."
+msgstr "Enter the account and payment date."
+
+msgid "Informe a data do evento."
+msgstr "Enter the event date."
+
+msgid "Informe a data para agendar o lembrete."
+msgstr "Enter a date to schedule the reminder."
+
+msgid "Informe a quantidade de animais."
+msgstr "Enter the number of animals."
+
+msgid "Informe ao menos uma aplicação."
+msgstr "Enter at least one application."
+
+msgid "Informe ao menos uma fertirrigação."
+msgstr "Enter at least one fertigation record."
+
+msgid "Informe o comprador para vendas."
+msgstr "Enter the buyer for sales."
+
+msgid "Informe o custo da compra para registrar o pagamento."
+msgstr "Enter the purchase cost to record payment."
+
+msgid "Informe o telefone que possui WhatsApp."
+msgstr "Enter the phone number with WhatsApp."
+
+msgid "Informe um peso válido."
+msgstr "Enter a valid weight."
+
+msgid "Informe um prazo entre 1 e 365 dias."
+msgstr "Enter a period between 1 and 365 days."
+
+msgid "Informe um valor positivo até o saldo em aberto da fatura."
+msgstr "Enter a positive amount up to the invoice's outstanding balance."
+
+msgid "Informe uma data de recebimento até hoje para uma entrada de estoque."
+msgstr "Enter a receipt date no later than today for stock intake."
+
+msgid "Informe uma lista de movimentações para remover."
+msgstr "Provide a list of movements to remove."
+
+msgid "Informe uma previsão entre 1 e 90 dias."
+msgstr "Enter an estimate between 1 and 90 days."
+
+msgid "Informe uma quantidade de animais válida."
+msgstr "Enter a valid number of animals."
+
+msgid "Informe uma quantidade maior que zero."
+msgstr "Enter a quantity greater than zero."
+
+msgid "Informe uma quantidade válida."
+msgstr "Enter a valid quantity."
+
+msgid "Internal server error."
+msgstr "Internal server error."
+
+msgid "Item final não pertence à sua organização."
+msgstr "The finished item does not belong to your organization."
+
+msgid "Item não pertence à sua organização."
+msgstr "The item does not belong to your organization."
+
+msgid "Já existe um fornecedor com este CPF/CNPJ nesta organização."
+msgstr "A supplier with this CPF/CNPJ already exists in this organization."
+
+msgid "Já existe um usuário com este email."
+msgstr "A user with this email already exists."
+
+msgid "Logout realizado com sucesso."
+msgstr "Signed out successfully."
+
+msgid "Logout realizado."
+msgstr "Signed out."
+
+msgid "Lote animal não pertence à sua organização."
+msgstr "The animal batch does not belong to your organization."
+
+msgid "Lote não encontrado ou sem permissão de acesso."
+msgstr "Batch not found or access not permitted."
+
+msgid "Lote não pertence ao item e à organização informados."
+msgstr "The batch does not belong to the specified item and organization."
+
+msgid "Lotes com vendas devem permanecer disponíveis no relatório geral."
+msgstr "Batches with sales must remain available in the general report."
+
+msgid "Marque que este contato possui WhatsApp para receber alertas."
+msgstr "Mark this contact as having WhatsApp to receive alerts."
+
+msgid "Matriz descartada com sucesso"
+msgstr "Breeding female culled successfully"
+
+msgid "Mensagem inválida para avaliação."
+msgstr "Invalid message for feedback."
+
+msgid "Method not allowed."
+msgstr "Method not allowed."
+
+msgid "Mortalidade registrada com sucesso."
+msgstr "Mortality recorded successfully."
+
+msgid "Mortalidade registrada."
+msgstr "Mortality recorded."
+
+msgid "Máquina ou veículo inválido para esta organização."
+msgstr "Invalid machine or vehicle for this organization."
+
+msgid "Nenhum animal individual encontrado para este lote."
+msgstr "No individual animals found for this batch."
+
+msgid "Nenhum modelo de IA está disponível."
+msgstr "No AI model is available."
+
+msgid "Nenhum parto selecionado."
+msgstr "No calving selected."
+
+msgid "Nenhum provedor conseguiu executar a verificação de segurança."
+msgstr "No provider could run the safety check."
+
+msgid "Nenhum provedor de IA habilitado possui credenciais válidas."
+msgstr "No enabled AI provider has valid credentials."
+
+msgid "Nenhuma imagem enviada."
+msgstr "No image uploaded."
+
+msgid "Nenhuma movimentação encontrada para remoção."
+msgstr "No movements found to remove."
+
+msgid "No organization"
+msgstr "No organization"
+
+msgid "Nome da vacina ou vacina do estoque é obrigatório"
+msgstr "A vaccine name or vaccine from stock is required"
+
+msgid "Nome não pode estar vazio."
+msgstr "Name cannot be empty."
+
+msgid "Não altere o tipo de uma categoria com lançamentos. Crie uma nova categoria."
+msgstr "Do not change the type of a category with entries. Create a new category."
+
+msgid "Não foi possível concluir a resposta."
+msgstr "Could not complete the response."
+
+msgid "Não foi possível criar o cadastro: e-mail ou identificador já utilizado. Atualize os dados e tente novamente."
+msgstr "Could not create the record: email or identifier already in use. Refresh the data and try again."
+
+msgid "Não foi possível determinar a organização."
+msgstr "Could not determine the organization."
+
+msgid "Não posso responder a essa solicitação por segurança."
+msgstr "I cannot answer this request for safety reasons."
+
+msgid "Não é possível apagar um lote com saldo ou lançamentos. Preserve o histórico e registre um ajuste quando necessário."
+msgstr "A batch with a balance or entries cannot be deleted. Preserve history and record an adjustment when needed."
+
+msgid "O animal informado não foi encontrado."
+msgstr "The specified animal was not found."
+
+msgid "O animal não pertence à propriedade informada."
+msgstr "The animal does not belong to the specified property."
+
+msgid "O arquivo deve ter no máximo 10MB."
+msgstr "The file must be no larger than 10 MB."
+
+msgid "O atendimento por IA está indisponível. Use as dúvidas e tutoriais ou fale com um atendente."
+msgstr "AI support is unavailable. Use questions and tutorials or speak to an attendant."
+
+msgid "O contexto solicitado não foi encontrado."
+msgstr "The requested context was not found."
+
+msgid "O fechamento não pode ocorrer antes das vendas anteriores."
+msgstr "Closing cannot occur before previous sales."
+
+msgid "O fim deve ser posterior ao início no mesmo dia."
+msgstr "The end must be later than the start on the same day."
+
+msgid "O item de um lote não pode ser alterado."
+msgstr "A batch's item cannot be changed."
+
+msgid "O item selecionado não é uma vacina."
+msgstr "The selected item is not a vaccine."
+
+msgid "O lote informado não foi encontrado."
+msgstr "The specified batch was not found."
+
+msgid "O lote já está nessa fase."
+msgstr "The batch is already in this phase."
+
+msgid "O lote não pertence ao item informado."
+msgstr "The batch does not belong to the specified item."
+
+msgid "O lote não pertence à fase produtiva selecionada."
+msgstr "The batch does not belong to the selected production phase."
+
+msgid "O lote não pertence à propriedade informada."
+msgstr "The batch does not belong to the specified property."
+
+msgid "O lote não pertence à sua organização."
+msgstr "The batch does not belong to your organization."
+
+msgid "O lote não possui animais ativos para vacinar."
+msgstr "The batch has no active animals to vaccinate."
+
+msgid "O lote selecionado não pertence à suinocultura."
+msgstr "The selected batch does not belong to swine farming."
+
+msgid "O objeto informado pertence a outra organização."
+msgstr "The specified object belongs to another organization."
+
+msgid "O peso deve ser maior que zero."
+msgstr "Weight must be greater than zero."
+
+msgid "O preço de venda deve ser maior que zero."
+msgstr "The sale price must be greater than zero."
+
+msgid "O responsável mudou desde que esta tela foi aberta. Atualize os dados antes de transferir."
+msgstr "The responsible person changed after this screen was opened. Refresh the data before transferring."
+
+msgid "O responsável não pertence à organização do estoque."
+msgstr "The assignee does not belong to the stock's organization."
+
+msgid "O responsável pela organização deve permanecer administrador ativo."
+msgstr "The person responsible for the organization must remain an active administrator."
+
+msgid "O responsável pertence a outra organização."
+msgstr "The assignee belongs to another organization."
+
+msgid "O saldo inicial não pode ser alterado após registrar títulos. Use lançamentos de receita ou despesa."
+msgstr "The opening balance cannot change after entries have been recorded. Use income or expense entries."
+
+msgid "O saldo só pode ser alterado por lançamentos. Use o ajuste de inventário."
+msgstr "The balance can only be changed through entries. Use an inventory adjustment."
+
+msgid "O total da compra deve ser de pelo menos um centavo."
+msgstr "The purchase total must be at least one cent."
+
+msgid "O valor da diária deve ser maior que zero."
+msgstr "The daily rate must be greater than zero."
+
+msgid "O valor deve ser positivo."
+msgstr "The amount must be positive."
+
+msgid "O valor não permite parcelas de pelo menos um centavo."
+msgstr "The amount does not allow installments of at least one cent."
+
+msgid "O valor unitário não pode ser negativo."
+msgstr "The unit amount cannot be negative."
+
+msgid "One or more batch codes already exist for the specified farm(s). Please check your data and try again."
+msgstr "One or more batch codes already exist for the specified farm(s). Please check your data and try again."
+
+msgid "Organizações de conferência permanecem isoladas e não podem ser ativadas."
+msgstr "Review organizations remain isolated and cannot be activated."
+
+msgid "Orçamento inválido."
+msgstr "Invalid quote."
+
+msgid "Os dados desta baixa diferem da operação já registrada."
+msgstr "This settlement's details differ from the recorded operation."
+
+msgid "Os dados deste estorno diferem da operação registrada."
+msgstr "This reversal's details differ from the recorded operation."
+
+msgid "Os totais do lote excedem os limites permitidos."
+msgstr "Batch totals exceed the allowed limits."
+
+msgid "Parcelas e recorrências são criadas em aberto e recebem baixa individual."
+msgstr "Installments and recurrences are created as outstanding and settled individually."
+
+msgid "Perda gestacional registrada."
+msgstr "Pregnancy loss recorded."
+
+msgid "Permissão negada."
+msgstr "Permission denied."
+
+msgid "Pesagem do lote registrada."
+msgstr "Batch weighing recorded."
+
+msgid "Peso médio deve ser um número válido."
+msgstr "Average weight must be a valid number."
+
+msgid "Peso registrado com sucesso"
+msgstr "Weight recorded successfully"
+
+msgid "Peso é obrigatório"
+msgstr "Weight is required"
+
+msgid "Plano ativo não encontrado."
+msgstr "Active plan not found."
+
+msgid "Plano atualizado com sucesso."
+msgstr "Plan updated successfully."
+
+msgid "Plantação inválida para esta organização."
+msgstr "Invalid crop for this organization."
+
+msgid "Procedimento registrado."
+msgstr "Procedure recorded."
+
+msgid "Propriedade inválida para esta organização."
+msgstr "Invalid property for this organization."
+
+msgid "Quantidade inválida."
+msgstr "Invalid quantity."
+
+msgid "Reative o lote com saldo zero antes de registrar saldo positivo."
+msgstr "Reactivate the zero-balance batch before recording a positive balance."
+
+msgid "Refine os filtros para exportar até 10.000 títulos."
+msgstr "Refine the filters to export up to 10,000 entries."
+
+msgid "Registre ajustes pelo inventário do lote, informando a contagem e o motivo."
+msgstr "Record adjustments through batch inventory, providing the count and reason."
+
+msgid "Resolva esta atividade pela Central de manejo bovino; sua origem operacional deve ser preservada."
+msgstr "Resolve this activity through the Cattle Management Center; its operational source must be preserved."
+
+msgid "Se o email existir, você receberá instruções para redefinir sua senha."
+msgstr "If the email exists, you will receive password reset instructions."
+
+msgid "Selecione a vacina e informe os dias para o aviso."
+msgstr "Select a vaccine and enter the days before the reminder."
+
+msgid "Selecione ao menos uma faixa."
+msgstr "Select at least one tier."
+
+msgid "Selecione lote ou animais, não ambos."
+msgstr "Select a batch or animals, not both."
+
+msgid "Selecione pelo menos 2 lotes para juntar."
+msgstr "Select at least 2 batches to merge."
+
+msgid "Selecione somente uma faixa por segmento."
+msgstr "Select only one tier per segment."
+
+msgid "Selecione um lote ativo com animais disponíveis."
+msgstr "Select an active batch with available animals."
+
+msgid "Selecione um lote ou pelo menos um animal."
+msgstr "Select a batch or at least one animal."
+
+msgid "Selecione um usuário ativo desta organização que não pertença à equipe interna."
+msgstr "Select an active user from this organization who is not an internal team member."
+
+msgid "Selecione uma matriz de destino que esteja na maternidade."
+msgstr "Select a destination breeding female in the maternity phase."
+
+msgid "Selecione uma origem produtiva: plantação ou lote animal."
+msgstr "Select a production source: crop or animal batch."
+
+msgid "Senha alterada com sucesso."
+msgstr "Password changed successfully."
+
+msgid "Senha atualizada com sucesso."
+msgstr "Password updated successfully."
+
+msgid "Somente administradores podem gerenciar usuários."
+msgstr "Only administrators can manage users."
+
+msgid "Somente compras podem registrar pagamento neste fluxo."
+msgstr "Only purchases can record payments in this workflow."
+
+msgid "Somente títulos em aberto podem receber baixa."
+msgstr "Only outstanding entries can be settled."
+
+msgid "Somente títulos pagos podem ser estornados."
+msgstr "Only paid entries can be reversed."
+
+msgid "The requested resource was not found."
+msgstr "The requested resource was not found."
+
+msgid "Token inválido ou expirado."
+msgstr "Invalid or expired token."
+
+msgid "Too many requests."
+msgstr "Too many requests."
+
+msgid "Trabalhador inválido para esta organização."
+msgstr "Invalid worker for this organization."
+
+msgid "Trabalhador não pertence à organização da plantação."
+msgstr "The worker does not belong to the crop's organization."
+
+msgid "Transferência registrada com sucesso."
+msgstr "Transfer recorded successfully."
+
+msgid "Transição de estado inválida para esta organização."
+msgstr "Invalid state transition for this organization."
+
+msgid "Títulos pagos ou com histórico de baixas não podem ser apagados. Use o estorno e preserve a origem."
+msgstr "Paid entries or entries with settlement history cannot be deleted. Use a reversal and preserve the source."
+
+msgid "Um ou mais animais não pertencem à categoria ou fase selecionada."
+msgstr "One or more animals do not belong to the selected category or phase."
+
+msgid "Um ou mais animais não pertencem à sua organização."
+msgstr "One or more animals do not belong to your organization."
+
+msgid "Um ou mais animais não pertencem à suinocultura."
+msgstr "One or more animals do not belong to swine farming."
+
+msgid "Um ou mais ingredientes pertencem a outra organização."
+msgstr "One or more ingredients belong to another organization."
+
+msgid "Um ou mais lotes não foram encontrados."
+msgstr "One or more batches were not found."
+
+msgid "Um ou mais produtos pertencem a outra organização."
+msgstr "One or more products belong to another organization."
+
+msgid "Uma compra paga exige conta e data do pagamento."
+msgstr "A paid purchase requires an account and payment date."
+
+msgid "Uma ou mais faixas não estão disponíveis."
+msgstr "One or more tiers are unavailable."
+
+msgid "Unidade padrão inválida."
+msgstr "Invalid default unit."
+
+msgid "Use a página de suporte para esta conversa."
+msgstr "Use the support page for this conversation."
+
+msgid "Usuário deve pertencer a uma organização."
+msgstr "The user must belong to an organization."
+
+msgid "Usuário inativo."
+msgstr "Inactive user."
+
+msgid "Usuário não possui organização vinculada."
+msgstr "User has no linked organization."
+
+msgid "Usuário não vinculado a uma organização."
+msgstr "User is not linked to an organization."
+
+msgid "Usuário sem organização"
+msgstr "User has no organization"
+
+msgid "Usuário sem organização vinculada."
+msgstr "User is not linked to an organization."
+
+msgid "Usuário sem organização."
+msgstr "User has no organization."
+
+msgid "Vacina inválida."
+msgstr "Invalid vaccine."
+
+msgid "Vacina não encontrada no estoque."
+msgstr "Vaccine not found in stock."
+
+msgid "Vacina registrada com sucesso"
+msgstr "Vaccine recorded successfully"
+
+msgid "Vacinação do lote registrada com sucesso."
+msgstr "Batch vaccination recorded successfully."
+
+msgid "Validation failed."
+msgstr "Validation failed."
+
+msgid "Valor de compra deve ser um número válido."
+msgstr "Purchase amount must be a valid number."
+
+msgid "Valor total da venda fora do limite permitido."
+msgstr "Total sale amount exceeds the allowed limit."
+
+msgid "Você não pertence a uma organização."
+msgstr "You do not belong to an organization."
+
+msgid "Você não pode atribuir tarefas a outro usuário."
+msgstr "You cannot assign tasks to another user."
+
+msgid "Você não pode remover ou rebaixar seu próprio acesso."
+msgstr "You cannot remove or downgrade your own access."
+
+msgid "Você não precisa forçar a troca de senha."
+msgstr "You do not need to force a password change."
+
+msgid "Você pode atualizar somente o andamento das tarefas atribuídas a você."
+msgstr "You can only update progress on tasks assigned to you."
+
+msgid "Você só pode adicionar implementos aos seus registros."
+msgstr "You can only add attachments to your own records."
+
+msgid "Você só pode adicionar itens às suas estruturas."
+msgstr "You can only add items to your own structures."
+
+msgid "Você só pode atribuir tarefas a si mesmo."
+msgstr "You can only assign tasks to yourself."
+
+msgid "You do not have permission to perform this action."
+msgstr "You do not have permission to perform this action."
+
+msgid "Zere o saldo com um lançamento antes de alterar a situação do lote."
+msgstr "Set the balance to zero through an entry before changing the batch status."
+
+msgid "context_type e context_id devem ser informados em conjunto."
+msgstr "context_type and context_id must be provided together."
+
+msgid "exit_date inválido. Use o formato YYYY-MM-DD."
+msgstr "Invalid exit_date. Use YYYY-MM-DD format."
+
+msgid "Descrição"
+msgstr "Description"
+
+msgid "Referência"
+msgstr "Reference"
+
+msgid "Tipo"
+msgstr "Type"
+
+msgid "Categoria"
+msgstr "Category"
+
+msgid "Propriedade"
+msgstr "Property"
+
+msgid "Atividade"
+msgstr "Activity"
+
+msgid "Conta"
+msgstr "Account"
+
+msgid "Vencimento"
+msgstr "Due date"
+
+msgid "Pagamento"
+msgstr "Payment"
+
+msgid "Estado"
+msgstr "Status"
+
+msgid "Valor"
+msgstr "Amount"
+
+msgid "Seu perfil não permite acessar esta área. Solicite autorização ao administrador."
+msgstr "Your profile cannot access this area. Ask the administrator for authorization."
+
+msgid "Registro fora da sua organização."
+msgstr "Record outside your organization."
+
+msgid "Rebanho não autorizado."
+msgstr "Herd access not authorized."
+
+msgid "Indicadores gerenciais e operações financeiras são restritos."
+msgstr "Management indicators and financial operations are restricted."
+
+msgid "Esta mudança de situação exige um gerente ou administrador."
+msgstr "This status change requires a manager or administrator."
+
+msgid "Campos financeiros são restritos."
+msgstr "Financial fields are restricted."
+
+msgid "Seu acesso não permite alterar este registro."
+msgstr "Your access does not allow changes to this record."
+
+msgid "Esta operação exige um gerente ou administrador."
+msgstr "This operation requires a manager or administrator."
+
+msgid "Este cadastro exige um gerente ou administrador."
+msgstr "This registration requires a manager or administrator."
+
+msgid "Referência inválida ou não autorizada."
+msgstr "Invalid or unauthorized reference."
+
+msgid "Correções de quantidades, datas ou estoque exigem um gerente ou administrador."
+msgstr "Corrections to quantities, dates or stock require a manager or administrator."
+
+msgid "Somente registros próprios ainda abertos podem ser corrigidos."
+msgstr "Only your own records that are still open can be corrected."
+
+msgid "Sessão encerrada. Entre novamente."
+msgstr "Session ended. Sign in again."
+
+msgid "Organização isolada para conferência de recuperação."
+msgstr "Organization isolated for recovery review."
+
+msgid "Acesso de suporte não autorizado."
+msgstr "Support access not authorized."
+
+msgid "Concessão de suporte expirada ou revogada."
+msgstr "Support grant expired or revoked."
+
+msgid "Concessão de suporte inválida."
+msgstr "Invalid support grant."
+
+msgid "Seu cargo não permite executar esta operação."
+msgstr "Your role does not allow this operation."
+
+msgid "A plataforma está temporariamente em manutenção."
+msgstr "The platform is temporarily under maintenance."
+
+msgid "Organização arquivada. Entre em contato com o suporte."
+msgstr "The organization is archived. Contact support."
+
+msgid "Organização suspensa. Entre em contato com o suporte."
+msgstr "The organization is suspended. Contact support."
+
+msgid "Organização ativa. Entre em contato com o suporte."
+msgstr "The organization is active. Contact support."
+
+msgid "O OpenCode Zen permite usar os modelos gratuitos apenas no aplicativo OpenCode. Peça ao administrador para configurar um modelo liberado para uso pela API."
+msgstr "OpenCode Zen permits free models only in the OpenCode application. Ask the administrator to configure a model available through the API."
+
+msgid "Nenhum modelo de IA disponível conseguiu concluir a resposta."
+msgstr "No available AI model could complete the response."
+

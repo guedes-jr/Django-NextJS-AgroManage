@@ -1,23 +1,26 @@
+import { translateMessage, type AppLanguage, type TranslationKey } from "@/lib/localeMessages";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { agendaDays, agendaMonday, addAgendaDays, agendaDate } from "./agendaDates";
 import type { AgendaEvent } from "./organizationAgendaService";
 
-export type AgendaPdfOptions = { start: string; end: string; view: "list" | "calendar" | "month"; farmLabel: string; activityLabel: string; includeRecorded: boolean; holidays?: {date:string;name:string}[]; today?: string };
+export type AgendaPdfOptions = { language?: AppLanguage; start: string; end: string; view: "list" | "calendar" | "month"; farmLabel: string; activityLabel: string; includeRecorded: boolean; holidays?: {date:string;name:string}[]; today?: string };
 type Color = [number,number,number];
 const ink:Color=[35,55,45], muted:Color=[105,120,111], border:Color=[223,231,226], green:Color=[25,135,84];
 const colors:Record<string,Color>={livestock:green,crops:[200,140,40],tasks:[67,135,195],holidays:[166,96,158]};
-const domains:Record<string,string>={livestock:"Rebanhos",crops:"Plantações",tasks:"Eventos e tarefas",holidays:"Feriados"};
-const dateLabel=(value:string)=>value.split("-").reverse().join("/");
-const statusLabel=(event:AgendaEvent)=>["recorded","done"].includes(event.status)?"Registrado":event.estimated?"Estimativa":"Programado";
 const tint=(color:Color,amount=.08):Color=>color.map(value=>Math.round(255-(255-value)*amount)) as Color;
 
 /** Printable web-style calendar, with full details for anything that does not fit its preview. */
 export function buildAgendaPdf(events:AgendaEvent[],options:AgendaPdfOptions) {
+  const language = options.language ?? "pt-BR";
+  const t = (key: TranslationKey, values?: Record<string, string | number>) => translateMessage(language, key, values);
+  const domains:Record<string,string>={livestock:t("workspace.herds"),crops:t("users.crops"),tasks:t("workspace.eventsAndTasks"),holidays:t("workspace.holidays")};
+  const dateLabel=(value:string)=>agendaDate(value).toLocaleDateString(language);
+  const statusLabel=(event:AgendaEvent)=>["recorded","done"].includes(event.status)?t("workspace.recordedLabel"):event.estimated?t("workspace.estimate"):t("workspace.scheduled");
   const doc=new jsPDF({orientation:options.view==="list"?"portrait":"landscape",unit:"mm",format:"a4"});
   const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight(),left=12,usable=width-24;
   const today=options.today||new Intl.DateTimeFormat("en-CA",{timeZone:"America/Fortaleza",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-  const sorted=[...events].sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,"pt-BR")||a.id.localeCompare(b.id));
+  const sorted=[...events].sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,language)||a.id.localeCompare(b.id));
   const details=new Map<string,AgendaEvent>();
   const holidayMap=new Map<string,string[]>();
   for(const item of [...(options.holidays||[]),...events.filter(event=>event.kind==="holiday").map(event=>({date:event.date,name:event.title}))]) {
@@ -40,14 +43,14 @@ export function buildAgendaPdf(events:AgendaEvent[],options:AgendaPdfOptions) {
     return {visible,truncated:all.length>maxLines};
   }
   function heading(subtitle:string) {
-    text("FAZENDA MAIS  /  PLANEJAMENTO DA ORGANIZAÇÃO",left,12,6.5,muted,true);
-    text("Agenda",left,22,20,ink,true);
-    const title=options.view==="month"?agendaDate(options.start).toLocaleDateString("pt-BR",{month:"long",year:"numeric"}):`${dateLabel(options.start)} a ${dateLabel(options.end)}`;
+    text(t("workspace.fazendaMaisOrganizationPlanning"),left,12,6.5,muted,true);
+    text(t("sidebar.agenda"),left,22,20,ink,true);
+    const title=options.view==="month"?agendaDate(options.start).toLocaleDateString(language,{month:"long",year:"numeric"}):`${dateLabel(options.start)} – ${dateLabel(options.end)}`;
     text(`${title.charAt(0).toUpperCase()+title.slice(1)} · ${subtitle}`,left,29,10,muted);
     doc.setFillColor(247,249,248);doc.setDrawColor(...border);doc.roundedRect(left,34,usable,12,2,2,"FD");
-    const filters=lines(`${options.farmLabel}  ·  ${options.activityLabel}  ·  ${options.includeRecorded?"Inclui registrados":"Somente programados"}`,usable-8,7.5,2);
+    const filters=lines(`${options.farmLabel}  ·  ${options.activityLabel}  ·  ${options.includeRecorded?t("workspace.includesRecordedEvents"):t("workspace.scheduledOnly")}`,usable-8,7.5,2);
     filters.visible.forEach((line,i)=>text(line,left+4,39+i*3.5,7.5,muted));
-    text(`${events.length} eventos no período`,left,52,7.5,ink,true);
+    text(t("workspace.countEventsInThisPeriod", { count: events.length }),left,52,7.5,ink,true);
     let x=width-12;
     for(const [domain,label] of Object.entries(domains).reverse()) {
       doc.setFontSize(6.5); const length=doc.getTextWidth(label)+9;x-=length;
@@ -56,15 +59,15 @@ export function buildAgendaPdf(events:AgendaEvent[],options:AgendaPdfOptions) {
   }
   function table(rows:AgendaEvent[],startY:number) {
     autoTable(doc,{startY,margin:{top:16,left,right:12,bottom:16},theme:"plain",rowPageBreak:"avoid",
-      head:[["Data", "Evento", "Atividade / espécie", "Fazenda", "Situação"]],
-      body:rows.length?rows.map(event=>[dateLabel(event.date),event.title,[domains[event.domain]||event.domain,event.species].filter(Boolean).join(" / "),event.farm_name,statusLabel(event)]):[["", "Nenhum evento neste período com os filtros selecionados.", "", "", ""]],
+      head:[[t("lotReport.date"), t("workspace.event"), t("workspace.activitySpecies"), t("dairy.home.farm"), t("structure.dedicated.status")]],
+      body:rows.length?rows.map(event=>[dateLabel(event.date),event.title,[domains[event.domain]||event.domain,event.species].filter(Boolean).join(" / "),event.farm_name,statusLabel(event)]):[["", t("workspace.noEventsInThisPeriodWithTheSelectedFilters"), "", "", ""]],
       styles:{fontSize:8,cellPadding:3,lineColor:border,lineWidth:{bottom:.15},textColor:ink,overflow:"linebreak"},
       headStyles:{fillColor:[244,247,245],textColor:muted,fontStyle:"bold",fontSize:7},
       didParseCell:data=>{if(data.section==="body"&&data.column.index===1&&rows[data.row.index])data.cell.styles.fillColor=tint(colors[rows[data.row.index].domain]||green);},
       didDrawCell:data=>{if(data.section==="body"&&data.column.index===1&&rows[data.row.index]){doc.setDrawColor(...(colors[rows[data.row.index].domain]||green));doc.setLineWidth(.7);doc.line(data.cell.x,data.cell.y+2,data.cell.x,data.cell.y+data.cell.height-2);}},
     });
   }
-  heading(options.view==="month"?"Mês":options.view==="calendar"?"Semana":"Lista");
+  heading(options.view==="month"?t("dashboard.month"):options.view==="calendar"?t("workspace.week"):t("workspace.list"));
   if(options.view==="list")table(sorted,57);
   else {
     const dates=options.view==="month"?agendaDays(agendaMonday(options.start),addAgendaDays(agendaMonday(options.end),6)):agendaDays(options.start,options.end);
@@ -75,7 +78,7 @@ export function buildAgendaPdf(events:AgendaEvent[],options:AgendaPdfOptions) {
       const day=agendaDate(dates[column]).getDay();
       const color=day===6?colors.tasks:day===0?[185,102,96] as Color:muted;
       doc.setFillColor(...(day===0||day===6?tint(color):[246,248,247] as Color));doc.rect(left+column*cellWidth,56,cellWidth,8,"F");
-      text(agendaDate(dates[column]).toLocaleDateString("pt-BR",{weekday:"short"}).replace(".","").toUpperCase(),left+column*cellWidth+3,61,6.5,color,true);
+      text(agendaDate(dates[column]).toLocaleDateString(language,{weekday:"short"}).replace(".","").toUpperCase(),left+column*cellWidth+3,61,6.5,color,true);
     }
     dates.forEach((date,index)=>{
       const column=index%columnCount,row=Math.floor(index/columnCount),x=left+column*cellWidth,y=top+row*cellHeight;
@@ -115,17 +118,17 @@ export function buildAgendaPdf(events:AgendaEvent[],options:AgendaPdfOptions) {
         if(preview.truncated)details.set(event.id,event);
         cursor+=cardHeight+.7;
       });
-      if(cards.length>capacity){cards.slice(capacity).forEach(event=>details.set(event.id,event));text(`+${cards.length-capacity} eventos · ver detalhes`,x+3,y+cellHeight-1.6,5.8,muted);}
+      if(cards.length>capacity){cards.slice(capacity).forEach(event=>details.set(event.id,event));text(t("workspace.countEventsViewDetails", { count: cards.length - capacity }),x+3,y+cellHeight-1.6,5.8,muted);}
     });
     if(details.size){
-      doc.addPage();text("Detalhes dos eventos",left,18,15,ink,true);
-      text("Conteúdo completo dos eventos que excederam o espaço do calendário.",left,25,8,muted);
+      doc.addPage();text(t("workspace.eventDetailsHeading"),left,18,15,ink,true);
+      text(t("workspace.fullContentOfEventsThatExceededTheCalendarSpace"),left,25,8,muted);
       table([...details.values()],31);
     }
   }
   const pages=doc.getNumberOfPages();
   for(let page=1;page<=pages;page++) {
-    doc.setPage(page);text("Fazenda Mais · Previsões devem ser conferidas no campo.",left,height-7,6.5,muted);
+    doc.setPage(page);text(t("workspace.fazendaMaisForecastsMustBeCheckedInTheField"),left,height-7,6.5,muted);
     doc.setFontSize(7);doc.text(`${page} / ${pages}`,width-12,height-7,{align:"right"});
   }
   return doc;

@@ -1,39 +1,38 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { Clock3, Mail, MessageCircle, Presentation } from "lucide-react";
 import { ContactForm } from "@/components/marketing/ContactForm";
 import { MarketingPage } from "@/components/marketing/MarketingPage";
 
-export const metadata: Metadata = {
-  title: "Contato e demonstração | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.contactAndDemoFazendaMais"),
   description:
-    "Fale com a equipe comercial e agende uma demonstração do sistema Fazenda Mais.",
-};
+    t("public.talkToOurSalesTeamAndScheduleAFazendaMais"),
+}; }
 
-export default function ContatoPage() {
+export default async function ContatoPage() {
+  const { t } = await getPublicTranslator();
+
   return (
     <MarketingPage
-      eyebrow="Contato"
-      title="Vamos conhecer sua operação"
-      description="Compartilhe seus desafios, escolha um horário e receba uma conversa direcionada às necessidades da sua propriedade."
+      eyebrow={t("contact")}
+      title={t("public.letSGetToKnowYourOperation")}
+      description={t("public.shareYourChallengesChooseATimeAndDiscussYourProperty")}
     >
       <section className="marketing-section contact-section">
         <div className="marketing-container contact-layout">
           <div className="contact-copy">
-            <div className="eyebrow">Solicite uma demonstração</div>
-            <h2>Uma conversa prática, sem apresentação genérica</h2>
-            <p>
-              Os dados são enviados diretamente para o CRM da equipe Fazenda
-              Mais. Se desejar, escolha um dos horários disponíveis para
-              adiantar o agendamento.
-            </p>
+            <div className="eyebrow">{t("public.requestADemo")}</div>
+            <h2>{t("public.aPracticalConversationTailoredToYou")}</h2>
+            <p> {t("public.yourDetailsGoDirectlyToTheFazendaMaisTeamS")} </p>
             <div className="contact-steps">
               <div>
                 <span>
                   <MessageCircle size={19} />
                 </span>
                 <div>
-                  <strong>1. Conte seu cenário</strong>
-                  <p>Informe o perfil da operação e o que deseja organizar.</p>
+                  <strong>{t("public.1TellUsAboutYourSituation")}</strong>
+                  <p>{t("public.describeYourOperationAndWhatYouWantToOrganize")}</p>
                 </div>
               </div>
               <div>
@@ -41,10 +40,8 @@ export default function ContatoPage() {
                   <Presentation size={19} />
                 </span>
                 <div>
-                  <strong>2. Veja o fluxo aplicado</strong>
-                  <p>
-                    Conheça apenas os módulos relacionados aos seus desafios.
-                  </p>
+                  <strong>{t("public.2SeeTheWorkflowInAction")}</strong>
+                  <p> {t("public.exploreTheModulesRelevantToYourChallenges")} </p>
                 </div>
               </div>
               <div>
@@ -52,8 +49,8 @@ export default function ContatoPage() {
                   <Clock3 size={19} />
                 </span>
                 <div>
-                  <strong>3. Planeje os próximos passos</strong>
-                  <p>Avalie plano, implantação e configuração da equipe.</p>
+                  <strong>{t("public.3PlanTheNextSteps")}</strong>
+                  <p>{t("public.reviewThePlanImplementationAndTeamSetup")}</p>
                 </div>
               </div>
             </div>
@@ -67,16 +64,16 @@ export default function ContatoPage() {
       <section className="contact-expectations">
         <div className="marketing-container">
           <div>
-            <strong>Conversa consultiva</strong>
-            <span>Foco na sua rotina e prioridades.</span>
+            <strong>{t("public.consultativeConversation")}</strong>
+            <span>{t("public.focusedOnYourRoutineAndPriorities")}</span>
           </div>
           <div>
-            <strong>Demonstração direcionada</strong>
-            <span>Apenas módulos relevantes para você.</span>
+            <strong>{t("public.tailoredDemo")}</strong>
+            <span>{t("public.modulesRelevantToYou")}</span>
           </div>
           <div>
-            <strong>Condição transparente</strong>
-            <span>Plano e limites explicados com clareza.</span>
+            <strong>{t("public.transparentTerms")}</strong>
+            <span>{t("public.planAndLimitsClearlyExplained")}</span>
           </div>
         </div>
       </section>

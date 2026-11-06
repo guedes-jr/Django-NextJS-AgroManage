@@ -1,3 +1,4 @@
+import { translateMessage, type AppLanguage } from "@/lib/localeMessages";
 import apiClient from "./api";
 import { getOrganizationErrorMessage } from "./organizationInvitations";
 import { platformApi } from "./platformApi";
@@ -19,8 +20,8 @@ async function allPages<T>(client: AxiosInstance, url: string, signal?: AbortSig
   }
   return result;
 }
-export function supportError(error: unknown): string {
-  return getOrganizationErrorMessage(error, "Não foi possível concluir a solicitação. Tente novamente.");
+export function supportError(error: unknown, language: AppLanguage = "pt-BR"): string {
+  return getOrganizationErrorMessage(error, translateMessage(language, "workspace.couldNotCompleteTheRequestTryAgain"));
 }
 export const supportService = {
   config: async (signal?: AbortSignal) => (await apiClient.get<SupportConfig>("/support/configuration/", { signal })).data,

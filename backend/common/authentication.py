@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message, gettext_lazy as translate_message_lazy
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.exceptions import APIException
@@ -14,7 +15,7 @@ def is_active_platform_staff(user):
 class MaintenanceMode(APIException):
     status_code = 503
     default_code = "maintenance_mode"
-    default_detail = "A plataforma está temporariamente em manutenção."
+    default_detail = translate_message_lazy("A plataforma está temporariamente em manutenção.")
 
 
 class ActiveOrganizationJWTAuthentication(JWTAuthentication):
@@ -25,7 +26,7 @@ class ActiveOrganizationJWTAuthentication(JWTAuthentication):
         token_session_version = validated_token.get("session_version", 0)
         if token_session_version != user.session_version:
             raise AuthenticationFailed(
-                "Sessão encerrada. Entre novamente.",
+                translate_message("Sessão encerrada. Entre novamente."),
                 code="session_revoked",
             )
         grant_id = validated_token.get("support_grant_id")
@@ -35,16 +36,16 @@ class ActiveOrganizationJWTAuthentication(JWTAuthentication):
             if not is_active_platform_staff(user) or user.platform_staff_profile.role not in {
                 "platform_owner", "platform_admin", "platform_support"
             }:
-                raise AuthenticationFailed("Acesso de suporte não autorizado.")
+                raise AuthenticationFailed(translate_message("Acesso de suporte não autorizado."))
 
             try:
                 grant = SupportAccessGrant.objects.select_related("organization").get(
                     pk=grant_id, operator=user
                 )
             except SupportAccessGrant.DoesNotExist as exc:
-                raise AuthenticationFailed("Concessão de suporte inválida.") from exc
+                raise AuthenticationFailed(translate_message("Concessão de suporte inválida.")) from exc
             if not grant.is_valid or not grant.organization.is_active or grant.organization.recovery_isolated:
-                raise AuthenticationFailed("Concessão de suporte expirada ou revogada.")
+                raise AuthenticationFailed(translate_message("Concessão de suporte expirada ou revogada."))
             from django.utils import timezone
             SupportAccessGrant.objects.filter(pk=grant.pk).update(last_used_at=timezone.now())
             user.organization = grant.organization
@@ -53,7 +54,7 @@ class ActiveOrganizationJWTAuthentication(JWTAuthentication):
         organization = getattr(user, "organization", None)
 
         if organization and organization.recovery_isolated:
-            raise AuthenticationFailed("Organização isolada para conferência de recuperação.")
+            raise AuthenticationFailed(translate_message("Organização isolada para conferência de recuperação."))
 
         if organization and not is_active_platform_staff(user):
             from apps.platform_admin.operational import active_maintenance_window

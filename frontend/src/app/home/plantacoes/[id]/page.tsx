@@ -160,24 +160,9 @@ const unitOptions = [
   { value: "unidade", label: "un" },
 ];
 
-const pesticideTypeOptions = [
-  { value: "insecticide", label: "Inseticida" },
-  { value: "herbicide", label: "Herbicida" },
-  { value: "fungicide", label: "Fungicida" },
-  { value: "adjuvant", label: "Adjuvante" },
-  { value: "acaricide", label: "Acaricida" },
-  { value: "bactericide", label: "Bactericida" },
-  { value: "other", label: "Outro" },
-];
 
-const irrigationSystemOptions = [
-  { value: "center_pivot", label: "Pivô central" },
-  { value: "drip", label: "Gotejamento" },
-  { value: "sprinkler", label: "Aspersão" },
-  { value: "micro_sprinkler", label: "Microaspersão" },
-  { value: "hose", label: "Mangueira" },
-  { value: "other", label: "Outro" },
-];
+
+
 
 const numericValue = (value: string | number | null | undefined) => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -388,6 +373,23 @@ function ShortcutCard({
 
 export default function PlantacaoDetailPage() {
   const { language, t } = useOrganizationLocale();
+const pesticideTypeOptions = [
+  { value: "insecticide", label: t("plantations.pesticide.insecticide") },
+  { value: "herbicide", label: t("plantations.pesticide.herbicide") },
+  { value: "fungicide", label: t("plantations.pesticide.fungicide") },
+  { value: "adjuvant", label: t("plantations.pesticide.adjuvant") },
+  { value: "acaricide", label: t("plantations.pesticide.acaricide") },
+  { value: "bactericide", label: t("plantations.pesticide.bactericide") },
+  { value: "other", label: t("reproduction.other") },
+];
+const irrigationSystemOptions = [
+  { value: "center_pivot", label: t("plantations.irrigation.centerPivot") },
+  { value: "drip", label: t("plantations.irrigation.drip") },
+  { value: "sprinkler", label: t("plantations.irrigation.sprinkler") },
+  { value: "micro_sprinkler", label: t("plantations.irrigation.microSprinkler") },
+  { value: "hose", label: t("plantations.irrigation.hose") },
+  { value: "other", label: t("reproduction.other") },
+];
   const access = useOrganizationAccess();
   const financial = !!access?.can_view_financial;
   const { id } = useParams<{ id: string }>();
@@ -1348,14 +1350,14 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showPlantio} onClose={() => setShowPlantio(false)} title="Registrar Plantio"
         footer={
           <div className="d-flex gap-2 justify-content-end">
-            <Button variant="outline-secondary" onClick={() => setShowPlantio(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePlantio} disabled={savingPlantio}>{savingPlantio ? "Salvando..." : "Salvar"}</Button>
+            <Button variant="outline-secondary" onClick={() => setShowPlantio(false)}>{t("cattle.form.cancel")}</Button>
+            <Button onClick={handleCreatePlantio} disabled={savingPlantio}>{savingPlantio ? t("cattle.form.saving") : t("reproduction.save")}</Button>
           </div>
         }
       >
         <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
-            <strong className="small text-success">Sementes utilizadas no plantio</strong>
+            <strong className="small text-success">{t("plantations.detail.seedsUsed")}</strong>
             <Button variant="outline-success" size="sm" onClick={() => setPlantioLines((prev) => [...prev, { ...emptyPlantioLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
@@ -1363,11 +1365,11 @@ export default function PlantacaoDetailPage() {
               <thead>
                 <tr>
                   <th>Semente (Insumo)</th>
-                  <th style={{ minWidth: 130 }}>Quantidade</th>
-                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th style={{ minWidth: 130 }}>{t("lotReport.quantity")}</th>
+                  <th style={{ minWidth: 120 }}>{t("plantations.structure.unit")}</th>
                   {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
                   {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
-                  <th className="text-center">Ações</th>
+                  <th className="text-center">{t("lotReport.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1375,7 +1377,7 @@ export default function PlantacaoDetailPage() {
                   <tr key={index}>
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handlePlantioLineItemChange(index, e.target.value)}>
-                        <option value="">Selecione uma semente do estoque...</option>
+                        <option value="">{t("plantations.operation.seeds.placeholder")}</option>
                         {seedItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
@@ -1387,12 +1389,12 @@ export default function PlantacaoDetailPage() {
                     </td>
                     <td>
                       <select className="form-select" value={line.unit} onChange={(e) => setPlantioLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
-                        <option value="">Selecione...</option>
+                        <option value="">{t("reproduction.select")}</option>
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
                     {financial && (<td>
-                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title={t("plantations.detail.autoPriceButton")} />
                     </td>)}
                     {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
@@ -1404,11 +1406,11 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
           {seedItems.length === 0 && (
-            <small className="text-muted">Nenhuma semente cadastrada no estoque.</small>
+            <small className="text-muted">{t("plantations.detail.noSeeds")}</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {plantioLines.filter((line) => line.item).length}</span>
-            {financial && (<strong className="text-success">Valor total das sementes: {money(plantioLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
+            {financial && (<strong className="text-success">{t("plantations.detail.totalSeeds")} {money(plantioLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Data do Plantio</label>
@@ -1416,12 +1418,12 @@ export default function PlantacaoDetailPage() {
               onChange={(e) => setPlantioForm({ ...plantioForm, planting_date: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Operador</label>
+            <label className="form-label small fw-medium">{t("users.role.operator")}</label>
             <input className="form-control" value={plantioForm.operator}
               onChange={(e) => setPlantioForm({ ...plantioForm, operator: e.target.value })} />
           </div>
           <div className="col-12">
-            <label className="form-label small fw-medium">Observações</label>
+            <label className="form-label small fw-medium">{t("reproduction.observations")}</label>
             <textarea className="form-control" rows={2} value={plantioForm.notes}
               onChange={(e) => setPlantioForm({ ...plantioForm, notes: e.target.value })} />
           </div>
@@ -1430,11 +1432,11 @@ export default function PlantacaoDetailPage() {
 
       {/* Modal: Nova Adubação */}
       <Modal isOpen={showAdubacao} onClose={() => setShowAdubacao(false)} title="Registrar Adubação"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowAdubacao(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingAdubacao}>Salvar rascunho</Button><Button onClick={handleCreateAdubacao} disabled={savingAdubacao}>{savingAdubacao ? "Salvando..." : "Salvar adubação"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowAdubacao(false)}>{t("cattle.form.cancel")}</Button><Button variant="outline-success" disabled={savingAdubacao}>{t("plantations.detail.saveDraft")}</Button><Button onClick={handleCreateAdubacao} disabled={savingAdubacao}>{savingAdubacao ? t("cattle.form.saving") : t("plantations.detail.saveFertilization")}</Button></div>}
       >
         <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
-            <strong className="small text-success">Fertilizantes utilizados na aplicação</strong>
+            <strong className="small text-success">{t("plantations.detail.fertilizersUsed")}</strong>
             <Button variant="outline-success" size="sm" onClick={() => setAdubacaoLines((prev) => [...prev, { ...emptyAdubacaoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
@@ -1442,11 +1444,11 @@ export default function PlantacaoDetailPage() {
               <thead>
                 <tr>
                   <th>Fertilizante (Insumo)</th>
-                  <th style={{ minWidth: 130 }}>Quantidade</th>
-                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th style={{ minWidth: 130 }}>{t("lotReport.quantity")}</th>
+                  <th style={{ minWidth: 120 }}>{t("plantations.structure.unit")}</th>
                   {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
                   {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
-                  <th className="text-center">Ações</th>
+                  <th className="text-center">{t("lotReport.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1454,7 +1456,7 @@ export default function PlantacaoDetailPage() {
                   <tr key={index}>
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handleAdubacaoLineItemChange(index, e.target.value)}>
-                        <option value="">Selecione um fertilizante do estoque...</option>
+                        <option value="">{t("plantations.detail.fertilizerPlaceholder")}</option>
                         {fertilizerItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
@@ -1466,12 +1468,12 @@ export default function PlantacaoDetailPage() {
                     </td>
                     <td>
                       <select className="form-select" value={line.unit} onChange={(e) => setAdubacaoLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
-                        <option value="">Selecione...</option>
+                        <option value="">{t("reproduction.select")}</option>
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
                     {financial && (<td>
-                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title={t("plantations.detail.autoPriceButton")} />
                     </td>)}
                     {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
@@ -1483,23 +1485,23 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
           {fertilizerItems.length === 0 && (
-            <small className="text-muted">Nenhum insumo compatível com adubação cadastrado no estoque.</small>
+            <small className="text-muted">{t("plantations.detail.noFertilizer")}</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {adubacaoLines.filter((line) => line.item).length}</span>
-            {financial && (<strong className="text-success">Valor total da adubação: {money(adubacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
+            {financial && (<strong className="text-success">{t("plantations.detail.totalFertilization")} {money(adubacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Data</label>
+            <label className="form-label small fw-medium">{t("lotReport.date")}</label>
             <input className="form-control" type="date" value={adubacaoForm.application_date} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, application_date: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Operador</label>
+            <label className="form-label small fw-medium">{t("users.role.operator")}</label>
             <input className="form-control" value={adubacaoForm.operator} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, operator: e.target.value })} />
           </div>
           <div>
-            <label className="form-label small fw-medium">Observações</label>
-            <textarea className="form-control" rows={2} maxLength={300} value={adubacaoForm.notes} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, notes: e.target.value })} placeholder="Ex.: Local da aplicação, condição do solo, dose recomendada..." />
+            <label className="form-label small fw-medium">{t("reproduction.observations")}</label>
+            <textarea className="form-control" rows={2} maxLength={300} value={adubacaoForm.notes} onChange={(e) => setAdubacaoForm({ ...adubacaoForm, notes: e.target.value })} placeholder={t("plantations.detail.notesFertilizationPlaceholder")} />
             <div className="text-end text-muted small">{adubacaoForm.notes.length}/300</div>
           </div>
         </div>
@@ -1507,23 +1509,23 @@ export default function PlantacaoDetailPage() {
 
       {/* Modal: Nova Fertirrigação */}
       <Modal isOpen={showFertirrigacao} onClose={() => setShowFertirrigacao(false)} title="Registrar Fertirrigação"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowFertirrigacao(false)}>Cancelar</Button><Button onClick={handleCreateFertirrigacao} disabled={savingFertirrigacao}>{savingFertirrigacao ? "Salvando..." : "Salvar"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowFertirrigacao(false)}>{t("cattle.form.cancel")}</Button><Button onClick={handleCreateFertirrigacao} disabled={savingFertirrigacao}>{savingFertirrigacao ? t("cattle.form.saving") : t("reproduction.save")}</Button></div>}
       >
         <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
-            <strong className="small text-success">Insumos utilizados na fertirrigação</strong>
+            <strong className="small text-success">{t("plantations.detail.suppliesFertigation")}</strong>
             <Button variant="outline-success" size="sm" onClick={() => setFertirrigacaoLines((prev) => [...prev, { ...emptyFertirrigacaoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0 agro-table">
               <thead>
                 <tr>
-                  <th>Insumo</th>
-                  <th style={{ minWidth: 130 }}>Quantidade</th>
-                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th>{t("plantations.operation.supply")}</th>
+                  <th style={{ minWidth: 130 }}>{t("lotReport.quantity")}</th>
+                  <th style={{ minWidth: 120 }}>{t("plantations.structure.unit")}</th>
                   {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
                   {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
-                  <th className="text-center">Ações</th>
+                  <th className="text-center">{t("lotReport.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1531,7 +1533,7 @@ export default function PlantacaoDetailPage() {
                   <tr key={index}>
                     <td style={{ minWidth: 260 }}>
                       <select className="form-select" value={line.item} onChange={(e) => handleFertirrigacaoLineItemChange(index, e.target.value)}>
-                        <option value="">Selecione um insumo do estoque...</option>
+                        <option value="">{t("plantations.operation.fertigation.placeholder")}</option>
                         {fertigationItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.nome}{i.estoque_atual ? ` (${i.estoque_atual} ${i.unidade_medida})` : ""}</option>
                         ))}
@@ -1543,12 +1545,12 @@ export default function PlantacaoDetailPage() {
                     </td>
                     <td>
                       <select className="form-select" value={line.unit} onChange={(e) => setFertirrigacaoLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
-                        <option value="">Selecione...</option>
+                        <option value="">{t("reproduction.select")}</option>
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
                     {financial && (<td>
-                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title={t("plantations.detail.autoPriceButton")} />
                     </td>)}
                     {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
@@ -1560,22 +1562,22 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
           {fertigationItems.length === 0 && (
-            <small className="text-muted">Nenhum insumo compatível com fertirrigação cadastrado no estoque.</small>
+            <small className="text-muted">{t("plantations.detail.noFertigation")}</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {fertirrigacaoLines.filter((line) => line.item).length}</span>
-            {financial && (<strong className="text-success">Valor total da fertirrigação: {money(fertirrigacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
+            {financial && (<strong className="text-success">{t("plantations.detail.totalFertigation")} {money(fertirrigacaoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Data</label>
+            <label className="form-label small fw-medium">{t("lotReport.date")}</label>
             <input className="form-control" type="date" value={fertirrigacaoForm.application_date} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, application_date: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Operador</label>
+            <label className="form-label small fw-medium">{t("users.role.operator")}</label>
             <input className="form-control" value={fertirrigacaoForm.operator} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, operator: e.target.value })} />
           </div>
           <div>
-            <label className="form-label small fw-medium">Observações</label>
+            <label className="form-label small fw-medium">{t("reproduction.observations")}</label>
             <textarea className="form-control" rows={2} maxLength={300} value={fertirrigacaoForm.notes} onChange={(e) => setFertirrigacaoForm({ ...fertirrigacaoForm, notes: e.target.value })} placeholder="Ex.: Volume de calda, setor irrigado, condição do sistema..." />
             <div className="text-end text-muted small">{fertirrigacaoForm.notes.length}/300</div>
           </div>
@@ -1584,24 +1586,24 @@ export default function PlantacaoDetailPage() {
 
       {/* Modal: Novo Foliar / Defensivo */}
       <Modal isOpen={showDefensivo} onClose={() => setShowDefensivo(false)} title="Registrar Foliar / Defensivo"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowDefensivo(false)}>Cancelar</Button><Button variant="outline-success" disabled={savingDefensivo}>Salvar rascunho</Button><Button onClick={handleCreateDefensivo} disabled={savingDefensivo}>{savingDefensivo ? "Salvando..." : "Salvar aplicação"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowDefensivo(false)}>{t("cattle.form.cancel")}</Button><Button variant="outline-success" disabled={savingDefensivo}>{t("plantations.detail.saveDraft")}</Button><Button onClick={handleCreateDefensivo} disabled={savingDefensivo}>{savingDefensivo ? t("cattle.form.saving") : "Salvar aplicação"}</Button></div>}
       >
         <div className="d-flex flex-column gap-3 p-4 p-md-5">
           <div className="d-flex align-items-center justify-content-between gap-2">
-            <strong className="small text-success">Foliares e defensivos da aplicação</strong>
+            <strong className="small text-success">{t("plantations.operation.pesticide.items")}</strong>
             <Button variant="outline-success" size="sm" onClick={() => setDefensivoLines((prev) => [...prev, { ...emptyDefensivoLine }])}>+ Adicionar</Button>
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0 agro-table">
               <thead>
                 <tr>
-                  <th>Produto</th>
-                  <th style={{ minWidth: 160 }}>Tipo</th>
-                  <th style={{ minWidth: 130 }}>Quantidade</th>
-                  <th style={{ minWidth: 120 }}>Unidade</th>
+                  <th>{t("plantations.agronomist.product")}</th>
+                  <th style={{ minWidth: 160 }}>{t("plantations.labor.workerType")}</th>
+                  <th style={{ minWidth: 130 }}>{t("lotReport.quantity")}</th>
+                  <th style={{ minWidth: 120 }}>{t("plantations.structure.unit")}</th>
                   {financial && (<th style={{ minWidth: 140 }}>Preço (R$)</th>)}
                   {financial && (<th style={{ minWidth: 150 }}>Valor Total (R$)</th>)}
-                  <th className="text-center">Ações</th>
+                  <th className="text-center">{t("lotReport.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1626,12 +1628,12 @@ export default function PlantacaoDetailPage() {
                     </td>
                     <td>
                       <select className="form-select" value={line.unit} onChange={(e) => setDefensivoLines((prev) => updateApplicationLine(prev, index, { unit: e.target.value }))}>
-                        <option value="">Selecione...</option>
+                        <option value="">{t("reproduction.select")}</option>
                         {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
                       </select>
                     </td>
                     {financial && (<td>
-                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title="Preço automático do estoque" />
+                      <input className="form-control bg-light" type="number" step="0.01" value={line.unit_price} readOnly title={t("plantations.detail.autoPriceButton")} />
                     </td>)}
                     {financial && (<td><div className="form-control bg-success-subtle fw-semibold text-success">{money(line.total_price)}</div></td>)}
                     <td className="text-center">
@@ -1643,22 +1645,22 @@ export default function PlantacaoDetailPage() {
             </table>
           </div>
           {pesticideItems.length === 0 && (
-            <small className="text-muted">Nenhum foliar ou defensivo cadastrado no estoque.</small>
+            <small className="text-muted">{t("plantations.detail.noPesticide")}</small>
           )}
           <div className="d-flex justify-content-between align-items-center rounded border bg-success-subtle px-3 py-2">
             <span className="fw-medium">Total de itens: {defensivoLines.filter((line) => line.item).length}</span>
-            {financial && (<strong className="text-success">Valor total da aplicação: {money(defensivoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
+            {financial && (<strong className="text-success">{t("plantations.detail.totalApplication")} {money(defensivoLines.reduce((sum, line) => sum + numericValue(line.total_price), 0))}</strong>)}
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Data</label>
+            <label className="form-label small fw-medium">{t("lotReport.date")}</label>
             <input className="form-control" type="date" value={defensivoForm.application_date} onChange={(e) => setDefensivoForm({ ...defensivoForm, application_date: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Operador</label>
+            <label className="form-label small fw-medium">{t("users.role.operator")}</label>
             <input className="form-control" value={defensivoForm.operator} onChange={(e) => setDefensivoForm({ ...defensivoForm, operator: e.target.value })} />
           </div>
           <div>
-            <label className="form-label small fw-medium">Observações</label>
+            <label className="form-label small fw-medium">{t("reproduction.observations")}</label>
             <textarea className="form-control" rows={2} maxLength={300} value={defensivoForm.notes} onChange={(e) => setDefensivoForm({ ...defensivoForm, notes: e.target.value })} placeholder="Ex.: Condições climáticas, pragas alvo, recomendações..." />
             <div className="text-end text-muted small">{defensivoForm.notes.length}/300</div>
           </div>
@@ -1678,11 +1680,11 @@ export default function PlantacaoDetailPage() {
               <table className="table table-hover align-middle mb-0 agro-table">
                 <thead>
                   <tr>
-                    <th>Equipamento</th>
-                    <th style={{ minWidth: 160 }}>Quantidade utilizada</th>
+                    <th>{t("plantations.detail.equipment")}</th>
+                    <th style={{ minWidth: 160 }}>{t("plantations.detail.usedQuantity")}</th>
                     {financial && (<th style={{ minWidth: 160 }}>Valor Unitário (R$)</th>)}
                     {financial && (<th style={{ minWidth: 160 }}>Valor Total (R$)</th>)}
-                    <th className="text-center">Ações</th>
+                    <th className="text-center">{t("lotReport.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1691,7 +1693,7 @@ export default function PlantacaoDetailPage() {
                       <td style={{ minWidth: 240 }}>
                         <select className="form-select" value={eq.equipment}
                           onChange={(e) => setDefensivoEquipments((prev) => prev.map((item, i) => i !== index ? item : { ...item, equipment: e.target.value }))}>
-                          <option value="">Selecione o equipamento...</option>
+                          <option value="">{t("plantations.detail.selectEquipment")}</option>
                           <option value="pulverizador_costal">Pulverizador costal</option>
                           <option value="pulverizador_costal_motorizado">Pulverizador costal motorizado</option>
                           <option value="pulverizador_tratorizado">Pulverizador tratorizado</option>
@@ -1699,7 +1701,7 @@ export default function PlantacaoDetailPage() {
                           <option value="drone">Drone</option>
                           <option value="aviao_agricola">Avião agrícola</option>
                           <option value="barra_pulverizacao">Barra de pulverização</option>
-                          <option value="outro">Outro</option>
+                          <option value="outro">{t("reproduction.other")}</option>
                         </select>
                       </td>
                       <td>
@@ -1753,7 +1755,7 @@ export default function PlantacaoDetailPage() {
 
       {/* Modal: Nova Irrigação */}
       <Modal isOpen={showIrrigacao} onClose={() => setShowIrrigacao(false)} title="Registrar Irrigação"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowIrrigacao(false)}>Cancelar</Button><Button onClick={handleCreateIrrigacao} disabled={savingIrrigacao}>{savingIrrigacao ? "Salvando..." : "Salvar irrigação"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowIrrigacao(false)}>{t("cattle.form.cancel")}</Button><Button onClick={handleCreateIrrigacao} disabled={savingIrrigacao}>{savingIrrigacao ? t("cattle.form.saving") : "Salvar irrigação"}</Button></div>}
       >
         <div className="p-4 p-md-5">
           <div className="row g-3">
@@ -1762,13 +1764,13 @@ export default function PlantacaoDetailPage() {
             <input className="form-control" type="date" value={irrigacaoForm.start_date} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, start_date: e.target.value, end_date: irrigacaoForm.end_date || e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Data final</label>
+            <label className="form-label small fw-medium">{t("notifications.endDate")}</label>
             <input className="form-control" type="date" value={irrigacaoForm.end_date} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, end_date: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Sistema de irrigação</label>
+            <label className="form-label small fw-medium">{t("plantations.operation.irrigationSystem")}</label>
             <select className="form-select" value={irrigacaoForm.irrigation_system} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, irrigation_system: e.target.value })}>
-              <option value="">Selecione...</option>
+              <option value="">{t("reproduction.select")}</option>
               {irrigationSystemOptions.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}
             </select>
           </div>
@@ -1776,37 +1778,37 @@ export default function PlantacaoDetailPage() {
             <label className="form-label small fw-medium">Bomba utilizada *</label>
             <div className="input-group">
               <select className="form-select" value={irrigacaoForm.pump_equipment} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, pump_equipment: e.target.value })}>
-                <option value="">Selecione...</option>
+                <option value="">{t("reproduction.select")}</option>
                 {irrigationPumps.map((pump) => (
                   <option key={pump.id} value={pump.id}>{pump.name} - {fmt(pump.power_cv)} CV / {fmt(pump.flow_rate_l_per_h, 0)} L/h</option>
                 ))}
               </select>
-              <Button variant="outline-success" onClick={() => setShowPumpModal(true)} title="Cadastrar nova bomba"><Plus size={16} /></Button>
+              <Button variant="outline-success" onClick={() => setShowPumpModal(true)} title={t("plantations.operation.addNewPump")}><Plus size={16} /></Button>
             </div>
             {selectedIrrigationPump && (
               <small className="text-muted">Potência convertida: {fmt(selectedIrrigationPump.power_kw)} kW</small>
             )}
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Horas de funcionamento por dia</label>
+            <label className="form-label small fw-medium">{t("plantations.operation.hoursPerDay")}</label>
             <input className="form-control" type="number" step="0.1" value={irrigacaoForm.hours_per_day} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, hours_per_day: e.target.value })} placeholder="Ex.: 6.5" />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Valor do kWh</label>
+            <label className="form-label small fw-medium">{t("plantations.operation.kwhPrice")}</label>
             <input className="form-control" type="number" step="0.0001" value={irrigacaoForm.kwh_value} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, kwh_value: e.target.value })} />
           </div>
           <div className="col-12">
-            <label className="form-label small fw-medium">Operador</label>
+            <label className="form-label small fw-medium">{t("users.role.operator")}</label>
             <input className="form-control" value={irrigacaoForm.operator} onChange={(e) => setIrrigacaoForm({ ...irrigacaoForm, operator: e.target.value })} />
           </div>
           <div className="col-12">
             <div className="rounded border bg-success-subtle p-3">
               <div className="row g-3 small">
-                <div className="col-6 col-md-3"><span className="text-muted d-block">Dias do período</span><strong>{irrigationDays} dia{irrigationDays === 1 ? "" : "s"}</strong></div>
-                <div className="col-6 col-md-3"><span className="text-muted d-block">Horas totais</span><strong>{fmt(irrigationHoursTotal)} h</strong></div>
-                <div className="col-6 col-md-3"><span className="text-muted d-block">Energia</span><strong>{fmt(irrigationEnergyKwh)} kWh</strong></div>
+                <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.daysInPeriod")}</span><strong>{irrigationDays}  {t("animalDetail.day")}{irrigationDays === 1 ? "" : "s"}</strong></div>
+                <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.totalHours")}</span><strong>{fmt(irrigationHoursTotal)} h</strong></div>
+                <div className="col-6 col-md-3"><span className="text-muted d-block">{t("plantations.operation.energy")}</span><strong>{fmt(irrigationEnergyKwh)} kWh</strong></div>
                 <div className="col-6 col-md-3"><span className="text-muted d-block">Custo energia</span><strong>{money(irrigationEnergyCost)}</strong></div>
-                <div className="col-12"><span className="text-muted d-block">Volume total de água aplicado</span><strong>{fmt(irrigationWaterLiters, 0)} L</strong></div>
+                <div className="col-12"><span className="text-muted d-block">{t("plantations.operation.totalWater")}</span><strong>{fmt(irrigationWaterLiters, 0)} L</strong></div>
               </div>
             </div>
           </div>
@@ -1815,24 +1817,24 @@ export default function PlantacaoDetailPage() {
       </Modal>
 
       <Modal isOpen={showPumpModal} onClose={() => setShowPumpModal(false)} title="Cadastrar Bomba"
-        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowPumpModal(false)}>Cancelar</Button><Button onClick={handleCreatePump} disabled={savingPump}>{savingPump ? "Salvando..." : "Salvar bomba"}</Button></div>}
+        footer={<div className="d-flex gap-2 justify-content-end"><Button variant="outline-secondary" onClick={() => setShowPumpModal(false)}>{t("cattle.form.cancel")}</Button><Button onClick={handleCreatePump} disabled={savingPump}>{savingPump ? t("cattle.form.saving") : t("plantations.detail.savePump")}</Button></div>}
       >
         <div className="p-4 p-md-5">
           <div className="row g-3">
             <div className="col-12">
-            <label className="form-label small fw-medium">Nome da bomba *</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.pumpName")}</label>
             <input className="form-control" value={pumpForm.name} onChange={(e) => setPumpForm({ ...pumpForm, name: e.target.value })} placeholder="Ex.: Bomba poço 01" />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Potência (CV) *</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.power")}</label>
             <input className="form-control" type="number" step="0.01" value={pumpForm.power_cv} onChange={(e) => setPumpForm({ ...pumpForm, power_cv: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Potência convertida</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.convertedPower")}</label>
             <div className="form-control bg-light">{fmt(cvToKw(pumpForm.power_cv))} kW</div>
           </div>
           <div className="col-12">
-            <label className="form-label small fw-medium">Vazão (L/h) *</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.flow")}</label>
             <input className="form-control" type="number" step="0.01" value={pumpForm.flow_rate_l_per_h} onChange={(e) => setPumpForm({ ...pumpForm, flow_rate_l_per_h: e.target.value })} />
           </div>
         </div>
@@ -1843,47 +1845,47 @@ export default function PlantacaoDetailPage() {
       <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title="Editar Plantação"
         footer={
           <div className="d-flex gap-2 justify-content-end">
-            <Button variant="outline-secondary" onClick={() => setShowEdit(false)}>Cancelar</Button>
-            <Button onClick={handleSaveEdit} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
+            <Button variant="outline-secondary" onClick={() => setShowEdit(false)}>{t("cattle.form.cancel")}</Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>{saving ? t("cattle.form.saving") : t("reproduction.save")}</Button>
           </div>
         }
       >
         <div className="p-4 p-md-5">
           <div className="row g-3">
             <div className="col-12">
-            <label className="form-label small fw-medium">Nome</label>
+            <label className="form-label small fw-medium">{t("cattleReproduction.name")}</label>
             <input className="form-control" value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Cultura</label>
+            <label className="form-label small fw-medium">{t("crops.culture")}</label>
             <input className="form-control" value={editForm.crop_name}
               onChange={(e) => setEditForm({ ...editForm, crop_name: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Status</label>
+            <label className="form-label small fw-medium">{t("users.columnStatus")}</label>
             <select className="form-select" value={editForm.status}
               onChange={(e) => setEditForm({ ...editForm, status: e.target.value as PlantationStatus })}>
               {statusOptions.map((status) => (<option key={status} value={status}>{t(`plantations.status.${status}` as TranslationKey)}</option>))}
             </select>
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Variedade</label>
+            <label className="form-label small fw-medium">{t("plantations.seedVariety")}</label>
             <input className="form-control" value={editForm.variety}
               onChange={(e) => setEditForm({ ...editForm, variety: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Área (ha)</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.area")}</label>
             <input className="form-control" type="number" step="0.01" value={editForm.planted_area_ha}
               onChange={(e) => setEditForm({ ...editForm, planted_area_ha: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">População (plantas/ha)</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.population")}</label>
             <input className="form-control" type="number" value={editForm.population}
               onChange={(e) => setEditForm({ ...editForm, population: e.target.value })} />
           </div>
           <div className="col-6">
-            <label className="form-label small fw-medium">Espaçamento</label>
+            <label className="form-label small fw-medium">{t("plantations.detail.spacing")}</label>
             <input className="form-control" value={editForm.spacing}
               onChange={(e) => setEditForm({ ...editForm, spacing: e.target.value })} />
           </div>
@@ -1915,7 +1917,7 @@ export default function PlantacaoDetailPage() {
           </div>
           <div className="col-6">
             <label className="form-label small fw-medium">Sacas Estimadas (sc)</label>
-            <input className="form-control" type="number" step="0.01" min="0" placeholder="Ex: 90" value={editForm.estimated_bags}
+            <input className="form-control" type="number" step="0.01" min="0" placeholder={t("plantations.exampleDays")} value={editForm.estimated_bags}
               onChange={(e) => setEditForm({ ...editForm, estimated_bags: e.target.value })} />
           </div>
         </div>

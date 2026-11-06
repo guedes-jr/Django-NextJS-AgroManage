@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import serializers
 from django.db import transaction
 from django.utils import timezone
@@ -18,7 +19,7 @@ def validate_tenant_relations(serializer, attrs, relation_names):
     request = serializer.context.get("request")
     organization = getattr(getattr(request, "user", None), "organization", None)
     if not organization:
-        raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+        raise serializers.ValidationError({"organization": translate_message("Usuário não possui organização vinculada.")})
     for name in relation_names:
         value = attrs.get(name, getattr(serializer.instance, name, None))
         if not value:
@@ -27,7 +28,7 @@ def validate_tenant_relations(serializer, attrs, relation_names):
         if related_organization_id is None and getattr(value, "farm", None):
             related_organization_id = value.farm.organization_id
         if related_organization_id != organization.id:
-            raise serializers.ValidationError({name: "O objeto informado pertence a outra organização."})
+            raise serializers.ValidationError({name: translate_message("O objeto informado pertence a outra organização.")})
     return organization
 
 class AnimalBatchListSerializer(serializers.ListSerializer):
@@ -99,7 +100,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     def validate_batch_code(self, value):
         """Validate that batch_code is not empty."""
         if not value or not value.strip():
-            raise serializers.ValidationError("Batch code é obrigatório e não pode estar vazio.")
+            raise serializers.ValidationError(translate_message("Batch code é obrigatório e não pode estar vazio."))
         return value.strip()
 
     def validate(self, data):
@@ -114,7 +115,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
             repro_categories = ['Matriz', 'Marrã', 'Vaca', 'Novilha', 'Touro', 'Cachaço', 'Reprodutor', 'Poedeira']
             if category not in repro_categories:
                 raise serializers.ValidationError(
-                    {'phase': 'Fase produtiva é obrigatória para lotes comprados não-reprodutivos.'}
+                    {'phase': translate_message('Fase produtiva é obrigatória para lotes comprados não-reprodutivos.')}
                 )
 
         return data
@@ -241,7 +242,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
     def validate_entry_date(self, value):
         """Validate entry_date format."""
         if not value:
-            raise serializers.ValidationError("Data de entrada é obrigatória.")
+            raise serializers.ValidationError(translate_message("Data de entrada é obrigatória."))
         return value
     
     def validate_purchase_value(self, value):
@@ -253,7 +254,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                 from decimal import Decimal
                 return Decimal(value)
             except (ValueError, TypeError, ArithmeticError):
-                raise serializers.ValidationError("Valor de compra deve ser um número válido.")
+                raise serializers.ValidationError(translate_message("Valor de compra deve ser um número válido."))
         return value
     
     def validate_avg_weight_kg(self, value):
@@ -265,7 +266,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                 from decimal import Decimal
                 return Decimal(value)
             except (ValueError, TypeError, ArithmeticError):
-                raise serializers.ValidationError("Peso médio deve ser um número válido.")
+                raise serializers.ValidationError(translate_message("Peso médio deve ser um número válido."))
         return value
 
     def create(self, validated_data):
@@ -277,12 +278,12 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         # Ensure batch_code exists
         batch_code = validated_data.get('batch_code')
         if not batch_code:
-            raise serializers.ValidationError({'batch_code': 'Batch code é obrigatório.'})
+            raise serializers.ValidationError({'batch_code': translate_message('Batch code é obrigatório.')})
         
         # Ensure entry_date exists
         entry_date = validated_data.get('entry_date')
         if not entry_date:
-            raise serializers.ValidationError({'entry_date': 'Data de entrada é obrigatória.'})
+            raise serializers.ValidationError({'entry_date': translate_message('Data de entrada é obrigatória.')})
         
         if not species_code:
             species_code = 'bovinos'
@@ -322,7 +323,7 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
                 farm = Farm.objects.get(id=farm_id)
                 # Verify farm belongs to organization
                 if organization and farm.organization != organization:
-                    raise serializers.ValidationError({'farm_id': 'Esta fazenda não pertence à sua organização.'})
+                    raise serializers.ValidationError({'farm_id': translate_message('Esta fazenda não pertence à sua organização.')})
             except Farm.DoesNotExist:
                 raise serializers.ValidationError({'farm_id': f'Fazenda com id {farm_id} não encontrada.'})
         else:
@@ -593,7 +594,7 @@ class AnimalSerializer(serializers.ModelSerializer):
             try:
                 farm = Farm.objects.get(id=farm_id)
                 if organization and farm.organization != organization:
-                    raise serializers.ValidationError({'farm_id': 'Esta fazenda não pertence à sua organização.'})
+                    raise serializers.ValidationError({'farm_id': translate_message('Esta fazenda não pertence à sua organização.')})
             except Farm.DoesNotExist:
                 raise serializers.ValidationError({'farm_id': f'Fazenda com id {farm_id} não encontrada.'})
         else:
@@ -647,23 +648,23 @@ class MatingSerializer(serializers.ModelSerializer):
         planned = attrs.get("expected_diagnosis_date", getattr(self.instance, "expected_diagnosis_date", None))
         mating_date = attrs.get("mating_date", getattr(self.instance, "mating_date", None))
         if planned and mating_date and planned < mating_date:
-            raise serializers.ValidationError({"expected_diagnosis_date": "A previsão de diagnóstico não pode anteceder a cobertura."})
+            raise serializers.ValidationError({"expected_diagnosis_date": translate_message("A previsão de diagnóstico não pode anteceder a cobertura.")})
         item = attrs.get('reproductive_vaccine_item')
         days = attrs.get('reproductive_vaccine_days')
         if bool(item) != bool(days):
             raise serializers.ValidationError({
-                'reproductive_vaccine_days': 'Selecione a vacina e informe os dias para o aviso.'
+                'reproductive_vaccine_days': translate_message('Selecione a vacina e informe os dias para o aviso.')
             })
         if days is not None and not 1 <= days <= 365:
             raise serializers.ValidationError({
-                'reproductive_vaccine_days': 'Informe um prazo entre 1 e 365 dias.'
+                'reproductive_vaccine_days': translate_message('Informe um prazo entre 1 e 365 dias.')
             })
         request = self.context.get('request')
         if item and request and item.organization_id != request.user.organization_id:
-            raise serializers.ValidationError({'reproductive_vaccine_item': 'Vacina inválida.'})
+            raise serializers.ValidationError({'reproductive_vaccine_item': translate_message('Vacina inválida.')})
         from apps.inventory.selectors import VACCINE_CATEGORIES
         if item and item.categoria not in VACCINE_CATEGORIES:
-            raise serializers.ValidationError({'reproductive_vaccine_item': 'O item selecionado não é uma vacina.'})
+            raise serializers.ValidationError({'reproductive_vaccine_item': translate_message('O item selecionado não é uma vacina.')})
         return attrs
 
     def create(self, validated_data):
@@ -706,7 +707,7 @@ class BirthSerializer(serializers.ModelSerializer):
 
     def validate_expected_weaning_days(self, value):
         if not 1 <= value <= 90:
-            raise serializers.ValidationError("Informe uma previsão entre 1 e 90 dias.")
+            raise serializers.ValidationError(translate_message("Informe uma previsão entre 1 e 90 dias."))
         return value
 
     def validate(self, attrs):
@@ -714,18 +715,18 @@ class BirthSerializer(serializers.ModelSerializer):
         days = attrs.get('reproductive_vaccine_days')
         if bool(item) != bool(days):
             raise serializers.ValidationError({
-                'reproductive_vaccine_days': 'Selecione a vacina e informe os dias para o aviso.'
+                'reproductive_vaccine_days': translate_message('Selecione a vacina e informe os dias para o aviso.')
             })
         if days is not None and not 1 <= days <= 365:
             raise serializers.ValidationError({
-                'reproductive_vaccine_days': 'Informe um prazo entre 1 e 365 dias.'
+                'reproductive_vaccine_days': translate_message('Informe um prazo entre 1 e 365 dias.')
             })
         request = self.context.get('request')
         if item and request and item.organization_id != request.user.organization_id:
-            raise serializers.ValidationError({'reproductive_vaccine_item': 'Vacina inválida.'})
+            raise serializers.ValidationError({'reproductive_vaccine_item': translate_message('Vacina inválida.')})
         from apps.inventory.selectors import VACCINE_CATEGORIES
         if item and item.categoria not in VACCINE_CATEGORIES:
-            raise serializers.ValidationError({'reproductive_vaccine_item': 'O item selecionado não é uma vacina.'})
+            raise serializers.ValidationError({'reproductive_vaccine_item': translate_message('O item selecionado não é uma vacina.')})
         return attrs
 
     def create(self, validated_data):
@@ -755,7 +756,7 @@ class LitterSerializer(serializers.ModelSerializer):
 
     def validate_next_mating_notice_days(self, value):
         if value is not None and not 1 <= value <= 365:
-            raise serializers.ValidationError("Informe um prazo entre 1 e 365 dias.")
+            raise serializers.ValidationError(translate_message("Informe um prazo entre 1 e 365 dias."))
         return value
 
     def create(self, validated_data):
@@ -835,7 +836,7 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
                 vaccine_category_q(), id=value, organization=organization, ativo=True
             ).get()
         except ItemEstoque.DoesNotExist:
-            raise serializers.ValidationError("Vacina não encontrada no estoque.")
+            raise serializers.ValidationError(translate_message("Vacina não encontrada no estoque."))
         return value
 
     def validate(self, attrs):
@@ -844,9 +845,9 @@ class VaccinationRecordSerializer(serializers.ModelSerializer):
         batch = attrs.get("batch", getattr(self.instance, "batch", None))
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         if animal and farm and animal.farm_id != farm.id:
-            raise serializers.ValidationError({"animal": "O animal não pertence à propriedade informada."})
+            raise serializers.ValidationError({"animal": translate_message("O animal não pertence à propriedade informada.")})
         if batch and farm and batch.farm_id != farm.id:
-            raise serializers.ValidationError({"batch": "O lote não pertence à propriedade informada."})
+            raise serializers.ValidationError({"batch": translate_message("O lote não pertence à propriedade informada.")})
         return attrs
 
     def create(self, validated_data):
@@ -921,7 +922,7 @@ class ClinicalRecordSerializer(serializers.ModelSerializer):
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         animal = attrs.get("animal", getattr(self.instance, "animal", None))
         if farm and animal and animal.farm_id != farm.id:
-            raise serializers.ValidationError({"animal": "O animal não pertence à propriedade informada."})
+            raise serializers.ValidationError({"animal": translate_message("O animal não pertence à propriedade informada.")})
         return attrs
 
 class MedicationSerializer(serializers.ModelSerializer):
@@ -976,7 +977,7 @@ class HealthRecordSerializer(serializers.ModelSerializer):
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         animal = attrs.get("animal", getattr(self.instance, "animal", None))
         if farm and animal and animal.farm_id != farm.id:
-            raise serializers.ValidationError({"animal": "O animal não pertence à propriedade informada."})
+            raise serializers.ValidationError({"animal": translate_message("O animal não pertence à propriedade informada.")})
         return attrs
 
 
@@ -1022,7 +1023,7 @@ class BatchSaleSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs['mode'] == 'partial' and 'quantity' not in attrs:
-            raise serializers.ValidationError({'quantity': 'Informe a quantidade de animais.'})
+            raise serializers.ValidationError({'quantity': translate_message('Informe a quantidade de animais.')})
         if attrs['date'] < self.context['batch'].entry_date:
-            raise serializers.ValidationError({'date': 'A venda não pode ocorrer antes da entrada do lote.'})
+            raise serializers.ValidationError({'date': translate_message('A venda não pode ocorrer antes da entrada do lote.')})
         return attrs

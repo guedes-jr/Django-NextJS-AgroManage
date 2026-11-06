@@ -46,6 +46,21 @@ format dates/numbers with the returned organization language. The language is
 shared by all members and persisted through `/organizations/me/`; do not store
 it as a per-user preference or add a competing localization mechanism.
 
+Typed catalogs and pure `translateMessage()` live in `frontend/src/lib/localeMessages.ts`
+so exports can use the same translations without importing a React provider.
+Pass `language` explicitly to service/report formatters; keep persisted API values,
+currency, units and operational time zones independent of the interface language.
+The provider waits for the organization language before mounting workspace pages
+and refreshes it when the tab regains focus. Public pages and login use
+`PublicLocaleProvider`, which derives its language from the browser. Public server
+pages and metadata use `getPublicTranslator()` from `publicLocaleServer.ts`, with
+weighted `Accept-Language` negotiation and the same `publicMessages.ts` catalog.
+Seed the public provider with that language to keep server and client output
+consistent. Keep URLs, anchors, plan identifiers/prices and custom organization
+content independent of translated labels. Shared controls mounted in both public
+and tenant pages can use `useInterfaceLocale()`; organization context takes
+precedence, while platform-only usage retains Portuguese.
+
 ## Performance
 
 Avoid:

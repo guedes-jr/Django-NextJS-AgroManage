@@ -471,7 +471,7 @@ export function FeedConsumptionDashboard({
                       <td className="text-foreground small">{money(Number(entry.custo_unitario))}</td>
                       <td className="text-foreground small">{money(Number(entry.custo_total))}</td>
                       <td className="text-foreground small">{t("livestock.feedConsumption.periodTotal")}</td>
-                      <td className="text-foreground small">Administrador</td>
+                      <td className="text-foreground small">{t("users.role.admin")}</td>
                       <td className="text-end">
                         <button className="btn btn-link text-danger p-0 ms-2"><Trash2 size={16} /></button>
                       </td>

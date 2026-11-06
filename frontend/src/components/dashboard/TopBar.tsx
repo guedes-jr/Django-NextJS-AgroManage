@@ -137,7 +137,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
             >
               <div className="px-3 py-2 border-bottom border-border mb-1 d-sm-none">
                 <span className="fw-semibold d-block text-foreground" style={{ fontSize: '0.875rem' }}>
-                  {user?.full_name || "Usuário"}
+                  {user?.full_name || t("users.columnUser")}
                 </span>
                 <span 
                    className="rounded-pill fw-bold d-inline-block" 

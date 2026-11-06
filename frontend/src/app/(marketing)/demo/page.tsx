@@ -1,4 +1,5 @@
 "use client";
+import { usePublicLocale } from "@/lib/publicLocale";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -11,29 +12,31 @@ import {
 } from "lucide-react";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+
+export default function Page() {
+  const { t } = usePublicLocale();
 const steps = [
   {
     icon: Sprout,
-    title: "Configure a propriedade",
-    text: "Crie fazendas, setores, culturas e equipes para representar sua operação.",
+    title: t("public.setUpTheProperty"),
+    text: t("public.createFarmsSectorsCropsAndTeamsToRepresentYourOperation"),
   },
   {
     icon: Boxes,
-    title: "Registre uma movimentação",
-    text: "Uma saída de insumo atualiza o estoque e mantém o histórico rastreável.",
+    title: t("public.recordAMovement"),
+    text: t("public.anInputWithdrawalUpdatesStockAndKeepsHistoryTraceable"),
   },
   {
     icon: WalletCards,
-    title: "Conecte o financeiro",
-    text: "Custos e receitas passam a fazer parte da visão gerencial.",
+    title: t("public.connectFinances"),
+    text: t("public.costsAndIncomeBecomePartOfTheManagementOverview"),
   },
   {
     icon: BarChart3,
-    title: "Acompanhe indicadores",
-    text: "O dashboard transforma registros em prioridades e decisões.",
+    title: t("public.trackIndicators"),
+    text: t("public.theDashboardTurnsRecordsIntoPrioritiesAndDecisions"),
   },
 ];
-export default function Page() {
   const [current, setCurrent] = useState(0);
   const step = steps[current];
   const Icon = step.icon;
@@ -43,12 +46,9 @@ export default function Page() {
       <main>
         <section className="public-page-hero">
           <div className="marketing-container">
-            <div className="eyebrow">Demonstração interativa</div>
-            <h1>Conheça o fluxo do sistema Fazenda Mais em poucos minutos</h1>
-            <p>
-              Navegue por uma operação fictícia e entenda como os módulos
-              trabalham juntos.
-            </p>
+            <div className="eyebrow">{t("public.interactiveDemo")}</div>
+            <h1>{t("public.exploreTheFazendaMaisWorkflowInMinutes")}</h1>
+            <p> {t("public.exploreAFictionalOperationAndSeeHowTheModulesWork")} </p>
           </div>
         </section>
         <section className="marketing-section">
@@ -69,21 +69,20 @@ export default function Page() {
               <div className="feature-icon">
                 <Icon />
               </div>
-              <div className="eyebrow">
-                Etapa {current + 1} de {steps.length}
+              <div className="eyebrow"> {t("public.step")} {current + 1} {t("public.of")} {steps.length}
               </div>
               <h2>{step.title}</h2>
               <p>{step.text}</p>
               <div className="demo-preview">
-                <strong>Fazenda Horizonte</strong>
+                <strong>{t("public.horizonteFarm")}</strong>
                 <span>
                   {current === 0
-                    ? "2 unidades · 8 usuários"
+                    ? t("public.2Units8Users")
                     : current === 1
-                      ? "Estoque atualizado · 36 itens"
+                      ? t("public.stockUpdated36Items")
                       : current === 2
-                        ? "Custos do mês · R$ 48.320"
-                        : "Operação em dia · 4 alertas"}
+                        ? t("public.monthlyCostsR48320")
+                        : t("public.operationUpToDate4Alerts")}
                 </span>
               </div>
               <div className="d-flex gap-2">
@@ -91,22 +90,18 @@ export default function Page() {
                   className="marketing-button secondary"
                   disabled={current === 0}
                   onClick={() => setCurrent((v) => Math.max(0, v - 1))}
-                >
-                  Anterior
-                </button>
+                > {t("notifications.previous")} </button>
                 {current < steps.length - 1 ? (
                   <button
                     className="marketing-button primary"
                     onClick={() => setCurrent((v) => v + 1)}
-                  >
-                    Próxima etapa <ArrowRight size={17} />
+                  > {t("public.nextStep")} <ArrowRight size={17} />
                   </button>
                 ) : (
                   <Link
                     className="marketing-button primary"
                     href="/contato?utm_source=interactive-demo"
-                  >
-                    Ver com meus dados <ArrowRight size={17} />
+                  > {t("public.seeItWithMyData")} <ArrowRight size={17} />
                   </Link>
                 )}
               </div>

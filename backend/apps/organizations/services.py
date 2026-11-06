@@ -1,4 +1,5 @@
 """Organization lifecycle operations shared by administrative endpoints."""
+from django.utils.translation import gettext as translate_message
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -16,7 +17,7 @@ def transition_organization(*, organization_id, target, reason, request):
 
     organization = Organization.objects.select_for_update().get(pk=organization_id)
     if organization.recovery_isolated:
-        raise ValidationError("Organizações de conferência permanecem isoladas e não podem ser ativadas.")
+        raise ValidationError(translate_message("Organizações de conferência permanecem isoladas e não podem ser ativadas."))
     previous = organization.status
     allowed = {
         Organization.Status.ACTIVE: {Organization.Status.SUSPENDED, Organization.Status.ARCHIVED},
@@ -24,7 +25,7 @@ def transition_organization(*, organization_id, target, reason, request):
         Organization.Status.ARCHIVED: {Organization.Status.ACTIVE},
     }
     if target not in allowed[previous]:
-        raise ValidationError({"detail": "Transição de estado inválida para esta organização."})
+        raise ValidationError({"detail": translate_message("Transição de estado inválida para esta organização.")})
 
     organization.status = target
     organization.status_reason = reason
@@ -59,10 +60,10 @@ def create_organization_with_administrator(*, data, request):
         with transaction.atomic():
             User = get_user_model()
             if User.objects.filter(email__iexact=email).exists():
-                raise ValidationError({"administrator": {"email": "E-mail já cadastrado. Use outro e-mail; contas existentes não são movidas automaticamente."}})
+                raise ValidationError({"administrator": {"email": translate_message("E-mail já cadastrado. Use outro e-mail; contas existentes não são movidas automaticamente.")}})
             plan = Plan.objects.filter(pk=values.pop("plan_id"), is_active=True).first()
             if not plan:
-                raise ValidationError({"plan_id": "Plano ativo não encontrado."})
+                raise ValidationError({"plan_id": translate_message("Plano ativo não encontrado.")})
             billing_cycle = values.pop("billing_cycle")
             legacy_codes = {choice[0] for choice in Organization.Plan.choices}
             organization = Organization.objects.create(**values, plan=plan.code if plan.code in legacy_codes else Organization.Plan.FREE)
@@ -88,7 +89,7 @@ def create_organization_with_administrator(*, data, request):
                 extra_data={"plan": plan.code, "billing_cycle": billing_cycle, "administrator_id": str(user.pk)},
             )
     except IntegrityError as exc:
-        raise ValidationError({"detail": "Não foi possível criar o cadastro: e-mail ou identificador já utilizado. Atualize os dados e tente novamente."}) from exc
+        raise ValidationError({"detail": translate_message("Não foi possível criar o cadastro: e-mail ou identificador já utilizado. Atualize os dados e tente novamente.")}) from exc
     return organization
 
 
@@ -105,14 +106,14 @@ def transfer_organization_responsible(*, organization_id, user_id, expected_resp
     current = User.objects.select_for_update().filter(organization=organization, organization_responsible=True).first()
     current_id = current.pk if current else None
     if current_id != expected_responsible_id:
-        raise ValidationError({"detail": "O responsável mudou desde que esta tela foi aberta. Atualize os dados antes de transferir."})
+        raise ValidationError({"detail": translate_message("O responsável mudou desde que esta tela foi aberta. Atualize os dados antes de transferir.")})
     if current_id == user_id:
-        raise ValidationError({"user_id": "Este usuário já é o responsável pela organização."})
+        raise ValidationError({"user_id": translate_message("Este usuário já é o responsável pela organização.")})
     target = User.objects.select_for_update(of=("self",)).filter(
         pk=user_id, organization=organization, is_active=True, platform_staff_profile__isnull=True,
     ).exclude(affiliate_profile__portal_access_only=True).first()
     if not target:
-        raise ValidationError({"user_id": "Selecione um usuário ativo desta organização que não pertença à equipe interna."})
+        raise ValidationError({"user_id": translate_message("Selecione um usuário ativo desta organização que não pertença à equipe interna.")})
     previous_role = target.role
     if current:
         # Keep the previous administrator's access and account state unchanged.

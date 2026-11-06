@@ -1,3 +1,4 @@
+const locale = require('./helpers/locale.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -6,7 +7,7 @@ const path=require('node:path');
 const ts=require('typescript');
 function load(file,imports={}){
  const exports={};
- vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src',file),'utf8'),{fileName:file,compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2020}}).outputText,{exports,Date,require:name=>imports[name]||(name==='react/jsx-runtime'?{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})}:new Proxy({},{get:(_,key)=>key}))});
+ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src',file),'utf8'),{fileName:file,compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2020}}).outputText,{exports,Date,require:name=>imports[name]||(name==='@/lib/locale'?locale:null)||(name==='react/jsx-runtime'?{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})}:new Proxy({},{get:(_,key)=>key}))});
  return exports;
 }
 function all(node,match){if(!node||typeof node!=='object')return [];return [...(match(node)?[node]:[]),...[node.props?.children].flat(Infinity).flatMap(child=>all(child,match))];}

@@ -2,32 +2,32 @@
  * Shared formatting utilities.
  */
 
-import { LOCALE, CURRENCY, DATE_FORMAT } from "@/lib/constants";
+import { LOCALE, CURRENCY } from "@/lib/constants";
 
 /**
  * Format a number as BRL currency.
  */
-export function formatCurrency(value: number | string): string {
+export function formatCurrency(value: number | string, language = LOCALE): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY }).format(num);
+  return new Intl.NumberFormat(language, { style: "currency", currency: CURRENCY }).format(num);
 }
 
 /**
  * Format a date string (ISO) to dd/MM/yyyy.
  */
-export function formatDate(dateStr: string | null | undefined): string {
+export function formatDate(dateStr: string | null | undefined, language = LOCALE): string {
   if (!dateStr) return "—";
   const date = new Date(dateStr);
-  return new Intl.DateTimeFormat(LOCALE).format(date);
+  return new Intl.DateTimeFormat(language).format(date);
 }
 
 /**
  * Format a date-time string to dd/MM/yyyy HH:mm.
  */
-export function formatDateTime(dateStr: string | null | undefined): string {
+export function formatDateTime(dateStr: string | null | undefined, language = LOCALE): string {
   if (!dateStr) return "—";
   const date = new Date(dateStr);
-  return new Intl.DateTimeFormat(LOCALE, {
+  return new Intl.DateTimeFormat(language, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -39,10 +39,10 @@ export function formatDateTime(dateStr: string | null | undefined): string {
 /**
  * Format a decimal number with a unit.
  */
-export function formatUnit(value: string | number | null, unit: string): string {
+export function formatUnit(value: string | number | null, unit: string, language = LOCALE): string {
   if (value === null || value === undefined) return "—";
   const num = typeof value === "string" ? parseFloat(value) : value;
-  return `${num.toLocaleString(LOCALE)} ${unit}`;
+  return `${num.toLocaleString(language)} ${unit}`;
 }
 
 /**

@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import serializers
 
 from .models import AIConversation, AIFeedback, AIMessage
@@ -24,7 +25,7 @@ class AIQuestionSerializer(serializers.Serializer):
     def validate(self, attrs):
         if bool(attrs.get("context_type")) != bool(attrs.get("context_id")):
             raise serializers.ValidationError(
-                "context_type e context_id devem ser informados em conjunto."
+                translate_message("context_type e context_id devem ser informados em conjunto.")
             )
         return attrs
 
@@ -39,7 +40,7 @@ class AIConversationSerializer(serializers.ModelSerializer):
 
     def validate_subject(self, value):
         if value == AIConversation.Subject.SUPPORT:
-            raise serializers.ValidationError("Use a página de suporte para esta conversa.")
+            raise serializers.ValidationError(translate_message("Use a página de suporte para esta conversa."))
         return value
 
 
@@ -59,7 +60,7 @@ class AIFeedbackSerializer(serializers.ModelSerializer):
     def validate_message(self, message):
         request = self.context["request"]
         if message.role != AIMessage.Role.ASSISTANT or message.conversation.user_id != request.user.id:
-            raise serializers.ValidationError("Mensagem inválida para avaliação.")
+            raise serializers.ValidationError(translate_message("Mensagem inválida para avaliação."))
         return message
 
     def create(self, validated_data):

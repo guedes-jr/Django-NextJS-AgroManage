@@ -46,6 +46,7 @@ class OpenAIProvider(AIProvider):
         params = {
             "model": self.model,
             "instructions": build_system_prompt(
+                language=getattr(getattr(user, "organization", None), "language", "pt-BR"),
                 subject=getattr(conversation, "subject", "general"), authorized_context=context
             ),
             "input": request_input,

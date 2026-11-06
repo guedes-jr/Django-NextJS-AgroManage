@@ -1,3 +1,4 @@
+import { translateMessage, type AppLanguage } from "@/lib/localeMessages";
 import apiClient from "./api";
 
 export type CattleAnimal = {
@@ -97,7 +98,7 @@ export const cattleService = {
   sales: async (signal?: AbortSignal, farm?: string, production?: string) => (await apiClient.get<{ id: string; date: string; batch_code: string; quantity: number; amount: string; buyer: string }[]>(`${base}/batches/sales/`, { signal, params: { ...(farm ? { farm } : {}), ...(production ? { production } : {}) } })).data,
 };
 
-export function cattleError(error: unknown): string {
+export function cattleError(error: unknown, language: AppLanguage = "pt-BR"): string {
   const body = typeof error === "object" && error && "response" in error
     ? (error as { response?: { data?: unknown } }).response?.data : null;
   const messages = (value: unknown): string[] => {
@@ -106,5 +107,5 @@ export function cattleError(error: unknown): string {
     if (value && typeof value === "object") return Object.values(value).flatMap(messages);
     return [];
   };
-  return messages(body).join(" ") || "Não foi possível concluir a operação. Tente novamente.";
+  return messages(body).join(" ") || translateMessage(language, "workspace.couldNotCompleteTheOperationTryAgain");
 }

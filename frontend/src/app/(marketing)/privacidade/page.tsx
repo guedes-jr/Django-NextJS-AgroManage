@@ -1,30 +1,23 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { MarketingPage } from "@/components/marketing/MarketingPage";
-export const metadata: Metadata = { title: "Privacidade | Fazenda Mais" };
-export default function PrivacidadePage() {
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return { title: t("public.privacyFazendaMais") }; }
+export default async function PrivacidadePage() {
+  const { t } = await getPublicTranslator();
+
   return (
     <MarketingPage
-      eyebrow="Legal"
-      title="Política de privacidade"
-      description="Como o sistema Fazenda Mais trata e protege informações da sua organização."
+      eyebrow={t("public.legal")}
+      title={t("public.privacyPolicy")}
+      description={t("public.howFazendaMaisHandlesAndProtectsYourOrganizationSInformation")}
     >
       <section className="legal-content marketing-container">
-        <h2>Dados tratados</h2>
-        <p>
-          Tratamos dados cadastrais, operacionais e técnicos necessários para
-          autenticação, funcionamento, suporte e segurança da plataforma.
-        </p>
-        <h2>Finalidade</h2>
-        <p>
-          As informações são utilizadas para fornecer o serviço contratado,
-          proteger contas, atender solicitações e melhorar a experiência de uso.
-        </p>
-        <h2>Segurança e direitos</h2>
-        <p>
-          Aplicamos controles de acesso e isolamento por organização.
-          Solicitações relacionadas aos direitos dos titulares podem ser
-          encaminhadas pelo canal de contato.
-        </p>
+        <h2>{t("public.dataProcessed")}</h2>
+        <p> {t("public.weProcessRegistrationOperationalAndTechnicalDataNecessaryForAuthentication")} </p>
+        <h2>{t("crops.purpose")}</h2>
+        <p> {t("public.informationIsUsedToProvideTheContractedServiceProtectAccounts")} </p>
+        <h2>{t("public.securityAndRights")}</h2>
+        <p> {t("public.weApplyAccessControlsAndOrganizationIsolationRequestsConcerningData")} </p>
       </section>
     </MarketingPage>
   );

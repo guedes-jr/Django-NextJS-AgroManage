@@ -59,7 +59,7 @@ export default function ClinicoDashboardPage() {
     <div className="animate-fade-in">
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Dashboard</Link>
+          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>{t("sidebar.dashboard")}</Link>
           <ChevronRight size={14} />
           <span className="fw-semibold text-foreground">{t("clinical.dashboard")}</span>
         </nav>

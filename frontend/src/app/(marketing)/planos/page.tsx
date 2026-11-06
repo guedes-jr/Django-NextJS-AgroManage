@@ -1,15 +1,17 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { PlanBuilder } from "@/components/marketing/PlanBuilder";
 
-export const metadata: Metadata = {
-  title: "Monte seu plano | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.buildYourPlanFazendaMais"),
   description:
-    "Combine os segmentos da sua operação e encontre o plano Fazenda Mais ideal para o seu porte.",
-};
+    t("public.combineYourOperationSSegmentsAndFindTheFazendaMais"),
+}; }
 
 export default function PlanosPage() {
+
   return (
     <>
       <MarketingHeader />

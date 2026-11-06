@@ -591,7 +591,8 @@ export default function AgronomoPage() {
                 <p className="text-muted small mb-0">{t("plantations.agronomist.historyDescription")}</p>
               </div>
               <Button variant="outline-secondary" size="sm" onClick={() => router.push(`/home/plantacoes/${id}/historico`)}>
-                Ver relatório completo
+
+                {t("plantations.labor.fullReport")}
               </Button>
             </div>
 
@@ -609,7 +610,7 @@ export default function AgronomoPage() {
                     </div>
                     <div className="d-flex align-items-center gap-2">
                       <Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || recommendation.status}</Badge>
-                      <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title="Editar">
+                      <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title={t("profile.edit")}>
                         <Edit3 size={15} />
                       </Button>
                       <Button 
@@ -617,7 +618,7 @@ export default function AgronomoPage() {
                         size="sm" 
                         disabled={deletingRecommendationId === recommendation.id}
                         onClick={() => handleDeleteRecommendation(recommendation.id)} 
-                        title="Excluir"
+                        title={t("plantations.agronomist.delete")}
                       >
                         <Trash2 size={15} />
                       </Button>
@@ -657,12 +658,12 @@ export default function AgronomoPage() {
                           {recommendation.objective ? <div className="text-muted small">{recommendation.objective}</div> : null}
                         </td>
                         <td>{formatDate(recommendation.suggested_application_date, language)}</td>
-                        <td>{recommendation.products?.length || 0} item{(recommendation.products?.length || 0) === 1 ? "" : "s"}</td>
+                        <td>{recommendation.products?.length || 0}  {t("inventory.products.oneItem")}{(recommendation.products?.length || 0) === 1 ? "" : "s"}</td>
                         <td>{recommendation.priority_display || recommendation.priority}</td>
-                        <td><Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || "Concluída"}</Badge></td>
+                        <td><Badge style={statusVariant(recommendation.status)}>{recommendation.status_display || t("plantations.agronomist.statusCompleted")}</Badge></td>
                         <td className="text-end">
                           <div className="d-flex justify-content-end gap-2">
-                            <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title="Editar">
+                            <Button variant="outline-secondary" size="sm" onClick={() => handleEditRecommendation(recommendation)} title={t("profile.edit")}>
                               <Edit3 size={15} />
                             </Button>
                             <Button 
@@ -670,7 +671,7 @@ export default function AgronomoPage() {
                               size="sm" 
                               disabled={deletingRecommendationId === recommendation.id}
                               onClick={() => handleDeleteRecommendation(recommendation.id)} 
-                              title="Excluir"
+                              title={t("plantations.agronomist.delete")}
                             >
                               <Trash2 size={15} />
                             </Button>
@@ -688,7 +689,7 @@ export default function AgronomoPage() {
         <div className="col-12" id="nova-recomendacao">
           <div className="dashboard-card p-4">
             <h6 className="fw-bold mb-1 d-flex align-items-center gap-2">
-              <ClipboardList size={18} /> {editingRecommendationId ? "Editar recomendação" : "Nova recomendação"}
+              <ClipboardList size={18} /> {editingRecommendationId ? "Editar recomendação" : t("plantations.agronomist.new")}
             </h6>
             <p className="text-muted small mb-4">{t("plantations.agronomist.formDescription")}</p>
 
@@ -790,7 +791,7 @@ export default function AgronomoPage() {
                                 aria-label={item.nome}
                               >
                                 {item.nome.length > 30 ? `${item.nome.slice(0, 30)}...` : item.nome}
-                                <span className={styles.productDetails}>({t("plantations.agronomist.stockAvailable").replace("{quantity}", String(item.estoque_atual)).replace("{unit}", item.unidade_medida || "un.")} · {item.categoria_display || item.categoria || t("plantations.agronomist.noCategory")})</span>
+                                <span className={styles.productDetails}>({t("plantations.agronomist.stockAvailable").replace("{quantity}", String(item.estoque_atual)).replace("{unit}", item.unidade_medida || t("inventory.movements.unitShort"))} · {item.categoria_display || item.categoria || t("plantations.agronomist.noCategory")})</span>
                               </button>
                             ))}
                             {getProductSuggestions(product).length === 0 && (
@@ -845,7 +846,8 @@ export default function AgronomoPage() {
                     router.push(`/home/plantacoes/${id}`);
                   }
                 }}>
-                  Cancelar
+
+                  {t("cattle.form.cancel")}
                 </Button>
                 <Button variant="agro" onClick={handleSaveRecommendation} disabled={saving}>
                   <Save size={16} /> {saving ? t("plantations.agronomist.saving") : editingRecommendationId ? t("plantations.agronomist.update") : t("plantations.agronomist.save")}

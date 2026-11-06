@@ -1,32 +1,35 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { SegmentLanding } from "@/components/marketing/SegmentLanding";
-export const metadata: Metadata = {
-  title: "Software de gestão pecuária | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.livestockManagementSoftwareFazendaMais"),
   description:
-    "Controle rebanhos, manejo, saúde, alimentação e custos pecuários.",
-};
-export default function Page() {
+    t("public.trackHerdsManagementHealthFeedingAndLivestockCosts"),
+}; }
+export default async function Page() {
+  const { t } = await getPublicTranslator();
+
   return (
-    <SegmentLanding
-      eyebrow="Gestão pecuária"
-      title="Decisões melhores começam com um rebanho bem acompanhado"
-      description="Centralize cadastro animal, lotes, reprodução, sanidade, alimentação e custos em uma gestão pecuária integrada."
+    <SegmentLanding trackingLabel="Gestão pecuária"
+      eyebrow={t("public.livestockManagement")}
+      title={t("public.betterDecisionsStartWithAWellMonitoredHerd")}
+      description={t("public.bringAnimalRecordsBatchesReproductionHealthFeedingAndCostsInto")}
       benefits={[
-        "Histórico individual e por lote",
-        "Custos conectados ao manejo",
-        "Indicadores sanitários e produtivos",
-        "Equipe com responsabilidades definidas",
+        t("public.individualAndBatchHistory"),
+        t("public.costsConnectedToManagement"),
+        t("public.healthAndProductionIndicators"),
+        t("public.aTeamWithClearResponsibilities"),
       ]}
       features={[
         [
-          "Cadastro e lotes",
-          "Organize animais, identificação, peso, categoria e movimentações.",
+          t("public.registrationAndBatches"),
+          t("public.organizeAnimalsIdentificationWeightCategoriesAndMovements"),
         ],
-        ["Saúde animal", "Registre consultas, exames, vacinas e medicamentos."],
-        ["Reprodução", "Acompanhe coberturas, diagnósticos e nascimentos."],
-        ["Alimentação", "Controle rações, fórmulas, consumo e estoque."],
-        ["Custos pecuários", "Relacione despesas à atividade e ao período."],
-        ["Relatórios", "Acompanhe evolução, ocorrências e resultados."],
+        [t("public.animalHealth"), t("public.recordConsultationsTestsVaccinesAndMedicines")],
+        [t("cattleReproduction.production"), t("public.trackMatingsDiagnosesAndBirths")],
+        [t("animalDetail.feed"), t("public.trackFeedFormulasConsumptionAndStock")],
+        [t("public.livestockCosts"), t("public.linkExpensesToActivitiesAndPeriods")],
+        [t("affiliate.reports"), t("public.trackProgressOccurrencesAndResults")],
       ]}
     />
   );

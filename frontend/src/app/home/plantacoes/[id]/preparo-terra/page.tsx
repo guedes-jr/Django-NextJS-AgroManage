@@ -58,16 +58,7 @@ type OperationDetails = Record<OperationType, {
   hourlyRate: string;
 }>;
 
-const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }> = {
-  calagem: { label: "Calagem", icon: FileSpreadsheet },
-  aracao: { label: "Aração", icon: Tractor },
-  gradagem: { label: "Gradagem", icon: Grid },
-  subsolagem: { label: "Subsolagem", icon: Layers },
-  nivelamento: { label: "Nivelamento", icon: AlignJustify },
-  rocagem: { label: "Roçagem", icon: Scissors },
-  plantio: { label: "Plantio", icon: Sprout },
-  outro: { label: "Outro", icon: MoreHorizontal },
-};
+
 
 const createEmptyOperationDetails = (): OperationDetails => ({
   calagem: { hoursWorked: "", hourlyRate: "" },
@@ -136,6 +127,16 @@ const normalizeOperationLabel = (value?: string | null) => {
 
 export default function PreparoTerraPage() {
   const { language, t } = useOrganizationLocale();
+const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }> = {
+  calagem: { label: t("plantations.preparation.operation.calagem"), icon: FileSpreadsheet },
+  aracao: { label: t("plantations.preparation.operation.plowing"), icon: Tractor },
+  gradagem: { label: t("plantations.preparation.operation.harrowing"), icon: Grid },
+  subsolagem: { label: t("plantations.preparation.operation.subsoiling"), icon: Layers },
+  nivelamento: { label: t("plantations.preparation.operation.leveling"), icon: AlignJustify },
+  rocagem: { label: t("plantations.preparation.operation.weeding"), icon: Scissors },
+  plantio: { label: t("plantations.preparation.operation.planting"), icon: Sprout },
+  outro: { label: t("reproduction.other"), icon: MoreHorizontal },
+};
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
@@ -331,7 +332,7 @@ export default function PreparoTerraPage() {
               {plantation.name || plantation.crop_name}
             </span>
             <span>›</span>
-            <span>{plantation.field_name || "Talhão"}</span>
+            <span>{plantation.field_name || t("plantations.field")}</span>
             <span>›</span>
             <span className="text-primary fw-semibold">{t("plantations.common.mechanizedServices")}</span>
           </div>
@@ -501,7 +502,8 @@ export default function PreparoTerraPage() {
                 onClick={() => router.back()}
                 style={{ borderRadius: 10 }}
               >
-                Cancelar
+
+                {t("cattle.form.cancel")}
               </Button>
               <div className="d-flex gap-2">
                 <Button 

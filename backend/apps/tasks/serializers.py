@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import serializers
 
 from .models import Task, Holiday
@@ -36,38 +37,38 @@ class TaskSerializer(serializers.ModelSerializer):
         if self.instance and (hasattr(self.instance, "cattleprotocolstep") or hasattr(self.instance, "cattleoccurrence")):
             protected = {"status", "farm", "due_date", "title", "description", "assigned_to"}
             if any(key in attrs and attrs[key] != getattr(self.instance, key) for key in protected):
-                raise serializers.ValidationError("Atualize esta atividade pela Central de manejo bovino para preservar a execução e sua origem.")
+                raise serializers.ValidationError(translate_message("Atualize esta atividade pela Central de manejo bovino para preservar a execução e sua origem."))
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         assigned_to = attrs.get("assigned_to", getattr(self.instance, "assigned_to", None))
         if not organization:
-            raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário não possui organização vinculada.")})
         if farm and farm.organization_id != organization.id:
-            raise serializers.ValidationError({"farm": "A propriedade pertence a outra organização."})
+            raise serializers.ValidationError({"farm": translate_message("A propriedade pertence a outra organização.")})
         if assigned_to and assigned_to.organization_id != organization.id:
-            raise serializers.ValidationError({"assigned_to": "O responsável pertence a outra organização."})
+            raise serializers.ValidationError({"assigned_to": translate_message("O responsável pertence a outra organização.")})
         from datetime import datetime, time
         from django.utils import timezone
         value = lambda field: attrs.get(field, getattr(self.instance, field, None))
         day, start, end, reminder = (value(field) for field in ("due_date", "start_time", "end_time", "whatsapp_remind_at"))
         if (value("event_kind") in ("event", "appointment") or start or end) and not day:
-            raise serializers.ValidationError({"due_date":"Informe a data do evento."})
+            raise serializers.ValidationError({"due_date":translate_message("Informe a data do evento.")})
         if end and (not start or end <= start):
-            raise serializers.ValidationError({"end_time":"O fim deve ser posterior ao início no mesmo dia."})
+            raise serializers.ValidationError({"end_time":translate_message("O fim deve ser posterior ao início no mesmo dia.")})
         if reminder:
             if not day:
-                raise serializers.ValidationError({"due_date":"Informe a data para agendar o lembrete."})
+                raise serializers.ValidationError({"due_date":translate_message("Informe a data para agendar o lembrete.")})
             event_at = timezone.make_aware(datetime.combine(day, start or time(23,59,59)))
             changed = self.instance is None or any(field in attrs and attrs[field] != getattr(self.instance,field) for field in ("due_date","start_time","whatsapp_remind_at"))
             if reminder > event_at or changed and reminder <= timezone.now():
-                raise serializers.ValidationError({"whatsapp_remind_at":"Agende o lembrete no futuro e até o início do evento (ou fim do dia, se não houver horário)."})
+                raise serializers.ValidationError({"whatsapp_remind_at":translate_message("Agende o lembrete no futuro e até o início do evento (ou fim do dia, se não houver horário).")})
             user = self.context["request"].user
             if changed and self.instance and self.instance.created_by_id != user.pk:
-                raise serializers.ValidationError({"whatsapp_remind_at":"Apenas o criador pode configurar seu lembrete de WhatsApp."})
+                raise serializers.ValidationError({"whatsapp_remind_at":translate_message("Apenas o criador pode configurar seu lembrete de WhatsApp.")})
             if changed:
                 from apps.notifications.tasks import _whatsapp_phone
                 if not user.receive_system_alerts or not user.phone_is_whatsapp or not _whatsapp_phone(user.phone):
-                    raise serializers.ValidationError({"whatsapp_remind_at":"Cadastre um WhatsApp válido e autorize os alertas no seu perfil."})
+                    raise serializers.ValidationError({"whatsapp_remind_at":translate_message("Cadastre um WhatsApp válido e autorize os alertas no seu perfil.")})
         return attrs
 
     def update(self, instance, validated_data):
@@ -87,7 +88,7 @@ class HolidaySerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         from .models import Holiday
         if Holiday.objects.filter(organization=self.context["request"].user.organization, date=attrs["date"], name=attrs["name"]).exists():
-            raise serializers.ValidationError("Este feriado já está cadastrado nesta data.")
+            raise serializers.ValidationError(translate_message("Este feriado já está cadastrado nesta data."))
         return attrs
 
 
@@ -100,5 +101,5 @@ class HolidayImportInput(HolidayYearQuery):
 
     def validate(self, attrs):
         if any(day.year != attrs["year"] for day in attrs["dates"]):
-            raise serializers.ValidationError("As datas devem pertencer ao ano selecionado.")
+            raise serializers.ValidationError(translate_message("As datas devem pertencer ao ano selecionado."))
         return attrs

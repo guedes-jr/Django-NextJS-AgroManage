@@ -772,8 +772,8 @@ export default function RelatorioPlantacaoPage() {
 
         <aside className="col-12 col-xl-4">
           <div className="dashboard-card p-4 mb-4">
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Resumo do relatório</h2>
-            <p className="text-muted-foreground small mb-4">Veja o que será incluído no seu relatório.</p>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>{t("plantations.history.summary")}</h2>
+            <p className="text-muted-foreground small mb-4">{t("plantations.history.reportPreview")}</p>
             <div className="d-flex flex-column gap-3">
               {orderedModules.map((type) => {
                 const config = moduleConfig[type];
@@ -791,21 +791,21 @@ export default function RelatorioPlantacaoPage() {
               })}
             </div>
             <div className="border-top border-border mt-4 pt-3 d-flex justify-content-between align-items-center">
-              <span className="fw-bold text-foreground">Total de informações</span>
-              <span className="fw-black text-foreground">{totalRecords} registros</span>
+              <span className="fw-bold text-foreground">{t("plantations.history.totalInformation")}</span>
+              <span className="fw-black text-foreground">{totalRecords}  {t("reproduction.records")}</span>
             </div>
           </div>
 
           <div className="dashboard-card p-4 mb-4">
-            <h2 className="fw-bold mb-4" style={{ fontSize: "1.05rem" }}><Settings size={16} className="me-2" />Configurações do PDF</h2>
+            <h2 className="fw-bold mb-4" style={{ fontSize: "1.05rem" }}><Settings size={16} className="me-2" />{t("plantations.history.pdfSettings")}</h2>
             {[
-              ["Formato", "PDF"],
-              ["Orientação", "Retrato"],
-              ["Páginas estimadas", selectedEvents.length > 20 ? "20 - 30 páginas" : "5 - 15 páginas"],
-              ["Tamanho", "A4"],
-              ["Incluir gráficos", "Sim"],
-              ["Incluir anexos", selectedModules.anexos ? "Sim" : "Não"],
-              ["Idioma", "Português"],
+              [t("plantations.history.format"), "PDF"],
+              [t("plantations.history.orientation"), t("plantations.history.portrait")],
+              [t("plantations.history.estimatedPages"), selectedEvents.length > 20 ? t("plantations.history.pages20") : t("plantations.history.pages5")],
+              [t("plantations.history.size"), "A4"],
+              [t("plantations.history.includeCharts"), t("plantations.history.yes")],
+              [t("plantations.history.includeAttachments"), selectedModules.anexos ? t("plantations.history.yes") : t("plantations.history.no")],
+              [t("plantations.history.language"), "Português"],
             ].map(([label, value]) => (
               <div key={label} className="d-flex justify-content-between gap-3 mb-3 small">
                 <span className="text-muted-foreground">{label}:</span>
@@ -815,14 +815,14 @@ export default function RelatorioPlantacaoPage() {
           </div>
 
           <div className="dashboard-card p-4">
-            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>Exportar e compartilhar</h2>
-            <p className="text-muted-foreground small mb-4">Gere o PDF completo, o resumo total ou envie diretamente ao agrônomo.</p>
+            <h2 className="fw-bold mb-1" style={{ fontSize: "1.05rem" }}>{t("plantations.history.export")}</h2>
+            <p className="text-muted-foreground small mb-4">{t("plantations.history.exportDescription")}</p>
             <div className="d-grid gap-3">
-              <Button variant="agro" onClick={() => handleDownloadPdf(false)}><Download size={16} /> Gerar PDF completo</Button>
-              <Button variant="outline-secondary" onClick={() => handleDownloadPdf(true)}><FileText size={16} /> Gerar PDF resumo</Button>
-              <Button variant="outline-secondary" onClick={handlePreviewPdf}><Eye size={16} /> Visualizar PDF</Button>
-              <Button variant="outline-secondary" onClick={handleSendToAgronomist} disabled={sharing}><Send size={16} /> Enviar para agrônomo</Button>
-              <Button variant="outline-success" onClick={handleCopyLink}><Link size={16} /> Compartilhar link</Button>
+              <Button variant="agro" onClick={() => handleDownloadPdf(false)}><Download size={16} />  {t("plantations.history.fullPdf")}</Button>
+              <Button variant="outline-secondary" onClick={() => handleDownloadPdf(true)}><FileText size={16} />  {t("plantations.history.summaryPdf")}</Button>
+              <Button variant="outline-secondary" onClick={handlePreviewPdf}><Eye size={16} />  {t("plantations.history.previewPdf")}</Button>
+              <Button variant="outline-secondary" onClick={handleSendToAgronomist} disabled={sharing}><Send size={16} />  {t("plantations.history.sendAgronomist")}</Button>
+              <Button variant="outline-success" onClick={handleCopyLink}><Link size={16} />  {t("plantations.history.shareLink")}</Button>
             </div>
             <div className="mt-4 p-3 d-flex gap-3" style={{ borderRadius: 8, background: "#f0fdf4", border: "1px solid #dcfce7" }}>
               <Info size={18} className="text-success flex-shrink-0 mt-1" />

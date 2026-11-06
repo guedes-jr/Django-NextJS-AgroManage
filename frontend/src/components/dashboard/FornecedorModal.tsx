@@ -180,7 +180,7 @@ export function FornecedorModal({ isOpen, onClose, onSave, fornecedorInitial }: 
         const data = await response.json();
         
         const newContacts: any[] = [];
-        if (data.ddd_telefone_1) newContacts.push({ label: "Principal", valor: formatPhone(data.ddd_telefone_1), tipo: "telefone" });
+        if (data.ddd_telefone_1) newContacts.push({ label: t("settings.org.main"), valor: formatPhone(data.ddd_telefone_1), tipo: "telefone" });
         if (data.ddd_telefone_2) newContacts.push({ label: "Secundário", valor: formatPhone(data.ddd_telefone_2), tipo: "telefone" });
         if (data.email) newContacts.push({ label: "E-mail Oficial", valor: data.email, tipo: "email" });
 

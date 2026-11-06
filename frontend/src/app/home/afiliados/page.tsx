@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useEffect, useState } from "react";
 import { Check, Copy, Handshake, MousePointerClick, UserCheck, UserPlus, Wallet } from "lucide-react";
@@ -13,11 +14,11 @@ import {
 } from "@/services/affiliateService";
 import styles from "./page.module.css";
 
-const money = (value: string) =>
-  Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const money = (value: string, language = "pt-BR") =>
+  Number(value).toLocaleString(language, { style: "currency", currency: "BRL" });
 
-const date = (value: string | null) =>
-  value ? new Date(value).toLocaleDateString("pt-BR") : "—";
+const date = (value: string | null, language = "pt-BR") =>
+  value ? new Date(value).toLocaleDateString(language) : "—";
 
 const statusClass = (status: string) => {
   if (status === "paid" || status === "converted") return styles.success;
@@ -33,6 +34,7 @@ const durationLabel = {
 };
 
 export default function AffiliatePage() {
+  const { language, t } = useOrganizationLocale();
   const [profile, setProfile] = useState<AffiliateProfile | null>(null);
   const [dashboard, setDashboard] = useState<AffiliateDashboard | null>(null);
   const [referrals, setReferrals] = useState<AffiliateReferral[]>([]);
@@ -87,13 +89,13 @@ export default function AffiliatePage() {
     { label: "Cliques", value: dashboard.clicks, icon: MousePointerClick },
     { label: "Cadastros", value: dashboard.registrations, icon: UserPlus },
     { label: "Convertidos", value: dashboard.converted_customers, icon: UserCheck },
-    { label: "Comissões geradas", value: money(dashboard.commissions.total), icon: Wallet },
+    { label: "Comissões geradas", value: money(dashboard.commissions.total, language), icon: Wallet },
   ];
 
   return (
     <div>
       <PageHeader
-        title="Área do afiliado"
+        title={t("sidebar.affiliate")}
         subtitle="Acompanhe suas indicações, conversões e comissões."
       />
 
@@ -105,7 +107,7 @@ export default function AffiliatePage() {
             <div className="text-muted small mt-2">
               Comissão: {profile.commission_type === "percentage"
                 ? `${Number(profile.commission_value)}%`
-                : money(profile.commission_value)} sobre {durationLabel[profile.commission_duration]}
+                : money(profile.commission_value, language)} sobre {durationLabel[profile.commission_duration]}
             </div>
           </div>
           <button type="button" className="btn btn-success d-flex align-items-center justify-content-center gap-2" onClick={copyLink}>
@@ -131,8 +133,8 @@ export default function AffiliatePage() {
         {(["pending", "approved", "paid"] as const).map((key) => (
           <div className="col-md-4" key={key}>
             <Card>
-              <div className="text-muted small text-capitalize">{key === "pending" ? "Pendentes" : key === "approved" ? "Aprovadas" : "Pagas"}</div>
-              <div className="fs-4 fw-bold mt-1">{money(dashboard.commissions[key])}</div>
+              <div className="text-muted small text-capitalize">{key === "pending" ? t("inventory.alerts.pending") : key === "approved" ? "Aprovadas" : "Pagas"}</div>
+              <div className="fs-4 fw-bold mt-1">{money(dashboard.commissions[key], language)}</div>
             </Card>
           </div>
         ))}
@@ -141,12 +143,12 @@ export default function AffiliatePage() {
       <Card className="mb-4" header={<h2 className="h5 fw-bold mb-0">Indicações recentes</h2>}>
         <div className="table-responsive">
           <table className="table align-middle mb-0">
-            <thead><tr><th>Cliente</th><th>Plano</th><th>Entrada</th><th>Cadastro</th><th>Status</th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Plano</th><th>{t("swineReproduction.entry")}</th><th>{t("swine.home.module.registry")}</th><th>{t("users.columnStatus")}</th></tr></thead>
             <tbody>
               {referrals.map((item) => (
                 <tr key={item.id}>
                   <td className="fw-semibold">{item.customer}</td><td>{item.plan}</td>
-                  <td>{date(item.attributed_at)}</td><td>{date(item.registered_at)}</td>
+                  <td>{date(item.attributed_at, language)}</td><td>{date(item.registered_at, language)}</td>
                   <td><span className={`${styles.status} ${statusClass(item.status)}`}>{item.status_display}</span></td>
                 </tr>
               ))}
@@ -159,13 +161,13 @@ export default function AffiliatePage() {
       <Card header={<h2 className="h5 fw-bold mb-0">Histórico de comissões</h2>}>
         <div className="table-responsive">
           <table className="table align-middle mb-0">
-            <thead><tr><th>Cliente</th><th>Plano</th><th>Contratação</th><th>Comissão</th><th>Conversão</th><th>Status</th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Plano</th><th>Contratação</th><th>Comissão</th><th>Conversão</th><th>{t("users.columnStatus")}</th></tr></thead>
             <tbody>
               {commissions.map((item) => (
                 <tr key={item.id}>
                   <td className="fw-semibold">{item.customer}</td><td>{item.plan}</td>
-                  <td>{money(item.transaction_amount)}</td><td>{money(item.commission_amount)}</td>
-                  <td>{date(item.conversion_at)}</td>
+                  <td>{money(item.transaction_amount, language)}</td><td>{money(item.commission_amount, language)}</td>
+                  <td>{date(item.conversion_at, language)}</td>
                   <td><span className={`${styles.status} ${statusClass(item.status)}`}>{item.status_display}</span></td>
                 </tr>
               ))}

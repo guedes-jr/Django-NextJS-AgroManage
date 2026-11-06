@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -78,6 +79,7 @@ export function MovimentacaoFormModalWithHeader({
   produtos = [],
   initialData 
 }: MovimentacaoFormModalProps) {
+  const { t } = useOrganizationLocale();
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [tipo, setTipo] = useState<string>("compra");
@@ -289,7 +291,7 @@ export function MovimentacaoFormModalWithHeader({
             <div className="p-4 border-bottom border-border d-flex justify-content-between align-items-center" style={{ background: "var(--muted)/50" }}>
               <div>
                 <h2 className="fw-bold mb-0" style={{ fontSize: "1.25rem" }}>Registrar Movimentação</h2>
-                <p className="text-muted-foreground small mb-0">Entrada ou saída de itens do estoque</p>
+                <p className="text-muted-foreground small mb-0">{t("inventory.movements.entryOrExit")}</p>
               </div>
               <button onClick={onClose} className="btn p-2 hover-bg-border rounded-circle">
                 <X size={20} />
@@ -342,7 +344,8 @@ export function MovimentacaoFormModalWithHeader({
                     }}
                   >
                     <Plus size={16} />
-                    Entrada
+
+                    {t("swineReproduction.entry")}
                   </button>
                   <button
                     type="button"
@@ -357,7 +360,8 @@ export function MovimentacaoFormModalWithHeader({
                     }}
                   >
                     <TrendingDown size={16} />
-                    Saída
+
+                    {t("inventory.movements.exit")}
                   </button>
                 </div>
               </div>
@@ -381,7 +385,7 @@ export function MovimentacaoFormModalWithHeader({
                         >
                           <div className="d-flex align-items-center gap-2">
                             <ShoppingCart size={16} style={{ color: tipo === "compra" ? "oklch(0.65 0.14 145)" : "var(--muted-foreground)" }} />
-                            <span className="fw-bold small" style={{ color: tipo === "compra" ? "oklch(0.65 0.14 145)" : "var(--foreground)" }}>Compra</span>
+                            <span className="fw-bold small" style={{ color: tipo === "compra" ? "oklch(0.65 0.14 145)" : "var(--foreground)" }}>{t("inventory.movements.purchase")}</span>
                           </div>
                         </button>
                       </div>
@@ -398,7 +402,7 @@ export function MovimentacaoFormModalWithHeader({
                         >
                           <div className="d-flex align-items-center gap-2">
                             <Plus size={16} style={{ color: tipo === "entrada" ? "oklch(0.65 0.14 145)" : "var(--muted-foreground)" }} />
-                            <span className="fw-bold small" style={{ color: tipo === "entrada" ? "oklch(0.65 0.14 145)" : "var(--foreground)" }}>Ajuste</span>
+                            <span className="fw-bold small" style={{ color: tipo === "entrada" ? "oklch(0.65 0.14 145)" : "var(--foreground)" }}>{t("inventory.movements.adjustment")}</span>
                           </div>
                         </button>
                       </div>
@@ -418,7 +422,7 @@ export function MovimentacaoFormModalWithHeader({
                         >
                           <div className="d-flex align-items-center gap-1 gap-md-2">
                             <Utensils size={14} style={{ color: tipo === "consumo" ? "oklch(0.65 0.14 15)" : "var(--muted-foreground)" }} />
-                            <span className="fw-bold small" style={{ color: tipo === "consumo" ? "oklch(0.65 0.14 15)" : "var(--foreground)", fontSize: "0.75rem" }}>Consumo</span>
+                            <span className="fw-bold small" style={{ color: tipo === "consumo" ? "oklch(0.65 0.14 15)" : "var(--foreground)", fontSize: "0.75rem" }}>{t("inventory.movements.consumption")}</span>
                           </div>
                         </button>
                       </div>
@@ -435,7 +439,7 @@ export function MovimentacaoFormModalWithHeader({
                         >
                           <div className="d-flex align-items-center gap-1 gap-md-2">
                             <TrendingDown size={14} style={{ color: tipo === "venda" ? "oklch(0.65 0.14 15)" : "var(--muted-foreground)" }} />
-                            <span className="fw-bold small" style={{ color: tipo === "venda" ? "oklch(0.65 0.14 15)" : "var(--foreground)", fontSize: "0.75rem" }}>Venda</span>
+                            <span className="fw-bold small" style={{ color: tipo === "venda" ? "oklch(0.65 0.14 15)" : "var(--foreground)", fontSize: "0.75rem" }}>{t("reproduction.sale")}</span>
                           </div>
                         </button>
                       </div>
@@ -452,7 +456,7 @@ export function MovimentacaoFormModalWithHeader({
                         >
                           <div className="d-flex align-items-center gap-1 gap-md-2">
                             <AlertTriangle size={14} style={{ color: tipo === "perda" ? "oklch(0.65 0.14 15)" : "var(--muted-foreground)" }} />
-                            <span className="fw-bold small" style={{ color: tipo === "perda" ? "oklch(0.65 0.14 15)" : "var(--foreground)", fontSize: "0.75rem" }}>Perda</span>
+                            <span className="fw-bold small" style={{ color: tipo === "perda" ? "oklch(0.65 0.14 15)" : "var(--foreground)", fontSize: "0.75rem" }}>{t("inventory.movements.loss")}</span>
                           </div>
                         </button>
                       </div>
@@ -472,7 +476,7 @@ export function MovimentacaoFormModalWithHeader({
                 >
                   {/* Product Selection */}
                   <div className="mb-3">
-                    <label className={labelStyle}>Produto</label>
+                    <label className={labelStyle}>{t("plantations.agronomist.product")}</label>
                     <div className="position-relative">
                       <select 
                         style={inputStyle}
@@ -480,7 +484,7 @@ export function MovimentacaoFormModalWithHeader({
                         onChange={(e) => setItemId(e.target.value)}
                         required
                       >
-                        <option value="">Selecione o produto...</option>
+                        <option value="">{t("inventory.movements.selectProductPlaceholder")}</option>
                         {filteredProdutos.map(p => (
                           <option key={p.id} value={p.id}>{p.nome} ({p.categoria_display})</option>
                         ))}
@@ -491,7 +495,7 @@ export function MovimentacaoFormModalWithHeader({
 
                   <div className="row g-3 mb-3">
                     <div className="col-6">
-                      <label className={labelStyle}>Quantidade {produtoSelecionado && `(${produtoSelecionado.unidade_medida})`}</label>
+                      <label className={labelStyle}>{t("lotReport.quantity")} {produtoSelecionado && `(${produtoSelecionado.unidade_medida})`}</label>
                       <input
                         type="number"
                         style={inputStyle}
@@ -507,7 +511,7 @@ export function MovimentacaoFormModalWithHeader({
                         <>
                           <label className={labelStyle}>Lote (Opcional)</label>
                           <select style={inputStyle} value={loteId} onChange={(e) => setLoteId(e.target.value)}>
-                            <option value="">Padrão (FIFO)</option>
+                            <option value="">{t("inventory.movements.defaultFifo")}</option>
                             {availableLotes.map(l => (
                               <option key={l.id} value={l.id}>{l.numero_lote || "Sem nº"} - Saldo: {l.quantidade_atual}</option>
                             ))}
@@ -539,9 +543,9 @@ export function MovimentacaoFormModalWithHeader({
                           <input type="date" style={inputStyle} value={dataValidade} onChange={e => setDataValidade(e.target.value)} />
                         </div>
                         <div className="col-12">
-                          <label className={labelStyle}>Fornecedor</label>
+                          <label className={labelStyle}>{t("clinical.supplier")}</label>
                           <select style={inputStyle} value={fornecedorId} onChange={e => setFornecedorId(e.target.value)}>
-                            <option value="">Selecione...</option>
+                            <option value="">{t("reproduction.select")}</option>
                             {suppliers.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                           </select>
                         </div>
@@ -555,7 +559,7 @@ export function MovimentacaoFormModalWithHeader({
 
                   {direction === "out" && (
                     <div className="mb-3">
-                      <label className={labelStyle}>Destino</label>
+                      <label className={labelStyle}>{t("crops.destination")}</label>
                       <div className="position-relative">
                         <input
                           type="text"
@@ -583,7 +587,7 @@ export function MovimentacaoFormModalWithHeader({
                 <label className={labelStyle}>Observação / Motivo</label>
                 <textarea
                   style={{ ...inputStyle, height: '80px', padding: '0.75rem 1rem', resize: 'none' }}
-                  placeholder="Descreva o motivo desta movimentação..."
+                  placeholder={t("inventory.movements.notePlaceholder")}
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
                 />
@@ -600,7 +604,8 @@ export function MovimentacaoFormModalWithHeader({
             {/* Footer */}
             <div className="p-4 border-top border-border d-flex justify-content-end gap-2 bg-muted/20">
               <button type="button" onClick={onClose} className="btn px-4 py-2 border-0 fw-bold text-muted-foreground hover-bg-border rounded-2xl">
-                Cancelar
+
+                {t("cattle.form.cancel")}
               </button>
               <button
                 type="submit"

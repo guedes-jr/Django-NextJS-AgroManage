@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useEffect } from "react";
 import { X, Printer, Loader2, CheckCircle2 } from "lucide-react";
@@ -16,15 +17,15 @@ interface AnimalTechnicalSheetModalProps {
 }
 
 // ─── Shared Helpers ──────────────────────────────────────────────────────────
-const fmt = (v: any, decimals = 2) =>
+const fmt = (v: any, decimals = 2, language = "pt-BR") =>
   v != null && !isNaN(Number(v))
-    ? Number(v).toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    ? Number(v).toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     : "-";
 
-const fmtInt = (v: any) =>
-  v != null && !isNaN(Number(v)) ? Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "-";
+const fmtInt = (v: any, language = "pt-BR") =>
+  v != null && !isNaN(Number(v)) ? Number(v).toLocaleString(language, { maximumFractionDigits: 0 }) : "-";
 
-const fmtDate = (d: any) => {
+const fmtDate = (d: any, language = "pt-BR") => {
   if (!d) return "-";
   if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
     const [year, month, day] = d.split("-");
@@ -32,7 +33,7 @@ const fmtDate = (d: any) => {
   }
   const dateObj = new Date(d);
   if (isNaN(dateObj.getTime())) return d;
-  return dateObj.toLocaleDateString("pt-BR");
+  return dateObj.toLocaleDateString(language);
 };
 
 const calcAge = (birthDate: string | null) => {
@@ -199,10 +200,11 @@ const StatBox = ({ icon, label, value, highlight, danger }: StatBoxProps) => (
 
 // ─── Matriz Template ─────────────────────────────────────────────────────────
 function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
+  const { language, t } = useOrganizationLocale();
   const ageString = calcAge(animal?.birth_date);
   const cycles = animal?.reproductive_cycles || [];
   const femaleCategory = animal?.category || "Fêmea reprodutiva";
-  const femaleCategoryUpper = femaleCategory.toLocaleUpperCase("pt-BR");
+  const femaleCategoryUpper = femaleCategory.toLocaleUpperCase(language);
   const farmName = animal?.farm_name || "Propriedade não informada";
   
   // History calculations
@@ -314,24 +316,24 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       : metrics.bornAlive + numericValue(c.stillborn) + numericValue(c.mummified);
     return {
       n: c.cycle_number,
-      dataCob: fmtDate(c.mating_date) || "-",
+      dataCob: fmtDate(c.mating_date, language) || "-",
       tipo: c.mating_type_display || c.mating_type || "-",
       rep: c.sire_name || c.sire_info || c.sire_identifier || "-",
       dataConf: c.pregnancy_confirmed ? "Confirmada" : (c.pregnancy_status === "failed" ? "Falhou" : "-"),
-      prevParto: fmtDate(c.expected_birth_date) || "-",
-      dataParto: fmtDate(c.birth_date) || "-",
+      prevParto: fmtDate(c.expected_birth_date, language) || "-",
+      dataParto: fmtDate(c.birth_date, language) || "-",
       totalNasc: originalTotal,
       nascidosVivos: metrics.bornAlive,
       saldoAtual: metrics.currentBalance,
       mortos: c.stillborn !== null ? c.stillborn : "-",
       natimortos: c.mummified !== null ? c.mummified : "-",
       mortalidadePos: c.mortality ?? 0,
-      pesoNasc: c.avg_birth_weight_kg ? fmt(c.avg_birth_weight_kg) : "-",
-      dataDesm: fmtDate(c.weaning_date) || "-",
+      pesoNasc: c.avg_birth_weight_kg ? fmt(c.avg_birth_weight_kg, undefined, language) : "-",
+      dataDesm: fmtDate(c.weaning_date, language) || "-",
       desmamados: c.weaned_quantity !== null ? c.weaned_quantity : "-",
-      pesoDesm: c.avg_weaning_weight_kg ? fmt(c.avg_weaning_weight_kg) : "-",
+      pesoDesm: c.avg_weaning_weight_kg ? fmt(c.avg_weaning_weight_kg, undefined, language) : "-",
       diasLact: c.lactation_days || "-",
-      retCio: fmtDate(c.heat_return_date) || "-",
+      retCio: fmtDate(c.heat_return_date, language) || "-",
       obs: c.notes || "-"
     };
   });
@@ -343,7 +345,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       origem: metadata.origem_identifier || (recebimento ? "-" : animal?.identifier) || "-",
       destino: metadata.destino_identifier || (recebimento ? animal?.identifier : "-") || "-",
       quantidade: metadata.quantidade ?? "-",
-      data: fmtDate(event.details?.data_evento || event.date) || "-",
+      data: fmtDate(event.details?.data_evento || event.date, language) || "-",
     };
   });
 
@@ -352,8 +354,8 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
     .filter((e: any) => e.type === "vaccination")
     .map((v: any) => ({
       vacina: v.details?.vaccine_name || v.title.replace("Vacinação: ", ""),
-      data: fmtDate(v.details?.application_date || v.date),
-      prox: fmtDate(v.details?.next_dose_date) || "-",
+      data: fmtDate(v.details?.application_date || v.date, language),
+      prox: fmtDate(v.details?.next_dose_date, language) || "-",
       obs: v.details?.notes || v.subtitle || "-"
     }));
 
@@ -361,9 +363,9 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
   const cios = history
     .filter((e: any) => e.type === "registro_cio")
     .map((c: any) => ({
-      data1: fmtDate(c.details?.cio1) || "-",
-      data2: fmtDate(c.details?.cio2_previsto) || "-",
-      data3: fmtDate(c.details?.cio3_previsto) || "-"
+      data1: fmtDate(c.details?.cio1, language) || "-",
+      data2: fmtDate(c.details?.cio2_previsto, language) || "-",
+      data3: fmtDate(c.details?.cio3_previsto, language) || "-"
     }));
 
   return (
@@ -412,19 +414,19 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧑‍🌾 Nome / Número:</span> <b>{animal?.identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏷️ Brinco:</span> <b>{animal?.identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧬 Raça / Linhagem:</span> <b>{animal?.breed_name || "Mestiça"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date, language)}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⏱️ Idade:</span> <b>{ageString || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📉 Categoria Atual:</span> 
-              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{(animal?.category || "Matriz").toUpperCase()}</span>
+              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{(animal?.category || t("swineReproduction.matrix")).toUpperCase()}</span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🩺 Situação:</span> 
               <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{fmtReproductiveStatus(animal?.reproductive_status)}</span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>✅ Status:</span> 
               <span style={{ background: animal?.status === "active" ? "#1b5e20" : "#74c0fc", color: "#fff", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content", display: "flex", alignItems: "center", gap: 4 }}>
                 <CheckCircle2 size={12}/> {animal?.status === "active" ? "ATIVA" : "INATIVA"}
               </span>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date, language)}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>{fmtOrigin(animal?.batch_origin)}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⚖️ Peso Atual:</span> <b>{animal?.current_weight_kg ? `${fmt(animal.current_weight_kg)} kg` : "-"}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⚖️ Peso Atual:</span> <b>{animal?.current_weight_kg ? `${fmt(animal.current_weight_kg, undefined, language)} kg` : "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🐗 Pai (Reprodutor):</span> <b>{animal?.sire_name || animal?.sire_identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🐷 Mãe:</span> <b>{animal?.dam_name || animal?.dam_identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📝 Observações:</span> <b>{animal?.notes || "-"}</b>
@@ -482,18 +484,18 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             </tr>
             <tr>
               <Th>Nº</Th>
-              <Th>Data</Th>
-              <Th>Macho<br/>(Tipo)</Th>
+              <Th>{t("lotReport.date")}</Th>
+              <Th>{t("workspace.male")}<br/>(Tipo)</Th>
               <Th>Prev.<br/>Parto</Th>
-              <Th>Data<br/>Parto</Th>
+              <Th>{t("lotReport.date")}<br/>Parto</Th>
               <Th>Nascidos / saldo<br/><span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>(Total | 🟢 Parto | 🔵 Atual | 🔴 | ⚫ | ⚠️)</span></Th>
               <Th>Peso Nasc.<br/>(kg)</Th>
-              <Th>Data<br/>Desmame</Th>
-              <Th>Qtd.<br/>Desm.</Th>
+              <Th>{t("lotReport.date")}<br/>Desmame</Th>
+              <Th>{t("livestock.registration.quantity")}<br/>Desm.</Th>
               <Th>Peso Desm.<br/>(kg)</Th>
-              <Th>Dias<br/>Lact.</Th>
-              <Th>Data<br/>Próx. Cio</Th>
-              <Th>Observações</Th>
+              <Th>{t("poultryReproduction.days")}<br/>Lact.</Th>
+              <Th>{t("lotReport.date")}<br/>Próx. Cio</Th>
+              <Th>{t("reproduction.observations")}</Th>
             </tr>
 
           </thead>
@@ -517,8 +519,8 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
                         <div style={{ fontSize: "0.65rem", display: "flex", gap: "6px", marginTop: "2px" }}>
                           <span title="Nascidos vivos no parto">🟢 {r.nascidosVivos}</span>
                           <span title="Saldo atual após transferências e óbitos">🔵 {r.saldoAtual}</span>
-                          <span title="Natimortos">🔴 {r.mortos}</span>
-                          <span title="Mumificados">⚫ {r.natimortos}</span>
+                          <span title={t("reproduction.stillborn")}>🔴 {r.mortos}</span>
+                          <span title={t("swineReproduction.mummified")}>⚫ {r.natimortos}</span>
                           <span title="Óbitos pós-parto">⚠️ {r.mortalidadePos}</span>
                         </div>
                       </div>
@@ -546,10 +548,10 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>Vacina</Th>
-                <Th>Data</Th>
+                <Th>{t("animalDetail.vaccine")}</Th>
+                <Th>{t("lotReport.date")}</Th>
                 <Th>Próxima Dose</Th>
-                <Th>Observações</Th>
+                <Th>{t("reproduction.observations")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -577,10 +579,10 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>Origem</Th>
-                <Th>Destino</Th>
-                <Th>Quantidade</Th>
-                <Th>Data</Th>
+                <Th>{t("animalDetail.origin")}</Th>
+                <Th>{t("crops.destination")}</Th>
+                <Th>{t("lotReport.quantity")}</Th>
+                <Th>{t("lotReport.date")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -591,8 +593,8 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
               ) : (
                 transferencias.map((transferencia: any, i: number) => (
                   <TR key={i} even={i % 2 !== 0}>
-                    <Td>Matriz {transferencia.origem}</Td>
-                    <Td>Matriz {transferencia.destino}</Td>
+                    <Td>{t("swineReproduction.matrix")} {transferencia.origem}</Td>
+                    <Td>{t("swineReproduction.matrix")} {transferencia.destino}</Td>
                     <Td>{transferencia.quantidade}</Td>
                     <Td>{transferencia.data}</Td>
                   </TR>
@@ -638,7 +640,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
       <div style={{ border: `1px solid ${GREEN_BORDER}`, borderRadius: 8, overflow: "hidden", marginBottom: 15 }}>
         <SectionHeader number={8} title="OBSERVAÇÕES" />
         <div style={{ padding: "10px", fontSize: "0.65rem", color: "#333", lineHeight: 1.5 }}>
-          {animal?.notes || `Nenhuma observação registrada para esta ${femaleCategory.toLocaleLowerCase("pt-BR")}.`}
+          {animal?.notes || `Nenhuma observação registrada para esta ${femaleCategory.toLocaleLowerCase(language)}.`}
         </div>
       </div>
 
@@ -664,7 +666,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
           <span style={{ fontSize: "1.2rem", color: GREEN_DARK }}>➔</span>
 
           <div style={{ textAlign: "center", width: 100 }}>
-            <div style={{ fontWeight: 800, fontSize: "0.6rem", color: GREEN_DARK, marginBottom: 5 }}>MATERNIDADE</div>
+            <div style={{ fontWeight: 800, fontSize: "0.6rem", color: GREEN_DARK, marginBottom: 5 }}>{t("swine.groupMaternity")}</div>
             <div style={{ fontSize: "1.8rem", marginBottom: 5 }}>🐖</div>
             <div style={{ fontSize: "0.55rem", color: GRAY_TEXT }}>Período de parto e lactação. Cuidados com leitões e matriz.</div>
           </div>
@@ -695,7 +697,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
             <div style={{ background: "#f0f0f0", padding: "6px", borderRadius: "50%" }}>🧑‍⚕️</div>
             <div>
               <div style={{ fontWeight: 800, fontSize: "0.65rem", color: "#1a1a1a" }}>Responsável Técnico</div>
-              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>Não informado</div>
+              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>{t("lotReport.notInformed")}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -710,6 +712,7 @@ function MatrizTemplate({ animal, history, reportDate, reportTime }: any) {
 
 // ─── Reprodutor Template ──────────────────────────────────────────────────────
 function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
+  const { language, t } = useOrganizationLocale();
   const ageString = calcAge(animal?.birth_date);
   const farmName = animal?.farm_name || "Propriedade não informada";
   
@@ -728,8 +731,8 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
     .filter((e: any) => e.type === "vaccination")
     .map((v: any) => ({
       vacina: v.details?.vaccine_name || v.title.replace("Vacinação: ", ""),
-      data: fmtDate(v.details?.application_date || v.date),
-      prox: fmtDate(v.details?.next_dose_date) || "-",
+      data: fmtDate(v.details?.application_date || v.date, language),
+      prox: fmtDate(v.details?.next_dose_date, language) || "-",
       obs: v.details?.notes || v.subtitle || "-"
     }));
 
@@ -739,7 +742,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
     .map((h: any) => ({
       prod: h.details?.description || h.subtitle || "",
       motivo: h.details?.treatment_type_display || h.title.replace("Clínico: ", "") || "Tratamento",
-      data: fmtDate(h.details?.application_date || h.date),
+      data: fmtDate(h.details?.application_date || h.date, language),
       dose: h.details?.notes || "-",
       resp: h.details?.veterinary || "Vet"
     }));
@@ -788,15 +791,15 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧑‍🌾 Nome / Número:</span> <b>{animal?.identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏷️ Brinco:</span> <b>{animal?.identifier || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🧬 Raça / Linhagem:</span> <b>{animal?.breed_name || "Mestiço"}</b>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📅 Data de Nascimento:</span> <b>{fmtDate(animal?.birth_date, language)}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>⏱️ Idade:</span> <b>{ageString || "-"}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>📉 Categoria Atual:</span> 
-              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{(animal?.category || "Reprodutor").toUpperCase()}</span>
+              <span style={{ background: "#d1e7dd", color: "#0f5132", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content" }}>{(animal?.category || t("swine.categoryBoar")).toUpperCase()}</span>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>✅ Status:</span> 
               <span style={{ background: animal?.status === "active" ? "#1b5e20" : "#74c0fc", color: "#fff", padding: "2px 8px", borderRadius: 4, fontWeight: 700, width: "fit-content", display: "flex", alignItems: "center", gap: 4 }}>
                 <CheckCircle2 size={12}/> {animal?.status === "active" ? "ATIVO" : "INATIVO"}
               </span>
-            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date)}</b>
+            <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🏢 Entrada na Granja:</span> <b>{fmtDate(animal?.entry_date, language)}</b>
             <span style={{ color: GRAY_TEXT, display: "flex", alignItems: "center", gap: 6 }}>🌍 Origem:</span> <b>{fmtOrigin(animal?.batch_origin)}</b>
           </div>
         </div>
@@ -832,12 +835,12 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
           <thead>
             <tr>
               <Th>Nº</Th>
-              <Th>Data</Th>
+              <Th>{t("lotReport.date")}</Th>
               <Th>Matriz Coberta</Th>
-              <Th>Tipo</Th>
-              <Th>Status</Th>
+              <Th>{t("plantations.labor.workerType")}</Th>
+              <Th>{t("users.columnStatus")}</Th>
               <Th>Previsão Parto</Th>
-              <Th>Observações</Th>
+              <Th>{t("reproduction.observations")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -849,11 +852,11 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
               coberturas.map((m: any, i: number) => (
                 <TR key={i} even={i % 2 !== 0}>
                   <Td bold>{i + 1}</Td>
-                  <Td>{fmtDate(m.date)}</Td>
+                  <Td>{fmtDate(m.date, language)}</Td>
                   <Td>{m.subtitle?.replace("Matriz: ", "") || "-"}</Td>
                   <Td>{m.details?.mating_type || "-"}</Td>
                   <Td>{m.status || "-"}</Td>
-                  <Td>{fmtDate(m.details?.expected_birth_date)}</Td>
+                  <Td>{fmtDate(m.details?.expected_birth_date, language)}</Td>
                   <Td style={{ fontSize: "0.55rem" }}>{m.details?.notes || "-"}</Td>
                 </TR>
               ))
@@ -871,10 +874,10 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>Vacina</Th>
-                <Th>Data</Th>
+                <Th>{t("animalDetail.vaccine")}</Th>
+                <Th>{t("lotReport.date")}</Th>
                 <Th>Próxima Dose</Th>
-                <Th>Observações</Th>
+                <Th>{t("reproduction.observations")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -902,11 +905,11 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>Produto</Th>
-                <Th>Motivo</Th>
-                <Th>Data</Th>
-                <Th>Dosagem</Th>
-                <Th>Responsável</Th>
+                <Th>{t("plantations.agronomist.product")}</Th>
+                <Th>{t("reproduction.applicationReason")}</Th>
+                <Th>{t("lotReport.date")}</Th>
+                <Th>{t("swine.dosage")}</Th>
+                <Th>{t("reproduction.responsible")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -937,7 +940,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
             <div style={{ background: "#f0f0f0", padding: "6px", borderRadius: "50%" }}>🧑‍⚕️</div>
             <div>
               <div style={{ fontWeight: 800, fontSize: "0.65rem", color: "#1a1a1a" }}>Responsável Técnico</div>
-              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>Não informado</div>
+              <div style={{ fontSize: "0.6rem", color: GRAY_TEXT }}>{t("lotReport.notInformed")}</div>
             </div>
           </div>
         </div>
@@ -953,6 +956,7 @@ function ReprodutorTemplate({ animal, history, reportDate, reportTime }: any) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "batch" }: AnimalTechnicalSheetModalProps) {
+  const { language, t } = useOrganizationLocale();
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1019,8 +1023,8 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "b
   if (!isOpen) return null;
 
   const now = new Date();
-  const reportDate = now.toLocaleDateString("pt-BR");
-  const reportTime = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const reportDate = now.toLocaleDateString(language);
+  const reportTime = now.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" });
 
   // Determine which template to render based on category (batches don't have gender)
   const category = (animal?.category || "").toLowerCase();
@@ -1036,7 +1040,7 @@ export function AnimalTechnicalSheetModal({ isOpen, onClose, animalId, mode = "b
       footer={
         <div className="d-flex flex-wrap justify-content-end gap-2 w-100">
           <button className="btn btn-light rounded-pill px-4 d-flex align-items-center gap-2" onClick={onClose}>
-            <X size={16} /> Fechar
+            <X size={16} />  {t("notifications.close")}
           </button>
           <button className="btn btn-success rounded-pill px-4 d-flex align-items-center gap-2" onClick={handlePrint}>
             <Printer size={16} /> Imprimir / PDF

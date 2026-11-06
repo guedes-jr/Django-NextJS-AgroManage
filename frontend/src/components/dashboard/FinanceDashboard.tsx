@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useEffect } from "react";
 import { 
@@ -30,6 +31,7 @@ import { apiClient } from "@/services/api";
 const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
 
 export function FinanceDashboard() {
+  const { language, t } = useOrganizationLocale();
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,10 +52,10 @@ export function FinanceDashboard() {
     }
   };
 
-  if (error) return <div className="alert alert-danger" role="alert">Não foi possível carregar os indicadores. Atualize a página para tentar novamente.</div>;
+  if (error) return <div className="alert alert-danger" role="alert">{t("workspace.couldNotLoadIndicatorsRefreshThePageToTryAgain")}</div>;
 
   if (loading || !stats) {
-    return <div className="p-5 text-center">Carregando indicadores financeiros...</div>;
+    return <div className="p-5 text-center">{t("workspace.loadingFinancialIndicators")}</div>;
   }
 
   const { summary, cash_flow, expenses_by_category } = stats;
@@ -70,12 +72,12 @@ export function FinanceDashboard() {
                 <Wallet size={20} />
               </div>
               <span className="text-success small fw-bold d-flex align-items-center">
-                <ArrowUpRight size={14} className="me-1" /> Ativo
+                <ArrowUpRight size={14} className="me-1" />  {t("users.active")}
               </span>
             </div>
-            <div className="text-muted-foreground small fw-medium mb-1">Saldo em Contas</div>
+            <div className="text-muted-foreground small fw-medium mb-1">{t("workspace.accountBalances")}</div>
             <div className="h4 fw-bold text-foreground mb-0">
-              R$ {summary.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {summary.balance.toLocaleString(language, { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
@@ -86,11 +88,11 @@ export function FinanceDashboard() {
               <div className="p-2 rounded-lg bg-success/10 text-success">
                 <TrendingUp size={20} />
               </div>
-              <span className="text-muted-foreground small fw-medium">Acumulado</span>
+              <span className="text-muted-foreground small fw-medium">{t("workspace.accumulated")}</span>
             </div>
-            <div className="text-muted-foreground small fw-medium mb-1">Total Recebido</div>
+            <div className="text-muted-foreground small fw-medium mb-1">{t("workspace.totalReceived")}</div>
             <div className="h4 fw-bold text-success mb-0">
-              R$ {summary.total_revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {summary.total_revenue.toLocaleString(language, { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
@@ -101,11 +103,11 @@ export function FinanceDashboard() {
               <div className="p-2 rounded-lg bg-danger/10 text-danger">
                 <TrendingDown size={20} />
               </div>
-              <span className="text-muted-foreground small fw-medium">Acumulado</span>
+              <span className="text-muted-foreground small fw-medium">{t("workspace.accumulated")}</span>
             </div>
-            <div className="text-muted-foreground small fw-medium mb-1">Total Pago</div>
+            <div className="text-muted-foreground small fw-medium mb-1">{t("workspace.totalPaid")}</div>
             <div className="h4 fw-bold text-danger mb-0">
-              R$ {summary.total_expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {summary.total_expense.toLocaleString(language, { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
@@ -116,11 +118,11 @@ export function FinanceDashboard() {
               <div className="p-2 rounded-lg bg-warning/10 text-warning">
                 <Clock size={20} className="lucide-icon" />
               </div>
-              <span className="text-muted-foreground small fw-medium">Pendentes</span>
+              <span className="text-muted-foreground small fw-medium">{t("inventory.alerts.pending")}</span>
             </div>
-            <div className="text-muted-foreground small fw-medium mb-1">Total a pagar</div>
+            <div className="text-muted-foreground small fw-medium mb-1">{t("workspace.totalPayable")}</div>
             <div className="h4 fw-bold text-warning mb-0">
-              R$ {summary.payable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {summary.payable.toLocaleString(language, { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
@@ -132,11 +134,11 @@ export function FinanceDashboard() {
           <div className="dashboard-card p-4 border border-border bg-background shadow-sm h-100">
             <div className="d-flex justify-content-between align-items-center mb-4">
               <div>
-                <h4 className="fw-bold text-foreground mb-1">Fluxo de Caixa</h4>
-                <p className="text-muted-foreground small mb-0">Entradas e saídas nos últimos 30 dias</p>
+                <h4 className="fw-bold text-foreground mb-1">{t("workspace.cashFlow")}</h4>
+                <p className="text-muted-foreground small mb-0">{t("workspace.incomeAndExpensesOverTheLast30Days")}</p>
               </div>
               <div className="d-flex gap-2">
-                <span className="small text-muted d-flex align-items-center gap-2"><Calendar size={14} /> 30 dias</span>
+                <span className="small text-muted d-flex align-items-center gap-2"><Calendar size={14} />  {t("workspace.30Days")}</span>
               </div>
             </div>
             
@@ -159,7 +161,7 @@ export function FinanceDashboard() {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{fill: 'var(--muted-foreground)', fontSize: 11}}
-                    tickFormatter={(str) => new Date(str).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
+                    tickFormatter={(str) => new Date(str).toLocaleDateString(language, {day: '2-digit', month: '2-digit'})}
                   />
                   <YAxis 
                     axisLine={false} 
@@ -182,8 +184,8 @@ export function FinanceDashboard() {
         {/* Expenses by Category */}
         <div className="col-12 col-xl-4">
           <div className="dashboard-card p-4 border border-border bg-background shadow-sm h-100">
-            <h4 className="fw-bold text-foreground mb-1">Gastos por Categoria</h4>
-            <p className="text-muted-foreground small mb-4">Distribuição das despesas pagas</p>
+            <h4 className="fw-bold text-foreground mb-1">{t("workspace.expensesByCategory")}</h4>
+            <p className="text-muted-foreground small mb-4">{t("workspace.distributionOfPaidExpenses")}</p>
 
             <div style={{ width: '100%', height: 240 }} className="mb-4">
               <ResponsiveContainer>
@@ -216,12 +218,12 @@ export function FinanceDashboard() {
                     <span className="small text-muted-foreground fw-medium">{item.name}</span>
                   </div>
                   <span className="small fw-bold text-foreground">
-                    R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {item.value.toLocaleString(language, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               ))}
               {expenses_by_category.length === 0 && (
-                <div className="text-center py-4 text-muted-foreground small">Nenhum gasto registrado</div>
+                <div className="text-center py-4 text-muted-foreground small">{t("workspace.noExpensesRecorded")}</div>
               )}
             </div>
           </div>

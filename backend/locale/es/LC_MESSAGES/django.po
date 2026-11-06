@@ -1,0 +1,909 @@
+msgid ""
+msgstr "Project-Id-Version: AgroManage\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n"
+
+msgid "A baixa exige um valor positivo."
+msgstr "La liquidación requiere un importe positivo."
+
+msgid "A baixa informada não é a baixa ativa deste título."
+msgstr "La liquidación indicada no es la liquidación activa de esta cuenta."
+
+msgid "A baixa não pode ter data futura."
+msgstr "La liquidación no puede tener una fecha futura."
+
+msgid "A categoria não pertence à sua organização."
+msgstr "La categoría no pertenece a su organización."
+
+msgid "A categoria pai não pertence à sua organização."
+msgstr "La categoría principal no pertenece a su organización."
+
+msgid "A conta bancária não pertence à sua organização."
+msgstr "La cuenta bancaria no pertenece a su organización."
+
+msgid "A conta está inativa."
+msgstr "La cuenta está inactiva."
+
+msgid "A conta não pertence à sua organização."
+msgstr "La cuenta no pertenece a su organización."
+
+msgid "A contagem é igual ao saldo. Não há ajuste a registrar."
+msgstr "El recuento coincide con el saldo. No hay ajustes que registrar."
+
+msgid "A data final não pode ser anterior à data inicial."
+msgstr "La fecha final no puede ser anterior a la inicial."
+
+msgid "A espécie não corresponde ao lote informado."
+msgstr "La especie no corresponde al lote indicado."
+
+msgid "A estrutura deve pertencer à mesma fazenda da plantação."
+msgstr "La infraestructura debe pertenecer a la misma finca que el cultivo."
+
+msgid "A fazenda informada não foi encontrada."
+msgstr "No se encontró la finca indicada."
+
+msgid "A fazenda não pertence à organização do estoque."
+msgstr "La finca no pertenece a la organización de las existencias."
+
+msgid "A fazenda não pertence à sua organização."
+msgstr "La finca no pertenece a su organización."
+
+msgid "A franquia mensal de perguntas foi atingida."
+msgstr "Se ha alcanzado el cupo mensual de preguntas."
+
+msgid "A lista de medicamentos ou vacinas é inválida."
+msgstr "La lista de medicamentos o vacunas es inválida."
+
+msgid "A matriz de destino deve ser diferente da matriz de origem."
+msgstr "La reproductora de destino debe ser distinta de la reproductora de origen."
+
+msgid "A organização precisa manter um administrador ativo."
+msgstr "La organización debe mantener un administrador activo."
+
+msgid "A plantação informada não foi encontrada."
+msgstr "No se encontró el cultivo indicado."
+
+msgid "A plantação não pertence à sua organização."
+msgstr "El cultivo no pertenece a su organización."
+
+msgid "A previsão de diagnóstico não pode anteceder a cobertura."
+msgstr "La fecha prevista de diagnóstico no puede ser anterior a la cubrición."
+
+msgid "A propriedade deve corresponder ao vínculo produtivo."
+msgstr "La propiedad debe corresponder al vínculo productivo."
+
+msgid "A propriedade não pertence à sua organização."
+msgstr "La propiedad no pertenece a su organización."
+
+msgid "A propriedade pertence a outra organização."
+msgstr "La propiedad pertenece a otra organización."
+
+msgid "A quantidade colhida deve ser maior que zero."
+msgstr "La cantidad cosechada debe ser mayor que cero."
+
+msgid "A quantidade de diárias deve ser maior que zero."
+msgstr "La cantidad de jornales debe ser mayor que cero."
+
+msgid "A quantidade deve ser maior que zero."
+msgstr "La cantidad debe ser mayor que cero."
+
+msgid "A quantidade inicial não pode ser editada. Registre um lançamento de ajuste."
+msgstr "La cantidad inicial no puede editarse. Registre un ajuste."
+
+msgid "A quantidade transferida deve ser maior que zero."
+msgstr "La cantidad transferida debe ser mayor que cero."
+
+msgid "A quantidade vendida não pode exceder o saldo disponível."
+msgstr "La cantidad vendida no puede superar el saldo disponible."
+
+msgid "A ração selecionada não é indicada para suínos."
+msgstr "El alimento seleccionado no está indicado para porcinos."
+
+msgid "A resposta foi retida pela verificação de segurança."
+msgstr "La respuesta fue retenida por la verificación de seguridad."
+
+msgid "A seleção contém ajustes de inventário, que não podem ser apagados."
+msgstr "La selección contiene ajustes de inventario que no pueden eliminarse."
+
+msgid "A senha deve ter pelo menos 8 caracteres."
+msgstr "La contraseña debe tener al menos 8 caracteres."
+
+msgid "A venda não pode ocorrer antes da entrada do lote."
+msgstr "La venta no puede ser anterior a la entrada del lote."
+
+msgid "Agende o lembrete no futuro e até o início do evento (ou fim do dia, se não houver horário)."
+msgstr "Programe el recordatorio en el futuro y antes del inicio del evento, o al final del día si no tiene horario."
+
+msgid "Ajustes de inventário não podem ser apagados. Registre uma nova contagem para corrigir o saldo."
+msgstr "Los ajustes de inventario no pueden eliminarse. Registre un nuevo recuento para corregir el saldo."
+
+msgid "Ajustes de inventário preservam o histórico. Registre uma nova contagem para corrigir o saldo."
+msgstr "Los ajustes de inventario conservan el historial. Registre un nuevo recuento para corregir el saldo."
+
+msgid "Alerta confirmado."
+msgstr "Alerta confirmada."
+
+msgid "An error occurred."
+msgstr "Se produjo un error."
+
+msgid "An unexpected error occurred. Please try again later."
+msgstr "Se produjo un error inesperado. Vuelva a intentarlo más tarde."
+
+msgid "Anexe o comprovante ao título após gerar a série."
+msgstr "Adjunte el comprobante a la cuenta después de generar la serie."
+
+msgid "Apenas administradores podem alterar a assinatura."
+msgstr "Solo los administradores pueden cambiar la suscripción."
+
+msgid "Apenas administradores podem editar dados da organização."
+msgstr "Solo los administradores pueden editar los datos de la organización."
+
+msgid "Apenas o criador pode configurar seu lembrete de WhatsApp."
+msgstr "Solo el creador puede configurar su recordatorio de WhatsApp."
+
+msgid "As datas devem pertencer ao ano selecionado."
+msgstr "Las fechas deben pertenecer al año seleccionado."
+
+msgid "As observações devem ter no máximo 200 caracteres."
+msgstr "Las observaciones no pueden superar los 200 caracteres."
+
+msgid "As observações devem ter no máximo 300 caracteres."
+msgstr "Las observaciones no pueden superar los 300 caracteres."
+
+msgid "As restrições de área são exclusivas do operador e do tratador."
+msgstr "Las restricciones de área se aplican solo a operadores y cuidadores."
+
+msgid "As senhas não conferem ou estão vazias."
+msgstr "Las contraseñas no coinciden o están vacías."
+
+msgid "As senhas não conferem."
+msgstr "Las contraseñas no coinciden."
+
+msgid "Assinatura não encontrada."
+msgstr "Suscripción no encontrada."
+
+msgid "Atualização do projeto iniciada com sucesso em segundo plano. O sistema pode ficar temporariamente indisponível durante a reinicialização dos serviços."
+msgstr "La actualización del proyecto se inició correctamente en segundo plano. El sistema puede estar temporalmente no disponible durante el reinicio de los servicios."
+
+msgid "Atualize esta atividade pela Central de manejo bovino para preservar a execução e sua origem."
+msgstr "Actualice esta actividad desde el Centro de manejo bovino para conservar la ejecución y su origen."
+
+msgid "Authentication credentials were not provided or are invalid."
+msgstr "No se proporcionaron credenciales de autenticación o no son válidas."
+
+msgid "Bad request."
+msgstr "Solicitud inválida."
+
+msgid "Batch code é obrigatório e não pode estar vazio."
+msgstr "El código del lote es obligatorio y no puede estar vacío."
+
+msgid "Batch code é obrigatório."
+msgstr "El código del lote es obligatorio."
+
+msgid "Bomba inválida para esta organização."
+msgstr "Bomba inválida para esta organización."
+
+msgid "Cadastre um WhatsApp válido e autorize os alertas no seu perfil."
+msgstr "Registre un número de WhatsApp válido y autorice las alertas en su perfil."
+
+msgid "Categoria de destino inválida."
+msgstr "Categoría de destino inválida."
+
+msgid "Ciclo de cobrança inválido."
+msgstr "Ciclo de facturación inválido."
+
+msgid "Cio registrado com sucesso. Previsões geradas automaticamente."
+msgstr "Celo registrado correctamente. Previsiones generadas automáticamente."
+
+msgid "Comprador inválido para esta organização."
+msgstr "Comprador inválido para esta organización."
+
+msgid "Comprador não pertence à organização da plantação."
+msgstr "El comprador no pertenece a la organización del cultivo."
+
+msgid "Conflict with an existing resource."
+msgstr "Conflicto con un recurso existente."
+
+msgid "Conta não encontrada nesta organização."
+msgstr "Cuenta no encontrada en esta organización."
+
+msgid "Contas com lançamentos devem ser desativadas para preservar o histórico."
+msgstr "Las cuentas con registros deben desactivarse para conservar el historial."
+
+msgid "Credenciais inválidas."
+msgstr "Credenciales inválidas."
+
+msgid "Código do novo lote é obrigatório."
+msgstr "El código del nuevo lote es obligatorio."
+
+msgid "Dados de aves carregados com sucesso."
+msgstr "Datos de aves cargados correctamente."
+
+msgid "Dashboard API is connected."
+msgstr "La API del panel está conectada."
+
+msgid "Data de entrada é obrigatória."
+msgstr "La fecha de entrada es obligatoria."
+
+msgid "Data do cio é obrigatória."
+msgstr "La fecha de celo es obligatoria."
+
+msgid "Data inválida. Use formato YYYY-MM-DD."
+msgstr "Fecha inválida. Use el formato AAAA-MM-DD."
+
+msgid "Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação."
+msgstr "Las reducciones de plan estarán disponibles tras integrar la programación para la próxima renovación."
+
+msgid "E-mail já cadastrado. Use outro e-mail; contas existentes não são movidas automaticamente."
+msgstr "Correo ya registrado. Use otro correo; las cuentas existentes no se trasladan automáticamente."
+
+msgid "Email e senha são obrigatórios."
+msgstr "El correo y la contraseña son obligatorios."
+
+msgid "Email é obrigatório."
+msgstr "El correo es obligatorio."
+
+msgid "Esta composição precisa de atendimento comercial."
+msgstr "Esta configuración requiere atención comercial."
+
+msgid "Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste."
+msgstr "Esta compra tiene una cuenta financiera. Conserve la entrada y corrija las existencias mediante un ajuste."
+
+msgid "Esta conversa está encerrada."
+msgstr "Esta conversación está cerrada."
+
+msgid "Esta fazenda não pertence à sua organização."
+msgstr "Esta finca no pertenece a su organización."
+
+msgid "Esta identificação já foi utilizada em outra operação."
+msgstr "Este identificador ya se utilizó en otra operación."
+
+msgid "Esta identificação já foi utilizada em outro parcelamento/agendamento."
+msgstr "Este identificador ya se utilizó en otro fraccionamiento o programación."
+
+msgid "Este feriado já está cadastrado nesta data."
+msgstr "Este día festivo ya está registrado en esta fecha."
+
+msgid "Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."
+msgstr "Este registro pertenece a un suministro bovino y conserva su historial. Corrija el saldo mediante un ajuste de inventario."
+
+msgid "Este lote já possui outra data de recebimento. Use um novo número de lote para uma nova entrada."
+msgstr "Este lote ya tiene otra fecha de recepción. Use un nuevo número de lote para una nueva entrada."
+
+msgid "Este orçamento não está mais disponível."
+msgstr "Este presupuesto ya no está disponible."
+
+msgid "Este título possui origem operacional. Preserve o vínculo; cancele o título quando aplicável."
+msgstr "Esta cuenta tiene un origen operativo. Conserve el vínculo; cancele la cuenta cuando corresponda."
+
+msgid "Este usuário já é o responsável pela organização."
+msgstr "Este usuario ya es el responsable de la organización."
+
+msgid "Estrutura inválida para esta organização."
+msgstr "Infraestructura inválida para esta organización."
+
+msgid "Fase incompatível com a categoria selecionada."
+msgstr "La fase es incompatible con la categoría seleccionada."
+
+msgid "Fase produtiva é obrigatória para lotes comprados não-reprodutivos."
+msgstr "La fase productiva es obligatoria para lotes comprados no reproductivos."
+
+msgid "Formatos aceitos: PDF, JPG ou PNG."
+msgstr "Formatos admitidos: PDF, JPG o PNG."
+
+msgid "Fornecedor não pertence à sua organização."
+msgstr "El proveedor no pertenece a su organización."
+
+msgid "Fórmula e quantidade teórica são obrigatórias."
+msgstr "La fórmula y la cantidad teórica son obligatorias."
+
+msgid "Fórmula não encontrada."
+msgstr "Fórmula no encontrada."
+
+msgid "Informe a baixa ativa para estornar; atualize o título antes de continuar."
+msgstr "Indique la liquidación activa que desea revertir; actualice la cuenta antes de continuar."
+
+msgid "Informe a conta e a data do pagamento."
+msgstr "Indique la cuenta y la fecha del pago."
+
+msgid "Informe a data do evento."
+msgstr "Indique la fecha del evento."
+
+msgid "Informe a data para agendar o lembrete."
+msgstr "Indique una fecha para programar el recordatorio."
+
+msgid "Informe a quantidade de animais."
+msgstr "Indique la cantidad de animales."
+
+msgid "Informe ao menos uma aplicação."
+msgstr "Indique al menos una aplicación."
+
+msgid "Informe ao menos uma fertirrigação."
+msgstr "Indique al menos un registro de fertirrigación."
+
+msgid "Informe o comprador para vendas."
+msgstr "Indique el comprador para las ventas."
+
+msgid "Informe o custo da compra para registrar o pagamento."
+msgstr "Indique el coste de compra para registrar el pago."
+
+msgid "Informe o telefone que possui WhatsApp."
+msgstr "Indique el teléfono que tiene WhatsApp."
+
+msgid "Informe um peso válido."
+msgstr "Indique un peso válido."
+
+msgid "Informe um prazo entre 1 e 365 dias."
+msgstr "Indique un plazo de entre 1 y 365 días."
+
+msgid "Informe um valor positivo até o saldo em aberto da fatura."
+msgstr "Indique un importe positivo que no supere el saldo pendiente de la factura."
+
+msgid "Informe uma data de recebimento até hoje para uma entrada de estoque."
+msgstr "Indique una fecha de recepción no posterior a hoy para una entrada de existencias."
+
+msgid "Informe uma lista de movimentações para remover."
+msgstr "Indique una lista de movimientos para eliminar."
+
+msgid "Informe uma previsão entre 1 e 90 dias."
+msgstr "Indique una previsión de entre 1 y 90 días."
+
+msgid "Informe uma quantidade de animais válida."
+msgstr "Indique una cantidad válida de animales."
+
+msgid "Informe uma quantidade maior que zero."
+msgstr "Indique una cantidad mayor que cero."
+
+msgid "Informe uma quantidade válida."
+msgstr "Introduce una cantidad válida."
+
+msgid "Internal server error."
+msgstr "Error interno del servidor."
+
+msgid "Item final não pertence à sua organização."
+msgstr "El artículo final no pertenece a su organización."
+
+msgid "Item não pertence à sua organização."
+msgstr "El artículo no pertenece a su organización."
+
+msgid "Já existe um fornecedor com este CPF/CNPJ nesta organização."
+msgstr "Ya existe un proveedor con este CPF/CNPJ en esta organización."
+
+msgid "Já existe um usuário com este email."
+msgstr "Ya existe un usuario con este correo."
+
+msgid "Logout realizado com sucesso."
+msgstr "Sesión cerrada correctamente."
+
+msgid "Logout realizado."
+msgstr "Sesión cerrada."
+
+msgid "Lote animal não pertence à sua organização."
+msgstr "El lote de animales no pertenece a su organización."
+
+msgid "Lote não encontrado ou sem permissão de acesso."
+msgstr "Lote no encontrado o sin permiso de acceso."
+
+msgid "Lote não pertence ao item e à organização informados."
+msgstr "El lote no pertenece al artículo y la organización indicados."
+
+msgid "Lotes com vendas devem permanecer disponíveis no relatório geral."
+msgstr "Los lotes con ventas deben seguir disponibles en el informe general."
+
+msgid "Marque que este contato possui WhatsApp para receber alertas."
+msgstr "Marque que este contacto tiene WhatsApp para recibir alertas."
+
+msgid "Matriz descartada com sucesso"
+msgstr "Reproductora descartada correctamente"
+
+msgid "Mensagem inválida para avaliação."
+msgstr "Mensaje inválido para la evaluación."
+
+msgid "Method not allowed."
+msgstr "Método no permitido."
+
+msgid "Mortalidade registrada com sucesso."
+msgstr "Mortalidad registrada correctamente."
+
+msgid "Mortalidade registrada."
+msgstr "Mortalidad registrada."
+
+msgid "Máquina ou veículo inválido para esta organização."
+msgstr "Máquina o vehículo inválido para esta organización."
+
+msgid "Nenhum animal individual encontrado para este lote."
+msgstr "No se encontraron animales individuales en este lote."
+
+msgid "Nenhum modelo de IA está disponível."
+msgstr "No hay ningún modelo de IA disponible."
+
+msgid "Nenhum parto selecionado."
+msgstr "No se seleccionó ningún parto."
+
+msgid "Nenhum provedor conseguiu executar a verificação de segurança."
+msgstr "Ningún proveedor pudo ejecutar la verificación de seguridad."
+
+msgid "Nenhum provedor de IA habilitado possui credenciais válidas."
+msgstr "Ningún proveedor de IA habilitado tiene credenciales válidas."
+
+msgid "Nenhuma imagem enviada."
+msgstr "No se envió ninguna imagen."
+
+msgid "Nenhuma movimentação encontrada para remoção."
+msgstr "No se encontraron movimientos para eliminar."
+
+msgid "No organization"
+msgstr "Sin organización"
+
+msgid "Nome da vacina ou vacina do estoque é obrigatório"
+msgstr "Es obligatorio indicar el nombre de la vacuna o una vacuna de existencias"
+
+msgid "Nome não pode estar vazio."
+msgstr "El nombre no puede estar vacío."
+
+msgid "Não altere o tipo de uma categoria com lançamentos. Crie uma nova categoria."
+msgstr "No cambie el tipo de una categoría con registros. Cree una nueva categoría."
+
+msgid "Não foi possível concluir a resposta."
+msgstr "No se pudo completar la respuesta."
+
+msgid "Não foi possível criar o cadastro: e-mail ou identificador já utilizado. Atualize os dados e tente novamente."
+msgstr "No se pudo crear el registro: el correo o identificador ya está en uso. Actualice los datos y vuelva a intentarlo."
+
+msgid "Não foi possível determinar a organização."
+msgstr "No se pudo determinar la organización."
+
+msgid "Não posso responder a essa solicitação por segurança."
+msgstr "No puedo responder a esta solicitud por motivos de seguridad."
+
+msgid "Não é possível apagar um lote com saldo ou lançamentos. Preserve o histórico e registre um ajuste quando necessário."
+msgstr "No puede eliminarse un lote con saldo o registros. Conserve el historial y registre un ajuste cuando sea necesario."
+
+msgid "O animal informado não foi encontrado."
+msgstr "No se encontró el animal indicado."
+
+msgid "O animal não pertence à propriedade informada."
+msgstr "El animal no pertenece a la propiedad indicada."
+
+msgid "O arquivo deve ter no máximo 10MB."
+msgstr "El archivo debe tener como máximo 10 MB."
+
+msgid "O atendimento por IA está indisponível. Use as dúvidas e tutoriais ou fale com um atendente."
+msgstr "El soporte por IA no está disponible. Consulte preguntas y tutoriales o hable con un agente."
+
+msgid "O contexto solicitado não foi encontrado."
+msgstr "No se encontró el contexto solicitado."
+
+msgid "O fechamento não pode ocorrer antes das vendas anteriores."
+msgstr "El cierre no puede ser anterior a las ventas previas."
+
+msgid "O fim deve ser posterior ao início no mesmo dia."
+msgstr "La hora final debe ser posterior a la inicial en el mismo día."
+
+msgid "O item de um lote não pode ser alterado."
+msgstr "El artículo de un lote no puede cambiarse."
+
+msgid "O item selecionado não é uma vacina."
+msgstr "El artículo seleccionado no es una vacuna."
+
+msgid "O lote informado não foi encontrado."
+msgstr "No se encontró el lote indicado."
+
+msgid "O lote já está nessa fase."
+msgstr "El lote ya está en esta fase."
+
+msgid "O lote não pertence ao item informado."
+msgstr "El lote no pertenece al artículo indicado."
+
+msgid "O lote não pertence à fase produtiva selecionada."
+msgstr "El lote no pertenece a la fase productiva seleccionada."
+
+msgid "O lote não pertence à propriedade informada."
+msgstr "El lote no pertenece a la propiedad indicada."
+
+msgid "O lote não pertence à sua organização."
+msgstr "El lote no pertenece a su organización."
+
+msgid "O lote não possui animais ativos para vacinar."
+msgstr "El lote no tiene animales activos para vacunar."
+
+msgid "O lote selecionado não pertence à suinocultura."
+msgstr "El lote seleccionado no pertenece a la producción porcina."
+
+msgid "O objeto informado pertence a outra organização."
+msgstr "El objeto indicado pertenece a otra organización."
+
+msgid "O peso deve ser maior que zero."
+msgstr "El peso debe ser mayor que cero."
+
+msgid "O preço de venda deve ser maior que zero."
+msgstr "El precio de venta debe ser mayor que cero."
+
+msgid "O responsável mudou desde que esta tela foi aberta. Atualize os dados antes de transferir."
+msgstr "El responsable cambió desde que se abrió esta pantalla. Actualice los datos antes de transferir."
+
+msgid "O responsável não pertence à organização do estoque."
+msgstr "El responsable no pertenece a la organización de las existencias."
+
+msgid "O responsável pela organização deve permanecer administrador ativo."
+msgstr "El responsable de la organización debe seguir siendo un administrador activo."
+
+msgid "O responsável pertence a outra organização."
+msgstr "El responsable pertenece a otra organización."
+
+msgid "O saldo inicial não pode ser alterado após registrar títulos. Use lançamentos de receita ou despesa."
+msgstr "El saldo inicial no puede modificarse después de registrar cuentas. Use registros de ingresos o gastos."
+
+msgid "O saldo só pode ser alterado por lançamentos. Use o ajuste de inventário."
+msgstr "El saldo solo puede modificarse mediante registros. Use un ajuste de inventario."
+
+msgid "O total da compra deve ser de pelo menos um centavo."
+msgstr "El total de compra debe ser de al menos un céntimo."
+
+msgid "O valor da diária deve ser maior que zero."
+msgstr "El valor del jornal debe ser mayor que cero."
+
+msgid "O valor deve ser positivo."
+msgstr "El importe debe ser positivo."
+
+msgid "O valor não permite parcelas de pelo menos um centavo."
+msgstr "El importe no permite cuotas de al menos un céntimo."
+
+msgid "O valor unitário não pode ser negativo."
+msgstr "El importe unitario no puede ser negativo."
+
+msgid "One or more batch codes already exist for the specified farm(s). Please check your data and try again."
+msgstr "Uno o varios códigos de lote ya existen para las fincas indicadas. Revise los datos y vuelva a intentarlo."
+
+msgid "Organizações de conferência permanecem isoladas e não podem ser ativadas."
+msgstr "Las organizaciones de revisión permanecen aisladas y no pueden activarse."
+
+msgid "Orçamento inválido."
+msgstr "Presupuesto inválido."
+
+msgid "Os dados desta baixa diferem da operação já registrada."
+msgstr "Los datos de esta liquidación difieren de la operación registrada."
+
+msgid "Os dados deste estorno diferem da operação registrada."
+msgstr "Los datos de esta reversión difieren de la operación registrada."
+
+msgid "Os totais do lote excedem os limites permitidos."
+msgstr "Los totales del lote superan los límites permitidos."
+
+msgid "Parcelas e recorrências são criadas em aberto e recebem baixa individual."
+msgstr "Las cuotas y recurrencias se crean pendientes y se liquidan individualmente."
+
+msgid "Perda gestacional registrada."
+msgstr "Pérdida gestacional registrada."
+
+msgid "Permissão negada."
+msgstr "Permiso denegado."
+
+msgid "Pesagem do lote registrada."
+msgstr "Pesaje del lote registrado."
+
+msgid "Peso médio deve ser um número válido."
+msgstr "El peso medio debe ser un número válido."
+
+msgid "Peso registrado com sucesso"
+msgstr "Peso registrado correctamente"
+
+msgid "Peso é obrigatório"
+msgstr "El peso es obligatorio"
+
+msgid "Plano ativo não encontrado."
+msgstr "Plan activo no encontrado."
+
+msgid "Plano atualizado com sucesso."
+msgstr "¡Plan actualizado correctamente!"
+
+msgid "Plantação inválida para esta organização."
+msgstr "Cultivo inválido para esta organización."
+
+msgid "Procedimento registrado."
+msgstr "Procedimiento registrado."
+
+msgid "Propriedade inválida para esta organização."
+msgstr "Propiedad inválida para esta organización."
+
+msgid "Quantidade inválida."
+msgstr "Cantidad inválida."
+
+msgid "Reative o lote com saldo zero antes de registrar saldo positivo."
+msgstr "Reactive el lote con saldo cero antes de registrar un saldo positivo."
+
+msgid "Refine os filtros para exportar até 10.000 títulos."
+msgstr "Ajuste los filtros para exportar hasta 10.000 cuentas."
+
+msgid "Registre ajustes pelo inventário do lote, informando a contagem e o motivo."
+msgstr "Registre ajustes mediante el inventario del lote, indicando recuento y motivo."
+
+msgid "Resolva esta atividade pela Central de manejo bovino; sua origem operacional deve ser preservada."
+msgstr "Resuelva esta actividad desde el Centro de manejo bovino; debe conservarse su origen operativo."
+
+msgid "Se o email existir, você receberá instruções para redefinir sua senha."
+msgstr "Si el correo existe, recibirá instrucciones para restablecer su contraseña."
+
+msgid "Selecione a vacina e informe os dias para o aviso."
+msgstr "Seleccione la vacuna e indique los días para el aviso."
+
+msgid "Selecione ao menos uma faixa."
+msgstr "Seleccione al menos un tramo."
+
+msgid "Selecione lote ou animais, não ambos."
+msgstr "Seleccione lote o animales, no ambos."
+
+msgid "Selecione pelo menos 2 lotes para juntar."
+msgstr "Seleccione al menos 2 lotes para unir."
+
+msgid "Selecione somente uma faixa por segmento."
+msgstr "Seleccione solo un tramo por segmento."
+
+msgid "Selecione um lote ativo com animais disponíveis."
+msgstr "Seleccione un lote activo con animales disponibles."
+
+msgid "Selecione um lote ou pelo menos um animal."
+msgstr "Seleccione un lote o al menos un animal."
+
+msgid "Selecione um usuário ativo desta organização que não pertença à equipe interna."
+msgstr "Seleccione un usuario activo de esta organización que no pertenezca al equipo interno."
+
+msgid "Selecione uma matriz de destino que esteja na maternidade."
+msgstr "Seleccione una reproductora de destino que esté en maternidad."
+
+msgid "Selecione uma origem produtiva: plantação ou lote animal."
+msgstr "Seleccione un origen productivo: cultivo o lote de animales."
+
+msgid "Senha alterada com sucesso."
+msgstr "Contraseña cambiada correctamente."
+
+msgid "Senha atualizada com sucesso."
+msgstr "Contraseña actualizada correctamente."
+
+msgid "Somente administradores podem gerenciar usuários."
+msgstr "Solo los administradores pueden gestionar usuarios."
+
+msgid "Somente compras podem registrar pagamento neste fluxo."
+msgstr "Solo las compras pueden registrar pagos en este flujo."
+
+msgid "Somente títulos em aberto podem receber baixa."
+msgstr "Solo las cuentas pendientes pueden liquidarse."
+
+msgid "Somente títulos pagos podem ser estornados."
+msgstr "Solo las cuentas pagadas pueden revertirse."
+
+msgid "The requested resource was not found."
+msgstr "No se encontró el recurso solicitado."
+
+msgid "Token inválido ou expirado."
+msgstr "Token inválido o caducado."
+
+msgid "Too many requests."
+msgstr "Demasiadas solicitudes."
+
+msgid "Trabalhador inválido para esta organização."
+msgstr "Trabajador inválido para esta organización."
+
+msgid "Trabalhador não pertence à organização da plantação."
+msgstr "El trabajador no pertenece a la organización del cultivo."
+
+msgid "Transferência registrada com sucesso."
+msgstr "Transferencia registrada correctamente."
+
+msgid "Transição de estado inválida para esta organização."
+msgstr "Transición de estado inválida para esta organización."
+
+msgid "Títulos pagos ou com histórico de baixas não podem ser apagados. Use o estorno e preserve a origem."
+msgstr "Las cuentas pagadas o con historial de liquidaciones no pueden eliminarse. Use la reversión y conserve el origen."
+
+msgid "Um ou mais animais não pertencem à categoria ou fase selecionada."
+msgstr "Uno o varios animales no pertenecen a la categoría o fase seleccionada."
+
+msgid "Um ou mais animais não pertencem à sua organização."
+msgstr "Uno o varios animales no pertenecen a su organización."
+
+msgid "Um ou mais animais não pertencem à suinocultura."
+msgstr "Uno o varios animales no pertenecen a la producción porcina."
+
+msgid "Um ou mais ingredientes pertencem a outra organização."
+msgstr "Uno o varios ingredientes pertenecen a otra organización."
+
+msgid "Um ou mais lotes não foram encontrados."
+msgstr "No se encontraron uno o varios lotes."
+
+msgid "Um ou mais produtos pertencem a outra organização."
+msgstr "Uno o varios productos pertenecen a otra organización."
+
+msgid "Uma compra paga exige conta e data do pagamento."
+msgstr "Una compra pagada requiere cuenta y fecha de pago."
+
+msgid "Uma ou mais faixas não estão disponíveis."
+msgstr "Uno o varios tramos no están disponibles."
+
+msgid "Unidade padrão inválida."
+msgstr "Unidad predeterminada inválida."
+
+msgid "Use a página de suporte para esta conversa."
+msgstr "Use la página de soporte para esta conversación."
+
+msgid "Usuário deve pertencer a uma organização."
+msgstr "El usuario debe pertenecer a una organización."
+
+msgid "Usuário inativo."
+msgstr "Usuario inactivo."
+
+msgid "Usuário não possui organização vinculada."
+msgstr "El usuario no tiene una organización vinculada."
+
+msgid "Usuário não vinculado a uma organização."
+msgstr "El usuario no está vinculado a una organización."
+
+msgid "Usuário sem organização"
+msgstr "Usuario sin organización"
+
+msgid "Usuário sem organização vinculada."
+msgstr "Usuario sin organización vinculada."
+
+msgid "Usuário sem organização."
+msgstr "Usuario sin organización."
+
+msgid "Vacina inválida."
+msgstr "Vacuna inválida."
+
+msgid "Vacina não encontrada no estoque."
+msgstr "No se encontró la vacuna en existencias."
+
+msgid "Vacina registrada com sucesso"
+msgstr "Vacuna registrada correctamente"
+
+msgid "Vacinação do lote registrada com sucesso."
+msgstr "Vacunación del lote registrada correctamente."
+
+msgid "Validation failed."
+msgstr "Error de validación."
+
+msgid "Valor de compra deve ser um número válido."
+msgstr "El importe de compra debe ser un número válido."
+
+msgid "Valor total da venda fora do limite permitido."
+msgstr "El importe total de venta supera el límite permitido."
+
+msgid "Você não pertence a uma organização."
+msgstr "No pertenece a una organización."
+
+msgid "Você não pode atribuir tarefas a outro usuário."
+msgstr "No puede asignar tareas a otro usuario."
+
+msgid "Você não pode remover ou rebaixar seu próprio acesso."
+msgstr "No puede eliminar ni reducir su propio acceso."
+
+msgid "Você não precisa forçar a troca de senha."
+msgstr "No necesita forzar un cambio de contraseña."
+
+msgid "Você pode atualizar somente o andamento das tarefas atribuídas a você."
+msgstr "Solo puede actualizar el progreso de las tareas que tiene asignadas."
+
+msgid "Você só pode adicionar implementos aos seus registros."
+msgstr "Solo puede añadir implementos a sus propios registros."
+
+msgid "Você só pode adicionar itens às suas estruturas."
+msgstr "Solo puede añadir artículos a sus propias infraestructuras."
+
+msgid "Você só pode atribuir tarefas a si mesmo."
+msgstr "Solo puede asignarse tareas a sí mismo."
+
+msgid "You do not have permission to perform this action."
+msgstr "No tiene permiso para realizar esta acción."
+
+msgid "Zere o saldo com um lançamento antes de alterar a situação do lote."
+msgstr "Ponga el saldo a cero mediante un registro antes de cambiar el estado del lote."
+
+msgid "context_type e context_id devem ser informados em conjunto."
+msgstr "context_type y context_id deben indicarse conjuntamente."
+
+msgid "exit_date inválido. Use o formato YYYY-MM-DD."
+msgstr "exit_date inválida. Use el formato AAAA-MM-DD."
+
+msgid "Descrição"
+msgstr "Descripción"
+
+msgid "Referência"
+msgstr "Referencia"
+
+msgid "Tipo"
+msgstr "Tipo"
+
+msgid "Categoria"
+msgstr "Categoría"
+
+msgid "Propriedade"
+msgstr "Propiedad"
+
+msgid "Atividade"
+msgstr "Actividad"
+
+msgid "Conta"
+msgstr "Cuenta"
+
+msgid "Vencimento"
+msgstr "Vencimiento"
+
+msgid "Pagamento"
+msgstr "Pago"
+
+msgid "Estado"
+msgstr "Estado"
+
+msgid "Valor"
+msgstr "Importe"
+
+msgid "Seu perfil não permite acessar esta área. Solicite autorização ao administrador."
+msgstr "Su perfil no permite acceder a esta área. Solicite autorización al administrador."
+
+msgid "Registro fora da sua organização."
+msgstr "Registro ajeno a su organización."
+
+msgid "Rebanho não autorizado."
+msgstr "Acceso al rebaño no autorizado."
+
+msgid "Indicadores gerenciais e operações financeiras são restritos."
+msgstr "Los indicadores de gestión y las operaciones financieras están restringidos."
+
+msgid "Esta mudança de situação exige um gerente ou administrador."
+msgstr "Este cambio de estado requiere un gerente o administrador."
+
+msgid "Campos financeiros são restritos."
+msgstr "Los campos financieros están restringidos."
+
+msgid "Seu acesso não permite alterar este registro."
+msgstr "Su acceso no permite modificar este registro."
+
+msgid "Esta operação exige um gerente ou administrador."
+msgstr "Esta operación requiere un gerente o administrador."
+
+msgid "Este cadastro exige um gerente ou administrador."
+msgstr "Este registro requiere un gerente o administrador."
+
+msgid "Referência inválida ou não autorizada."
+msgstr "Referencia inválida o no autorizada."
+
+msgid "Correções de quantidades, datas ou estoque exigem um gerente ou administrador."
+msgstr "Las correcciones de cantidades, fechas o existencias requieren un gerente o administrador."
+
+msgid "Somente registros próprios ainda abertos podem ser corrigidos."
+msgstr "Solo pueden corregirse registros propios que sigan abiertos."
+
+msgid "Sessão encerrada. Entre novamente."
+msgstr "Sesión finalizada. Inicie sesión de nuevo."
+
+msgid "Organização isolada para conferência de recuperação."
+msgstr "Organización aislada para revisión de recuperación."
+
+msgid "Acesso de suporte não autorizado."
+msgstr "Acceso de soporte no autorizado."
+
+msgid "Concessão de suporte expirada ou revogada."
+msgstr "Concesión de soporte caducada o revocada."
+
+msgid "Concessão de suporte inválida."
+msgstr "Concesión de soporte inválida."
+
+msgid "Seu cargo não permite executar esta operação."
+msgstr "Su rol no permite realizar esta operación."
+
+msgid "A plataforma está temporariamente em manutenção."
+msgstr "La plataforma está temporalmente en mantenimiento."
+
+msgid "Organização arquivada. Entre em contato com o suporte."
+msgstr "La organización está archivada. Contacte con soporte."
+
+msgid "Organização suspensa. Entre em contato com o suporte."
+msgstr "La organización está suspendida. Contacte con soporte."
+
+msgid "Organização ativa. Entre em contato com o suporte."
+msgstr "La organización está activa. Contacte con soporte."
+
+msgid "O OpenCode Zen permite usar os modelos gratuitos apenas no aplicativo OpenCode. Peça ao administrador para configurar um modelo liberado para uso pela API."
+msgstr "OpenCode Zen permite usar los modelos gratuitos solo en la aplicación OpenCode. Pida al administrador que configure un modelo disponible mediante la API."
+
+msgid "Nenhum modelo de IA disponível conseguiu concluir a resposta."
+msgstr "Ningún modelo de IA disponible pudo completar la respuesta."
+

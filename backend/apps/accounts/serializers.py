@@ -1,6 +1,7 @@
 """
 Accounts app serializers — auth, user, profile.
 """
+from django.utils.translation import gettext as translate_message
 from common.authentication import is_active_platform_staff
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
@@ -21,13 +22,13 @@ class LoginSerializer(serializers.Serializer):
         if email and password:
             user = User.objects.filter(email__iexact=email).first()
             if not user:
-                raise serializers.ValidationError("Credenciais inválidas.")
+                raise serializers.ValidationError(translate_message("Credenciais inválidas."))
 
             if not user.check_password(password):
-                raise serializers.ValidationError("Credenciais inválidas.")
+                raise serializers.ValidationError(translate_message("Credenciais inválidas."))
 
             if not user.is_active:
-                raise serializers.ValidationError("Usuário inativo.")
+                raise serializers.ValidationError(translate_message("Usuário inativo."))
 
             if (
                 user.organization
@@ -41,7 +42,7 @@ class LoginSerializer(serializers.Serializer):
             data["user"] = user
             data["email"] = user.email
         else:
-            raise serializers.ValidationError("Email e senha são obrigatórios.")
+            raise serializers.ValidationError(translate_message("Email e senha são obrigatórios."))
 
         return data
 
@@ -56,9 +57,9 @@ class WhatsAppContactMixin:
         enabled = attrs.get("phone_is_whatsapp", getattr(instance, "phone_is_whatsapp", False))
         preference = attrs.get("notification_preference", {})
         if enabled and not phone.strip():
-            raise serializers.ValidationError({"phone": "Informe o telefone que possui WhatsApp."})
+            raise serializers.ValidationError({"phone": translate_message("Informe o telefone que possui WhatsApp.")})
         if preference.get("whatsapp_reproductive_alerts") and not enabled:
-            raise serializers.ValidationError({"whatsapp_reproductive_alerts": "Marque que este contato possui WhatsApp para receber alertas."})
+            raise serializers.ValidationError({"whatsapp_reproductive_alerts": translate_message("Marque que este contato possui WhatsApp para receber alertas.")})
         if "phone_is_whatsapp" in attrs:
             # The contact checkbox authorizes the available WhatsApp alert channel;
             # the master preference gates every channel independently.
@@ -163,7 +164,7 @@ class UserCreateSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
 
     def validate(self, data):
         if data.get("password") != data.get("password_confirm"):
-            raise serializers.ValidationError({"password_confirm": "As senhas não conferem."})
+            raise serializers.ValidationError({"password_confirm": translate_message("As senhas não conferem.")})
         return super().validate(data)
 
     def create(self, validated_data):
@@ -191,7 +192,7 @@ class ChangePasswordSerializer(serializers.Serializer):
 
     def validate(self, data):
         if data.get("new_password") != data.get("new_password_confirm"):
-            raise serializers.ValidationError({"new_password_confirm": "As senhas não conferem."})
+            raise serializers.ValidationError({"new_password_confirm": translate_message("As senhas não conferem.")})
         return data
 
 
@@ -209,7 +210,7 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
     def validate_default_unit(self, value):
         allowed_units = {"kg", "ton", "head", "liters"}
         if value not in allowed_units:
-            raise serializers.ValidationError("Unidade padrão inválida.")
+            raise serializers.ValidationError(translate_message("Unidade padrão inválida."))
         return value
 
 class OperatorScopeValidationMixin:
@@ -217,7 +218,7 @@ class OperatorScopeValidationMixin:
         attrs = super().validate(attrs)
         role = attrs.get("role", getattr(self.instance, "role", "operator"))
         if role not in {"operator", "feeder"} and (attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only")):
-            raise serializers.ValidationError("As restrições de área são exclusivas do operador e do tratador.")
+            raise serializers.ValidationError(translate_message("As restrições de área são exclusivas do operador e do tratador."))
         if role == "feeder":
             attrs["can_operate_crops"] = False
             scope = attrs.get("allowed_livestock", self.instance.allowed_livestock.all() if self.instance else [])
@@ -256,5 +257,5 @@ class CreateMemberSerializer(OperatorScopeValidationMixin, UserCreateSerializer)
 
     def validate(self, data):
         if data.get("password") != data.get("password_confirm"):
-            raise serializers.ValidationError({"password_confirm": "As senhas não conferem."})
+            raise serializers.ValidationError({"password_confirm": translate_message("As senhas não conferem.")})
         return super().validate(data)

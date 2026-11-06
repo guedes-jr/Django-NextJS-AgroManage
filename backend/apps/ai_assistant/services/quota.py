@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 
@@ -86,12 +87,12 @@ def consume_question(user, *, input_tokens=0, output_tokens=0, estimated_cost_us
     start, renewal = _period_dates()
     enabled, limit = _subscription_rules(organization)
     if not enabled:
-        raise AIDisabledError("O Assistente IA não está disponível neste plano.")
+        raise AIDisabledError(translate_message("O Assistente IA não está disponível neste plano."))
     usage, _ = AIUsage.objects.select_for_update().get_or_create(
         organization=organization, user=user, period_start=start
     )
     if limit is not None and usage.questions_used >= limit:
-        raise AIQuotaExceededError("A franquia mensal de perguntas foi atingida.")
+        raise AIQuotaExceededError(translate_message("A franquia mensal de perguntas foi atingida."))
     usage.questions_used += 1
     usage.input_tokens += max(int(input_tokens), 0)
     usage.output_tokens += max(int(output_tokens), 0)

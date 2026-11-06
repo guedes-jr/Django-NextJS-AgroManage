@@ -20,7 +20,7 @@ export type CattleFormSpec = {
 };
 
 export function CattleForm({ spec, onClose, onSaved, reproduction = false }: { reproduction?: boolean; spec: CattleFormSpec; onClose: () => void; onSaved: () => void }) {
-  const { t } = useOrganizationLocale();
+  const { language, t } = useOrganizationLocale();
   const formId = useId();
   const [values, setValues] = useState<Record<string, string>>(spec.initial || {});
   const [saving, setSaving] = useState(false);
@@ -34,7 +34,7 @@ export function CattleForm({ spec, onClose, onSaved, reproduction = false }: { r
       await spec.save(values);
       onSaved();
     } catch (error) {
-      setError(cattleError(error));
+      setError(cattleError(error, language));
       setSaving(false);
     }
   }

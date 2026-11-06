@@ -1,29 +1,32 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { SegmentLanding } from "@/components/marketing/SegmentLanding";
-export const metadata: Metadata = {
-  title: "Gestão de múltiplas fazendas | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.multiFarmManagementFazendaMais"),
   description:
-    "Consolide equipes, fazendas e indicadores em uma plataforma rural.",
-};
-export default function Page() {
+    t("public.consolidateTeamsFarmsAndIndicatorsInOneFarmingPlatform"),
+}; }
+export default async function Page() {
+  const { t } = await getPublicTranslator();
+
   return (
-    <SegmentLanding
-      eyebrow="Operação multifazendas"
-      title="Visão consolidada sem perder o controle de cada unidade"
-      description="Padronize processos, distribua acessos e acompanhe diferentes propriedades no mesmo ambiente."
+    <SegmentLanding trackingLabel="Operação multifazendas"
+      eyebrow={t("public.multiFarmOperation")}
+      title={t("public.aConsolidatedViewWithControlOverEveryUnit")}
+      description={t("public.standardizeProcessesAssignAccessAndMonitorDifferentPropertiesInOne")}
       benefits={[
-        "Visão por fazenda e consolidada",
-        "Papéis e permissões por equipe",
-        "Processos padronizados",
-        "Indicadores comparáveis",
+        t("public.perFarmAndConsolidatedViews"),
+        t("public.rolesAndPermissionsPerTeam"),
+        t("public.standardizedProcesses"),
+        t("public.comparableIndicators"),
       ]}
       features={[
-        ["Unidades", "Organize propriedades e estruturas."],
-        ["Equipe", "Defina acessos e responsabilidades."],
-        ["Produção", "Acompanhe operações por unidade."],
-        ["Estoque", "Separe e consolide movimentações."],
-        ["Financeiro", "Compare custos e resultados."],
-        ["Governança", "Mantenha histórico e auditoria."],
+        [t("public.units"), t("public.organizePropertiesAndInfrastructure")],
+        [t("public.team"), t("public.defineAccessAndResponsibilities")],
+        [t("poultryReproduction.productionStatus"), t("public.trackOperationsPerUnit")],
+        [t("animalDetail.stock"), t("public.separateAndConsolidateMovements")],
+        [t("notifications.category.finance"), t("public.compareCostsAndResults")],
+        [t("public.governance"), t("public.maintainHistoryAndAuditTrails")],
       ]}
     />
   );

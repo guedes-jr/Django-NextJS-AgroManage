@@ -1,6 +1,7 @@
 """
 Serializers for the crops app.
 """
+from django.utils.translation import gettext as translate_message
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from rest_framework import serializers
@@ -138,16 +139,16 @@ class SectorStructureItemSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         organization = getattr(getattr(request, "user", None), "organization", None)
         if not organization or not plantation or plantation.organization_id != organization.id:
-            raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+            raise serializers.ValidationError({"plantation": translate_message("Plantação inválida para esta organização.")})
         if structure and (
             structure.farm.organization_id != organization.id
             or plantation.farm_id != structure.farm_id
         ):
-            raise serializers.ValidationError({"farm_structure": "A estrutura deve pertencer à mesma fazenda da plantação."})
+            raise serializers.ValidationError({"farm_structure": translate_message("A estrutura deve pertencer à mesma fazenda da plantação.")})
         if attrs.get("quantity", getattr(self.instance, "quantity", 0)) <= 0:
-            raise serializers.ValidationError({"quantity": "A quantidade deve ser maior que zero."})
+            raise serializers.ValidationError({"quantity": translate_message("A quantidade deve ser maior que zero.")})
         if attrs.get("unit_value", getattr(self.instance, "unit_value", 0)) < 0:
-            raise serializers.ValidationError({"unit_value": "O valor unitário não pode ser negativo."})
+            raise serializers.ValidationError({"unit_value": translate_message("O valor unitário não pode ser negativo.")})
         return attrs
 
 
@@ -282,12 +283,12 @@ class IrrigationSerializer(serializers.ModelSerializer):
         start_date = attrs.get("start_date") or attrs.get("date")
         end_date = attrs.get("end_date") or start_date
         if start_date and end_date and end_date < start_date:
-            raise serializers.ValidationError({"end_date": "A data final não pode ser anterior à data inicial."})
+            raise serializers.ValidationError({"end_date": translate_message("A data final não pode ser anterior à data inicial.")})
 
         plantation = attrs.get("plantation") or getattr(self.instance, "plantation", None)
         pump = attrs.get("pump_equipment") or getattr(self.instance, "pump_equipment", None)
         if plantation and pump and pump.organization_id != plantation.organization_id:
-            raise serializers.ValidationError({"pump_equipment": "Bomba inválida para esta organização."})
+            raise serializers.ValidationError({"pump_equipment": translate_message("Bomba inválida para esta organização.")})
 
         return attrs
 
@@ -335,17 +336,17 @@ class SoilAnalysisSerializer(serializers.ModelSerializer):
     def validate_plantation(self, value):
         request = self.context.get("request")
         if request and value.organization_id != getattr(request.user, "organization_id", None):
-            raise serializers.ValidationError("Plantação inválida para esta organização.")
+            raise serializers.ValidationError(translate_message("Plantação inválida para esta organização."))
         return value
 
     def validate_file(self, value):
         max_size = 10 * 1024 * 1024
         if value.size > max_size:
-            raise serializers.ValidationError("O arquivo deve ter no máximo 10MB.")
+            raise serializers.ValidationError(translate_message("O arquivo deve ter no máximo 10MB."))
         allowed_extensions = (".pdf", ".jpg", ".jpeg", ".png")
         name = value.name.lower()
         if not name.endswith(allowed_extensions):
-            raise serializers.ValidationError("Formatos aceitos: PDF, JPG ou PNG.")
+            raise serializers.ValidationError(translate_message("Formatos aceitos: PDF, JPG ou PNG."))
         return value
 
 
@@ -394,11 +395,11 @@ class AgronomistRecommendationSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         organization = getattr(getattr(request, "user", None), "organization", None)
         if not organization:
-            raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário não possui organização vinculada.")})
         if plantation and plantation.organization_id != organization.id:
-            raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+            raise serializers.ValidationError({"plantation": translate_message("Plantação inválida para esta organização.")})
         if any(product["item"].organization_id != organization.id for product in products):
-            raise serializers.ValidationError({"products": "Um ou mais produtos pertencem a outra organização."})
+            raise serializers.ValidationError({"products": translate_message("Um ou mais produtos pertencem a outra organização.")})
         return attrs
 
     def create(self, validated_data):
@@ -484,20 +485,20 @@ class HarvestSerializer(serializers.ModelSerializer):
         organization = getattr(getattr(request, "user", None), "organization", None)
 
         if planting_cycle and organization and planting_cycle.organization_id != organization.id:
-            raise serializers.ValidationError({"planting_cycle": "Plantação inválida para esta organização."})
+            raise serializers.ValidationError({"planting_cycle": translate_message("Plantação inválida para esta organização.")})
         if buyer and organization and buyer.organization_id != organization.id:
-            raise serializers.ValidationError({"buyer": "Comprador inválido para esta organização."})
+            raise serializers.ValidationError({"buyer": translate_message("Comprador inválido para esta organização.")})
         if planting_cycle and buyer and planting_cycle.organization_id != buyer.organization_id:
-            raise serializers.ValidationError({"buyer": "Comprador não pertence à organização da plantação."})
+            raise serializers.ValidationError({"buyer": translate_message("Comprador não pertence à organização da plantação.")})
         if yield_kg is not None and yield_kg <= 0:
-            raise serializers.ValidationError({"yield_kg": "A quantidade colhida deve ser maior que zero."})
+            raise serializers.ValidationError({"yield_kg": translate_message("A quantidade colhida deve ser maior que zero.")})
         if destination == Harvest.Destination.SALE:
             if not buyer and not attrs.get("buyer_name", getattr(self.instance, "buyer_name", "")):
-                raise serializers.ValidationError({"buyer": "Informe o comprador para vendas."})
+                raise serializers.ValidationError({"buyer": translate_message("Informe o comprador para vendas.")})
             if unit_price is None or unit_price <= 0:
-                raise serializers.ValidationError({"unit_price": "O preço de venda deve ser maior que zero."})
+                raise serializers.ValidationError({"unit_price": translate_message("O preço de venda deve ser maior que zero.")})
         if attrs.get("notes") and len(attrs["notes"]) > 200:
-            raise serializers.ValidationError({"notes": "As observações devem ter no máximo 200 caracteres."})
+            raise serializers.ValidationError({"notes": translate_message("As observações devem ter no máximo 200 caracteres.")})
 
         return attrs
 
@@ -574,21 +575,21 @@ class LaborRecordSerializer(serializers.ModelSerializer):
         organization = getattr(getattr(request, "user", None), "organization", None)
 
         if plantation and organization and plantation.organization_id != organization.id:
-            raise serializers.ValidationError({"plantation": "Plantação inválida para esta organização."})
+            raise serializers.ValidationError({"plantation": translate_message("Plantação inválida para esta organização.")})
         if worker and organization and worker.organization_id != organization.id:
-            raise serializers.ValidationError({"worker": "Trabalhador inválido para esta organização."})
+            raise serializers.ValidationError({"worker": translate_message("Trabalhador inválido para esta organização.")})
         if plantation and worker and plantation.organization_id != worker.organization_id:
-            raise serializers.ValidationError({"worker": "Trabalhador não pertence à organização da plantação."})
+            raise serializers.ValidationError({"worker": translate_message("Trabalhador não pertence à organização da plantação.")})
 
         daily_quantity = attrs.get("daily_quantity", getattr(self.instance, "daily_quantity", None))
         daily_rate = attrs.get("daily_rate", getattr(self.instance, "daily_rate", None))
         if daily_quantity is not None and daily_quantity <= 0:
-            raise serializers.ValidationError({"daily_quantity": "A quantidade de diárias deve ser maior que zero."})
+            raise serializers.ValidationError({"daily_quantity": translate_message("A quantidade de diárias deve ser maior que zero.")})
         if daily_rate is not None and daily_rate <= 0:
-            raise serializers.ValidationError({"daily_rate": "O valor da diária deve ser maior que zero."})
+            raise serializers.ValidationError({"daily_rate": translate_message("O valor da diária deve ser maior que zero.")})
 
         notes = attrs.get("notes")
         if notes and len(notes) > 300:
-            raise serializers.ValidationError({"notes": "As observações devem ter no máximo 300 caracteres."})
+            raise serializers.ValidationError({"notes": translate_message("As observações devem ter no máximo 300 caracteres.")})
 
         return attrs

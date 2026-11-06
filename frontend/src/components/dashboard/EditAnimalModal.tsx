@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
@@ -16,6 +17,7 @@ interface EditAnimalModalProps {
 }
 
 export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditAnimalModalProps) {
+  const { t } = useOrganizationLocale();
   const { showToast } = useToast();
   const [formData, setFormData] = useState<any>({});
 
@@ -118,7 +120,8 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
         <>
           <div className="d-flex flex-column flex-md-row gap-2 w-100 justify-content-end">
             <Button variant="outline-secondary" onClick={onClose} className="px-4 border-border bg-background hover-bg-muted fw-semibold w-100 w-md-auto order-2 order-md-1">
-              Cancelar
+
+              {t("cattle.form.cancel")}
             </Button>
             <Button onClick={handleSubmit} className="px-5 fw-bold shadow-sm w-100 w-md-auto order-1 order-md-2" style={{ background: "var(--primary)", color: "white" }}>
               Salvar Alterações
@@ -152,16 +155,16 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
                <div className="login-input-group mb-0">
                   <label className="login-label">Linhagem/Raça</label>
                   <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={formData.raca || ""} onChange={(e) => updateField("raca", e.target.value)}>
-                    <option value="">Não informada</option>
+                    <option value="">{t("plantations.detail.notProvided")}</option>
                     {currentConfig.racas.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                </div>
             </div>
             <div className="col-12 col-md-3">
                <div className="login-input-group mb-0">
-                  <label className="login-label fw-bold">Categoria <span className="text-danger">*</span></label>
+                  <label className="login-label fw-bold">{t("lotReport.category")} <span className="text-danger">*</span></label>
                   <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={formData.categoria || ""} onChange={(e) => updateField("categoria", e.target.value)}>
-                    <option value="">Selecione...</option>
+                    <option value="">{t("reproduction.select")}</option>
                     {currentConfig.categorias.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                </div>
@@ -170,17 +173,17 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
             {/* Linha 2 */}
             <div className="col-12 col-md-3">
                <div className="login-input-group mb-0">
-                  <label className="login-label fw-bold">Sexo <span className="text-danger">*</span></label>
+                  <label className="login-label fw-bold">{t("workspace.sex")} <span className="text-danger">*</span></label>
                   <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={formData.sexo || ""} onChange={(e) => updateField("sexo", e.target.value)}>
-                    <option value="Macho">Macho</option>
-                    <option value="Femea">Fêmea</option>
+                    <option value="Macho">{t("workspace.male")}</option>
+                    <option value="Femea">{t("workspace.female")}</option>
                     <option value="Misto">Misto</option>
                   </select>
                </div>
             </div>
             <div className="col-12 col-md-3">
                <div className="login-input-group mb-0">
-                  <label className="login-label fw-bold">Origem <span className="text-danger">*</span></label>
+                  <label className="login-label fw-bold">{t("animalDetail.origin")} <span className="text-danger">*</span></label>
                   <select className="login-input bg-transparent text-foreground" style={{ paddingLeft: "1rem" }} value={formData.origem || "Comprado"} onChange={(e) => updateField("origem", e.target.value)}>
                     <option value="Comprado">Comprado</option>
                     <option value="Nascido">Nascido</option>
@@ -192,7 +195,7 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
                <div className="login-input-group mb-0">
                   <label className="login-label">Nome (Alternativo)</label>
                   <div className="login-input-wrapper">
-                    <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground" placeholder="Identificação" value={formData.nome || ""} onChange={(e) => updateField("nome", e.target.value)} />
+                    <input type="text" className="login-input login-input-icon-left bg-transparent text-foreground" placeholder={t("structure.machines.identification")} value={formData.nome || ""} onChange={(e) => updateField("nome", e.target.value)} />
                     <FileText className="login-input-icon text-muted-foreground" size={16} />
                   </div>
                </div>
@@ -219,7 +222,7 @@ export function EditAnimalModal({ isOpen, onClose, type, onSave, animal }: EditA
             </div>
             <div className="col-12 col-md-3">
                <div className="login-input-group mb-0">
-                  <label className="login-label">Peso Médio (kg)</label>
+                  <label className="login-label">{t("swine.averageWeight")}</label>
                   <div className="login-input-wrapper">
                     <input type="number" step="0.1" className="login-input bg-transparent pe-5 text-foreground" style={{ paddingLeft: "1rem" }} placeholder="0.0" value={formData.peso || ""} onChange={(e) => updateField("peso", e.target.value)} />
                     <span className="position-absolute end-0 top-50 translate-middle-y pe-3 small text-muted-foreground fw-bold pe-none">kg</span>

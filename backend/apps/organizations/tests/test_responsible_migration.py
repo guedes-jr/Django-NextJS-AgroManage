@@ -13,9 +13,10 @@ class ResponsibleMigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         final_targets = executor.loader.graph.leaf_nodes()
         try:
-            executor.migrate([("accounts", "0009_organizationadministratorinvitation")])
+            executor.migrate([("accounts", "0009_organizationadministratorinvitation"), ("organizations", "0005_organization_status_constraint")])
             state = executor.loader.project_state([
                 ("accounts", "0009_organizationadministratorinvitation"),
+                ("organizations", "0005_organization_status_constraint"),
                 ("affiliates", "0004_affiliateprofile_portal_access_only"),
                 ("platform_admin", "0013_whatsappsessionobservation"),
             ]).apps

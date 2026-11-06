@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import status, viewsets
 from common.permissions import OrganizationRolePermission
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -8,6 +9,7 @@ import os
 import subprocess
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.db import transaction
 from decimal import Decimal
 from .models import OrganizationAddress, OrganizationContact
@@ -30,7 +32,7 @@ def my_organization_view(request):
     
     if not org:
         return Response(
-            {"detail": "Usuário não vinculado a uma organização."},
+            {"detail": _("Usuário não vinculado a uma organização.")},
             status=status.HTTP_404_NOT_FOUND
         )
 
@@ -42,7 +44,7 @@ def my_organization_view(request):
     # Permission check: Only Owners or Admins can edit organization data
     if request.user.role not in ["admin"]:
         return Response(
-            {"detail": "Apenas administradores podem editar dados da organização."},
+            {"detail": _("Apenas administradores podem editar dados da organização.")},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -94,7 +96,7 @@ def _change_preview(subscription, quote):
 def subscription_change_preview_view(request):
     org = getattr(request.user, "organization", None)
     if not org or not hasattr(org, "subscription"):
-        return Response({"detail": "Assinatura não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"detail": translate_message("Assinatura não encontrada.")}, status=status.HTTP_404_NOT_FOUND)
     serializer = SubscriptionQuoteInputSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     quote = create_subscription_quote(**serializer.validated_data)
@@ -106,23 +108,23 @@ def subscription_change_preview_view(request):
 @transaction.atomic
 def subscription_change_confirm_view(request):
     if request.user.role not in ["admin"]:
-        return Response({"detail": "Apenas administradores podem alterar a assinatura."}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"detail": translate_message("Apenas administradores podem alterar a assinatura.")}, status=status.HTTP_403_FORBIDDEN)
     org = getattr(request.user, "organization", None)
     if not org or not hasattr(org, "subscription"):
-        return Response({"detail": "Assinatura não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"detail": translate_message("Assinatura não encontrada.")}, status=status.HTTP_404_NOT_FOUND)
     try:
         quote = SubscriptionQuote.objects.prefetch_related("items__tier").get(public_token=request.data.get("quote_token"))
     except (SubscriptionQuote.DoesNotExist, ValueError, TypeError):
-        return Response({"detail": "Orçamento inválido."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": translate_message("Orçamento inválido.")}, status=status.HTTP_400_BAD_REQUEST)
     if quote.status != SubscriptionQuote.Status.DRAFT or quote.is_expired:
-        return Response({"detail": "Este orçamento não está mais disponível."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": translate_message("Este orçamento não está mais disponível.")}, status=status.HTTP_400_BAD_REQUEST)
     if quote.requires_contact:
-        return Response({"detail": "Esta composição precisa de atendimento comercial."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": translate_message("Esta composição precisa de atendimento comercial.")}, status=status.HTTP_400_BAD_REQUEST)
 
     subscription = org.subscription
     preview = _change_preview(subscription, quote)
     if preview["effective_at"] == "next_renewal":
-        return Response({"detail": "Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": translate_message("Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação.")}, status=status.HTTP_400_BAD_REQUEST)
 
     subscription.items.all().delete()
     SubscriptionItem.objects.bulk_create([
@@ -151,7 +153,7 @@ def subscription_change_confirm_view(request):
     quote.status = SubscriptionQuote.Status.CONVERTED
     quote.save(update_fields=("status", "updated_at"))
     return Response({
-        "detail": "Plano atualizado com sucesso.",
+        "detail": translate_message("Plano atualizado com sucesso."),
         "subscription": OrganizationSerializer(org).data["subscription"],
         "invoice": {"id": str(invoice.id), "number": invoice.number, "total": invoice.total} if invoice else None,
     })
@@ -210,7 +212,7 @@ def update_project_view(request):
 
         return Response(
             {
-                "detail": "Atualização do projeto iniciada com sucesso em segundo plano. O sistema pode ficar temporariamente indisponível durante a reinicialização dos serviços."
+                "detail": translate_message("Atualização do projeto iniciada com sucesso em segundo plano. O sistema pode ficar temporariamente indisponível durante a reinicialização dos serviços.")
             },
             status=status.HTTP_200_OK
         )

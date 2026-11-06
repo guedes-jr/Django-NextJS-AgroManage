@@ -1,3 +1,4 @@
+const locale = require('./helpers/locale.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -7,7 +8,7 @@ const path = require('node:path');
 function load(file, imports = {}) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src', file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    exports, Date, require: name => imports[name] || (name === 'react/jsx-runtime' ? { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) } : new Proxy({}, { get: (_, key) => key })),
+    exports, Date, require: name => imports[name] || (name === '@/lib/locale' ? locale : null) || (name === 'react/jsx-runtime' ? { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) } : new Proxy({}, { get: (_, key) => key })),
   });
   return exports;
 }

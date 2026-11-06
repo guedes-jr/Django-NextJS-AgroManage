@@ -1,7 +1,9 @@
 "use client";
+import { useInterfaceLocale } from "@/lib/interfaceLocale";
 
 import { useState } from "react";
 import { Loader2, Lock, ShieldAlert } from "lucide-react";
+import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
 import { apiClient } from "@/services/api";
 
 interface ForcePasswordModalProps {
@@ -9,6 +11,7 @@ interface ForcePasswordModalProps {
 }
 
 export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
+  const { t } = useInterfaceLocale();
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,11 +20,11 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== passwordConfirm) {
-      setError("As senhas não conferem.");
+      setError(t("settings.member.passwordsDiffer"));
       return;
     }
     if (password.length < 8) {
-      setError("A senha deve ter pelo menos 8 caracteres.");
+      setError(t("workspace.thePasswordMustHaveAtLeast8Characters"));
       return;
     }
 
@@ -33,8 +36,8 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
         new_password_confirm: passwordConfirm,
       });
       onSuccess();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Erro ao alterar a senha.");
+    } catch (err: unknown) {
+      setError(getOrganizationErrorMessage(err, t("workspace.couldNotChangeThePassword")));
     } finally {
       setLoading(false);
     }
@@ -50,13 +53,12 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
           <div className="icon-box bg-warning/10 text-warning rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: "64px", height: "64px" }}>
             <ShieldAlert size={32} />
           </div>
-          <h2 className="fw-black h4 mb-2">Ação Obrigatória</h2>
+          <h2 className="fw-black h4 mb-2">{t("workspace.requiredAction")}</h2>
           
           <div className="alert alert-warning border-warning/20 small py-3 px-3 rounded-xl mt-4 text-start d-flex align-items-start gap-3 shadow-sm">
             <ShieldAlert size={20} className="text-warning flex-shrink-0 mt-1" />
             <p className="mb-0 text-dark-emphasis" style={{ fontSize: "0.85rem", lineHeight: 1.5 }}>
-              <strong>Por motivos de segurança</strong>, você precisa alterar a senha gerada pelo administrador no seu primeiro acesso antes de continuar. Isso garante que apenas você tenha acesso a essa conta.
-            </p>
+              <strong>{t("workspace.forSecurityReasons")}</strong>{t("workspace.youMustChangeTheAdministratorGeneratedPasswordOnYourFirst")} </p>
           </div>
         </div>
 
@@ -68,12 +70,12 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
 
         <form onSubmit={handleSubmit}>
           <div className="login-input-group mb-4">
-            <label className="login-label fw-bold small">Nova Senha <span className="text-danger">*</span></label>
+            <label className="login-label fw-bold small">{t("workspace.newPassword")} <span className="text-danger">*</span></label>
             <div className="login-input-wrapper">
               <input
                 type="password"
                 className="login-input login-input-icon-left bg-transparent text-foreground"
-                placeholder="Mínimo de 8 caracteres"
+                placeholder={t("workspace.atLeast8Characters")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -84,12 +86,12 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
           </div>
 
           <div className="login-input-group mb-5">
-            <label className="login-label fw-bold small">Confirmar Nova Senha <span className="text-danger">*</span></label>
+            <label className="login-label fw-bold small">{t("workspace.confirmNewPassword")} <span className="text-danger">*</span></label>
             <div className="login-input-wrapper">
               <input
                 type="password"
                 className="login-input login-input-icon-left bg-transparent text-foreground"
-                placeholder="Repita a senha"
+                placeholder={t("workspace.repeatPassword")}
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 required
@@ -104,9 +106,7 @@ export function ForcePasswordModal({ onSuccess }: ForcePasswordModalProps) {
             className="btn-primary-elegant w-100 py-3 d-flex align-items-center justify-content-center gap-2 rounded-xl fw-bold shadow-lg"
             disabled={loading}
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={18} />}
-            Atualizar Senha e Continuar
-          </button>
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={18} />} {t("workspace.updatePasswordAndContinue")} </button>
         </form>
       </div>
     </div>

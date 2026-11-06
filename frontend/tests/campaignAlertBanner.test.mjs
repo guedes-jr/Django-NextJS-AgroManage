@@ -1,3 +1,4 @@
+import locale from "./helpers/locale.cjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -21,6 +22,7 @@ function loadComponent(filename, dependencies) {
   vm.runInNewContext(compiled, {
     exports, console,
     require(name) {
+      if (name === "@/lib/locale") return locale;
       if (name === "react") return {
         createContext: () => ({ Provider: "provider" }),
         useState(initial) {
@@ -58,7 +60,7 @@ test("an unread delivered campaign is visible on screen and requires explicit ac
   });
   const tree = render();
   assert.equal(tree.type, "dialog");
-  assert.equal(tree.props["aria-label"], "Comunicados pendentes");
+  assert.equal(tree.props["aria-label"], "Comunicado da plataforma");
   assert.equal(acknowledged.length, 0);
   const action = nodes(tree).find(node => node.type === "button");
   action.props.onClick();

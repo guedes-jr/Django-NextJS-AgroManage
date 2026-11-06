@@ -62,7 +62,8 @@ class OpenRouterProvider(AIProvider):
             {
                 "role": "system",
                 "content": build_system_prompt(
-                    subject=getattr(conversation, "subject", "general"),
+                    language=getattr(getattr(user, "organization", None), "language", "pt-BR"),
+                subject=getattr(conversation, "subject", "general"),
                     authorized_context=context,
                 ),
             }

@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import serializers
 from django.utils import timezone
 
@@ -58,7 +59,7 @@ class FarmStructureSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         organization_id = getattr(getattr(request, "user", None), "organization_id", None)
         if not organization_id or farm.organization_id != organization_id:
-            raise serializers.ValidationError("Propriedade inválida para esta organização.")
+            raise serializers.ValidationError(translate_message("Propriedade inválida para esta organização."))
         return farm
 
     def get_items_value(self, obj):
@@ -104,7 +105,7 @@ class FarmAssetSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         organization_id = getattr(getattr(request, "user", None), "organization_id", None)
         if not organization_id or farm.organization_id != organization_id:
-            raise serializers.ValidationError("Propriedade inválida para esta organização.")
+            raise serializers.ValidationError(translate_message("Propriedade inválida para esta organização."))
         return farm
 
     def get_implements_value(self, obj):

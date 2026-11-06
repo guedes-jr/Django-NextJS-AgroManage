@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { useOrganizationLocale } from "@/lib/locale";
+import { useInterfaceLocale } from "@/lib/interfaceLocale";
 
 export type WhatsAppContactValues = {
   phone_is_whatsapp: boolean;
@@ -14,7 +14,7 @@ export default function WhatsAppContactOptions({ value, onChange, disabled = fal
   disabled?: boolean;
 }) {
   const id = useId();
-  const { t } = useOrganizationLocale();
+  const { t } = useInterfaceLocale();
   return <fieldset disabled={disabled} className="d-flex flex-column gap-3 p-3 rounded-3" style={{ border: "1px solid var(--border)", background: "var(--background)" }}>
     <legend className="float-none w-auto px-1 mb-0 small fw-semibold">{t("whatsapp.title")}</legend>
     <label htmlFor={`${id}-contact`} className="d-flex align-items-start gap-2 mb-0">

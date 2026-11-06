@@ -1,3 +1,4 @@
+import { translateMessage, type AppLanguage } from "@/lib/localeMessages";
 import { isAxiosError } from "axios";
 import apiClient from "./api";
 
@@ -26,13 +27,13 @@ export interface Quota {
   renews_at: string;
 }
 
-export function aiAssistantError(error: unknown): string {
+export function aiAssistantError(error: unknown, language: AppLanguage = "pt-BR"): string {
   if (isAxiosError(error)) {
     if (typeof error.response?.data?.detail === "string") return error.response.data.detail;
     if (Array.isArray(error.response?.data?.question)) return error.response.data.question.join(" ");
-    if (error.code === "ECONNABORTED") return "A resposta demorou mais que o esperado. Confira o histórico antes de tentar novamente.";
+    if (error.code === "ECONNABORTED") return translateMessage(language, "workspace.theResponseTookLongerThanExpectedCheckHistoryBeforeTrying");
   }
-  return "Não foi possível concluir a solicitação. Tente novamente.";
+  return translateMessage(language, "workspace.couldNotCompleteTheRequestTryAgain");
 }
 
 export const aiAssistantService = {

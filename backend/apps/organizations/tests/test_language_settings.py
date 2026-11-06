@@ -70,3 +70,48 @@ class OrganizationLanguageSettingsTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.organization.refresh_from_db()
         self.assertEqual(self.organization.language, Organization.Language.SPANISH)
+
+    def test_api_errors_follow_requested_language_without_changing_preference(self):
+        manager = User.objects.create_user(
+            email="manager@language.test", password="password123", organization=self.organization, role="manager",
+        )
+        self.client.force_authenticate(manager)
+        for language, message in [
+            ("en", "Only administrators can edit organization data."),
+            ("es", "Solo los administradores pueden editar los datos de la organización."),
+            ("pt-PT", "Apenas administradores podem editar os dados da organização."),
+            ("pt-BR", "Apenas administradores podem editar dados da organização."),
+        ]:
+            with self.subTest(language=language):
+                response = self.client.patch(
+                    reverse("my-organization"),
+                    {"language": Organization.Language.ENGLISH},
+                    format="json",
+                    HTTP_ACCEPT_LANGUAGE=language,
+                )
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.data["detail"], message)
+                self.assertEqual(response.headers["Content-Language"].lower(), language.lower())
+        self.organization.refresh_from_db()
+        self.assertEqual(self.organization.language, Organization.Language.PORTUGUESE_BRAZIL)
+
+    def test_unsupported_request_language_uses_default_language(self):
+        self.client.force_authenticate(self.operator)
+        response = self.client.patch(
+            reverse("my-organization"),
+            {"language": Organization.Language.ENGLISH},
+            format="json",
+            HTTP_ACCEPT_LANGUAGE="fr",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.headers["Content-Language"], "pt-br")
+
+    def test_validation_error_envelope_is_translated_and_keeps_error_code(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            reverse("my-organization"), {"language": "fr"}, format="json", HTTP_ACCEPT_LANGUAGE="es",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"]["code"], "bad_request")
+        self.assertEqual(response.data["error"]["message"], "Solicitud inválida.")
+        self.assertIn("language", response.data["error"]["detail"])

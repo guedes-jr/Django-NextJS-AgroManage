@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState } from "react";
 import { FinanceDashboard } from "@/components/dashboard/FinanceDashboard";
@@ -23,6 +24,7 @@ const TABS = [
 ];
 
 export default function FinanceiroPage() {
+  const { language, t } = useOrganizationLocale();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -31,9 +33,9 @@ export default function FinanceiroPage() {
       {/* Breadcrumbs */}
       <div className="mb-4">
         <nav className="d-flex align-items-center gap-2 small" style={{ color: "var(--muted-foreground)" }}>
-          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>Dashboard</Link>
+          <Link href="/home" className="text-decoration-none" style={{ color: "var(--muted-foreground)" }}>{t("sidebar.dashboard")}</Link>
           <ChevronRight size={14} />
-          <span className="fw-semibold text-foreground">Financeiro</span>
+          <span className="fw-semibold text-foreground">{t("notifications.category.finance")}</span>
         </nav>
       </div>
 
@@ -49,11 +51,11 @@ export default function FinanceiroPage() {
         </div>
         
         <div className="d-flex flex-wrap gap-2">
-          <button onClick={() => financeService.export().catch(error => showToast(financeError(error), "error"))} className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
+          <button onClick={() => financeService.export().catch(error => showToast(financeError(error, language), "error"))} className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
             <Download size={18} /> Exportar Relatório
           </button>
           <button onClick={() => setActiveTab("settings")} className="btn btn-outline-secondary fw-semibold d-flex align-items-center gap-2 rounded-2 px-3 py-2 text-dark bg-white border-light-subtle">
-            <Settings size={18} /> Configurações
+            <Settings size={18} />  {t("settings.title")}
           </button>
         </div>
       </div>

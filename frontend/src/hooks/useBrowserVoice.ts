@@ -1,4 +1,5 @@
 "use client";
+import { translateMessage, type AppLanguage } from "@/lib/localeMessages";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -29,7 +30,7 @@ const spokenText = (text: string) => text
   .replace(/\s+/g, " ")
   .trim();
 
-export function useBrowserVoice() {
+export function useBrowserVoice(language: AppLanguage = "pt-BR") {
   const recognition = useRef<Recognition | null>(null);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -40,37 +41,37 @@ export function useBrowserVoice() {
   const stopDictation = useCallback(() => recognition.current?.stop(), []);
   const dictate = useCallback((onTranscript: (text: string) => void) => {
     const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Constructor) { setError("A digitação por voz não é compatível com este navegador."); return; }
+    if (!Constructor) { setError(translateMessage(language, "workspace.voiceTypingIsNotSupportedByThisBrowser")); return; }
     setError("");
     const instance = new Constructor();
     recognition.current = instance;
-    instance.lang = "pt-BR";
+    instance.lang = language;
     instance.continuous = false;
     instance.interimResults = true;
     instance.onresult = event => onTranscript(Array.from(event.results).map(result => result[0]?.transcript || "").join("").trim());
     instance.onerror = event => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") setError("Permita o uso do microfone para ditar sua mensagem.");
-      else if (event.error !== "aborted") setError("Não foi possível reconhecer a fala. Tente novamente.");
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") setError(translateMessage(language, "workspace.allowMicrophoneAccessToDictateYourMessage"));
+      else if (event.error !== "aborted") setError(translateMessage(language, "workspace.couldNotRecognizeSpeechTryAgain"));
     };
     instance.onend = () => { recognition.current = null; setListening(false); };
     setListening(true);
     instance.start();
-  }, []);
+  }, [language]);
 
   const stopSpeaking = useCallback(() => { window.speechSynthesis?.cancel(); setSpeaking(false); }, []);
   const speak = useCallback((text: string) => {
-    if (!canSpeak) { setError("A leitura em voz alta não é compatível com este navegador."); return; }
+    if (!canSpeak) { setError(translateMessage(language, "workspace.readingAloudIsNotSupportedByThisBrowser")); return; }
     const content = spokenText(text);
     if (!content) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(content);
-    utterance.lang = "pt-BR";
+    utterance.lang = language;
     utterance.rate = 0.95;
     utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => { setSpeaking(false); setError("Não foi possível reproduzir esta resposta."); };
+    utterance.onerror = () => { setSpeaking(false); setError(translateMessage(language, "workspace.couldNotPlayThisResponse")); };
     setError(""); setSpeaking(true); window.speechSynthesis.speak(utterance);
-  }, [canSpeak]);
+  }, [canSpeak, language]);
 
-  useEffect(() => () => { recognition.current?.stop(); window.speechSynthesis?.cancel(); }, []);
+  useEffect(() => () => { recognition.current?.stop(); window.speechSynthesis?.cancel(); }, [language]);
   return { listening, speaking, error, canDictate, canSpeak, dictate, stopDictation, speak, stopSpeaking };
 }

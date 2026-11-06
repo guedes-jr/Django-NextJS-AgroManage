@@ -1,3 +1,4 @@
+import { translateMessage, type AppLanguage } from "@/lib/localeMessages";
 import { isAxiosError } from "axios";
 import { apiClient } from "./api";
 
@@ -50,11 +51,11 @@ export const financeService = {
   },
 };
 
-export function financeError(error: unknown): string {
-  if (!isAxiosError(error)) return "Não foi possível concluir a operação.";
+export function financeError(error: unknown, language: AppLanguage = "pt-BR"): string {
+  if (!isAxiosError(error)) return translateMessage(language, "workspace.couldNotCompleteTheOperation");
   const data = error.response?.data;
   const details = data?.error?.detail ?? data?.detail ?? data;
   if (typeof details === "string") return details;
-  if (details && typeof details === "object") return Object.values(details).flat().filter(value => typeof value === "string").join(" ") || "Confira os dados e tente novamente.";
-  return "Não foi possível concluir a operação.";
+  if (details && typeof details === "object") return Object.values(details).flat().filter(value => typeof value === "string").join(" ") || translateMessage(language, "workspace.checkTheDetailsAndTryAgain");
+  return translateMessage(language, "workspace.couldNotCompleteTheOperation");
 }

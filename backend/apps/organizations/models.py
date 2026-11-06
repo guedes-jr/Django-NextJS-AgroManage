@@ -4,6 +4,7 @@ Organizations domain models.
 from common.models import BaseModel
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext as translate_message
 
 
 class Organization(BaseModel):
@@ -90,7 +91,7 @@ class Organization(BaseModel):
 
     @property
     def access_denied_message(self):
-        return f"Organização {self.get_status_display().lower()}. Entre em contato com o suporte."
+        return translate_message(f"Organização {self.get_status_display().lower()}. Entre em contato com o suporte.")
 
     def __str__(self) -> str:
         return self.name

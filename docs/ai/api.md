@@ -23,6 +23,20 @@ are `pt-BR`, `en`, `es` and `pt-PT`, with `pt-BR` as the default. The value is
 stored on the organization and shared by its members; user-level preferences
 do not override it.
 
+The client sends `Accept-Language` using the active interface language. Django's
+`LocaleMiddleware` accepts the same four languages and returns `Content-Language`.
+Framework errors, the common error envelope and organization language permission
+messages use gettext catalogs in `backend/locale/`. Error codes, field names and
+response shapes remain stable; translate additional domain messages with gettext
+rather than changing their codes or translating user data. Compile updated `.po`
+files with Django `compilemessages` before deployment.
+Tenant validation and response messages use gettext without changing error codes,
+field names, permissions or tenant filters. Finance CSV headings follow the request
+language; row identifiers, statuses, dates and numeric serialization keep their
+existing contract. Organization exports include the persisted language. AI and
+support prompts take their response language from the user's organization rather
+than from the conversation or user-supplied context.
+
 ## Marketing campaign content
 
 Campaigns have a `category`: `system` (service communications and platform billing

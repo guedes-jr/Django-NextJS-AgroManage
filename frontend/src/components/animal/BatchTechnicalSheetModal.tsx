@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useEffect } from "react";
 import { X, Printer, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -14,15 +15,15 @@ interface BatchTechnicalSheetModalProps {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmt = (v: any, decimals = 2) =>
+const fmt = (v: any, decimals = 2, language = "pt-BR") =>
   v != null && !isNaN(Number(v))
-    ? Number(v).toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    ? Number(v).toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     : "-";
 
-const fmtInt = (v: any) =>
-  v != null && !isNaN(Number(v)) ? Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "-";
+const fmtInt = (v: any, language = "pt-BR") =>
+  v != null && !isNaN(Number(v)) ? Number(v).toLocaleString(language, { maximumFractionDigits: 0 }) : "-";
 
-const fmtDate = (d: any) => {
+const fmtDate = (d: any, language = "pt-BR") => {
   if (!d) return "-";
   const dateOnly = typeof d === "string" && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
   if (dateOnly) {
@@ -30,9 +31,9 @@ const fmtDate = (d: any) => {
       Number(dateOnly[1]),
       Number(dateOnly[2]) - 1,
       Number(dateOnly[3]),
-    ).toLocaleDateString("pt-BR");
+    ).toLocaleDateString(language);
   }
-  return new Date(d).toLocaleDateString("pt-BR");
+  return new Date(d).toLocaleDateString(language);
 };
 
 const calendarDay = (value: string | Date) => {
@@ -278,6 +279,7 @@ const IconTargetBig = () => (
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTechnicalSheetModalProps) {
+  const { language, t } = useOrganizationLocale();
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -435,7 +437,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
     if (!Number.isFinite(dosePerAnimal) || !Number.isFinite(animalCount)) return "-";
     const total = dosePerAnimal * animalCount;
     const unit = vaccine.inventory_unit || "dose";
-    return fmt(total, Number.isInteger(total) ? 0 : 2) + " " + unit;
+    return fmt(total, Number.isInteger(total) ? 0 : 2, language) + " " + unit;
   };
 
   // Deaths — somente registros reais
@@ -462,8 +464,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   })();
 
   const now = new Date();
-  const reportDate = animal?.report_date ? fmtDate(animal.report_date) : now.toLocaleDateString("pt-BR");
-  const reportTime = animal?.report_time || now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const reportDate = animal?.report_date ? fmtDate(animal.report_date, language) : now.toLocaleDateString(language);
+  const reportTime = animal?.report_time || now.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" });
 
   const cellBase: React.CSSProperties = {
     fontSize: "0.6rem",
@@ -480,7 +482,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
       footer={
         <div className="d-flex flex-wrap justify-content-end gap-2 w-100">
           <button className="btn btn-light rounded-pill px-4 d-flex align-items-center gap-2" onClick={onClose}>
-            <X size={16} /> Fechar
+            <X size={16} />  {t("notifications.close")}
           </button>
           <button className="btn btn-success rounded-pill px-4 d-flex align-items-center gap-2" onClick={handlePrint}>
             <Printer size={16} /> Imprimir / PDF
@@ -609,8 +611,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
 
               {/* Col 1 — Identificação */}
               <div style={{ padding: "8px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
-                <InfoRow icon={<IconPig />} label="Raça:" value={animal?.breed_name || "-"} />
-                <InfoRow icon={<IconCal />} label="Nascimento:" value={fmtDate(animal?.birth_date)} />
+                <InfoRow icon={<IconPig />} label={t("workspace.breed")} value={animal?.breed_name || "-"} />
+                <InfoRow icon={<IconCal />} label="Nascimento:" value={fmtDate(animal?.birth_date, language)} />
                 <InfoRow icon={<IconClock />} label="Idade Atual:" value={ageInDays != null ? `${ageInDays} ${ageInDays === 1 ? "dia" : "dias"}` : "-"} />
                 {categoria && categoria !== "-" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
@@ -633,7 +635,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   Situação do Lote:
                 </div>
                 <div style={{ fontSize: "0.62rem", color: GREEN_DARK, fontWeight: 700 }}>
-                  {({ active: "Ativo", sold: "Vendido", finished: "Finalizado", dead: "Encerrado por mortalidade" } as Record<string, string>)[animal?.status] || "Não informada"}
+                  {({ active: "Ativo", sold: "Vendido", finished: "Finalizado", dead: "Encerrado por mortalidade" } as Record<string, string>)[animal?.status] || t("plantations.detail.notProvided")}
                 </div>
               </div>
 
@@ -652,19 +654,19 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 </div>
                 <GeneticsRow icon={<IconFemale />} label="Mãe (Matriz):" value={mae ?? "-"} />
                 <GeneticsRow icon={<IconMale />} label="Pai (Reprodutor):" value={pai ?? "-"} />
-                <GeneticsRow icon={<IconBaby />} label="Nascidos Vivos:" value={nascidosVivos != null ? fmtInt(nascidosVivos) : "-"} />
-                <GeneticsRow icon={<IconSkull />} label="Óbitos no Parto:" value={nascidosMortos != null ? fmtInt(nascidosMortos) : "-"} />
-                <GeneticsRow icon={<IconDanger />} label="Mumificados:" value={natimortos != null ? fmtInt(natimortos) : "-"} />
-                <GeneticsRow icon={<IconSum />} label="Total Nascidos:" value={totalNascidos != null ? fmtInt(totalNascidos) : "-"} bold />
+                <GeneticsRow icon={<IconBaby />} label="Nascidos Vivos:" value={nascidosVivos != null ? fmtInt(nascidosVivos, language) : "-"} />
+                <GeneticsRow icon={<IconSkull />} label="Óbitos no Parto:" value={nascidosMortos != null ? fmtInt(nascidosMortos, language) : "-"} />
+                <GeneticsRow icon={<IconDanger />} label="Mumificados:" value={natimortos != null ? fmtInt(natimortos, language) : "-"} />
+                <GeneticsRow icon={<IconSum />} label="Total Nascidos:" value={totalNascidos != null ? fmtInt(totalNascidos, language) : "-"} bold />
               </div>
 
               {/* Col 3 — Quantidades e Pesos */}
               <div style={{ padding: "6px 10px", borderRight: `1px solid ${GREEN_BORDER}` }}>
-                <KpiSmall label="Quantidade Atual:" value={qtdAtual != null ? fmtInt(qtdAtual) : "-"} bold />
-                <KpiSmall label="Saldo (Mortes/Descarte):" value={saldoMortes != null ? fmtInt(saldoMortes) : "-"} />
-                <KpiSmall label="Peso Médio Atual:" value={pesoMedioAtual != null ? `${fmt(pesoMedioAtual)} kg` : "-"} bold />
-                <KpiSmall label="Peso Total do Lote:" value={pesoTotalLote != null ? `${fmt(pesoTotalLote)} kg` : "-"} />
-                <KpiSmall label="P. Médio ao Nascimento:" value={pesoMedioNasc != null ? `${fmt(pesoMedioNasc)} kg` : "-"} />
+                <KpiSmall label="Quantidade Atual:" value={qtdAtual != null ? fmtInt(qtdAtual, language) : "-"} bold />
+                <KpiSmall label="Saldo (Mortes/Descarte):" value={saldoMortes != null ? fmtInt(saldoMortes, language) : "-"} />
+                <KpiSmall label="Peso Médio Atual:" value={pesoMedioAtual != null ? `${fmt(pesoMedioAtual, undefined, language)} kg` : "-"} bold />
+                <KpiSmall label="Peso Total do Lote:" value={pesoTotalLote != null ? `${fmt(pesoTotalLote, undefined, language)} kg` : "-"} />
+                <KpiSmall label="P. Médio ao Nascimento:" value={pesoMedioNasc != null ? `${fmt(pesoMedioNasc, undefined, language)} kg` : "-"} />
               </div>
 
               {/* Col 4 — Desempenho Geral */}
@@ -680,11 +682,11 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 }}>
                   DESEMPENHO GERAL
                 </div>
-                <KpiIcon icon={<IconTrend />} label="GPD (Ganho de Peso Diário):" value={gpd != null ? `${fmt(gpd, 3)} kg` : "-"} />
-                <KpiIcon icon={<IconGrain />} label="Conversão Alimentar:" value={conversaoAlimentar != null ? fmt(conversaoAlimentar) : "-"} />
+                <KpiIcon icon={<IconTrend />} label="GPD (Ganho de Peso Diário):" value={gpd != null ? `${fmt(gpd, 3, language)} kg` : "-"} />
+                <KpiIcon icon={<IconGrain />} label="Conversão Alimentar:" value={conversaoAlimentar != null ? fmt(conversaoAlimentar, undefined, language) : "-"} />
                 <KpiIcon icon={<IconSkull />} label="Mortalidade:" value={mortalidadePct != null ? `${mortalidadePct}% (${saldoMortes})` : saldoMortes != null ? `${saldoMortes} mortes` : "-"} />
                 {metaGpd != null && (
-                  <KpiIcon icon={<IconTarget />} label="Meta GPD:" value={`${fmt(metaGpd)} kg`} />
+                  <KpiIcon icon={<IconTarget />} label="Meta GPD:" value={`${fmt(metaGpd, undefined, language)} kg`} />
                 )}
                 {gpdAbaixoMeta !== null && (
                   <>
@@ -798,7 +800,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
               // Conversão alimentar de uma fase concluída
               const calcFaseConv = (phaseKey: string): string => {
                 const ph = getCompletedPhase(phaseKey);
-                if (ph?.sale_summary) return fmt(ph.sale_summary.feed_conversion);
+                if (ph?.sale_summary) return fmt(ph.sale_summary.feed_conversion, undefined, language);
                 if (!ph || !ph.entry_date || !ph.exit_date) return "-";
                 
                 // Filtrar os consumos de ração ocorridos no período desta fase
@@ -830,7 +832,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 const consumoMedioPorAnimal = totalFeedKg / qtdFim;
                 
                 const conv = consumoMedioPorAnimal / ganhoTotalPorAnimal;
-                return fmt(conv);
+                return fmt(conv, undefined, language);
               };
 
               // ── MATERNIDADE ─────────────────────────────────────────────────────
@@ -867,12 +869,12 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                     : (prevPh?.quantity ?? null));
                   return {
                     fase: faseLabel, status: "concluida",
-                    qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada) : "-",
-                    qtdAtual: qtdSaida != null ? fmtInt(qtdSaida) : "-",
+                    qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada, language) : "-",
+                    qtdAtual: qtdSaida != null ? fmtInt(qtdSaida, language) : "-",
                     idade: calcIdadeFimFase(phaseKey),
-                    pesoMedio: pesoSaida != null ? fmt(pesoSaida) : "-",
-                    pesoTotal: ph.sale_summary ? fmt(ph.sale_summary.total_weight_kg) : pesoSaida != null && qtdSaida != null ? fmt(pesoSaida * qtdSaida) : "-",
-                    gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
+                    pesoMedio: pesoSaida != null ? fmt(pesoSaida, undefined, language) : "-",
+                    pesoTotal: ph.sale_summary ? fmt(ph.sale_summary.total_weight_kg, undefined, language) : pesoSaida != null && qtdSaida != null ? fmt(pesoSaida * qtdSaida, undefined, language) : "-",
+                    gpd: faseGpd != null ? fmt(faseGpd, 3, language) : "-",
                     conv: calcFaseConv(phaseKey),
                     mort: calcFaseMort(phaseKey),
                   };
@@ -918,13 +920,13 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   return {
                     fase: faseLabel,
                     status: "andamento",
-                    qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada) : "-",
-                    qtdAtual: phaseQuantity != null ? fmtInt(phaseQuantity) : "-",
+                    qtdIni: qtdEntrada != null ? fmtInt(qtdEntrada, language) : "-",
+                    qtdAtual: phaseQuantity != null ? fmtInt(phaseQuantity, language) : "-",
                     idade: ageInDays != null ? String(ageInDays) : "-",
-                    pesoMedio: pesoAtual != null ? fmt(pesoAtual) : "-",
-                    pesoTotal: pesoAtual != null && phaseQuantity != null ? fmt(pesoAtual * phaseQuantity) : "-",
-                    gpd: faseGpd != null ? fmt(faseGpd, 3) : "-",
-                    conv: conversion != null ? fmt(conversion) : "-",
+                    pesoMedio: pesoAtual != null ? fmt(pesoAtual, undefined, language) : "-",
+                    pesoTotal: pesoAtual != null && phaseQuantity != null ? fmt(pesoAtual * phaseQuantity, undefined, language) : "-",
+                    gpd: faseGpd != null ? fmt(faseGpd, 3, language) : "-",
+                    conv: conversion != null ? fmt(conversion, undefined, language) : "-",
                     mort: deaths != null ? String(deaths) : "-",
                   };
                 }
@@ -935,12 +937,12 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 maternidadeConcluida
                   ? {
                       fase: "MATERNIDADE", status: "concluida",
-                      qtdIni: nascidosVivos != null ? fmtInt(nascidosVivos) : "-",
-                      qtdAtual: weanedQty != null ? fmtInt(weanedQty) : "-",
+                      qtdIni: nascidosVivos != null ? fmtInt(nascidosVivos, language) : "-",
+                      qtdAtual: weanedQty != null ? fmtInt(weanedQty, language) : "-",
                       idade: idadeAoDesmame != null ? String(idadeAoDesmame) : "-",
-                      pesoMedio: weanedPeso != null ? fmt(weanedPeso) : "-",
-                      pesoTotal: weanedPeso != null && weanedQty != null ? fmt(weanedPeso * weanedQty) : "-",
-                      gpd: gpdMaternidade != null ? fmt(gpdMaternidade, 3) : "-",
+                      pesoMedio: weanedPeso != null ? fmt(weanedPeso, undefined, language) : "-",
+                      pesoTotal: weanedPeso != null && weanedQty != null ? fmt(weanedPeso * weanedQty, undefined, language) : "-",
+                      gpd: gpdMaternidade != null ? fmt(gpdMaternidade, 3, language) : "-",
                       conv: "-",
                       mort: mortMaternidade != null ? String(mortMaternidade) : "0",
                     }
@@ -956,15 +958,15 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <Th style={{ textAlign: "left", paddingLeft: 8 }}>Fase</Th>
+                      <Th style={{ textAlign: "left", paddingLeft: 8 }}>{t("workspace.phase")}</Th>
                       <Th>Qtd Inicial</Th>
                       <Th>Qtd Final</Th>
-                      <Th>Idade (dias)</Th>
+                      <Th>{t("swineReproduction.ageDaysShort")}</Th>
                       <Th>Peso Médio (Kg)</Th>
                       <Th>Peso Total (Kg)</Th>
                       <Th>GPD (Kg)</Th>
                       <Th>Conversão<br />Alimentar</Th>
-                      <Th>Mortalidade</Th>
+                      <Th>{t("poultryReproduction.mortality")}</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1003,8 +1005,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   <thead>
                     <tr>
                       <Th style={{ textAlign: "left", paddingLeft: 6 }}>Tipo de Ração</Th>
-                      <Th>Consumo<br />Total (Kg)</Th>
-                      <Th>Consumo<br />Médio/Animal</Th>
+                      <Th>{t("inventory.movements.consumption")}<br />Total (Kg)</Th>
+                      <Th>{t("inventory.movements.consumption")}<br />Médio/Animal</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1013,14 +1015,14 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                         {feedData.map((row, i) => (
                           <TR key={i} even={i % 2 === 1}>
                             <Td style={{ textAlign: "left", paddingLeft: 6 }}>{row.tipo}</Td>
-                            <Td>{row.consumoTotal != null ? fmt(row.consumoTotal) : "-"}</Td>
-                            <Td>{row.consumoMedio != null ? fmt(row.consumoMedio) : "-"}</Td>
+                            <Td>{row.consumoTotal != null ? fmt(row.consumoTotal, undefined, language) : "-"}</Td>
+                            <Td>{row.consumoMedio != null ? fmt(row.consumoMedio, undefined, language) : "-"}</Td>
                           </TR>
                         ))}
                         <tr style={{ background: GREEN_LIGHT }}>
                           <Td bold style={{ textAlign: "left", paddingLeft: 6 }}>TOTAL</Td>
-                          <Td bold>{fmt(totalConsumo)}</Td>
-                          <Td bold>{qtdAtual != null && qtdAtual > 0 ? fmt(totalConsumo / qtdAtual) : "-"}</Td>
+                          <Td bold>{fmt(totalConsumo, undefined, language)}</Td>
+                          <Td bold>{qtdAtual != null && qtdAtual > 0 ? fmt(totalConsumo / qtdAtual, undefined, language) : "-"}</Td>
                         </tr>
                       </>
                     ) : (
@@ -1046,17 +1048,17 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <Th>Data</Th>
-                      <Th>Vacina</Th>
-                      <Th>Total<br />aplicado</Th>
-                      <Th>Qtd.<br />leitões</Th>
-                      <Th>Responsável</Th>
+                      <Th>{t("lotReport.date")}</Th>
+                      <Th>{t("animalDetail.vaccine")}</Th>
+                      <Th>{t("lotReport.total")}<br />aplicado</Th>
+                      <Th>{t("livestock.registration.quantity")}<br />leitões</Th>
+                      <Th>{t("reproduction.responsible")}</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {vaccineRows.length > 0 ? vaccineRows.map((vaccine: any, i: number) => (
                       <TR key={i} even={i % 2 === 1}>
-                        <Td>{fmtDate(vaccine.date)}</Td>
+                        <Td>{fmtDate(vaccine.date, language)}</Td>
                         <Td>{vaccine.name || "-"}</Td>
                         <Td>{totalVaccineQuantity(vaccine)}</Td>
                         <Td>{vaccine.animal_count ?? "-"}</Td>
@@ -1085,7 +1087,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <Th>Data</Th>
+                      <Th>{t("lotReport.date")}</Th>
                       <Th>Idade<br />(dias)</Th>
                       <Th>Qtd</Th>
                       <Th>Peso Total<br />(Kg)</Th>
@@ -1097,17 +1099,17 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                       <>
                         {deathRows.map((d: any, i: number) => (
                           <TR key={i} even={i % 2 === 1}>
-                            <Td>{fmtDate(d.date)}</Td>
+                            <Td>{fmtDate(d.date, language)}</Td>
                             <Td>{d.age_days ?? "-"}</Td>
                             <Td>{d.quantity ?? "-"}</Td>
-                            <Td>{d.total_weight ? fmt(d.total_weight) : "-"}</Td>
+                            <Td>{d.total_weight ? fmt(d.total_weight, undefined, language) : "-"}</Td>
                             <Td>{d.cause ?? d.subtitle ?? "-"}</Td>
                           </TR>
                         ))}
                         <tr style={{ background: GREEN_LIGHT }}>
                           <Td bold>TOTAL</Td>
                           <Td bold>-</Td>
-                          <Td bold>{fmtInt(deathRows.reduce((a: number, d: any) => a + (Number(d.quantity) || 0), 0))}</Td>
+                          <Td bold>{fmtInt(deathRows.reduce((a: number, d: any) => a + (Number(d.quantity) || 0), 0), language)}</Td>
                           <Td bold>-</Td>
                           <Td bold>-</Td>
                         </tr>
@@ -1139,19 +1141,19 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <Th>Data</Th>
+                      <Th>{t("lotReport.date")}</Th>
                       <Th>Qtd</Th>
                       <Th>N° Lote Origem</Th>
                       <Th>N° Lote Destino</Th>
                       <Th>Fase Destino</Th>
-                      <Th>Operação</Th>
+                      <Th>{t("plantations.preparation.operation")}</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {hasTransfer ? (
                       transferRows.map((t: any, i: number) => (
                         <TR key={i} even={i % 2 === 1}>
-                          <Td>{t.date ? fmtDate(t.date) : "-"}</Td>
+                          <Td>{t.date ? fmtDate(t.date, language) : "-"}</Td>
                           <Td>{t.qty ?? t.quantity ?? "-"}</Td>
                           <Td>{t.loteOrigem ?? t.origin_batch ?? "-"}</Td>
                           <Td>{t.loteDestino ?? t.destination_batch ?? "-"}</Td>
@@ -1203,8 +1205,8 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                 }}>
                   <ResumoCard
                     icon={<IconChart />}
-                    title="GPD"
-                    value={gpd != null ? `${fmt(gpd, 3)} kg` : "-"}
+                    title={t("animalDetail.dailyGain")}
+                    value={gpd != null ? `${fmt(gpd, 3, language)} kg` : "-"}
                     status={
                       gpdAbaixoMeta === null ? "Sem dados" :
                       gpdAbaixoMeta ? "Abaixo do ideal" : "Dentro da meta"
@@ -1213,14 +1215,14 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   />
                   <ResumoCard
                     icon={<IconScale />}
-                    title="Conversão Alimentar"
-                    value={conversaoAlimentar != null ? fmt(conversaoAlimentar) : "-"}
+                    title={t("swine.feedConversionRow")}
+                    value={conversaoAlimentar != null ? fmt(conversaoAlimentar, undefined, language) : "-"}
                     status={conversaoAlimentar != null ? (conversaoAlimentar < 2.5 ? "Dentro da meta" : "Acima do ideal") : "Sem dados"}
                     statusColor={conversaoAlimentar != null ? (conversaoAlimentar < 2.5 ? "#16a34a" : AMBER) : "#888"}
                   />
                   <ResumoCard
                     icon={<IconSkullBig />}
-                    title="Mortalidade"
+                    title={t("poultryReproduction.mortality")}
                     value={
                       mortalidadePct != null ? `${mortalidadePct}% (${saldoMortes})` :
                       saldoMortes != null ? `${saldoMortes} mortes` : "-"
@@ -1237,7 +1239,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   <ResumoCard
                     icon={<IconPigBig />}
                     title="Peso Médio Atual"
-                    value={pesoMedioAtual != null ? `${fmt(pesoMedioAtual)} kg` : "-"}
+                    value={pesoMedioAtual != null ? `${fmt(pesoMedioAtual, undefined, language)} kg` : "-"}
                     status={pesoMedioAtual != null ? "Última pesagem" : "Sem pesagem"}
                     statusColor={pesoMedioAtual != null ? "#16a34a" : "#888"}
                   />

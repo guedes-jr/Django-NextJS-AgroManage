@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -34,7 +35,7 @@ class FinancialCategoryViewSet(viewsets.ModelViewSet):
 class BankAccountViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.transactions.exists() or instance.payment_events.exists():
-            raise serializers.ValidationError("Contas com lançamentos devem ser desativadas para preservar o histórico.")
+            raise serializers.ValidationError(translate_message("Contas com lançamentos devem ser desativadas para preservar o histórico."))
         instance.delete()
 
     serializer_class = BankAccountSerializer
@@ -86,9 +87,9 @@ class TransactionViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance = Transaction.objects.select_for_update().get(pk=instance.pk)
         if instance.status == "paid" or instance.payment_events.exists():
-            raise serializers.ValidationError("Títulos pagos ou com histórico de baixas não podem ser apagados. Use o estorno e preserve a origem.")
+            raise serializers.ValidationError(translate_message("Títulos pagos ou com histórico de baixas não podem ser apagados. Use o estorno e preserve a origem."))
         if instance.reference.startswith(("LOTE-", "PURCHASE-BATCH-", "SALE-BATCH-", "SALE-")):
-            raise serializers.ValidationError("Este título possui origem operacional. Preserve o vínculo; cancele o título quando aplicável.")
+            raise serializers.ValidationError(translate_message("Este título possui origem operacional. Preserve o vínculo; cancele o título quando aplicável."))
         instance.delete()
 
     @action(detail=True, methods=["post"])
@@ -136,10 +137,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
     def export(self, request):
         rows = self.filter_queryset(self.get_queryset())
         if rows.count() > 10000:
-            raise serializers.ValidationError("Refine os filtros para exportar até 10.000 títulos.")
+            raise serializers.ValidationError(translate_message("Refine os filtros para exportar até 10.000 títulos."))
         content = io.StringIO()
         writer = csv.writer(content, delimiter=";")
-        writer.writerow(["Descrição", "Referência", "Tipo", "Categoria", "Propriedade", "Atividade", "Conta", "Vencimento", "Pagamento", "Estado", "Valor"])
+        writer.writerow([translate_message(label) for label in ["Descrição", "Referência", "Tipo", "Categoria", "Propriedade", "Atividade", "Conta", "Vencimento", "Pagamento", "Estado", "Valor"]])
         def safe(value):
             text = str(value or "")
             return "'" + text if text.lstrip().startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r")) else text
@@ -159,7 +160,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             account_id = serializers.UUIDField().run_validation(request.query_params["bank_account"])
             account = BankAccount.objects.filter(organization=request.user.organization, pk=account_id).first()
             if not account:
-                raise serializers.ValidationError({"bank_account": "Conta não encontrada nesta organização."})
+                raise serializers.ValidationError({"bank_account": translate_message("Conta não encontrada nesta organização.")})
         return Response(cash_projection(request.user.organization, days=days, bank_account=account, include_overdue=overdue))
 
     @action(detail=False, methods=["get"])

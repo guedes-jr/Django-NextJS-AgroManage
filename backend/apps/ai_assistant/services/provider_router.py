@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from dataclasses import dataclass, replace
 
 from django.conf import settings
@@ -99,10 +100,10 @@ class AIProviderRouter(AIProvider):
             except AIProviderError as exc:
                 provider_errors.append(str(exc))
         if provider_errors:
-            raise AIProviderError("Nenhum provedor conseguiu executar a verificação de segurança.")
+            raise AIProviderError(translate_message("Nenhum provedor conseguiu executar a verificação de segurança."))
         if configuration_errors:
-            raise AIConfigurationError("Nenhum provedor de IA habilitado possui credenciais válidas.")
-        raise AIConfigurationError("Nenhum modelo de IA está disponível.")
+            raise AIConfigurationError(translate_message("Nenhum provedor de IA habilitado possui credenciais válidas."))
+        raise AIConfigurationError(translate_message("Nenhum modelo de IA está disponível."))
 
     def generate(self, *, user, conversation, question, history, context=""):
         attempts = []
@@ -135,6 +136,6 @@ class AIProviderRouter(AIProvider):
         raise AIProviderExhaustedError(
             AIFreeTierRestrictionError.message
             if restricted_attempts and restricted_attempts == len(attempts)
-            else "Nenhum modelo de IA disponível conseguiu concluir a resposta.",
+            else translate_message("Nenhum modelo de IA disponível conseguiu concluir a resposta."),
             attempts=attempts,
         )

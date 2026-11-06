@@ -1,35 +1,38 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { SegmentLanding } from "@/components/marketing/SegmentLanding";
-export const metadata: Metadata = {
-  title: "Software de gestão agrícola | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.cropManagementSoftwareFazendaMais"),
   description:
-    "Planeje plantio, insumos, operações, colheita e custos agrícolas.",
-};
-export default function Page() {
+    t("public.planPlantingInputsOperationsHarvestsAndCropCosts"),
+}; }
+export default async function Page() {
+  const { t } = await getPublicTranslator();
+
   return (
-    <SegmentLanding
-      eyebrow="Gestão agrícola"
-      title="Planeje a safra e acompanhe cada operação no campo"
-      description="Do preparo do solo à colheita, mantenha atividades, insumos, equipe e custos conectados."
+    <SegmentLanding trackingLabel="Gestão agrícola"
+      eyebrow={t("public.cropManagement")}
+      title={t("public.planTheSeasonAndTrackEveryFieldOperation")}
+      description={t("public.keepActivitiesInputsTeamsAndCostsConnectedFromSoilPreparation")}
       benefits={[
-        "Planejamento por cultura e talhão",
-        "Rastreabilidade das aplicações",
-        "Controle de insumos e serviços",
-        "Resultado financeiro por produção",
+        t("public.planningByCropAndPlot"),
+        t("public.applicationTraceability"),
+        t("public.inputAndServiceTracking"),
+        t("public.financialResultsPerProduction"),
       ]}
       features={[
         [
-          "Planejamento",
-          "Estruture culturas, setores, calendário e responsáveis.",
+          t("public.planning"),
+          t("public.setUpCropsSectorsCalendarsAndAssignees"),
         ],
-        ["Insumos", "Acompanhe sementes, fertilizantes e defensivos."],
-        ["Operações", "Registre preparo, plantio, irrigação e mão de obra."],
+        [t("public.inputs"), t("public.trackSeedsFertilizersAndPesticides")],
+        [t("swine.home.operations"), t("public.recordPreparationPlantingIrrigationAndLabor")],
         [
-          "Assistência técnica",
-          "Centralize análises e orientações agronômicas.",
+          t("public.technicalAssistance"),
+          t("public.centralizeAnalysesAndAgronomicGuidance"),
         ],
-        ["Colheita", "Registre produtividade e histórico da safra."],
-        ["Custos", "Consolide despesas e receitas da produção."],
+        [t("plantations.history.module.colheita"), t("public.recordYieldsAndSeasonHistory")],
+        [t("crops.costs"), t("public.consolidateProductionExpensesAndIncome")],
       ]}
     />
   );

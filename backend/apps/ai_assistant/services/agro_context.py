@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from dataclasses import dataclass
 
 from django.db.models import Sum
@@ -26,7 +27,7 @@ def build_agro_context(*, user, context_type=None, context_id=None):
     if not context_type and not context_id:
         return None
     if not context_type or not context_id or not user.organization_id:
-        raise AgroContextNotFound("O contexto solicitado não foi encontrado.")
+        raise AgroContextNotFound(translate_message("O contexto solicitado não foi encontrado."))
     builders = {
         "planting": _planting_context,
         "animal": _animal_context,
@@ -35,7 +36,7 @@ def build_agro_context(*, user, context_type=None, context_id=None):
     }
     builder = builders.get(context_type)
     if builder is None:
-        raise AgroContextNotFound("O contexto solicitado não foi encontrado.")
+        raise AgroContextNotFound(translate_message("O contexto solicitado não foi encontrado."))
     text = builder(organization_id=user.organization_id, record_id=context_id)
     return AgroContext(context_type=context_type, record_id=str(context_id), text=text)
 
@@ -49,7 +50,7 @@ def _planting_context(*, organization_id, record_id):
         .first()
     )
     if not planting:
-        raise AgroContextNotFound("A plantação informada não foi encontrada.")
+        raise AgroContextNotFound(translate_message("A plantação informada não foi encontrada."))
     harvest = planting.harvests.aggregate(
         production=Sum("yield_kg"), revenue=Sum("revenue_amount")
     )
@@ -84,7 +85,7 @@ def _animal_context(*, organization_id, record_id):
         .first()
     )
     if not animal:
-        raise AgroContextNotFound("O animal informado não foi encontrado.")
+        raise AgroContextNotFound(translate_message("O animal informado não foi encontrado."))
     return _lines("Animal", [
         ("Identificação", animal.identifier),
         ("Espécie", animal.species.name),
@@ -109,7 +110,7 @@ def _animal_batch_context(*, organization_id, record_id):
         .first()
     )
     if not batch:
-        raise AgroContextNotFound("O lote informado não foi encontrado.")
+        raise AgroContextNotFound(translate_message("O lote informado não foi encontrado."))
     return _lines("Lote de animais", [
         ("Código", batch.batch_code),
         ("Nome", batch.name),
@@ -132,7 +133,7 @@ def _farm_context(*, organization_id, record_id):
 
     farm = Farm.objects.filter(id=record_id, organization_id=organization_id).first()
     if not farm:
-        raise AgroContextNotFound("A fazenda informada não foi encontrada.")
+        raise AgroContextNotFound(translate_message("A fazenda informada não foi encontrada."))
     return _lines("Fazenda", [
         ("Nome", farm.name),
         ("Cidade", farm.city),

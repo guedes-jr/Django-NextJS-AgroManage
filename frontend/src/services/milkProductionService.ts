@@ -21,5 +21,5 @@ export const milkToday = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
 };
-export const milkNumber = (value: string | number | null | undefined) => value == null ? "—" : Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const milkNumber = (value: string | number | null | undefined, language = "pt-BR") => value == null ? "—" : Number(value).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const milkSessions = [{ id: "morning", label: "De manhã" }, { id: "afternoon", label: "De tarde" }, { id: "evening", label: "De noite" }];

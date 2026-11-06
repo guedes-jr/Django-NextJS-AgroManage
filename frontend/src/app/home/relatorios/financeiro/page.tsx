@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
@@ -23,6 +24,7 @@ interface CashflowReport {
 }
 
 export default function FinanceiroReportsPage() {
+  const { t } = useOrganizationLocale();
   const [data, setData] = useState<CashflowReport | null>(null);
   const [activeTab, setActiveTab] = useState<'fluxo' | 'dre' | 'categoria' | 'comparativo'>('fluxo');
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export default function FinanceiroReportsPage() {
         <div className="d-flex align-items-center gap-2">
           <CalendarDays size={18} />
           <input className="form-control" type="date" value={start} max={end} onChange={event => setStart(event.target.value)} />
-          <span>até</span>
+          <span>{t("plantations.history.through")}</span>
           <input className="form-control" type="date" value={end} min={start} onChange={event => setEnd(event.target.value)} />
         </div>
       </div>
@@ -74,7 +76,7 @@ export default function FinanceiroReportsPage() {
                 <ArrowUp size={20} className="text-success" />
               </div>
               <div>
-                <div className="text-muted small">Receitas</div>
+                <div className="text-muted small">{t("workspace.income")}</div>
                 <div className="fw-bold text-success">{formatCurrency(totalIncome)}</div>
               </div>
             </div>
@@ -87,7 +89,7 @@ export default function FinanceiroReportsPage() {
                 <ArrowDown size={20} className="text-danger" />
               </div>
               <div>
-                <div className="text-muted small">Despesas</div>
+                <div className="text-muted small">{t("workspace.expenses")}</div>
                 <div className="fw-bold text-danger">{formatCurrency(totalExpense)}</div>
               </div>
             </div>
@@ -104,7 +106,7 @@ export default function FinanceiroReportsPage() {
                 )}
               </div>
               <div>
-                <div className="text-muted small">Resultado</div>
+                <div className="text-muted small">{t("reproduction.result")}</div>
                 <div className={`fw-bold ${(data?.summary?.balance || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
                   {formatCurrency(data?.summary?.balance || 0)}
                 </div>
@@ -121,7 +123,8 @@ export default function FinanceiroReportsPage() {
               className={`nav-link ${activeTab === 'fluxo' ? 'active' : ''}`}
               onClick={() => setActiveTab('fluxo')}
             >
-              Fluxo de Caixa
+
+              {t("workspace.cashFlow")}
             </button>
           </li>
           <li className="nav-item">
@@ -150,9 +153,9 @@ export default function FinanceiroReportsPage() {
               <table className="table table-hover mb-0">
                 <thead>
                   <tr>
-                    <th>Mês</th>
-                    <th>Tipo</th>
-                    <th className="text-end">Valor</th>
+                    <th>{t("dashboard.month")}</th>
+                    <th>{t("plantations.labor.workerType")}</th>
+                    <th className="text-end">{t("lotReport.value")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -161,7 +164,7 @@ export default function FinanceiroReportsPage() {
                       <td>{m.month}</td>
                       <td>
                         <span className={`badge ${m.type === 'revenue' ? 'bg-success' : 'bg-danger'}`}>
-                          {m.type === 'revenue' ? 'Receita' : 'Despesa'}
+                          {m.type === 'revenue' ? t("workspace.incomeLabel") : t("workspace.expense")}
                         </span>
                       </td>
                       <td className={`text-end fw-bold ${m.type === 'revenue' ? 'text-success' : 'text-danger'}`}>

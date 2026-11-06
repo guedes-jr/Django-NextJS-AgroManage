@@ -1,32 +1,23 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { MarketingPage } from "@/components/marketing/MarketingPage";
-export const metadata: Metadata = { title: "Termos de uso | Fazenda Mais" };
-export default function TermosPage() {
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return { title: t("public.termsOfUseFazendaMais") }; }
+export default async function TermosPage() {
+  const { t } = await getPublicTranslator();
+
   return (
     <MarketingPage
-      eyebrow="Legal"
-      title="Termos de uso"
-      description="Condições gerais para utilização dos serviços Fazenda Mais."
+      eyebrow={t("public.legal")}
+      title={t("public.termsOfUse")}
+      description={t("public.generalConditionsForUsingFazendaMaisServices")}
     >
       <section className="legal-content marketing-container">
-        <h2>Uso da plataforma</h2>
-        <p>
-          O acesso deve ser realizado por usuários autorizados pela organização
-          contratante. Cada usuário é responsável pela confidencialidade de suas
-          credenciais.
-        </p>
-        <h2>Dados e disponibilidade</h2>
-        <p>
-          Os dados cadastrados permanecem vinculados à organização responsável.
-          Condições de disponibilidade, suporte, retenção e tratamento são
-          definidas no contrato vigente.
-        </p>
-        <h2>Responsabilidades</h2>
-        <p>
-          O sistema Fazenda Mais apoia a gestão e a tomada de decisão, sem
-          substituir responsabilidade técnica, contábil, veterinária ou
-          agronômica quando legalmente exigida.
-        </p>
+        <h2>{t("public.platformUse")}</h2>
+        <p> {t("public.accessMustBeByUsersAuthorizedByTheContractingOrganization")} </p>
+        <h2>{t("public.dataAndAvailability")}</h2>
+        <p> {t("public.registeredDataRemainsLinkedToTheResponsibleOrganizationAvailabilitySupport")} </p>
+        <h2>{t("public.responsibilities")}</h2>
+        <p> {t("public.fazendaMaisSupportsManagementAndDecisionMakingWithoutReplacingTechnical")} </p>
       </section>
     </MarketingPage>
   );

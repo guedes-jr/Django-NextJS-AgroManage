@@ -1,3 +1,4 @@
+const locale = require('./helpers/locale.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -28,15 +29,16 @@ function harness(failures = new Set()) {
     useEffect(callback) { effects.push(callback); },
     useCallback: callback => callback, useMemo: callback => callback(), Suspense: 'suspense',
   };
-  const source = fs.readFileSync(path.join(__dirname, '../src/app/home/rebanho/suinos/reproducao/page.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../src/app/home/seguimento/suinos/reproducao/page.tsx'), 'utf8');
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 } }).outputText;
   const exports = {};
   vm.runInNewContext(compiled + '\nexports.TestContent = ReproducaoPageContent;', {
     exports, console, URLSearchParams, setInterval: () => 1, clearInterval: () => {},
     require(name) {
+      if (name === '@/lib/locale') return locale;
       if (name === 'react') return react;
       if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }), Fragment: 'fragment' };
-      if (name === 'next/navigation') return { useSearchParams: () => new URLSearchParams('tab=dashboard'), usePathname: () => '/home/rebanho/suinos/reproducao', useRouter: () => ({ replace() {}, push() {} }) };
+      if (name === 'next/navigation') return { useSearchParams: () => new URLSearchParams('tab=dashboard'), usePathname: () => '/home/seguimento/suinos/reproducao', useRouter: () => ({ replace() {}, push() {} }) };
       if (name === '@/services/livestockService') return service;
       if (name === '@/components/reproducao/ReproducaoDashboard') return { ReproducaoDashboard: 'repro-dashboard' };
       if (name === '@/components/ui/Toast') return { useToast: () => ({ showToast() {} }) };

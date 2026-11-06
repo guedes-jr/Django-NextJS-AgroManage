@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -42,7 +43,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if self.request.user.role == "operator" and serializer.validated_data.get("assigned_to") not in (None, self.request.user):
-            raise PermissionDenied("Você só pode atribuir tarefas a si mesmo.")
+            raise PermissionDenied(translate_message("Você só pode atribuir tarefas a si mesmo."))
         task = serializer.save(organization=self.request.user.organization, created_by=self.request.user)
         record_client_action(
             request=self.request, action=AuditLog.Action.CREATE, model_name="Task", object_id=task.id,
@@ -53,9 +54,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         if self.request.user.role == "operator":
             task = serializer.instance
             if task.status in ("done", "cancelled") or task.created_by_id != self.request.user.pk and set(serializer.validated_data) - {"status"}:
-                raise PermissionDenied("Você pode atualizar somente o andamento das tarefas atribuídas a você.")
+                raise PermissionDenied(translate_message("Você pode atualizar somente o andamento das tarefas atribuídas a você."))
             if serializer.validated_data.get("assigned_to", self.request.user) != self.request.user:
-                raise PermissionDenied("Você não pode atribuir tarefas a outro usuário.")
+                raise PermissionDenied(translate_message("Você não pode atribuir tarefas a outro usuário."))
         task = serializer.save()
         record_client_action(
             request=self.request, action=AuditLog.Action.UPDATE, model_name="Task", object_id=task.id,
@@ -64,7 +65,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         if hasattr(instance, "cattleprotocolstep") or hasattr(instance, "cattleoccurrence"):
-            raise PermissionDenied("Resolva esta atividade pela Central de manejo bovino; sua origem operacional deve ser preservada.")
+            raise PermissionDenied(translate_message("Resolva esta atividade pela Central de manejo bovino; sua origem operacional deve ser preservada."))
         task_id, title = instance.id, instance.title
         instance.delete()
         record_client_action(

@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -11,13 +12,13 @@ class FinancialCategorySerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if self.instance and attrs.get("category_type", self.instance.category_type) != self.instance.category_type and self.instance.transactions.exists():
-            raise serializers.ValidationError({"category_type": "Não altere o tipo de uma categoria com lançamentos. Crie uma nova categoria."})
+            raise serializers.ValidationError({"category_type": translate_message("Não altere o tipo de uma categoria com lançamentos. Crie uma nova categoria.")})
         return attrs
 
     def validate_parent(self, value):
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         if value and (not organization or value.organization_id != organization.id):
-            raise serializers.ValidationError("A categoria pai não pertence à sua organização.")
+            raise serializers.ValidationError(translate_message("A categoria pai não pertence à sua organização."))
         return value
 
 
@@ -30,7 +31,7 @@ class BankAccountSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if self.instance and "initial_balance" in attrs and attrs["initial_balance"] != self.instance.initial_balance and self.instance.transactions.exists():
-            raise serializers.ValidationError({"initial_balance": "O saldo inicial não pode ser alterado após registrar títulos. Use lançamentos de receita ou despesa."})
+            raise serializers.ValidationError({"initial_balance": translate_message("O saldo inicial não pode ser alterado após registrar títulos. Use lançamentos de receita ou despesa.")})
         return attrs
 
 
@@ -51,7 +52,7 @@ class SettlementSerializer(serializers.Serializer):
 
     def validate_bank_account(self, account):
         if account.organization_id != self.context["request"].user.organization_id:
-            raise serializers.ValidationError("A conta não pertence à sua organização.")
+            raise serializers.ValidationError(translate_message("A conta não pertence à sua organização."))
         return account
 
 
@@ -102,22 +103,22 @@ class TransactionSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         # Allow only positive amounts, category dictates revenue/expense
         if attrs.get("amount") is not None and attrs["amount"] <= 0:
-            raise serializers.ValidationError({"amount": "O valor deve ser positivo."})
+            raise serializers.ValidationError({"amount": translate_message("O valor deve ser positivo.")})
         if not self.instance and attrs.get("status") == "paid" and (attrs.get("payment_date") or attrs.get("due_date")) > timezone.localdate():
-            raise serializers.ValidationError({"payment_date": "A baixa não pode ter data futura."})
+            raise serializers.ValidationError({"payment_date": translate_message("A baixa não pode ter data futura.")})
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         category = attrs.get("category", getattr(self.instance, "category", None))
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         bank_account = attrs.get("bank_account", getattr(self.instance, "bank_account", None))
         animal_batch = attrs.get("animal_batch", getattr(self.instance, "animal_batch", None))
         if not organization or not category or category.organization_id != organization.id:
-            raise serializers.ValidationError({"category": "A categoria não pertence à sua organização."})
+            raise serializers.ValidationError({"category": translate_message("A categoria não pertence à sua organização.")})
         if farm and farm.organization_id != organization.id:
-            raise serializers.ValidationError({"farm": "A propriedade não pertence à sua organização."})
+            raise serializers.ValidationError({"farm": translate_message("A propriedade não pertence à sua organização.")})
         if bank_account and bank_account.organization_id != organization.id:
-            raise serializers.ValidationError({"bank_account": "A conta bancária não pertence à sua organização."})
+            raise serializers.ValidationError({"bank_account": translate_message("A conta bancária não pertence à sua organização.")})
         if animal_batch and animal_batch.farm.organization_id != organization.id:
-            raise serializers.ValidationError({"animal_batch": "O lote não pertence à sua organização."})
+            raise serializers.ValidationError({"animal_batch": translate_message("O lote não pertence à sua organização.")})
         if self.instance and self.instance.payment_events.exists():
             protected = {"amount", "category", "bank_account", "status", "payment_date", "payment_method", "farm", "animal_batch", "species", "planting_cycle"}
             changed = [key for key in protected if key in attrs and attrs[key] != getattr(self.instance, key)]
@@ -125,12 +126,12 @@ class TransactionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({key: "Este título possui histórico de baixas. Use as ações de baixa/estorno." for key in changed})
         planting_cycle = attrs.get("planting_cycle", getattr(self.instance, "planting_cycle", None))
         if planting_cycle and animal_batch:
-            raise serializers.ValidationError({"planting_cycle": "Selecione uma origem produtiva: plantação ou lote animal."})
+            raise serializers.ValidationError({"planting_cycle": translate_message("Selecione uma origem produtiva: plantação ou lote animal.")})
         if planting_cycle and (planting_cycle.organization_id or planting_cycle.field.farm.organization_id) != getattr(organization, "id", None):
-            raise serializers.ValidationError({"planting_cycle": "A plantação não pertence à sua organização."})
+            raise serializers.ValidationError({"planting_cycle": translate_message("A plantação não pertence à sua organização.")})
         for target_farm in [animal_batch.farm_id if animal_batch else None, (planting_cycle.farm_id or planting_cycle.field.farm_id) if planting_cycle else None]:
             if farm and target_farm and target_farm != farm.pk:
-                raise serializers.ValidationError({"farm": "A propriedade deve corresponder ao vínculo produtivo."})
+                raise serializers.ValidationError({"farm": translate_message("A propriedade deve corresponder ao vínculo produtivo.")})
         if not farm:
             if animal_batch:
                 attrs["farm"] = animal_batch.farm
@@ -138,5 +139,5 @@ class TransactionSerializer(serializers.ModelSerializer):
                 attrs["farm"] = planting_cycle.farm or planting_cycle.field.farm
         species = attrs.get("species", getattr(self.instance, "species", None))
         if animal_batch and species and animal_batch.species_id != species.id:
-            raise serializers.ValidationError({"species": "A espécie não corresponde ao lote informado."})
+            raise serializers.ValidationError({"species": translate_message("A espécie não corresponde ao lote informado.")})
         return attrs

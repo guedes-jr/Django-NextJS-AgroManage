@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from common.operator_access import operator_scoped, remember_operator_record
 from common.permissions import OrganizationRolePermission
 from rest_framework import viewsets, status, serializers, filters
@@ -1001,7 +1002,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         if instance.status == AnimalBatch.Status.SOLD or instance.historicos.filter(tipo_evento='Venda de Animais').exists():
-            raise serializers.ValidationError({'detail': 'Lotes com vendas devem permanecer disponíveis no relatório geral.'})
+            raise serializers.ValidationError({'detail': translate_message('Lotes com vendas devem permanecer disponíveis no relatório geral.')})
         super().perform_destroy(instance)
 
     @action(detail=False, methods=['get'], url_path='sales')
@@ -1048,9 +1049,9 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         try:
             weight = Decimal(str(request.data.get('weight_kg')))
         except (TypeError, ValueError, ArithmeticError):
-            return Response({"error": "Informe um peso válido."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Informe um peso válido.")}, status=status.HTTP_400_BAD_REQUEST)
         if weight <= 0:
-            return Response({"error": "O peso deve ser maior que zero."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("O peso deve ser maior que zero.")}, status=status.HTTP_400_BAD_REQUEST)
         weighing_date = request.data.get('weighing_date') or timezone.localdate()
         record = WeightRecord.objects.create(
             farm=batch.farm,
@@ -1070,7 +1071,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             metadata={'weight_kg': str(weight), 'weight_record_id': str(record.id)},
         )
         return Response({
-            "message": "Pesagem do lote registrada.",
+            "message": translate_message("Pesagem do lote registrada."),
             "weight_kg": float(weight),
             "weighing_date": str(weighing_date),
         }, status=status.HTTP_201_CREATED)
@@ -1110,8 +1111,8 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             error_msg = str(e)
             if "UNIQUE constraint failed" in error_msg:
                 raise serializers.ValidationError(
-                    "One or more batch codes already exist for the specified farm(s). "
-                    "Please check your data and try again."
+                    translate_message("One or more batch codes already exist for the specified farm(s). "
+                    "Please check your data and try again.")
                 )
             raise
 
@@ -1127,12 +1128,12 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             batch = batches.filter(batch_code__iexact=str(pk).strip()).first()
         if batch is None:
             return Response(
-                {"error": "Lote não encontrado ou sem permissão de acesso."},
+                {"error": translate_message("Lote não encontrado ou sem permissão de acesso.")},
                 status=status.HTTP_404_NOT_FOUND,
             )
         if batch.quantity < 1:
             return Response(
-                {"error": "O lote não possui animais ativos para vacinar."},
+                {"error": translate_message("O lote não possui animais ativos para vacinar.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1246,7 +1247,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         )
         return Response(
             {
-                "message": "Vacinação do lote registrada com sucesso.",
+                "message": translate_message("Vacinação do lote registrada com sucesso."),
                 "id": str(record.id),
                 "inventory_quantity": str(inventory_quantity),
                 "inventory_unit": vaccine_item.unidade_medida,
@@ -1324,7 +1325,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             )
 
         return Response({
-            'message': 'Mortalidade registrada com sucesso.',
+            'message': translate_message('Mortalidade registrada com sucesso.'),
             'batch': AnimalBatchSerializer(batch).data,
         })
 
@@ -1543,7 +1544,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             )
         if new_phase == old_phase:
             return Response(
-                {'error': 'O lote já está nessa fase.'},
+                {'error': translate_message('O lote já está nessa fase.')},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1554,7 +1555,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 import datetime
                 exit_date = datetime.date.fromisoformat(exit_date_str)
             except ValueError:
-                return Response({'error': 'exit_date inválido. Use o formato YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': translate_message('exit_date inválido. Use o formato YYYY-MM-DD.')}, status=status.HTTP_400_BAD_REQUEST)
         else:
             exit_date = timezone.now().date()
 
@@ -1590,7 +1591,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         if animal:
             serializer = AnimalSerializer(animal, context={'request': request})
             return Response(serializer.data)
-        return Response({"detail": "Nenhum animal individual encontrado para este lote."}, status=404)
+        return Response({"detail": translate_message("Nenhum animal individual encontrado para este lote.")}, status=404)
 
     @action(detail=True, methods=['get'], url_path='animal-history')
     def animal_history(self, request, pk=None):
@@ -1600,7 +1601,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         if animal:
             events = build_animal_history(animal)
             return Response(events)
-        return Response({"detail": "Nenhum animal individual encontrado para este lote."}, status=404)
+        return Response({"detail": translate_message("Nenhum animal individual encontrado para este lote.")}, status=404)
 
     @action(detail=False, methods=['post'], url_path='merge_batches')
     def merge_batches(self, request):
@@ -1619,12 +1620,12 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
         if len(batch_ids) < 2:
             return Response(
-                {"error": "Selecione pelo menos 2 lotes para juntar."},
+                {"error": translate_message("Selecione pelo menos 2 lotes para juntar.")},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if not new_batch_code:
             return Response(
-                {"error": "Código do novo lote é obrigatório."},
+                {"error": translate_message("Código do novo lote é obrigatório.")},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1632,7 +1633,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         source_batches = list(qs.filter(id__in=batch_ids))
         if len(source_batches) != len(batch_ids):
             return Response(
-                {"error": "Um ou mais lotes não foram encontrados."},
+                {"error": translate_message("Um ou mais lotes não foram encontrados.")},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1848,7 +1849,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         date = request.data.get('weighing_date', timezone.now().date())
         
         if not weight:
-            return Response({"error": "Peso é obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Peso é obrigatório")}, status=status.HTTP_400_BAD_REQUEST)
             
         record = WeightRecord.objects.create(
             farm=animal.farm,
@@ -1867,7 +1868,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
             matriz=animal,
             metadata={'weight_kg': str(weight)}
         )
-        return Response({"message": "Peso registrado com sucesso", "weight": weight}, status=status.HTTP_201_CREATED)
+        return Response({"message": translate_message("Peso registrado com sucesso"), "weight": weight}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='register-vaccination')
     @transaction.atomic
@@ -1878,7 +1879,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         date = request.data.get('application_date', timezone.now().date())
 
         if not vaccine_name and not vaccine_item_id:
-            return Response({"error": "Nome da vacina ou vacina do estoque é obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Nome da vacina ou vacina do estoque é obrigatório")}, status=status.HTTP_400_BAD_REQUEST)
 
         vaccine_item = None
         if vaccine_item_id:
@@ -1894,7 +1895,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
                 if not vaccine_name:
                     vaccine_name = vaccine_item.nome
             except ItemEstoque.DoesNotExist:
-                return Response({"error": "Vacina não encontrada no estoque."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": translate_message("Vacina não encontrada no estoque.")}, status=status.HTTP_400_BAD_REQUEST)
 
         record = VaccinationRecord.objects.create(
             farm=animal.farm,
@@ -1932,7 +1933,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
             record.inventory_cost_snapshot = custo_real
             record.save(update_fields=['inventory_cost_snapshot'])
 
-        return Response({"message": "Vacina registrada com sucesso"}, status=status.HTTP_201_CREATED)
+        return Response({"message": translate_message("Vacina registrada com sucesso")}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='diagnose-pregnancy')
     def diagnose_pregnancy(self, request, pk=None):
@@ -2000,7 +2001,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
         if not heat_date_str:
             return Response(
-                {"error": "Data do cio é obrigatória."},
+                {"error": translate_message("Data do cio é obrigatória.")},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2009,7 +2010,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
             heat_date = datetime.date.fromisoformat(str(heat_date_str))
         except ValueError:
             return Response(
-                {"error": "Data inválida. Use formato YYYY-MM-DD."},
+                {"error": translate_message("Data inválida. Use formato YYYY-MM-DD.")},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2058,7 +2059,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
         heats = HeatRecord.objects.filter(animal=animal).order_by('heat_number')
         serializer = HeatRecordSerializer(heats, many=True)
         return Response({
-            "message": "Cio registrado com sucesso. Previsões geradas automaticamente.",
+            "message": translate_message("Cio registrado com sucesso. Previsões geradas automaticamente."),
             "heat_records": serializer.data,
         }, status=status.HTTP_201_CREATED)
 
@@ -2103,7 +2104,7 @@ class AnimalViewSet(viewsets.ModelViewSet):
                 'motivo': motivo
             }
         )
-        return Response({"message": "Matriz descartada com sucesso", "status": animal.status})
+        return Response({"message": translate_message("Matriz descartada com sucesso"), "status": animal.status})
 
     @action(detail=True, methods=['get'], url_path='full-history')
     def full_history(self, request, pk=None):
@@ -2162,7 +2163,7 @@ class PregnancyViewSet(viewsets.ModelViewSet):
             matriz=female,
             metadata={'tipo_perda': tipo_perda}
         )
-        return Response({"message": "Perda gestacional registrada."})
+        return Response({"message": translate_message("Perda gestacional registrada.")})
 
 
 @operator_scoped
@@ -2239,7 +2240,7 @@ class BirthViewSet(viewsets.ModelViewSet):
             quantidade = int(request.data.get('quantidade', 1))
         except (TypeError, ValueError):
             return Response(
-                {"error": "Informe uma quantidade válida."},
+                {"error": translate_message("Informe uma quantidade válida.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         causa = request.data.get('causa', 'DESCONHECIDA')
@@ -2248,7 +2249,7 @@ class BirthViewSet(viewsets.ModelViewSet):
         vivos_atual = birth.live_born - birth.mortality
         if quantidade < 1:
             return Response(
-                {"error": "A quantidade deve ser maior que zero."},
+                {"error": translate_message("A quantidade deve ser maior que zero.")},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if quantidade > vivos_atual:
@@ -2280,7 +2281,7 @@ class BirthViewSet(viewsets.ModelViewSet):
             metadata={'quantidade': quantidade, 'causa': causa}
         )
         return Response({
-            "message": "Mortalidade registrada.",
+            "message": translate_message("Mortalidade registrada."),
             "mortality": birth.mortality,
             "live_piglets": max(0, birth.live_born - birth.mortality),
             "batch_quantity": batch.quantity,
@@ -2303,7 +2304,7 @@ class BirthViewSet(viewsets.ModelViewSet):
             vivos_origem = birth.live_born - birth.mortality
             if qtd < 1:
                 return Response(
-                    {"error": "A quantidade transferida deve ser maior que zero."},
+                    {"error": translate_message("A quantidade transferida deve ser maior que zero.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if qtd > vivos_origem:
@@ -2323,12 +2324,12 @@ class BirthViewSet(viewsets.ModelViewSet):
                 ).first()
             if not destino_birth:
                 return Response(
-                    {"error": "Selecione uma matriz de destino que esteja na maternidade."},
+                    {"error": translate_message("Selecione uma matriz de destino que esteja na maternidade.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if destino_birth.pk == birth.pk:
                 return Response(
-                    {"error": "A matriz de destino deve ser diferente da matriz de origem."},
+                    {"error": translate_message("A matriz de destino deve ser diferente da matriz de origem.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -2380,7 +2381,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                     'origem_identifier': origem_identifier,
                 }
             )
-            return Response({"message": "Transferência registrada com sucesso."})
+            return Response({"message": translate_message("Transferência registrada com sucesso.")})
 
         elif tipo in ('APLICACAO_MEDICAMENTO', 'APLICACAO_VACINA'):
             from apps.inventory.models import ItemEstoque
@@ -2392,7 +2393,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                 animal_count = int(request.data.get('animal_count') or vivos_atual)
             except (ValueError, TypeError):
                 return Response(
-                    {"error": "Informe uma quantidade de animais válida."},
+                    {"error": translate_message("Informe uma quantidade de animais válida.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if animal_count < 1 or animal_count > vivos_atual:
@@ -2415,7 +2416,7 @@ class BirthViewSet(viewsets.ModelViewSet):
                 }]
             if not isinstance(raw_applications, list):
                 return Response(
-                    {"error": "A lista de medicamentos ou vacinas é inválida."},
+                    {"error": translate_message("A lista de medicamentos ou vacinas é inválida.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -2498,14 +2499,14 @@ class BirthViewSet(viewsets.ModelViewSet):
                 matriz=birth.female,
                 metadata={'tipo': tipo, 'quantidade': quantidade}
             )
-            return Response({"message": "Procedimento registrado."})
+            return Response({"message": translate_message("Procedimento registrado.")})
 
     @action(detail=False, methods=['post'])
     def batch_wean(self, request):
         birth_ids = request.data.get('birth_ids', [])
         weaned_quantity = request.data.get('weaned_quantity')
         if not birth_ids:
-            return Response({"error": "Nenhum parto selecionado."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Nenhum parto selecionado.")}, status=status.HTTP_400_BAD_REQUEST)
 
         births = self.get_queryset().filter(id__in=birth_ids)
         now = timezone.now().date()
@@ -2639,7 +2640,7 @@ class ReproductionDashboardView(APIView):
                     "incubacoes_ativas": incubations.filter(status='incubating').count(),
                     "ovos_incubados": sum([i.eggs_incubated for i in incubations.filter(status='incubating')])
                 },
-                "message": "Dados de aves carregados com sucesso."
+                "message": translate_message("Dados de aves carregados com sucesso.")
             }, status=status.HTTP_200_OK)
 
         # For Suínos and Bovinos
@@ -2760,7 +2761,7 @@ class ReproductionDashboardView(APIView):
             "notifications_enabled": notifications_enabled,
             "alerts": [{**item, "category": "animal_cycle"} for item in alerts],
             "aiSuggestions": ai_suggestions,
-            "message": "Dashboard API is connected."
+            "message": translate_message("Dashboard API is connected.")
         }, status=status.HTTP_200_OK)
 
 
@@ -2785,7 +2786,7 @@ class AcknowledgeOperationalAlertView(APIView):
             alert_key=alert_key,
             defaults={"alert_text": alert_text},
         )
-        return Response({"detail": "Alerta confirmado."}, status=status.HTTP_200_OK)
+        return Response({"detail": translate_message("Alerta confirmado.")}, status=status.HTTP_200_OK)
 
 
 @operator_scoped

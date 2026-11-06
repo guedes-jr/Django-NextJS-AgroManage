@@ -2,6 +2,7 @@
 Business logic / use cases for the inventory app.
 Keeps orchestration out of views and serializers.
 """
+from django.utils.translation import gettext as translate_message
 from datetime import date
 from typing import Optional
 from django.db import transaction
@@ -24,13 +25,13 @@ def record_stock_count(lot, user, *, quantidade_contada, saldo_esperado, motivo)
     ItemEstoque.objects.select_for_update().get(pk=lot.item_id, organization=user.organization)
     lot = LoteEstoque.objects.select_for_update().get(pk=lot.pk)
     if not lot.ativo and quantidade_contada > 0:
-        raise ValidationError({"quantidade_contada": "Reative o lote com saldo zero antes de registrar saldo positivo."})
+        raise ValidationError({"quantidade_contada": translate_message("Reative o lote com saldo zero antes de registrar saldo positivo.")})
     before = lot.quantidade_atual
     if before != saldo_esperado:
         raise StockCountConflict()
     delta = quantidade_contada - before
     if delta == 0:
-        raise ValidationError({"quantidade_contada": "A contagem é igual ao saldo. Não há ajuste a registrar."})
+        raise ValidationError({"quantidade_contada": translate_message("A contagem é igual ao saldo. Não há ajuste a registrar.")})
     movement = MovimentacaoEstoque.objects.create(
         item=lot.item, lote=lot, tipo=TipoMovimentacao.AJUSTE, quantidade=delta,
         responsavel=user, destino="Inventário",
@@ -102,11 +103,11 @@ def registrar_movimentacao(item, lote=None, tipo: str = TipoMovimentacao.COMPRA,
     from .models import MovimentacaoEstoque
 
     if farm and farm.organization_id != item.organization_id:
-        raise ValidationError({"farm": "A fazenda não pertence à organização do estoque."})
+        raise ValidationError({"farm": translate_message("A fazenda não pertence à organização do estoque.")})
     if lote and lote.item_id != item.pk:
-        raise ValidationError({"lote": "O lote não pertence ao item informado."})
+        raise ValidationError({"lote": translate_message("O lote não pertence ao item informado.")})
     if responsavel and responsavel.organization_id != item.organization_id:
-        raise ValidationError({"responsavel": "O responsável não pertence à organização do estoque."})
+        raise ValidationError({"responsavel": translate_message("O responsável não pertence à organização do estoque.")})
     # Without a known production context, leave the movement unassigned rather
     # than attributing it to an arbitrary property.
 

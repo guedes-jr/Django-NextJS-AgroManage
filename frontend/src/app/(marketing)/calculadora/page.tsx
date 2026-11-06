@@ -7,6 +7,7 @@ import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { usePublicLocale } from "@/lib/publicLocale";
 export default function Page() {
   const { language, t } = usePublicLocale();
+
   const [farms, setFarms] = useState(1),
     [people, setPeople] = useState(3),
     [hours, setHours] = useState(12),

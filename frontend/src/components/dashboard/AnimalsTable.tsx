@@ -1,4 +1,5 @@
 "use client";
+import { useOrganizationLocale } from "@/lib/locale";
 
 import { useState, useMemo } from "react";
 import {
@@ -68,6 +69,7 @@ const columnLabels = {
 };
 
 export function AnimalsTable({ data, type }: AnimalsTableProps) {
+  const { t } = useOrganizationLocale();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [attributeFilter, setAttributeFilter] = useState("");
@@ -87,11 +89,11 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
     ],
     suino: [
       { value: "", label: "Todos atributos" },
-      { value: "Terminação", label: "Terminação" },
-      { value: "Crescimento", label: "Crescimento" },
-      { value: "Maternidade", label: "Maternidade" },
-      { value: "Creche", label: "Creche" },
-      { value: "Reprodução", label: "Reprodução" },
+      { value: "Terminação", label: t("swine.categoryFinishing") },
+      { value: "Crescimento", label: t("poultryReproduction.growth") },
+      { value: "Maternidade", label: t("swineReproduction.maternity") },
+      { value: "Creche", label: t("swineReproduction.nursery") },
+      { value: "Reprodução", label: t("cattleReproduction.production") },
     ],
     ave: [
       { value: "", label: "Todos atributos" },
@@ -180,11 +182,11 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
-                <option value="Todos">Todos</option>
-                <option value="Ativo">Ativo</option>
+                <option value="Todos">{t("crops.allFields")}</option>
+                <option value="Ativo">{t("users.active")}</option>
                 <option value="Doente">Doente</option>
-                <option value="Quarentena">Quarentena</option>
-                <option value="Vendido">Vendido</option>
+                <option value="Quarentena">{t("livestock.registration.quarantine")}</option>
+                <option value="Vendido">{t("workspace.sold")}</option>
               </select>
               <Filter className="login-input-icon text-muted-foreground" size={18} />
             </div>
@@ -252,8 +254,8 @@ export function AnimalsTable({ data, type }: AnimalsTableProps) {
                   {sortConfig?.key === 'quantity' && <ArrowUpDown size={14} />}
                 </div>
               </TableHeader>
-              <TableHeader className="text-muted-foreground border-0">Status</TableHeader>
-              <TableHeader className="text-end text-muted-foreground border-0" style={{ width: 100 }}>Ações</TableHeader>
+              <TableHeader className="text-muted-foreground border-0">{t("users.columnStatus")}</TableHeader>
+              <TableHeader className="text-end text-muted-foreground border-0" style={{ width: 100 }}>{t("lotReport.actions")}</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>

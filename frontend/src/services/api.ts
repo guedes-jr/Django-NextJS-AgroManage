@@ -12,6 +12,12 @@ const computeBaseUrl = (): string => {
 
 const BASE_URL = computeBaseUrl();
 
+// In-memory request metadata; providers remain the source of the active language.
+let requestLanguage = "pt-BR";
+export const setApiLanguage = (language: string) => {
+  if (["pt-BR", "en", "es", "pt-PT"].includes(language)) requestLanguage = language;
+};
+
 let organizationOperatorMode = false;
 export const setOrganizationOperatorMode = (enabled: boolean) => {
   organizationOperatorMode = enabled;
@@ -56,6 +62,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     let access: string | null = null;
+    config.headers.set("Accept-Language", requestLanguage);
 
     if (organizationOperatorMode && /\/(crops|livestock|inventory)\//.test(config.url || "") && ["post", "patch", "put"].includes(config.method || "")) {
       config.data = operationalPayload(config.data);

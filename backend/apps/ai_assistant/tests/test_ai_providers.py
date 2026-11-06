@@ -18,3 +18,23 @@ class AIProviderFactoryTests(SimpleTestCase):
         self.assertIsInstance(provider, AIProviderRouter)
         concrete = get_ai_provider("openai")
         self.assertIsInstance(concrete, OpenAIProvider)
+
+
+class AIPromptLanguageTests(SimpleTestCase):
+    def test_domain_and_support_prompts_use_the_organization_language(self):
+        from apps.ai_assistant.services.prompt import build_system_prompt
+
+        for subject in ["general", "crops", "livestock", "support"]:
+            for language, name in [("pt-BR", "português brasileiro"), ("en", "inglês"), ("es", "espanhol"), ("pt-PT", "português de Portugal")]:
+                with self.subTest(subject=subject, language=language):
+                    prompt = build_system_prompt(subject=subject, language=language, authorized_context="Contexto autorizado")
+                    self.assertIn(f"Responda em {name}", prompt)
+                    if language != "pt-BR":
+                        self.assertNotIn("Responda em português brasileiro", prompt)
+                    self.assertIn("Contexto autorizado", prompt)
+                    self.assertIn("não confiáveis", prompt)
+
+    def test_unsupported_language_keeps_brazilian_portuguese_as_default(self):
+        from apps.ai_assistant.services.prompt import build_system_prompt
+
+        self.assertIn("Responda em português brasileiro", build_system_prompt(language="fr"))

@@ -83,7 +83,7 @@ export function CattleReproduction(props: Props) {
         filterKey="reproductive_status" filterValue={status || "all"} onFilterChange={value => onStatus(value === "all" ? "" : value)} filterOptions={Object.entries(statuses).map(([value, entry]) => ({ value, label: entry.label }))}
         pagination={pagination} actions={actions} rowKey="id" onRowClick={row => props.onHistory(animalFrom(row))}
         emptyText={loading ? "Carregando registros..." : "Nenhum animal encontrado nesta fase."}
-        kpis={[{ icon: "♀", iconNode: <span style={{ color: phase?.accent }}>{phaseIcon(selected)}</span>, label: phase?.label || "Animais", value: counts[selected] ?? "—", color: phase?.color || "var(--muted)" }]}/>
+        kpis={[{ icon: "♀", iconNode: <span style={{ color: phase?.accent }}>{phaseIcon(selected)}</span>, label: phase?.label || t("notifications.category.animal"), value: counts[selected] ?? "—", color: phase?.color || "var(--muted)" }]}/>
     </div>}
   </div>;
 }

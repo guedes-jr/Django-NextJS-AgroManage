@@ -1,6 +1,7 @@
 """
 Accounts app views — auth, user management.
 """
+from django.utils.translation import gettext as translate_message
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -50,9 +51,9 @@ def member_detail_view(request, pk):
     """Update or remove a member from the organization."""
     org = getattr(request.user, "organization", None)
     if not org:
-        return Response({"detail": "Você não pertence a uma organização."}, status=403)
+        return Response({"detail": translate_message("Você não pertence a uma organização.")}, status=403)
     if request.user.role != 'admin':
-        return Response({'detail': 'Somente administradores podem gerenciar usuários.'}, status=403)
+        return Response({'detail': translate_message('Somente administradores podem gerenciar usuários.')}, status=403)
     with transaction.atomic():
         Organization.objects.select_for_update().get(pk=org.pk)
         try:
@@ -70,11 +71,11 @@ def member_detail_view(request, pk):
         new_role = changes.get('role', member.role)
         removing_admin = member.role == 'admin' and (new_role != 'admin' or changes.get('is_active') is False)
         if member.pk == request.user.pk and (new_role != member.role or changes.get('is_active') is False):
-            return Response({'detail': 'Você não pode remover ou rebaixar seu próprio acesso.'}, status=400)
+            return Response({'detail': translate_message('Você não pode remover ou rebaixar seu próprio acesso.')}, status=400)
         if member.organization_responsible and removing_admin:
-            return Response({'detail': 'O responsável pela organização deve permanecer administrador ativo.'}, status=400)
+            return Response({'detail': translate_message('O responsável pela organização deve permanecer administrador ativo.')}, status=400)
         if removing_admin and not User.objects.filter(organization=org, role='admin', is_active=True).exclude(pk=member.pk).exists():
-            return Response({'detail': 'A organização precisa manter um administrador ativo.'}, status=400)
+            return Response({'detail': translate_message('A organização precisa manter um administrador ativo.')}, status=400)
         serializer.save()
         from apps.audit.services import record_client_action
         from apps.audit.models import AuditLog
@@ -89,13 +90,13 @@ def create_member_view(request):
     org = getattr(request.user, "organization", None)
     if not org:
         return Response(
-            {"detail": "Você não pertence a uma organização."},
+            {"detail": translate_message("Você não pertence a uma organização.")},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     if request.user.role != "admin":
         return Response(
-            {"detail": "Permissão negada."},
+            {"detail": translate_message("Permissão negada.")},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -105,7 +106,7 @@ def create_member_view(request):
 
     if User.objects.filter(email=data["email"]).exists():
         return Response(
-            {"detail": "Já existe um usuário com este email."},
+            {"detail": translate_message("Já existe um usuário com este email.")},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -210,7 +211,7 @@ def google_login_view(request):
             )
 
         if not user.is_active:
-            return Response({"detail": "Usuário inativo."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": translate_message("Usuário inativo.")}, status=status.HTTP_403_FORBIDDEN)
         if (
             user.organization
             and not user.organization.is_active
@@ -288,12 +289,12 @@ def password_recovery_view(request):
 
     if not email:
         return Response(
-            {"detail": "Email é obrigatório."},
+            {"detail": translate_message("Email é obrigatório.")},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     return Response(
-        {"detail": "Se o email existir, você receberá instruções para redefinir sua senha."}
+        {"detail": translate_message("Se o email existir, você receberá instruções para redefinir sua senha.")}
     )
 
 
@@ -306,9 +307,9 @@ def logout_view(request):
         if refresh_token:
             token = RefreshToken(refresh_token)
             token.blacklist()
-        return Response({"detail": "Logout realizado com sucesso."})
+        return Response({"detail": translate_message("Logout realizado com sucesso.")})
     except Exception:
-        return Response({"detail": "Logout realizado."})
+        return Response({"detail": translate_message("Logout realizado.")})
 
 
 @api_view(["POST"])
@@ -321,7 +322,7 @@ def refresh_token_view(request):
         return Response({"access": str(token.access_token)})
     except Exception:
         return Response(
-            {"detail": "Token inválido ou expirado."},
+            {"detail": translate_message("Token inválido ou expirado.")},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -382,7 +383,7 @@ def change_password_view(request):
     request.user.set_password(serializer.validated_data["new_password"])
     request.user.force_password_change = False
     request.user.save()
-    return Response({"detail": "Senha alterada com sucesso."})
+    return Response({"detail": translate_message("Senha alterada com sucesso.")})
 
 
 @api_view(["GET", "PATCH"])
@@ -403,7 +404,7 @@ def force_change_password_view(request):
     """Force change user password (only when flag is true)."""
     if not request.user.force_password_change:
         return Response(
-            {"detail": "Você não precisa forçar a troca de senha."},
+            {"detail": translate_message("Você não precisa forçar a troca de senha.")},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -412,20 +413,20 @@ def force_change_password_view(request):
 
     if not new_password or new_password != new_password_confirm:
         return Response(
-            {"detail": "As senhas não conferem ou estão vazias."},
+            {"detail": translate_message("As senhas não conferem ou estão vazias.")},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     if len(new_password) < 8:
         return Response(
-            {"detail": "A senha deve ter pelo menos 8 caracteres."},
+            {"detail": translate_message("A senha deve ter pelo menos 8 caracteres.")},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     request.user.set_password(new_password)
     request.user.force_password_change = False
     request.user.save()
-    return Response({"detail": "Senha atualizada com sucesso."})
+    return Response({"detail": translate_message("Senha atualizada com sucesso.")})
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):

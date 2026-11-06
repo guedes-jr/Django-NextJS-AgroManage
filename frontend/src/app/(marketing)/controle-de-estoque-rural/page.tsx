@@ -1,29 +1,32 @@
+import { getPublicTranslator } from "@/lib/publicLocaleServer";
 import type { Metadata } from "next";
 import { SegmentLanding } from "@/components/marketing/SegmentLanding";
-export const metadata: Metadata = {
-  title: "Controle de estoque rural | Fazenda Mais",
+export async function generateMetadata(): Promise<Metadata> { const { t } = await getPublicTranslator(); return {
+  title: t("public.farmStockControlFazendaMais"),
   description:
-    "Controle insumos, produtos, fornecedores e movimentações da fazenda.",
-};
-export default function Page() {
+    t("public.trackFarmInputsProductsSuppliersAndMovements"),
+}; }
+export default async function Page() {
+  const { t } = await getPublicTranslator();
+
   return (
-    <SegmentLanding
-      eyebrow="Estoque rural"
-      title="Saiba o que entrou, o que saiu e o que precisa ser comprado"
-      description="Reduza perdas e improvisos com movimentações rastreáveis, alertas e fornecedores organizados."
+    <SegmentLanding trackingLabel="Estoque rural"
+      eyebrow={t("public.farmStock")}
+      title={t("public.knowWhatCameInWhatWentOutAndWhatNeeds")}
+      description={t("public.reduceLossesAndLastMinuteFixesWithTraceableMovementsAlerts")}
       benefits={[
-        "Saldo atualizado por produto",
-        "Alertas de estoque mínimo",
-        "Histórico de entradas e saídas",
-        "Compras ligadas à operação",
+        t("public.updatedBalancePerProduct"),
+        t("public.minimumStockAlerts"),
+        t("public.inboundAndOutboundHistory"),
+        t("public.purchasesLinkedToOperations"),
       ]}
       features={[
-        ["Produtos", "Cadastre unidades, categorias e limites."],
-        ["Movimentações", "Registre entradas, saídas e ajustes."],
-        ["Alertas", "Antecipe reposições importantes."],
-        ["Fornecedores", "Organize contatos e histórico comercial."],
-        ["Rações", "Controle fórmulas e produção interna."],
-        ["Custos", "Acompanhe valor e consumo de estoque."],
+        [t("plantations.agronomist.products"), t("public.registerUnitsCategoriesAndLimits")],
+        [t("dashboard.movements"), t("public.recordInboundOutboundAndAdjustmentMovements")],
+        [t("swine.home.activeAlerts"), t("public.planImportantReplenishmentsAhead")],
+        [t("inventory.home.suppliers"), t("public.organizeContactsAndCommercialHistory")],
+        [t("public.feed"), t("public.trackFormulasAndInHouseProduction")],
+        [t("crops.costs"), t("public.trackStockValueAndConsumption")],
       ]}
     />
   );

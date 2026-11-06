@@ -1,4 +1,5 @@
 """Financial posting and traceable, idempotent settlement operations."""
+from django.utils.translation import gettext as translate_message
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal
@@ -22,7 +23,7 @@ def _existing_event(document, key, kind):
     from .models import PaymentEvent
     existing = PaymentEvent.objects.filter(transaction=document, idempotency_key=key).first()
     if existing and (existing.transaction_id != document.pk or existing.kind != kind):
-        raise ValidationError({"idempotency_key": "Esta identificação já foi utilizada em outra operação."})
+        raise ValidationError({"idempotency_key": translate_message("Esta identificação já foi utilizada em outra operação.")})
     return existing
 
 
@@ -33,20 +34,20 @@ def settle_transaction(document, user, *, bank_account, payment_date, payment_me
     existing = _existing_event(document, idempotency_key, "payment")
     if existing:
         if existing.bank_account_id != bank_account.pk or existing.payment_date != payment_date or existing.payment_method != payment_method:
-            raise ValidationError({"idempotency_key": "Os dados desta baixa diferem da operação já registrada."})
+            raise ValidationError({"idempotency_key": translate_message("Os dados desta baixa diferem da operação já registrada.")})
         return existing
     if document.amount <= 0:
-        raise ValidationError({"amount": "A baixa exige um valor positivo."})
+        raise ValidationError({"amount": translate_message("A baixa exige um valor positivo.")})
     if document.status not in ("pending", "overdue"):
-        raise ValidationError({"status": "Somente títulos em aberto podem receber baixa."})
+        raise ValidationError({"status": translate_message("Somente títulos em aberto podem receber baixa.")})
     locked_accounts = {account.pk: account for account in BankAccount.objects.select_for_update().filter(pk__in=[bank_account.pk, document.bank_account_id], organization=user.organization).order_by("pk")}
     account = locked_accounts.get(bank_account.pk)
     if not account:
-        raise ValidationError({"bank_account": "A conta não pertence à sua organização."})
+        raise ValidationError({"bank_account": translate_message("A conta não pertence à sua organização.")})
     if not account.is_active:
-        raise ValidationError({"bank_account": "A conta está inativa."})
+        raise ValidationError({"bank_account": translate_message("A conta está inativa.")})
     if payment_date > timezone.localdate():
-        raise ValidationError({"payment_date": "A baixa não pode ter data futura."})
+        raise ValidationError({"payment_date": translate_message("A baixa não pode ter data futura.")})
     event = PaymentEvent.objects.create(transaction=document, kind="payment", amount=document.amount, bank_account=account, payment_date=payment_date, payment_method=payment_method, idempotency_key=idempotency_key, created_by=user)
     document.status, document.bank_account, document.payment_date, document.payment_method = "paid", account, payment_date, payment_method
     document._settlement_operation = True
@@ -62,18 +63,18 @@ def reverse_payment(document, user, *, reason, idempotency_key, payment=None):
     existing = _existing_event(document, idempotency_key, "reversal")
     if existing:
         if existing.reason != reason or (payment and existing.reverses_id != payment):
-            raise ValidationError({"idempotency_key": "Os dados deste estorno diferem da operação registrada."})
+            raise ValidationError({"idempotency_key": translate_message("Os dados deste estorno diferem da operação registrada.")})
         return existing
     if document.status != "paid":
-        raise ValidationError({"status": "Somente títulos pagos podem ser estornados."})
+        raise ValidationError({"status": translate_message("Somente títulos pagos podem ser estornados.")})
     active = document.payment_events.filter(kind="payment", reversal__isnull=True).first()
     if active and not payment:
-        raise ValidationError({"payment": "Informe a baixa ativa para estornar; atualize o título antes de continuar."})
+        raise ValidationError({"payment": translate_message("Informe a baixa ativa para estornar; atualize o título antes de continuar.")})
     if not active:
         # Capture the legacy paid state before reversing; never fabricate bank allocation.
         active = PaymentEvent.objects.create(transaction=document, kind="payment", amount=document.amount, bank_account=document.bank_account, payment_date=document.payment_date or document.due_date, payment_method=document.payment_method or "", reason="Baixa anterior ao histórico de liquidações.", created_by=user)
     if payment and active.pk != payment:
-        raise ValidationError({"payment": "A baixa informada não é a baixa ativa deste título."})
+        raise ValidationError({"payment": translate_message("A baixa informada não é a baixa ativa deste título.")})
     event = PaymentEvent.objects.create(transaction=document, kind="reversal", amount=active.amount, bank_account=active.bank_account, payment_date=timezone.localdate(), payment_method=active.payment_method, reverses=active, reason=reason, idempotency_key=idempotency_key, created_by=user)
     document.status, document.payment_date = "pending", None
     document._settlement_operation = True
@@ -93,15 +94,15 @@ def create_series(user, values, *, series_id, kind, count):
         total = sum((entry.amount for entry in existing), Decimal(0)) if kind == "installment" else existing[0].amount
         changed = any(getattr(existing[0], key) != value for key, value in values.items() if key not in {"amount", "status", "payment_date"})
         if len(existing) != count or existing[0].series_kind != kind or total != values["amount"] or changed:
-            raise ValidationError({"series_id": "Esta identificação já foi utilizada em outro parcelamento/agendamento."})
+            raise ValidationError({"series_id": translate_message("Esta identificação já foi utilizada em outro parcelamento/agendamento.")})
         return existing
     if values.get("status", "pending") != "pending":
-        raise ValidationError({"status": "Parcelas e recorrências são criadas em aberto e recebem baixa individual."})
+        raise ValidationError({"status": translate_message("Parcelas e recorrências são criadas em aberto e recebem baixa individual.")})
     if values.get("attachment"):
-        raise ValidationError({"attachment": "Anexe o comprovante ao título após gerar a série."})
+        raise ValidationError({"attachment": translate_message("Anexe o comprovante ao título após gerar a série.")})
     cents = int(values["amount"] * 100)
     if kind == "installment" and cents < count:
-        raise ValidationError({"amount": "O valor não permite parcelas de pelo menos um centavo."})
+        raise ValidationError({"amount": translate_message("O valor não permite parcelas de pelo menos um centavo.")})
     start = values["due_date"]
     results = []
     for number in range(count):
@@ -120,16 +121,16 @@ def record_stock_purchase(movement, user, *, due_date=None, paid=False, bank_acc
     unit_cost = lot.custo_unitario if lot else None
     if not unit_cost or unit_cost <= 0:
         if paid:
-            raise ValidationError({"custo_unitario": "Informe o custo da compra para registrar o pagamento."})
+            raise ValidationError({"custo_unitario": translate_message("Informe o custo da compra para registrar o pagamento.")})
         return None
     amount = (movement.quantidade * unit_cost).quantize(Decimal("0.01"))
     if amount <= 0:
-        raise ValidationError({"custo_unitario": "O total da compra deve ser de pelo menos um centavo."})
+        raise ValidationError({"custo_unitario": translate_message("O total da compra deve ser de pelo menos um centavo.")})
     category, _ = FinancialCategory.objects.get_or_create(organization=movement.item.organization, name="Compra de Insumos", category_type="expense")
     document = Transaction.objects.create(organization=movement.item.organization, farm=movement.farm, category=category, description=f"Compra de estoque: {movement.item.nome} (Lote: {lot.numero_lote})", amount=amount, due_date=due_date or timezone.localdate(), reference=f"STOCK-MOV-{movement.pk}", created_by=user)
     if paid:
         if not bank_account or not payment_date:
-            raise ValidationError({"purchase_payment_status": "Uma compra paga exige conta e data do pagamento."})
+            raise ValidationError({"purchase_payment_status": translate_message("Uma compra paga exige conta e data do pagamento.")})
         settle_transaction(document, user, bank_account=bank_account, payment_date=payment_date, payment_method=payment_method, idempotency_key=movement.pk)
     return document
 

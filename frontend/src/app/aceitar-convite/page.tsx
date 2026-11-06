@@ -1,10 +1,12 @@
 "use client";
+import { usePublicLocale } from "@/lib/publicLocale";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { organizationInvitations, getOrganizationErrorMessage, type InvitationPreview } from "@/services/organizationInvitations";
 
 export default function AcceptInvitationPage() {
+  const { language, t } = usePublicLocale();
   const [token, setToken] = useState("");
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,20 +21,20 @@ export default function AcceptInvitationPage() {
     const invitationToken = new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
     let active = true;
     if (!invitationToken) {
-      queueMicrotask(() => { if (active) { setError("Abra o link completo recebido por e-mail para aceitar o convite."); setLoading(false); } });
+      queueMicrotask(() => { if (active) { setError(t("workspace.openTheCompleteLinkReceivedByEmailToAcceptThe")); setLoading(false); } });
       return () => { active = false; };
     }
     organizationInvitations.inspect(invitationToken).then(result => {
       if (active) { setToken(invitationToken); setPreview(result); }
     }).catch(reason => {
-      if (active) setError(getOrganizationErrorMessage(reason, "Não foi possível verificar o convite. Solicite um novo link à equipe da plataforma."));
+      if (active) setError(getOrganizationErrorMessage(reason, t("workspace.couldNotVerifyTheInvitationRequestANewLinkFrom")));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [t]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (password !== confirmation) { setError("As senhas não coincidem."); return; }
+    if (password !== confirmation) { setError(t("workspace.passwordsDoNotMatch")); return; }
     setSaving(true);
     setError("");
     try {
@@ -43,28 +45,28 @@ export default function AcceptInvitationPage() {
       setConfirmation("");
       window.history.replaceState(null, "", window.location.pathname);
     } catch (reason) {
-      setError(getOrganizationErrorMessage(reason, "Não foi possível ativar o acesso. Tente novamente."));
+      setError(getOrganizationErrorMessage(reason, t("workspace.couldNotActivateAccessTryAgain")));
     } finally { setSaving(false); }
   };
 
   return <main className="min-vh-100 d-flex align-items-center justify-content-center p-3 bg-light">
     <section className="card shadow-sm border-0 p-4 w-100" style={{ maxWidth: 480 }}>
       <p className="text-success fw-semibold">Fazenda Mais</p>
-      <h1 className="h3">{accepted ? "Seu acesso está pronto" : "Ative seu acesso"}</h1>
-      {loading ? <p role="status">Verificando convite…</p> : accepted ? <><p>Sua senha foi definida. Entre para administrar sua organização.</p><Link className="btn btn-success" href="/login">Ir para o login</Link></> : <>
+      <h1 className="h3">{accepted ? t("workspace.yourAccessIsReady") : t("workspace.activateYourAccess")}</h1>
+      {loading ? <p role="status">{t("workspace.checkingInvitation")}</p> : accepted ? <><p>{t("workspace.yourPasswordHasBeenSetSignInToManageYour")}</p><Link className="btn btn-success" href="/login">{t("workspace.goToSignIn")}</Link></> : <>
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
         {preview && <form onSubmit={submit}>
-          <p>Olá, {preview.full_name}. Você será o administrador responsável por <strong>{preview.organization_name}</strong>.</p>
+          <p>{t("workspace.hello")} {preview.full_name}{t("workspace.youWillBeTheAdministratorResponsibleFor")} <strong>{preview.organization_name}</strong>.</p>
           <p className="text-muted">{preview.email}</p>
-          <p className="small text-muted">Convite válido até {new Date(preview.expires_at).toLocaleString("pt-BR")}.</p>
-          <label className="form-label" htmlFor="invitation-password">Defina sua senha</label>
+          <p className="small text-muted">{t("workspace.invitationValidUntil")} {new Date(preview.expires_at).toLocaleString(language)}.</p>
+          <label className="form-label" htmlFor="invitation-password">{t("workspace.setYourPassword")}</label>
           <input className="form-control mb-2" id="invitation-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} required value={password} onChange={event => setPassword(event.target.value)} disabled={saving}/>
-          <p className="small text-muted">Use pelo menos 8 caracteres. Evite senhas comuns, apenas números ou semelhantes aos seus dados.</p>
-          <label className="form-label" htmlFor="invitation-confirmation">Confirme a senha</label>
+          <p className="small text-muted">{t("workspace.useAtLeast8CharactersAvoidCommonPasswordsNumbersOnly")}</p>
+          <label className="form-label" htmlFor="invitation-confirmation">{t("users.confirmPassword")}</label>
           <input className="form-control mb-3" id="invitation-confirmation" type="password" autoComplete="new-password" minLength={8} maxLength={128} required value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={saving}/>
-          <button className="btn btn-success w-100" disabled={saving}>{saving ? "Ativando…" : "Definir senha e ativar acesso"}</button>
+          <button className="btn btn-success w-100" disabled={saving}>{saving ? t("workspace.activating") : t("workspace.setPasswordAndActivateAccess")}</button>
         </form>}
-        {!preview && <Link href="/login">Voltar ao login</Link>}
+        {!preview && <Link href="/login">{t("workspace.backToSignInLabel")}</Link>}
       </>}
     </section>
   </main>;

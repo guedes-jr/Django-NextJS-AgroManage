@@ -1,17 +1,19 @@
 "use client";
+import { usePublicLocale } from "@/lib/publicLocale";
 
 import Link from "next/link";
 
 export default function LicensePage() {
+  const { t } = usePublicLocale();
   return (
     <div className="auth-container">
       <div className="auth-card" style={{ maxWidth: "600px" }}>
         <div className="auth-logo">
-          <h1>Licença de Uso</h1>
+          <h1>{t("public.softwareLicense")}</h1>
         </div>
 
         <div className="legal-content" style={{ maxHeight: "400px", overflowY: "auto", padding: "1rem 0" }}>
-          <h2>Licença MIT</h2>
+          <h2>{t("public.mitLicense")}</h2>
           <p>
             Copyright (c) 2024 Fazenda Mais
           </p>
@@ -36,25 +38,20 @@ export default function LicensePage() {
             CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
           </p>
 
-          <h2>Tecnologias Utilizadas</h2>
+          <h2>{t("public.technologiesUsed")}</h2>
           <ul>
-            <li>Next.js - Framework React</li>
-            <li>Django - Backend Python</li>
-            <li>PostgreSQL - Banco de Dados</li>
-            <li>Tailwind CSS - Estilização</li>
+            <li>{t("public.nextJsReactFramework")}</li>
+            <li>{t("public.djangoPythonBackend")}</li>
+            <li>{t("public.postgresqlDatabase")}</li>
+            <li>{t("public.tailwindCssStyling")}</li>
           </ul>
 
-          <h2>Direitos de Propriedade Intelectual</h2>
-          <p>
-            O sistema Fazenda Mais e todos os seus componentes são propriedade de seus criadores.
-            Todos os direitos não expressamente concedidos nesta licença são reservados.
-          </p>
+          <h2>{t("public.intellectualPropertyRights")}</h2>
+          <p> {t("public.fazendaMaisAndAllItsComponentsAreThePropertyOf")} </p>
         </div>
 
         <div className="text-center mt-3">
-          <Link href="/login" className="btn btn-agro">
-            Voltar para Login
-          </Link>
+          <Link href="/login" className="btn btn-agro"> {t("public.backToSignIn")} </Link>
         </div>
       </div>
     </div>

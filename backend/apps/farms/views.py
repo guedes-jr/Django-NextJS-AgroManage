@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from common.operator_access import operator_scoped
 from django.db.models import Count, DecimalField, F, Sum
 from django.db.models.functions import Coalesce
@@ -32,7 +33,7 @@ class FarmViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         organization = getattr(self.request.user, "organization", None)
         if not organization:
-            raise serializers.ValidationError({"organization": "Usuário sem organização vinculada."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário sem organização vinculada.")})
         serializer.save(organization=organization)
 
 
@@ -51,7 +52,7 @@ class SectorViewSet(viewsets.ModelViewSet):
         farm = serializer.validated_data.get("farm")
         organization = getattr(self.request.user, "organization", None)
         if not organization or farm.organization_id != organization.id:
-            raise serializers.ValidationError({"farm": "Propriedade inválida para esta organização."})
+            raise serializers.ValidationError({"farm": translate_message("Propriedade inválida para esta organização.")})
         serializer.save()
 
 
@@ -138,9 +139,9 @@ class FarmStructureItemViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         structure = serializer.validated_data["structure"]
         if structure.farm.organization_id != self.request.user.organization_id:
-            raise serializers.ValidationError({"structure": "Estrutura inválida para esta organização."})
+            raise serializers.ValidationError({"structure": translate_message("Estrutura inválida para esta organização.")})
         if self.request.user.role == "operator" and structure.created_by_id != self.request.user.id:
-            raise serializers.ValidationError({"structure": "Você só pode adicionar itens às suas estruturas."})
+            raise serializers.ValidationError({"structure": translate_message("Você só pode adicionar itens às suas estruturas.")})
         serializer.save()
 
 
@@ -202,7 +203,7 @@ class FarmAssetImplementViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         asset = serializer.validated_data.get("asset")
         if asset.farm.organization_id != self.request.user.organization_id:
-            raise serializers.ValidationError({"asset": "Máquina ou veículo inválido para esta organização."})
+            raise serializers.ValidationError({"asset": translate_message("Máquina ou veículo inválido para esta organização.")})
         if self.request.user.role == "operator" and asset.created_by_id != self.request.user.id:
-            raise serializers.ValidationError({"asset": "Você só pode adicionar implementos aos seus registros."})
+            raise serializers.ValidationError({"asset": translate_message("Você só pode adicionar implementos aos seus registros.")})
         serializer.save()

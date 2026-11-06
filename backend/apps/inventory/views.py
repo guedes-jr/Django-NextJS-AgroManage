@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as translate_message
 from common.operator_access import operator_scoped
 """
 ViewSets for the inventory app.
@@ -121,7 +122,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         """Create multiple items in a single request."""
         organization = request.user.organization
         if not organization:
-             return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+             return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
         
         data = request.data
         if isinstance(data, list):
@@ -155,7 +156,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         """Return summary statistics for the dashboard."""
         organization = request.user.organization if request.user.is_authenticated else None
         if not organization:
-            return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
 
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
         total_items = items.count()
@@ -188,7 +189,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         """Return all items for the organization."""
         organization = request.user.organization if request.user.is_authenticated else None
         if not organization:
-            return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
 
         categoria = request.query_params.get("categoria")
         especie_animal = request.query_params.get("especie_animal")
@@ -224,7 +225,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         """Return items with low stock."""
         organization = request.user.organization if request.user.is_authenticated else None
         if not organization:
-            return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
 
         items = ItemEstoque.objects.filter(
             organization=organization, 
@@ -252,7 +253,7 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         """Return stock value grouped by category."""
         organization = request.user.organization if request.user.is_authenticated else None
         if not organization:
-            return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
 
         items = ItemEstoque.objects.filter(organization=organization, ativo=True).prefetch_related("lotes")
 
@@ -318,7 +319,7 @@ class LoteEstoqueViewSet(viewsets.ModelViewSet):
         ItemEstoque.objects.select_for_update().get(pk=instance.item_id)
         lot = LoteEstoque.objects.select_for_update().get(pk=instance.pk)
         if lot.quantidade_atual != 0 or lot.movimentacoes.exists():
-            raise exceptions.ValidationError("Não é possível apagar um lote com saldo ou lançamentos. Preserve o histórico e registre um ajuste quando necessário.")
+            raise exceptions.ValidationError(translate_message("Não é possível apagar um lote com saldo ou lançamentos. Preserve o histórico e registre um ajuste quando necessário."))
         lot.delete()
 
 
@@ -401,7 +402,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             "payment_method": serializer.validated_data.pop("purchase_payment_method", "transfer"),
         }
         if purchase["paid"] and tipo != TipoMovimentacao.COMPRA:
-            raise exceptions.ValidationError("Somente compras podem registrar pagamento neste fluxo.")
+            raise exceptions.ValidationError(translate_message("Somente compras podem registrar pagamento neste fluxo."))
         # Pop batch fields so they don't get passed to MovimentacaoEstoque.objects.create()
         batch_data = {
             "data_entrada": serializer.validated_data.pop("data_entrada", None),
@@ -439,7 +440,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
                 lote.save()
             else:
                 if batch_data["data_entrada"] and batch_data["data_entrada"] != lote.data_entrada:
-                    raise exceptions.ValidationError({"data_entrada": "Este lote já possui outra data de recebimento. Use um novo número de lote para uma nova entrada."})
+                    raise exceptions.ValidationError({"data_entrada": translate_message("Este lote já possui outra data de recebimento. Use um novo número de lote para uma nova entrada.")})
                 # Update existing batch metadata if provided
                 if batch_data["data_validade"]:
                     lote.data_validade = batch_data["data_validade"]
@@ -488,12 +489,12 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             serializer.validated_data["lote"] = lots[new_lot.pk]
         serializer.instance = instance
         if instance.cattle_delivery_id:
-            raise exceptions.ValidationError("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário.")
+            raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
         from .services import movement_has_financial_origin
         if movement_has_financial_origin(instance):
-            raise exceptions.ValidationError("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste.")
+            raise exceptions.ValidationError(translate_message("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste."))
         if instance.tipo == TipoMovimentacao.AJUSTE:
-            raise exceptions.ValidationError("Ajustes de inventário preservam o histórico. Registre uma nova contagem para corrigir o saldo.")
+            raise exceptions.ValidationError(translate_message("Ajustes de inventário preservam o histórico. Registre uma nova contagem para corrigir o saldo."))
         old_qty = instance.quantidade
         old_tipo = instance.tipo
         old_lote = instance.lote
@@ -549,12 +550,12 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         if instance.lote_id:
             instance.lote = LoteEstoque.objects.select_for_update().get(pk=instance.lote_id)
         if instance.cattle_delivery_id:
-            raise exceptions.ValidationError("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário.")
+            raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
         from .services import movement_has_financial_origin
         if movement_has_financial_origin(instance):
-            raise exceptions.ValidationError("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste.")
+            raise exceptions.ValidationError(translate_message("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste."))
         if instance.tipo == TipoMovimentacao.AJUSTE:
-            raise exceptions.ValidationError("Ajustes de inventário não podem ser apagados. Registre uma nova contagem para corrigir o saldo.")
+            raise exceptions.ValidationError(translate_message("Ajustes de inventário não podem ser apagados. Registre uma nova contagem para corrigir o saldo."))
         lote = instance.lote
         tipo = instance.tipo
         quantidade = instance.quantidade
@@ -577,7 +578,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
 
         if not isinstance(ids, list) or not ids:
             return Response(
-                {"detail": "Informe uma lista de movimentações para remover."},
+                {"detail": translate_message("Informe uma lista de movimentações para remover.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -587,11 +588,11 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             .select_related("lote")
         )
         if any(movement.tipo == TipoMovimentacao.AJUSTE for movement in movements):
-            raise exceptions.ValidationError("A seleção contém ajustes de inventário, que não podem ser apagados.")
+            raise exceptions.ValidationError(translate_message("A seleção contém ajustes de inventário, que não podem ser apagados."))
 
         if not movements:
             return Response(
-                {"detail": "Nenhuma movimentação encontrada para remoção."},
+                {"detail": translate_message("Nenhuma movimentação encontrada para remoção.")},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -619,7 +620,7 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
 
         organization = request.user.organization if request.user.is_authenticated else None
         if not organization:
-            return Response({"error": "Usuário sem organização vinculada."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
 
         period = request.query_params.get("period", "5")
         days_map = {
@@ -722,7 +723,7 @@ class FornecedorViewSet(viewsets.ModelViewSet):
         imagem = request.FILES.get("imagem")
         
         if not imagem:
-            return Response({"error": "Nenhuma imagem enviada."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": translate_message("Nenhuma imagem enviada.")}, status=status.HTTP_400_BAD_REQUEST)
         
         fornecedor.imagem = imagem
         fornecedor.save()
@@ -785,7 +786,7 @@ class AlertaEstoqueViewSet(viewsets.ModelViewSet):
         from .models import ItemEstoque, AlertaEstoque
         organization = self._get_user_organization()
         if not organization:
-            return Response({"error": "Usuário sem organização"}, status=400)
+            return Response({"error": translate_message("Usuário sem organização")}, status=400)
             
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
         print(f"[DEBUG] Gerando alertas para organização {organization.id}. Itens encontrados: {items.count()}")
@@ -862,22 +863,22 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
     def produzir(self, request):
         organization = getattr(request.user, 'organization', None)
         if not organization:
-            return Response({"error": "Usuário sem organização."}, status=400)
+            return Response({"error": translate_message("Usuário sem organização.")}, status=400)
             
         formula_id = request.data.get("formula_id")
         try:
             quantidade_teorica = Decimal(str(request.data.get("quantidade_teorica", 0)))
             quantidade_real = Decimal(str(request.data.get("quantidade_real", 0)))
         except (ValueError, TypeError):
-            return Response({"error": "Quantidade inválida."}, status=400)
+            return Response({"error": translate_message("Quantidade inválida.")}, status=400)
         
         if not formula_id or quantidade_teorica <= 0:
-            return Response({"error": "Fórmula e quantidade teórica são obrigatórias."}, status=400)
+            return Response({"error": translate_message("Fórmula e quantidade teórica são obrigatórias.")}, status=400)
             
         try:
             formula = FormulaRacao.objects.get(id=formula_id, organization=organization)
         except FormulaRacao.DoesNotExist:
-            return Response({"error": "Fórmula não encontrada."}, status=404)
+            return Response({"error": translate_message("Fórmula não encontrada.")}, status=404)
             
         custo_total_producao = Decimal("0")
         movimentacoes_para_criar = []
@@ -1025,7 +1026,7 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
         user = self.request.user
         organization = getattr(user, 'organization', None)
         if not organization:
-            raise exceptions.ValidationError("Usuário sem organização.")
+            raise exceptions.ValidationError(translate_message("Usuário sem organização."))
 
         # Default farm to user's first farm if not provided in the request
         from apps.farms.models import Farm
@@ -1099,7 +1100,7 @@ class ConsumoRacaoViewSet(viewsets.ModelViewSet):
         """Return statistics for the consumption dashboard."""
         organization = getattr(request.user, 'organization', None)
         if not organization:
-            return Response({"error": "Usuário sem organização."}, status=400)
+            return Response({"error": translate_message("Usuário sem organização.")}, status=400)
             
         especie = request.query_params.get("especie")
         categoria = request.query_params.get("categoria")

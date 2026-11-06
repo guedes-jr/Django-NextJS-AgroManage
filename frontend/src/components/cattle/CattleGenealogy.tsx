@@ -11,9 +11,9 @@ export function CattleGenealogy({ id }: { id: string }) {
   useEffect(() => {
     const controller = new AbortController();
     cattleService.genealogy(id, controller.signal).then(data => { if (!controller.signal.aborted) setData(data); })
-      .catch(error => { if (!controller.signal.aborted) setError(cattleError(error)); });
+      .catch(error => { if (!controller.signal.aborted) setError(cattleError(error, language)); });
     return () => controller.abort();
-  }, [id]);
+  }, [id, language]);
   const date = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString(language);
   const number = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   return <section className="my-3"><h3 className="h6 fw-bold">{t("cattle.genealogy.identifiedAncestry")}</h3>

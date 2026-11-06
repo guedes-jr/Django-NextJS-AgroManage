@@ -1,6 +1,8 @@
 """
 Common permissions used across multiple apps.
 """
+
+from django.utils.translation import gettext_lazy as translate_message_lazy
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.permissions import BasePermission
 from rest_framework.permissions import SAFE_METHODS
@@ -93,7 +95,7 @@ class IsPlatformAuditor(IsPlatformStaff):
 class OrganizationRolePermission(BasePermission):
     """Tenant roles; domain scopes govern operator corrections."""
 
-    message = "Seu cargo não permite executar esta operação."
+    message = translate_message_lazy("Seu cargo não permite executar esta operação.")
     default_create_roles = {"admin", "manager", "operator"}
     default_write_roles = {"admin", "manager"}
     default_delete_roles = {"admin", "manager"}

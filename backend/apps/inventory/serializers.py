@@ -1,6 +1,7 @@
 """
 Serializers for the inventory app.
 """
+from django.utils.translation import gettext as translate_message
 import re
 from decimal import Decimal
 from apps.finance.models import BankAccount, Transaction as FinancialTransaction
@@ -49,7 +50,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
     
     def validate_nome(self, value):
         if not value or not value.strip():
-            raise serializers.ValidationError("Nome não pode estar vazio.")
+            raise serializers.ValidationError(translate_message("Nome não pode estar vazio."))
         return value.strip()
     
     def validate(self, data):
@@ -63,7 +64,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
         
         if not organization:
             raise serializers.ValidationError({
-                "organization": "Usuário não possui organização vinculada."
+                "organization": translate_message("Usuário não possui organização vinculada.")
             })
         
         if nome or documento:
@@ -85,7 +86,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
                         fornecedor_documento = re.sub(r"\D", "", fornecedor.cnpj or "")
                         if fornecedor_documento and fornecedor_documento == normalized_documento:
                             raise serializers.ValidationError({
-                                "cnpj": "Já existe um fornecedor com este CPF/CNPJ nesta organização."
+                                "cnpj": translate_message("Já existe um fornecedor com este CPF/CNPJ nesta organização.")
                             })
         
         return data
@@ -100,7 +101,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
         if organization:
             validated_data["organization"] = organization
         else:
-            raise serializers.ValidationError({"organization": "Não foi possível determinar a organização."})
+            raise serializers.ValidationError({"organization": translate_message("Não foi possível determinar a organização.")})
 
         fornecedor = Fornecedor.objects.create(**validated_data)
         
@@ -259,21 +260,21 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if "quantidade_atual" in self.initial_data:
-            raise serializers.ValidationError({"quantidade_atual": "O saldo só pode ser alterado por lançamentos. Use o ajuste de inventário."})
+            raise serializers.ValidationError({"quantidade_atual": translate_message("O saldo só pode ser alterado por lançamentos. Use o ajuste de inventário.")})
         if self.instance:
             if "quantidade_inicial" in self.initial_data:
-                raise serializers.ValidationError({"quantidade_inicial": "A quantidade inicial não pode ser editada. Registre um lançamento de ajuste."})
+                raise serializers.ValidationError({"quantidade_inicial": translate_message("A quantidade inicial não pode ser editada. Registre um lançamento de ajuste.")})
             if attrs.get("item", self.instance.item) != self.instance.item:
-                raise serializers.ValidationError({"item": "O item de um lote não pode ser alterado."})
+                raise serializers.ValidationError({"item": translate_message("O item de um lote não pode ser alterado.")})
             if attrs.get("ativo", self.instance.ativo) != self.instance.ativo and self.instance.quantidade_atual != 0:
-                raise serializers.ValidationError({"ativo": "Zere o saldo com um lançamento antes de alterar a situação do lote."})
+                raise serializers.ValidationError({"ativo": translate_message("Zere o saldo com um lançamento antes de alterar a situação do lote.")})
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         item = attrs.get("item", getattr(self.instance, "item", None))
         fornecedor = attrs.get("fornecedor", getattr(self.instance, "fornecedor", None))
         if not organization or not item or item.organization_id != organization.id:
-            raise serializers.ValidationError({"item": "Item não pertence à sua organização."})
+            raise serializers.ValidationError({"item": translate_message("Item não pertence à sua organização.")})
         if fornecedor and fornecedor.organization_id != organization.id:
-            raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
+            raise serializers.ValidationError({"fornecedor": translate_message("Fornecedor não pertence à sua organização.")})
         return attrs
 
     @transaction.atomic
@@ -384,29 +385,29 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         from django.utils import timezone
         if attrs.get("data_entrada") and (attrs["data_entrada"] > timezone.localdate() or attrs.get("tipo") not in {"compra", "entrada"}):
-            raise serializers.ValidationError({"data_entrada": "Informe uma data de recebimento até hoje para uma entrada de estoque."})
+            raise serializers.ValidationError({"data_entrada": translate_message("Informe uma data de recebimento até hoje para uma entrada de estoque.")})
         if attrs.get("tipo") == "ajuste":
-            raise serializers.ValidationError({"tipo": "Registre ajustes pelo inventário do lote, informando a contagem e o motivo."})
+            raise serializers.ValidationError({"tipo": translate_message("Registre ajustes pelo inventário do lote, informando a contagem e o motivo.")})
         if attrs.get("quantidade") is not None and attrs["quantidade"] <= 0:
-            raise serializers.ValidationError({"quantidade": "Informe uma quantidade maior que zero."})
+            raise serializers.ValidationError({"quantidade": translate_message("Informe uma quantidade maior que zero.")})
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         item = attrs.get("item", getattr(self.instance, "item", None))
         lote = attrs.get("lote", getattr(self.instance, "lote", None))
         fornecedor = attrs.get("fornecedor")
         if not organization or not item or item.organization_id != organization.id:
-            raise serializers.ValidationError({"item": "Item não pertence à sua organização."})
+            raise serializers.ValidationError({"item": translate_message("Item não pertence à sua organização.")})
         account = attrs.get("purchase_bank_account")
         if account and account.organization_id != organization.id:
-            raise serializers.ValidationError({"purchase_bank_account": "A conta não pertence à sua organização."})
+            raise serializers.ValidationError({"purchase_bank_account": translate_message("A conta não pertence à sua organização.")})
         if attrs.get("purchase_payment_status") == "paid" and (not account or not attrs.get("purchase_payment_date")):
-            raise serializers.ValidationError({"purchase_payment_status": "Informe a conta e a data do pagamento."})
+            raise serializers.ValidationError({"purchase_payment_status": translate_message("Informe a conta e a data do pagamento.")})
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         if farm and farm.organization_id != organization.id:
-            raise serializers.ValidationError({"farm": "A fazenda não pertence à sua organização."})
+            raise serializers.ValidationError({"farm": translate_message("A fazenda não pertence à sua organização.")})
         if lote and (lote.item_id != item.id or lote.item.organization_id != organization.id):
-            raise serializers.ValidationError({"lote": "Lote não pertence ao item e à organização informados."})
+            raise serializers.ValidationError({"lote": translate_message("Lote não pertence ao item e à organização informados.")})
         if fornecedor and fornecedor.organization_id != organization.id:
-            raise serializers.ValidationError({"fornecedor": "Fornecedor não pertence à sua organização."})
+            raise serializers.ValidationError({"fornecedor": translate_message("Fornecedor não pertence à sua organização.")})
         return attrs
 
 
@@ -458,12 +459,12 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
         item_final = attrs.get("item_final", getattr(self.instance, "item_final", None))
         ingredientes = attrs.get("ingredientes", [])
         if not organization:
-            raise serializers.ValidationError({"organization": "Usuário não possui organização vinculada."})
+            raise serializers.ValidationError({"organization": translate_message("Usuário não possui organização vinculada.")})
         if item_final and item_final.organization_id != organization.id:
-            raise serializers.ValidationError({"item_final": "Item final não pertence à sua organização."})
+            raise serializers.ValidationError({"item_final": translate_message("Item final não pertence à sua organização.")})
         foreign_items = [item["item"].id for item in ingredientes if item["item"].organization_id != organization.id]
         if foreign_items:
-            raise serializers.ValidationError({"ingredientes": "Um ou mais ingredientes pertencem a outra organização."})
+            raise serializers.ValidationError({"ingredientes": translate_message("Um ou mais ingredientes pertencem a outra organização.")})
         return attrs
 
     def create(self, validated_data):
@@ -545,18 +546,18 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
         item = attrs.get("item_estoque", getattr(self.instance, "item_estoque", None))
         batch = attrs.get("lote_animal", getattr(self.instance, "lote_animal", None))
         if not organization or not item or item.organization_id != organization.id:
-            raise serializers.ValidationError({"item_estoque": "Item não pertence à sua organização."})
+            raise serializers.ValidationError({"item_estoque": translate_message("Item não pertence à sua organização.")})
         animals = attrs.get("animais", [])
         if not batch and not animals:
-            raise serializers.ValidationError({"destino": "Selecione um lote ou pelo menos um animal."})
+            raise serializers.ValidationError({"destino": translate_message("Selecione um lote ou pelo menos um animal.")})
         if batch and animals:
-            raise serializers.ValidationError({"destino": "Selecione lote ou animais, não ambos."})
+            raise serializers.ValidationError({"destino": translate_message("Selecione lote ou animais, não ambos.")})
         if batch and batch.farm.organization_id != organization.id:
-            raise serializers.ValidationError({"lote_animal": "Lote animal não pertence à sua organização."})
+            raise serializers.ValidationError({"lote_animal": translate_message("Lote animal não pertence à sua organização.")})
         if animals and any(animal.farm.organization_id != organization.id for animal in animals):
-            raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à sua organização."})
+            raise serializers.ValidationError({"animais": translate_message("Um ou mais animais não pertencem à sua organização.")})
         if attrs.get("data_inicio") and attrs.get("data_fim") and attrs["data_fim"] < attrs["data_inicio"]:
-            raise serializers.ValidationError({"data_fim": "A data final não pode ser anterior à data inicial."})
+            raise serializers.ValidationError({"data_fim": translate_message("A data final não pode ser anterior à data inicial.")})
 
         destination = attrs.get("categoria_destino", getattr(self.instance, "categoria_destino", ""))
         destination_phase = attrs.get("fase_destino", getattr(self.instance, "fase_destino", ""))
@@ -567,9 +568,9 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
             "reprodutores": {"reprodutor"},
         }
         if destination not in allowed_phases:
-            raise serializers.ValidationError({"categoria_destino": "Categoria de destino inválida."})
+            raise serializers.ValidationError({"categoria_destino": translate_message("Categoria de destino inválida.")})
         if destination_phase not in allowed_phases[destination]:
-            raise serializers.ValidationError({"fase_destino": "Fase incompatível com a categoria selecionada."})
+            raise serializers.ValidationError({"fase_destino": translate_message("Fase incompatível com a categoria selecionada.")})
 
         if batch:
             batch_phases = {
@@ -579,14 +580,14 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
                 "engorda": {"engorda"},
             }
             if batch.species.code != "suinos":
-                raise serializers.ValidationError({"lote_animal": "O lote selecionado não pertence à suinocultura."})
+                raise serializers.ValidationError({"lote_animal": translate_message("O lote selecionado não pertence à suinocultura.")})
             if destination != "lotes" or batch.phase not in batch_phases.get(destination_phase, set()):
-                raise serializers.ValidationError({"lote_animal": "O lote não pertence à fase produtiva selecionada."})
+                raise serializers.ValidationError({"lote_animal": translate_message("O lote não pertence à fase produtiva selecionada.")})
 
         if animals:
             for animal in animals:
                 if animal.species.code != "suinos":
-                    raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à suinocultura."})
+                    raise serializers.ValidationError({"animais": translate_message("Um ou mais animais não pertencem à suinocultura.")})
                 category = (animal.category or "").casefold()
                 reproductive_status = (animal.reproductive_status or "").casefold()
                 compatible = (
@@ -595,10 +596,10 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
                     or (destination == "reprodutores" and category in {"reprodutor", "cachaço", "cachaco"})
                 )
                 if not compatible:
-                    raise serializers.ValidationError({"animais": "Um ou mais animais não pertencem à categoria ou fase selecionada."})
+                    raise serializers.ValidationError({"animais": translate_message("Um ou mais animais não pertencem à categoria ou fase selecionada.")})
 
         if item.especie_animal not in {"", "suino", "multiplo"}:
-            raise serializers.ValidationError({"item_estoque": "A ração selecionada não é indicada para suínos."})
+            raise serializers.ValidationError({"item_estoque": translate_message("A ração selecionada não é indicada para suínos.")})
         return attrs
 
     def get_animais_identificadores(self, obj):

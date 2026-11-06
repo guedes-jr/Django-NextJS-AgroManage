@@ -65,16 +65,7 @@ type WorkerForm = {
   notes: string;
 };
 
-const activityOptions = [
-  { value: "land_preparation", label: "Preparo de terra" },
-  { value: "planting", label: "Plantio" },
-  { value: "fertilization", label: "Adubação" },
-  { value: "fertigation", label: "Fertirrigação" },
-  { value: "pesticide_application", label: "Aplicação de Defensivos" },
-  { value: "irrigation", label: "Irrigação" },
-  { value: "harvest", label: "Colheita" },
-  { value: "other", label: "Outro" },
-];
+
 
 const today = () => new Date().toISOString().split("T")[0];
 
@@ -121,6 +112,16 @@ const extractArray = <T,>(data: unknown): T[] => {
 
 export default function MaoObraPage() {
   const { language, t } = useOrganizationLocale();
+const activityOptions = [
+  { value: "land_preparation", label: t("plantations.labor.landPreparation") },
+  { value: "planting", label: t("plantations.preparation.operation.planting") },
+  { value: "fertilization", label: t("plantations.history.module.adubacao") },
+  { value: "fertigation", label: t("plantations.agronomist.category.fertirrigacao") },
+  { value: "pesticide_application", label: t("workspace.pesticideApplication") },
+  { value: "irrigation", label: t("plantations.history.module.irrigacao") },
+  { value: "harvest", label: t("plantations.history.module.colheita") },
+  { value: "other", label: t("reproduction.other") },
+];
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
@@ -709,7 +710,8 @@ export default function MaoObraPage() {
           onClick={() => router.push(`/home/plantacoes/${id}`)}
           style={{ height: 48, borderRadius: 10, fontWeight: 800 }}
         >
-          Cancelar
+
+          {t("cattle.form.cancel")}
         </button>
         <button
           type="button"
@@ -871,7 +873,7 @@ export default function MaoObraPage() {
             </div>
 
             <div className="mb-3">
-              <label className="form-label fw-semibold small mb-1">Data da atividade</label>
+              <label className="form-label fw-semibold small mb-1">{t("plantations.labor.activityDate")}</label>
               <input
                 type="date"
                 className="form-control"
@@ -918,7 +920,8 @@ export default function MaoObraPage() {
 
             <div className="d-flex gap-2 justify-content-end">
               <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10 }} onClick={closeEditRecord} disabled={editSaving}>
-                Cancelar
+
+                {t("cattle.form.cancel")}
               </button>
               <button
                 type="button"

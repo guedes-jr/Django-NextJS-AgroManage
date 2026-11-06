@@ -1,4 +1,5 @@
 "use client";
+import { usePublicLocale } from "@/lib/publicLocale";
 
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 
@@ -95,22 +96,28 @@ const apiErrorMessage = (value: unknown): string | null => {
   return null;
 };
 
+
+export default function LoginPage() {
+  return <LoginContent />;
+}
+
+function LoginContent() {
+  const { language, t } = usePublicLocale();
 const titles: Record<View, { title: string; subtitle: string }> = {
   login: {
-    title: "Bem-vindo de volta!",
-    subtitle: "Acesse sua fazenda digital e continue gerindo o que realmente importa.",
+    title: t("workspace.welcomeBack"),
+    subtitle: t("workspace.accessYourDigitalFarmAndKeepManagingWhatMattersMost"),
   },
   register: {
-    title: "Crie sua conta",
-    subtitle: "Comece a gerenciar sua produção hoje",
+    title: t("workspace.createYourAccount"),
+    subtitle: t("workspace.startManagingYourProductionToday"),
   },
   forgot: {
-    title: "Recuperar senha",
-    subtitle: "Enviaremos um link de redefinição",
+    title: t("workspace.recoverPassword"),
+    subtitle: t("workspace.weWillSendAResetLink"),
   },
 };
 
-export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const { setTheme } = useTheme();
@@ -214,11 +221,11 @@ export default function LoginPage() {
       await completeLogin(data);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: Record<string, unknown> } };
-      setError(apiErrorMessage(axiosErr.response?.data) ?? "Não foi possível entrar com o Google.");
+      setError(apiErrorMessage(axiosErr.response?.data) ?? t("workspace.couldNotSignInWithGoogle"));
     } finally {
       setLoading(false);
     }
-  }, [completeLogin]);
+  }, [completeLogin, t]);
 
   useEffect(() => {
     const target = googleButtonRef.current;
@@ -235,10 +242,10 @@ export default function LoginPage() {
       size: "large",
       shape: "pill",
       text: "signin_with",
-      locale: "pt-BR",
+      locale: language,
       width: Math.min(400, Math.max(240, Math.floor(target.getBoundingClientRect().width))),
     });
-  }, [googleClientId, googleReady, handleGoogleCredential, view]);
+  }, [googleClientId, googleReady, handleGoogleCredential, view, language]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,13 +284,13 @@ export default function LoginPage() {
         });
         // Uma nova pessoa usando o mesmo navegador precisa de um novo visitante.
         clearAffiliateTracking();
-        showToast("Conta criada! Você será redirecionado para o login. 🎉", "success", 15000);
+        showToast(t("workspace.accountCreatedYouWillBeRedirectedToSignIn"), "success", 15000);
         setTimeout(() => goTo("login"), 2000);
       } else if (view === "forgot") {
         await apiClient.post("/auth/password-recovery/", {
           email: formData.email,
         });
-        showToast("Link enviado para seu email! 📧", "success", 15000);
+        showToast(t("workspace.linkSentToYourEmail"), "success", 15000);
         setTimeout(() => goTo("login"), 2000);
       }
     } catch (err: unknown) {
@@ -292,7 +299,7 @@ export default function LoginPage() {
       const axiosErr = err as {
         response?: { data?: Record<string, unknown> };
       };
-      setError(apiErrorMessage(axiosErr.response?.data) ?? "Erro ao processar requisição.");
+      setError(apiErrorMessage(axiosErr.response?.data) ?? t("workspace.couldNotProcessTheRequest"));
     } finally {
       setLoading(false);
     }
@@ -306,26 +313,26 @@ export default function LoginPage() {
         onLoad={() => setGoogleReady(true)}
       />
       <div className="login-card">
-        <section className="login-hero" aria-label="Conheça a Fazenda Mais">
+        <section className="login-hero" aria-label={t("workspace.discoverFazendaMais")}>
           <div className="login-hero-shade" />
           <div className="login-hero-content">
             <header className="login-brand">
               <Image src="/logo_agro_leaf.png" alt="" width={116} height={116} className="login-brand-mark" priority />
-              <div><div className="login-brand-name">Fazenda<span>+</span></div><div className="login-brand-tagline">TECNOLOGIA QUE TRANSFORMA GESTÃO EM RESULTADOS</div></div>
+              <div><div className="login-brand-name">{t("dairy.home.farm")}<span>+</span></div><div className="login-brand-tagline">{t("workspace.technologyThatTurnsManagementIntoResults")}</div></div>
             </header>
             <div className="hero-copy">
               <span className="hero-copy-line" />
-              <h1>Sua fazenda<br /><strong>mais eficiente</strong><br />com tecnologia.</h1>
-              <p>Controle seu rebanho, sua plantação e toda a sua produção em uma única plataforma, com <b>mais segurança, produtividade e resultados.</b></p>
+              <h1>{t("workspace.yourFarm")}<br /><strong>{t("workspace.moreEfficient")}</strong><br />{t("workspace.withTechnology")}</h1>
+              <p>{t("workspace.manageYourHerdCropsAndAllProductionInOnePlatform")} <b>{t("workspace.moreSecurityProductivityAndResults")}</b></p>
             </div>
-            <div className="hero-slogan">Do campo<br />para um futuro<br />melhor!<span /></div>
+            <div className="hero-slogan">{t("workspace.fromTheField")}<br />{t("workspace.toABetter")}<br />{t("workspace.future")}<span /></div>
             <div className="hero-bottom">
               <div className="feature-cards">
                 {[
-                  { icon: PiggyBank, title: "Suínos", text: "Mais controle e produtividade", className: "pigs" },
-                  { icon: Bird, title: "Aves", text: "Gestão completa do seu plantel", className: "birds" },
-                  { icon: Beef, title: "Bovinos", text: "Do pasto ao resultado", className: "cattle" },
-                  { icon: Sprout, title: "Plantações", text: "Planejamento para melhores safras", className: "crops" },
+                  { icon: PiggyBank, title: t("reproduction.speciesSwine"), text: t("workspace.moreControlAndProductivity"), className: "pigs" },
+                  { icon: Bird, title: t("reproduction.speciesPoultry"), text: t("workspace.completeHerdManagement"), className: "birds" },
+                  { icon: Beef, title: t("reproduction.speciesCattle"), text: t("workspace.fromPastureToResults"), className: "cattle" },
+                  { icon: Sprout, title: t("users.crops"), text: t("workspace.planningForBetterHarvests"), className: "crops" },
                 ].map(({ icon: Icon, title, text, className }) => (
                   <div className={`feature-card ${className}`} key={title}>
                     <div className="feature-card-image" />
@@ -334,8 +341,8 @@ export default function LoginPage() {
                 ))}
               </div>
               <div className="hero-benefits">
-                <span><ShieldCheck />Dados seguros</span><span><ChartNoAxesCombined />Gestão integrada</span>
-                <span><Cloud />Acesso em qualquer lugar</span><span><Smartphone />No campo e na cidade</span>
+                <span><ShieldCheck />{t("workspace.secureData")}</span><span><ChartNoAxesCombined />{t("workspace.integratedManagement")}</span>
+                <span><Cloud />{t("workspace.accessFromAnywhere")}</span><span><Smartphone />{t("workspace.inTheFieldAndInTheCity")}</span>
               </div>
             </div>
           </div>
@@ -344,8 +351,8 @@ export default function LoginPage() {
         <section className="login-form-container">
           <div className="login-form-wrapper">
             <div className="auth-tabs">
-              <button type="button" className={`auth-tab ${view === "login" ? "active" : ""}`} onClick={() => goTo("login")}>Entrar</button>
-              <button type="button" className={`auth-tab ${view === "register" ? "active" : ""}`} onClick={() => goTo("register")}>Cadastro</button>
+              <button type="button" className={`auth-tab ${view === "login" ? "active" : ""}`} onClick={() => goTo("login")}>{t("reproduction.enter")}</button>
+              <button type="button" className={`auth-tab ${view === "register" ? "active" : ""}`} onClick={() => goTo("register")}>{t("swine.home.module.registry")}</button>
             </div>
             <div className="view-transition" key={view}>
               <div className="login-heading"><h2>{titles[view].title}</h2><p>{titles[view].subtitle}</p></div>
@@ -354,7 +361,7 @@ export default function LoginPage() {
                 <div className="login-fields">
                   {view === "register" && (
                     <div className="login-input-group">
-                      <label htmlFor="name">Nome completo</label>
+                      <label htmlFor="name">{t("users.name")}</label>
                       <div className="login-input-wrapper">
                         <input id="name" type="text" className="login-input login-input-icon-left" placeholder="João da Silva" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
                         <User className="login-input-icon" size={20} />
@@ -362,7 +369,7 @@ export default function LoginPage() {
                     </div>
                   )}
                   <div className="login-input-group">
-                    <label htmlFor="email">E-mail</label>
+                    <label htmlFor="email">{t("profile.email")}</label>
                     <div className="login-input-wrapper">
                       <input id="email" type="email" className="login-input login-input-icon-left" placeholder="voce@fazenda.com.br" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
                       <Mail className="login-input-icon" size={20} />
@@ -370,7 +377,7 @@ export default function LoginPage() {
                   </div>
                   {view === "register" && <>
                     <div className="login-input-group">
-                      <label htmlFor="contact-phone">Telefone</label>
+                      <label htmlFor="contact-phone">{t("users.phone")}</label>
                       <input id="contact-phone" type="tel" autoComplete="tel" maxLength={30} className="login-input" placeholder="(00) 00000-0000" required={formData.phone_is_whatsapp} value={formData.phone} onChange={event => setFormData({ ...formData, phone: event.target.value })} />
                     </div>
                     <WhatsAppContactOptions value={formData} disabled={loading} onChange={value => setFormData({ ...formData, ...value })} />
@@ -378,54 +385,54 @@ export default function LoginPage() {
                   {view !== "forgot" && (
                     <div className={view === "register" ? "register-passwords" : ""}>
                       <div className="login-input-group">
-                        <label htmlFor="password">Senha</label>
+                        <label htmlFor="password">{t("settings.member.password")}</label>
                         <div className="login-input-wrapper">
-                          <input id="password" type={showPwd ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder="Sua senha" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+                          <input id="password" type={showPwd ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder={t("workspace.yourPassword")} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                           <Lock className="login-input-icon" size={20} />
-                          <button type="button" className="login-input-toggle" onClick={() => setShowPwd(!showPwd)} aria-label={showPwd ? "Ocultar senha" : "Mostrar senha"}>{showPwd ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+                          <button type="button" className="login-input-toggle" onClick={() => setShowPwd(!showPwd)} aria-label={showPwd ? t("workspace.hidePassword") : t("workspace.showPassword")}>{showPwd ? <EyeOff size={20} /> : <Eye size={20} />}</button>
                         </div>
                       </div>
                       {view === "register" && (
                         <div className="login-input-group">
-                          <label htmlFor="password-confirm">Confirmar senha</label>
+                          <label htmlFor="password-confirm">{t("settings.member.confirmPassword")}</label>
                           <div className="login-input-wrapper">
-                            <input id="password-confirm" type={showPwdConfirm ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder="Confirme sua senha" value={formData.password_confirm} onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })} required />
+                            <input id="password-confirm" type={showPwdConfirm ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder={t("workspace.confirmYourPassword")} value={formData.password_confirm} onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })} required />
                             <Lock className="login-input-icon" size={20} />
-                            <button type="button" className="login-input-toggle" onClick={() => setShowPwdConfirm(!showPwdConfirm)} aria-label={showPwdConfirm ? "Ocultar confirmação" : "Mostrar confirmação"}>{showPwdConfirm ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+                            <button type="button" className="login-input-toggle" onClick={() => setShowPwdConfirm(!showPwdConfirm)} aria-label={showPwdConfirm ? t("workspace.hideConfirmation") : t("workspace.showConfirmation")}>{showPwdConfirm ? <EyeOff size={20} /> : <Eye size={20} />}</button>
                           </div>
-                          {formData.password && formData.password_confirm && formData.password !== formData.password_confirm && <div className="password-error">As senhas não conferem.</div>}
+                          {formData.password && formData.password_confirm && formData.password !== formData.password_confirm && <div className="password-error">{t("settings.member.passwordsDiffer")}</div>}
                         </div>
                       )}
                     </div>
                   )}
                   {view === "login" && (
                     <div className="login-options">
-                      <label className="remember-label"><input type="checkbox" id="remember" />Lembrar meus dados</label>
-                      <button type="button" className="btn-link-agro" onClick={() => goTo("forgot")}>Esqueci a senha?</button>
+                      <label className="remember-label"><input type="checkbox" id="remember" />{t("workspace.rememberMyDetails")}</label>
+                      <button type="button" className="btn-link-agro" onClick={() => goTo("forgot")}>{t("workspace.forgotPassword")}</button>
                     </div>
                   )}
                 </div>
                 <button type="submit" className="btn-login" disabled={loading}>
-                  {loading ? <span className="spinner-border spinner-border-sm" /> : <><span>{view === "login" ? "Entrar na plataforma" : view === "register" ? "Criar minha conta" : "Enviar link de acesso"}</span><ArrowRight size={21} /></>}
+                  {loading ? <span className="spinner-border spinner-border-sm" /> : <><span>{view === "login" ? t("workspace.signInToThePlatform") : view === "register" ? t("workspace.createMyAccount") : t("workspace.sendAccessLink")}</span><ArrowRight size={21} /></>}
                 </button>
-                {view === "forgot" && <div className="login-back"><button type="button" className="btn-link-agro" onClick={() => goTo("login")}>← Voltar para o login</button></div>}
+                {view === "forgot" && <div className="login-back"><button type="button" className="btn-link-agro" onClick={() => goTo("login")}>{t("workspace.backToSignIn")}</button></div>}
               </form>
             </div>
             {view === "login" && (
               <>
-                <div className="login-divider"><span>ou</span></div>
+                <div className="login-divider"><span>{t("workspace.or")}</span></div>
                 {googleClientId ? (
                   <div
                     ref={googleButtonRef}
                     className={`google-login-slot${loading ? " is-loading" : ""}`}
-                    aria-label="Entrar com Google"
+                    aria-label={t("workspace.signInWithGoogle")}
                   />
                 ) : (
                   <button type="button" className="google-login" disabled title="Configure NEXT_PUBLIC_GOOGLE_CLIENT_ID">
-                    <span className="google-g">G</span>Entrar com Google
+                    <span className="google-g">G</span>{t("workspace.signInWithGoogle")}
                   </button>
                 )}
-                <p className="login-security"><Lock size={16} />Seus dados estão protegidos e são 100% seguros.</p>
+                <p className="login-security"><Lock size={16} />{t("workspace.yourDataIsProtectedAndFullySecure")}</p>
               </>
             )}
           </div>

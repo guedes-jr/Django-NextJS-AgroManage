@@ -260,7 +260,7 @@ export function MovimentacoesDashboard() {
       await apiClient.delete(`/inventory/movimentacoes/${id}/`);
       fetchHistory(page);
     } catch (error) {
-      showToast(financeError(error), "error");
+      showToast(financeError(error, language), "error");
     }
   };
 
@@ -311,7 +311,7 @@ export function MovimentacoesDashboard() {
       setSelectedMovementIds([]);
       fetchHistory(page);
     } catch (error) {
-      showToast(financeError(error), "error");
+      showToast(financeError(error, language), "error");
     }
   };
 
