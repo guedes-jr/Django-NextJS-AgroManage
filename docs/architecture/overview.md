@@ -45,6 +45,10 @@ Confirm actual source directories before implementation work.
 
 The Next.js frontend uses App Router and TypeScript. Prefer feature/domain organization and shared UI primitives already present in the codebase.
 
+## Mobile client
+
+`mobile/` contains the React Native / Expo / TypeScript scaffold and the first login implementation against existing Django API contracts, alongside its development plan and visual concept. Session tokens use native secure storage; native-device and live-backend validation remain pending. Operational modules and the release pipeline are still planned. See [login setup and limitations](../../mobile/docs/LOGIN.md). Backend authorization and tenant boundaries remain authoritative. See [the mobile implementation plan](../../mobile/docs/IMPLEMENTACAO.md).
+
 ## Multi-tenancy
 
 Organization/tenant boundaries are architectural constraints. Any query, mutation, report, background task or export that handles organization-owned data must preserve isolation.

@@ -2089,3 +2089,13 @@ Milk record/total updates and deletions lock the farm and cannot reduce usable
 production below tank reservations. Cancellation of the corresponding entry is
 required first. No existing milk/stock balances are migrated or automatically
 received. All three new models are in the explicit organization export registry.
+
+## Plantation list search
+
+`GET /crops/plantations/?search=...` searches plantation name, crop name and field name through the existing DRF search filter. Pagination and the optional farm/status/field filters remain unchanged. Results retain organization isolation and operator crop authorization; this does not grant access to other agricultural resources. The mobile search uses paginated server-side results instead of downloading all plantations.
+
+## Cattle mobile operational projection
+
+GET `livestock/cattle/animals/` and `batches/` (including their detail routes) accept `view=operational` to return an explicit operational field allowlist. It excludes batch purchase amounts and animal nested reproductive cycles before serialization, retaining the existing production/farm filters and tenant/role checks. The projection applies only to GET; writes and requests without the parameter keep their existing behavior.
+
+GET `animals/{id}/full-history/` accepts the same projection, returning only `type`, `date`, `title`, `subtitle`. Supplying `page` opts into standard pagination; omitting it retains the legacy array. Source history is still composed before in-memory pagination. This does not add SQL pagination or authorize new domains; the mobile loads it on demand.

@@ -1,0 +1,75 @@
+# Dependencies and package-manager caches; keep the chosen lockfile versioned.
+node_modules/
+.npm/
+.pnpm-store/
+
+# Expo / Metro local state and generated outputs.
+.expo/
+.expo-shared/
+.metro-cache/
+/.cache/
+/dist/
+/web-build/
+/build/
+*.tsbuildinfo
+expo-env.d.ts
+
+# Local environment; sanitized examples may be versioned.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Signing, provider credentials and local build configuration.
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+*.pem
+*.key
+credentials.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+
+# Native sources/configuration remain trackable; ignore only generated/local state.
+android/.gradle/
+android/.kotlin/
+android/.cxx/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+ios/Pods/
+ios/build/
+ios/DerivedData/
+**/xcuserdata/
+*.xcuserstate
+
+# Application binaries and debug artifacts.
+*.apk
+*.aab
+*.ipa
+*.app/
+*.dSYM/
+
+# Tests, local runtime data and diagnostics.
+/coverage/
+/test-results/
+/playwright-report/
+/local-data/
+/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Machine-specific files.
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Intentionally keep docs, mockups, source assets, app config and lockfiles tracked.

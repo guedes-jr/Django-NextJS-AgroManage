@@ -108,6 +108,7 @@ class FieldViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class PlantingCycleViewSet(viewsets.ModelViewSet):
+    search_fields = ("name", "crop_name", "field__name")
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
 

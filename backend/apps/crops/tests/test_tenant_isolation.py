@@ -46,6 +46,28 @@ class CropsTenantIsolationTestCase(APITestCase):
             planting_date=date.today(),
         )
 
+    def test_plantation_search_filters_without_leaking_other_organizations(self):
+        url = reverse("crops-plantations-list")
+        for term, expected in [("Safra A", {str(self.plantation_a.id)}), ("Safra B", set()), ("Talhão A", {str(self.plantation_a.id)}), ("Milho", {str(self.plantation_a.id)}), ("inexistente", set())]:
+            with self.subTest(term=term):
+                response = self.client.get(url, {"search": term, "page_size": 1})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual({str(row["id"]) for row in response.data["results"]}, expected)
+                self.assertEqual(response.data["count"], len(expected))
+
+    def test_plantation_search_preserves_operator_crop_permission(self):
+        self.user_a.role = "operator"
+        self.user_a.can_operate_crops = False
+        self.user_a.save(update_fields=["role", "can_operate_crops"])
+        url = reverse("crops-plantations-list")
+        response = self.client.get(url, {"search": "Safra"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.user_a.can_operate_crops = True
+        self.user_a.save(update_fields=["can_operate_crops"])
+        response = self.client.get(url, {"search": "Safra"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual({str(row["id"]) for row in response.data["results"]}, {str(self.plantation_a.id)})
+
     def test_recommendation_list_and_detail_hide_foreign_tenant(self):
         response = self.client.get(reverse("crops-agronomist-recommendations-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)

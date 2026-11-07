@@ -173,3 +173,9 @@ justified cancellations use existing modal styling. Equipment and financial
 controls are manager/admin only; bovine operators retain operational access and
 read-only restrictions. API calls live in milkTankService. Ledger balances are
 never edited in the UI and no opening balance is presumed.
+
+## Public segment overview
+
+The homepage `SegmentOverview` separates implemented workflows from commercial availability. Its read-only `publicSegments` service reads `/public/plan-segments/` without tenant credentials; only public segments with pricing tiers receive plan CTAs. Empty, loading and failed catalogs must not fabricate offers. Beef/dairy modules without a public offer direct visitors to contact; birds remain identified as in development. Preserve custom public-catalog copy and localize built-in descriptions in all four public languages.
+
+The public `PlanBuilder` uses `publicPlanCatalog` for validated public segments, active tiers, prices, icons and per-segment annual discounts. Do not restore hardcoded offers, fallback prices or preselected products. Selection is keyed by tier ID, not array position. `/planos?segmento=CODE` preselects only an existing offer. Empty/unavailable catalogs block checkout; quote creation remains server-authoritative through `/public/subscription-quotes/` with selected IDs and billing cycle.

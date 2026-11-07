@@ -9,20 +9,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Script from "next/script";
 import {
-  Mail,
-  Lock,
-  User,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  PiggyBank,
-  Bird,
-  Beef,
-  Sprout,
-  ShieldCheck,
-  ChartNoAxesCombined,
-  Cloud,
-  Smartphone,
+  Mail, Lock, User, LogIn, Eye, EyeOff, Sprout, ShieldCheck,
+  ChartNoAxesCombined, Layers, FileText, CheckCircle2,
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { clearPlatformSession, platformService, PLATFORM_STAFF, setPlatformSession } from "@/services/platformApi";
@@ -105,7 +93,7 @@ function LoginContent() {
   const { language, t } = usePublicLocale();
 const titles: Record<View, { title: string; subtitle: string }> = {
   login: {
-    title: t("workspace.welcomeBack"),
+    title: t("login.accessTitle"),
     subtitle: t("workspace.accessYourDigitalFarmAndKeepManagingWhatMattersMost"),
   },
   register: {
@@ -127,8 +115,12 @@ const titles: Record<View, { title: string; subtitle: string }> = {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [googleReady, setGoogleReady] = useState(false);
+  const [googleFailed, setGoogleFailed] = useState(false);
   const affiliateTrackingRef = useRef<Promise<void> | null>(null);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const formContainerRef = useRef<HTMLElement | null>(null);
+  const formContentRef = useRef<HTMLDivElement | null>(null);
+  const heroRef = useRef<HTMLElement | null>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
   const [formData, setFormData] = useState({
     name: "",
@@ -180,9 +172,22 @@ const titles: Record<View, { title: string; subtitle: string }> = {
     router.replace(isAffiliatePortalOnly ? "/afiliados/painel" : "/home");
   }, [router]);
 
+  useEffect(() => {
+    if (view !== "login" || !formContentRef.current) return;
+    const content = formContentRef.current;
+    let active = true;
+    const observer = new ResizeObserver(() => {
+      if (active) heroRef.current?.style.setProperty("--login-matched-height", `${content.getBoundingClientRect().height}px`);
+    });
+    observer.observe(content);
+    return () => { active = false; observer.disconnect(); };
+  }, [view]);
+
   const goTo = (next: View) => {
+    if (loading || next === view) return;
     setView(next);
     setError("");
+    formContainerRef.current?.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const completeLogin = useCallback(async (data: LoginResponse) => {
@@ -306,72 +311,64 @@ const titles: Record<View, { title: string; subtitle: string }> = {
   };
 
   return (
-    <main className="login-page">
+    <main className={`login-page login-view-${view}`}>
+      <div className="login-landscape" aria-hidden="true" />
+      <svg className="login-wave login-wave-top" viewBox="0 0 1440 140" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="login-top-lime" x2="1" y2=".4"><stop stopColor="#289900"/><stop offset=".48" stopColor="#CAFF00"/><stop offset="1" stopColor="#E9FF54"/></linearGradient></defs><path d="M0 0H980C520 14 260 27 0 140Z" fill="url(#login-top-lime)"/><path d="M0 128C280 15 560 15 980 0" fill="none" stroke="#EDFF9A" strokeWidth="3"/></svg>
+      <svg className="login-wave login-wave-bottom" viewBox="0 0 1440 150" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="login-bottom-lime" x2="1" y2=".3"><stop stopColor="#47AA00"/><stop offset=".5" stopColor="#C6F900"/><stop offset="1" stopColor="#7BC300"/></linearGradient></defs><path d="M0 70C580 240 1040-54 1440 12V150H0Z" fill="url(#login-bottom-lime)"/><path d="M0 94C580 260 1040-16 1440 56V150H0Z" fill="#003E27"/><path d="M0 70C580 240 1040-54 1440 12" fill="none" stroke="#DCFF68" strokeWidth="4"/></svg>
+      <svg className="login-mobile-backdrop" viewBox="0 0 1000 1600" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="mobile-auth-lime" x2="1" y2=".4"><stop stopColor="#239700"/><stop offset=".32" stopColor="#c4ff00"/><stop offset=".52" stopColor="#f1ff75"/><stop offset="1" stopColor="#348800"/></linearGradient><linearGradient id="mobile-auth-deep" x2="1" y2="1"><stop stopColor="#087429"/><stop offset="1" stopColor="#002d20"/></linearGradient><radialGradient id="mobile-auth-glow" cx=".1" cy=".91" r=".8"><stop stopColor="#39d200" stopOpacity=".3"/><stop offset="1" stopColor="#005333" stopOpacity="0"/></radialGradient></defs>
+        <path d="M0 0H480C300 44 96 40 0 210Z" fill="url(#mobile-auth-deep)"/>
+        <path d="M0 0H310C178 32 65 94 0 190Z" fill="url(#mobile-auth-lime)"/>
+        <path d="M0 188C65 95 175 32 310 0" stroke="#f1ff8b" strokeWidth="3" fill="none"/>
+        <path d="M0 1463C350 1655 650 1390 1000 1390V1600H0Z" fill="url(#mobile-auth-deep)"/>
+        <path d="M0 1447C320 1640 695 1340 1000 1378V1468C715 1322 370 1700 0 1576Z" fill="url(#mobile-auth-lime)"/>
+        <path d="M0 1447C320 1640 695 1340 1000 1378" stroke="#edff86" strokeWidth="4" fill="none"/>
+        <path d="M0 1488C330 1686 700 1412 1000 1468V1530C670 1410 300 1710 0 1598Z" fill="#003c23" fillOpacity=".72"/>
+      </svg>
       <Script
         src="https://accounts.google.com/gsi/client"
         strategy="afterInteractive"
-        onLoad={() => setGoogleReady(true)}
+        onLoad={() => { if (window.google?.accounts.id) setGoogleReady(true); else setGoogleFailed(true); }}
+        onError={() => setGoogleFailed(true)}
       />
       <div className="login-card">
-        <section className="login-hero" aria-label={t("workspace.discoverFazendaMais")}>
-          <div className="login-hero-shade" />
+        <section ref={heroRef} className="login-hero" aria-label={t("workspace.discoverFazendaMais")}>
           <div className="login-hero-content">
-            <header className="login-brand">
-              <Image src="/logo_agro_leaf.png" alt="" width={116} height={116} className="login-brand-mark" priority />
-              <div><div className="login-brand-name">{t("dairy.home.farm")}<span>+</span></div><div className="login-brand-tagline">{t("workspace.technologyThatTurnsManagementIntoResults")}</div></div>
+            <header className="login-brand" aria-label="Fazenda Mais">
+              <Image src="/logo_agro_leaf.png" alt="" width={96} height={96} className="login-brand-mark" priority />
+              <div className="login-brand-wordmark"><div className="login-brand-name">Fazenda<span aria-hidden="true">+</span></div><svg className="login-brand-swoosh" viewBox="0 0 300 24" aria-hidden="true"><defs><linearGradient id="login-brand-lime"><stop stopColor="#2C9900"/><stop offset="1" stopColor="#DFFF00"/></linearGradient></defs><path d="M0 19Q145-15 300 19Q145 0 5 24Z" fill="url(#login-brand-lime)"/></svg></div>
             </header>
             <div className="hero-copy">
-              <span className="hero-copy-line" />
-              <h1>{t("workspace.yourFarm")}<br /><strong>{t("workspace.moreEfficient")}</strong><br />{t("workspace.withTechnology")}</h1>
-              <p>{t("workspace.manageYourHerdCropsAndAllProductionInOnePlatform")} <b>{t("workspace.moreSecurityProductivityAndResults")}</b></p>
+              <h1>{t("login.heroLead")} <strong>{t("login.heroAccent")}</strong></h1>
+              <p>{t("login.heroDescription")}</p>
+              <div className="login-hero-details"><p>{t("login.heroDetails")}</p><ul><li><CheckCircle2 size={15} aria-hidden="true"/>{t("workspace.secureData")}</li><li><CheckCircle2 size={15} aria-hidden="true"/>{t("workspace.integratedManagement")}</li><li><CheckCircle2 size={15} aria-hidden="true"/>{t("workspace.accessFromAnywhere")}</li></ul></div>
             </div>
-            <div className="hero-slogan">{t("workspace.fromTheField")}<br />{t("workspace.toABetter")}<br />{t("workspace.future")}<span /></div>
-            <div className="hero-bottom">
-              <div className="feature-cards">
-                {[
-                  { icon: PiggyBank, title: t("reproduction.speciesSwine"), text: t("workspace.moreControlAndProductivity"), className: "pigs" },
-                  { icon: Bird, title: t("reproduction.speciesPoultry"), text: t("workspace.completeHerdManagement"), className: "birds" },
-                  { icon: Beef, title: t("reproduction.speciesCattle"), text: t("workspace.fromPastureToResults"), className: "cattle" },
-                  { icon: Sprout, title: t("users.crops"), text: t("workspace.planningForBetterHarvests"), className: "crops" },
-                ].map(({ icon: Icon, title, text, className }) => (
-                  <div className={`feature-card ${className}`} key={title}>
-                    <div className="feature-card-image" />
-                    <div className="feature-card-content"><Icon size={27} /><strong>{title}</strong><span>{text}</span></div>
-                  </div>
-                ))}
-              </div>
-              <div className="hero-benefits">
-                <span><ShieldCheck />{t("workspace.secureData")}</span><span><ChartNoAxesCombined />{t("workspace.integratedManagement")}</span>
-                <span><Cloud />{t("workspace.accessFromAnywhere")}</span><span><Smartphone />{t("workspace.inTheFieldAndInTheCity")}</span>
-              </div>
+            <div className="feature-cards">
+              {[{icon:Sprout,title:t("login.production")},{icon:Layers,title:t("sidebar.inventory")},{icon:ChartNoAxesCombined,title:t("sidebar.finance")}].map(({icon:Icon,title}) => <div className="feature-card" key={title}><Icon size={32} aria-hidden="true"/><strong>{title}</strong></div>)}
             </div>
           </div>
         </section>
 
-        <section className="login-form-container">
+        <section ref={formContainerRef} className="login-form-container">
           <div className="login-form-wrapper">
-            <div className="auth-tabs">
-              <button type="button" className={`auth-tab ${view === "login" ? "active" : ""}`} onClick={() => goTo("login")}>{t("reproduction.enter")}</button>
-              <button type="button" className={`auth-tab ${view === "register" ? "active" : ""}`} onClick={() => goTo("register")}>{t("swine.home.module.registry")}</button>
-            </div>
+            <div ref={formContentRef} className="login-form-content">
             <div className="view-transition" key={view}>
-              <div className="login-heading"><h2>{titles[view].title}</h2><p>{titles[view].subtitle}</p></div>
+              <div className="login-heading"><h2>{titles[view].title}</h2>{view === "forgot" && <p>{titles[view].subtitle}</p>}</div>
               {error && <div className="login-error" role="alert">{error}</div>}
               <form onSubmit={handleSubmit} className="login-form">
                 <div className="login-fields">
                   {view === "register" && (
                     <div className="login-input-group">
-                      <label htmlFor="name">{t("users.name")}</label>
+                      <label htmlFor="name"><User size={18} aria-hidden="true"/>{t("users.name")}</label>
                       <div className="login-input-wrapper">
-                        <input id="name" type="text" className="login-input login-input-icon-left" placeholder="João da Silva" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
-                        <User className="login-input-icon" size={20} />
+                        <input id="name" type="text" className="login-input" placeholder="João da Silva" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
                       </div>
                     </div>
                   )}
                   <div className="login-input-group">
-                    <label htmlFor="email">{t("profile.email")}</label>
+                    <label htmlFor="email"><Mail size={18} aria-hidden="true"/>{t("profile.email")}</label>
                     <div className="login-input-wrapper">
-                      <input id="email" type="email" className="login-input login-input-icon-left" placeholder="voce@fazenda.com.br" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
+                      <input id="email" type="email" className="login-input login-input-icon-right" placeholder="voce@exemplo.com" autoComplete="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
                       <Mail className="login-input-icon" size={20} />
                     </div>
                   </div>
@@ -385,19 +382,17 @@ const titles: Record<View, { title: string; subtitle: string }> = {
                   {view !== "forgot" && (
                     <div className={view === "register" ? "register-passwords" : ""}>
                       <div className="login-input-group">
-                        <label htmlFor="password">{t("settings.member.password")}</label>
+                        <label htmlFor="password"><Lock size={18} aria-hidden="true"/>{t("settings.member.password")}</label>
                         <div className="login-input-wrapper">
-                          <input id="password" type={showPwd ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder={t("workspace.yourPassword")} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
-                          <Lock className="login-input-icon" size={20} />
+                          <input id="password" type={showPwd ? "text" : "password"} className="login-input login-input-password" autoComplete={view === "login" ? "current-password" : "new-password"} placeholder={t("workspace.yourPassword")} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                           <button type="button" className="login-input-toggle" onClick={() => setShowPwd(!showPwd)} aria-label={showPwd ? t("workspace.hidePassword") : t("workspace.showPassword")}>{showPwd ? <EyeOff size={20} /> : <Eye size={20} />}</button>
                         </div>
                       </div>
                       {view === "register" && (
                         <div className="login-input-group">
-                          <label htmlFor="password-confirm">{t("settings.member.confirmPassword")}</label>
+                          <label htmlFor="password-confirm"><Lock size={18} aria-hidden="true"/>{t("settings.member.confirmPassword")}</label>
                           <div className="login-input-wrapper">
-                            <input id="password-confirm" type={showPwdConfirm ? "text" : "password"} className="login-input login-input-icon-left login-input-password" placeholder={t("workspace.confirmYourPassword")} value={formData.password_confirm} onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })} required />
-                            <Lock className="login-input-icon" size={20} />
+                            <input id="password-confirm" type={showPwdConfirm ? "text" : "password"} className="login-input login-input-password" autoComplete="new-password" placeholder={t("workspace.confirmYourPassword")} value={formData.password_confirm} onChange={(e) => setFormData({ ...formData, password_confirm: e.target.value })} required />
                             <button type="button" className="login-input-toggle" onClick={() => setShowPwdConfirm(!showPwdConfirm)} aria-label={showPwdConfirm ? t("workspace.hideConfirmation") : t("workspace.showConfirmation")}>{showPwdConfirm ? <EyeOff size={20} /> : <Eye size={20} />}</button>
                           </div>
                           {formData.password && formData.password_confirm && formData.password !== formData.password_confirm && <div className="password-error">{t("settings.member.passwordsDiffer")}</div>}
@@ -412,32 +407,26 @@ const titles: Record<View, { title: string; subtitle: string }> = {
                     </div>
                   )}
                 </div>
-                <button type="submit" className="btn-login" disabled={loading}>
-                  {loading ? <span className="spinner-border spinner-border-sm" /> : <><span>{view === "login" ? t("workspace.signInToThePlatform") : view === "register" ? t("workspace.createMyAccount") : t("workspace.sendAccessLink")}</span><ArrowRight size={21} /></>}
+                <div className="login-submit-row">
+                <button type="submit" className="btn-login" disabled={loading} aria-busy={loading}>
+                  {loading ? <><span className="spinner-border spinner-border-sm" aria-hidden="true"/><span role="status">{t("affiliate.loading")}</span></> : <><LogIn size={23} aria-hidden="true"/><span>{view === "login" ? t("login") : view === "register" ? t("workspace.createMyAccount") : t("workspace.sendAccessLink")}</span></>}
                 </button>
-                {view === "forgot" && <div className="login-back"><button type="button" className="btn-link-agro" onClick={() => goTo("login")}>{t("workspace.backToSignIn")}</button></div>}
+                </div>
+                {view !== "login" && <div className="login-back login-signup"><span aria-hidden="true"/><p>{view === "register" && <>{t("login.hasAccount")} </>}<button type="button" disabled={loading} onClick={() => goTo("login")}>{t("login")}</button></p><span aria-hidden="true"/></div>}
               </form>
             </div>
-            {view === "login" && (
-              <>
-                <div className="login-divider"><span>{t("workspace.or")}</span></div>
-                {googleClientId ? (
-                  <div
-                    ref={googleButtonRef}
-                    className={`google-login-slot${loading ? " is-loading" : ""}`}
-                    aria-label={t("workspace.signInWithGoogle")}
-                  />
-                ) : (
-                  <button type="button" className="google-login" disabled title="Configure NEXT_PUBLIC_GOOGLE_CLIENT_ID">
-                    <span className="google-g">G</span>{t("workspace.signInWithGoogle")}
-                  </button>
-                )}
-                <p className="login-security"><Lock size={16} />{t("workspace.yourDataIsProtectedAndFullySecure")}</p>
-              </>
-            )}
+            {view === "login" && <>
+              <div className="login-google"><div className="login-divider"><span>{t("workspace.or")}</span></div><div ref={googleButtonRef} className={`google-login-slot${loading ? " is-loading" : ""}${!googleReady || !googleClientId || googleFailed ? " is-pending" : ""}`} aria-label={t("workspace.signInWithGoogle")}/>{(!googleClientId || !googleReady || googleFailed) && <><button type="button" className="login-google-fallback" disabled aria-label={t("workspace.signInWithGoogle")}><span aria-hidden="true">G</span>{t("workspace.signInWithGoogle")}</button><p className="login-google-hint">{t(!googleClientId || googleFailed ? "login.googleUnavailable" : "login.googleLoading")}</p></>}</div>
+              <div className="login-signup"><span aria-hidden="true"/><p>{t("login.noAccount")} <button type="button" disabled={loading} onClick={() => goTo("register")}>{t("login.register")}</button></p><span aria-hidden="true"/></div>
+            </>}
+            </div>
           </div>
         </section>
       </div>
+      <footer className="login-page-footer">
+            <div className="login-legal"><a href="/termos"><FileText size={19} aria-hidden="true"/>{t("public.termsOfUse")}</a><span aria-hidden="true"/><a href="/privacidade"><ShieldCheck size={20} aria-hidden="true"/>{t("privacy")}</a></div>
+            <p className="login-copyright">© {new Date().getFullYear()} Fazenda Mais. {t("copyright")}</p>
+      </footer>
     </main>
   );
 }

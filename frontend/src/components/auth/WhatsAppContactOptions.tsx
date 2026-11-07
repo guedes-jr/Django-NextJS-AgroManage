@@ -1,5 +1,6 @@
 "use client";
 
+import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { useId } from "react";
 import { useInterfaceLocale } from "@/lib/interfaceLocale";
 
@@ -21,9 +22,12 @@ export default function WhatsAppContactOptions({ value, onChange, disabled = fal
       <input id={`${id}-contact`} type="checkbox" className="form-check-input flex-shrink-0" checked={value.phone_is_whatsapp} onChange={event => onChange({ phone_is_whatsapp: event.target.checked, receive_system_alerts: value.receive_system_alerts })} />
       <span>{t("whatsapp.contact")}</span>
     </label>
-    <label htmlFor={`${id}-alerts`} className="d-flex align-items-start gap-2 mb-0">
-      <input id={`${id}-alerts`} type="checkbox" className="form-check-input flex-shrink-0" checked={value.receive_system_alerts} onChange={event => onChange({ ...value, receive_system_alerts: event.target.checked })} />
-      <span>{t("whatsapp.receiveAlerts")}<small className="d-block text-muted-foreground mt-1">{t("whatsapp.description")}</small></span>
-    </label>
+    <div className="d-flex align-items-start gap-1">
+      <label htmlFor={`${id}-alerts`} className="d-flex align-items-start gap-2 mb-0 flex-grow-1">
+        <input id={`${id}-alerts`} type="checkbox" className="form-check-input flex-shrink-0" checked={value.receive_system_alerts} onChange={event => onChange({ ...value, receive_system_alerts: event.target.checked })} />
+        <span>{t("whatsapp.receiveAlerts")}</span>
+      </label>
+      <HelpTooltip id={`${id}-alerts-help`} label={t("whatsapp.alertsHelp")} text={t("whatsapp.description")}/>
+    </div>
   </fieldset>;
 }

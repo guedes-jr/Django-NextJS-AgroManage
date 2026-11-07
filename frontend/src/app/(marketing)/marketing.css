@@ -455,3 +455,17 @@
 @media(max-width:700px){
   .plan-builder{padding-bottom:60px}.plan-builder-hero-inner{min-height:210px;grid-template-columns:1fr;gap:16px}.plan-builder-hero-inner>p{font-size:.83rem}.plan-steps{padding:12px 8px}.plan-steps>div{padding:3px 7px;justify-content:center}.plan-steps>div>span{width:31px;height:31px}.plan-steps p{display:none}.plan-builder-heading{padding-top:36px;align-items:start;flex-direction:column}.plan-builder-heading>div:last-child{align-self:stretch}.segment-grid{grid-template-columns:1fr}.segment-card:last-child{grid-column:auto}.segment-card:last-child .segment-content{display:block}.segment-card:last-child .segment-tiers{display:flex}.segment-image{height:190px}.plan-selection-bar{padding:16px}.selected-plan,.review-line{grid-template-columns:auto 1fr auto}.selected-plan>b,.review-line>b{grid-column:2}.selected-plan button,.review-line button{grid-column:3;grid-row:1/3}.billing-choice.expanded{grid-template-columns:1fr}.plan-benefits{grid-template-columns:1fr}.review-actions{flex-direction:column-reverse}.review-actions>button{min-height:48px;justify-content:center}.review-actions .plan-primary-button{min-width:0}.review-card{padding:16px}
 }
+/* Public catalogs may contain any number of segments and custom text. */
+.plan-builder .segment-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.plan-builder .segment-card:last-child { grid-column:auto; }
+.plan-builder .segment-card:last-child .segment-content { display:block; }
+.plan-builder .segment-card,.plan-builder .segment-content,.plan-builder .segment-title>div,.plan-builder .selection-summary,.plan-builder .selection-checkout { min-width:0; }
+.plan-builder .segment-content h3,.plan-builder .segment-content p,.plan-builder .segment-tiers label>span { overflow-wrap:anywhere; }
+.plan-builder .segment-tiers label { grid-template-columns:auto minmax(0,1fr) auto; }
+.plan-builder .selection-total { flex-wrap:wrap; gap:8px; }
+.plan-builder .plan-primary-button { min-width:0; max-width:100%; min-height:48px; height:auto; padding-block:12px; }
+.plan-builder .marketing-empty { flex-direction:column; text-align:center; }
+@media(max-width:1000px) { .plan-builder .segment-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:700px) { .plan-builder .segment-grid { grid-template-columns:minmax(0,1fr); } }
+.plan-builder .plan-steps { min-width:0; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; }
+.plan-builder .plan-steps>div { min-width:0; }

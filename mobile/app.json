@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Fazenda Mais",
+    "slug": "fazenda-mais-mobile",
+    "version": "0.1.0",
+    "scheme": "fazendamais",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      ["expo-splash-screen", {
+        "image": "./assets/brand-mark.png",
+        "imageWidth": 112,
+        "resizeMode": "contain",
+        "backgroundColor": "#F5F7F2"
+      }],
+      "expo-asset"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "permissions": []
+    },
+    "web": {
+      "output": "single",
+      "name": "Fazenda Mais Mobile"
+    }
+  }
+}

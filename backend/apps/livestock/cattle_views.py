@@ -119,6 +119,15 @@ class CattleAnimalViewSet(AnimalViewSet):
     search_fields = ["identifier", "cattle_profile__name", "batch__batch_code", "batch__name"]
     action_operations = {**AnimalViewSet.action_operations, "record_event": "edit"}
 
+    def get_serializer(self, *args, **kwargs):
+        serializer = super().get_serializer(*args, **kwargs)
+        if self.request.method == "GET" and self.request.query_params.get("view") == "operational":
+            target = serializer.child if hasattr(serializer, "child") else serializer
+            fields = {"id", "identifier", "name", "farm", "farm_name", "cattle_purpose", "gender", "category", "status", "breed_name", "batch", "batch_code", "birth_date", "entry_date", "current_weight_kg", "reproductive_status", "is_lactating", "milk_withdrawal_until", "meat_withdrawal_until", "notes"}
+            for field in set(target.fields) - fields:
+                target.fields.pop(field)
+        return serializer
+
     def get_queryset(self):
         from .cattle_selectors import with_cattle_reproduction, cattle_reproduction_groups
         queryset = cattle_withdrawals(
@@ -294,9 +303,15 @@ class CattleAnimalViewSet(AnimalViewSet):
             }
             for row in animal.milk_records.all()
         )
-        return Response(
-            sorted(events, key=lambda item: item.get("date") or "", reverse=True)
-        )
+        events = sorted(events, key=lambda item: item.get("date") or "", reverse=True)
+        if request.query_params.get("view") == "operational":
+            events = [{key: row.get(key) for key in ("type", "date", "title", "subtitle")} for row in events]
+        if "page" in request.query_params:
+            from common.pagination import StandardResultsPagination
+            pager = StandardResultsPagination()
+            rows = pager.paginate_queryset(events, request, view=self)
+            return pager.get_paginated_response(rows)
+        return Response(events)
 
     @action(detail=True, methods=["post"], url_path="record-event")
     @transaction.atomic
@@ -320,6 +335,15 @@ class CattleBatchViewSet(AnimalBatchViewSet):
     filterset_fields = ["batch_code", "farm", "phase", "status"]
     ordering_fields = ["batch_code", "entry_date"]
     ordering = ["batch_code"]
+
+    def get_serializer(self, *args, **kwargs):
+        serializer = super().get_serializer(*args, **kwargs)
+        if self.request.method == "GET" and self.request.query_params.get("view") == "operational":
+            target = serializer.child if hasattr(serializer, "child") else serializer
+            fields = {"id", "batch_code", "name", "farm_id", "farm_name", "cattle_purpose", "category", "status", "phase", "quantity", "gender", "entry_date", "birth_date", "avg_weight_kg", "notes"}
+            for field in set(target.fields) - fields:
+                target.fields.pop(field)
+        return serializer
 
     def get_queryset(self):
         from .cattle_operations import with_batch_operations

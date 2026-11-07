@@ -92,6 +92,10 @@ dev: ## Start backend + frontend in one terminal with colored logs
 	@chmod +x scripts/dev.sh
 	@bash scripts/dev.sh
 
+.PHONY: dev-mobile
+dev-mobile: ## Start Django backend + Expo mobile (same as make -C mobile dev)
+	@$(MAKE) -C "$(ROOT_DIR)/mobile" dev
+
 .PHONY: debug
 debug: ## Start backend (debugpy:5678) + frontend (inspector:9229) in debug mode
 	@chmod +x scripts/debug.sh
