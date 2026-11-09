@@ -164,9 +164,12 @@ def resolve_occurrence(user, occurrence, note):
 
 
 @transaction.atomic
-def start_protocol(user, *, animal, protocol, start_date, request_key, assigned_to):
+def start_protocol(user, *, animal, protocol, start_date, request_key, assigned_to, operational=False):
     from apps.tasks.models import Task
-    animal = Animal.objects.select_for_update().get(pk=animal.pk)
+    animals = Animal.objects.select_for_update(of=('self',)) if operational else Animal.objects.select_for_update()
+    if operational:
+        animals = animals.select_related('species','farm').only('id','identifier','status','gender','species__id','species__code','farm__id')
+    animal = animals.get(pk=animal.pk)
     if animal.status != "active" or animal.gender != "F" or animal.species.code != "bovinos":
         raise ValidationError("Selecione uma fêmea bovina ativa.")
     existing = CattleProtocolRun.objects.filter(animal=animal, request_key=request_key).first()
@@ -182,8 +185,12 @@ def start_protocol(user, *, animal, protocol, start_date, request_key, assigned_
 
 
 @transaction.atomic
-def execute_protocol_step(user, step, date, notes, inventory_lot=None, inventory_quantity=None, mating=None):
-    step = CattleProtocolStep.objects.select_for_update().select_related("task", "run").get(pk=step.pk)
+def execute_protocol_step(user, step, date, notes, inventory_lot=None, inventory_quantity=None, mating=None, documentary=False):
+    rows = CattleProtocolStep.objects.select_for_update().select_related("task", "run")
+    if documentary:
+        if inventory_lot or inventory_quantity or mating:raise ValidationError("Registro documental não aceita estoque ou cobertura.")
+        rows = rows.only('id','number','run__id','run__start_date','task__id','task__status','executed_at','executed_date','notes')
+    step = rows.get(pk=step.pk)
     if step.executed_at:
         return step
     if date > timezone.localdate() or date < step.run.start_date:
@@ -209,7 +216,9 @@ def execute_protocol_step(user, step, date, notes, inventory_lot=None, inventory
         raise ValidationError("Selecione o lote de sêmen para a quantidade informada.")
     step.mating = mating
     step.executed_at, step.executed_date, step.executed_by, step.notes = timezone.now(), date, user, notes
-    step.save(update_fields=["executed_at", "executed_date", "executed_by", "notes", "inventory_lot", "inventory_quantity", "inventory_cost_snapshot", "inventory_movement", "mating", "updated_at"])
+    fields = ["executed_at", "executed_date", "executed_by", "notes", "updated_at"]
+    if not documentary:fields += ["inventory_lot", "inventory_quantity", "inventory_cost_snapshot", "inventory_movement", "mating"]
+    step.save(update_fields=fields)
     step.task.status = "done"
     step.task.save(update_fields=["status", "updated_at"])
     return step

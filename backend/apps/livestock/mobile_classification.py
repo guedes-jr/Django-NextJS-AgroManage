@@ -1,6 +1,7 @@
 """Manager-only, reviewed single-animal/whole-batch purpose classification."""
 from django.conf import settings
 from django.core import signing
+from django.http import Http404
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -106,7 +107,7 @@ def confirm(user,token):
     if intent['user']!=str(user.pk) or intent['org']!=str(user.organization_id):raise exceptions.PermissionDenied()
     values=Input(data=intent['command']);values.is_valid(raise_exception=True);v=values.validated_data
     try:public,digest,target=evaluate(user,v,lock=True)
-    except (exceptions.NotFound,serializers.ValidationError) as error:raise Conflict() from error
+    except (Http404,exceptions.NotFound,serializers.ValidationError) as error:raise Conflict() from error
     if digest!=intent['digest']:raise Conflict()
     classify(user,animals=[target.pk] if v['target_kind']=='animals' else [],batches=[target.pk] if v['target_kind']=='batches' else [],purpose=v['purpose'],operational=True)
     return {'id':str(target.pk),'kind':v['target_kind'],'farm':str(target.farm_id),'purpose':v['purpose'],

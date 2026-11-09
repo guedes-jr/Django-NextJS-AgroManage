@@ -3100,3 +3100,115 @@ Native fresh session/org/capability preflight, singleflight and strict receipts;
 retained resolution context consumed before POST. Unknown/conflict freezes form,
 fresh read-only list/detail reconciliation with mutation actions suppressed.
 Creation validation preserves fields; no automatic retry/offline queue or replay.
+
+
+### Native bovine purpose classification
+
+Manager/admin only, tenant/farm/species scoped. GET
+`cattle/operations/classification-options/?view=mobile&farm=UUID&production=beef|dairy`
+returns farm, production, today/timezone and four purposes (unknown/beef/dairy/dual).
+GET `classification-targets/` with the same scope plus target_kind=animals|batches
+and optional search/page returns operational target id/kind/identifier/farm/purpose/
+status/version. Includes route purpose, dual and unknown; no financial snapshots.
+
+POST `cattle/operations/classification-preview/?view=mobile` accepts exactly farm,
+production, target_kind, target, target_version and purpose. Rejects no-op, incompatible
+individual linked batch and batches with over 1,000 active identified participants.
+Review returns target, destination purpose, date, entries (previous/will_change),
+linked_batch, current_quantity, changed_animals/changed_batches, history_production,
+command and preview_token. Headcount is distinct from identified participant count.
+Signed 15-minute token binds actor/org, command, day and target/participant/membership
+versions. POST `classification-confirm/?view=mobile` accepts only preview_token;
+locks farm NO KEY UPDATE then target/context, revalidates and atomically applies
+existing classification/history rules using operational projections. Stale/reused
+review returns 409. Receipt id/kind/farm/purpose/date and changed counts.
+
+Whole-batch changes affect active linked animals only; no headcount, stock or
+financial writes. Legacy classification behavior remains available unchanged.
+Mobile consumes retained review before POST; conflict/unknown freezes writes and
+opens fresh read-only purpose history. No automatic retries or offline mutation.
+
+
+### Native bovine protocol reads
+
+GET `cattle/operations/{protocols|protocol-runs}/?view=mobile` requires
+production=beef|dairy; accepts optional farm/search (max100), page/page_size.
+Catalog is organization-wide, independent of farm/production; returns id/name/
+version/steps (name/day). Runs are scoped to current animal purpose plus dual,
+bovine species, tenant and optional farm. List projection: id/farm/farm_name,
+animal{id,identifier,purpose}, protocol{id,name,version}, start_date,total,completed.
+No financial columns or inventory snapshots are loaded. Task organization/farm,
+assignee and executor relations must remain in scope, otherwise the run is hidden.
+
+GET `cattle/operations/{protocols|protocol-runs}/{id}/mobile/` uses the same
+required production and optional farm scope. Run detail adds timezone and steps
+ordered by number, with id/number/name/day/due_date/executed_date/status,
+assigned_to/executed_by/notes. Stage names/days come from steps_snapshot, not
+current template definitions. Status done follows executed_at; otherwise task
+cancellation, overdue date, or pending. List counts use SQL aggregates; detail
+loads stage/task identities without stock/cost fields. Admin/manager and bovine
+operators (including read-only) can consult; feeders cannot. Endpoints are GET-only;
+legacy creation and execution contracts are unchanged. Native start is described below; native documentary stage execution is described below; mating/stock execution remains pending.
+
+
+### Native bovine protocol start
+
+Writable admin/manager/bovine operator only; operator assigns self only.
+GET `cattle/operations/protocol-start-options/?view=mobile&farm=UUID&production=beef|dairy`
+returns farm, production, today/timezone, actor. GET `protocol-start-animals/`
+with same scope and optional search/page lists active bovine females in route purpose
+or dual: id/identifier/farm/purpose/entry_date/version. Existing organization-wide
+protocol catalog and scoped occurrence-members catalog supply template/assignee choices.
+
+POST `protocol-start-preview/?view=mobile` accepts exactly farm, production,
+animal, animal_version, protocol, protocol_version, start_date, assigned_to,
+request_key (UUID; scoped per animal). Start cannot precede entry; future starts
+are permitted as in web. Review: farm/production/animal/protocol/assigned_to,
+start_date, ordered steps(number/name/day/due_date), command, preview_token.
+Signed 15-minute review binds actor/org and full context, including matrix version,
+model state and active assignee version. No tasks are created by preview.
+
+POST `protocol-start-confirm/?view=mobile` accepts only preview_token. Locks farm
+NO KEY UPDATE, assignee NO KEY UPDATE, animal, then model; revalidates context and
+calls existing atomic start service with operational projections. Run/snapshot/
+all Agenda tasks commit together. Existing compatible per-animal request_key
+returns the same run; changed command/actor/snapshot/assignee conflicts. Receipt
+(201): id/farm/animal/protocol/start_date/steps/request_key. Stale scope/version
+returns 409; foreign preview target 404, assignment/role denial 403. Legacy default
+service behavior remains unchanged; no migration, execution, stock or cost write.
+
+Mobile retains the exact review per session, preflights current role/org and
+consumes it before POST. Unknown receipt/timeout/server failure freezes the form
+and opens fresh read-only runs; no automatic replay/offline queue. Read detail
+receives reconcile=1 from this flow so future mutation controls must honor it.
+
+
+### Native documentary protocol execution
+
+GET `cattle/operations/protocol-execution-options/?view=mobile&farm=UUID&production=beef|dairy&step=UUID`
+requires writable admin/manager or bovine operator who created the run or owns
+the task. Scoped run projection verifies tenant/farm/species/current purpose and
+task/executor relations. Returns step/run/farm/production, animal{id,identifier},
+name/number/due_date/earliest_date/today/timezone. Rejects completed/cancelled task,
+unexecuted predecessors or preexisting mating/inventory links.
+
+POST `protocol-execution-preview/?view=mobile` accepts exactly farm, production,
+step, date, notes (trimmed <=1000), documentary=true. Date between run start and
+today. Review includes options plus command and preview_token. Signed 15-minute
+actor/org-bound context fingerprints step/task/run/animal versions, assignee,
+creator, previous execution state and current day. No effects during preview.
+POST `protocol-execution-confirm/?view=mobile` accepts only preview_token, locks
+step/task/run/animal, revalidates signature, scope, capability, date and digest,
+then executes the existing service in documentary mode: execution metadata and
+Agenda task=done commit atomically. Receipt id/run/farm/executed_date/notes/
+documentary=true/status=done. Stale/already executed reviews 409; invalid/expired
+signature 400; unauthorized operator 403; foreign preview/options target 404.
+
+No financial snapshots fetched and no mating/stock write. Legacy execution,
+including semen consumption, retains its default behavior. Run detail adds
+can_execute_documentary per stage: ordered eligibility and actor capability.
+Native detail suppresses action in reconcile=1 and fetches fresh data. Client
+retains full review per session, preflights current role/org, consumes before POST,
+validates receipt, freezes unknown/conflict and offers read-only detail. No
+retry/offline queue/replay. Coverage-linked or stock-consuming execution is a
+separate pending native increment.

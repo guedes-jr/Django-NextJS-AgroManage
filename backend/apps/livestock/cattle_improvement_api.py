@@ -76,6 +76,14 @@ class CattleOperationsView(APIView):
 
     def get(self, request, kind):
         if request.query_params.get('view') == 'mobile':
+            from . import mobile_protocol_execution as protocol_execution
+            if kind == 'protocol-execution-options':return Response(protocol_execution.options(request.user,request.query_params))
+            from . import mobile_protocol_start as protocol_start
+            if kind == 'protocol-start-options':return Response(protocol_start.options(request.user,request.query_params))
+            if kind == 'protocol-start-animals':return self.page(request,protocol_start.animals(request.user,request.query_params),protocol_start.animal_data)
+            from . import mobile_protocols as protocols
+            if kind in protocols.KINDS:
+                return self.page(request, protocols.rows(request.user, kind, request.query_params), lambda row: protocols.data(row, kind))
             from . import mobile_classification as classification
             if kind == 'classification-options':
                 return Response(classification.options(request.user, request.query_params))
@@ -151,6 +159,22 @@ class CattleOperationsView(APIView):
         raise serializers.ValidationError("Consulta desconhecida.")
 
     def post(self, request, kind):
+        if request.query_params.get('view') == 'mobile' and kind in ['protocol-execution-preview','protocol-execution-confirm']:
+            from . import mobile_protocol_execution as execution
+            from .mobile_vaccination import ConfirmInput
+            if kind == 'protocol-execution-preview':
+                values=execution.Input(data=request.data);values.is_valid(raise_exception=True)
+                return Response(execution.preview(request.user,values.validated_data))
+            values=ConfirmInput(data=request.data);values.is_valid(raise_exception=True)
+            return Response(execution.confirm(request.user,values.validated_data['preview_token']))
+        if request.query_params.get('view') == 'mobile' and kind in ['protocol-start-preview','protocol-start-confirm']:
+            from . import mobile_protocol_start as protocol_start
+            from .mobile_vaccination import ConfirmInput
+            if kind == 'protocol-start-preview':
+                values=protocol_start.Input(data=request.data);values.is_valid(raise_exception=True)
+                return Response(protocol_start.preview(request.user,values.validated_data))
+            values=ConfirmInput(data=request.data);values.is_valid(raise_exception=True)
+            return Response(protocol_start.confirm(request.user,values.validated_data['preview_token']),status=201)
         if request.query_params.get('view') == 'mobile' and kind in ['classification-preview', 'classification-confirm']:
             from . import mobile_classification as classification
             from .mobile_vaccination import ConfirmInput
@@ -276,6 +300,10 @@ class CattleOperationMobileDetailView(APIView):
 
     def get(self, request, kind, pk):
         from django.shortcuts import get_object_or_404
+        from . import mobile_protocols as protocols
+        if kind in protocols.KINDS:
+            row = get_object_or_404(protocols.rows(request.user, kind, request.query_params), pk=pk)
+            return Response(protocols.detail(row, kind, request.user))
         from . import mobile_cattle_operations as mobile
         row = get_object_or_404(mobile.rows(request.user, kind, request.query_params), pk=pk)
         return Response(mobile.data(row, kind, request.user))
