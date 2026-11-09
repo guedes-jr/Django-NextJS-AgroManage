@@ -1,0 +1,12 @@
+import {z} from 'zod';
+import {productionSchema} from './contracts';
+import {managementDetailSchema,managementSchema} from './managementContracts';
+export const followUpOptionsSchema=z.object({record:managementDetailSchema,version:z.iso.datetime({offset:true}),production:productionSchema}).refine(v=>v.record.kind==='sanitary'&&v.record.status==='confirmed'&&v.record.follow_up_status==='pending'&&!!v.record.next_procedure_date);
+export type FollowUpOptions=z.infer<typeof followUpOptionsSchema>;
+export const followUpFormSchema=z.object({status:z.enum(['done','cancelled']),note:z.string().trim().min(1).max(500),execution:z.uuid().nullable()}).refine(v=>(v.status==='done')===!!v.execution,{path:['execution']});
+export type FollowUpForm=z.infer<typeof followUpFormSchema>;
+export const followUpInputSchema=followUpFormSchema.safeExtend({farm:z.uuid(),production:productionSchema,expected_version:z.iso.datetime({offset:true})});
+export type FollowUpInput=z.infer<typeof followUpInputSchema>;
+export const followUpExecutionSchema=managementSchema.refine(v=>v.kind==='sanitary'&&v.status==='confirmed');
+export const followUpPageSchema=z.object({count:z.number().int().nonnegative(),next:z.string().nullable(),previous:z.string().nullable(),results:z.array(followUpExecutionSchema)});
+export const followUpReceiptSchema=z.object({id:z.uuid(),farm:z.uuid(),follow_up_status:z.enum(['done','cancelled']),follow_up_note:z.string(),execution:z.uuid().nullable()});

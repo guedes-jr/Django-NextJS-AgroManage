@@ -1,0 +1,31 @@
+import {useId,useRef,useState} from 'react';
+import {Alert,FlatList,Platform,Text,View} from 'react-native';
+import {useLocalSearchParams,usePreventRemove,useRouter} from 'expo-router';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
+import {isAxiosError} from 'axios';
+import {z} from 'zod';
+import {useAuth} from '../auth/AuthProvider';
+import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {workspaceMessages} from '../workspace/messages';
+import {SanitaryReviewChanged,SanitaryConfirmationUnconfirmed} from '../../services/authApi';
+import {sanitaryMessages} from './sanitaryMessages';
+import {managementMessages} from './managementMessages';
+import {productionSchema} from './contracts';
+import {canCreateSanitary} from './sanitaryContracts';
+import {cattleMessages,cattleLabel} from './messages';
+import {sanitaryConfirmationMessages} from './sanitaryConfirmationMessages';
+import type {SanitaryReview,SanitaryReviewEntry} from './sanitaryConfirmationContracts';
+export function SanitaryConfirmationScreen(){
+ const params=useLocalSearchParams(),route=z.object({production:productionSchema,farm:z.uuid(),id:z.uuid()}).safeParse(params),instance=useId(),{state,controller,language}=useAuth(),router=useRouter(),t=sanitaryConfirmationMessages[language],w=workspaceMessages[language];const allowed=route.success&&state.status==='signedIn'&&canCreateSanitary(state.session.user);
+ const q=useQuery({queryKey:['sanitary-review',instance,params.id,params.farm,params.production],enabled:allowed,staleTime:0,gcTime:0,refetchOnWindowFocus:false,refetchOnReconnect:false,queryFn:({signal})=>{if(!route.success)throw Error('route');return controller.reviewSanitary(route.data.id,route.data.farm,route.data.production,signal);}});const back=()=>router.canGoBack()?router.back():router.replace('/');
+ if(!allowed||q.isError)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><View style={s.content}><Text style={s.error}>{allowed?t.failed:w.noAccess}</Text>{allowed&&<AgendaButton label={w.retry} onPress={()=>void q.refetch()}/>}</View></AgendaShell>;
+ if(q.isPending)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><Busy label={w.loading}/></AgendaShell>;
+ return <Review review={q.data}/>;
+}
+function Review({review}:{review:SanitaryReview}){
+ const {controller,language}=useAuth(),router=useRouter(),client=useQueryClient(),t=sanitaryConfirmationMessages[language],w=workspaceMessages[language],c=cattleMessages[language];const [busy,setBusy]=useState(false),[saved,setSaved]=useState(false),[unknown,setUnknown]=useState(false),[blocked,setBlocked]=useState(false),[leaving,setLeaving]=useState(false),[message,setMessage]=useState('');const lock=useRef(false);
+ usePreventRemove(!saved&&!leaving,({repeat})=>{if(lock.current)return;const leave=()=>{setLeaving(true);repeat();};const body=unknown?t.unknownLeave:t.discardBody;if(Platform.OS==='web'){if(window.confirm(`${t.discard}\n${body}`))leave();}else Alert.alert(t.discard,body,[{text:t.stay,style:'cancel'},{text:t.leave,style:'destructive',onPress:leave}]);});
+ const confirm=async()=>{if(lock.current||saved||unknown||blocked)return;lock.current=true;setBusy(true);setMessage('');try{await controller.confirmSanitary(review);setSaved(true);for(const key of ['clinic','clinic-detail','clinic-reconciliation','clinic-reconciliation-detail','milk','sanitary-animals','cattle-managements','cattle-management','cattle-management-participants','cattle','cattle-detail','cattle-history','cattle-overview','home'])void client.invalidateQueries({queryKey:[key]});}catch(error){if(error instanceof SanitaryConfirmationUnconfirmed){setUnknown(true);setMessage(t.unknown);}else{setBlocked(true);setMessage(error instanceof SanitaryReviewChanged||isAxiosError(error)&&[400,403,404,409].includes(error.response?.status??0)?t.changed:t.failed);}}finally{lock.current=false;setBusy(false);}};
+ const href={pathname:'/cattle/[production]/management-detail' as const,params:{production:review.production,farm:review.farm,id:review.id}},date=(v:string)=>new Intl.DateTimeFormat(language,{dateStyle:'medium',timeZone:'UTC'}).format(new Date(`${v}T12:00:00Z`));
+ return <AgendaShell title={t.title} backLabel={w.back} onBack={()=>{if(!lock.current){if(router.canGoBack())router.back();else router.replace('/');}}}><FlatList<SanitaryReviewEntry> style={{flex:1}} contentContainerStyle={s.content} data={saved?[]:review.entries} keyExtractor={row=>row.animal} ListHeaderComponent={<View style={{gap:12}}><View style={s.card}><Text style={s.heading}>{review.description}</Text><Text style={s.body}>{review.farm_name}</Text><Text style={s.body}>{t.date}: {date(review.date)}</Text><Text style={s.body}>{sanitaryMessages[language][review.treatment_type]}</Text>{review.next_procedure_date&&<Text style={s.body}>{managementMessages[language].next}: {date(review.next_procedure_date)}</Text>}{review.milk_withdrawal_until&&<Text style={s.body}>{managementMessages[language].milk}: {date(review.milk_withdrawal_until)}</Text>}{review.meat_withdrawal_until&&<Text style={s.body}>{managementMessages[language].meat}: {date(review.meat_withdrawal_until)}</Text>}<Text style={s.title}>{t.count}: {new Intl.NumberFormat(language).format(review.participant_count)}</Text>{!!review.responsible&&<Text style={s.body}>{review.responsible}</Text>}{!!review.notes&&<Text style={s.body}>{review.notes}</Text>}</View>{saved?<><Text accessibilityRole="alert" style={s.title}>{t.saved}</Text><AgendaButton label={t.detail} onPress={()=>router.dismissTo(href)}/></>:<Text style={s.muted}>{t.scope}</Text>}</View>} renderItem={({item})=><View style={s.card}><Text style={s.heading}>{item.identifier}</Text><Text style={s.body}>{cattleLabel(c,item.cattle_purpose)}</Text><Text style={s.body}>{t.eligible}</Text></View>}/>{!saved&&<View style={[s.content,{paddingTop:10,paddingBottom:12,gap:8,borderTopWidth:1,borderColor:'#DCE5D6'}]}>{!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}<AgendaButton label={busy?w.loading:t.confirm} disabled={busy||unknown||blocked} onPress={()=>void confirm()}/>{(unknown||blocked)&&<AgendaButton label={t.check} onPress={()=>router.push({...href,params:{...href.params,reconcile:'1'}})}/>}</View>}</AgendaShell>;
+}

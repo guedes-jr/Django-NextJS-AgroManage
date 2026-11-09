@@ -1,0 +1,36 @@
+import {useId,useRef,useState} from 'react';
+import {Alert,Keyboard,KeyboardAvoidingView,Platform,ScrollView,Text,TextInput,View} from 'react-native';
+import {useLocalSearchParams,usePreventRemove,useRouter} from 'expo-router';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
+import {Controller,useForm} from 'react-hook-form';
+import {zodResolver} from '@hookform/resolvers/zod';
+import {isAxiosError} from 'axios';
+import {z} from 'zod';
+import {useAuth} from '../auth/AuthProvider';
+import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {workspaceMessages} from '../workspace/messages';
+import {GrazingExitChanged,GrazingExitUnconfirmed} from '../../services/authApi';
+import {productionSchema,type Production} from './contracts';
+import {entryScopeSchema} from './grazingEntryContracts';
+import {exitInputSchema,canExitPasture,type ExitOptions,type ExitReview} from './grazingExitContracts';
+import {grazingExitMessages} from './grazingExitMessages';
+export function GrazingExitScreen(){
+ const params=useLocalSearchParams(),route=entryScopeSchema.extend({production:productionSchema,id:z.uuid()}).safeParse(params),instance=useId(),{state,controller,language}=useAuth(),router=useRouter(),t=grazingExitMessages[language],w=workspaceMessages[language];const allowed=route.success&&state.status==='signedIn'&&canExitPasture(state.session.user);
+ const q=useQuery({queryKey:['grazing-exit',instance,params.id,params.farm,params.pasture],enabled:allowed,staleTime:0,gcTime:0,refetchOnWindowFocus:false,refetchOnReconnect:false,queryFn:({signal})=>{if(!route.success)throw Error('route');return controller.grazingExitOptions(route.data.id,route.data,signal);}});const back=()=>router.canGoBack()?router.back():router.replace('/');
+ if(!allowed||q.isError)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><View style={s.content}><Text style={s.error}>{allowed?t.unavailable:w.noAccess}</Text>{allowed&&<AgendaButton label={w.retry} onPress={()=>void q.refetch()}/>}</View></AgendaShell>;
+ if(q.isPending||!route.success)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><Busy label={w.loading}/></AgendaShell>;
+ return <Editor options={q.data} production={route.data.production}/>;
+}
+const formSchema=z.object({exit_date:z.iso.date()});
+type Form=z.infer<typeof formSchema>;
+function Editor({options,production}:{options:ExitOptions;production:Production}){
+ const {controller,language}=useAuth(),router=useRouter(),client=useQueryClient(),t=grazingExitMessages[language],w=workspaceMessages[language];const {control,handleSubmit,getValues,formState:{isDirty}}=useForm<Form>({resolver:zodResolver(formSchema),defaultValues:{exit_date:options.today}});
+ const [review,setReview]=useState<ExitReview|null>(null),[saved,setSaved]=useState(false),[busy,setBusy]=useState(false),[unknown,setUnknown]=useState(false),[blocked,setBlocked]=useState(false),[leaving,setLeaving]=useState(false),[message,setMessage]=useState('');const lock=useRef(false),row=options.occupation,scope={farm:row.farm,pasture:row.pasture};
+ const command=(value:Form)=>exitInputSchema.parse({...value,...scope,grazing_version:row.version});
+ usePreventRemove(!saved&&!leaving&&(isDirty||!!review||busy||unknown||blocked),({repeat})=>{if(lock.current)return;const leave=()=>{setLeaving(true);repeat();};const body=unknown?t.unknownLeave:t.discardBody;if(Platform.OS==='web'){if(window.confirm(`${t.discard}\n${body}`))leave();}else Alert.alert(t.discard,body,[{text:t.stay,style:'cancel'},{text:t.leave,style:'destructive',onPress:leave}]);});
+ const fail=(error:unknown,commit:boolean)=>{if(error instanceof GrazingExitUnconfirmed){setUnknown(true);setMessage(t.unknown);}else if(error instanceof GrazingExitChanged||isAxiosError(error)&&error.response?.status===409){setBlocked(true);setMessage(t.changed);}else if(error instanceof z.ZodError)setMessage(t.invalid);else if(isAxiosError(error)&&[400,403,404].includes(error.response?.status??0)){const flat=(v:unknown):string[]=>typeof v==='string'?[v]:Array.isArray(v)?v.flatMap(flat):v&&typeof v==='object'?Object.values(v).flatMap(flat):[];setMessage(flat(error.response?.data?.error?.detail??error.response?.data).join(' ').slice(0,1000)||t.failed);if(commit)setBlocked(true);}else setMessage(t.failed);};
+ const prepare=async(value:Form)=>{if(lock.current||unknown||blocked||saved)return;setReview(null);setMessage('');try{const input=command(value);if(input.exit_date>options.today||input.exit_date<row.entry_date){setMessage(t.invalid);return;}lock.current=true;setBusy(true);Keyboard.dismiss();setReview(await controller.previewGrazingExit(row.id,input));}catch(error){fail(error,false);}finally{lock.current=false;setBusy(false);}};
+ const confirm=async()=>{if(lock.current||!review||unknown||blocked||saved)return;lock.current=true;setBusy(true);setMessage('');try{await controller.confirmGrazingExit(row.id,command(getValues()),review);setSaved(true);setReview(null);for(const key of ['cattle-pastures','cattle-pasture','cattle-grazings','cattle-grazing','cattle','cattle-detail','grazing-entry-batches','home'])void client.invalidateQueries({queryKey:[key]});}catch(error){setReview(null);fail(error,true);}finally{lock.current=false;setBusy(false);}};
+ const disabled=busy||unknown||blocked||saved,date=(v:string)=>new Intl.DateTimeFormat(language,{dateStyle:'medium',timeZone:'UTC'}).format(new Date(`${v}T12:00:00Z`));
+ return <AgendaShell title={t.title} backLabel={w.back} onBack={()=>{if(!lock.current){if(router.canGoBack())router.back();else router.replace('/');}}}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"><View style={s.card}><Text style={s.heading}>{row.batch_code}</Text><Text style={s.body}>{row.pasture_name} · {row.farm_name}</Text><Text style={s.body}>{t.entry}: {date(row.entry_date)}</Text></View>{saved?<><Text accessibilityRole="alert" style={s.title}>{t.saved}</Text><AgendaButton label={t.detail} onPress={()=>router.dismissTo({pathname:'/cattle/[production]/grazing-detail',params:{production,...scope,id:row.id}})}/></>:review?<><View style={s.card}><Text style={s.heading}>{t.reviewTitle}</Text><Text style={s.body}>{t.date}: {date(review.command.exit_date)}</Text><Text style={s.muted}>{t.scope}</Text></View><AgendaButton label={busy?w.loading:t.confirm} disabled={disabled} onPress={()=>void confirm()}/><AgendaButton label={t.edit} disabled={disabled} onPress={()=>setReview(null)}/></>:<><Text style={s.muted}>{t.scope}</Text><Text style={s.label}>{t.date}</Text><Controller control={control} name="exit_date" render={({field})=><TextInput ref={field.ref} accessibilityLabel={t.date} style={s.input} value={field.value} onChangeText={field.onChange} onBlur={field.onBlur} editable={!disabled} maxLength={10} autoCapitalize="none"/>}/><AgendaButton label={busy?w.loading:t.review} disabled={disabled} onPress={()=>void handleSubmit(prepare,()=>setMessage(t.invalid))()}/></>}{!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}{(unknown||blocked)&&<AgendaButton label={t.check} onPress={()=>router.push({pathname:'/cattle/[production]/grazings',params:{production,...scope,reconcile:'1'}})}/>}</ScrollView></KeyboardAvoidingView></AgendaShell>;
+}

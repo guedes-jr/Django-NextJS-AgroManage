@@ -75,6 +75,23 @@ class CattleOperationsView(APIView):
         return member
 
     def get(self, request, kind):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_classification as classification
+            if kind == 'classification-options':
+                return Response(classification.options(request.user, request.query_params))
+            if kind == 'classification-targets':
+                rows, target_kind = classification.targets(request.user, request.query_params)
+                return self.page(request, rows, lambda row: classification.target_data(row, target_kind))
+            from . import mobile_cattle_occurrence as occurrence
+            if kind == 'occurrence-options':
+                return Response(occurrence.options(request.user, request.query_params))
+            if kind == 'occurrence-members':
+                return self.page(request, occurrence.members(request.user, request.query_params), lambda row: {'id': str(row.pk), 'full_name': row.full_name})
+            if kind == 'occurrence-targets':
+                rows, target_kind = occurrence.targets(request.user, request.query_params)
+                return self.page(request, rows, lambda row: occurrence.target_data(row, target_kind))
+            from . import mobile_cattle_operations as mobile
+            return self.page(request, mobile.rows(request.user, kind, request.query_params), lambda row: mobile.data(row, kind, request.user))
         org = request.user.organization
         farm = request.query_params.get("farm")
         if farm:
@@ -134,6 +151,20 @@ class CattleOperationsView(APIView):
         raise serializers.ValidationError("Consulta desconhecida.")
 
     def post(self, request, kind):
+        if request.query_params.get('view') == 'mobile' and kind in ['classification-preview', 'classification-confirm']:
+            from . import mobile_classification as classification
+            from .mobile_vaccination import ConfirmInput
+            classification.writable(request.user)
+            if kind == 'classification-preview':
+                values = classification.Input(data=request.data); values.is_valid(raise_exception=True)
+                return Response(classification.preview(request.user, values.validated_data))
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(classification.confirm(request.user, values.validated_data['preview_token']))
+        if request.query_params.get('view') == 'mobile' and kind == 'occurrences':
+            from . import mobile_cattle_occurrence as occurrence
+            occurrence.writable(request.user)
+            values = occurrence.Input(data=request.data); values.is_valid(raise_exception=True)
+            return Response(occurrence.create(request.user, values.validated_data), status=201)
         user, org = request.user, request.user.organization
         if user.role not in {"admin", "manager"}:
             if user.role != "operator" or user.operator_read_only or kind not in {"occurrences", "resolve-occurrence", "start-protocol", "execute-step"}:
@@ -238,3 +269,28 @@ class CattleOperationsView(APIView):
             row = commands.execute_protocol_step(user,step,serializers.DateField(validators=[past_date]).run_validation(data.get("date")),serializers.CharField(max_length=1000,allow_blank=True,default="").run_validation(data.get("notes","")),lot,quantity,mating)
             return Response({"id":row.pk,"executed_date":row.executed_date})
         raise serializers.ValidationError("Operação desconhecida.")
+
+
+class CattleOperationMobileDetailView(APIView):
+    permission_classes = [CattlePermission]
+
+    def get(self, request, kind, pk):
+        from django.shortcuts import get_object_or_404
+        from . import mobile_cattle_operations as mobile
+        row = get_object_or_404(mobile.rows(request.user, kind, request.query_params), pk=pk)
+        return Response(mobile.data(row, kind, request.user))
+
+
+class CattleOccurrenceMobileResolutionView(APIView):
+    permission_classes = [CattlePermission]
+    create_roles = {'admin', 'manager', 'operator'}
+
+    def get(self, request, pk):
+        from . import mobile_cattle_occurrence as occurrence
+        return Response(occurrence.resolve_options(request.user, pk, request.query_params))
+
+    def post(self, request, pk):
+        from . import mobile_cattle_occurrence as occurrence
+        occurrence.writable(request.user)
+        values = occurrence.ResolveInput(data=request.data); values.is_valid(raise_exception=True)
+        return Response(occurrence.resolve(request.user, pk, values.validated_data))

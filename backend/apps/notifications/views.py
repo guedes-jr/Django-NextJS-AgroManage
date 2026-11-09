@@ -59,6 +59,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def get_unread_count(self):
         return self.get_queryset().filter(is_read=False).count()
 
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        if 'is_read' in serializer.validated_data:
+            value = serializer.validated_data['is_read']
+            serializer.save(read_at=(instance.read_at or timezone.now()) if value else None)
+        else:
+            serializer.save()
+
     def create(self, request, *args, **kwargs):
         raise MethodNotAllowed("POST")
 
@@ -218,11 +226,21 @@ class NotificationPreferenceViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(self.get_object()).data)
 
     def update(self, request, *args, **kwargs):
-        instance, _ = NotificationPreference.objects.get_or_create(user=request.user)
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+        from django.db import transaction
+        from rest_framework import serializers, exceptions
+        with transaction.atomic():
+            instance, _ = NotificationPreference.objects.get_or_create(user=request.user)
+            instance = NotificationPreference.objects.select_for_update().get(pk=instance.pk)
+            if 'expected_updated_at' in request.data:
+                expected = serializers.DateTimeField().run_validation(request.data['expected_updated_at'])
+                if expected != instance.updated_at:
+                    error = exceptions.APIException('As preferências mudaram. Recarregue antes de salvar.')
+                    error.status_code = 409
+                    raise error
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
 
 
 class NotificationTemplateViewSet(viewsets.ReadOnlyModelViewSet):

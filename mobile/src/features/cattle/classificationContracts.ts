@@ -1,0 +1,15 @@
+import {z} from 'zod';
+import {productionSchema} from './contracts';
+export const classificationPurposes=['unknown','beef','dairy','dual'] as const;
+export const classificationPurposeSchema=z.enum(classificationPurposes);
+export const classificationTargetSchema=z.object({id:z.uuid(),kind:z.enum(['animals','batches']),identifier:z.string(),farm:z.uuid(),purpose:classificationPurposeSchema,status:z.string(),version:z.iso.datetime({offset:true})});
+export type ClassificationTarget=z.infer<typeof classificationTargetSchema>;
+export const classificationOptionsSchema=z.object({farm:z.object({id:z.uuid(),name:z.string()}),production:productionSchema,today:z.iso.date(),timezone:z.string().min(1),purposes:z.array(classificationPurposeSchema).length(4)});
+export type ClassificationOptions=z.infer<typeof classificationOptionsSchema>;
+export const classificationTargetPageSchema=z.object({count:z.number().int().nonnegative(),next:z.string().nullable(),previous:z.string().nullable(),results:z.array(classificationTargetSchema)});
+export const classificationInputSchema=z.object({farm:z.uuid(),production:productionSchema,target_kind:z.enum(['animals','batches']),target:z.uuid(),target_version:z.iso.datetime({offset:true}),purpose:classificationPurposeSchema});
+export type ClassificationInput=z.infer<typeof classificationInputSchema>;
+export const classificationReviewSchema=z.object({target:classificationTargetSchema,purpose:classificationPurposeSchema,production:productionSchema,farm_name:z.string(),date:z.iso.date(),entries:z.array(z.object({id:z.uuid(),identifier:z.string(),previous:classificationPurposeSchema,will_change:z.boolean()})).max(1000),linked_batch:z.object({id:z.uuid(),identifier:z.string(),purpose:classificationPurposeSchema}).nullable(),current_quantity:z.number().int().nonnegative().nullable(),history_production:productionSchema,changed_animals:z.number().int().nonnegative(),changed_batches:z.number().int().min(0).max(1),command:classificationInputSchema,preview_token:z.string().min(1).max(60000)}).refine(v=>new Set(v.entries.map(e=>e.id)).size===v.entries.length&&v.changed_animals===v.entries.filter(e=>e.will_change).length&&v.changed_batches===(v.target.kind==='batches'?1:0)&&v.entries.every(e=>e.will_change===(e.previous!==v.purpose))&&v.target.purpose!==v.purpose&&(v.target.kind==='batches'?v.current_quantity!==null:v.current_quantity===null&&v.entries.length===1&&v.entries[0]?.id===v.target.id));
+export type ClassificationReview=z.infer<typeof classificationReviewSchema>;
+export const classificationKey=(v:ClassificationInput)=>JSON.stringify(classificationInputSchema.parse(v));
+export function validateClassificationReview(review:ClassificationReview,input:ClassificationInput){if(classificationKey(review.command)!==classificationKey(input)||review.target.id!==input.target||review.target.kind!==input.target_kind||review.target.farm!==input.farm||review.target.version!==input.target_version||review.purpose!==input.purpose||review.production!==input.production||review.linked_batch&&review.linked_batch.purpose!==input.purpose)throw Error('classification review');return review;}

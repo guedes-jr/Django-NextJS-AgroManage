@@ -1,4 +1,4 @@
-import { useEffect,useRef,useState } from 'react';
+import { useEffect,useId,useRef,useState } from 'react';
 import { Alert,KeyboardAvoidingView,Platform,ScrollView,Text,TextInput,View } from 'react-native';
 import { useLocalSearchParams,usePreventRemove,useRouter } from 'expo-router';
 import { useQuery,useQueryClient } from '@tanstack/react-query';
@@ -17,9 +17,9 @@ import { milkCommandSchema,milkValuesSchema,type MilkCommand,type MilkValues } f
 import { milkMessages } from './messages';
 const routeSchema=z.object({mode:z.enum(['individual','total']),id:z.uuid().optional(),date:z.iso.date(),animal:z.uuid().optional(),farm:z.uuid().optional(),session:z.enum(['morning','afternoon','evening']).optional()}).refine(v=>v.mode==='individual'?!!v.animal:!!v.farm);
 export function MilkFormScreen(){
- const params=useLocalSearchParams();const route=routeSchema.safeParse(params);const {state,controller,language}=useAuth();const {farm}=useWorkspace();const w=workspaceMessages[language],t=milkMessages[language];const router=useRouter();
+ const instanceId=useId();const params=useLocalSearchParams();const route=routeSchema.safeParse(params);const {state,controller,language}=useAuth();const {farm}=useWorkspace();const [creationFarm]=useState(farm);const w=workspaceMessages[language],t=milkMessages[language];const router=useRouter();
  const allowed=route.success&&state.status==='signedIn'&&canCreateCattle(state.session.user);
- const query=useQuery({queryKey:['milk-form',params.mode,params.id,params.animal,params.farm,params.date],enabled:allowed,queryFn:async({signal})=>{
+ const query=useQuery({queryKey:['milk-form',instanceId,params.mode,params.id,params.animal,params.farm,params.date],enabled:allowed,staleTime:0,gcTime:0,refetchOnMount:'always',refetchOnReconnect:false,networkMode:'always',queryFn:async({signal})=>{
   if(!route.success)throw new Error('invalid route');const v=route.data;const options=await controller.agendaOptions(signal);const today=organizationDay(options.timezone);
   const record=v.id?await controller.milkDetail(v.mode,v.id,signal):undefined;
   const animal=v.mode==='individual'?await controller.cattleDetail('animals',v.animal!,'dairy',v.farm,signal):undefined;
@@ -29,12 +29,12 @@ export function MilkFormScreen(){
  }});
  const back=()=>router.canGoBack()?router.back():router.replace('/milk');
  if(!allowed)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><Text style={s.error}>{t.blocked}</Text></AgendaShell>;
- if(query.isPending)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><Busy label={w.loading}/></AgendaShell>;
+ if(query.isPending||query.isFetching)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><Busy label={w.loading}/></AgendaShell>;
  if(query.isError||!query.data)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><View style={s.content}><Text style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void query.refetch()}/></View></AgendaShell>;
  const d=query.data;const editing=!!d.record;
- const permitted=state.status==='signedIn'&&!d.options.read_only&&d.options.user_id===state.session.user.id&&d.command.date<=d.today&&(!editing||['admin','manager'].includes(state.session.user.access.role))&&(d.command.mode==='individual'?d.animal?.status==='active'&&'identifier' in d.animal&&d.animal.gender==='F'&&['Vaca','Matriz'].includes(d.animal.category):editing||farm?.id===d.command.farm);
+ const permitted=state.status==='signedIn'&&!d.options.read_only&&d.options.user_id===state.session.user.id&&d.command.date<=d.today&&(!editing||['admin','manager'].includes(state.session.user.access.role))&&(d.command.mode==='individual'?d.animal?.status==='active'&&'identifier' in d.animal&&d.animal.gender==='F'&&['Vaca','Matriz'].includes(d.animal.category):editing||creationFarm?.id===d.command.farm);
  if(!permitted)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><View style={s.content}><Text style={s.error}>{t.blocked}</Text></View></AgendaShell>;
- return <MilkEditor command={d.command} initial={d.record??{liters:'',discarded_liters:'0',discard_reason:'',notes:''}} label={d.animal&&'identifier' in d.animal?`${d.animal.identifier} · ${d.animal.farm_name}`:d.record?.farm_name??farm?.name??''}/>;
+ return <MilkEditor command={d.command} initial={d.record??{liters:'',discarded_liters:'0',discard_reason:'',notes:''}} label={d.animal&&'identifier' in d.animal?`${d.animal.identifier} · ${d.animal.farm_name}`:d.record?.farm_name??creationFarm?.name??''}/>;
 }
 function MilkEditor({command,initial,label}:{command:MilkCommand;initial:MilkValues;label:string}){
  const {controller,language}=useAuth();const t=milkMessages[language],w=workspaceMessages[language];const router=useRouter();const client=useQueryClient();const [session,setSession]=useState(command.mode==='individual'?command.session:'morning');
@@ -46,7 +46,7 @@ function MilkEditor({command,initial,label}:{command:MilkCommand;initial:MilkVal
  useEffect(()=>{if(saved){if(router.canGoBack())router.back();else router.replace('/milk');}},[saved,router]);
  const persist=async(values:MilkValues)=>{
   if(saving.current||uncertain||saved)return;saving.current=true;setMessage('');
-  try{await controller.saveMilk(command.mode==='individual'?{...command,session}:command,values);if(mounted.current){setSaved(true);void client.invalidateQueries({queryKey:['milk-list']});void client.invalidateQueries({queryKey:['milk-summary']});void client.invalidateQueries({queryKey:['milk-form']});void client.invalidateQueries({queryKey:['cattle-history']});}}
+  try{await controller.saveMilk(command.mode==='individual'?{...command,session}:command,values);if(mounted.current){setSaved(true);void client.invalidateQueries({queryKey:['milk-list']});void client.invalidateQueries({queryKey:['milk-summary']});void client.invalidateQueries({queryKey:['cattle-history']});}}
   catch(error){if(mounted.current){const unknown=!(error instanceof AuthFailure)&&(!isAxiosError(error)||!error.response||error.response.status>=500);setUncertain(unknown);let detail='';if(isAxiosError(error)&&[400,403,409,422].includes(error.response?.status??0)){const body=error.response?.data?.error?.detail??error.response?.data;detail=typeof body?.detail==='string'?body.detail:['liters','discarded_liters','discard_reason','date','session','animal','farm','non_field_errors'].flatMap(k=>typeof body?.[k]==='string'?[body[k]]:Array.isArray(body?.[k])?body[k].filter((v:unknown)=>typeof v==='string'):[]).join(' ');}setMessage(unknown?t.uncertain:detail.slice(0,800)||t.failed);}}
   finally{saving.current=false;}
  };

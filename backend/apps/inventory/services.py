@@ -18,11 +18,13 @@ class StockCountConflict(APIException):
 
 
 @transaction.atomic
-def record_stock_count(lot, user, *, quantidade_contada, saldo_esperado, motivo):
+def record_stock_count(lot, user, *, quantidade_contada, saldo_esperado, motivo, unidade_esperada=None):
     """Apply a physical count as an immutable signed movement, never a silent edit."""
     from .models import ItemEstoque, LoteEstoque, MovimentacaoEstoque
 
-    ItemEstoque.objects.select_for_update().get(pk=lot.item_id, organization=user.organization)
+    item = ItemEstoque.objects.select_for_update().get(pk=lot.item_id, organization=user.organization)
+    if unidade_esperada is not None and item.unidade_medida != unidade_esperada:
+        raise StockCountConflict(translate_message("A unidade mudou desde a conferência. Atualize o produto e confira novamente."))
     lot = LoteEstoque.objects.select_for_update().get(pk=lot.pk)
     if not lot.ativo and quantidade_contada > 0:
         raise ValidationError({"quantidade_contada": translate_message("Reative o lote com saldo zero antes de registrar saldo positivo.")})

@@ -44,15 +44,25 @@ def record_trough_reading(user, *, batch, formula=None, date, session, score, re
 
 
 @transaction.atomic
-def register_daily_feed(request, *, batch, date, quantity_kg, request_key, item=None, formula=None, notes=""):
+def register_daily_feed(request, *, batch, date, quantity_kg, request_key, item=None, formula=None, notes="", production=None, farm=None):
     user = request.user
     target = get_object_or_404(AnimalBatch.objects.select_for_update(), pk=batch, farm__organization=user.organization, species__code="bovinos")
     values = {"item": str(item or ""), "formula": str(formula or ""), "date": str(date), "quantity": str(quantity_kg), "notes": notes}
+    if production is not None:
+        values["production"] = production
+    if farm is not None:
+        values["farm"] = str(farm)
     previous = target.historicos.filter(tipo_evento="Fornecimento de ração", metadata__request_key=str(request_key)).first()
     if previous:
+        if previous.metadata.get("responsible_id") != str(user.pk):
+            raise ValidationError({"request_key": "Identificação pertence a outro responsável."})
         if previous.metadata["input"] != values:
             raise ValidationError({"request_key": "Identificação já utilizada em outro trato."})
         return get_object_or_404(ConsumoRacao, pk=previous.metadata["consumption_id"], organization=user.organization)
+    if farm is not None and target.farm_id != farm:
+        raise ValidationError({"farm": "O lote não pertence à fazenda selecionada."})
+    if production is not None and target.cattle_purpose not in (production, "dual"):
+        raise ValidationError({"production": "O lote não pertence ao segmento selecionado."})
     if target.status != "active" or not target.quantity:
         raise ValidationError({"batch": "Selecione um lote ativo com animais."})
     if date != timezone.localdate() or target.entry_date > date:

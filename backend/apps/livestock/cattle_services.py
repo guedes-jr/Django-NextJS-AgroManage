@@ -45,26 +45,38 @@ def save_cattle_weight(animal, day, weight, notes=""):
 
 
 @transaction.atomic
-def confirm_cattle_management(management, user):
+def confirm_cattle_management(management, user, *, weighing_only=False, castration_only=False, documentary_only=False, medication_only=False):
     from django.utils import timezone
 
-    management = CattleManagement.objects.select_for_update().get(pk=management.pk)
+    operational = weighing_only or castration_only or documentary_only or medication_only
+    query = CattleManagement.objects.select_for_update()
+    if operational:
+        query = query.only('id','farm_id','kind','date','description','status','inventory_lot_id','inventory_movement_id','inventory_quantity_per_animal')
+    if documentary_only:
+        query = query.filter(kind='sanitary',treatment_type__in=['exam','surgery','other'],cost_per_animal=0,inventory_lot__isnull=True,inventory_movement__isnull=True,inventory_quantity_per_animal__isnull=True).only('id','farm_id','kind','date','description','status','treatment_type','responsible','notes','milk_withdrawal_until')
+    if medication_only:
+        query = query.filter(kind='sanitary',treatment_type='medication',cost_per_animal=0,inventory_lot__isnull=False,inventory_quantity_per_animal__gt=0).only('id','farm_id','kind','date','description','status','treatment_type','responsible','notes','milk_withdrawal_until','meat_withdrawal_until','inventory_lot_id','inventory_movement_id','inventory_quantity_per_animal')
+    management = query.get(pk=management.pk)
+    if weighing_only and (management.kind != 'weighing' or management.inventory_lot_id or management.inventory_movement_id or management.inventory_quantity_per_animal is not None):
+        raise ValidationError('Revise o manejo de pesagem sem vínculo de estoque.')
+    if castration_only and (weighing_only or management.kind != 'castration' or management.inventory_lot_id or management.inventory_movement_id or management.inventory_quantity_per_animal is not None):
+        raise ValidationError('Revise o manejo de castração sem vínculo de estoque.')
     if management.status == "confirmed":
         return management  # A retried confirmation must never duplicate effects.
     if management.status != "draft":
         raise ValidationError("Este manejo não pode ser confirmado.")
-    entries = list(management.entries.select_related("animal").order_by("animal_id"))
+    entry_query = management.entries.order_by('animal_id')
+    entries = list(entry_query.only('id','management_id','animal_id','weight_kg') if operational else entry_query.select_related('animal'))
     if not entries:
         raise ValidationError("Inclua pelo menos um animal no manejo.")
-    animals = {
-        animal.pk: animal
-        for animal in Animal.objects.select_for_update()
-        .filter(pk__in=[entry.animal_id for entry in entries])
-        .select_related("farm", "species")
-        .order_by("pk")
-    }
-    from .cattle_stock_management import consume_management_stock
-    consume_management_stock(management, user, len(entries))
+    animal_query = Animal.objects.select_for_update(of=('self',)) if operational else Animal.objects.select_for_update()
+    animal_query = animal_query.filter(pk__in=[entry.animal_id for entry in entries]).select_related('farm','species').order_by('pk')
+    if operational:
+        animal_query = animal_query.only('id','farm__id','farm__organization_id','species__id','species__code','status','entry_date')
+    animals = {animal.pk: animal for animal in animal_query}
+    if not operational or medication_only:
+        from .cattle_stock_management import consume_management_stock
+        consume_management_stock(management, user, len(entries))
     for entry in entries:
         animal = animals[entry.animal_id]
         if (
@@ -103,7 +115,7 @@ def confirm_cattle_management(management, user):
                 treatment_type=management.treatment_type,
                 description=management.description,
                 veterinary=management.responsible,
-                cost=management.cost_per_animal,
+                cost=0 if documentary_only or medication_only else management.cost_per_animal,
                 notes=management.notes,
             )
         elif management.kind == "castration":
@@ -114,6 +126,7 @@ def confirm_cattle_management(management, user):
                     "date": management.date,
                     "notes": management.description,
                 },
+                castration_only=castration_only,
             )
     management.status = "confirmed"
     management.confirmed_by = user
@@ -125,8 +138,14 @@ def confirm_cattle_management(management, user):
 
 
 @transaction.atomic
-def record_cattle_birth(animal, data):
-    animal = Animal.objects.select_for_update().get(pk=animal.pk)
+def record_cattle_birth(animal, data, *, pregnancy_id=None):
+    animals = Animal.objects.select_for_update(of=('self',))
+    if pregnancy_id is not None:
+        # Native projection avoids loading operationally unrelated animal prices.
+        animals = animals.select_related('farm', 'species', 'breed').only(
+            'id','identifier','gender','status','reproductive_status','birth_count','category',
+            'farm__id','farm__organization_id','species__id','species__code','breed__id')
+    animal = animals.get(pk=animal.pk)
     if (
         animal.gender != "F"
         or animal.status != "active"
@@ -135,11 +154,11 @@ def record_cattle_birth(animal, data):
         raise ValidationError(
             {"animal": "Selecione uma fêmea ativa com gestação confirmada."}
         )
-    pregnancy = (
-        Pregnancy.objects.filter(female=animal, status="ongoing")
-        .order_by("-start_date")
-        .first()
-    )
+    pregnancies = Pregnancy.objects.filter(female=animal, status="ongoing")
+    if pregnancy_id is not None:
+        pregnancies = pregnancies.filter(pk=pregnancy_id).select_related('mating__sire').only(
+            'id','start_date','mating__id','mating__sire__id','mating__sire_info')
+    pregnancy = pregnancies.order_by('-start_date').first()
     if not pregnancy or data["date"] < pregnancy.start_date:
         raise ValidationError({"date": "Não há gestação válida para esta data."})
     birth = Birth.objects.create(
@@ -204,8 +223,8 @@ def record_cattle_birth(animal, data):
 
 @transaction.atomic
 def enter_cattle_pasture(data):
-    batch = AnimalBatch.objects.select_for_update().get(pk=data["batch"].pk)
-    pasture = CattlePasture.objects.select_for_update().get(pk=data["pasture"].pk)
+    batch = AnimalBatch.objects.select_for_update().only("id", "entry_date").get(pk=data["batch"].pk)
+    pasture = CattlePasture.objects.select_for_update().only("id", "availability").get(pk=data["pasture"].pk)
     if pasture.availability in ["resting", "blocked"]:
         raise ValidationError({"pasture": "Libere o pasto antes de registrar uma entrada."})
     latest = CattleGrazing.objects.filter(batch=batch).order_by("-entry_date").first()
@@ -218,6 +237,16 @@ def enter_cattle_pasture(data):
             {"entry_date": "A entrada no pasto não pode anteceder a entrada do lote."}
         )
     return CattleGrazing.objects.create(**data)
+
+
+@transaction.atomic
+def close_cattle_pasture(grazing, day):
+    grazing = CattleGrazing.objects.select_for_update().only('id', 'entry_date', 'exit_date').get(pk=grazing.pk)
+    if grazing.exit_date or day < grazing.entry_date:
+        raise ValidationError('Informe uma data de saída válida para uma ocupação aberta.')
+    grazing.exit_date = day
+    grazing.save(update_fields=['exit_date'])
+    return grazing
 
 
 @transaction.atomic
@@ -265,8 +294,13 @@ def record_cattle_feed(serializer, user):
 
 
 @transaction.atomic
-def record_cattle_event(animal, values):
-    animal = Animal.objects.select_for_update().get(pk=animal.pk)
+def record_cattle_event(animal, values, *, castration_only=False):
+    query = Animal.objects.select_for_update(of=('self',)) if castration_only else Animal.objects.select_for_update()
+    if castration_only:
+        if values.get('kind') != 'castration':
+            raise ValidationError('Selecione o evento de castração.')
+        query = query.select_related('farm').only('id','gender','status','entry_date','reproductive_status','dam_ref_id','farm__id','farm__organization_id')
+    animal = query.get(pk=animal.pk)
     if animal.status != "active" or (
         animal.entry_date and values["date"] < animal.entry_date
     ):
@@ -324,7 +358,10 @@ def record_cattle_event(animal, values):
     ):
         raise ValidationError("Peso e grupo de destino pertencem ao manejo de desmame.")
     profile.save()
-    animal.save()
+    if castration_only:
+        animal.save(update_fields=['updated_at'])
+    else:
+        animal.save()
     names = {
         "abortion": "Perda gestacional",
         "death": "Morte",

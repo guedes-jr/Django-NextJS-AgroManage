@@ -2885,6 +2885,27 @@ class SpeciesSummaryView(APIView):
 
 @operator_scoped
 class VaccinationRecordViewSet(viewsets.ModelViewSet):
+    @action(detail=False, methods=['get'], url_path='mobile-options')
+    def mobile_options(self, request):
+        from .mobile_clinic import authorize
+        authorize(request.user)
+        from django.conf import settings
+        return Response({'today':str(timezone.localdate()),'timezone':settings.TIME_ZONE,'dose_types':[{'value':value,'label':label} for value,label in VaccinationRecord.DoseType.choices]})
+
+    @action(detail=False, methods=['get'], url_path='mobile-targets')
+    def mobile_targets(self, request):
+        from . import mobile_vaccination as vaccine
+        values=vaccine.Query(data=request.query_params);values.is_valid(raise_exception=True)
+        page=self.paginate_queryset(vaccine.targets(request.user,values.validated_data))
+        return self.get_paginated_response([vaccine.target_data(obj,values.validated_data['kind']) for obj in page])
+
+    @action(detail=False, methods=['get'], url_path='mobile-vaccines')
+    def mobile_vaccines(self, request):
+        from . import mobile_vaccination as vaccine
+        values=vaccine.Query(data=request.query_params);values.is_valid(raise_exception=True)
+        page=self.paginate_queryset(vaccine.catalog(request.user,values.validated_data))
+        return self.get_paginated_response([vaccine.vaccine_data(obj) for obj in page])
+
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
     def get_serializer_class(self):
@@ -2905,6 +2926,15 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
+        mode=request.query_params.get('view')
+        if mode in ('mobile-preview','mobile-confirm'):
+            from . import mobile_vaccination as vaccine
+            vaccine.writable(request.user)
+            if mode=='mobile-preview':
+                values=vaccine.Input(data=request.data);values.is_valid(raise_exception=True)
+                return Response(vaccine.preview(request.user,values.validated_data))
+            values=vaccine.ConfirmInput(data=request.data);values.is_valid(raise_exception=True)
+            return Response(vaccine.confirm(request.user,values.validated_data['preview_token']),status=201)
         data = request.data.copy()
         
         # Resolve animal from animal_identifier (if passed)
@@ -3028,6 +3058,41 @@ class WeightRecordViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class ClinicalRecordViewSet(viewsets.ModelViewSet):
+    @action(detail=False, methods=['get'], url_path='mobile')
+    def mobile(self, request):
+        from . import mobile_clinic as clinic
+        value=clinic.Query(data=request.query_params);value.is_valid(raise_exception=True)
+        kind=value.validated_data['kind']
+        page=self.paginate_queryset(clinic.rows(request.user,value.validated_data))
+        return self.get_paginated_response([clinic.data(obj,kind) for obj in page])
+
+    @action(detail=True, methods=['get'], url_path='mobile')
+    def mobile_detail(self, request, pk=None):
+        from . import mobile_clinic as clinic
+        from django.shortcuts import get_object_or_404
+        value=clinic.Query(data=request.query_params);value.is_valid(raise_exception=True)
+        obj=get_object_or_404(clinic.rows(request.user,value.validated_data),pk=pk)
+        return Response(clinic.data(obj,value.validated_data['kind'],detail=True))
+
+    @action(detail=False, methods=['get'], url_path='mobile-options')
+    def mobile_options(self, request):
+        from . import mobile_clinic as clinic
+        return Response(clinic.options(request.user))
+
+    @action(detail=False, methods=['get'], url_path='mobile-animals')
+    def mobile_animals(self, request):
+        from . import mobile_clinic as clinic
+        value=clinic.Query(data=request.query_params);value.is_valid(raise_exception=True)
+        page=self.paginate_queryset(clinic.animals(request.user,value.validated_data))
+        return self.get_paginated_response([clinic.animal_data(obj) for obj in page])
+
+    def _mobile_create(self, request):
+        from . import mobile_clinic as clinic
+        clinic.authorize(request.user)
+        value=clinic.ClinicalInput(data=request.data,context={'request':request});value.is_valid(raise_exception=True)
+        self.perform_create(value)
+        return Response({'id':str(value.instance.pk)},status=201)
+
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
     serializer_class = ClinicalRecordSerializer
@@ -3044,6 +3109,8 @@ class ClinicalRecordViewSet(viewsets.ModelViewSet):
         return ClinicalRecord.objects.none()
 
     def create(self, request, *args, **kwargs):
+        if request.query_params.get('view') == 'mobile':
+            return self._mobile_create(request)
         data = request.data.copy()
         
         # Resolve animal from animal_identifier
@@ -3136,6 +3203,20 @@ class AlertViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class HealthRecordViewSet(viewsets.ModelViewSet):
+    @action(detail=False, methods=['get'], url_path='mobile-options')
+    def mobile_options(self, request):
+        from . import mobile_health
+        return Response(mobile_health.options(request.user))
+
+    @transaction.atomic
+    def _mobile_create(self, request):
+        from . import mobile_health
+        mobile_health.writable(request.user)
+        value = mobile_health.HealthInput(data=request.data, context={'request': request})
+        value.is_valid(raise_exception=True)
+        self.perform_create(value)
+        return Response({'id': str(value.instance.pk)}, status=201)
+
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
     serializer_class = HealthRecordSerializer
@@ -3149,6 +3230,8 @@ class HealthRecordViewSet(viewsets.ModelViewSet):
         return HealthRecord.objects.none()
 
     def create(self, request, *args, **kwargs):
+        if request.query_params.get('view') == 'mobile':
+            return self._mobile_create(request)
         data = request.data.copy()
         
         # Resolve animal from animal_identifier

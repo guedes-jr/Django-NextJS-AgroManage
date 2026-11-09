@@ -2099,3 +2099,1004 @@ received. All three new models are in the explicit organization export registry.
 GET `livestock/cattle/animals/` and `batches/` (including their detail routes) accept `view=operational` to return an explicit operational field allowlist. It excludes batch purchase amounts and animal nested reproductive cycles before serialization, retaining the existing production/farm filters and tenant/role checks. The projection applies only to GET; writes and requests without the parameter keep their existing behavior.
 
 GET `animals/{id}/full-history/` accepts the same projection, returning only `type`, `date`, `title`, `subtitle`. Supplying `page` opts into standard pagination; omitting it retains the legacy array. Source history is still composed before in-memory pagination. This does not add SQL pagination or authorize new domains; the mobile loads it on demand.
+
+## Inventory mobile operational reads
+
+GET `inventory/items/` and its detail accept `view=operational`: an explicit operational field allowlist excludes costs and organization metadata before serialization. Balance/low-stock values use one aggregate query over active stock lots, including zero for products without lots; a positive minimum therefore flags an empty product. Search/category/status filters remain server-side, with `status=baixo|normal` applying the same aggregate in this view. Requests without the projection and all writes retain their existing serializer behavior.
+
+GET `inventory/items/stats/?view=operational` returns only `total_items` and `estoque_baixo` across the organization. It does not add quantities of different units, infer an expired-item count, or interpret missing acquisition prices as a complete valuation. Legacy stats remain available without this parameter.
+
+GET `inventory/lotes/` and detail accept the same projection, excluding unit costs/invoices; the list retains its existing `item` filter and pagination. Quantity is per product unit, not per farm. Supplier names use a joined relation. GET `inventory/fornecedores/?search=...` searches name or document inside the tenant, retaining standard pagination, contacts and addresses. Reading unresolved `inventory/alertas/` neither generates nor acknowledges/resolves alerts. No stock ledger writes or schema migrations are added by these changes; existing endpoint role restrictions remain unchanged.
+
+### Inventory registration writes
+
+Product and supplier POST/PATCH accept `?view=receipt` as an optional response-only projection, returning `{id}` after normal input validation and saving. This prevents the mobile registration flow from calculating/transporting costs or nested read data merely to acknowledge a write. Default responses and existing clients remain unchanged.
+
+PATCH serializers accept optional write-only `expected_updated_at` (ISO timestamp from the last GET). Product and supplier update lock the row and compare that version before modifying it; a stale version is a validation error and does not apply scalar or nested changes. This is opt-in optimistic concurrency, not an idempotency key. Product operational GET now includes `updated_at` for this purpose. No migrations are required.
+
+Supplier creation/update is atomic across the scalar registration and nested contacts/addresses. Omitted nested lists remain unchanged, including their IDs; supplied lists use the existing full replacement semantics (an empty list explicitly removes all rows). Address serialization additionally includes its existing `label`; coordinates retain decimal text precision. The native editor sends complete nested values only when changed, avoiding loss of labels/coordinates or unnecessary replacement during a name-only correction. Unknown write outcomes must be reconciled through read-only consultation before another equivalent creation; POST is not automatically replayed.
+
+### Inventory movement history and physical counts
+
+GET `inventory/movimentacoes/` and detail accept `view=operational`, preserving the existing tenant/role checks. The projection contains the movement ID, product/lot identifiers and current name/unit, signed decimal quantity, registration timestamp, responsible person, destination, notes, optional farm and cattle-delivery origin, and `timezone` from `settings.TIME_ZONE`. It never evaluates or returns movement cost properties. Product names/units come from current registration, not historical snapshots; an adjustment's quantity is a signed difference, not a final balance.
+
+The operational collection supports server pagination, `search` (product, lot number, destination or notes), `item`, `lote`, `tipo`, and paired `start`/`end` dates spanning at most 366 inclusive days. Date filtering uses the system calendar day. Invalid UUIDs/types/periods return validation errors instead of broadening the query. Default legacy requests retain their serializer and filters. Linked item/lot/author/farm reads use joined relations, with deterministic registration timestamp/ID ordering.
+
+`POST inventory/lotes/{id}/ajustar-estoque/` retains its existing count contract: nonnegative `quantidade_contada`, `saldo_esperado` and mandatory `motivo`. Optional `unidade_esperada` now checks the product unit under the same item/lot lock as the balance comparison; a changed unit or balance returns 409 without mutation. This does not add conversion or make the POST idempotent. Equal counts do not create a movement; zero is a valid count when it differs from the reviewed balance. The server records the signed difference, author and reason and updates the lot atomically. Old clients omitting the unit remain supported.
+
+Opt-in `?view=receipt` returns only the created movement ID after a confirmed physical count, avoiding financial serialization. Native clients review expected/count/difference before confirming; they block replay after an unconfirmed save or 409 and reconcile by reading the lot/history. There is no request key or automatic retry guarantee. Existing ledger restrictions on modifying/deleting adjustments and operational/financial origins remain unchanged. No migrations are required.
+
+### Reviewed stock receipts, withdrawals and purchases
+
+The mobile stock-launch workflow uses new actions on the existing movement resource, leaving legacy CRUD behavior unchanged:
+
+- GET `inventory/movimentacoes/launch-options/`: server calendar day/time zone and storage locations.
+- POST `inventory/movimentacoes/preview/`: validates and reviews `entrada`, `saida` or `compra` without writing stock or finance. Accepts the product, positive two-decimal quantity, expected unit, explicit existing lot or new-lot receipt metadata, optional farm/supplier, reason/notes/destination. Purchases require a new lot, explicit farm, positive unit cost and payable due date. Existing-lot metadata cannot be changed; non-purchases cannot carry prices/payable dates. Unknown fields, including payment/account/author overrides, are rejected.
+- POST `inventory/movimentacoes/confirm/`: accepts only `preview_token`. The signed, actor/organization-bound review expires after 15 minutes and carries the normalized command and reviewed state. Under the item/lot locks the service revalidates permissions, activity, receipt/expiry, unit, balances, precision, metadata and intended command; changes produce a rejected confirmation rather than silently adjusting the reviewed quantity.
+
+Receipts without purchase create no payable; a new receipt preserves unknown acquisition cost as null. Withdrawals require an explicit active, received, unexpired lot, destination and sufficient stock, and subtract the exact amount without clamping insufficient balances. Purchases create a separate new stock lot and one pending payable through `record_stock_purchase`; the normal lot-created finance signal is suppressed for this transaction, preventing a second document. No payment event, bank debit or arbitrary farm assignment occurs. Product/lot stock limits and the financial amount precision/minimum cent are checked before writing. The database transaction includes the lot, movement, balance and payable, so finance failure rolls everything back.
+
+The preview includes current lot before/after balances, normalized command, farm/supplier labels and exact pending-purchase amount. Client display uses decimal text for money, avoiding a floating-point quantity × cost calculation. Confirmation returns `{id, lote, payable}` with a null payable for non-purchases. No migration/dependency or persistent operation key is added: the review token is not a general idempotency guarantee. Native clients never automatically replay confirmation after a lost/invalid response; they retain the review in memory and offer read-only reconciliation. Closing the app does not preserve that draft/review. Sales, losses, expiry disposal, payments, cancellations and corrections remain in their dedicated existing flows.
+
+### Native feed formulas and reviewed production
+
+Opt-in mobile actions retain legacy formula CRUD and `producoes/produzir/` unchanged. All new actions require an authenticated organization admin/manager without forced password change, under existing tenant permissions; they do not grant operator/feeder access.
+
+- GET `inventory/formulas/mobile/`: paginated operational formulas, optional `search` (name, max 100 characters). GET `inventory/formulas/{id}/mobile/`: operational detail including `updated_at`, final product and ingredient IDs/names/units/percentages/activity. No stock acquisition prices or cost properties. Foreign linked products are rejected, not exposed. Queries join final products and prefetch ingredients/products, avoiding per-ingredient queries.
+- POST `inventory/formulas/mobile-save/`: strict `nome`, optional `descricao`/`especie_animal`, required `item_final` and 1–50 `ingredientes: [{item, percentual}]`. Optional `id` plus mandatory matching `expected_updated_at` edits an active formula; stale version returns 409. Products must be active, tenant-owned and in kg; final product must be feed. Ingredients cannot repeat or reference the final product; positive two-decimal percentages must total exactly 100. Formula and full ingredient replacement commit atomically. Returns `{id}` only, with 201 for create/200 for edit.
+- GET `inventory/producoes/mobile/`: paginated operational production history, optional UUID `formula`. GET `inventory/producoes/{id}/mobile/`: operational detail. Names refer to current linked registrations; no historical composition snapshot is claimed for legacy productions. Costs are omitted; `timezone` is the system business timezone used to display production timestamps.
+- POST `inventory/producoes/mobile-preview/`: strict `{formula, quantidade_teorica, quantidade_real}`; positive two-decimal kg quantities. No writes. Requires a complete active formula and valid active kg products. Ingredient quantities use deterministic largest-remainder distribution at 0.01 kg, totaling the planned quantity exactly. Rejects a planned amount too small to allocate at least 0.01 kg to every ingredient. FIFO selects active positive lots by receipt date/ID, excluding expired or future receipts; unknown expiry is permitted. Preview lists required/available quantities and selected lots, plus final-product before/after balance.
+- POST `inventory/producoes/mobile-confirm/`: strict `{preview_token}`. Signed review expires after 900 seconds and binds actor, tenant, normalized command and SHA-256 digest of the reviewed state. Internal prices are hashed, never embedded in a client-readable signed snapshot. Under formula/product/lot locks the service re-evaluates state and compares the digest; expiry/tampering or changed reviewed state returns 409. Author comes from session. Production, input consumption movements/balances and output lot/movement commit atomically. Existing weighted-average fallback for unknown lot cost remains server-side, with decimal rounding and stock/cost limits. Output lot suppresses the purchase-finance signal: no payable/payment is generated. Returns `{id, lote}`.
+
+Mobile operations use existing session/single-flight guards, fresh authorization and organization checks. Unknown save results block replay and preserve the review in memory for read-only reconciliation. No dependency/migration, persistent operation key, durable draft, retry or general idempotency guarantee is introduced. Historical snapshots, corrections/cancellations, formula inactivation/deletion and offline production are outside this increment.
+
+### Paged mobile daily cattle feeding
+
+GET `livestock/cattle/daily-feeding/?view=mobile` is an opt-in operational projection; GET without it retains the legacy `results/formulas/products` response. Required `production=beef|dairy` includes dual-purpose batches in both contexts. Optional `resource=batches|products|formulas|deliveries` defaults to batches, with `farm`, `batch`, `search` (max 100), and standard `page/page_size`. Deliveries require `batch`. Each resource returns `date`, `timezone`, `count`, `next`, `previous`, `results`; timestamps display in the system business zone. The date is today's server calendar day; no historical date selector is implied.
+
+Batch rows contain ID/code/name, farm ID/name, purpose, current headcount and server-aggregated supplied kg for today. Only active, received, positive-headcount bovine batches in the organization/context are returned. Deliveries are today's existing consumption records scoped to that batch/farm/purpose, with item name/ID, responsible name, timestamp, notes and decimal kg. Products are active, kg, bovine-compatible feed/supplement/nucleus items. Formula options are active bovine-compatible formulas with eligible final products. Resources paginate independently and do not evaluate/serialize financial properties. Operators with bovine access may read; admin/manager/authorized feeder may supply, with existing read-only checks.
+
+POST retains its existing transactional consumption/ledger command and receipt, adding optional `production` and `farm`. New mobile commands send both; the service checks them under the animal-batch lock before a new effect. These optional fields participate in the idempotency input only when provided, preserving legacy payload replay. An existing batch/request-key event now also requires the original responsible user, not just a matching payload. Actor and organization authorization remain mandatory. Matching committed replays return the original consumption before current day/formula/batch eligibility checks, allowing reconciliation after day rollover; uncommitted requests still follow all current rules. No stock is manufactured by selecting a formula.
+
+Native clients freeze one UUID and normalized payload per reviewed intention, block concurrent/double submissions and never automatically retry mutations. An uncertain result offers read-only history or explicit check/completion of that exact same command/key, after fresh user/organization authorization. This is not a new equivalent operation. The key/review is in memory, not a durable offline queue; closing the app requires historical reconciliation before any new intent. Native batches/forms retain the approved compact layout, supported locales and touch targets. Actual PostgreSQL concurrency and Android/iOS device homologation remain pending.
+
+### Mobile notification inbox and personal preferences
+
+Native inbox reuses the existing recipient-scoped `notifications/` API and backend `visible_notifications` policy. Lists retain server pagination and `archived`, `status=read|unread`, category and search filters. Details include priority, occurrence count and grouped messages. Opening detail does not mark it read; PATCH sends only `{is_read:true}` on explicit acknowledgement. `archive/` and `unarchive/` retain existing actions and archived-query semantics. `unread-count/` supplies the native bell, with cache invalidation after mutations and no continuous polling. List/count retain existing marketing-campaign preparation behavior; the native integration does not introduce a new sender or campaign consent.
+
+PATCH `notifications/{id}/` now maintains `read_at` whenever `is_read` is supplied: first read sets the timestamp, repeated reads preserve it, and marking unread clears it. Recipient/visibility isolation remains unchanged. No notification operation changes the business event which generated it.
+
+GET/PATCH `notifications/preferences/` retain the personal singleton contract. Optional `expected_updated_at` opts into atomic row-lock/version comparison; malformed versions return 400 and stale versions return 409 without mutation. Legacy requests without a version retain partial updates. Native clients send only changed allowed fields plus the reviewed version, never replace hidden preferences. A lost/5xx/invalid preference-save response freezes resubmission until an explicit reload confirms the remote state. No automatic mutation retry or durable draft is introduced.
+
+Native inbox/preferences are available to tenant members, including feeder and operational read-only profiles as permitted by existing personal-resource authorization. Fresh user/organization validation and session-epoch checks precede writes. Origin navigation accepts only recognized tenant paths and authorized modules; implemented destinations open native routes, known remaining destinations use the configured site. Arbitrary external/campaign URLs, encoded paths and unknown query parameters are not forwarded with credentials. Campaign text is displayed; remote campaign images/external promotional links are outside this increment.
+
+The account `push_notifications` flag is not a native OS permission or APNs/FCM/Expo installation registration. Editing it updates only the existing preference. No service worker, browser VAPID subscription, push token, native transport or notification permission is requested by this implementation. Channel delivery remains governed by backend policies, eligibility and consent. The native stock-alert shortcut remains distinct from the personal inbox; the independent consolidated reproductive-alert dashboard remains on the web.
+
+Phase-3 acceptance clarified the signed confirmation contract: when a previously
+valid stock-launch or feed-production command becomes ineligible during the
+locked re-evaluation, confirmation returns 409 (new review required), including
+insufficient remaining stock or a newly occupied lot number. New preview input
+validation remains 400. PostgreSQL concurrent tests prove one effect for the
+same reviewed confirmation; this does not turn review tokens into durable,
+general-purpose idempotency keys.
+
+### Essential native clinical history and individual recording
+
+New opt-in actions on the existing `ClinicalRecordViewSet` retain the web CRUD
+and existing `OrganizationRolePermission`/`operator_scoped` behavior:
+
+- GET `livestock/clinical/records/mobile/`: standard paginated operational rows;
+  `kind=clinical|health|vaccinations|alerts` defaults to clinical. Filters: UUID
+  `farm`, `animal`, `batch` (health records reject batch-only context), authorized
+  species code, bounded search and paired `start/end` up to 366 inclusive days.
+- GET `livestock/clinical/records/{id}/mobile/?kind=...`: same scoped resource
+  lookup and essential detail. Clinical model requires an identified animal;
+  optional batch is not substituted for that identity. Alerts expose counts of
+  explicitly affected animals/batches, not a fabricated single patient.
+- GET `livestock/clinical/records/mobile-options/`: server day/timezone, authorized
+  species and actual clinical record-type/severity/outcome choices.
+- GET `livestock/clinical/records/mobile-animals/`: paginated active identified
+  animals by UUID/farm/species/identifier search; no prices or financial columns.
+- POST `livestock/clinical/records/?view=mobile`: strict essential input with
+  `animal`, `expected_farm`, record type/date/time, clinical notes, severity,
+  outcome and veterinarian text. Unknown fields/costs are rejected, notes are
+  required (max 8000), dates cannot be future and time is nullable. The service
+  locks/rechecks the current active animal, tenant/species and expected farm;
+  farm comes from that entity. Existing `perform_create` retains atomic operator
+  ownership; ownership failure rolls back the record. Returns `{id}` only.
+
+Clinical, health and vaccination reads select only needed columns/relations;
+financial columns and inventory-cost properties are not loaded/evaluated.
+Related foreign-tenant or forbidden secondary-species references are excluded
+from the native projection, including inconsistent legacy links and mixed
+sanitary alerts. Manager/admin and permitted operators can consult; read-only
+operators cannot create and feeders cannot access this resource. IDs are UUIDs,
+regardless of the older web TypeScript interfaces declaring numeric IDs.
+
+The initial mobile record is documentation, not dispensing/administering a
+medicine, applying a vaccine, producing stock/finance entries or recording a
+herd death/removal. Professional text is not verified author identity. Prescriptions,
+symptom JSON, temperature, advanced fields, attachments, stock-linked applications,
+corrections/cancellations and standalone batch clinical recording are outside
+this increment. Native clients never retry an unconfirmed create automatically;
+they preserve the in-memory form and offer a separate read-only history/detail
+view before returning to the blocked draft. No operation key, durable draft,
+migration or new dependency is introduced.
+
+### Reviewed vaccination API for the native client
+
+`livestock/vaccinations/` retains the legacy web create contract. Native callers
+use GET `mobile-options/` (server day/timezone/dose types), `mobile-targets/`
+(paginated `kind=animal|batch`, optional farm/species/search/target UUID), and
+`mobile-vaccines/` (paginated, required permitted species). Catalog projections
+expose operational units/configuration only, never prices.
+
+POST `?view=mobile-preview` accepts `target_kind`, target UUID, `expected_farm`,
+`vaccine_item` UUID, positive `dosage_ml` **per animal**, application date,
+dose type, optional next dose date/applicator/notes. The review returns current
+head count, converted quantity per head and total, eligible balance/remaining,
+FEFO lot allocation and a signed token valid for 15 minutes. No write occurs.
+Batch application is restricted to today and its entire current active count;
+individual dates cannot be future or precede known entry/birth. Next dose is
+manual and cannot precede application. Expired, inactive, empty or not-yet-received
+lots are excluded. Dose/package units require explicit mL-per-dose metadata;
+conversions that lose stock decimal precision are rejected.
+
+POST `?view=mobile-confirm` accepts only `preview_token`. Under one transaction
+it locks patient, item and eligible lots, checks actor/organization and the
+review fingerprint, records vaccination/author/history, and subtracts exact
+stock movements. Changed state or expired review returns 409. Returns only
+`id`, `inventory_quantity`, `inventory_unit`; internal cost snapshot is not
+exposed. No purchase, payable or payment is created. Existing species/tenant,
+operator ownership and read-only restrictions apply. This is reviewed stock
+concurrency protection, not a durable idempotency-key contract: after a network
+timeout, clients must block replay and reconcile through read-only history.
+The native `/clinic/vaccination` form consumes this contract with controller-held review binding, fresh session/role checks, explicit confirmation and no automatic replay. Unknown outcomes freeze the in-memory form and open a read-only vaccination history for the same patient/farm (animal or batch). No offline writes or durable draft recovery are provided.
+
+
+### Essential native exam/treatment documentation
+
+`GET livestock/health/records/mobile-options/` returns server `today`, `timezone`
+and `treatment_types` from `HealthRecord.TreatmentType` (medication/exam/surgery/other).
+`POST livestock/health/records/?view=mobile` accepts only animal UUID,
+`expected_farm` UUID, required `treatment_type`, `application_date`, required
+`description` (up to 8000), optional `veterinary` (100) and `notes` (8000).
+It responds with `{id}` only. Details/history use the existing cost-free clinic
+projection with `kind=health`; this model requires an individual animal, never a batch.
+
+The patient must be active, in the organization and permitted species, and still
+in the expected farm at commit. The service locks the explicit non-DISTINCT
+animal queryset (`FOR UPDATE OF self`), rechecks dates/scope and preserves atomic
+operator ownership through `perform_create`. Dates cannot be future or precede
+known entry/birth. Unknown fields (including costs, stock products/doses and
+cattle-management links) are rejected. Read-only operators and feeders cannot
+create. A failure recording operator ownership rolls back the document.
+
+This is documentation only, including the medication type: no stock dispensing,
+dose administration, cost/payment, cattle-management link or withdrawal-period
+update is inferred. Reported professional text is not verified author identity.
+The legacy web CRUD contract is unchanged. The native `/clinic/health-form`
+revalidates fresh session/organization/permissions, preserves validation errors,
+and blocks editing/replay after an uncertain response. Its reconciliation route
+`/clinic/history?kind=health&animal=UUID&farm=UUID` is read only and returns to
+the same blocked in-memory form. No durable operation key, offline queue, draft
+recovery, attachment or correction/cancellation support is introduced.
+
+
+### Reviewed individual bovine medication
+
+Manager/admin-only actions on `livestock/cattle/managements/` preserve the existing
+sanitary management authorization. Operators/feeders are denied, including GET.
+`GET mobile-medication-options/` returns server today/timezone.
+`GET mobile-medication-lots/` paginates positive active organization stock lots,
+filtering bovine/generic/multiple-species medication categories (including a
+secondary category and medicine/vaccine). Operational DTO includes item/lot UUID,
+name, unit, number, balance, receipt/expiry dates and registered withdrawal days;
+no costs. A lot offered in the catalog still needs date/scope validation at review.
+
+`POST mobile-medication-preview/` accepts animal/expected_farm/inventory_lot UUIDs,
+expected_unit, positive quantity (stock unit per animal, 8 integers/2 decimals),
+date, required description (200), responsible text (100), notes (2000), and
+nullable milk_withdrawal_until/meat_withdrawal_until. Active bovine, organization,
+farm, entry/birth, no future application, unit/category/activity, lot dates and
+balance are validated. Both withdrawal dates must meet existing product minimum
+when configured; no date may precede application. Existing usable milk within
+withdrawal prevents application. No clinical dose/conversion is inferred.
+
+Review returns the complete command, animal, lot, quantity/remaining balance,
+minimum withdrawal date and a 15-minute signed actor/org token with only an
+internal fingerprint of versions/cost. Preview creates nothing.
+`POST mobile-medication-confirm/` accepts only preview_token, locks/revalidates
+animal/item/lot and review, creates a single-animal sanitary management/entry,
+and invokes existing confirm_cattle_management atomically. Returns health record
+`id` and `management` UUID. Changes/expiry return 409; one concurrent confirmation
+succeeds and the other conflicts. A failure after stock deduction rolls back the
+management, movement and health record. No payable/payment is introduced.
+
+Cost-free clinical health detail now optionally includes `application`: management
+UUID/status, product/lot, stock quantity/unit and withdrawal dates, selecting
+only these related columns. Inconsistent legacy links to another farm or to stock from another organization are excluded. The native `/clinic/medication` requires controller-held
+review binding and fresh session/role checks, blocks replay after an uncertain
+response, and reconciles via the same patient/farm read-only health history.
+No durable idempotency key, offline writes, prescription, multi-animal/batch or
+other-species application is added. Existing confirmed-management cancellation
+rules are unchanged; no automatic reversal action is introduced.
+
+
+### Native cattle reproduction reads
+
+`GET livestock/cattle/animals/mobile-reproduction/` requires `production=beef|dairy`
+and accepts farm UUID, search, page/page_size and `group=all|heifers|cows|lactating|dry|open|covered|pregnant|suckling|calves`.
+It returns a standard paginated operational roster with server today/timezone,
+group codes and summary counts (including females). Counts respect production,
+farm and search but are independent of the selected group; groups can overlap.
+Both group definitions and last mating/ongoing pregnancy/expected birth dates
+reuse the current server selectors. The client must not sum overlapping counts,
+calculate its own prediction or fabricate missing dates.
+
+`GET livestock/cattle/animals/{id}/mobile-reproduction/` requires the same production
+and optional farm scope and adds notes, entry and birth dates. Projections select
+only needed animal/farm/profile columns, no costs or prices. Organization, active
+bovine, production (including dual purpose), farm and allowed bovine species
+remain server-enforced; read-only operators may consult, feeders may not.
+Unavailable/inactive/out-of-context details return 404. No profile or domain record
+is created by reading. Native history reuses the existing paginated operational
+cattle history on demand. Native screens are `/cattle/[production]/reproduction`
+and `/cattle/[production]/reproduction-detail`; mating, pregnancy diagnosis and
+birth writes are not part of this read increment. Legacy web contracts are unchanged.
+
+
+### Native bovine pregnancy diagnosis
+
+`GET livestock/cattle/animals/{id}/mobile-diagnosis/?production=beef|dairy&farm=UUID`
+returns server today/timezone, scoped animal/farm/production/version, explicit
+pending mating UUID/date/version/expected birth and allowed_results. The active
+bovine must be female and covered, with a unique latest-date pending mating and
+no ongoing pregnancy or pregnancy already linked to that mating. Missing/invalid
+expected birth removes positive from available results, never fabricates a date.
+Inactive/out-of-context animals return 404; ineligible/ambiguous state returns 409.
+
+`POST .../{id}/diagnose-pregnancy/?view=mobile&production=beef|dairy&farm=UUID`
+keeps the legacy action and opts into a strict native body: expected_farm,
+expected_mating, animal_version, mating_version, diagnosis_date and result
+(positive|negative). It locks/revalidates the explicit animal/mating and checks
+versions and the date between mating and today. Native transitions are bound to
+that mating UUID rather than silently selecting another event: positive creates
+ongoing pregnancy with the mating start/expected birth and confirms the mating;
+negative restores previous_phase or vazia, clears previous_phase and fails the
+mating. An event records result/date, mating_id and responsible_id from session.
+All writes are atomic, including rollback if event creation fails. Concurrent
+native confirmations yield one success and one conflict. No stock/finance or
+lactation update is introduced; legacy web behavior remains unchanged.
+
+Returns only animal UUID, mating UUID, result and final reproductive status.
+Authorized bovine operators may write; read-only operators/feeders may not.
+The native form reviews result/date, revalidates fresh session/org/context before
+POST and blocks stale or uncertain replay. Its read-only reproduction-history
+route forces fresh GETs, hides cache during fetch/error and permits manual refresh,
+then returns to the same blocked form. No automatic mutation retry, durable key,
+offline draft, diagnosis editing/cancellation or mating/birth form is included.
+
+
+### Reviewed native bovine mating/insemination
+
+`GET livestock/cattle/animals/{id}/mobile-mating/?production=beef|dairy&farm=UUID`
+returns scoped active eligible female/farm/version, server today/timezone,
+earliest birth/entry date and supported natural/ai/iatf types.
+`GET .../mobile-mating-sires/` is a paginated searchable operational roster of
+active male bovines in the same organization, including identifier, farm,
+version and purpose only. Males are not constrained to the female's production
+purpose; a beef bull can be selected for dairy. Read-only operators/feeders
+cannot access this write-specific context/catalog.
+
+POST the existing `{id}/register-mating/` action with view=mobile-preview or
+mobile-confirm. Preview input whitelists expected_farm, animal_version,
+mating_date/type, sire/expected_sire_farm/sire_version (nullable), sire_info,
+expected_diagnosis_date (nullable) and notes. Natural mating requires the active
+male UUID/context and blank sire_info; AI/IATF requires reported origin text
+and no male fields. Date must respect female and selected male birth/entry,
+not be future, and be strictly after previous coverages. Planned diagnosis
+cannot precede mating. Pending coverage/ongoing pregnancy is rejected.
+
+Preview creates no records and returns complete command, scoped animal/sire,
+server birth estimate (existing bovine rule), and 15-minute signed actor/org/
+animal/production review. Versions are canonical UTC ISO timestamps.
+Confirmation accepts only preview_token, locks/revalidates female and male,
+checks review, freezes lactation through the existing cattle profile helper,
+saves previous phase and covered state, creates pending-diagnosis Mating,
+operator ownership and history with session author. All writes roll back on
+failure. Concurrent confirmations create one mating/event and one conflicts.
+Returns id, animal, status=coberta and expected_birth_date. No semen/medicine/
+vaccine stock movement, pregnancy before diagnosis or financial posting occurs.
+The legacy web action remains unchanged.
+
+The native form clears hidden origin fields on type changes, requires a bound
+controller review, revalidates fresh session/organization/permissions and blocks
+uncertain replay. Its read-only reconciliation uses fresh reproduction history
+and preserves the in-memory blocked form. No durable operation key, offline
+queue, mating correction/cancellation or reproductive-vaccine reminder input
+is added. Birth recording is covered by the following increment.
+
+
+### Reviewed native bovine birth
+
+`GET livestock/cattle/animals/{id}/mobile-birth/?production=beef|dairy&farm=UUID`
+returns writable scoped active pregnant female/farm/version, the single ongoing
+pregnancy UUID/version/start/expected date, server today/timezone and earliest
+allowed date. Admin/manager/writable bovine operators only; feeder/read-only
+operators cannot access write metadata. Rejects inconsistent pregnancy/mating
+or foreign-organization sire relationships.
+
+POST existing `{id}/record-birth/` with `view=mobile-preview` accepts only
+expected_farm, animal_version, expected_pregnancy, pregnancy_version, date,
+outcome=alive|stillborn, calf_identifier, calf_gender=M|F|null,
+calf_purpose=beef|dairy|dual|null, optional positive weight_kg (8 digits/2 decimals)
+and notes. Alive requires identifier/sex/purpose; stillborn rejects hidden live
+calf fields. Date respects pregnancy/birth/entry and is not future. Identifier
+must be free in the mother's farm. Review is read-only and returns complete
+command, animal/pregnancy and 15-minute signed actor/org/animal/production token.
+
+`view=mobile-confirm` accepts only preview_token. Locks/revalidates animal,
+pregnancy and mating, versions/context and identifier, then calls the existing
+`record_cattle_birth(..., pregnancy_id=...)` with the explicit pregnancy.
+Optional pregnancy_id preserves the legacy service caller's contract. Existing
+Birth/service rules close pregnancy, increment birth count/promote mother
+category and update lactation state/profile, including the existing stillborn
+lactation behavior. A live calf receives same farm/species/breed, maternal and
+available paternal links, optional weight record and explicit chosen purpose.
+Stillborn creates no live calf/weight record. Operator ownership and session
+author in birth history are transactional; errors roll back all changes.
+Concurrent native confirmations produce one birth and one conflict.
+Returns birth_id, calf_id|null, calf_purpose|null. No stock/financial movement.
+
+Native review is bound to controller/session and complete normalized input.
+Conflict or uncertain commit blocks replay; fresh read-only reproduction
+history supports checking without resubmission. Success links mother and calf
+in the actual selected production segment. No twins, abortion, linking an
+existing calf, correction/cancellation, durable idempotency or offline writes.
+
+
+### Native pasture consultation
+
+Mobile reuses GET `livestock/cattle/pastures/` (farm/search/page/page_size=20)
+and `{id}/` (farm context). Pastures are farm resources shared by beef/dairy;
+there is no production-purpose filter. Existing backend tenant and bovine role
+permissions remain authoritative. Mobile permits read-only bovine operators,
+rejects feeder/unrelated species and validates returned farm/detail identity.
+Existing serializer supplies area, max stocking, availability/reason, notes and
+occupancy indicators. Model decimals arrive as strings; decimal method fields
+may be JSON numbers. Missing stocking/capacity/days remain null, distinct from
+zero. Native consultation uses server values without recomputation, fixed numeric
+pagination, session-bound reads and no mutation/stock/financial endpoints.
+Pasture forms and grazing consultation/mutations are not included in this increment.
+
+
+### Native pasture occupation consultation
+
+GET `livestock/cattle/grazings/mobile/` returns a paginated operational projection.
+GET `{id}/mobile/` returns the same row shape scoped to the requested UUID.
+Both require farm and pasture UUIDs; optional state=all|open|closed and search
+(max 100, batch code/name) filter consultation. List uses numeric page/page_size
+and stable descending entry/creation/UUID ordering. Existing legacy list/create/
+close contracts remain unchanged. No schema migration.
+
+Requires admin/manager/bovine operator, including read-only operator; rejects
+feeder and unrelated species. The pasture must belong to the requested farm and
+organization. Rows also require bovine batches in that same farm/organization,
+excluding inconsistent foreign relationships. Shared pasture history has no
+production filter; closed history retains inactive/sold batches.
+
+Projection: id, farm/farm_name, pasture/pasture_name, batch/batch_code,
+batch_purpose, batch_status, current_quantity, entry_date, nullable exit_date,
+notes. Quantity/purpose/status are current batch values, not historical snapshots.
+Open means exit_date is null, not that the batch remains active. Explicit joined
+projection excludes financial fields and avoids per-row queries. Native clients
+validate farm/pasture/detail identity, preserve dates/zeros, discard reads after
+logout and link to the batch's actual current production purpose. Unknown purpose
+has no potentially incompatible batch link. No mutations, stock/financial reads,
+occupation entry/exit/transfer, historical headcount reconstruction or offline writes.
+
+
+### Reviewed native pasture entry
+
+Manager/admin only, preserving the existing grazing create restriction.
+GET `livestock/cattle/grazings/mobile-entry-options/?farm=UUID&pasture=UUID`
+returns eligible scoped pasture identity/farm/version/availability and server
+current day/timezone. Resting/blocked pastures return conflict. GET
+`mobile-entry-batches/` accepts same scope plus search and numeric pagination;
+returns active positive-count bovine batches of the same farm with no open
+occupation, explicit purpose, version, entry date and last exit. Includes all
+production purposes because pastures are shared. No financial projection.
+
+POST `mobile-entry-preview/` accepts only farm, pasture, pasture_version,
+batch, batch_version, entry_date and notes (max 2000). Revalidates tenant,
+availability, active/positive batch, no open occupation, versions and date
+between batch entry/latest exit and today. Returns complete command, pasture,
+batch, earliest_date and 15-minute signed actor/org/intention review; no writes.
+POST `mobile-entry-confirm/` accepts only preview_token, revalidates role and
+review, locks batch then pasture, compares versions and bounded history digest
+(count/latest update/creation), and reuses transactional enter_cattle_pasture.
+Service locking projection now loads only id/entry_date and id/availability;
+legacy create/close request behavior stays unchanged. No schema migration.
+Returns id, farm, pasture, batch and entry_date. Concurrent confirmations yield
+one 201 and one 409. Errors roll back the occupation. No stock/finance writes,
+composition change, implicit exit, transfer or new maximum-capacity enforcement.
+
+Mobile refreshes session/org/role, requires held normalized review and consumes
+it before confirmation. Unknown network/408/5xx/invalid receipt blocks replay;
+known conflict also blocks and directs to fresh read-only occupations, hiding
+cached content during reconciliation fetch/error. Success links to new occupation.
+Fields are in memory only; no durable idempotency, automatic retry or offline queue.
+
+
+### Reviewed native pasture exit
+
+Manager/admin only, preserving grazing write roles. GET
+`livestock/cattle/grazings/{id}/mobile-exit-options/?farm=UUID&pasture=UUID`
+returns open occupation with version and operational linked identities/current
+batch context, server today/timezone. Tenant/farm/pasture/bovine batch relations
+are scoped as in native grazing reads. Sold/inactive/empty batches and resting/
+blocked pastures may still have their existing occupation closed.
+
+POST existing `{id}/close/?view=mobile-preview` accepts farm, pasture,
+grazing_version and exit_date only. Date is between occupation entry and today.
+Returns read-only occupation/command and signed 15-minute actor/org/occupation/
+intention review. `view=mobile-confirm` accepts only preview_token, verifies URL
+occupation identity, locks/rechecks open occupation, scope/version, current
+batch/pasture context digest and day, then calls close_cattle_pasture.
+This service extracts the existing legacy close rule (open and exit >= entry);
+the legacy DateField still rejects future dates and legacy response is unchanged.
+No schema change. Receipt: id, farm, pasture, batch, exit_date. Concurrent native
+confirmations produce one 200 and one 409; failures roll back exit_date.
+No quantity/status changes, destination occupation, stock/financial movements
+or implicit transfer. Native client revalidates session/org/manager role, holds
+complete review, consumes it before POST and blocks conflict/unknown replay.
+Fresh read-only occupation history supports reconciliation; success dismisses
+to the existing occupation detail. No offline queue, durable idempotency or retry.
+
+
+### Native pasture forms and versioned saves
+
+Manager/admin only. GET `livestock/cattle/pastures/mobile-form-options/?farm=UUID`
+returns the own-organization farm identity/name. GET `{id}/mobile-form/?farm=UUID`
+returns id, farm/farm_name, canonical UTC version and mutable name, area_ha,
+nullable max_stocking_ua_ha, availability, availability_reason, notes. Farm/detail
+identity is validated by mobile; form metadata does not load batch financial data.
+
+POST `pastures/?view=mobile` creates, PATCH `{id}/?view=mobile` edits. Both accept
+only farm and complete mutable fields; editing additionally requires
+expected_version. Strict input rejects occupancy/UI fields. Area uses positive
+Decimal(10,2); stocking positive nullable Decimal(8,2), reason max 255, name max
+100, notes retain the existing unbounded text contract. Existing serializer
+validates own tenant, immutable farm, unique farm/name, required restriction
+reason and no active-batch open occupancy before resting/blocking. Edits lock
+pasture and compare version transactionally; native entry takes that same
+pasture lock, preventing simultaneous restriction and entry from both committing.
+Concurrent edits using one version yield one 200 and one 409. Create returns
+201; receipt id/farm/version only. Concurrent unique-name conflict is translated
+to 409. Legacy POST/PATCH retain the existing full response/payload; no migration.
+
+Mobile requires explicit selected farm for creation, revalidates session/org/
+manager permission and preflights current edit version. Decimal comma normalizes
+to exact string, blank stocking becomes null, existing notes/reason persist.
+Known validation preserves fields; stale edit and unknown network/408/5xx/invalid
+receipt block submission. Reconciliation forces fresh read-only pasture list/
+detail and hides prior cache while fetching/failing; returning keeps form blocked.
+No automatic mutation retry, durable idempotency, offline queue or stock/finance
+changes. Success opens saved pasture detail. Occupation transfer remains separate.
+
+
+### Native collective management consultation
+
+Manager/admin only, preserving existing collective management permissions.
+GET `livestock/cattle/managements/mobile/` accepts required production=beef|dairy,
+optional farm UUID, kind=all|weighing|sanitary|castration,
+status=all|draft|confirmed|cancelled, search (description/responsible, max 100)
+and numeric pagination. Stable descending date/creation/UUID order. A management
+matches a segment if any participant has that current purpose or dual. Rows
+contain id, farm/farm_name, kind, date, description, responsible, status,
+participant_count (whole management) and segment_count (matching segment).
+
+GET `{id}/mobile/` returns scoped detail plus treatment_type, notes,
+next_procedure_date, milk/meat_withdrawal_until, confirmed_at,
+cancellation_reason, follow_up_status/note/resolved_at and server timezone.
+Recorded withdrawal/follow-up information is consultation, not a new clinical
+recommendation. GET `{id}/mobile-participants/` takes the same segment/farm
+scope plus participant_search and numeric pagination. Returns id, animal,
+identifier, farm, current cattle_purpose/status and nullable recorded weight_kg.
+Participants span all purposes in the management; they are not silently reduced
+to the selected segment. Current purpose controls native animal links; dual
+preserves origin and unknown has no incompatible destination.
+
+Only same-organization managements with valid same-farm bovine participants
+are exposed; inconsistent participant relationships hide the management.
+Participant queries additionally retain own farm/species scope. Queries use
+explicit joined projections/aggregate counts without cost/stock valuation or
+per-row fetches. Legacy GET and medication actions are unchanged; no schema
+change, mutations or stock/financial reads. Mobile validates response identity/
+farm/filter/counts, follows fixed page endpoints, handles errors without stale
+content and discards reads after logout. Management draft forms/confirmation/
+cancellation/follow-up resolution and the advanced operations workspace remain
+outside this consultation increment.
+
+
+### Native collective weighing draft creation
+
+Manager/admin only. GET `livestock/cattle/managements/mobile-weighing-options/`
+requires own farm UUID and production=beef|dairy; returns scoped farm, production,
+server today/timezone and max_participants=1000. GET `mobile-weighing-animals/`
+accepts same scope plus numeric pagination/search (identifier/profile name),
+returns active same-farm bovines matching current purpose or dual, with id,
+identifier, farm, purpose, nullable entry_date and canonical UTC version. Explicit
+projection excludes animal prices/current weight and avoids per-row queries.
+
+POST `mobile-weighing-drafts/` accepts only farm, production, date, description
+(max 200), responsible (max 100, blank allowed), notes and 1–1000 unique entries
+of animal UUID, animal_version and positive weight_kg Decimal(8,2). Date cannot
+be future or precede a known participant entry. After fresh role/tenant checks,
+scoped active bovines are locked in UUID order; versions, purpose, farm/species,
+identity count and dates are revalidated. Creates CattleManagement kind=weighing,
+status=draft, created_by=session user and all entries atomically, with existing
+model defaults for other fields. Failure rolls back whole draft. No schema or
+legacy serializer/confirmation changes. Receipt id/farm/kind/status/date/count.
+No WeightRecord/current-weight change, stock/financial movement or confirmation.
+
+Native form virtualizes selected rows, preserves per-animal weights across
+selection/removal, validates decimal comma and chronology, and refreshes session/
+org/manager permission before POST. Known errors retain fields; stale context or
+unknown network/408/5xx/invalid receipt freezes submission and offers fresh scoped
+read-only management consultation. Success opens draft detail/participants.
+Creation has no durable idempotency or automatic retry; identical drafts remain
+possible under the existing contract and unknown outcomes must be checked before
+any new creation. No offline queue, collective confirmation/editing/cancellation
+or other management-kind forms are added by this increment.
+
+
+### Reviewed native weighing confirmation
+
+Manager/admin only. GET
+`livestock/cattle/managements/{id}/mobile-weighing-review/?farm=UUID&production=beef|dairy`
+validates a draft weighing management without inventory linkage. Requires at
+least one current selected-purpose/dual participant, while reviewing/confirming
+all 1–1000 participants across purposes. All animals must be active bovines of
+that own-organization farm; weights positive and management date valid for each
+known entry and not future. Operational projection includes management description,
+responsible/notes/date/count, all animal identities/purposes and recorded weight,
+latest weight date/value and updates_current (no latest or date >= latest date).
+Latest weights are authoritative for chronology, not a guessed current value.
+
+Review has no writes. Signed token expires after 15 minutes and binds actor/org/
+management/farm/production plus digest of management/version, entry weights/
+versions, animal context/versions and latest weight identities/date/value/creation.
+POST existing `{id}/confirm/?view=mobile-weighing` accepts only preview_token,
+checks URL identity, locks management then animals in stable UUID order, reads
+weight snapshots in a separate statement after acquiring animal locks, and
+revalidates whole digest. Calls existing confirm_cattle_management with opt-in
+weighing_only=True: minimal projections, no stock branch, same weight history/
+current chronology/status/confirming user/time behavior. No legacy or medication
+behavior change, no schema migration, stock/finance effects or client field writes.
+Receipt id/farm/status=confirmed/participant_count/confirmed_at.
+
+Atomic rollback covers all weight records/current weights and management status.
+Concurrent native confirms yield one 200/one 409; native versus legacy sharing
+the service lock never duplicates effects (legacy retains successful idempotent
+response for an already confirmed record). Native replay conflicts. Client
+requires controller-held complete review with current session/manager authorization
+and consumes it before POST. Conflict/unknown network/408/5xx/invalid receipt
+blocks replay and opens fresh read-only management detail. Success dismisses to
+the existing detail and invalidates weights/history/overview. Review uses a
+virtualized list and fixed action; no offline queue or automatic mutation retry.
+
+
+### Native weighing draft editing and cancellation
+
+Manager/admin only. GET
+`livestock/cattle/managements/{id}/mobile-weighing-edit/?farm=UUID&production=beef|dairy`
+returns weighing draft identity/version, farm/production/server day/timezone/limit
+and complete date/description/responsible/notes/entries. Entries contain existing
+animal identity/purpose/status/entry/version and recorded weight (missing weight
+is an empty input, never zero). Mixed-purpose participants are retained, including
+inactive animals that must be removed before saving. Inactive participants do
+not prevent cancellation. Invalid foreign-farm/species relationships are rejected.
+
+PATCH existing `{id}/?view=mobile-weighing` accepts complete native weighing
+input plus expected_version. Farm/type remain fixed. Locks draft management,
+checks version and all selected active same-farm bovines/versions/date/unique
+positive weights (max 1000), allowing existing other-purpose participants while
+requiring at least one selected-purpose/dual participant. Replaces entries in
+one transaction with metadata update; rollback preserves previous entries and
+fields. Does not create WeightRecord or change current animal weights. Receipt
+id/farm/kind=weighing/status=draft/date/participant_count.
+
+POST existing `{id}/cancel/?view=mobile-weighing` accepts only farm, production,
+expected_version and trimmed reason (1–300 chars). Locks same draft management,
+checks version and sets cancelled/cancellation_reason/updated_at while preserving
+entries and original author. Receipt id/farm/status=cancelled/cancellation_reason.
+Confirmed or cancelled managements conflict. Edit/cancel versus confirmation
+share management lock: only one conflicting operation can commit, so confirmed
+weights cannot be edited or undone. Legacy PATCH/cancel payload/behavior unchanged;
+no schema change or stock/financial effects.
+
+Native maintenance refreshes session/org/manager access, retains fields after
+validation, validates response identity and freezes stale/unknown outcomes. A
+fresh read-only detail supports reconciliation without resubmission. Successful
+edit/cancel returns to existing detail; final cancellation action is destructive
+and requires a reason. No automatic retry, offline queue or replay of unknown
+results; other management kinds and advanced operations remain separate work.
+
+
+### Native collective castration draft creation
+
+Manager/admin only. GET `livestock/cattle/managements/mobile-castration-options/`
+requires own farm UUID and production=beef|dairy and returns farm/production,
+server today/timezone and max_participants=1000. GET `mobile-castration-animals/`
+adds numeric pagination/search and returns active same-farm male bovines of
+selected current purpose/dual not marked as castrated. Includes existing animal
+identity/entry/version/status plus gender=M/is_castrated=false. A missing profile
+uses existing domain default false without creating a profile. Joined/coalesced
+projection excludes prices/weights and avoids per-row profile reads.
+
+POST `mobile-castration-drafts/` accepts farm, production, date, description
+(max 200), responsible (max 100), notes and 1–1000 unique entries of animal UUID/
+version only. Strict input rejects weights, costs, inventory and unrecognized
+clinical fields. Locks scoped eligible animals in UUID order and re-reads
+eligibility after lock acquisition, then validates count/versions and date
+between known animal entry and today. Creates CattleManagement kind=castration,
+status=draft, session author and entries with null weights atomically. Failure
+rolls back all draft records; no profile, history event, weight or stock/financial
+effects. Existing models/legacy endpoints remain unchanged; no migration.
+Receipt id/farm/kind/status/date/participant_count.
+
+Native form uses paged selection and virtualized chosen rows, retains fields on
+known validation, refreshes session/org/manager permission before POST and
+validates draft receipt. Conflict or unknown network/408/5xx/invalid receipt freezes
+submission and offers fresh scoped read-only management consultation. No automatic
+confirmation, mutation retry, offline queue or durable creation idempotency;
+unknown outcomes must be checked before any new draft. Castration confirmation/
+editing/cancellation and sanitary management forms remain separate increments.
+
+
+### Reviewed native collective castration confirmation
+
+Manager/admin only. GET
+`livestock/cattle/managements/{id}/mobile-castration-review/?farm=UUID&production=beef|dairy`
+reviews the entire own-farm draft, requiring at least one selected-purpose/dual
+participant while including all purposes in the operation. Requires 1–1000 active
+same-farm bovine males not already marked castrated, no entry weights/inventory
+linkage and valid dates. Returns management identity/description/date/responsible/
+notes/count, all participant identities/purposes/gender=M/is_castrated=false and
+a signed 15-minute actor/org/management/farm/production review token. Digest binds
+management/entry/animal versions and profile identity/version or absence. Preview
+creates no profile/event or other records.
+
+POST `{id}/confirm/?view=mobile-castration` accepts preview_token only, verifies
+URL identity and authorization, locks management then animals in UUID order and
+existing profiles, then re-reads state in a new statement before digest check.
+Calls existing confirm_cattle_management(castration_only=True), which uses
+operational projections and record_cattle_event(castration_only=True), retaining
+male/already-castrated safeguards, profile creation defaults and history behavior.
+Marks profiles, creates one Castração event per participant and confirms the
+management/user/time atomically. Errors roll back all profiles/events/timestamps/
+status. No weight/health record or stock/financial changes. Legacy, weighing and
+medication paths retain previous behavior; no schema migration.
+
+Receipt id/farm/status=confirmed/participant_count/confirmed_at. Native concurrent
+confirmation yields one 200/one 409; legacy shares management lock and keeps its
+idempotent response. Distinct drafts covering the same animals serialize on
+animal locks; after the first confirmation the other conflicts rather than
+recording duplicate castration. Native client requires retained complete review
+and refreshed session/org/manager capability, consumes token before POST and
+blocks conflict/unknown network/408/5xx/invalid receipt replay. Fresh read-only
+management detail supports reconciliation; success dismisses to confirmed detail.
+No automatic retry/offline queue or clinical procedure advice; castration draft
+maintenance and sanitary forms remain separate increments.
+
+
+### Native castration draft maintenance
+
+GET `{id}/mobile-castration-edit/?farm=UUID&production=beef|dairy` returns
+version, form values and all draft participants, including other purposes and
+currently ineligible participants. Manager/admin and tenant/farm/segment guards
+apply. PATCH `{id}/?view=mobile-castration` accepts the full no-weight command
+plus `expected_version`. Existing mixed participants are preserved explicitly;
+saving requires eligible active uncastrated males and at least one participant
+matching the route purpose. Entries and metadata are replaced atomically.
+
+POST `{id}/cancel/?view=mobile-castration` accepts farm, production,
+expected_version and a required reason (1–300 characters). Ineligible draft
+participants do not prevent cancellation. Confirmed/cancelled records cannot be
+edited or cancelled. Both writes serialize with confirmation on the management
+row; stale versions return 409. No animal/profile/history/weight/stock effects,
+schema changes or changes to legacy/default weighing contracts. Native conflict
+or uncertain responses freeze the form and require fresh read-only detail;
+no automatic retry or offline queue.
+
+
+### Native sanitary follow-up resolution
+
+GET `{id}/mobile-follow-up/?farm=UUID&production=beef|dairy` returns
+`record` (operational detail), `version` and `production`. Source must be a
+confirmed sanitary management with next_procedure_date and pending follow-up.
+GET `{id}/mobile-follow-up-executions/` uses the same scope plus search/page:
+only other confirmed sanitary managements on the same farm dated on/after the
+source and covering every original participant, including mixed purposes.
+Results are paginated operational summaries without stock valuation.
+
+POST `{id}/resolve-follow-up/?view=mobile-follow-up` accepts exactly farm,
+production, expected_version, status (done|cancelled), note (trimmed, 1–500)
+and execution (UUID for done; null for cancelled). Manager/admin and tenant,
+farm, segment and participant guards apply. Locks source/execution in UUID
+order, rechecks source/version/candidate and calls existing resolve_follow_up
+atomically. Stale/resolved source returns 409; no clinical/stock effects are
+repeated. Cancelling the follow-up does not cancel the confirmed management.
+Receipt: id, farm, follow_up_status, follow_up_note, execution. No schema change;
+legacy endpoint semantics including its idempotent response stay unchanged.
+Native session/org/role refreshed before write; singleflight and strict receipt
+checks. Conflict/unknown result freezes the form and opens fresh read-only
+detail without replay, automatic retries or an offline mutation queue.
+
+
+### Native documentary sanitary drafts
+
+GET `cattle/managements/mobile-sanitary-options/?farm=UUID&production=beef|dairy`
+returns farm, production, today, timezone, max_participants=1000. GET
+`mobile-sanitary-animals/` uses the same scope plus search/page; only active
+bovines matching the farm/purpose (including dual), regardless of sex.
+
+POST `mobile-sanitary-drafts/` accepts farm, production, date, description
+(1–200), responsible (0–100), notes (0–2000), treatment_type (exam|surgery|other),
+nullable next_procedure_date/milk_withdrawal_until/meat_withdrawal_until, and
+1–1000 unique entries {animal, animal_version}. Rejects unknown fields, weights,
+medication type, stock and cost input. Dates optional >= management date;
+management date <= today and >= each known participant entry date.
+Manager/admin and tenant/farm/purpose guards; stable animal locks and a fresh
+eligibility/version read before atomic management+entry creation. Returns
+id/farm/kind=sanitary/status=draft/date/participant_count. No health/history,
+weight/profile, withdrawal application, stock or financial effects at creation.
+No migrations or legacy changes. Confirmation and medication-with-stock are
+separate increments. Native refreshed auth/org/role, strict receipt validation,
+no mutation retry/offline queue. Conflict/unknown outcomes freeze the form and
+require fresh read-only lookup; creation has no durable idempotency key.
+
+
+### Native documentary sanitary confirmation
+
+GET `{id}/mobile-sanitary-review/?farm=UUID&production=beef|dairy` returns
+whole-draft participant review, treatment_type, next procedure/withdrawal dates
+and preview_token (signed 15 minutes). Manager/admin, tenant/farm/segment,
+draft sanitary exam|surgery|other, zero cost, no stock link/quantity/movement,
+1–1000 active bovines, chronology and no weights required. Rejects usable milk
+in the inclusive milk withdrawal period. Token binds actor/org/id/scope and
+digest of metadata, entries, animal versions/entry dates and current day.
+
+POST `{id}/confirm/?view=mobile-sanitary` accepts preview_token only. Locks
+management then participant animals in stable order, re-reads eligibility and
+milk constraints, compares digest and calls existing confirmation with opt-in
+`documentary_only=True`. Operational projection creates HealthRecord per animal
+at zero cost and confirms management/actor/time atomically; no stock/history/
+weight/profile effects. Existing default, castration, weighing and medication
+paths preserved. Receipt id/farm/status=confirmed/participant_count/confirmed_at.
+Native repeated confirmation returns 409; legacy retains idempotent response.
+Same-management concurrent native/web confirmations apply once. Separate sanitary
+managements remain separate records. Native retains complete review in current
+session, refreshes auth/org/role, consumes token before sending, validates receipt
+and freezes conflict/unknown result; fresh read-only detail supports reconciliation.
+No automatic retry, offline queue, schema migration or medication-with-stock flow.
+
+
+### Native documentary sanitary draft maintenance
+
+GET `{id}/mobile-sanitary-edit/?farm=UUID&production=beef|dairy` returns
+options, id/version, full documentary values (blank strings for absent dates)
+and all participant metadata, including mixed purposes and inactive animals.
+Only manager/admin, scoped draft sanitary exam|surgery|other with zero cost and
+no stock link/movement/quantity. Full metadata limited to 1–1000 weightless entries.
+
+PATCH `{id}/?view=mobile-sanitary` accepts full documentary creation input plus
+expected_version. Locks management then active participant animals in stable order,
+re-reads eligibility/version, requires at least one route-purpose/dual participant
+and permits preserving other-purpose participants on the same farm. Replaces
+metadata/entries atomically. Receipt id/farm/kind=sanitary/status=draft/date/count
+(participant_count). Changing management version invalidates retained review tokens.
+
+POST `{id}/cancel/?view=mobile-sanitary` accepts only farm, production,
+expected_version, reason (trimmed 1–300). May close drafts with inactive participants;
+keeps entries and does not undo confirmed sanitary effects. Same draft guards,
+management lock and version check; concurrent confirmation serializes with either
+write. Stale/closed records return 409. Receipt id/farm/status=cancelled/
+cancellation_reason. No stock, health, weight, event, profile or financial writes,
+no schema changes and no modifications to legacy/default maintenance contracts.
+Native refreshed auth/org/role, singleflight and strict scope/receipt checking;
+unknown/conflict freezes form, fresh read-only detail, no automatic retry/offline queue.
+
+
+### Native collective medication drafts with stock linkage
+
+POST `cattle/managements/mobile-collective-medication-drafts/` accepts the
+sanitary documentary creation scope/metadata/date fields and unique versioned
+participants, with treatment_type=medication, inventory_lot, expected_unit and
+quantity (positive decimal, max 10 digits/2 places, per animal). No costs/weights.
+Uses existing paginated sanitary animal and medication lot catalogs.
+
+Manager/admin, tenant/farm/production, active bovines and animal versions required.
+Stable animal locks then product/lot locks; fresh eligibility and date checks
+(including birth/entry) and authoritative medication product/category/unit/tenant,
+receipt/expiry, withdrawal and stock checks reused from individual medication.
+Total quantity is per-animal quantity times participant count, must fit movement
+precision and current balance/cost bounds. No usable milk in the inclusive
+withdrawal period for any participant. Creates sanitary medication draft, lot
+link, per-animal quantity, creator and weightless entries atomically. Receipt
+id/farm/kind=sanitary/status=draft/date/participant_count/inventory_lot/unit/
+total_quantity (two decimal places). No stock reservation/consumption, withdrawal
+activation, health records or financial effects. Concurrent/following drafts may
+reference the same unreserved balance; confirmation must revalidate and remains
+separate. Legacy/individual/documentary paths unchanged; no migration.
+
+Native exact total calculation, strict receipt identity/unit/total, refreshed
+session/org/manager access and singleflight. Known errors preserve fields;
+conflict/unknown outcome freezes submit and opens fresh read-only management lookup.
+Creation has no durable idempotency key; no automatic retry/offline queue.
+
+
+### Native stock-linked collective medication confirmation
+
+GET `{id}/mobile-collective-medication-review/?farm=UUID&production=beef|dairy`
+returns full participant/metadata/date review plus lot (operational medication
+DTO), quantity per animal, total_quantity, remaining, minimum_withdrawal and
+preview_token. No effects/reservation. Manager/admin, tenant/farm/segment,
+1–1000 unique active bovines including mixed purposes, weightless draft sanitary
+medication with positive stock quantity and zero explicit per-animal cost.
+Validates chronology, medication category/unit/receipt/expiry, total stock/cost
+bounds and inclusive milk/meat withdrawal rules/usable milk for every animal.
+
+POST `{id}/confirm/?view=mobile-collective-medication` accepts preview_token only.
+Signed 15-minute actor/org/id/scope intent binds metadata/entries/animal versions,
+product/lot versions, unit/balance/internal cost and day. Locks management,
+animal UUIDs in order, product then lot; re-reads and compares digest. Changed
+review returns 409. Calls existing confirm_cattle_management(medication_only=True)
+with operational projections, existing stock consumption and zero explicit health
+cost: total stock movement/cost snapshot, per-animal HealthRecord and management
+confirmation/actor/time commit atomically. No separate payment/title. Entire
+operation rolls back on failure. Legacy/default/documentary/weighing/castration
+paths unchanged; no schema migration.
+
+Receipt id/farm/status=confirmed/participant_count/confirmed_at. Same-management
+concurrent native/web confirmations apply once (legacy idempotent response kept).
+Different drafts sharing stock invalidate a stale balance review rather than
+silently consuming against different reviewed stock. Native retained complete
+review/current epoch, refreshed session/org/role, decimal consistency/receipt
+checks, token consumed before POST, unknown/conflict freeze and fresh read-only
+reconciliation; no automatic retry, offline queue or token replay.
+
+
+### Native stock-linked collective medication draft maintenance
+
+GET `{id}/mobile-collective-medication-edit/?farm=UUID&production=beef|dairy`
+returns options, id/version, full values (medication type, quantity per animal,
+blank strings for absent dates), current operational lot DTO and all participants.
+Manager/admin, tenant/farm/segment, weightless draft sanitary medication with
+stock linkage/positive quantity, zero explicit cost and no stock movement.
+Includes inactive participants and exhausted/inactive same-tenant lots so the
+user can correct or cancel. No costs or other-tenant lot data returned.
+
+PATCH `{id}/?view=mobile-collective-medication` accepts full collective medication
+creation command plus expected_version. Preserves mixed participants explicitly;
+requires same-farm active/versioned animals and at least one route-purpose/dual.
+Locks management, animals in UUID order, product/lot, re-reads eligibility and
+validates total stock/unit/category/dates/withdrawal/usable milk through shared
+stock_review. Replaces metadata, lot/per-animal quantity and entries atomically.
+Receipt matches creation including inventory_lot/unit/total_quantity. Does not
+reserve/consume stock or activate clinical effects. Version change invalidates
+old signed confirmation reviews.
+
+POST `{id}/cancel/?view=mobile-collective-medication` accepts only farm,
+production, expected_version, reason (trimmed 1–300). Same draft guards, with
+inactive animals/unavailable stock allowed. Preserves entries and does not return
+stock or undo confirmed effects. Locks management/version; concurrent confirmation
+serializes with maintenance (one success, one 409). Confirmed/cancelled immutable.
+Receipt id/farm/status=cancelled/cancellation_reason. No stock/health/financial
+writes, schema migrations or legacy changes. Native refreshed auth/org/role,
+singleflight, strict metadata/receipt scope and totals; unknown/conflict freeze,
+fresh read-only detail and no automatic retry/offline queue.
+
+
+### Native whole-batch pasture transfer
+
+GET `cattle/grazings/{id}/mobile-transfer-options/?farm=UUID&pasture=UUID`
+returns open occupation/version, batch_version, today/timezone; active positive
+bovine batch required. GET `{id}/mobile-transfer-destinations/` adds search/page,
+returns paginated entry-pasture DTOs for other same-farm unknown/available pastures.
+Destination search is not applied to source-occupation lookup. Manager/admin,
+tenant/farm/source scope enforced. No effects at options/catalog/preview.
+
+POST `{id}/mobile-transfer-preview/` accepts exactly farm, pasture (source),
+grazing_version, batch_version, destination, destination_version, date, notes
+(trimmed max 2000). Requires distinct released same-farm destination, active
+positive batch, latest open source, no other open occupation and date between
+batch/source/history lower bounds and today. Returns occupation, destination,
+batch_version, earliest_date, command and signed 15-minute preview_token. Digest
+binds actor/org/source/command, both pasture versions, batch/version/current heads,
+occupation/version, history and day. No partial batch or cross-farm transfer.
+
+POST `{id}/mobile-transfer-confirm/` accepts preview_token only. Locks batch,
+both pastures in UUID order, then source occupation; re-reads and compares digest.
+Existing close_cattle_pasture and enter_cattle_pasture run in one transaction:
+source exit and destination entry on the same date, preserving batch headcount.
+Any destination failure rolls back source exit/new occupation. Receipt (201):
+id (new occupation), source, farm, pasture (destination), batch, entry_date,
+exit_date. Stale/closed/replayed context conflicts (409). Same-source competing
+transfer/close cannot produce duplicate active occupation; opposite-direction
+transfers of different batches use stable pasture lock order. No schema changes,
+stock/financial effects or changes to legacy entry/exit semantics.
+
+Native refreshed auth/org/role, retained complete review/epoch and consumed token,
+strict receipt/new occupation identity, no retry/offline queue or replay. Unknown
+or conflict freezes the form; fresh read-only source detail and destination
+history support reconciliation. History propagates reconcile=1 to detail,
+which suppresses exit/transfer actions and hides stale content while fetching.
+
+
+### Native cattle operation reads
+
+GET `cattle/operations/{kind}/?view=mobile&production=beef|dairy` supports only
+occurrences, purpose-history, transfers; optional farm/search/status=all|open|done
+and page. Uses existing bounded pagination (10 default, max 100). GET
+`cattle/operations/{kind}/{id}/mobile/` uses the same scope and projection for
+detail. Other native kinds (including costs) rejected; legacy reads unchanged.
+No mutation added in this increment. No schema changes.
+
+Authorizes admin/manager/operator with bovine access; feeder denied. Transfers
+remain manager/admin-only. Root farm must belong to tenant; related bovines and
+source/destination batches must match root farm/species. Occurrence task must
+belong to tenant, match farm or have no farm, with same-tenant/null assignee.
+Farm-area occurrences are shared across production; targeted occurrences follow
+current purpose/dual. Resolution filter uses resolved_at, independent of task
+status. Classification history matches previous OR recorded purpose (including
+outgoing classification), returns current target purpose for correct navigation.
+Transfers match either current source/destination purpose. Detail repeats guards.
+
+DTO common id/tab/farm/farm_name/date/author/timezone. Occurrences add target
+(nullable animal/batch DTO), kind, description, due_date, assigned_to, task status,
+resolution/resolved_at. Purpose-history adds target, previous, purpose. Transfers
+add source/destination batch DTOs, quantity/reason. Target DTO id/kind/identifier/
+purpose. Explicit related projections never select purchase values or transfer
+snapshots. Native contracts verify tab/farm/id/production/resolution filters;
+fixed endpoint pagination, typed loading/empty/error/access states and safe links
+using current target purpose. No automatic writes or extra financial permissions.
+
+
+### Native operational occurrence creation and resolution
+
+GET `cattle/operations/occurrence-options/?view=mobile&farm=UUID&production=beef|dairy`
+returns farm, production, today/timezone and actor id/name. GET occurrence-members/
+and occurrence-targets/ use the same scope with search/page; targets require
+target_kind=animals|batches, return operational id/kind/identifier/farm/purpose/
+status/version. Current bovine purpose/dual and farm enforced; inactive targets
+remain eligible for historical documentation. Members active/same-tenant; operator
+sees self only. Writable cattle access required (operator read-only denied).
+
+POST `cattle/operations/occurrences/?view=mobile` accepts exactly farm,
+production, kind (animal|water|fence|pasture|other), date<=today, due_date>=date,
+description (trimmed 1–1000), assigned_to, target_kind (farm|animals|batches),
+target and target_version (both null for farm, both required otherwise). Operator
+may assign only self. Locks assignee with no-key update lock, target/version;
+existing create_occurrence atomically creates occurrence and linked Agenda task.
+Receipt (201) id/task/farm. No clinical/stock effects or priority injection.
+No durable creation idempotency key; unknown outcome must not be resubmitted.
+
+GET `cattle/operations/occurrences/{id}/mobile-resolve/?farm=UUID&production=...`
+returns record/task/context_token, only for unresolved records the actor can
+resolve. Native occurrence DTO adds can_resolve (false for read-only/unowned
+operator). POST same resource accepts farm/production/context_token/resolution
+(trimmed 1–1000). Signed 15-minute context binds actor/org/id/scope and occurrence/
+task digest including versions, task state/assignee/farm/org. Locks occurrence
+then task, re-reads authorization/context and calls resolve_occurrence atomically:
+record resolution/resolver/time and linked task status=done. Changed/resolved
+context returns 409; operator only creator/assignee, manager/admin otherwise
+scoped. Receipt id/farm/task/resolved_at/resolution/status=done. Legacy behavior
+including idempotent resolution response preserved; no migrations.
+
+Native fresh session/org/capability preflight, singleflight and strict receipts;
+retained resolution context consumed before POST. Unknown/conflict freezes form,
+fresh read-only list/detail reconciliation with mutation actions suppressed.
+Creation validation preserves fields; no automatic retry/offline queue or replay.

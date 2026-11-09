@@ -1,3 +1,4 @@
+import {WorkspaceShell} from '../workspace/WorkspaceShell';
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { organizationDay } from '../workspace/contracts';
 import { FarmContextButton } from '../workspace/FarmContextButton';
@@ -8,14 +9,14 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../auth/AuthProvider';
 import { agendaQuerySchema, canReadAgenda, taskWriteAccess, daySchema, shiftDay, type AgendaQuery, type agendaPageSchema } from './contracts';
 import { agendaMessages, agendaLabel } from './messages';
-import { AgendaButton, AgendaShell, Busy, styles as s } from './ui';
+import { AgendaButton, Busy, styles as s } from './ui';
 import type { z } from 'zod';
 import { taskFormMessages } from './formMessages';
 export function AgendaScreen() {
-  const {controller,language}=useAuth();const t=agendaMessages[language];const router=useRouter();const [retry,setRetry]=useState(0);
+  const {controller,language}=useAuth();const t=agendaMessages[language];const [retry,setRetry]=useState(0);
   const load=useCallback((signal:AbortSignal)=>controller.agendaOptions(signal),[controller]);const options=useRead(String(retry),load);
-  if(options.loading)return <AgendaShell title={t.title} backLabel={t.back} onBack={()=>router.canGoBack()?router.back():router.replace('/')}><Busy label={t.loading}/></AgendaShell>;
-  if(options.failed||!options.data)return <AgendaShell title={t.title} backLabel={t.back} onBack={()=>router.canGoBack()?router.back():router.replace('/')}><View style={s.content}><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>setRetry(v=>v+1)}/></View></AgendaShell>;
+  if(options.loading)return <WorkspaceShell active="agenda" title={t.title}><Busy label={t.loading}/></WorkspaceShell>;
+  if(options.failed||!options.data)return <WorkspaceShell active="agenda" title={t.title}><View style={s.content}><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>setRetry(v=>v+1)}/></View></WorkspaceShell>;
   return <AgendaContents timezone={options.data.timezone}/>;
 }
 function AgendaContents({timezone}:{timezone:string}) {
@@ -44,10 +45,9 @@ function AgendaContents({timezone}:{timezone:string}) {
       .then(data=>{if(active)setResult({key:requestKey,data,failed:false});}).catch(()=>{if(active)setResult({key:requestKey,data:null,failed:true});});
     return ()=>{active=false;abort.abort();};
   },[controller,allowed,date,end,domain,page,recorded,requestKey,farm]));
-  const back=()=>router.canGoBack()?router.back():router.replace('/');
   const changeDate=(value:string)=>{setDate(value);setDraft(value);setInvalid(false);setPage(1);};
   const format=(day:string)=>new Intl.DateTimeFormat(language,{day:'numeric',month:'short',year:'numeric'}).format(new Date(`${day}T12:00:00`));
-  return <AgendaShell title={t.title} backLabel={t.back} onBack={back}>{!allowed?<View style={s.state}><Text>{t.unavailable}</Text></View>:<FlatList
+  return <WorkspaceShell active="agenda" title={t.title}>{!allowed?<View style={s.state}><Text>{t.unavailable}</Text></View>:<FlatList
     key={`${date}:${end}:${domain}:${page}:${recorded}`} data={data?.results??[]} keyExtractor={event=>event.id}
     contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
     ListHeaderComponent={<View style={{gap:12}}>
@@ -68,5 +68,5 @@ function AgendaContents({timezone}:{timezone:string}) {
       <Text style={s.muted}>{format(item.date)} · {item.farm_name}</Text><Text style={s.title}>{item.title}</Text><Text style={s.badge}>{agendaLabel(t,item.status)}</Text>{item.estimated&&<Text style={s.muted}>{t.estimated}</Text>}
     </Pressable>}
     ListFooterComponent={data&&!busy?<View style={s.row}><AgendaButton label={t.prevPage} disabled={!data.previous} onPress={()=>setPage(v=>Math.max(1,v-1))}/><Text style={s.muted}>{t.page} {page}</Text><AgendaButton label={t.more} disabled={!data.next} onPress={()=>setPage(v=>v+1)}/></View>:undefined}
-  />}</AgendaShell>;
+  />}</WorkspaceShell>;
 }

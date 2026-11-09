@@ -1,4 +1,4 @@
-from .cattle_improvement_api import CattleOperationsView
+from .cattle_improvement_api import CattleOperationsView, CattleOperationMobileDetailView, CattleOccurrenceMobileResolutionView
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -53,6 +53,8 @@ router.register(r'cattle/feed-plans', CattleFeedPlanViewSet, basename='cattle-fe
 router.register(r'cattle/managements', CattleManagementViewSet, basename='cattle-management')
 
 urlpatterns = [
+    path("cattle/operations/occurrences/<uuid:pk>/mobile-resolve/", CattleOccurrenceMobileResolutionView.as_view(), name="cattle-occurrence-mobile-resolution"),
+    path("cattle/operations/<str:kind>/<uuid:pk>/mobile/", CattleOperationMobileDetailView.as_view(), name="cattle-operation-mobile-detail"),
     path("cattle/operations/<str:kind>/", CattleOperationsView.as_view(), name="cattle-operations"),
     path('cattle/dairy-overview/', CattleDairyOverviewView.as_view(), name='cattle-dairy-overview'),
     path('cattle/daily-feeding/', CattleDailyFeedingView.as_view(), name='cattle-daily-feeding'),

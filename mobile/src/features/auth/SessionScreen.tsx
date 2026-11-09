@@ -1,3 +1,5 @@
+import {FeedingScreen} from '../feeding/FeedingScreens';
+import {canReadDailyFeeding} from '../feeding/contracts';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { HomeScreen } from '../home/HomeScreen';
@@ -40,7 +42,7 @@ export function SessionScreen() {
   const { state, t, controller } = useAuth();
   if (state.status === 'signedOut') return <LoginScreen />;
   if (state.status === 'restoring') return <AppLoading label={t.loading} />;
-  if (state.status === 'signedIn' && !state.session.user.force_password_change) return <HomeScreen key={state.session.user.id + state.session.organization.id} session={state.session} />;
+  if (state.status === 'signedIn' && !state.session.user.force_password_change) return state.session.user.access.role==='feeder'&&canReadDailyFeeding(state.session.user)?<FeedingScreen key={state.session.user.id + state.session.organization.id}/>:<HomeScreen key={state.session.user.id + state.session.organization.id} session={state.session} />;
   return <AuthShell>
     {state.status === 'unavailable' ? <>
       <Heading title={t.unavailable} subtitle={t.sessionHint} />

@@ -1036,6 +1036,8 @@ class CattleTroughReadingInput(serializers.Serializer):
 
 
 class CattleDailyFeedInput(serializers.Serializer):
+    production = serializers.ChoiceField(choices=['beef', 'dairy'], required=False)
+    farm = serializers.UUIDField(required=False)
     batch = serializers.UUIDField()
     formula = serializers.UUIDField(required=False, allow_null=True, default=None)
     item = serializers.UUIDField(required=False, allow_null=True, default=None)

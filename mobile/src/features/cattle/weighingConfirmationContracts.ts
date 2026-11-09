@@ -1,0 +1,7 @@
+import {z} from 'zod';
+import {productionSchema} from './contracts';
+export const weighingReviewEntrySchema=z.object({animal:z.uuid(),identifier:z.string(),cattle_purpose:z.enum(['unknown','beef','dairy','dual']),weight_kg:z.string().regex(/^\d+(\.\d+)?$/).refine(v=>Number(v)>0),latest_weight_date:z.iso.date().nullable(),latest_weight_kg:z.string().regex(/^\d+(\.\d+)?$/).nullable(),updates_current:z.boolean()});
+export type WeighingReviewEntry=z.infer<typeof weighingReviewEntrySchema>;
+export const weighingReviewSchema=z.object({id:z.uuid(),farm:z.uuid(),farm_name:z.string(),production:productionSchema,description:z.string(),responsible:z.string(),notes:z.string(),date:z.iso.date(),participant_count:z.number().int().min(1).max(1000),entries:z.array(weighingReviewEntrySchema).min(1).max(1000),preview_token:z.string().min(1).max(60000)}).refine(value=>value.participant_count===value.entries.length&&new Set(value.entries.map(row=>row.animal)).size===value.entries.length&&value.entries.every(row=>row.updates_current===(row.latest_weight_date===null||value.date>=row.latest_weight_date)&&(row.latest_weight_date===null)===(row.latest_weight_kg===null)));
+export type WeighingReview=z.infer<typeof weighingReviewSchema>;
+export function ensureWeighingReview(review:WeighingReview,id:string,farm:string,production:string){if(review.id!==id||review.farm!==farm||review.production!==production)throw Error('weighing review scope');return review;}

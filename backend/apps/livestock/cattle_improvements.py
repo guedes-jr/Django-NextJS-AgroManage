@@ -19,27 +19,33 @@ def filter_purpose(queryset, purpose):
     return queryset.filter(cattle_purpose__in=[purpose, "dual"] if purpose in {"beef", "dairy"} else [purpose])
 
 
-def remember_purpose(target, previous, user):
+def remember_purpose(target, previous, user, *, operational=False):
+    from apps.farms.models import Farm
+    farm = Farm.objects.only("id").get(pk=target.farm_id) if operational else target.farm
     if isinstance(target, AnimalBatch):
-        participants = list(Animal.objects.select_for_update().filter(batch=target, farm=target.farm, status="active").exclude(cattle_purpose=target.cattle_purpose).order_by("pk"))
+        participants_qs = Animal.objects.select_for_update().filter(batch=target, farm=farm, status="active").exclude(cattle_purpose=target.cattle_purpose).order_by("pk")
+        participants = list(participants_qs.only("id", "cattle_purpose") if operational else participants_qs)
         Animal.objects.filter(pk__in=[animal.pk for animal in participants]).update(cattle_purpose=target.cattle_purpose, updated_at=timezone.now())
-        CattlePurposeChange.objects.bulk_create([CattlePurposeChange(animal=animal, farm=target.farm, previous=animal.cattle_purpose, purpose=target.cattle_purpose, date=timezone.localdate(), created_by=user) for animal in participants])
+        CattlePurposeChange.objects.bulk_create([CattlePurposeChange(animal=animal, farm=farm, previous=animal.cattle_purpose, purpose=target.cattle_purpose, date=timezone.localdate(), created_by=user) for animal in participants])
     if previous == target.cattle_purpose:
         return
     CattlePurposeChange.objects.create(**{"animal" if isinstance(target, Animal) else "batch": target},
-        farm=target.farm, previous=previous, purpose=target.cattle_purpose, date=timezone.localdate(), created_by=user)
+        farm=farm, previous=previous, purpose=target.cattle_purpose, date=timezone.localdate(), created_by=user)
 
 
 @transaction.atomic
-def classify(user, *, animals, batches, purpose):
+def classify(user, *, animals, batches, purpose, operational=False):
     if purpose not in PURPOSES or not (animals or batches):
         raise ValidationError("Selecione os participantes e uma finalidade válida.")
     from apps.farms.models import Farm
     farm_ids = set(Animal.objects.filter(pk__in=animals, farm__organization=user.organization, species__code="bovinos").values_list("farm_id", flat=True))
     farm_ids.update(AnimalBatch.objects.filter(pk__in=batches, farm__organization=user.organization, species__code="bovinos").values_list("farm_id", flat=True))
-    list(Farm.objects.select_for_update().filter(pk__in=farm_ids).order_by("pk"))
-    selected_animals = list(Animal.objects.select_for_update().filter(pk__in=animals, farm__organization=user.organization, species__code="bovinos").order_by("pk"))
-    selected_batches = list(AnimalBatch.objects.select_for_update().filter(pk__in=batches, farm__organization=user.organization, species__code="bovinos").order_by("pk"))
+    farm_qs = Farm.objects.select_for_update(no_key=operational).filter(pk__in=farm_ids).order_by("pk")
+    list(farm_qs.only("id") if operational else farm_qs)
+    animal_qs = Animal.objects.select_for_update().filter(pk__in=animals, farm__organization=user.organization, species__code="bovinos").order_by("pk")
+    selected_animals = list(animal_qs.only("id", "farm_id", "batch_id", "cattle_purpose", "updated_at") if operational else animal_qs)
+    batch_qs = AnimalBatch.objects.select_for_update().filter(pk__in=batches, farm__organization=user.organization, species__code="bovinos").order_by("pk")
+    selected_batches = list(batch_qs.only("id", "farm_id", "cattle_purpose", "updated_at") if operational else batch_qs)
     if len(selected_animals) != len(set(animals)) or len(selected_batches) != len(set(batches)):
         raise ValidationError("Um participante não pertence ao rebanho autorizado.")
     # Batch classification is explicitly presented as including active linked animals.
@@ -52,7 +58,7 @@ def classify(user, *, animals, batches, purpose):
         previous = target.cattle_purpose
         target.cattle_purpose = purpose
         target.save(update_fields=["cattle_purpose", "updated_at"])
-        remember_purpose(target, previous, user)
+        remember_purpose(target, previous, user, operational=operational)
     return {"animals": len(selected_animals), "batches": len(selected_batches)}
 
 

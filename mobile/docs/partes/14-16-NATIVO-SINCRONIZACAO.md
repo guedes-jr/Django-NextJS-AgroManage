@@ -55,12 +55,27 @@ O projeto possui inbox, preferências, contagem de não lidas e web push. `pushN
 
 Auditar os modelos e o serviço de entrega antes de adicionar tabelas; reaproveitar a política existente de destinatários, categorias, canais e consentimento. Transporte Expo Push é uma opção sobre APNs/FCM, não uma autorização nova para enviar mensagens. [Visão oficial do Expo Push](https://docs.expo.dev/push-notifications/overview/).
 
+### Inbox e preferências — recorte nativo de 7 de novembro de 2026
+
+**Implementado:** `/notifications`, `/notifications/detail` e `/notifications/preferences`, com lista no `WorkspaceShell` e retorno em fichas/formulários. Menu e sino abrem a tela nativa; contador usa `unread-count`, sem polling contínuo, SSE ou transporte push. Consulta paginada preserva filtros de recebidas/arquivadas, leitura, categoria e busca. Detalhe mostra texto, prioridade, quantidade de ocorrências e mensagens agrupadas. Leitura é explícita; abrir a tela não marca automaticamente. Arquivamento/restauração atualizam lista/contador a partir do servidor. Há atalho autorizado para alertas nativos de estoque, separado da inbox.
+
+- Consome a API pessoal existente, com isolamento de destinatário e os filtros de visibilidade do servidor. Pré-envio revalida usuário/organização; bloqueia troca de sessão e escritas simultâneas. Somente leitura operacional não impede preferências pessoais que o backend permite. Feeder não ganha Agenda, estoque geral ou financeiro. Categorias/links não concedem permissões.
+- Origens internas reconhecidas abrem Agenda, rebanho, leite, trato, estoque e notificações no app. Destinos autorizados ainda sem tela nativa usam o site configurado e caminhos previamente permitidos. URLs externas, protocolos, caminhos codificados, parâmetros não previstos e campanhas com links arbitrários são bloqueados; não encaminha tokens para links. Origens removidas/permissões revogadas dependem ainda da consulta protegida da tela de destino.
+- Preferências usam os campos reais da conta, incluindo categorias aplicáveis ao perfil, e-mail, preferência de push da conta, WhatsApp reprodutivo e frequência. Formulário envia somente diferenças e `expected_updated_at`; salva a nova versão retornada. Backend compara versão sob bloqueio de linha, rejeitando conflito 409 sem aplicar alterações; clientes web sem versão continuam compatíveis.
+- Preferência de push **não ativa push nativo no aparelho**, não pede permissão e não registra VAPID/service worker. Canais seguem políticas/consentimento do backend. Marketing permanece opt-in e não é habilitado ao marcar avisos como lidos. Nenhum token de instalação foi introduzido.
+- Resultado incerto ao salvar preferências congela novo envio e oferece recarregar para conferir os valores efetivos; conflito também exige recarga. Campos são preservados até essa ação. Não há retry automático ou atualização otimista. Saída/recarga com alterações pede descarte; caches e sessão seguem o isolamento existente.
+- Correção de contrato: PATCH de `is_read` passa a preencher `read_at`, preservando a data em repetição; voltar a não lida limpa a data. Leitura/arquivamento não alteram a operação que originou o aviso.
+
+**Validação:** TypeScript, ESLint, 141 testes mobile e 31 testes backend direcionados de notificações/categorias/tenant (4 novos). Navegador sintético em 320/390/820 px: sino/inbox, busca, leitura/data, agrupamento, arquivar/restaurar, origem nativa, URL externa bloqueada, preferências com alteração parcial, conflito e resposta incerta após gravação/reconciliação. Bundles Android/iOS/web. Nenhuma mensagem ou preferência real alterada.
+
+**Limites:** recorte essencial U02/U03, sem imagens remotas de campanhas, links promocionais externos, exclusão/bulk “marcar todas”, painel independente consolidado de alertas reprodutivos, notificações locais ou push nativo. Não confundir notificações recebidas com todos os alertas calculados do sistema: estoque já tem consulta nativa; painel reprodutivo especializado continua no web. Restam homologação integrada com backend real e aparelhos, revisão de acessibilidade/retomada e os complementos P15 abaixo. Push/registro de instalação permanece na Fase 6 conforme escopo definido. Não marcar P15 inteira como concluída por este recorte.
+
 ### Subparte 15A — Inbox nativa primeiro
 
-- [ ] P15.01 — Lista paginada com detalhe, prioridade, agrupamento e estados de leitura conforme contrato; não reutilizar um helper web que descarta paginação sem avaliar o volume.
-- [ ] P15.02 — Marcar leitura apenas na ação que o produto considera reconhecimento. Receber push não significa que a mensagem foi lida.
-- [ ] P15.03 — Tratar arquivamento e “marcar todas” quando autorizados, com atualização consistente do contador e nova consulta em retorno ao app.
-- [ ] P15.04 — Adaptar conteúdo de comunicados e imagens para tela pequena; links externos são validados, abertos com contexto claro e não recebem tokens do app.
+- [x] P15.01 — Lista paginada com detalhe, prioridade, agrupamento e estados de leitura conforme contrato; não reutilizar um helper web que descarta paginação sem avaliar o volume.
+- [x] P15.02 — Marcar leitura apenas na ação que o produto considera reconhecimento. Receber push não significa que a mensagem foi lida.
+- [ ] P15.03 — **Parcial:** arquivamento/restauração e contador implementados; bulk e retomada nativa pendentes. Tratar arquivamento e “marcar todas” quando autorizados, com atualização consistente do contador e nova consulta em retorno ao app.
+- [ ] P15.04 — **Parcial:** texto e links internos permitidos implementados; imagens e links externos de campanhas pendentes. Adaptar conteúdo de comunicados e imagens para tela pequena; links externos são validados, abertos com contexto claro e não recebem tokens do app.
 - [ ] P15.05 — Preservar regras de confirmação explícita de comunicações do sistema que já a exijam. Marketing não pode ser habilitado implicitamente para receber avisos operacionais.
 
 ### Subparte 15B — Registro e entrega push

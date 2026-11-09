@@ -102,6 +102,51 @@ class CattleAgendaView(APIView):
 
 
 class CattleAnimalViewSet(AnimalViewSet):
+    @action(detail=True, methods=['get'], url_path='mobile-birth')
+    def mobile_birth(self, request, pk=None):
+        from . import mobile_birth
+        return Response(mobile_birth.options(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-mating')
+    def mobile_mating(self, request, pk=None):
+        from . import mobile_mating
+        return Response(mobile_mating.options(request.user, pk, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-mating-sires')
+    def mobile_mating_sires(self, request):
+        from . import mobile_mating
+        search = serializers.CharField(max_length=100, allow_blank=True).run_validation(request.query_params.get('search', ''))
+        page = self.paginate_queryset(mobile_mating.sires(request.user, search))
+        return self.get_paginated_response([mobile_mating.animal_data(animal) for animal in page])
+
+    @action(detail=True, methods=['get'], url_path='mobile-diagnosis')
+    def mobile_diagnosis(self, request, pk=None):
+        from . import mobile_diagnosis
+        return Response(mobile_diagnosis.context(request.user, pk, request.query_params)[2])
+
+    @action(detail=False, methods=['get'], url_path='mobile-reproduction')
+    def mobile_reproduction(self, request):
+        from . import mobile_reproduction as reproduction
+        values = reproduction.Query(data=request.query_params); values.is_valid(raise_exception=True)
+        rows = reproduction.rows(request.user, values.validated_data)
+        metadata = reproduction.metadata(rows)
+        group = values.validated_data['group']
+        if group != 'all':
+            from .cattle_selectors import cattle_reproduction_groups
+            rows = rows.filter(cattle_reproduction_groups()[group])
+        page = self.paginate_queryset(rows)
+        response = self.get_paginated_response([reproduction.data(animal) for animal in page])
+        response.data.update(metadata)
+        return response
+
+    @action(detail=True, methods=['get'], url_path='mobile-reproduction')
+    def mobile_reproduction_detail(self, request, pk=None):
+        from . import mobile_reproduction as reproduction
+        from django.shortcuts import get_object_or_404
+        values = reproduction.Query(data=request.query_params); values.is_valid(raise_exception=True)
+        animal = get_object_or_404(reproduction.rows(request.user, values.validated_data), pk=pk)
+        return Response(reproduction.data(animal, detail=True))
+
     permission_classes = [CattlePermission]
     serializer_class = CattleAnimalSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -225,6 +270,16 @@ class CattleAnimalViewSet(AnimalViewSet):
     @action(detail=True, methods=["post"], url_path="register-mating")
     @transaction.atomic
     def register_mating(self, request, pk=None):
+        if request.query_params.get('view') in ('mobile-preview', 'mobile-confirm'):
+            from . import mobile_mating
+            mobile_mating.writable(request.user)
+            if request.query_params['view'] == 'mobile-preview':
+                values = mobile_mating.Input(data=request.data); values.is_valid(raise_exception=True)
+                return Response(mobile_mating.preview(request.user, pk, request.query_params, values.validated_data))
+            from .mobile_vaccination import ConfirmInput
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_mating.confirm(request.user, pk, request.query_params, values.validated_data['preview_token']), status=201)
+
         animal = Animal.objects.select_for_update().get(pk=self.get_object().pk)
         if (
             animal.gender != "F"
@@ -249,6 +304,11 @@ class CattleAnimalViewSet(AnimalViewSet):
     @action(detail=True, methods=["post"], url_path="diagnose-pregnancy")
     @transaction.atomic
     def diagnose_pregnancy(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_diagnosis
+            values = mobile_diagnosis.Input(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_diagnosis.record(request.user, pk, request.query_params, values.validated_data))
+
         animal = Animal.objects.select_for_update().get(pk=self.get_object().pk)
         mating = animal.matings_as_female.order_by("-mating_date").first()
         day = serializers.DateField(validators=[past_date]).run_validation(
@@ -272,6 +332,16 @@ class CattleAnimalViewSet(AnimalViewSet):
 
     @action(detail=True, methods=["post"], url_path="record-birth")
     def record_birth(self, request, pk=None):
+        if request.query_params.get('view') in ('mobile-preview', 'mobile-confirm'):
+            from . import mobile_birth
+            mobile_birth.writable(request.user)
+            if request.query_params['view'] == 'mobile-preview':
+                values = mobile_birth.Input(data=request.data); values.is_valid(raise_exception=True)
+                return Response(mobile_birth.preview(request.user, pk, request.query_params, values.validated_data))
+            from .mobile_vaccination import ConfirmInput
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_birth.confirm(request.user, pk, request.query_params, values.validated_data['preview_token']), status=201)
+
         animal = self.get_object()
         data = CattleBirthInput(data=request.data)
         data.is_valid(raise_exception=True)
@@ -485,6 +555,32 @@ class CattlePastureViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "farm__name"]
     ordering = ["name"]
 
+    @action(detail=False, methods=['get'], url_path='mobile-form-options')
+    def mobile_form_options(self, request):
+        from . import mobile_pasture
+        return Response(mobile_pasture.options(request.user, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-form')
+    def mobile_form(self, request, pk=None):
+        from . import mobile_pasture
+        return Response(mobile_pasture.data(mobile_pasture.record(request.user, pk, request.query_params)))
+
+    def create(self, request, *args, **kwargs):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_pasture
+            mobile_pasture.writable(request.user)
+            values = mobile_pasture.Input(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_pasture.save(request, values.validated_data), status=201)
+        return super().create(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_pasture
+            mobile_pasture.writable(request.user)
+            values = mobile_pasture.EditInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_pasture.save(request, values.validated_data, kwargs['pk']))
+        return super().partial_update(request, *args, **kwargs)
+
     def get_queryset(self):
         return (
             CattlePasture.objects.filter(
@@ -529,22 +625,97 @@ class CattleGrazingViewSet(
             )
         return queryset
 
+    @action(detail=False, methods=['get'], url_path='mobile-entry-options')
+    def mobile_entry_options(self, request):
+        from . import mobile_grazing_entry as entry
+        return Response(entry.options(request.user, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-entry-batches')
+    def mobile_entry_batches(self, request):
+        from . import mobile_grazing_entry as entry
+        page = self.paginate_queryset(entry.batches(request.user, request.query_params))
+        return self.get_paginated_response([entry.batch_data(row) for row in page])
+
+    @action(detail=False, methods=['post'], url_path='mobile-entry-preview')
+    def mobile_entry_preview(self, request):
+        from . import mobile_grazing_entry as entry
+        entry.writable(request.user)
+        values = entry.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(entry.preview(request.user, values.validated_data))
+
+    @action(detail=False, methods=['post'], url_path='mobile-entry-confirm')
+    def mobile_entry_confirm(self, request):
+        from . import mobile_grazing_entry as entry
+        from .mobile_vaccination import ConfirmInput
+        entry.writable(request.user)
+        values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+        return Response(entry.confirm(request.user, values.validated_data['preview_token']), status=201)
+
+    @action(detail=False, methods=['get'], url_path='mobile')
+    def mobile_list(self, request):
+        from . import mobile_grazing
+        page = self.paginate_queryset(mobile_grazing.rows(request.user, request.query_params))
+        return self.get_paginated_response([mobile_grazing.data(row) for row in page])
+
+    @action(detail=True, methods=['get'], url_path='mobile')
+    def mobile_detail(self, request, pk=None):
+        from . import mobile_grazing
+        from django.shortcuts import get_object_or_404
+        row = get_object_or_404(mobile_grazing.rows(request.user, request.query_params), pk=pk)
+        return Response(mobile_grazing.data(row))
+
     def perform_create(self, serializer):
         serializer.instance = enter_cattle_pasture(serializer.validated_data)
+
+    @action(detail=True, methods=['get'], url_path='mobile-transfer-options')
+    def mobile_transfer_options(self, request, pk=None):
+        from . import mobile_grazing_transfer as transfer
+        return Response(transfer.options(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-transfer-destinations')
+    def mobile_transfer_destinations(self, request, pk=None):
+        from . import mobile_grazing_transfer as transfer, mobile_grazing_entry as entry
+        page = self.paginate_queryset(transfer.destinations(request.user, pk, request.query_params))
+        return self.get_paginated_response([entry.pasture_data(row) for row in page])
+
+    @action(detail=True, methods=['post'], url_path='mobile-transfer-preview')
+    def mobile_transfer_preview(self, request, pk=None):
+        from . import mobile_grazing_transfer as transfer
+        transfer.entry.writable(request.user)
+        values = transfer.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(transfer.preview(request.user, pk, values.validated_data))
+
+    @action(detail=True, methods=['post'], url_path='mobile-transfer-confirm')
+    def mobile_transfer_confirm(self, request, pk=None):
+        from . import mobile_grazing_transfer as transfer
+        from .mobile_vaccination import ConfirmInput
+        transfer.entry.writable(request.user)
+        values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+        return Response(transfer.confirm(request.user, pk, values.validated_data['preview_token']), status=201)
+
+    @action(detail=True, methods=['get'], url_path='mobile-exit-options')
+    def mobile_exit_options(self, request, pk=None):
+        from . import mobile_grazing_exit as exit
+        return Response(exit.options(request.user, pk, request.query_params))
 
     @action(detail=True, methods=["post"], url_path="close")
     @transaction.atomic
     def close(self, request, pk=None):
-        grazing = CattleGrazing.objects.select_for_update().get(pk=self.get_object().pk)
+        if request.query_params.get('view') in ('mobile-preview', 'mobile-confirm'):
+            from . import mobile_grazing_exit as exit
+            exit.writable(request.user)
+            if request.query_params['view'] == 'mobile-preview':
+                values = exit.Input(data=request.data); values.is_valid(raise_exception=True)
+                return Response(exit.preview(request.user, pk, values.validated_data))
+            from .mobile_vaccination import ConfirmInput
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(exit.confirm(request.user, pk, values.validated_data['preview_token']))
+        grazing = self.get_object()
         day = serializers.DateField(validators=[past_date]).run_validation(
             request.data.get("exit_date")
         )
-        if grazing.exit_date or day < grazing.entry_date:
-            raise serializers.ValidationError(
-                "Informe uma data de saída válida para uma ocupação aberta."
-            )
-        grazing.exit_date = day
-        grazing.save(update_fields=["exit_date"])
+        from .cattle_services import close_cattle_pasture
+        grazing = close_cattle_pasture(grazing, day)
         return Response(self.get_serializer(grazing).data)
 
 
@@ -667,6 +838,185 @@ class CattleFeedViewSet(viewsets.ModelViewSet):
 
 
 class CattleManagementViewSet(viewsets.ModelViewSet):
+    @action(detail=True, methods=['get'], url_path='mobile-castration-edit')
+    def mobile_castration_edit(self, request, pk=None):
+        from . import mobile_castration
+        return Response(mobile_castration.edit_options(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-collective-medication-review')
+    def mobile_collective_medication_review(self, request, pk=None):
+        from . import mobile_collective_medication_confirmation as medication
+        return Response(medication.preview(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-sanitary-review')
+    def mobile_sanitary_review(self, request, pk=None):
+        from . import mobile_sanitary_confirmation as sanitary
+        return Response(sanitary.preview(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-castration-review')
+    def mobile_castration_review(self, request, pk=None):
+        from . import mobile_castration_confirmation as castration
+        return Response(castration.preview(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-sanitary-edit')
+    def mobile_sanitary_edit(self, request, pk=None):
+        from . import mobile_sanitary
+        return Response(mobile_sanitary.edit_options(request.user, pk, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-sanitary-options')
+    def mobile_sanitary_options(self, request):
+        from . import mobile_sanitary
+        return Response(mobile_sanitary.options(request.user, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-sanitary-animals')
+    def mobile_sanitary_animals(self, request):
+        from . import mobile_sanitary
+        page = self.paginate_queryset(mobile_sanitary.animals(request.user, request.query_params))
+        return self.get_paginated_response([mobile_sanitary.animal_data(row) for row in page])
+
+    @action(detail=True, methods=['get'], url_path='mobile-collective-medication-edit')
+    def mobile_collective_medication_edit(self, request, pk=None):
+        from . import mobile_collective_medication
+        return Response(mobile_collective_medication.edit_options(request.user, pk, request.query_params))
+
+    @action(detail=False, methods=['post'], url_path='mobile-collective-medication-drafts')
+    def mobile_collective_medication_drafts(self, request):
+        from . import mobile_collective_medication
+        from .mobile_grazing_entry import writable
+        writable(request.user)
+        values = mobile_collective_medication.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(mobile_collective_medication.create(request.user, values.validated_data), status=201)
+
+    @action(detail=False, methods=['post'], url_path='mobile-sanitary-drafts')
+    def mobile_sanitary_drafts(self, request):
+        from . import mobile_sanitary
+        from .mobile_grazing_entry import writable
+        writable(request.user)
+        values = mobile_sanitary.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(mobile_sanitary.create(request.user, values.validated_data), status=201)
+
+    @action(detail=False, methods=['get'], url_path='mobile-castration-options')
+    def mobile_castration_options(self, request):
+        from . import mobile_castration
+        return Response(mobile_castration.options(request.user, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-castration-animals')
+    def mobile_castration_animals(self, request):
+        from . import mobile_castration
+        page = self.paginate_queryset(mobile_castration.animals(request.user, request.query_params))
+        return self.get_paginated_response([mobile_castration.animal_data(row) for row in page])
+
+    @action(detail=False, methods=['post'], url_path='mobile-castration-drafts')
+    def mobile_castration_drafts(self, request):
+        from . import mobile_castration
+        from .mobile_grazing_entry import writable
+        writable(request.user)
+        values = mobile_castration.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(mobile_castration.create(request.user, values.validated_data), status=201)
+
+    @action(detail=True, methods=['get'], url_path='mobile-weighing-edit')
+    def mobile_weighing_edit(self, request, pk=None):
+        from . import mobile_weighing
+        return Response(mobile_weighing.edit_options(request.user, pk, request.query_params))
+
+    def partial_update(self, request, *args, **kwargs):
+        if request.query_params.get('view') == 'mobile-collective-medication':
+            from . import mobile_collective_medication
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = mobile_collective_medication.EditInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_collective_medication.update(request.user, kwargs['pk'], values.validated_data))
+        if request.query_params.get('view') == 'mobile-sanitary':
+            from . import mobile_sanitary
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = mobile_sanitary.EditInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_sanitary.update(request.user, kwargs['pk'], values.validated_data))
+        if request.query_params.get('view') == 'mobile-castration':
+            from . import mobile_castration
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = mobile_castration.EditInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_castration.update(request.user, kwargs['pk'], values.validated_data))
+        if request.query_params.get('view') == 'mobile-weighing':
+            from . import mobile_weighing
+            mobile_weighing.writable(request.user)
+            values = mobile_weighing.EditInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_weighing.update(request.user, kwargs['pk'], values.validated_data))
+        return super().partial_update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get'], url_path='mobile-weighing-review')
+    def mobile_weighing_review(self, request, pk=None):
+        from . import mobile_weighing_confirmation as weighing
+        return Response(weighing.preview(request.user, pk, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-weighing-options')
+    def mobile_weighing_options(self, request):
+        from . import mobile_weighing
+        return Response(mobile_weighing.options(request.user, request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='mobile-weighing-animals')
+    def mobile_weighing_animals(self, request):
+        from . import mobile_weighing
+        page = self.paginate_queryset(mobile_weighing.animals(request.user, request.query_params))
+        return self.get_paginated_response([mobile_weighing.animal_data(row) for row in page])
+
+    @action(detail=False, methods=['post'], url_path='mobile-weighing-drafts')
+    def mobile_weighing_drafts(self, request):
+        from . import mobile_weighing
+        mobile_weighing.writable(request.user)
+        values = mobile_weighing.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(mobile_weighing.create(request.user, values.validated_data), status=201)
+
+    @action(detail=False, methods=['get'], url_path='mobile')
+    def mobile_list(self, request):
+        from . import mobile_management
+        page = self.paginate_queryset(mobile_management.rows(request.user, request.query_params))
+        return self.get_paginated_response([mobile_management.data(row) for row in page])
+
+    @action(detail=True, methods=['get'], url_path='mobile')
+    def mobile_detail(self, request, pk=None):
+        from . import mobile_management
+        from django.shortcuts import get_object_or_404
+        row = get_object_or_404(mobile_management.rows(request.user, request.query_params), pk=pk)
+        return Response(mobile_management.data(row, detail=True))
+
+    @action(detail=True, methods=['get'], url_path='mobile-participants')
+    def mobile_participants(self, request, pk=None):
+        from . import mobile_management
+        from django.shortcuts import get_object_or_404
+        row = get_object_or_404(mobile_management.rows(request.user, request.query_params), pk=pk)
+        search = serializers.CharField(max_length=100, allow_blank=True).run_validation(request.query_params.get('participant_search',''))
+        page = self.paginate_queryset(mobile_management.participants(row, search))
+        return self.get_paginated_response([mobile_management.participant_data(entry) for entry in page])
+
+    @action(detail=False, methods=['get'], url_path='mobile-medication-options')
+    def mobile_medication_options(self, request):
+        from . import mobile_medication as medication
+        return Response(medication.options(request.user))
+
+    @action(detail=False, methods=['get'], url_path='mobile-medication-lots')
+    def mobile_medication_lots(self, request):
+        from . import mobile_medication as medication
+        values = medication.Query(data=request.query_params); values.is_valid(raise_exception=True)
+        page = self.paginate_queryset(medication.lots(request.user, values.validated_data['search']))
+        return self.get_paginated_response([medication.lot_data(lot) for lot in page])
+
+    @action(detail=False, methods=['post'], url_path='mobile-medication-preview')
+    def mobile_medication_preview(self, request):
+        from . import mobile_medication as medication
+        medication.authorize(request.user)
+        values = medication.Input(data=request.data); values.is_valid(raise_exception=True)
+        return Response(medication.preview(request.user, values.validated_data))
+
+    @action(detail=False, methods=['post'], url_path='mobile-medication-confirm')
+    def mobile_medication_confirm(self, request):
+        from . import mobile_medication as medication
+        from .mobile_vaccination import ConfirmInput
+        medication.authorize(request.user)
+        values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+        return Response(medication.confirm(request.user, values.validated_data['preview_token']), status=201)
+
     permission_classes = [CattlePermission]
     create_roles = {"admin", "manager"}
     serializer_class = CattleManagementSerializer
@@ -692,8 +1042,25 @@ class CattleManagementViewSet(viewsets.ModelViewSet):
             .prefetch_related("entries__animal")
         )
 
+    @action(detail=True, methods=['get'], url_path='mobile-follow-up')
+    def mobile_follow_up(self, request, pk=None):
+        from . import mobile_follow_up
+        return Response(mobile_follow_up.options(request.user, pk, request.query_params))
+
+    @action(detail=True, methods=['get'], url_path='mobile-follow-up-executions')
+    def mobile_follow_up_executions(self, request, pk=None):
+        from . import mobile_follow_up, mobile_management
+        page = self.paginate_queryset(mobile_follow_up.candidates(request.user, pk, request.query_params))
+        return self.get_paginated_response([mobile_management.data(row) for row in page])
+
     @action(detail=True, methods=["post"], url_path="resolve-follow-up")
     def resolve_follow_up(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile-follow-up':
+            from . import mobile_follow_up
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = mobile_follow_up.Input(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_follow_up.resolve(request.user, pk, values.validated_data))
         from .cattle_planning import resolve_follow_up
         values = CattleFollowUpInput(data=request.data, context={"request": request})
         values.is_valid(raise_exception=True)
@@ -702,12 +1069,60 @@ class CattleManagementViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile-collective-medication':
+            from . import mobile_collective_medication_confirmation as medication
+            from .mobile_vaccination import ConfirmInput
+            medication.writable(request.user)
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(medication.confirm(request.user, pk, values.validated_data['preview_token']))
+        if request.query_params.get('view') == 'mobile-sanitary':
+            from . import mobile_sanitary_confirmation as sanitary
+            from .mobile_vaccination import ConfirmInput
+            sanitary.writable(request.user)
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(sanitary.confirm(request.user, pk, values.validated_data['preview_token']))
+        if request.query_params.get('view') == 'mobile-castration':
+            from . import mobile_castration_confirmation as castration
+            from .mobile_vaccination import ConfirmInput
+            castration.writable(request.user)
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(castration.confirm(request.user, pk, values.validated_data['preview_token']))
+        if request.query_params.get('view') == 'mobile-weighing':
+            from . import mobile_weighing_confirmation as weighing
+            from .mobile_vaccination import ConfirmInput
+            weighing.writable(request.user)
+            values = ConfirmInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(weighing.confirm(request.user, pk, values.validated_data['preview_token']))
         management = confirm_cattle_management(self.get_object(), request.user)
         return Response(self.get_serializer(management).data)
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def cancel(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile-collective-medication':
+            from . import mobile_collective_medication
+            from .mobile_weighing import CancelInput
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = CancelInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_collective_medication.cancel(request.user, pk, values.validated_data))
+        if request.query_params.get('view') == 'mobile-sanitary':
+            from . import mobile_sanitary
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = mobile_sanitary.CancelInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_sanitary.cancel(request.user, pk, values.validated_data))
+        if request.query_params.get('view') == 'mobile-castration':
+            from . import mobile_castration
+            from .mobile_grazing_entry import writable
+            writable(request.user)
+            values = mobile_castration.CancelInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_castration.cancel(request.user, pk, values.validated_data))
+        if request.query_params.get('view') == 'mobile-weighing':
+            from . import mobile_weighing
+            mobile_weighing.writable(request.user)
+            values = mobile_weighing.CancelInput(data=request.data); values.is_valid(raise_exception=True)
+            return Response(mobile_weighing.cancel(request.user, pk, values.validated_data))
         management = CattleManagement.objects.select_for_update().get(
             pk=self.get_object().pk
         )
@@ -756,6 +1171,9 @@ class CattleDailyFeedingView(APIView):
     create_roles = {"admin", "manager", "feeder"}
 
     def get(self, request):
+        if request.query_params.get('view') == 'mobile':
+            from .cattle_daily_feeding import mobile_daily_feeding
+            return mobile_daily_feeding(request)
         from .cattle_daily_feeding import daily_feeding
         return Response(daily_feeding(request.user.organization))
 

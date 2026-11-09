@@ -4,6 +4,7 @@ Serializers for the inventory app.
 from django.utils.translation import gettext as translate_message
 import re
 from decimal import Decimal
+from apps.farms.models import Farm
 from apps.finance.models import BankAccount, Transaction as FinancialTransaction
 from django.db import transaction
 from rest_framework import serializers
@@ -14,7 +15,7 @@ from .models import (
     FormulaRacao, FormulaIngrediente, ProducaoRacao, ConsumoRacao
 )
 
-from .choices import CategoriaItem
+from .choices import CategoriaItem, TipoMovimentacao, LocalArmazenamento
 
 
 # ---------------------------------------------------------------------------
@@ -29,9 +30,10 @@ class FornecedorContatoSerializer(serializers.ModelSerializer):
 class FornecedorEnderecoSerializer(serializers.ModelSerializer):
     class Meta:
         model = FornecedorEndereco
-        fields = ["id", "cep", "logradouro", "numero", "bairro", "complemento", "cidade", "estado", "latitude", "longitude"]
+        fields = ["id", "label", "cep", "logradouro", "numero", "bairro", "complemento", "cidade", "estado", "latitude", "longitude"]
 
 class FornecedorSerializer(serializers.ModelSerializer):
+    expected_updated_at = serializers.DateTimeField(write_only=True, required=False)
     tipo_contrato_display = serializers.CharField(
         source="get_tipo_contrato_display", read_only=True
     )
@@ -44,7 +46,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
             "id", "organization", "nome",
             "cnpj", "contatos", "enderecos",
             "tipo_contrato", "tipo_contrato_display", "imagem", "logo_url",
-            "ativo", "created_at", "updated_at",
+            "ativo", "created_at", "updated_at", "expected_updated_at",
         ]
         read_only_fields = ["id", "organization", "created_at", "updated_at", "tipo_contrato_display"]
     
@@ -91,7 +93,9 @@ class FornecedorSerializer(serializers.ModelSerializer):
         
         return data
 
+    @transaction.atomic
     def create(self, validated_data):
+        validated_data.pop('expected_updated_at', None)
         contatos_data = validated_data.pop('contatos', [])
         enderecos_data = validated_data.pop('enderecos', [])
         
@@ -113,7 +117,12 @@ class FornecedorSerializer(serializers.ModelSerializer):
             
         return fornecedor
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        instance = Fornecedor.objects.select_for_update().get(pk=instance.pk, organization=instance.organization)
+        expected = validated_data.pop('expected_updated_at', None)
+        if expected is not None and instance.updated_at != expected:
+            raise serializers.ValidationError({'expected_updated_at': translate_message('O cadastro foi alterado. Reabra a edição antes de salvar.')})
         contatos_data = validated_data.pop('contatos', None)
         enderecos_data = validated_data.pop('enderecos', None)
         
@@ -135,6 +144,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
 
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
+    expected_updated_at = serializers.DateTimeField(write_only=True, required=False)
     categorias = serializers.ListField(
         child=serializers.ChoiceField(choices=CategoriaItem.choices),
         required=False,
@@ -189,7 +199,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             # Read-only computed
             "estoque_atual", "custo_medio", "estoque_baixo",
             # Timestamps
-            "created_at", "updated_at",
+            "created_at", "updated_at", "expected_updated_at",
             # Write-only batch fields
             "custo_unitario", "data_fabricacao", "local_armazenamento",
             "nota_fiscal", "observacao_lote",
@@ -212,6 +222,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        validated_data.pop("expected_updated_at", None)
         # Extract batch fields before saving the item
         batch_fields = {
             "custo_unitario": validated_data.pop("custo_unitario", None),
@@ -230,6 +241,24 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             criar_lote_e_movimentacao(item, batch_fields, self.context.get("request"))
 
         return item
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        instance = ItemEstoque.objects.select_for_update().get(pk=instance.pk, organization=instance.organization)
+        expected = validated_data.pop("expected_updated_at", None)
+        if expected is not None and instance.updated_at != expected:
+            raise serializers.ValidationError({"expected_updated_at": translate_message("O cadastro foi alterado. Reabra a edição antes de salvar.")})
+        return super().update(instance, validated_data)
+
+
+class ItemEstoqueReceiptSerializer(ItemEstoqueSerializer):
+    def to_representation(self, instance):
+        return {"id": str(instance.pk)}
+
+
+class FornecedorReceiptSerializer(FornecedorSerializer):
+    def to_representation(self, instance):
+        return {"id": str(instance.pk)}
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +328,7 @@ class LoteEstoqueSerializer(serializers.ModelSerializer):
 
 
 class StockCountSerializer(serializers.Serializer):
+    unidade_esperada = serializers.CharField(max_length=20, required=False)
     quantidade_contada = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
     saldo_esperado = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
     motivo = serializers.CharField(max_length=1000, trim_whitespace=True)
@@ -409,6 +439,87 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
         if fornecedor and fornecedor.organization_id != organization.id:
             raise serializers.ValidationError({"fornecedor": translate_message("Fornecedor não pertence à sua organização.")})
         return attrs
+
+
+class OperationalMovementSerializer(MovimentacaoEstoqueSerializer):
+    lote_numero = serializers.CharField(source="lote.numero_lote", read_only=True, default=None)
+    farm_nome = serializers.CharField(source="farm.name", read_only=True, default=None)
+    timezone = serializers.SerializerMethodField()
+
+    def get_timezone(self, obj):
+        from django.conf import settings
+        return settings.TIME_ZONE
+
+    class Meta(MovimentacaoEstoqueSerializer.Meta):
+        fields = ["id", "item", "item_nome", "item_unidade", "lote", "lote_numero", "tipo", "quantidade", "data_movimentacao", "responsavel_nome", "destino", "observacao", "cattle_delivery", "farm", "farm_nome", "timezone"]
+
+
+class MovementReadQuery(serializers.Serializer):
+    search = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    item = serializers.UUIDField(required=False)
+    lote = serializers.UUIDField(required=False)
+    tipo = serializers.ChoiceField(choices=["", *[value for value, _ in TipoMovimentacao.choices]], required=False, default="")
+    start = serializers.DateField(required=False)
+    end = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        start, end = attrs.get("start"), attrs.get("end")
+        if bool(start) != bool(end) or (start and (end < start or (end - start).days > 365)):
+            raise serializers.ValidationError({"start": translate_message("Informe um período de até 366 dias, com início e fim válidos.")})
+        return attrs
+
+
+class StrictStockInput:
+    def to_internal_value(self, data):
+        from collections.abc import Mapping
+        if isinstance(data, Mapping) and set(data) - set(self.fields):
+            raise serializers.ValidationError({"non_field_errors": [translate_message("O lançamento contém campos não permitidos.")]})
+        return super().to_internal_value(data)
+
+
+class StockLaunchInput(StrictStockInput, serializers.Serializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=ItemEstoque.objects.all())
+    tipo = serializers.ChoiceField(choices=["entrada", "saida", "compra"])
+    quantidade = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
+    unidade_esperada = serializers.CharField(max_length=20)
+    lote = serializers.PrimaryKeyRelatedField(queryset=LoteEstoque.objects.all(), required=False, allow_null=True, default=None)
+    farm = serializers.PrimaryKeyRelatedField(queryset=Farm.objects.all(), required=False, allow_null=True, default=None)
+    fornecedor = serializers.PrimaryKeyRelatedField(queryset=Fornecedor.objects.all(), required=False, allow_null=True, default=None)
+    numero_lote = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    data_entrada = serializers.DateField(required=False, allow_null=True, default=None)
+    data_fabricacao = serializers.DateField(required=False, allow_null=True, default=None)
+    data_validade = serializers.DateField(required=False, allow_null=True, default=None)
+    local_armazenamento = serializers.ChoiceField(choices=["", *[value for value, _ in LocalArmazenamento.choices]], required=False, default="")
+    nota_fiscal = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    custo_unitario = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"), required=False, allow_null=True, default=None)
+    purchase_due_date = serializers.DateField(required=False, allow_null=True, default=None)
+    motivo = serializers.CharField(max_length=1000)
+    observacao = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")
+    destino = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        org = self.context["request"].user.organization_id
+        item, lot = attrs["item"], attrs["lote"]
+        if item.organization_id != org or (lot and (lot.item_id != item.pk or lot.item.organization_id != org)):
+            raise serializers.ValidationError({"item": translate_message("Produto/lote não pertencem ao contexto autorizado.")})
+        if attrs["farm"] and attrs["farm"].organization_id != org or attrs["fornecedor"] and attrs["fornecedor"].organization_id != org:
+            raise serializers.ValidationError(translate_message("Fazenda/fornecedor não pertencem à organização."))
+        if attrs["tipo"] == "saida" and (not lot or not attrs["destino"]):
+            raise serializers.ValidationError({"lote": translate_message("A saída exige lote e destino explícitos.")})
+        if attrs["tipo"] == "compra":
+            if lot or not attrs["farm"] or attrs["custo_unitario"] is None or attrs["purchase_due_date"] is None:
+                raise serializers.ValidationError(translate_message("Compras exigem novo lote, fazenda, custo unitário e vencimento da conta a pagar."))
+        elif attrs["custo_unitario"] is not None or attrs["purchase_due_date"] is not None:
+            raise serializers.ValidationError(translate_message("Somente compras informam valores financeiros neste fluxo."))
+        if not lot and (not attrs["numero_lote"] or attrs["data_entrada"] is None):
+            raise serializers.ValidationError({"numero_lote": translate_message("Informe número e data de recebimento para um novo lote.")})
+        if lot and any(attrs[k] for k in ("numero_lote", "data_entrada", "data_fabricacao", "data_validade", "local_armazenamento", "nota_fiscal", "fornecedor")):
+            raise serializers.ValidationError(translate_message("O lançamento não altera os metadados do lote existente."))
+        return attrs
+
+
+class StockLaunchConfirmInput(StrictStockInput, serializers.Serializer):
+    preview_token = serializers.CharField(max_length=20000)
 
 
 class AlertaEstoqueSerializer(serializers.ModelSerializer):

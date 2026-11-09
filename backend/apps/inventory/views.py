@@ -6,6 +6,8 @@ ViewSets for the inventory app.
 from decimal import Decimal
 from django.db import models, transaction
 from django.db.models import Case, IntegerField, Q, Sum, Value, When
+from django.db.models.functions import Coalesce
+from rest_framework import serializers
 from rest_framework import viewsets, status, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -25,7 +27,7 @@ from .models import (
     ProducaoRacao,
 )
 from .serializers import (
-    ItemEstoqueSerializer,
+    ItemEstoqueSerializer, ItemEstoqueReceiptSerializer, FornecedorReceiptSerializer,
     LoteEstoqueSerializer,
     MovimentacaoEstoqueSerializer,
     FornecedorSerializer,
@@ -33,7 +35,7 @@ from .serializers import (
     ConsumoRacaoSerializer,
     FormulaRacaoSerializer,
     ProducaoRacaoSerializer,
-    StockCountSerializer,
+    StockCountSerializer, OperationalMovementSerializer, MovementReadQuery, StockLaunchInput, StockLaunchConfirmInput,
 )
 from .choices import (
     CategoriaItem, UnidadeMedida, EspecieAnimal, TipoMovimentacao, TipoContratoFornecedor
@@ -41,14 +43,40 @@ from .choices import (
 from .selectors import vaccine_category_q
 
 
+class OperationalInventoryProjection:
+    operational_fields = set()
+
+    def get_serializer(self, *args, **kwargs):
+        serializer = super().get_serializer(*args, **kwargs)
+        if self.request.method == "GET" and self.request.query_params.get("view") == "operational":
+            target = serializer.child if hasattr(serializer, "child") else serializer
+            for field in set(target.fields) - self.operational_fields:
+                target.fields.pop(field)
+            if "estoque_atual" in target.fields:
+                target.fields["estoque_atual"] = serializers.DecimalField(source="operational_balance", max_digits=10, decimal_places=2, read_only=True)
+                target.fields["estoque_baixo"] = serializers.BooleanField(source="operational_low", read_only=True)
+        return serializer
+
+
+def with_operational_balance(queryset):
+    return queryset.annotate(operational_balance=Coalesce(
+        Sum("lotes__quantidade_atual", filter=Q(lotes__ativo=True)),
+        Value(Decimal("0")), output_field=models.DecimalField(max_digits=18, decimal_places=2),
+    )).annotate(operational_low=Case(
+        When(operational_balance__lt=models.F("estoque_minimo"), then=Value(True)),
+        default=Value(False), output_field=models.BooleanField(),
+    ))
+
+
 @operator_scoped
-class ItemEstoqueViewSet(viewsets.ModelViewSet):
+class ItemEstoqueViewSet(OperationalInventoryProjection, viewsets.ModelViewSet):
     """
     CRUD for inventory items.
     Extra actions:
       POST /inventory/items/bulk_create/  — create multiple items at once
       GET  /inventory/items/choices/      — return all TextChoices for the front-end
     """
+    operational_fields = {"id", "nome", "categoria", "categoria_display", "categorias", "categorias_display", "unidade_medida", "unidade_display", "descricao", "fabricante", "especie_animal", "estoque_minimo", "prioridade", "ativo", "estoque_atual", "estoque_baixo", "updated_at"}
     permission_classes = [OrganizationRolePermission]
 
     queryset = (
@@ -58,6 +86,12 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         .order_by("nome")
     )
     serializer_class = ItemEstoqueSerializer
+
+    def get_serializer_class(self):
+        if self.request.method in ("POST", "PATCH") and self.request.query_params.get("view") == "receipt":
+            return ItemEstoqueReceiptSerializer
+        return super().get_serializer_class()
+
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -75,6 +109,11 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
                 vaccine_category_q() if categoria == "vacina" else
                 Q(categoria=categoria) | Q(categorias__contains=[categoria])
             )
+
+        if self.request.query_params.get("view") == "operational":
+            qs = with_operational_balance(qs.prefetch_related(None)).order_by("nome", "pk")
+            state = self.request.query_params.get("status", "").strip()
+            return qs.filter(operational_low=state == "baixo") if state in ("baixo", "normal") else qs
 
         status_filter = self.request.query_params.get("status", "").strip()
         if status_filter == "baixo":
@@ -159,6 +198,10 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
             return Response({"error": translate_message("Usuário sem organização vinculada.")}, status=status.HTTP_400_BAD_REQUEST)
 
         items = ItemEstoque.objects.filter(organization=organization, ativo=True)
+        if request.query_params.get("view") == "operational":
+            rows = with_operational_balance(items)
+            return Response({"total_items": rows.count(), "estoque_baixo": rows.filter(operational_low=True).count()})
+
         total_items = items.count()
 
         Estoque_Baixo = items.filter(estoque_minimo__gt=0).annotate(
@@ -285,12 +328,13 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class LoteEstoqueViewSet(viewsets.ModelViewSet):
+class LoteEstoqueViewSet(OperationalInventoryProjection, viewsets.ModelViewSet):
     """CRUD for stock batches."""
+    operational_fields = {"id", "item", "item_nome", "numero_lote", "data_fabricacao", "data_validade", "quantidade_inicial", "quantidade_atual", "local_armazenamento", "local_display", "fornecedor_nome", "data_entrada", "observacao", "ativo"}
     permission_classes = [OrganizationRolePermission]
     action_operations = {"adjust_stock": "edit"}
 
-    queryset = LoteEstoque.objects.select_related("item").order_by("-data_entrada")
+    queryset = LoteEstoque.objects.select_related("item", "fornecedor").order_by("-data_entrada", "pk")
     serializer_class = LoteEstoqueSerializer
 
     def get_queryset(self):
@@ -312,7 +356,7 @@ class LoteEstoqueViewSet(viewsets.ModelViewSet):
         data = StockCountSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         movement = record_stock_count(lot, request.user, **data.validated_data)
-        return Response(MovimentacaoEstoqueSerializer(movement, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        return Response({"id": str(movement.pk)} if request.query_params.get("view") == "receipt" else MovimentacaoEstoqueSerializer(movement, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
     @transaction.atomic
     def perform_destroy(self, instance):
@@ -329,13 +373,44 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
     """CRUD for stock movements (mostly read + create)."""
 
     queryset = (
-        MovimentacaoEstoque.objects.select_related("item", "lote", "responsavel")
-        .order_by("-data_movimentacao")
+        MovimentacaoEstoque.objects.select_related("item", "lote", "responsavel", "farm")
+        .order_by("-data_movimentacao", "-pk")
     )
     serializer_class = MovimentacaoEstoqueSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    @action(detail=False, methods=["get"], url_path="launch-options")
+    def launch_options(self, request):
+        from django.conf import settings
+        from django.utils import timezone
+        from .choices import LocalArmazenamento
+        return Response({"today": timezone.localdate().isoformat(), "timezone": settings.TIME_ZONE,
+                         "locais": [{"value": value, "label": label} for value, label in LocalArmazenamento.choices]})
+
+    @action(detail=False, methods=["post"], url_path="preview")
+    def launch_preview(self, request):
+        from . import stock_launches
+        stock_launches.authorize(request.user)
+        data = StockLaunchInput(data=request.data, context={"request": request})
+        data.is_valid(raise_exception=True)
+        return Response(stock_launches.preview(request.user, data.validated_data))
+
+    @action(detail=False, methods=["post"], url_path="confirm")
+    def launch_confirm(self, request):
+        from . import stock_launches
+        token = StockLaunchConfirmInput(data=request.data)
+        token.is_valid(raise_exception=True)
+        intent = stock_launches.decode(request.user, token.validated_data["preview_token"])
+        data = StockLaunchInput(data=intent["command"], context={"request": request})
+        data.is_valid(raise_exception=True)
+        return Response(stock_launches.confirm(request.user, intent, data.validated_data), status=status.HTTP_201_CREATED)
+
+    def get_serializer_class(self):
+        if self.request.method == "GET" and self.request.query_params.get("view") == "operational":
+            return OperationalMovementSerializer
+        return super().get_serializer_class()
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -346,6 +421,23 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         elif self.request.user.is_authenticated:
             # If authenticated but no org, return nothing to avoid data leakage or empty context
             return qs.none()
+
+        if self.request.query_params.get("view") == "operational":
+            from django.conf import settings
+            from django.db.models.functions import TruncDate
+            from zoneinfo import ZoneInfo
+            query = MovementReadQuery(data=self.request.query_params)
+            query.is_valid(raise_exception=True)
+            filters = query.validated_data
+            for key in ("item", "lote", "tipo"):
+                if filters.get(key):
+                    qs = qs.filter(**{key: filters[key]})
+            if filters["search"]:
+                term = filters["search"]
+                qs = qs.filter(Q(item__nome__icontains=term) | Q(lote__numero_lote__icontains=term) | Q(destino__icontains=term) | Q(observacao__icontains=term))
+            if filters.get("start"):
+                qs = qs.annotate(_registered_day=TruncDate("data_movimentacao", tzinfo=ZoneInfo(settings.TIME_ZONE))).filter(_registered_day__range=(filters["start"], filters["end"]))
+            return qs
 
         item_id = self.request.query_params.get("item")
         if item_id:
@@ -672,13 +764,21 @@ class FornecedorViewSet(viewsets.ModelViewSet):
     permission_classes = [OrganizationRolePermission]
 
     serializer_class = FornecedorSerializer
+
+    def get_serializer_class(self):
+        if self.request.method in ("POST", "PATCH") and self.request.query_params.get("view") == "receipt":
+            return FornecedorReceiptSerializer
+        return super().get_serializer_class()
+
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         if self.request.user.is_authenticated and self.request.user.organization:
-            return Fornecedor.objects.filter(
-                organization=self.request.user.organization
-            ).prefetch_related("contatos", "enderecos").order_by("nome")
+            rows = Fornecedor.objects.filter(organization=self.request.user.organization)
+            search = self.request.query_params.get("search", "").strip()
+            if search:
+                rows = rows.filter(Q(nome__icontains=search) | Q(cnpj__icontains=search))
+            return rows.prefetch_related("contatos", "enderecos").order_by("nome", "pk")
         return Fornecedor.objects.none()
 
     def _get_user_organization(self):
@@ -825,6 +925,34 @@ class AlertaEstoqueViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class FormulaRacaoViewSet(viewsets.ModelViewSet):
+    @action(detail=False, methods=["get"], url_path="mobile")
+    def mobile(self, request):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        qs = feed.formulas(request.user).order_by('nome', 'id')
+        search = request.query_params.get('search', '')[:100].strip()
+        if search:
+            qs = qs.filter(nome__icontains=search)
+        page = self.paginate_queryset(qs)
+        return self.get_paginated_response([feed.formula_data(obj) for obj in page])
+
+    @action(detail=True, methods=["get"], url_path="mobile")
+    def mobile_detail(self, request, pk=None):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        obj = feed.formulas(request.user).filter(pk=pk).first()
+        if not obj:
+            raise exceptions.NotFound()
+        return Response(feed.formula_data(obj))
+
+    @action(detail=False, methods=["post"], url_path="mobile-save")
+    def mobile_save(self, request):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        value = feed.FormulaInput(data=request.data)
+        value.is_valid(raise_exception=True)
+        return Response(feed.save_formula(request.user, value.validated_data), status=200 if value.validated_data.get('id') else 201)
+
     serializer_class = FormulaRacaoSerializer
     permission_classes = [OrganizationRolePermission]
 
@@ -850,6 +978,46 @@ class FormulaRacaoViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class ProducaoRacaoViewSet(viewsets.ModelViewSet):
+    @action(detail=False, methods=["get"], url_path="mobile")
+    def mobile(self, request):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        qs = self.get_queryset().filter(formula__organization_id=request.user.organization_id)
+        if request.query_params.get('formula'):
+            try:
+                from uuid import UUID
+                formula_id = UUID(request.query_params['formula'])
+            except ValueError:
+                raise serializers.ValidationError({'formula': 'UUID inválido.'})
+            qs = qs.filter(formula_id=formula_id)
+        page = self.paginate_queryset(qs)
+        return self.get_paginated_response([feed.production_data(obj) for obj in page])
+
+    @action(detail=True, methods=["get"], url_path="mobile")
+    def mobile_detail(self, request, pk=None):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        obj = self.get_object()
+        if obj.formula.organization_id != request.user.organization_id:
+            raise exceptions.NotFound()
+        return Response(feed.production_data(obj))
+
+    @action(detail=False, methods=["post"], url_path="mobile-preview")
+    def mobile_preview(self, request):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        value = feed.ProductionInput(data=request.data)
+        value.is_valid(raise_exception=True)
+        return Response(feed.preview(request.user, value.validated_data))
+
+    @action(detail=False, methods=["post"], url_path="mobile-confirm")
+    def mobile_confirm(self, request):
+        from . import mobile_feed as feed
+        feed.authorize(request.user)
+        value = feed.ConfirmInput(data=request.data)
+        value.is_valid(raise_exception=True)
+        return Response(feed.confirm(request.user, value.validated_data['preview_token']), status=201)
+
     serializer_class = ProducaoRacaoSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
