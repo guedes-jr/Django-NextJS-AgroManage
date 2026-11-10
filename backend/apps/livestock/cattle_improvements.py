@@ -200,9 +200,12 @@ def execute_protocol_step(user, step, date, notes, inventory_lot=None, inventory
     if mating and (mating.female_id != step.run.animal_id or mating.mating_date != date):
         raise ValidationError("A cobertura deve pertencer à mesma matriz e data da execução.")
     if inventory_lot:
-        from apps.inventory.models import LoteEstoque, MovimentacaoEstoque
+        from apps.inventory.models import ItemEstoque, LoteEstoque, MovimentacaoEstoque
         from apps.inventory.services import registrar_movimentacao
-        lot = LoteEstoque.objects.select_for_update().select_related("item").get(pk=inventory_lot.pk)
+        item_id = LoteEstoque.objects.filter(pk=inventory_lot.pk, item__organization_id=user.organization_id).values_list('item_id', flat=True).first()
+        if not item_id:raise ValidationError("Lote de sêmen não autorizado.")
+        ItemEstoque.objects.select_for_update().get(pk=item_id)
+        lot = LoteEstoque.objects.select_for_update(of=('self',)).select_related("item").get(pk=inventory_lot.pk)
         if lot.item.organization_id != user.organization_id or lot.item.categoria != "semen" or lot.item.especie_animal not in {"bovino", "multiplo", ""} or not lot.ativo or not lot.item.ativo or lot.data_entrada > date or (lot.data_validade and lot.data_validade < date):
             raise ValidationError("Selecione um lote de sêmen bovino elegível na data de execução.")
         if not mating or not inventory_quantity or inventory_quantity <= 0 or inventory_quantity > lot.quantidade_atual:

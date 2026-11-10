@@ -211,6 +211,26 @@ Mobile revalida sessão/organização/permissão antes de gravar e consome o con
 - Validação: 406 testes mobile, TypeScript/ESLint, exportação Android/iOS/web, 25 testes PostgreSQL (9 de execução, incluindo concorrência nativa/legada e passagem para a segunda etapa; 16 regressões), jornada sintética em 320/390/820 px com validação, revisão, sucesso, conflito e resultado incerto sem reenvio. Sem erros de execução ou overflow horizontal na prévia. Aparelhos Android/iOS e piloto permanecem pendentes.
 - Próximo: vínculo da cobertura existente e consumo revisado de sêmen por lote/unidade/saldo/validade, mantendo custos no servidor e preservando a baixa atômica. Importação/análises e outras ações avançadas permanecem pendentes; Fase 4 em andamento.
 
+### Execução com cobertura existente e sêmen — 9 de novembro de 2026
+
+- Ficha oferece Executar com cobertura na próxima etapa elegível. Matriz/data/autor/responsável preservam as mesmas regras da execução documental. Catálogo paginado mostra somente coberturas existentes da mesma matriz e data; não cria nova cobertura nem gestação.
+- Consumo opcional de sêmen: seleção paginada/buscável de lote ativo, produto ativo/categoria sêmen/espécie bovina ou múltipla, entrada até a data, validade compatível e saldo positivo. Estoque pertence à organização, sem pressupor que cada lote pertence à fazenda. Quantidade positiva de até duas casas decimais na unidade atual do item, sem conversão automática.
+- Revisão explicita cobertura, lote/produto/unidade, quantidade e saldo antes/depois, validade e ausência de baixa quando desativada. Cliente usa inteiros escalados para conferir os decimais; revisão assinada de 15 minutos vincula ator/organização, comando, contexto da etapa, cobertura e versões/saldo/unidade do estoque.
+- Confirmação bloqueia contexto da etapa/matriz, cobertura, item e lote; revalida tudo e aplica vínculo, baixa, movimento, custo interno, execução e tarefa=done na mesma transação. Fluxo web passa a seguir item antes de lote no mesmo serviço, preservando suas respostas/regras. Nenhum custo ou preço é retornado aos catálogos/revisão/recibo/histórico mobile.
+- Histórico inclui cobertura vinculada e lote/quantidade consumida. A unidade exibida no histórico é explicitamente a unidade atual do item, pois o modelo existente não mantém snapshot de unidade por execução. Relações fora do tenant/matriz ficam fora da consulta.
+- Retenção da revisão por sessão, preflight de acesso, singleflight e consumo antes do POST. Resultado incerto/conflito congela formulário e abre ficha fresca somente leitura, sem replay/retry automático ou fila offline.
+- Validação: 414 testes mobile, TypeScript/ESLint, exportação Android/iOS/web, 35 testes PostgreSQL (10 novos, com baixa única nativa/legada e disputa por saldo; 25 regressões), jornada sintética em 320/390/820 px com seletores, confirmação explícita, validação decimal, revisão de saldos, sucesso/histórico, conflito e resultado incerto sem reenvio. Sem erros de execução ou overflow horizontal na prévia. Aparelhos Android/iOS e piloto permanecem pendentes.
+- Próximo: cadastro/versionamento de modelos de protocolo. Importação/análises e outras ações avançadas permanecem pendentes; Fase 4 em andamento.
+
+### Cadastro/versionamento de modelos de protocolo — 10 de novembro de 2026
+
+- Catálogo oferece Criar modelo; ficha do modelo oferece Criar nova versão, exclusivamente para gestor/admin com escrita. Modelo global da organização, sem exigir fazenda. A versão derivada carrega etapas do modelo de origem e preserva seu nome.
+- Formulário com nome de até 100 caracteres e 1–30 etapas: nome até 150, dia inteiro 0–365, ordenação não decrescente. Adição, remoção e movimentação de etapas, sem ordenação automática silenciosa. Revisão informa última versão existente, próxima versão e todas as etapas.
+- Contexto assinado de 15 minutos vincula ator/organização/comando, origem e última versão daquele nome. Confirmação bloqueia a organização na mesma ordem do serviço web, revalida contexto e acrescenta uma versão com o serviço existente. Revisão reaplicada ou nova versão intercalada retorna conflito; não há edição destrutiva de modelo antigo, alteração de snapshots iniciados nem criação de tarefas.
+- Revisão retida na sessão, preflight gerencial/organização e singleflight; consumo antes do POST. Resultado incerto/conflito congela formulário e oferece catálogo/ficha frescos somente leitura, sem replay/retry automático ou fila offline.
+- Validação: 421 testes mobile, TypeScript/ESLint, exportação Android/iOS/web, 24 testes PostgreSQL (8 de modelos, incluindo concorrência nativa/legada; 16 regressões), prévia sintética em 320/390/820 px com nome de origem bloqueado, etapas/reordenação, revisão, validação, conflito, sucesso/ficha e resultado incerto sem reenvio. Sem erros de execução ou overflow horizontal na prévia. Aparelhos Android/iOS e piloto permanecem pendentes.
+- Próximo: importação assistida bovina, começando pela validação/prévia sem gravar animais. Importação, análises e demais ações avançadas permanecem pendentes; Fase 4 em andamento.
+
 ### Telas e comportamento
 
 | Tela | Conteúdo | Ação principal | Estados específicos |

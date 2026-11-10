@@ -3210,5 +3210,70 @@ can_execute_documentary per stage: ordered eligibility and actor capability.
 Native detail suppresses action in reconcile=1 and fetches fresh data. Client
 retains full review per session, preflights current role/org, consumes before POST,
 validates receipt, freezes unknown/conflict and offers read-only detail. No
-retry/offline queue/replay. Coverage-linked or stock-consuming execution is a
-separate pending native increment.
+retry/offline queue/replay. Coverage-linked or stock-consuming execution is described below.
+
+
+### Native protocol execution with existing mating and optional semen
+
+GET `cattle/operations/protocol-semen-matings/?view=mobile&farm=UUID&production=beef|dairy&step=UUID&date=YYYY-MM-DD`
+reuses documentary step authorization/context (writable manager/admin or bovine
+operator who owns task/created run). Lists only matings for the stage female and
+execution date: id/date/kind/version. GET `protocol-semen-lots/` with same scope,
+date, optional search/page, lists eligible active semen lots/items in the tenant,
+bovine/multiple/unspecified species, positive balance, entered by date and not
+expired at date: id/item/name/number/unit/balance/expiry/version. Neither catalog
+loads prices. Stock is organization-wide; no invented per-farm stock ownership.
+
+POST `protocol-semen-preview/?view=mobile` accepts exactly farm/production/step/
+date/notes/mating/inventory_lot/inventory_quantity/acknowledged=true. Lot and
+quantity are either both null (link only) or both supplied; quantity positive,
+max10 digits and 2 decimal places, within balance. Existing mating must match
+female/date. Review extends execution options with mating{id,date,kind,version},
+stock null or {lot,item,name,number,unit,quantity,before,after,expiry}, command,
+preview_token. Signed 15-minute actor/org-bound context includes stage digest,
+mating state, item/lot versions, unit, availability and balances.
+
+POST `protocol-semen-confirm/?view=mobile` accepts only preview_token. Revalidates
+under stage/task/run/animal, mating, item then lot locks. Existing service atomically
+links mating, records optional semen movement/cost snapshot internally, deducts
+stock, records execution and completes Agenda task. Existing web service uses
+same item-before-lot order. Receipt id/run/farm/executed_date/notes/mating/stock/
+status=done; stock matches reviewed effect. No costs or price values in payloads.
+Already executed/stale scope/stock/context 409; invalid signature 400; capability
+403; foreign preview/catalog target 404. No new mating/pregnancy is created.
+
+Run read projection now rejects foreign inventory links or mating of another
+female. Stage detail adds mating{id,date,kind} and stock{lot,name,number,quantity,
+unit} (nullable). Unit in history is explicitly current item unit, not a stored
+historical unit snapshot. Native detail suppresses all actions in reconcile=1.
+Client parses decimal quantities without binary arithmetic, validates before/after
+and receipt, retains signed review in session, preflights role/org and prevents
+concurrent writes. Unknown/conflict offers fresh read-only history; no automatic
+replay, retry or offline stock queue.
+
+
+### Native append-only protocol template versions
+
+POST `cattle/operations/protocol-template-preview/?view=mobile` accepts exactly
+name (trimmed 1–100), source (nullable template UUID), steps (1–30 objects with
+only name trimmed 1–150 and day integer 0–365 in nondecreasing order). Writable
+admin/manager only; operators/feeder denied. Source is tenant-scoped and its name
+must remain unchanged. With no source, an existing identical name still appends
+its next version, explicitly shown in review.
+
+Review: name/source/previous_version/version/steps/command/preview_token. Signed
+15-minute context binds actor/org, full command, latest existing version for that
+name and source version state. POST `protocol-template-confirm/?view=mobile`
+accepts only preview_token, locks organization in the shared legacy order,
+revalidates digest and calls existing create_protocol. Receipt (201) id/name/
+version/steps. Intervening version or reused review 409; invalid signature 400;
+foreign preview source 404; role or actor mismatch 403. No migrations, historical
+model changes, run snapshot updates or Agenda tasks.
+
+Native catalog create and template-detail new-version actions require managerial
+write capability, suppressed in reconcile=1. Source name read-only in native form;
+confirmation of unknown result offers catalog mode (kind=protocols) searched by
+name, fresh read-only list/detail. Exact review retained per session and consumed
+before POST, fresh role/org preflight, singleflight and strict receipt matching.
+No automatic replay/retry/offline creation; concurrent native confirmations append
+once, while legacy independent creations remain serialized and version-unique.

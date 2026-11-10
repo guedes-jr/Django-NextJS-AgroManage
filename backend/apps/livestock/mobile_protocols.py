@@ -26,7 +26,9 @@ def rows(user, kind, params):
     invalid = CattleProtocolStep.objects.filter(run_id=OuterRef('pk')).exclude(
         Q(task__organization=user.organization) & (Q(task__farm_id=F('run__animal__farm_id')) | Q(task__farm__isnull=True)) &
         (Q(task__assigned_to__isnull=True) | Q(task__assigned_to__organization=user.organization)) &
-        (Q(executed_by__isnull=True) | Q(executed_by__organization=user.organization)))
+        (Q(executed_by__isnull=True) | Q(executed_by__organization=user.organization)) &
+        (Q(inventory_lot__isnull=True) | Q(inventory_lot__item__organization=user.organization)) &
+        (Q(mating__isnull=True) | Q(mating__female_id=F('run__animal_id'))))
     result = CattleProtocolRun.objects.filter(animal__farm__organization=user.organization, protocol__organization=user.organization,
         animal__species__code='bovinos', animal__cattle_purpose__in=[q['production'], 'dual']).alias(invalid=Exists(invalid)).filter(invalid=False)
     if q.get('farm'): result = result.filter(animal__farm_id=q['farm'])
@@ -45,7 +47,8 @@ def data(row, kind):
 def detail(row, kind, user=None):
     result = data(row, kind)
     if kind == 'protocols': return result
-    steps = row.executions.select_related('task__assigned_to', 'executed_by').only('id', 'number', 'run_id', 'executed_at', 'executed_date', 'notes',
+    steps = row.executions.select_related('task__assigned_to', 'executed_by','mating','inventory_lot__item').only('id', 'number', 'run_id', 'executed_at', 'executed_date', 'notes',
+        'inventory_quantity','mating__id','mating__mating_date','mating__mating_type','inventory_lot__id','inventory_lot__numero_lote','inventory_lot__item__id','inventory_lot__item__nome','inventory_lot__item__unidade_medida',
         'task__id', 'task__due_date', 'task__status', 'task__assigned_to__id', 'task__assigned_to__full_name', 'executed_by__id', 'executed_by__full_name').order_by('number')
     preceding_done=True
     capability={}
@@ -57,5 +60,7 @@ def detail(row, kind, user=None):
         'due_date': str(step.task.due_date), 'executed_date': str(step.executed_date) if step.executed_date else None,
         'status': 'done' if step.executed_at else 'cancelled' if step.task.status == 'cancelled' else 'overdue' if step.task.due_date < timezone.localdate() else 'pending',
         'assigned_to': step.task.assigned_to.full_name if step.task.assigned_to_id else '',
+        'mating':{'id':str(step.mating_id),'date':str(step.mating.mating_date),'kind':step.mating.mating_type} if step.mating_id else None,
+        'stock':{'lot':str(step.inventory_lot_id),'name':step.inventory_lot.item.nome,'number':step.inventory_lot.numero_lote,'quantity':str(step.inventory_quantity),'unit':step.inventory_lot.item.unidade_medida} if step.inventory_lot_id else None,
         'executed_by': step.executed_by.full_name if step.executed_by_id else '', 'notes': step.notes} for step in steps])
     return result

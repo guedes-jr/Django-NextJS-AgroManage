@@ -76,6 +76,9 @@ class CattleOperationsView(APIView):
 
     def get(self, request, kind):
         if request.query_params.get('view') == 'mobile':
+            from . import mobile_protocol_semen as semen
+            if kind == 'protocol-semen-matings':return self.page(request,semen.matings(request.user,request.query_params),semen.mating_data)
+            if kind == 'protocol-semen-lots':return self.page(request,semen.lots(request.user,request.query_params),semen.lot_data)
             from . import mobile_protocol_execution as protocol_execution
             if kind == 'protocol-execution-options':return Response(protocol_execution.options(request.user,request.query_params))
             from . import mobile_protocol_start as protocol_start
@@ -159,6 +162,22 @@ class CattleOperationsView(APIView):
         raise serializers.ValidationError("Consulta desconhecida.")
 
     def post(self, request, kind):
+        if request.query_params.get('view') == 'mobile' and kind in ['protocol-template-preview','protocol-template-confirm']:
+            from . import mobile_protocol_template as template
+            from .mobile_vaccination import ConfirmInput
+            if kind == 'protocol-template-preview':
+                values=template.Input(data=request.data);values.is_valid(raise_exception=True)
+                return Response(template.preview(request.user,values.validated_data))
+            values=ConfirmInput(data=request.data);values.is_valid(raise_exception=True)
+            return Response(template.confirm(request.user,values.validated_data['preview_token']),status=201)
+        if request.query_params.get('view') == 'mobile' and kind in ['protocol-semen-preview','protocol-semen-confirm']:
+            from . import mobile_protocol_semen as semen
+            from .mobile_vaccination import ConfirmInput
+            if kind == 'protocol-semen-preview':
+                values=semen.Input(data=request.data);values.is_valid(raise_exception=True)
+                return Response(semen.preview(request.user,values.validated_data))
+            values=ConfirmInput(data=request.data);values.is_valid(raise_exception=True)
+            return Response(semen.confirm(request.user,values.validated_data['preview_token']))
         if request.query_params.get('view') == 'mobile' and kind in ['protocol-execution-preview','protocol-execution-confirm']:
             from . import mobile_protocol_execution as execution
             from .mobile_vaccination import ConfirmInput
