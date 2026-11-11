@@ -1,0 +1,9 @@
+import {z} from 'zod';
+import {productionSchema} from './contracts';
+export const importColumns=['identifier','name','gender','category','birth_date','entry_date','breed_name_input','initial_weight_kg','notes','cattle_purpose'] as const;
+export const importPreviewInputSchema=z.object({farm:z.uuid(),production:productionSchema,csv:z.string().min(1).max(200000)});
+export type ImportPreviewInput=z.infer<typeof importPreviewInputSchema>;
+const rowSchema=z.object({line:z.number().int().min(2),data:z.record(z.string(),z.string()).refine(v=>Object.keys(v).every(k=>(importColumns as readonly string[]).includes(k))),errors:z.record(z.string(),z.union([z.string(),z.array(z.string())])),valid:z.boolean()}).refine(v=>v.valid===(Object.keys(v.errors).length===0));
+export const importPreviewSchema=z.object({farm:z.object({id:z.uuid(),name:z.string()}),production:productionSchema,headers:z.array(z.enum(importColumns)).min(1).max(10),total:z.number().int().min(1).max(500),valid:z.number().int().nonnegative(),invalid:z.number().int().nonnegative(),purposes:z.object({unknown:z.number().int().nonnegative(),beef:z.number().int().nonnegative(),dairy:z.number().int().nonnegative(),dual:z.number().int().nonnegative()}),rows:z.array(rowSchema).min(1).max(500),preview_only:z.literal(true)}).refine(v=>v.rows.length===v.total&&v.valid===v.rows.filter(r=>r.valid).length&&v.valid+v.invalid===v.total&&new Set(v.headers).size===v.headers.length&&v.headers.includes('identifier')&&v.rows.every((row,i)=>i===0||row.line>v.rows[i-1]!.line));
+export type ImportPreview=z.infer<typeof importPreviewSchema>;
+export function importSample(production:'beef'|'dairy'){return `identifier;name;gender;category;birth_date;entry_date;breed_name_input;initial_weight_kg;cattle_purpose;notes\nEXEMPLO-001;Estrela;F;Vaca;2023-01-01;2023-02-01;;450;${production};Remova a linha de exemplo antes de validar`;} 

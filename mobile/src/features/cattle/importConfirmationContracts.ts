@@ -1,0 +1,11 @@
+import {z} from 'zod';
+import {importPreviewSchema,importPreviewInputSchema,type ImportPreviewInput} from './importPreviewContracts';
+export const importReviewSchema=importPreviewSchema.safeExtend({preview_token:z.string().min(1).max(60000)}).refine(v=>v.invalid===0&&v.valid===v.total&&new Set(v.rows.map(r=>r.data.identifier)).size===v.total&&v.rows.every(r=>!!r.data.identifier&&['unknown','beef','dairy','dual'].includes(r.data.cattle_purpose??'')));
+export type ImportReview=z.infer<typeof importReviewSchema>;
+export const importInputKey=(v:ImportPreviewInput)=>JSON.stringify(importPreviewInputSchema.parse(v));
+export const importReceiptSchema=z.object({farm:z.uuid(),production:z.enum(['beef','dairy']),count:z.number().int().min(1).max(500),animals:z.array(z.object({id:z.uuid(),identifier:z.string(),purpose:z.enum(['unknown','beef','dairy','dual'])})).min(1).max(500)}).refine(v=>v.count===v.animals.length&&new Set(v.animals.map(a=>a.id)).size===v.count);
+export const importCheckSchema=z.object({farm:z.object({id:z.uuid(),name:z.string()}),production:z.enum(['beef','dairy']),total:z.number().int().min(1).max(500),found:z.number().int().nonnegative(),missing:z.number().int().nonnegative(),read_only:z.literal(true),proves_import:z.literal(false),rows:z.array(z.object({line:z.number().int().min(2),identifier:z.string(),found:z.boolean(),id:z.uuid().nullable(),purpose:z.string().nullable(),species:z.string().nullable()}).refine(v=>v.found===(v.id!==null)&&v.found===(v.purpose!==null)&&v.found===(v.species!==null))).min(1).max(500)}).refine(v=>v.total===v.rows.length&&v.found===v.rows.filter(r=>r.found).length&&v.found+v.missing===v.total);
+export type ImportReceipt=z.infer<typeof importReceiptSchema>;
+export type ImportCheck=z.infer<typeof importCheckSchema>;
+export function validateImportReview(review:ImportReview,input:ImportPreviewInput){if(review.farm.id!==input.farm||review.production!==input.production)throw Error('import scope');return review;}
+export function validateImportCheck(result:ImportCheck,review:ImportReview){if(result.farm.id!==review.farm.id||result.production!==review.production||result.total!==review.total||result.rows.some((r,i)=>r.line!==review.rows[i]?.line||r.identifier!==review.rows[i]?.data.identifier))throw Error('import check scope');return result;}

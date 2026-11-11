@@ -1,0 +1,12 @@
+FONTES DO SISTEMA FAZENDA MAIS
+
+Web: fontes de sistema, nesta ordem:
+system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif.
+
+Android: fonte padrão do sistema (normalmente Roboto).
+iOS: fonte padrão do sistema (San Francisco).
+
+Nas assinaturas horizontais em PNG deste material: Arial Bold.
+Referência para composição: Arial regular nos textos e Arial Bold nos títulos.
+
+O projeto não distribui uma fonte exclusiva da marca. Arquivos de fontes não foram incluídos; utilizar as fontes disponíveis/licenciadas no ambiente de criação.

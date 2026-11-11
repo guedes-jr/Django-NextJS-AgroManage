@@ -28,6 +28,79 @@ class MilkTankTests(APITestCase):
         self.assertEqual(response.status_code,201,response.data)
         self.tank = MilkTank.objects.get(pk=response.data["id"])
 
+    def test_mobile_tank_read_contract_scope_and_no_writes(self):
+        foreign = MilkTank.objects.create(farm=self.foreign, name="Foreign", capacity_liters=2000)
+        inactive = MilkTank.objects.create(farm=self.farm, name="Inactive", capacity_liters=2000, is_active=False)
+        self.move()
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(self.base+"milk-tanks/", {"farm":str(self.farm.pk), "is_active":"true", "page_size":20})
+            detail = self.client.get(self.base+f"milk-tanks/{self.tank.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(detail.data["balance_liters"], "600.00")
+        self.assertEqual(detail.data["capacity_liters"], "1000.00")
+        self.assertEqual(set(detail.data), {"id", "farm", "farm_name", "name", "capacity_liters", "balance_liters", "is_active", "notes"})
+        self.assertFalse(any(q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for q in captured))
+        self.assertEqual(self.client.get(self.base+f"milk-tanks/{foreign.pk}/").status_code, 404)
+        self.assertEqual(self.client.get(self.base+"milk-tanks/", {"farm":str(self.foreign.pk)}).data["count"], 0)
+        self.assertEqual(self.client.get(self.base+"milk-tanks/", {"is_active":"false"}).data["results"][0]["id"], str(inactive.pk))
+
+    def test_mobile_tank_reads_respect_bovine_operator_scope(self):
+        self.user.role = "operator"
+        self.user.save(update_fields=["role"])
+        self.user.allowed_livestock.set([self.species])
+        self.assertEqual(self.client.get(self.base+"milk-tanks/").status_code, 200)
+        self.user.allowed_livestock.clear()
+        self.assertEqual(self.client.get(self.base+"milk-tanks/").status_code, 403)
+
+    def test_mobile_movement_projection_excludes_financial_columns_and_is_read_only(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        self.move()
+        collection = self.move(kind="collection", liters="100", buyer="Dairy", unit_price="2.0000").data
+        self.cancel(collection)
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(self.base+"milk-tank-movements/", {"view":"mobile", "tank":str(self.tank.pk), "farm":str(self.farm.pk), "kind":"collection", "date":str(self.today)})
+            detail = self.client.get(self.base+f"milk-tank-movements/{collection['id']}/", {"view":"mobile", "tank":str(self.tank.pk)})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+        row = response.data["results"][0]
+        self.assertEqual(row["farm"], str(self.farm.pk))
+        self.assertEqual(row["liters"], "100.00")
+        self.assertIsNotNone(row["cancelled_at"])
+        self.assertEqual(row["cancellation_reason"], "Correção justificada")
+        self.assertEqual(detail.data["id"], collection["id"])
+        for field in ["unit_price", "amount", "receivable", "request_key"]:
+            self.assertNotIn(field, row)
+        for q in captured:
+            self.assertFalse(q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")))
+            if q["sql"].lstrip().upper().startswith("SELECT"):
+                for field in ["unit_price", "amount", "receivable_id"]:
+                    self.assertNotIn('"'+field+'"', q["sql"])
+        legacy = self.client.get(self.base+f"milk-tank-movements/{collection['id']}/")
+        self.assertEqual(legacy.data["unit_price"], "2.0000")
+
+    def test_mobile_movement_scope_and_pagination(self):
+        foreign_tank = MilkTank.objects.create(farm=self.foreign, name="Foreign", capacity_liters=2000)
+        foreign_row = MilkTankMovement.objects.create(tank=foreign_tank, kind="production", date=self.today, liters=1, request_key=uuid4(), created_by=self.user)
+        for _ in range(21):
+            self.move(liters="1")
+        response = self.client.get(self.base+"milk-tank-movements/", {"view":"mobile", "tank":str(self.tank.pk), "page":2, "page_size":20})
+        self.assertEqual(response.data["count"], 21)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(self.client.get(self.base+f"milk-tank-movements/{foreign_row.pk}/", {"view":"mobile"}).status_code, 404)
+        self.assertEqual(self.client.get(self.base+"milk-tank-movements/", {"view":"mobile", "farm":str(self.foreign.pk)}).data["count"], 0)
+        row_id = response.data["results"][0]["id"]
+        self.assertEqual(self.client.get(self.base+f"milk-tank-movements/{row_id}/", {"view":"mobile", "tank":str(foreign_tank.pk)}).status_code, 404)
+        self.user.role = "operator"
+        self.user.save(update_fields=["role"])
+        self.user.allowed_livestock.set([self.species])
+        self.assertEqual(self.client.get(self.base+"milk-tank-movements/", {"view":"mobile"}).status_code, 200)
+        self.user.allowed_livestock.clear()
+        self.assertEqual(self.client.get(self.base+"milk-tank-movements/", {"view":"mobile"}).status_code, 403)
+
     def move(self, **changes):
         data={"tank":str(self.tank.pk),"kind":"production","date":str(self.today),"liters":"600","request_key":str(uuid4()), **changes}
         return self.client.post(self.base+"milk-tank-movements/",data,format="json")

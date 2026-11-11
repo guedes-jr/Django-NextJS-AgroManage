@@ -1,6 +1,7 @@
 """Tenant-scoped HTTP boundary for dairy storage, collections and observations."""
 from decimal import Decimal
 from django.utils import timezone
+from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
@@ -80,6 +81,20 @@ class MovementSerializer(TankRelatedSerializer):
         return result
 
 
+class MobileMovementSerializer(serializers.ModelSerializer):
+    """Operational read projection: no financial data is loaded or serialized."""
+    timezone = serializers.CharField(read_only=True, default=settings.TIME_ZONE)
+    farm = serializers.UUIDField(source="tank.farm_id", read_only=True)
+    tank_name = serializers.CharField(source="tank.name", read_only=True)
+    farm_name = serializers.CharField(source="tank.farm.name", read_only=True)
+    recorded_by = serializers.CharField(source="created_by.full_name", read_only=True)
+
+    class Meta:
+        model = MilkTankMovement
+        fields = ["id", "timezone", "farm", "tank", "tank_name", "farm_name", "kind", "date", "liters", "buyer", "driver", "vehicle", "document", "reason", "notes", "recorded_by", "cancelled_at", "cancellation_reason"]
+        read_only_fields = fields
+
+
 class QualitySerializer(TankRelatedSerializer):
     temperature_c = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=Decimal("-273.15"), allow_null=True, required=False)
     fat_percent = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=0, max_value=100, allow_null=True, required=False)
@@ -135,6 +150,17 @@ class MilkTankMovementViewSet(TankRecordViewSet):
     serializer_class = MovementSerializer
     filterset_fields = ["tank", "date", "kind"]
     action_operations = {"cancel": "edit"}
+
+    def get_serializer_class(self):
+        if self.request.method == "GET" and self.request.query_params.get("view") == "mobile":
+            return MobileMovementSerializer
+        return super().get_serializer_class()
+
+    def get_queryset(self):
+        rows = super().get_queryset()
+        if self.request.method == "GET" and self.request.query_params.get("view") == "mobile":
+            rows = rows.defer("unit_price", "amount", "receivable")
+        return rows
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):

@@ -249,12 +249,12 @@ def import_preview(user, farm, rows):
 
 
 @transaction.atomic
-def import_animals(user, farm, rows):
+def import_animals(user, farm, rows, *, validated_preview=None):
     from apps.farms.models import Farm
     from .cattle_serializers import CattleAnimalSerializer
     from types import SimpleNamespace
     Farm.objects.select_for_update().get(pk=farm.pk)
-    preview = import_preview(user, farm, rows)
+    preview = import_preview(user, farm, rows) if validated_preview is None else validated_preview
     if any(not row["valid"] for row in preview):
         raise ValidationError({"rows": preview})
     created = []

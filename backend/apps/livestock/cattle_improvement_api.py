@@ -76,6 +76,14 @@ class CattleOperationsView(APIView):
 
     def get(self, request, kind):
         if request.query_params.get('view') == 'mobile':
+            from . import mobile_cattle_costs as costs
+            if kind == 'cost-options':return Response(costs.options(request.user,request.query_params))
+            if kind == 'cost-batches':return self.page(request,costs.batches(request.user,request.query_params),costs.batch_data)
+            if kind == 'costs':return Response(costs.report(request.user,request.query_params))
+            from . import mobile_milk_trends as milk
+            if kind == 'milk-trend-options':return Response(milk.options(request.user,request.query_params))
+            if kind == 'milk-trend-animals':return self.page(request,milk.animals(request.user,request.query_params),milk.animal_data)
+            if kind == 'milk-trends':return Response(milk.report(request.user,request.query_params))
             from . import mobile_protocol_semen as semen
             if kind == 'protocol-semen-matings':return self.page(request,semen.matings(request.user,request.query_params),semen.mating_data)
             if kind == 'protocol-semen-lots':return self.page(request,semen.lots(request.user,request.query_params),semen.lot_data)
@@ -162,6 +170,18 @@ class CattleOperationsView(APIView):
         raise serializers.ValidationError("Consulta desconhecida.")
 
     def post(self, request, kind):
+        if request.query_params.get('view') == 'mobile' and kind in ['import-review','import-confirm','import-check']:
+            from . import mobile_cattle_import as mobile_import
+            from . import mobile_cattle_import_confirmation as confirmation
+            if kind == 'import-review':
+                values=mobile_import.Input(data=request.data);values.is_valid(raise_exception=True)
+                return Response(confirmation.review(request.user,values.validated_data))
+            values=(confirmation.ConfirmInput if kind=='import-confirm' else confirmation.CheckInput)(data=request.data);values.is_valid(raise_exception=True)
+            return Response(confirmation.confirm(request.user,values.validated_data) if kind=='import-confirm' else confirmation.check(request.user,values.validated_data),status=201 if kind=='import-confirm' else 200)
+        if request.query_params.get('view') == 'mobile' and kind == 'import-preview':
+            from . import mobile_cattle_import as mobile_import
+            values=mobile_import.Input(data=request.data);values.is_valid(raise_exception=True)
+            return Response(mobile_import.preview(request.user,values.validated_data))
         if request.query_params.get('view') == 'mobile' and kind in ['protocol-template-preview','protocol-template-confirm']:
             from . import mobile_protocol_template as template
             from .mobile_vaccination import ConfirmInput

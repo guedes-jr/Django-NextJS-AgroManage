@@ -3277,3 +3277,158 @@ name, fresh read-only list/detail. Exact review retained per session and consume
 before POST, fresh role/org preflight, singleflight and strict receipt matching.
 No automatic replay/retry/offline creation; concurrent native confirmations append
 once, while legacy independent creations remain serialized and version-unique.
+
+
+### Native read-only cattle CSV import preview
+
+POST `cattle/operations/import-preview/?view=mobile` accepts exactly farm UUID,
+production=beef|dairy and csv (nonempty, max200000 characters, whitespace retained).
+Writable manager/admin only, farm tenant-scoped. CSV delimiter comma or semicolon,
+BOM/CRLF/quoted fields/doubled quotes/multiline supported. Headers unique and
+whitelisted: identifier/name/gender/category/birth_date/entry_date/breed_name_input/
+initial_weight_kg/notes/cattle_purpose. Identifier header required. Reject malformed
+rows, unknown columns and over500 records; blank rows ignored. Field values trimmed.
+Physical starting line numbers retained. Native does not import financial or
+relationship fields; route production does not replace CSV purpose. Missing purpose
+becomes unknown; invalid purpose remains an error rather than guessed correction.
+
+Response farm{id,name},production,headers,total,valid,invalid,purposes counts of
+recognized unknown/beef/dairy/dual, rows[{line,data,errors,valid}],preview_only=true.
+Shared animal serializer performs domain validation without save; native context
+provides already-authorized farm plus bulk-read existing identifiers to avoid N+1
+farm/duplicate checks. CSV duplicates checked separately. Other serializer callers
+keep existing authorization and duplicate behavior. No animal/breed/species/weight/
+history/task/stock/financial write. Tests verify no INSERT/UPDATE/DELETE and
+constant queries for500 records. Native confirmation requires the signed contract below; the legacy rows-shaped
+payload remains rejected with view=mobile. Legacy web is unaffected.
+
+Client managerial preflight, current role/org/session and singleflight; validates
+scope, counts, columns, row status and increasing unique physical line numbers.
+CSV held in memory, pasted or loaded through platform-specific file picker with UTF-8/size validation. Reviewed confirmation is described below. Failed preview clears stale results and preserves input.
+Read-only validation may be repeated safely; no mutation retry/offline queue.
+
+
+### Native reviewed cattle CSV import confirmation and reconciliation
+
+POST `cattle/operations/import-review/?view=mobile` accepts same farm/production/csv
+as native preview. Manager/admin only. Revalidates all rows; any invalid row rejects
+review (400). Adds preview_token to the complete valid preview. Signed 15-minute
+context binds actor/org/farm/production, exact CSV SHA-256, normalized preview and
+day. Token contains metadata/hash, not the raw CSV.
+
+POST `import-confirm/?view=mobile` accepts exactly csv, preview_token, accepted=true.
+Checks signature/actor/hash, locks tenant farm FOR UPDATE (same lock as legacy),
+revalidates all rows and context digest, then calls existing import_animals with
+server-internal validated_preview. Animal/profile/breed/initial weight/history
+creation commits atomically; no financial columns or writes. Receipt (201):
+farm/production/count/animals[{id,identifier,purpose}], matching original order.
+Changed CSV/context/duplicates/reapplied review returns 409. Invalid signature/
+expired review/missing explicit acceptance 400; actor/role mismatch 403. No schema
+migration; legacy import path and validation remain unchanged. Per-farm identifier
+uniqueness and farm lock prevent duplicate writes; there is no durable import-batch
+key proving origin after an uncertain outcome.
+
+POST `import-check/?view=mobile` accepts exactly csv/preview_token, with current
+managerial authorization. Same signed ticket accepted for read-only checking up
+to 24 hours. Hash and tenant farm enforced. Queries identifiers across species and
+purposes and returns farm/production/total/found/missing/rows[{line,identifier,
+found,id|null,purpose|null,species|null}], read_only=true, proves_import=false.
+Presence does not establish batch origin or successful completion; never use it
+to auto-mark an uncertain import as successful. No writes or financial reads.
+
+Mobile retains exact review+input per session, preflights role/org, singleflight,
+consumes review before POST and verifies full receipt. After submission the form
+freezes; unknown/conflict offers only repeatable read-only checking, no automatic
+retry/replay/offline queue. Checking errors clear stale results. Ticket/CSV keys
+are cleared on session restore/authentication/logout. CSV may be pasted or selected locally; both use exactly the same preview/review/confirmation contracts.
+
+
+### Local CSV file acquisition (mobile, no REST contract change)
+
+Native imports use expo-document-picker ~58.0.4 + expo-file-system ~58.0.13
+(SDK58-compatible), single selection, readable cache copy and bounded read-only
+FileHandle. Web uses an isolated user-activated File input with cancellation/focus
+handling. File must have .csv extension, valid UTF-8 (BOM preserved), <=800000 bytes
+and <=200000 JS string units; invalid encoding/binary/empty/oversize rejected without
+replacing existing input. API still checks CSV syntax, max500 rows and domain rules.
+No conversion/truncation or automatic upload/preview/review/confirmation. Original
+files are never changed. Only verified cache/DocumentPicker copies are deleted in
+finally (best effort); native provider copying may occur before size is reported.
+
+Local selection holds foreground restore only while picker/read/revalidation is
+active, then revalidates current user/org/capability before applying data, preserving
+the authenticated form. Session changes discard late results; invalid account signs
+out; no write capability is added. Existing background behavior otherwise unchanged.
+No extra storage permission/iCloud entitlement or API changes. New native binaries
+must include these modules; Android/iOS hardware/provider validation remains pending.
+
+
+### Native read-only milk production trends
+
+GET `cattle/operations/milk-trend-options/?view=mobile&production=dairy&farm=UUID?`
+returns production/farm{id,name}|null/today/timezone/start/end/drop_percent, with
+server defaults (last30 days). GET `milk-trend-animals/` requires production=dairy,
+start/end, optional farm/animal/drop_percent/search/page; returns paginated
+id/identifier/farm/purpose for bovines with milk records in period. Historical
+records remain available for animals whose current purpose is beef/unknown/dual.
+
+GET `milk-trends/?view=mobile` requires production=dairy, start/end; optional farm,
+animal, drop_percent (1–100, up to2 decimal places, default20). Date difference
+<=366 days, end<=server today, start<=end. Tenant/farm/animal/species authorization
+explicit; foreign animal or inconsistent farm 404, malformed scope 400. Writable
+or read-only bovine operators can read; feeder/unscoped operator denied. No cost
+fields loaded, no financial role escalation, no writes.
+
+Projection production/farm/animal/start/end/today/timezone/drop_threshold/scope,
+produced/discarded/usable, days_with_records, series[{date,produced,discarded,usable,
+milked_cows,aggregate}], sessions[{session,liters,records}], drop_alert null or
+{date,previous_date,drop_percent,threshold}. All volumes/percentages fixed2 decimal
+strings. Reuses existing milk_trends helper: aggregates across scoped farms, daily
+totals not allocated to sessions/cows, mixed/aggregate day cows=null, missing days
+not zero. Drop alert only compares consecutive recorded completed days; verify
+all sessions before interpreting. Legacy GET without view=mobile unchanged.
+
+Native validates exact decimal totals/date order/scope/threshold and alert context,
+formats volumes with locale without floating-point precision loss, and hides stale
+results while filters differ, on reload or errors. Selection is paginated/searchable;
+all requests GET-only and scoped URLs built locally, not from next-link hosts.
+
+### Native read-only cattle costs
+
+GET `cattle/operations/cost-options/?view=mobile&production=beef|dairy&farm=UUID`
+returns scoped farm, production, today/timezone and default start/end.
+GET `cost-batches/` accepts the same scope plus search/page and returns paginated
+batch identifiers/codes/farm/purpose, including dual-purpose batches.
+GET `costs/?view=mobile` requires production/farm/start/end; optional batch,
+tab=operations|expenses and page. Start <= end <= organization today, interval
+<=366 days. Manager/admin required; mobile also requires financial access and
+revalidates user permissions before monetary transport. Tenant/farm/batch validated.
+
+Whole-period summary: operational_total, expenses_by_due_date, missing_cost_count,
+totals and missing_by_source for feed/sanitary/health/vaccine/semen, operation_count
+and expense_count. BRL amounts are fixed2 decimal strings; unknown cost is null.
+Selected tab returns page/page_size=20/count/next/previous/results, with boolean
+navigation flags. Out-of-range page 404. Limits: 5,000 operational or financial
+entries, 10,000 selected animals; exceedance returns 400 without partial totals.
+Existing cost calculation reused with native relation guards, cent reconciliation
+and generated-health deduplication. Operational costs and due-date expenses must
+not be summed. Unallocated overhead excluded from purpose scope. Read-only
+current-state projection, no cross-request snapshot. Legacy non-mobile unchanged.
+
+### Native milk tank movement history
+
+GET `livestock/cattle/milk-tank-movements/?view=mobile` and `.../{id}/?view=mobile`
+return an operational-only projection. Native requests bind farm and tank UUIDs;
+list supports kind=production|collection|discard, exact date, page and page_size=20.
+Existing organizational/bovine permissions and tenant filters apply to list/detail;
+readonly authorized operators can read. Foreign objects return 404 on detail.
+
+Fields: id, timezone (server TIME_ZONE), farm, tank, tank_name, farm_name, kind,
+date, liters (fixed2 decimal string), buyer, driver, vehicle, document, reason,
+notes, recorded_by, cancelled_at and cancellation_reason. Cancelled rows remain
+in history; they do not affect the tank balance. This is not a running balance.
+Financial columns unit_price/amount/receivable are deferred and never serialized
+for this projection, including manager/admin. Request keys are omitted. Native
+validates scope/filter matches, ignores remote next-link hosts, and hides old rows
+while filters are dirty or reload/errors occur. Non-mobile GET and all writes
+retain their existing serializers, permissions and behavior. No new mutation.

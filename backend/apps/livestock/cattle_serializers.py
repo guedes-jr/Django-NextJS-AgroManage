@@ -197,9 +197,13 @@ class CattleAnimalSerializer(AnimalSerializer):
         validate_cattle_parentage(self.instance, attrs, farm_id)
         organization = self.context["request"].user.organization
         farm_id = attrs.get("farm_id", getattr(self.instance, "farm_id", None))
+        import_farm = self.context.get('validated_import_farm')
+        import_existing = self.context.get('import_existing_identifiers')
+        bulk_preview = bool(import_farm is not None and isinstance(import_existing, set)
+            and import_farm.pk == farm_id and import_farm.organization_id == organization.pk)
         if (
             not farm_id
-            or not Farm.objects.filter(pk=farm_id, organization=organization).exists()
+            or not bulk_preview and not Farm.objects.filter(pk=farm_id, organization=organization).exists()
         ):
             raise serializers.ValidationError(
                 {"farm_id": "Selecione uma fazenda da sua organização."}
@@ -207,12 +211,14 @@ class CattleAnimalSerializer(AnimalSerializer):
         identifier = attrs.get("identifier", getattr(self.instance, "identifier", ""))
         duplicate = Animal.objects.filter(farm_id=farm_id, identifier=identifier)
         if self.instance:
+            bulk_preview = False
             duplicate = duplicate.exclude(pk=self.instance.pk)
             if "farm_id" in attrs or "species_code_input" in attrs:
                 raise serializers.ValidationError(
                     "A fazenda e a espécie não podem ser alteradas neste cadastro."
                 )
-        if duplicate.exists():
+        duplicate_found = identifier in import_existing if bulk_preview else duplicate.exists()
+        if duplicate_found:
             raise serializers.ValidationError(
                 {"identifier": "Este brinco já está cadastrado nesta fazenda."}
             )

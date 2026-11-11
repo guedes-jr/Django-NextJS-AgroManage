@@ -1,3 +1,10 @@
+import type {TankMovementQuery} from '../milk/tankMovementContracts';
+import type {TankQuery} from '../milk/tankContracts';
+import {canReadCattleCosts,type CostQuery} from '../cattle/costContracts';
+import type {MilkTrendQuery} from '../cattle/milkTrendContracts';
+import type {LoadedCsv} from '../cattle/csvFile';
+import {importReviewSchema,importInputKey,validateImportReview,type ImportReview} from '../cattle/importConfirmationContracts';
+import {importPreviewInputSchema,type ImportPreviewInput} from '../cattle/importPreviewContracts';
 import {protocolTemplateInputSchema,protocolTemplateReviewSchema,protocolTemplateKey,validateProtocolTemplate,type ProtocolTemplateInput,type ProtocolTemplateReview} from '../cattle/protocolTemplateContracts';
 import {protocolSemenInputSchema,protocolSemenReviewSchema,protocolSemenKey,validateProtocolSemen,type ProtocolSemenInput,type ProtocolSemenReview} from '../cattle/protocolSemenContracts';
 import {protocolExecutionInputSchema,protocolExecutionReviewSchema,protocolExecutionKey,validateProtocolExecution,type ProtocolExecutionScope,type ProtocolExecutionInput,type ProtocolExecutionReview} from '../cattle/protocolExecutionContracts';
@@ -20,7 +27,7 @@ import {canReadManagements,type ManagementQuery} from '../cattle/managementContr
 import {pastureCommandSchema,type PastureCommand} from '../cattle/pastureFormContracts';
 import {exitInputSchema,exitReviewSchema,exitKey,validateExitReview,type ExitInput,type ExitReview} from '../cattle/grazingExitContracts';
 import {canEnterPasture,entryInputSchema,entryReviewSchema,entryKey,validateEntryReview,type EntryScope,type EntryInput,type EntryReview} from '../cattle/grazingEntryContracts';
-import {ProtocolTemplateChanged,ProtocolSemenChanged,ProtocolExecutionChanged,ProtocolStartChanged,ClassificationChanged,CattleOccurrenceChanged,GrazingTransferChanged,CollectiveMedicationReviewChanged,SanitaryReviewChanged,GrazingEntryChanged,GrazingExitChanged,PastureContextChanged,WeighingContextChanged,WeighingReviewChanged,CastrationReviewChanged} from '../../services/authApi';
+import {CattleImportChanged,ProtocolTemplateChanged,ProtocolSemenChanged,ProtocolExecutionChanged,ProtocolStartChanged,ClassificationChanged,CattleOccurrenceChanged,GrazingTransferChanged,CollectiveMedicationReviewChanged,SanitaryReviewChanged,GrazingEntryChanged,GrazingExitChanged,PastureContextChanged,WeighingContextChanged,WeighingReviewChanged,CastrationReviewChanged} from '../../services/authApi';
 import type {GrazingQuery} from '../cattle/grazingContracts';
 import type {PastureQuery} from '../cattle/pastureContracts';
 import {birthInputSchema,birthKey,birthReviewSchema,validateBirthReview,type BirthInput,type BirthReview} from '../cattle/birthContracts';
@@ -404,6 +411,44 @@ export class SessionController {
   createCattleOccurrence(input:OccurrenceInput){return this.occurrenceMutation(async(tokens,current,user)=>{const value=occurrenceInputSchema.parse(input),options=await this.api.cattleOccurrenceOptions(tokens,this.language,value.farm,value.production);current();if(value.date>options.today)throw new CattleOccurrenceChanged();if(user.access.role==='operator'&&value.assigned_to!==user.id)throw new AuthFailure('unsupported');return this.api.createCattleOccurrence(tokens,this.language,value);});}
   async cattleOccurrenceResolutionOptions(id:string,farm:string,production:Production,signal?:AbortSignal){const epoch=this.epoch,value=await this.occurrenceRead(tokens=>this.api.cattleOccurrenceResolutionOptions(tokens,this.language,id,farm,production,signal));if(this.epoch!==epoch)throw new AuthFailure('expired');this.occurrenceResolutionContext={epoch,id,farm,production,token:value.context_token,task:value.task};return value;}
   resolveCattleOccurrence(id:string,input:OccurrenceResolutionInput){return this.occurrenceMutation(async(tokens,current)=>{const value=occurrenceResolutionInputSchema.parse(input),held=this.occurrenceResolutionContext;if(!held||held.epoch!==this.epoch||held.id!==id||held.farm!==value.farm||held.production!==value.production||held.token!==value.context_token)throw new CattleOccurrenceChanged();current();this.occurrenceResolutionContext=undefined;return this.api.resolveCattleOccurrence(tokens,this.language,id,value,held.task);});}
+  private cattleCostRead<T>(read:(tokens:Tokens)=>Promise<T>){if(this.state.status!=='signedIn'||!canReadCattleCosts(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(async tokens=>{const epoch=this.epoch;const current=()=>{if(epoch!==this.epoch||this.state.status!=='signedIn')throw new AuthFailure('expired');};const user=await this.api.user(tokens,this.language);current();if(!canReadCattleCosts(user))throw new AuthFailure('unsupported');const org=await this.api.organization(tokens,this.language);current();if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id||org.id!==this.state.session.organization.id){await this.signOut();throw new AuthFailure('expired');}return read(tokens);});}
+  cattleCostOptions(farm:string,production:Production,signal?:AbortSignal){return this.cattleCostRead(tokens=>this.api.cattleCostOptions(tokens,this.language,farm,production,signal));}
+  cattleCostBatches(farm:string,production:Production,page:number,search:string,signal?:AbortSignal){return this.cattleCostRead(tokens=>this.api.cattleCostBatches(tokens,this.language,farm,production,page,search,signal));}
+  cattleCosts(query:CostQuery,signal?:AbortSignal){return this.cattleCostRead(tokens=>this.api.cattleCosts(tokens,this.language,query,signal));}
+  milkTankMovements(query:TankMovementQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankMovements(tokens,this.language,query,signal));}
+  milkTankMovement(id:string,tank:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankMovement(tokens,this.language,id,tank,farm,signal));}
+  milkTanks(query:TankQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTanks(tokens,this.language,query,signal));}
+  milkTank(id:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTank(tokens,this.language,id,farm,signal));}
+  milkTrendOptions(farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTrendOptions(tokens,this.language,farm,signal));}
+  milkTrendAnimals(query:MilkTrendQuery,page:number,search:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTrendAnimals(tokens,this.language,query,page,search,signal));}
+  milkTrends(query:MilkTrendQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTrends(tokens,this.language,query,signal));}
+  private localDocumentOpen=false;
+  isSelectingLocalDocument=()=>this.localDocumentOpen;
+  async selectCattleImportFile(picker:()=>Promise<LoadedCsv|null>){
+    if(this.localDocumentOpen||this.state.status!=='signedIn'||!canEnterPasture(this.state.session.user))throw new AuthFailure('unsupported');
+    const epoch=this.epoch,userId=this.state.session.user.id,orgId=this.state.session.organization.id;this.localDocumentOpen=true;
+    this.importReview=undefined;this.importCheckTicket=undefined;
+    try{
+      let selected:LoadedCsv|null=null,pickerError:unknown;
+      try{selected=await picker();}catch(error){pickerError=error;}
+      if(epoch!==this.epoch||this.state.status!=='signedIn')throw new AuthFailure('expired');
+      return await this.workspaceRead(async tokens=>{
+        let session:Session;
+        try{session=await this.validate(tokens);}catch(error){const failure=authError(error);if(epoch===this.epoch&&['expired','unsupported','invalidResponse'].includes(failure.key))await this.signOut();throw error;}
+        if(epoch!==this.epoch||this.state.status!=='signedIn')throw new AuthFailure('expired');
+        if(session.user.id!==userId||session.organization.id!==orgId){await this.signOut();throw new AuthFailure('expired');}
+        this.language=session.organization.language;this.set({status:'signedIn',session});
+        if(session.user.force_password_change||!canEnterPasture(session.user))throw new AuthFailure('unsupported');
+        if(pickerError)throw pickerError;return selected;
+      });
+    }finally{this.localDocumentOpen=false;}
+  }
+  private importReview?:{epoch:number;key:string;input:string};
+  private importCheckTicket?:{epoch:number;token:string;input:string;key:string};
+  reviewCattleImport(input:ImportPreviewInput){return this.grazingEntryMutation(async(tokens,current)=>{this.importReview=undefined;this.importCheckTicket=undefined;const value=importPreviewInputSchema.parse(input),review=await this.api.reviewCattleImport(tokens,this.language,value);current();this.importReview={epoch:this.epoch,key:JSON.stringify(review),input:importInputKey(value)};this.importCheckTicket={epoch:this.epoch,token:review.preview_token,input:importInputKey(value),key:JSON.stringify(review)};return review;});}
+  confirmCattleImport(input:ImportPreviewInput,review:ImportReview){return this.grazingEntryMutation(async(tokens,current)=>{const value=importReviewSchema.parse(review);try{validateImportReview(value,input);}catch{throw new CattleImportChanged();}const held=this.importReview;if(!held||held.epoch!==this.epoch||held.key!==JSON.stringify(value)||held.input!==importInputKey(input))throw new CattleImportChanged();current();this.importReview=undefined;return this.api.confirmCattleImport(tokens,this.language,input,value);});}
+  checkCattleImport(input:ImportPreviewInput,review:ImportReview){return this.grazingEntryMutation(async(tokens,current)=>{const value=importReviewSchema.parse(review),held=this.importCheckTicket;if(!held||held.epoch!==this.epoch||held.token!==value.preview_token||held.key!==JSON.stringify(value)||held.input!==importInputKey(input))throw new CattleImportChanged();current();return this.api.checkCattleImport(tokens,this.language,input,value);});}
+  previewCattleImport(input:ImportPreviewInput){return this.grazingEntryMutation(async(tokens,current)=>{const value=importPreviewInputSchema.parse(input),result=await this.api.previewCattleImport(tokens,this.language,value);current();return result;});}
   private protocolTemplateReview?:{epoch:number;key:string};
   previewProtocolTemplate(input:ProtocolTemplateInput){return this.grazingEntryMutation(async(tokens,current)=>{this.protocolTemplateReview=undefined;const value=protocolTemplateInputSchema.parse(input),review=await this.api.previewProtocolTemplate(tokens,this.language,value);current();this.protocolTemplateReview={epoch:this.epoch,key:JSON.stringify(review)};return review;});}
   confirmProtocolTemplate(input:ProtocolTemplateInput,review:ProtocolTemplateReview){return this.grazingEntryMutation(async(tokens,current)=>{const value=protocolTemplateReviewSchema.parse(review);try{validateProtocolTemplate(value,input);}catch{throw new ProtocolTemplateChanged();}const held=this.protocolTemplateReview;if(!held||held.epoch!==this.epoch||held.key!==JSON.stringify(value)||protocolTemplateKey(value.command)!==protocolTemplateKey(input))throw new ProtocolTemplateChanged();current();this.protocolTemplateReview=undefined;return this.api.confirmProtocolTemplate(tokens,this.language,value);});}
@@ -516,6 +561,7 @@ export class SessionController {
   restore = (): Promise<void> => {
     if (this.restoreTask) return this.restoreTask;
     const epoch = ++this.epoch;
+    this.importReview=undefined;this.importCheckTicket=undefined;
     this.set({ status: 'restoring' });
     this.restoreTask = (async () => {
       try {
@@ -558,6 +604,7 @@ export class SessionController {
     if (this.signingIn) return;
     this.signingIn = true;
     const epoch = ++this.epoch;
+    this.importReview=undefined;this.importCheckTicket=undefined;
     let tokens: Tokens | null = null;
     try {
       tokens = await login();
@@ -575,6 +622,7 @@ export class SessionController {
   }
   async signOut() {
     ++this.epoch;
+    this.importReview=undefined;this.importCheckTicket=undefined;
     const tokens = this.tokens;
     const language = this.language;
     this.tokens = null;

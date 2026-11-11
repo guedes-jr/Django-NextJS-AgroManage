@@ -19,7 +19,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     void runtime.controller.restore();
     const listener = AppState.addEventListener('change', state => {
-      if (state === 'active' && runtime.controller.getSnapshot().status === 'signedIn') void runtime.controller.restore();
+      if (state === 'active' && runtime.controller.getSnapshot().status === 'signedIn' && !runtime.controller.isSelectingLocalDocument()) void runtime.controller.restore();
     });
     return () => listener.remove();
   }, [runtime]);

@@ -2,7 +2,7 @@
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, F, Exists, OuterRef
 from .models import Animal, AnimalBatch, CattleMilkRecord, CattleMilkDailyTotal, CattleManagement
 from .cattle_improvements import filter_purpose
 
@@ -55,7 +55,11 @@ def allocated_cost(amount, participants, selected_ids):
     return Decimal(sum(quotient + (index < remainder) for index, pk in enumerate(identifiers) if pk in selected)) / 100
 
 
-def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpose=None):
+NATIVE_COST_MAX_ENTRIES = 5000
+NATIVE_COST_MAX_ANIMALS = 10000
+
+
+def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpose=None, native=False):
     from apps.inventory.models import ConsumoRacao
     from apps.finance.models import Transaction
     from .models import VaccinationRecord, HealthRecord, CattleProtocolStep
@@ -66,19 +70,30 @@ def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpo
     if batch:
         batches, animals = batches.filter(pk=batch), animals.filter(batch_id=batch)
     entries = []
-    selected_ids = set(animals.values_list("pk", flat=True))
+    from rest_framework.exceptions import ValidationError
+    def limited(rows):return rows[:NATIVE_COST_MAX_ENTRIES+1] if native else rows
+    selected_ids = set(animals.values_list("pk", flat=True)[:NATIVE_COST_MAX_ANIMALS+1] if native else animals.values_list("pk", flat=True))
+    if native and len(selected_ids)>NATIVE_COST_MAX_ANIMALS:raise ValidationError("Restrinja a fazenda/lote: muitos participantes para a análise mobile.")
     def add(source, key, date, description, amount, reference):
+        if native and len(entries)>=NATIVE_COST_MAX_ENTRIES:raise ValidationError("Restrinja o período ou lote: análise mobile excede o limite de registros.")
         entries.append({"id": f"{source}:{key}", "source": source, "date": str(date), "description": description,
                         "amount": amount, "reference": str(reference) if reference else None})
     feeds = ConsumoRacao.objects.filter(organization=organization, data_inicio__gte=start, data_inicio__lte=end).filter(Q(lote_animal__in=batches) | Q(animais__in=animals)).distinct().select_related("item_estoque", "lote_animal").prefetch_related("animais")
-    for row in feeds:
+    if native:
+        foreign_participants=Animal.objects.filter(consumos_racao__pk=OuterRef('pk')).exclude(farm__organization=organization)
+        feeds=feeds.filter(item_estoque__organization=organization).filter(Q(lote_animal__isnull=True)|Q(lote_animal__farm__organization=organization)).alias(invalid_participants=Exists(foreign_participants)).filter(invalid_participants=False)
+    for row in limited(feeds):
         participants = list(row.animais.all())
         amount = allocated_cost(row.custo_total, [animal.pk for animal in participants], selected_ids) if participants else row.custo_total
         add("feed", row.pk, row.data_inicio, row.item_estoque.nome, amount, row.lote_animal_id)
     managements = CattleManagement.objects.filter(farm__organization=organization, status="confirmed", kind="sanitary", date__range=(start,end), entries__animal__in=animals).distinct().select_related("inventory_lot__item").prefetch_related("entries__animal")
     # Collective applications already produce HealthRecords; include their authoritative
     # management source only once instead of summing the generated records a second time.
-    for row in managements:
+    if native:
+        from .models import CattleManagementEntry
+        invalid_entries=CattleManagementEntry.objects.filter(management_id=OuterRef('pk')).exclude(Q(animal__farm_id=OuterRef('farm_id'))&Q(animal__species__code='bovinos'))
+        managements=managements.filter(Q(inventory_lot__isnull=True)|Q(inventory_lot__item__organization=organization)).alias(invalid_entries=Exists(invalid_entries)).filter(invalid_entries=False)
+    for row in limited(managements):
         participants = list(row.entries.all())
         selected = [entry for entry in participants if entry.animal_id in selected_ids]
         service_cost = row.cost_per_animal * len(selected)
@@ -87,14 +102,23 @@ def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpo
         if row.inventory_lot_id:
             material_cost = allocated_cost(row.inventory_cost_snapshot, [entry.animal_id for entry in participants], selected_ids)
             add("sanitary", f"{row.pk}:material", row.date, f"Material · {row.inventory_lot.item.nome} · {row.description}", material_cost, row.inventory_movement_id)
-    for row in HealthRecord.objects.filter(animal__in=animals, application_date__range=(start,end), cattle_management__isnull=True):
+    health=HealthRecord.objects.filter(animal__in=animals, application_date__range=(start,end), cattle_management__isnull=True)
+    if native:health=health.filter(farm_id=F('animal__farm_id'))
+    for row in limited(health):
         add("health", row.pk, row.application_date, row.description, row.cost, row.animal_id)
-    for row in VaccinationRecord.objects.filter(farm__organization=organization, species__code="bovinos", application_date__range=(start,end)).filter(Q(animal__in=animals) | Q(batch__in=batches)).distinct():
+    vaccines=VaccinationRecord.objects.filter(farm__organization=organization, species__code="bovinos", application_date__range=(start,end)).filter(Q(animal__in=animals) | Q(batch__in=batches)).distinct()
+    if native:
+        vaccines=vaccines.filter(Q(animal__isnull=True)|Q(animal__farm_id=F('farm_id'))).filter(Q(batch__isnull=True)|Q(batch__farm_id=F('farm_id'))).filter(Q(vaccine_item__isnull=True)|Q(vaccine_item__organization=organization))
+    for row in limited(vaccines):
         add("vaccine", row.pk, row.application_date, row.vaccine_name, row.inventory_cost_snapshot, row.animal_id or row.batch_id)
-    for row in CattleProtocolStep.objects.filter(run__animal__in=animals, executed_date__range=(start,end), inventory_movement__isnull=False).select_related("inventory_lot__item"):
+    protocol_steps=CattleProtocolStep.objects.filter(run__animal__in=animals, executed_date__range=(start,end), inventory_movement__isnull=False).select_related("inventory_lot__item")
+    if native:protocol_steps=protocol_steps.filter(run__protocol__organization=organization,inventory_lot__item__organization=organization,inventory_movement__item__organization=organization,inventory_movement__lote_id=F('inventory_lot_id'))
+    for row in limited(protocol_steps):
         add("semen", row.pk, row.executed_date, row.inventory_lot.item.nome, row.inventory_cost_snapshot, row.inventory_movement_id)
     from .models import HistoricoEvento
-    for row in HistoricoEvento.objects.filter(lote__in=batches, tipo_evento="Sanidade de Lote Bovino", data_evento__range=(start,end)):
+    history=HistoricoEvento.objects.filter(lote__in=batches, tipo_evento="Sanidade de Lote Bovino", data_evento__range=(start,end))
+    if native:history=history.filter(farm_id=F('lote__farm_id'))
+    for row in limited(history):
         add("sanitary", f"{row.pk}:service", row.data_evento, f"Serviço · {row.descricao}", Decimal(row.metadata["service_cost"]), row.lote_id)
         material = row.metadata.get("material_cost")
         add("sanitary", f"{row.pk}:material", row.data_evento, f"Material · {row.descricao}", Decimal(material) if material is not None else None, row.metadata.get("inventory_movement"))
@@ -106,6 +130,9 @@ def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpo
         if farm:
             overhead = overhead.filter(farm_id=farm)
         cash = (cash | overhead).distinct()
+    if native:
+        cash=cash.filter(category__organization=organization).filter(Q(farm__isnull=True)|Q(farm_id=F('animal_batch__farm_id')))
+        if cash.count()>NATIVE_COST_MAX_ENTRIES:raise ValidationError("Restrinja o período ou lote: muitas despesas para a análise mobile.")
     cash_total = cash.aggregate(value=Sum("amount"))["value"] or Decimal(0)
     expenses = [{"id": str(row.pk), "date": str(row.due_date), "description": row.description, "amount": str(row.amount), "status": row.status, "reference": str(row.animal_batch_id) if row.animal_batch_id else "Não apropriada a lote"} for row in cash.order_by("-due_date", "-created_at")]
     totals = defaultdict(lambda: Decimal(0))
