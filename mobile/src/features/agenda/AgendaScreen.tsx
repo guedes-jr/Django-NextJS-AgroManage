@@ -50,18 +50,35 @@ function AgendaContents({timezone}:{timezone:string}) {
   return <WorkspaceShell active="agenda" title={t.title}>{!allowed?<View style={s.state}><Text>{t.unavailable}</Text></View>:<FlatList
     key={`${date}:${end}:${domain}:${page}:${recorded}`} data={data?.results??[]} keyExtractor={event=>event.id}
     contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
-    ListHeaderComponent={<View style={{gap:12}}>
-      <FarmContextButton/>
+    ListHeaderComponent={<View style={{gap:8}}>
+      <View style={s.row}>
+        <FarmContextButton/>
+        {state.status==='signedIn'&&taskWriteAccess(state.session.user)==='full'&&<AgendaButton label={taskFormMessages[language].create} onPress={()=>router.push({pathname:'/agenda/task-form',params:{date}})}/>}
+        <AgendaButton label={t.refresh} disabled={busy} onPress={()=>setReload(v=>v+1)}/>
+      </View>
       {state.status==='signedIn'&&state.session.user.access.read_only&&<Text style={s.badge}>{t.readonly}</Text>}
-      <View style={s.row}><AgendaButton label="‹" accessibilityLabel={t.previous} onPress={()=>changeDate(shiftDay(date,week?-7:-1))}/><Text style={s.range}>{format(date)}{week?` – ${format(end)}`:''}</Text><AgendaButton label="›" accessibilityLabel={t.next} onPress={()=>changeDate(shiftDay(date,week?7:1))}/></View>
-      <View style={s.row}><AgendaButton label={t.today} onPress={()=>changeDate(organizationDay(timezone))}/><AgendaButton label={t.day} selected={!week} onPress={()=>{setWeek(false);setPage(1);}}/><AgendaButton label={t.week} selected={week} onPress={()=>{setWeek(true);setPage(1);}}/></View>
-      <Text style={s.label}>{t.date}</Text><View style={s.row}><TextInput accessibilityLabel={t.date} autoCapitalize="none" autoCorrect={false} value={draft} onChangeText={setDraft} placeholder="2026-11-07" style={s.input}/><AgendaButton label={t.apply} onPress={()=>{const parsed=daySchema.safeParse(draft);if(parsed.success)changeDate(parsed.data);else setInvalid(true);}}/></View>
+      <View style={s.row}>
+        <AgendaButton label="‹" accessibilityLabel={t.previous} onPress={()=>changeDate(shiftDay(date,week?-7:-1))}/>
+        <Text style={s.range}>{format(date)}{week?` – ${format(end)}`:''}</Text>
+        <AgendaButton label="›" accessibilityLabel={t.next} onPress={()=>changeDate(shiftDay(date,week?7:1))}/>
+        <AgendaButton label={t.today} onPress={()=>changeDate(organizationDay(timezone))}/>
+        <AgendaButton label={t.day} selected={!week} onPress={()=>{setWeek(false);setPage(1);}}/>
+        <AgendaButton label={t.week} selected={week} onPress={()=>{setWeek(true);setPage(1);}}/>
+      </View>
+      <View style={s.row}>
+        <TextInput accessibilityLabel={t.date} autoCapitalize="none" autoCorrect={false} value={draft} onChangeText={setDraft} placeholder="2026-11-07" style={[s.input,{minHeight:40,height:40,maxWidth:130}]}/>
+        <AgendaButton label={t.apply} onPress={()=>{const parsed=daySchema.safeParse(draft);if(parsed.success)changeDate(parsed.data);else setInvalid(true);}}/>
+        <Pressable accessibilityRole="checkbox" accessibilityState={{checked:recorded}} onPress={()=>{setRecorded(!recorded);setPage(1);}} style={[s.check,{marginLeft:'auto'}]}>
+          <Text style={s.badge}>{recorded?'☑':'☐'}</Text>
+          <Text style={s.checkText}>{t.recorded}</Text>
+        </Pressable>
+      </View>
       {invalid&&<Text accessibilityRole="alert" style={s.error}>{t.invalidDate}</Text>}
-      <View style={s.row}>{(['all','tasks','livestock','crops','holidays'] as const).map(value=><AgendaButton key={value} label={t[value]} selected={domain===value} onPress={()=>{setDomain(value);setPage(1);}}/>)}</View>
-      <Pressable accessibilityRole="checkbox" accessibilityState={{checked:recorded}} onPress={()=>{setRecorded(!recorded);setPage(1);}} style={s.check}><Text style={s.badge}>{recorded?'☑':'☐'}</Text><Text style={s.checkText}>{t.recorded}</Text></Pressable>
-      {state.status==='signedIn'&&taskWriteAccess(state.session.user)==='full'&&<AgendaButton label={taskFormMessages[language].create} onPress={()=>router.push({pathname:'/agenda/task-form',params:{date}})}/>}
-      <AgendaButton label={t.refresh} disabled={busy} onPress={()=>setReload(v=>v+1)}/>
-      {busy&&<Busy label={t.loading}/>}{failed&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>setReload(v=>v+1)}/></View>}
+      <View style={s.row}>
+        {(['all','tasks','livestock','crops','holidays'] as const).map(value=><AgendaButton key={value} label={t[value]} selected={domain===value} onPress={()=>{setDomain(value);setPage(1);}}/>)}
+      </View>
+      {busy&&<Busy label={t.loading}/>}
+      {failed&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>setReload(v=>v+1)}/></View>}
     </View>}
     ListEmptyComponent={!busy&&!failed?<Text style={s.body}>{t.empty}</Text>:undefined}
     renderItem={({item})=><Pressable accessibilityRole="button" onPress={()=>router.push({pathname:'/agenda/[id]',params:{id:item.id,start:date,end,domain,page:String(page),recorded:recorded?'1':'0',farm:farm?.id}})} style={s.card}>

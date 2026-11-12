@@ -1,10 +1,6 @@
 import {WorkspaceShell} from '../workspace/WorkspaceShell';
 import {moduleKeys,iconFor} from '../workspace/navigation';
 import {homeStyles as s} from './styles';
-import {useRouter} from 'expo-router';
-import { HomePriorities } from '../workspace/HomePriorities';
-import { FarmContextButton } from '../workspace/FarmContextButton';
-import { workspaceMessages } from '../workspace/messages';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
@@ -14,7 +10,6 @@ import { homeMessages } from './messages';
 import { HomeIcon, type HomeIconName } from './HomeIcon';
 export function HomeScreen({ session }: { session: Session }) {
   const { language, controller } = useAuth();
-  const router=useRouter();
   const t = homeMessages[language];
   const { width } = useWindowDimensions();
   const [period, setPeriod] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; });
@@ -42,13 +37,9 @@ export function HomeScreen({ session }: { session: Session }) {
   return <WorkspaceShell active="home">{open=><>
     <ScrollView testID="home-scroll" contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" refreshControl={financial ? <RefreshControl refreshing={loading} onRefresh={refresh}/> : undefined}>
       <View style={s.content}>
-        {session.user.access.role!=='feeder'&&<Pressable accessibilityRole="button" accessibilityLabel={workspaceMessages[language].search} onPress={() => router.push('/search')} style={s.search}><HomeIcon name="search"/><Text style={s.searchText}>{workspaceMessages[language].search}</Text></Pressable>}
-        <View style={s.intro}><Text accessibilityRole="header" style={s.greeting}>{t.hello} <Text style={s.green}>{session.user.full_name.split(' ')[0] || session.organization.name}!</Text></Text><Text style={s.subtitle}>{financial ? t.summary : t.operational}</Text><Text style={s.organization}>{session.organization.name}</Text></View>
+        <View style={s.intro}><Text accessibilityRole="header" style={s.greeting}>{t.hello} <Text style={s.green}>{session.user.full_name.split(' ')[0] || session.organization.name}!</Text></Text></View>
         {session.user.access.read_only && <Text style={s.notice}>{t.readonly}</Text>}
-        <FarmContextButton/>
-        <HomePriorities/>
         {financial && <>
-          <Text style={s.caption}>{workspaceMessages[language].financialScope}</Text>
           <View style={s.period}>{button('‹',() => changeMonth(-1),undefined,t.previous)}<Text accessibilityLabel={t.period} style={s.periodText}>{new Intl.DateTimeFormat(language,{month:'long',year:'numeric'}).format(new Date(`${period}-15T12:00:00`))}</Text>{button('›',() => changeMonth(1),undefined,t.next)}</View>
           {loading ? <View style={s.state}><ActivityIndicator color="#247638"/><Text>{t.loading}</Text></View> : failed ? <View style={s.state}><Text accessibilityRole="alert">{t.error}</Text>{button(t.retry,refresh)}</View> : data && <>
             <View style={s.metrics}>{metric(t.costs,money.format(data.segments.crops.cost+data.segments.livestock.cost),'wallet')}{metric(t.expenses,money.format(data.kpis.month_expense),'wallet')}{metric(t.revenue,money.format(data.kpis.month_revenue),'trend')}{metric(t.balance,money.format(data.kpis.month_revenue-data.kpis.month_expense),'trend',t.balanceHint)}</View>

@@ -1,5 +1,5 @@
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
-export type HomeIconName = 'home' | 'agenda' | 'modules' | 'plus' | 'search' | 'bell' | 'wallet' | 'trend' | 'leaf' | 'box' | 'arrow' | 'chart';
+export type HomeIconName = 'home' | 'agenda' | 'modules' | 'plus' | 'search' | 'bell' | 'wallet' | 'trend' | 'leaf' | 'box' | 'arrow' | 'chart' | 'back';
 export function HomeIcon({ name, color = '#17602F', size = 22 }: { name: HomeIconName; color?: string; size?: number }) {
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden={true}>
     {name === 'home' && <Path d="m3 10 9-7 9 7v11h-6v-7H9v7H3Z" />}
@@ -14,5 +14,6 @@ export function HomeIcon({ name, color = '#17602F', size = 22 }: { name: HomeIco
     {name === 'leaf' && <Path d="M12 21V11m0 5C3 17 2 12 3 7c6-1 10 2 9 9Zm0-5C11 4 16 2 22 3c0 6-3 10-10 8Zm-5 0 5 5m0-5 5-4"/>}
     {name === 'box' && <Path d="m3 7 9-5 9 5v10l-9 5-9-5Zm0 0 9 5 9-5M12 12v10M7 4l10 6"/>}
     {name === 'arrow' && <Path d="m9 5 7 7-7 7"/>}
+    {name === 'back' && <Path d="m15 18-6-6 6-6"/>}
   </Svg>;
 }
