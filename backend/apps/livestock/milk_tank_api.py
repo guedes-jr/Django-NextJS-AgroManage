@@ -6,6 +6,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
 from apps.farms.models import Farm
 from .cattle_views import CattlePermission
 from .cattle_serializers import past_date
@@ -34,6 +36,31 @@ class TankSerializer(serializers.ModelSerializer):
     def update(self, instance, data):
         user = self.context["request"].user
         return services.tanks(user.organization).get(pk=services.save_tank(user, data, instance).pk)
+
+
+class MobileTankFormSerializer(TankSerializer):
+    version = serializers.DateTimeField(source="updated_at", read_only=True)
+    expected_version = serializers.DateTimeField(write_only=True, required=False)
+    has_movements = serializers.SerializerMethodField()
+
+    class Meta(TankSerializer.Meta):
+        fields = TankSerializer.Meta.fields + ["version", "expected_version", "has_movements"]
+
+    def get_has_movements(self, instance):
+        return instance.movements.exists()
+
+    def validate(self, data):
+        if self.instance and "expected_version" not in data:
+            raise serializers.ValidationError({"expected_version": "Informe a versão consultada."})
+        if not self.instance and "expected_version" in data:
+            raise serializers.ValidationError({"expected_version": "Versão não se aplica ao cadastro."})
+        return super().validate(data)
+
+    def update(self, instance, data):
+        version = data.pop("expected_version")
+        user = self.context["request"].user
+        saved = services.save_tank(user, data, instance, expected_version=version)
+        return services.tanks(user.organization).get(pk=saved.pk)
 
 
 class TankRelatedSerializer(serializers.ModelSerializer):
@@ -115,6 +142,18 @@ class QualitySerializer(TankRelatedSerializer):
     def create(self, data): return services.record_quality(self.context["request"].user, data)
 
 
+class MobileQualitySerializer(serializers.ModelSerializer):
+    farm = serializers.UUIDField(source="tank.farm_id", read_only=True)
+    tank_name = serializers.CharField(source="tank.name", read_only=True)
+    farm_name = serializers.CharField(source="tank.farm.name", read_only=True)
+    recorded_by = serializers.CharField(source="created_by.full_name", read_only=True)
+
+    class Meta:
+        model = MilkTankQuality
+        fields = ["id", "farm", "tank", "tank_name", "farm_name", "date", "sample", "temperature_c", "fat_percent", "protein_percent", "scc", "tbc", "antibiotics", "notes", "recorded_by"]
+        read_only_fields = fields
+
+
 class MilkTankViewSet(viewsets.ModelViewSet):
     permission_classes = [CattlePermission]
     serializer_class = TankSerializer
@@ -124,6 +163,28 @@ class MilkTankViewSet(viewsets.ModelViewSet):
     filterset_fields = ["farm", "is_active"]
 
     def get_queryset(self): return services.tanks(self.request.user.organization)
+
+    def get_serializer_class(self):
+        if self.request.query_params.get("view") == "mobile" and self.action in {"create", "partial_update"}:
+            return MobileTankFormSerializer
+        return super().get_serializer_class()
+
+    def form_farm(self, request):
+        if request.user.role not in {"admin", "manager"}:
+            raise PermissionDenied("Cadastro de tanques exige gerente ou administrador.")
+        farm_id = serializers.UUIDField().run_validation(request.query_params.get("farm"))
+        return get_object_or_404(Farm, pk=farm_id, organization=request.user.organization)
+
+    @action(detail=False, methods=["get"], url_path="form-options")
+    def form_options(self, request):
+        farm = self.form_farm(request)
+        return Response({"farm": {"id": str(farm.pk), "name": farm.name}})
+
+    @action(detail=True, methods=["get"], url_path="form-record")
+    def form_record(self, request, pk=None):
+        farm = self.form_farm(request)
+        record = get_object_or_404(self.get_queryset(), pk=pk, farm=farm)
+        return Response(MobileTankFormSerializer(record, context=self.get_serializer_context()).data)
 
     @action(detail=True, methods=["get"], url_path="production-available")
     def production_available(self, request, pk=None):
@@ -171,3 +232,8 @@ class MilkTankMovementViewSet(TankRecordViewSet):
 class MilkTankQualityViewSet(TankRecordViewSet):
     model = MilkTankQuality
     serializer_class = QualitySerializer
+
+    def get_serializer_class(self):
+        if self.request.method == "GET" and self.request.query_params.get("view") == "mobile":
+            return MobileQualitySerializer
+        return super().get_serializer_class()

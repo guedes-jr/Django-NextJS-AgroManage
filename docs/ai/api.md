@@ -3432,3 +3432,37 @@ for this projection, including manager/admin. Request keys are omitted. Native
 validates scope/filter matches, ignores remote next-link hosts, and hides old rows
 while filters are dirty or reload/errors occur. Non-mobile GET and all writes
 retain their existing serializers, permissions and behavior. No new mutation.
+
+### Native milk tank quality history
+
+GET `livestock/cattle/milk-tank-quality/?view=mobile` and detail `.../{id}/?view=mobile`
+use an explicit read-only projection: id, farm, tank, tank_name, farm_name, date,
+sample, temperature_c, fat_percent, protein_percent, scc, tbc, antibiotics, notes,
+recorded_by. No request key. Existing tenant/bovine permissions, exact tank/date
+and farm filters apply; native uses pages of 20 and binds farm/tank/id/date to
+returned records. Foreign detail 404. Non-mobile and all write behavior unchanged.
+
+Decimal results are fixed2 strings or null, counts are integers or null.
+Temperature °C, fat/protein %, SCC cells/mL, TBC CFU/mL. Zero and null distinct;
+antibiotics not_tested/negative/positive remains the recorded result, not a
+compliance/release classification. Native has list/detail/loading/empty/error,
+hides old rows when filters change or requests reload/fail, and never follows
+external next-link hosts. GET-only increment, no new clinical/quality mutations.
+
+### Native milk tank create/edit
+
+GET `livestock/cattle/milk-tanks/form-options/?farm=UUID` returns farm{id,name}.
+GET `.../{id}/form-record/?farm=UUID` returns tank fields plus version (updated_at)
+and has_movements. These form reads require manager/admin and tenant/farm scope.
+POST list and PATCH detail with `?view=mobile` accept name, farm, capacity_liters
+(max9 integer digits,2 decimal places, >0), is_active and notes (max1000).
+PATCH requires expected_version; POST rejects a supplied expected_version.
+Receipt contains scoped tank fields/version/has_movements, no financial data.
+
+Service checks expected_version after locking farm/tank, returns 409 if stale,
+preserves farm/history/capacity/nonempty-deactivation rules, and checks duplicate
+names under the farm lock. Legacy PATCH without view=mobile keeps optional-version
+behavior. Native preflights role/org/farm/version, prevents parallel submits and
+blocks UI replay after uncertain transport or malformed receipt. Consultation is
+manual; no durable idempotency or automatic identity reconciliation is claimed for
+metadata creation. No milk movements or financial mutations in this increment.

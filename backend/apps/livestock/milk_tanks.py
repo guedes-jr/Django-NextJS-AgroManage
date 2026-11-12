@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum, F, DecimalField, Case, When, Value, Count
 from django.utils import timezone
-from rest_framework.exceptions import ValidationError, PermissionDenied
+from rest_framework.exceptions import ValidationError, PermissionDenied, APIException
 from apps.farms.models import Farm
 from .models import MilkTank, MilkTankMovement, MilkTankQuality, CattleMilkRecord, CattleMilkDailyTotal
 
@@ -42,12 +42,23 @@ def validate_ledger(tank):
     return balance
 
 
+class TankVersionConflict(APIException):
+    status_code = 409
+    default_detail = "O tanque foi alterado. Consulte a ficha antes de editar novamente."
+
+
 @transaction.atomic
-def save_tank(user, data, instance=None):
+def save_tank(user, data, instance=None, *, expected_version=None):
     farm = instance.farm if instance else data["farm"]
     Farm.objects.select_for_update().get(pk=farm.pk)
+    if farm.organization_id != user.organization_id:
+        raise PermissionDenied("Fazenda indisponível.")
     if instance:
         instance = MilkTank.objects.select_for_update().get(pk=instance.pk)
+        if expected_version is not None and instance.updated_at != expected_version:
+            raise TankVersionConflict()
+        if "name" in data and MilkTank.objects.filter(farm=farm, name=data["name"]).exclude(pk=instance.pk).exists():
+            raise ValidationError({"name": "Já existe um tanque com este nome na fazenda."})
         if data.get("farm", farm) != farm:
             raise ValidationError({"farm": "A fazenda do tanque não pode ser alterada."})
         if "capacity_liters" in data and data["capacity_liters"] != instance.capacity_liters and instance.movements.exists():

@@ -101,6 +101,90 @@ class MilkTankTests(APITestCase):
         self.user.allowed_livestock.clear()
         self.assertEqual(self.client.get(self.base+"milk-tank-movements/", {"view":"mobile"}).status_code, 403)
 
+    def test_mobile_quality_read_projection_preserves_null_zero_and_legacy(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        row = MilkTankQuality.objects.create(tank=self.tank, date=self.today, sample="A1", temperature_c="-0.50", fat_percent=0, scc=0, request_key=uuid4(), created_by=self.user)
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(self.base+"milk-tank-quality/", {"view":"mobile", "tank":str(self.tank.pk), "farm":str(self.farm.pk), "date":str(self.today)})
+            detail = self.client.get(self.base+f"milk-tank-quality/{row.pk}/", {"view":"mobile", "tank":str(self.tank.pk)})
+        self.assertEqual(response.status_code, 200, response.data)
+        result = response.data["results"][0]
+        self.assertEqual(result["farm"], str(self.farm.pk))
+        self.assertEqual(result["temperature_c"], "-0.50")
+        self.assertEqual(result["fat_percent"], "0.00")
+        self.assertIsNone(result["protein_percent"])
+        self.assertEqual(result["scc"], 0)
+        self.assertIsNone(result["tbc"])
+        self.assertEqual(result["antibiotics"], "not_tested")
+        self.assertEqual(detail.data["id"], str(row.pk))
+        self.assertEqual(detail.data["recorded_by"], self.user.full_name)
+        self.assertNotIn("request_key", result)
+        self.assertNotIn("compliance", result)
+        self.assertFalse(any(q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for q in captured))
+        legacy = self.client.get(self.base+f"milk-tank-quality/{row.pk}/")
+        self.assertEqual(legacy.status_code, 200)
+        self.assertNotIn("farm", legacy.data)
+
+    def test_mobile_quality_pagination_tenant_filters_and_operator_access(self):
+        foreign_tank = MilkTank.objects.create(farm=self.foreign, name="Foreign", capacity_liters=2000)
+        foreign = MilkTankQuality.objects.create(tank=foreign_tank, date=self.today, antibiotics="positive", request_key=uuid4(), created_by=self.user)
+        for _ in range(21):
+            MilkTankQuality.objects.create(tank=self.tank, date=self.today, antibiotics="negative", request_key=uuid4(), created_by=self.user)
+        response = self.client.get(self.base+"milk-tank-quality/", {"view":"mobile", "tank":str(self.tank.pk), "page":2, "page_size":20})
+        self.assertEqual(response.data["count"], 21)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(self.client.get(self.base+f"milk-tank-quality/{foreign.pk}/", {"view":"mobile"}).status_code, 404)
+        self.assertEqual(self.client.get(self.base+"milk-tank-quality/", {"view":"mobile", "farm":str(self.foreign.pk)}).data["count"], 0)
+        row_id = response.data["results"][0]["id"]
+        self.assertEqual(self.client.get(self.base+f"milk-tank-quality/{row_id}/", {"view":"mobile", "tank":str(foreign_tank.pk)}).status_code, 404)
+        self.user.role = "operator"
+        self.user.save(update_fields=["role"])
+        self.user.allowed_livestock.set([self.species])
+        self.assertEqual(self.client.get(self.base+"milk-tank-quality/", {"view":"mobile"}).status_code, 200)
+        self.user.allowed_livestock.clear()
+        self.assertEqual(self.client.get(self.base+"milk-tank-quality/", {"view":"mobile"}).status_code, 403)
+
+    def test_mobile_tank_form_options_permissions_and_scope(self):
+        options = self.client.get(self.base+"milk-tanks/form-options/", {"farm":str(self.farm.pk)})
+        self.assertEqual(options.status_code, 200)
+        self.assertEqual(self.client.get(self.base+"milk-tanks/form-options/", {"farm":str(self.foreign.pk)}).status_code, 404)
+        self.assertEqual(self.client.get(self.base+f"milk-tanks/{self.tank.pk}/form-record/", {"farm":str(self.foreign.pk)}).status_code, 404)
+        self.user.role = "operator"
+        self.user.save(update_fields=["role"])
+        self.user.allowed_livestock.set([self.species])
+        self.assertEqual(self.client.get(self.base+"milk-tanks/form-options/", {"farm":str(self.farm.pk)}).status_code, 403)
+        self.assertEqual(self.client.patch(self.base+f"milk-tanks/{self.tank.pk}/?view=mobile", {"name":"Denied"}, format="json").status_code, 403)
+
+    def test_mobile_tank_create_edit_version_and_legacy(self):
+        response = self.client.post(self.base+"milk-tanks/?view=mobile", {"farm":str(self.farm.pk), "name":"New", "capacity_liters":"1200.25", "is_active":True, "notes":"N"}, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertFalse(response.data["has_movements"])
+        url = self.base+f"milk-tanks/{response.data['id']}/?view=mobile"
+        version = response.data["version"]
+        self.assertEqual(self.client.patch(url, {"name":"Missing version"}, format="json").status_code, 400)
+        edit = self.client.patch(url, {"name":"Updated", "expected_version":version}, format="json")
+        self.assertEqual(edit.status_code, 200, edit.data)
+        stale = self.client.patch(url, {"notes":"Stale", "expected_version":version}, format="json")
+        self.assertEqual(stale.status_code, 409, stale.data)
+        self.assertEqual(MilkTank.objects.get(pk=response.data["id"]).notes, "N")
+        self.assertEqual(self.client.patch(self.base+f"milk-tanks/{response.data['id']}/", {"notes":"Legacy"}, format="json").status_code, 200)
+
+    def test_mobile_tank_edit_history_balance_farm_and_name_rules(self):
+        self.move()
+        record = self.client.get(self.base+f"milk-tanks/{self.tank.pk}/form-record/", {"farm":str(self.farm.pk)}).data
+        self.assertTrue(record["has_movements"])
+        url = self.base+f"milk-tanks/{self.tank.pk}/?view=mobile"
+        for payload in [{"capacity_liters":"2000"}, {"is_active":False}, {"farm":str(self.foreign.pk)}]:
+            response = self.client.patch(url, {**payload,"expected_version":record["version"]}, format="json")
+            self.assertEqual(response.status_code, 400, response.data)
+        MilkTank.objects.create(farm=self.farm,name="Existing",capacity_liters=100)
+        self.assertEqual(self.client.patch(url, {"name":"Existing", "expected_version":record["version"]}, format="json").status_code, 400)
+        self.assertEqual(self.balance(),600)
+        self.tank.refresh_from_db()
+        self.assertEqual(self.tank.capacity_liters,1000)
+        self.assertTrue(self.tank.is_active)
+
     def move(self, **changes):
         data={"tank":str(self.tank.pk),"kind":"production","date":str(self.today),"liters":"600","request_key":str(uuid4()), **changes}
         return self.client.post(self.base+"milk-tank-movements/",data,format="json")

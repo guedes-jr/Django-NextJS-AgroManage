@@ -301,6 +301,24 @@ Referências de compatibilidade: [DocumentPicker SDK58](https://docs.expo.dev/ve
 - Validação: 57 testes mobile selecionados (autenticação, tanques e movimentos), 17 testes backend SQLite de tanques, TypeScript/ESLint, bundles Android/iOS/web e jornada sintética responsiva em 320/390/820 px. Testes verificam ausência de escritas e colunas financeiras no GET mobile, isolamento e preservação do contrato web. Aparelhos Android/iOS e piloto permanecem pendentes.
 - L02 e Fase 4 continuam parciais. Próximo: consulta de qualidade; cadastro/edição de tanques, lançamentos e cancelamentos ainda pendentes.
 
+### Consulta de qualidade do leite nos tanques — 11 de novembro de 2026
+
+- Histórico paginado e ficha de qualidade acessíveis pela ficha do tanque: data, amostra, temperatura em °C, gordura/proteína em %, CCS em células/mL, CBT em UFC/mL, resultado de antibióticos, autoria e observações.
+- Ausência e zero distintos; temperatura negativa preservada. Resultado não testado/negativo/positivo apresentado como registrado, sem inferir aprovação, conformidade ou liberação do leite. Nenhum limite regulatório novo introduzido.
+- GET `milk-tank-quality/?view=mobile` e detalhe usam projeção explícita com fazenda, sem chave de solicitação. Contratos web/escrita preservados. Escopo de organização/bovinos no servidor; fazenda/tanque/identidade/data validados no cliente. Operador autorizado em somente leitura pode consultar; feeder não recebe novo acesso no app.
+- Filtro por data exata ou todas, páginas de 20, navegação compartilhada e retorno explícito. Filtros alterados, recargas e erros ocultam dados antigos. URLs de paginação construídas localmente.
+- Validação: 63 testes mobile selecionados (autenticação, tanques, movimentos e qualidade), 19 testes backend SQLite de tanques, TypeScript/ESLint, bundles Android/iOS/web. Jornada sintética responsiva verifica consulta, ficha, paginação, filtros, ausência/zero, antibióticos, estados de erro e retorno; aparelhos Android/iOS e piloto continuam pendentes.
+- L02 e Fase 4 continuam parciais. Próximo: cadastro/edição essencial de tanques. Lançamentos de entrada/coleta/descarte, cancelamento e registro de qualidade ainda pendentes.
+
+### Cadastro e edição essencial de tanques — 11 de novembro de 2026
+
+- Formulário nativo gerencial com fazenda obrigatória/fixa, nome, capacidade decimal em L, ativo e observações. Entrada por lista (fazenda selecionada) e ficha. Cabeçalho/menu compartilhados, teclado e retorno com proteção de alterações locais.
+- GET form-options/form-record valida gerente/admin e fazenda organizacional. Edição recebe version/has_movements; PATCH mobile exige expected_version. Serviço compara versão após bloquear fazenda/tanque e devolve 409 em conflito, sem sobrescrever. Contrato web sem exigência de versão preservado.
+- Capacidade bloqueada na UI quando há movimentos e revalidada pelo serviço sob bloqueio; não desativar com saldo, não mudar fazenda ou duplicar nome na mesma fazenda. Nenhuma movimentação de leite ou efeito financeiro neste formulário.
+- Sessão, organização, papel e versão revalidados antes da escrita; proteção contra envios simultâneos. Timeout/5xx ou recibo inválido bloqueiam reenvio na tela e oferecem consulta somente leitura. Não há replay automático nem promessa de reconciliação por identidade no cadastro; a lista permite conferência manual, não prova a origem de um registro.
+- Validação: 71 testes mobile selecionados, 22 testes backend de tanques em SQLite e PostgreSQL, TypeScript/ESLint, bundles Android/iOS/web e jornada sintética em 320/390/820 px, incluindo cadastro/edição, bloqueio de capacidade, conflito sem PATCH e resultado incerto sem segundo POST. Não foi executado teste de disputa simultânea entre processos neste incremento. Aparelhos Android/iOS e piloto permanecem pendentes.
+- L02 e Fase 4 continuam parciais. Próximo: entrada de produção no tanque; coleta/descarte, cancelamento e registro de qualidade ainda pendentes.
+
 ### Telas e comportamento
 
 | Tela | Conteúdo | Ação principal | Estados específicos |

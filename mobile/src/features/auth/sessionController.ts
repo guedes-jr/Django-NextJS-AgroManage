@@ -1,3 +1,5 @@
+import {canManageTank,tankCommandSchema,type TankCommand} from '../milk/tankFormContracts';
+import type {TankQualityQuery} from '../milk/tankQualityContracts';
 import type {TankMovementQuery} from '../milk/tankMovementContracts';
 import type {TankQuery} from '../milk/tankContracts';
 import {canReadCattleCosts,type CostQuery} from '../cattle/costContracts';
@@ -27,7 +29,7 @@ import {canReadManagements,type ManagementQuery} from '../cattle/managementContr
 import {pastureCommandSchema,type PastureCommand} from '../cattle/pastureFormContracts';
 import {exitInputSchema,exitReviewSchema,exitKey,validateExitReview,type ExitInput,type ExitReview} from '../cattle/grazingExitContracts';
 import {canEnterPasture,entryInputSchema,entryReviewSchema,entryKey,validateEntryReview,type EntryScope,type EntryInput,type EntryReview} from '../cattle/grazingEntryContracts';
-import {CattleImportChanged,ProtocolTemplateChanged,ProtocolSemenChanged,ProtocolExecutionChanged,ProtocolStartChanged,ClassificationChanged,CattleOccurrenceChanged,GrazingTransferChanged,CollectiveMedicationReviewChanged,SanitaryReviewChanged,GrazingEntryChanged,GrazingExitChanged,PastureContextChanged,WeighingContextChanged,WeighingReviewChanged,CastrationReviewChanged} from '../../services/authApi';
+import {TankContextChanged,CattleImportChanged,ProtocolTemplateChanged,ProtocolSemenChanged,ProtocolExecutionChanged,ProtocolStartChanged,ClassificationChanged,CattleOccurrenceChanged,GrazingTransferChanged,CollectiveMedicationReviewChanged,SanitaryReviewChanged,GrazingEntryChanged,GrazingExitChanged,PastureContextChanged,WeighingContextChanged,WeighingReviewChanged,CastrationReviewChanged} from '../../services/authApi';
 import type {GrazingQuery} from '../cattle/grazingContracts';
 import type {PastureQuery} from '../cattle/pastureContracts';
 import {birthInputSchema,birthKey,birthReviewSchema,validateBirthReview,type BirthInput,type BirthReview} from '../cattle/birthContracts';
@@ -417,6 +419,12 @@ export class SessionController {
   cattleCosts(query:CostQuery,signal?:AbortSignal){return this.cattleCostRead(tokens=>this.api.cattleCosts(tokens,this.language,query,signal));}
   milkTankMovements(query:TankMovementQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankMovements(tokens,this.language,query,signal));}
   milkTankMovement(id:string,tank:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankMovement(tokens,this.language,id,tank,farm,signal));}
+  milkTankQualities(query:TankQualityQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankQualities(tokens,this.language,query,signal));}
+  milkTankQuality(id:string,tank:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankQuality(tokens,this.language,id,tank,farm,signal));}
+  tankFormOptions(farm:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canManageTank(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(tokens=>this.api.tankFormOptions(tokens,this.language,farm,signal));}
+  tankFormRecord(id:string,farm:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canManageTank(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(tokens=>this.api.tankFormRecord(tokens,this.language,id,farm,signal));}
+  private tankSaveBusy=false;
+  async saveTank(command:TankCommand){if(this.tankSaveBusy||this.state.status!=='signedIn'||!canManageTank(this.state.session.user))throw new AuthFailure('unsupported');this.tankSaveBusy=true;try{return await this.cattleRead(async tokens=>{const epoch=this.epoch,current=()=>{if(this.state.status!=='signedIn'||this.epoch!==epoch)throw new AuthFailure('expired');};const c=tankCommandSchema.parse(command),user=await this.api.user(tokens,this.language);current();if(!canManageTank(user))throw new AuthFailure('unsupported');const org=await this.api.organization(tokens,this.language);current();if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id||org.id!==this.state.session.organization.id){await this.signOut();throw new AuthFailure('expired');}if(c.mode==='edit'){const record=await this.api.tankFormRecord(tokens,this.language,c.id,c.farm);current();if(record.version!==c.version)throw new TankContextChanged();}else{await this.api.tankFormOptions(tokens,this.language,c.farm);current();}return this.api.saveTank(tokens,this.language,c);});}finally{this.tankSaveBusy=false;}}
   milkTanks(query:TankQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTanks(tokens,this.language,query,signal));}
   milkTank(id:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTank(tokens,this.language,id,farm,signal));}
   milkTrendOptions(farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTrendOptions(tokens,this.language,farm,signal));}
