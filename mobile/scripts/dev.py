@@ -66,14 +66,45 @@ def stop_services(children: list[subprocess.Popen], grace: float = 3.0) -> None:
         child.wait()
 
 
+def _setup_signals() -> tuple[list[int], dict[int, signal.Handlers]]:
+    received: list[int] = []
+    previous: dict[int, signal.Handlers] = {}
+    for number in (signal.SIGINT, signal.SIGTERM):
+        previous[number] = signal.signal(number, lambda signum, _frame: received.append(signum))
+    return received, previous
+
+
+def _restore_signals(previous: dict[int, signal.Handlers]) -> None:
+    for number, handler in previous.items():
+        signal.signal(number, handler)
+
+
+def supervise_mobile_only(mobile_command: list[str], *, mobile_dir: Path,
+                          mobile_env: dict[str, str]) -> int:
+    """Run only the Expo dev server (no local backend)."""
+    children: list[subprocess.Popen] = []
+    received_signal, previous = _setup_signals()
+    try:
+        print("[MOBILE] Iniciando Expo (backend externo). Ctrl+C encerra.", flush=True)
+        mobile = subprocess.Popen(mobile_command, cwd=mobile_dir, env=mobile_env, start_new_session=True)
+        children.append(mobile)
+        while not received_signal:
+            code = mobile.poll()
+            if code is not None:
+                return code if code >= 0 else 128 - code
+            time.sleep(0.1)
+        return 0 if received_signal[-1] == signal.SIGINT else 143
+    finally:
+        print("\n[DEV] Encerrando os processos iniciados por este comando…", flush=True)
+        stop_services(children)
+        _restore_signals(previous)
+
+
 def supervise(backend_command: list[str], mobile_command: list[str], *, backend_dir: Path,
               mobile_dir: Path, backend_env: dict[str, str], mobile_env: dict[str, str],
               backend_port: int, ready_host: str = "127.0.0.1", startup_timeout: float = 30) -> int:
     children: list[subprocess.Popen] = []
-    received_signal: list[int] = []
-    previous = {}
-    for number in (signal.SIGINT, signal.SIGTERM):
-        previous[number] = signal.signal(number, lambda signum, _frame: received_signal.append(signum))
+    received_signal, previous = _setup_signals()
     try:
         print(f"[BACKEND] Iniciando Django na porta {backend_port} (config.settings.dev).", flush=True)
         backend = subprocess.Popen(backend_command, cwd=backend_dir, env=backend_env,
@@ -112,8 +143,7 @@ def supervise(backend_command: list[str], mobile_command: list[str], *, backend_
     finally:
         print("\n[DEV] Encerrando os processos iniciados por este comando…", flush=True)
         stop_services(children)
-        for number, handler in previous.items():
-            signal.signal(number, handler)
+        _restore_signals(previous)
 
 
 def main() -> int:
@@ -123,30 +153,53 @@ def main() -> int:
     parser.add_argument("--api-host", default="127.0.0.1")
     parser.add_argument("--expo-port", type=port_number, default=8081)
     parser.add_argument("--platform", choices=("default", "web", "android", "ios"), default="default")
+    parser.add_argument("--tunnel", action="store_true", help="Use Expo tunnel mode (requires @expo/ngrok).")
+    parser.add_argument("--clear", action="store_true", help="Clear Metro bundler cache.")
+    parser.add_argument("--no-backend", action="store_true", help="Skip local Django; use with EXPO_PUBLIC_API_URL.")
     args = parser.parse_args()
     try:
         if os.name != "posix":
             raise ValueError("Este comando suporta macOS/Linux; no Windows, use WSL.")
-        backend_dir = ROOT_DIR / "backend"
-        if not (backend_dir / ".env").is_file():
-            raise ValueError("Configure backend/.env antes de iniciar. Nenhum arquivo de ambiente será criado automaticamente.")
         if not (MOBILE_DIR / "node_modules").is_dir():
             raise ValueError("Dependências mobile ausentes. Execute npm ci dentro de mobile/.")
         npm = shutil.which("npm")
         if not npm:
             raise ValueError("npm não encontrado no PATH. Ative a versão Node do projeto.")
-        if args.backend_port == args.expo_port:
-            raise ValueError("BACKEND_PORT e EXPO_PORT precisam ser diferentes.")
-        url = api_url(args.api_host, args.backend_port, os.environ.get("EXPO_PUBLIC_API_URL"))
-        ensure_port_available(args.backend_bind, args.backend_port)
+
+        # Auto-detect: skip backend when EXPO_PUBLIC_API_URL points to an external host.
+        external_url = os.environ.get("EXPO_PUBLIC_API_URL")
+        skip_backend = args.no_backend
+        if external_url and not skip_backend:
+            parsed = urlsplit(external_url)
+            if parsed.hostname not in {None, "127.0.0.1", "localhost", "0.0.0.0", "::"}:
+                skip_backend = True
+                print(f"[DEV] EXPO_PUBLIC_API_URL aponta para host externo — pulando backend local.", flush=True)
+
+        url = api_url(args.api_host, args.backend_port, external_url)
         ensure_port_available("0.0.0.0", args.expo_port)
-        backend_env = {**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.dev", "PYTHONUNBUFFERED": "1"}
         mobile_env = {**os.environ, "EXPO_PUBLIC_API_URL": url}
-        if args.api_host in {"127.0.0.1", "localhost"} and "EXPO_PUBLIC_API_URL" not in os.environ:
-            print("[DEV] API local: para celular físico/Android emulador, informe API_HOST acessível pelo dispositivo.", flush=True)
         mobile_command = [npm, "start", "--", "--port", str(args.expo_port)]
+        if args.clear:
+            mobile_command.append("-c")
+        if args.tunnel:
+            mobile_command.extend(["--tunnel", "ngrok"])
         if args.platform != "default":
             mobile_command.append(f"--{args.platform}")
+
+        if skip_backend:
+            if not external_url:
+                raise ValueError("Use EXPO_PUBLIC_API_URL para informar a URL da API quando --no-backend está ativo.")
+            return supervise_mobile_only(mobile_command, mobile_dir=MOBILE_DIR, mobile_env=mobile_env)
+
+        backend_dir = ROOT_DIR / "backend"
+        if not (backend_dir / ".env").is_file():
+            raise ValueError("Configure backend/.env antes de iniciar. Nenhum arquivo de ambiente será criado automaticamente.")
+        if args.backend_port == args.expo_port:
+            raise ValueError("BACKEND_PORT e EXPO_PORT precisam ser diferentes.")
+        ensure_port_available(args.backend_bind, args.backend_port)
+        backend_env = {**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.dev", "PYTHONUNBUFFERED": "1"}
+        if args.api_host in {"127.0.0.1", "localhost"} and not external_url:
+            print("[DEV] API local: para celular físico/Android emulador, informe API_HOST acessível pelo dispositivo.", flush=True)
         return supervise([sys.executable, "manage.py", "runserver", f"{args.backend_bind}:{args.backend_port}"],
                          mobile_command, backend_dir=backend_dir, mobile_dir=MOBILE_DIR,
                          backend_env=backend_env, mobile_env=mobile_env, backend_port=args.backend_port,

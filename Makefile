@@ -96,13 +96,17 @@ dev: ## Start backend + frontend in one terminal with colored logs
 dev-mobile: ## Start Django backend + Expo mobile (same as make -C mobile dev)
 	@$(MAKE) -C "$(ROOT_DIR)/mobile" dev
 
+.PHONY: dev-mobile-tunnel
+dev-mobile-tunnel: ## Start Django backend + Expo mobile with tunnel (access from outside LAN)
+	@$(MAKE) -C "$(ROOT_DIR)/mobile" dev-tunnel
+
 .PHONY: debug
 debug: ## Start backend (debugpy:5678) + frontend (inspector:9229) in debug mode
 	@chmod +x scripts/debug.sh
 	@bash scripts/debug.sh
 
 .PHONY: stop
-stop: ## Stop all running dev services (ports 8000 and 3000)
+stop: ## Stop all running dev services (ports 8000, 3000 and 8081)
 	@chmod +x scripts/stop.sh
 	@bash scripts/stop.sh
 
