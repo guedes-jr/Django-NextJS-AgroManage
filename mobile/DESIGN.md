@@ -108,7 +108,70 @@ Quando o usuário abre o modal de **Módulos**, os itens são agrupados nas quat
   - **Linha 3**: Salto de data + Checkbox de finalizados na mesma linha.
   - **Linha 4**: Chips de filtro de domínio (`Todas`, `Tarefas`, `Rebanho`, etc.).
 
-### 5.2 Cards de Métricas & Dashboard
+### 5.2 Padrão Arquitetural de Navegação & Filtros Operacionais (Inspirado na Agenda)
+Qualquer nova tela nativa (Rebanho, Leite, Estoque, Clínica, etc.) deve implementar os **6 conceitos canônicos** consolidados na Agenda:
+
+1. **Toolbar Dimensional em Linha Única**:
+   - Agrupar navegação de período/fase e modos em uma barra coesa:
+     ```tsx
+     <View style={s.row}>
+       <AgendaButton label="‹" onPress={goPrev} />
+       <Text style={s.range}>{currentScopeLabel}</Text>
+       <AgendaButton label="›" onPress={goNext} />
+       <AgendaButton label={t.today} onPress={goToday} />
+       <AgendaButton label={t.modeA} selected={mode === 'A'} onPress={() => setMode('A')} />
+       <AgendaButton label={t.modeB} selected={mode === 'B'} onPress={() => setMode('B')} />
+     </View>
+     ```
+   - **Reuso no Rebanho**: `‹` Lote `›` + `[ Ativos | Vendidos | Histórico ]`.
+   - **Reuso no Leite**: `‹` Data `›` `Hoje` + `[ Manhã | Tarde | Noite | Total ]`.
+
+2. **Chips de Filtro de Toque Único (*Zero-Click Discovery*)**:
+   - Disponibilize filtros em chips horizontais usando `AgendaButton` ou pílulas semânticas, sem abrir dropdowns ou submenus:
+     ```tsx
+     <View style={s.row}>
+       {categories.map(cat => (
+         <AgendaButton key={cat} label={t[cat]} selected={selected === cat} onPress={() => setSelected(cat)} />
+       ))}
+     </View>
+     ```
+   - **Reuso na Clínica**: `(• Todas) ( Vacinações) ( Medicações) ( Ocorrências)`.
+   - **Reuso no Estoque**: `(• Todos) ( Rações) ( Medicamentos) ( Abaixo do Mínimo)`.
+
+3. **Retorno com Preservação de Estado (*Stateful Return*)**:
+   - Ao navegar para fichas ou detalhes, inclua parâmetros de estado na rota:
+     ```ts
+     router.push({
+       pathname: '/cattle/[production]/[id]',
+       params: { id, production, kind, search, page: String(page), farm: farm?.id }
+     });
+     ```
+   - Ao tocar no botão de voltar, o usuário retorna exatamente para a mesma página e busca sem resetar o scroll ou filtros.
+
+4. **Ações Pré-Contextualizadas (*Context-Aware Actions*)**:
+   - O botão de criar registro (ex: *Nova Pesagem*, *Nova Ordenha*, *Nova Tarefa*) já herda a data, o animal ou a fazenda atualmente selecionada, abrindo o formulário já pré-preenchido.
+
+5. **Cartões Escaneáveis em 3 Níveis (*3-Tier Scanable Card*)**:
+   - Estrutura obrigatória para qualquer card de listagem mobile:
+     ```tsx
+     <Pressable style={s.card} onPress={onOpen}>
+       {/* Nível 1: Metadado sutil */}
+       <Text style={s.muted}>{item.date} · {item.farm_name}</Text>
+       {/* Nível 2: Título destacado */}
+       <Text style={s.title}>{item.title || item.identifier}</Text>
+       {/* Nível 3: Pílula semântica com dot */}
+       <View style={s.pillBadge}>
+         <View style={[s.dot, { backgroundColor: item.active ? '#247638' : '#C68A0E' }]} />
+         <Text style={s.pillText}>{item.statusLabel}</Text>
+       </View>
+     </Pressable>
+     ```
+
+6. **Densidade "Above-the-Fold" (Primeira Dobra Útil)**:
+   - Limite os controles de cabeçalho a no máximo 3 ou 4 linhas compactas.
+   - Os cards de dados principais devem aparecer diretamente na primeira dobra da tela sem exigir rolagem inicial.
+
+### 5.3 Cards de Métricas & Dashboard
 - Grid de 2 colunas: `width: '48%'`, `flexGrow: 1`, `padding: 12px`, `borderRadius: 16px`.
 - Ícone em caixa suave: `padding: 7px`, `backgroundColor: '#EFF6E6'`, `borderRadius: 10px`.
 - Rótulo superior curto e valor destacado em fonte `20px` bold.
@@ -195,7 +258,47 @@ Para dar ao app o acabamento polido, harmonioso e moderno típico do **Lovable**
 
 ---
 
-## 7. Regras de Ouro para o Design Mobile
+## 7. Diretrizes de Compatibilidade Multiplataforma (Android & iOS)
+
+Para que o aplicativo funcione com perfeição, sem quebras visuais ou falhas de usabilidade em qualquer dispositivo Android e iPhone:
+
+### 7.1 Áreas Seguras & Notches (Safe Area Insets)
+- **iOS (Dynamic Island & Home Indicator)**:
+  - Todo o shell deve ser encapsulado em `<SafeAreaView edges={['top', 'left', 'right', 'bottom']}>` usando `react-native-safe-area-context`.
+  - A barra inferior precisa de folga para a barra de gestos (*Home Indicator*) do iPhone sem cortar os ícones de abas.
+- **Android (Navegação por 3 Botões & Gestos)**:
+  - A barra inferior e botões fixos de rodapé nunca devem sobrepor a barra de navegação do sistema Android.
+  - A `StatusBar` deve ser definida explicitamente como `<StatusBar style="light" />` ou `"dark"`.
+
+### 7.2 Gestos e Navegação de Retorno
+- **Android (Botão Físico / Gesto de Voltar)**:
+  - O app deve responder adequadamente ao gesto nativo de voltar do Android (`BackHandler`). No Expo Router, garanta que `router.canGoBack() ? router.back() : router.navigate('/')` evite que o usuário fique preso em telas com formulários ou modais.
+- **iOS (Swipe to Go Back)**:
+  - Preserve o gesto nativo de deslizar da borda esquerda para voltar (*interactive pop gesture*). Evite componentes horizontais com drag que comecem na margem zero da tela.
+- **Botão Visual Universal**: O botão contextual de voltar na TopBar (`‹ Título`) deve estar sempre visível para garantir acessibilidade universal em ambos os sistemas.
+
+### 7.3 Comportamento do Teclado (Keyboard Handling)
+- **Fechamento ao Tocar Fora**: Listas e formulários devem incluir `keyboardShouldPersistTaps="handled"` em `ScrollView` e `FlatList`.
+- **Ocultamento de Barras Conflitantes**: A barra de navegação inferior (`home-navigation`) deve se ocultar automaticamente quando o teclado estiver aberto (`Keyboard.addListener('keyboardDidShow')` e `'keyboardDidHide'`) para liberar espaço e não cobrir os inputs.
+- **Prevenção de Zoom no iOS**: Campos de texto (`TextInput`) devem ter **tamanho de fonte mínimo de 16px**. Fontes menores disparam o zoom automático e indesejado da tela em dispositivos iOS.
+
+### 7.4 Sombras, Elevações e Densidades de Tela
+- **iOS vs Android**:
+  - iOS renderiza sombras difusas perfeitamente via `boxShadow` / `shadowColor`.
+  - Android requer bordas com leve opacidade (`borderWidth: 1`, `borderColor: '#E2E8DF'`) combinadas a `elevation: 2` para manter contraste nítido em telas de diferentes densidades (de `mdpi` a `xxxhdpi`).
+
+### 7.5 Fontes do Sistema e Acessibilidade (Dynamic Type)
+- Usuários que aumentam a escala de fonte nas configurações do sistema (idosos ou produtores rurais em campo) não devem sofrer com texto truncado ou sobreposto:
+  - **Evite alturas fixas rígidas** em contêineres de texto (`minHeight` em vez de `height`).
+  - Use `numberOfLines` e `flexShrink: 1` em textos com variáveis dinâmicas (nomes de fazendas longos, brincos extensos).
+
+### 7.6 Desempenho em Dispositivos Android de Entrada
+- **Listas com `FlatList`**: Listagens de animais, tarefas e estoque nunca devem ser renderizadas via `.map()` dentro de um `ScrollView`. Use sempre `FlatList` com `keyExtractor`, `initialNumToRender={12}`, `maxToRenderPerBatch={10}` e `windowSize={5}` para garantir rolagem suave a 60 FPS mesmo em celulares mais modestos.
+- **Fuso Horário & Formatação**: Use sempre datas sem UTC offset que causem deslocamentos indesejados de dia no fuso brasileiro (`organizationDay` em vez de `toISOString()`).
+
+---
+
+## 8. Regras de Ouro para o Design Mobile
 
 1. **Primeira dobra limpa**: Toda tela deve exibir conteúdo acionável imediatamente ao carregar, sem demandar scroll apenas para passar por cabeçalhos ou filtros.
 2. **Nunca use fontes abaixo de 11px**: Nem mesmo em legendas de rodapé. Em telas de alta densidade (retina), textos menores ficam ilegíveis.

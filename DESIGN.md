@@ -113,7 +113,60 @@ Inspirado na página de Agenda e Gestão de Rebanho:
 - Não empilhe controles idênticos verticalmente. Utilize grupos horizontais (`d-flex align-items-center gap-2 flex-wrap`).
 - Controles de ação primária (ex.: *+ Nova atividade*, *Exportar PDF*) ficam à direita do cabeçalho ou no topo da toolbar.
 
-### 5.2 Cards de Indicadores (KPI Cards)
+### 5.2 Padrão Arquitetural de Navegação & Filtros Operacionais (Inspirado na Agenda)
+A tela de Agenda estabeleceu a referência de usabilidade e densidade para todo o sistema. Qualquer nova tela de listagem ou painel operacional deve adotar estes **6 conceitos canônicos**:
+
+```
++----------------------------------------------------------------------------------------------------+
+| 1. Toolbar Dimensional:   [ ‹ ]  [ Período / Contexto ]  [ › ]   [ Hoje ]   [ Dia | Semana | Mês ]  |
++----------------------------------------------------------------------------------------------------+
+| 2. Chips de Filtro:       (• Todas)  (  Tarefas)  (  Rebanho)  (  Lavouras)  [ ☑ Incluir Baixados]|
++----------------------------------------------------------------------------------------------------+
+| 3. Ações Contextuais:     [ Fazenda: Santa Maria ▾ ]       [ + Nova Atividade ]    [ ⟳ Atualizar ] |
++----------------------------------------------------------------------------------------------------+
+| 4. Lista / Grid de Dados: (Primeira dobra - visível imediatamente sem rolagem)                      |
+|    +------------------------------------------------------------------------------------------+    |
+|    | [Nível 1] 14 Nov 2026 · Pasto 04                                                         |    |
+|    | [Nível 2] Inseminação Artificial Matriz 0142                                             |    |
+|    | [Nível 3] [• Agendado]  [Protocolo IATF]                                                  |    |
+|    +------------------------------------------------------------------------------------------+    |
++----------------------------------------------------------------------------------------------------+
+```
+
+#### Conceito 1: Toolbar Dimensional em Linha Única
+- Agrupar os eixos de navegação (tempo, lote, fase ou turno) em uma barra contínua: navegação sequencial (`‹` e `›`), atalho ao presente (`Hoje` ou `Mês Atual`) e seletor de granularidade (`Pill Slider`).
+- **Como replicar em outros módulos**:
+  - **Pecuária de Leite**: `[ ‹ ] [ 12 de Nov ] [ › ] [ Hoje ]` + `[ Manhã | Tarde | Noite | Total ]`.
+  - **Manejo de Rebanho**: `[ ‹ ] [ Lote 04 - Recria ] [ › ]` + `[ Animais | Pesagens | Ocorrências ]`.
+  - **Financeiro**: `[ ‹ ] [ Novembro 2026 ] [ › ] [ Mês Atual ]` + `[ Realizado | Previsto | DRE ]`.
+
+#### Conceito 2: Filtros por Chips de Toque Único (*Zero-Click Discovery*)
+- Nunca esconda filtros operacionais primários em dropdowns ou menus sanfona.
+- Disponha os domínios em pílulas horizontais com estado ativo evidente (`--primary` ou tom suave destacado).
+- **Como replicar em outros módulos**:
+  - **Clínica Veterinária**: `(• Todas) (  Vacinações) (  Medicações) (  Ocorrências) (  Exames)`.
+  - **Estoque & Insumos**: `(• Todos) (  Rações/Concentrados) (  Medicamentos) (  Sêmen) (  Abaixo do Mínimo)`.
+  - **Gado de Corte / Leite**: `(• Todos) (  Bezerras) (  Novilhas) (  Lactantes) (  Secas) (  Touros)`.
+
+#### Conceito 3: Retorno com Preservação de Estado (*Stateful Return*)
+- Ao navegar para o detalhe (`/item/[id]`) ou formulário de edição, a rota de origem deve passar seus filtros na query URL (`start`, `end`, `domain`, `page`, `search`, `farm`).
+- Ao clicar no botão de voltar, a aplicação restaura **exatamente o mesmo estado** da listagem, sem resetar página, data ou filtros.
+
+#### Conceito 4: Ações Pré-Contextualizadas (*Context-Aware Actions*)
+- Botões de inserção (*+ Novo...*) devem herdar os parâmetros em foco na tela no momento do clique.
+- Se o usuário está com o dia 15/11 selecionado e clica em *Nova Atividade*, o formulário já abre com `date: '2026-11-15'`. Se está filtrando o *Pasto 02*, o cadastro de lote ou pesagem já vem com aquele pasto pré-selecionado.
+
+#### Conceito 5: Cartões Escaneáveis em 3 Níveis (*3-Tier Scanable Card*)
+Para qualquer listagem (cards ou linhas de tabela com badges):
+1. **Nível 1 (Metadado Sutil)**: Data, fazenda, lote ou localização (`font-size: 12px`, `color: var(--muted-foreground)`).
+2. **Nível 2 (Identificador Principal)**: Brinco, nome do animal, título da tarefa ou produto (`font-size: 15-16px`, `font-weight: 700`, `color: var(--foreground)`).
+3. **Nível 3 (Badge Semântico com Dot Indicator)**: Estado atual (`Concluído`, `Pendente`, `Carência`, `Abaixo do Mínimo`) formatado como pílula elegante.
+
+#### Conceito 6: Densidade "Above-the-Fold" (Primeira Dobra Útil)
+- O conjunto de cabeçalho, toolbar e filtros nunca deve consumir mais do que 25% a 30% da altura da tela.
+- Os primeiros cartões ou linhas de dados devem ser visíveis imediatamente na primeira dobra ao carregar a página.
+
+### 5.3 Cards de Indicadores (KPI Cards)
 - Formato compacto: ícone colorido em tom suave (`iconTone`), valor numérico destacado (`20px - 22px`, `font-weight: 800`) e legenda descritiva curta.
 - Grade padrão: `grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))`.
 
@@ -201,7 +254,33 @@ Substitua badges maciços pesados por pílulas suaves com ponto indicador:
 
 ---
 
-## 7. Regras de Ouro para o Desenvolvimento Web
+## 7. Compatibilidade Mobile Web (Safari iOS & Chrome Android)
+
+Ao acessar o sistema web através de navegadores em smartphones e tablets, as seguintes regras são obrigatórias:
+
+### 7.1 Prevenção de Auto-Zoom no iOS Safari
+- Todos os campos de texto (`input`, `select`, `textarea`) devem ter **`font-size: 16px`** em viewports menores que 992px (`@media (max-width: 991.98px)`).
+- Fontes abaixo de 16px acionam o zoom forçado do Safari no iOS, quebrando o layout do usuário e desalinhando botões fixos.
+
+### 7.2 Insets de Área Segura (Notches & Home Bar)
+- Elementos fixos no topo ou no rodapé (modais, menus mobile, barras de ação) devem respeitar as variáveis de ambiente CSS:
+  ```css
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  ```
+
+### 7.3 Alturas Dinâmicas do Viewport (`dvh`)
+- Para telas de altura total (ex: telas de login, bloqueios, formulários em tela cheia), use **`100dvh`** em vez de `100vh`. Isso evita que a barra de endereços do Safari/Chrome esconda ou empurre botões de ação para fora da tela.
+
+### 7.4 Toques Rápidos e Eliminação de Hover em Touch
+- **Touch Action**: Aplique `touch-action: manipulation` em botões e links para remover o delay de 300ms de duplo toque no Safari móvel.
+- **Isolamento de Hover**: Animações de `:hover` devem ser envolvidas em `@media (hover: hover)`, impedindo que estilos de hover fiquem "presos" após um toque em telas touch.
+
+---
+
+## 8. Regras de Ouro para o Desenvolvimento Web
 
 1. **Reutilize `app-workspace`**: Sempre envolva as páginas autenticadas na estrutura padrão.
 2. **Sem classes inline arbitrárias para tamanhos**: Utilize os tokens de espaçamento e classes do Bootstrap/CSS Modules já aprovados.
