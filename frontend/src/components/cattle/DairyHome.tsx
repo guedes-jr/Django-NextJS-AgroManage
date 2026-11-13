@@ -114,21 +114,21 @@ const shortcuts: Array<{
     value === null || value === undefined ? "—" : Number(value).toLocaleString(language, { maximumFractionDigits: 1 });
   const [date, setDate] = useState(today);
   const [farm, setFarm] = useState("");
-  const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
   const [data, setData] = useState<DairyOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [farmError, setFarmError] = useState("");
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
     cattleService
       .farms(controller.signal)
-      .then(setFarms)
-      .catch((err) => {
-        if (!controller.signal.aborted) setFarmError(cattleError(err, language));
-      });
+      .then((rows) => {
+        if (!controller.signal.aborted && rows.length) {
+          setFarm(rows[0].id);
+        }
+      })
+      .catch(() => undefined);
     return () => controller.abort();
   }, [language]);
 
@@ -179,24 +179,6 @@ const shortcuts: Array<{
         </div>
         <div className={styles.filters}>
           <label>
-            <span>{t("dairy.home.farm")}</span>
-            <select
-              className="form-select form-select-sm"
-              value={farm}
-              onChange={(event) => {
-                setLoading(true);
-                setFarm(event.target.value);
-              }}
-            >
-              <option value="">{t("dairy.home.allFarms")}</option>
-              {farms.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
             <span>
               <CalendarDays size={14} aria-hidden="true" /> {t("dairy.home.referenceDate")}
             </span>
@@ -229,7 +211,6 @@ const shortcuts: Array<{
         </div>
       </header>
 
-      {farmError && <p role="alert" className="alert alert-warning">{t("workspace.couldNotLoadFarms")} {farmError}</p>}
       {error && (
         <div role="alert" className="alert alert-danger">
           {error}
@@ -252,7 +233,7 @@ const shortcuts: Array<{
             <span>{t("workspace.dairyHerdOverview")}</span>
             <h2 id="dairy-summary-title">{t("workspace.summaryDairyFarming")}</h2>
           </div>
-          <small className={base.summaryScope}>{farm ? farms.find((item) => item.id === farm)?.name : t("dairy.home.allFarms")}</small>
+          <small className={base.summaryScope}>{t("dairy.home.allFarms")}</small>
         </div>
 
         <div className={shared.metricsGrid} aria-busy={loading}>

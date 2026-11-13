@@ -70,7 +70,7 @@ class CattleOverviewView(APIView):
 
     def get(self, request):
         return Response(
-            cattle_overview(request.user.organization, request.query_params.get("farm"), request.query_params.get("production"))
+            cattle_overview(request.user.organization, None, request.query_params.get("production"))
         )
 
 
@@ -81,10 +81,7 @@ class CattleDairyOverviewView(APIView):
         from django.utils import timezone
         from .cattle_selectors import dairy_overview
         day = serializers.DateField(validators=[past_date]).run_validation(request.query_params.get("date", str(timezone.localdate())))
-        farm = request.query_params.get("farm")
-        if farm:
-            farm = serializers.UUIDField().run_validation(farm)
-        return Response(dairy_overview(request.user.organization, day, farm))
+        return Response(dairy_overview(request.user.organization, day, None))
 
 
 class CattleAgendaView(APIView):

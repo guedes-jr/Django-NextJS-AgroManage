@@ -39,7 +39,7 @@ export default function AgendaPageView() {
   const dates = useMemo(()=>agendaDays(periodStart,periodEnd),[periodStart,periodEnd]);
   const cells = useMemo(()=>view === "month" ? agendaDays(monday(periodStart),add(monday(periodEnd),6)) : dates,[view,periodStart,periodEnd,dates]);
   useEffect(()=>{getOrganizationAccess().then(access=>setCanCreate(!access.read_only)).catch(()=>{});},[]);
-  useEffect(()=>{ const c=new AbortController(); financeService.farms(c.signal).then(setFarms).catch(()=>{}); return ()=>c.abort(); },[]);
+  useEffect(()=>{ const c=new AbortController(); financeService.farms(c.signal).then(rows => { if (rows.length) setFarm(rows[0].id); setFarms(rows); }).catch(()=>{}); return ()=>c.abort(); },[]);
   useEffect(()=>{
     const c=new AbortController();
     const params={domain, ...(farm ? {farm}:{}), include_recorded:recorded};
@@ -93,7 +93,6 @@ export default function AgendaPageView() {
       </div>
       <div className={styles.filters}><span className={styles.filterIcon} title={t("workspace.filters")}><SlidersHorizontal size={17}/></span>
         <label>{t("plantations.labor.activity")}<select className="form-select" value={domain} onChange={e=>{setDomain(e.target.value);reset();}}><option value="all">{t("workspace.allActivities")}</option>{Object.entries(domains).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
-        <label>{t("dairy.home.farm")}<select className="form-select" value={farm} onChange={e=>{setFarm(e.target.value);reset();}}><option value="">{t("dairy.home.allFarms")}</option>{farms.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
         <label className="form-check mb-2"><input type="checkbox" className="form-check-input" checked={recorded} onChange={e=>{setRecorded(e.target.checked);reset();}}/>{t("workspace.includeRecordedEvents")}</label>
       </div>
     <div className={styles.legend}><span className={styles.total}>{loading ? t("inventory.adjustment.loading") : t("workspace.countEventsInThisPeriod", { count: view === "list" ? list?.count ?? 0 : days.reduce((sum,day)=>sum+day.count,0) })}</span>{Object.entries(domains).map(([key,name])=><span key={key} className={styles.legendItem}><i className={styles[key]}/>{name}</span>)}</div>

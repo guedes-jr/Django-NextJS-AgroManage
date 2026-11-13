@@ -43,19 +43,12 @@ def with_cattle_reproduction(queryset):
 
 
 def cattle_overview(organization, farm=None, production=None):
-    if farm:
-        from rest_framework import serializers
-
-        farm = serializers.UUIDField().run_validation(farm)
     animals = Animal.objects.filter(
         farm__organization=organization, species__code="bovinos", status="active"
     )
     batches = AnimalBatch.objects.filter(
         farm__organization=organization, species__code="bovinos", status="active"
     )
-    if farm:
-        animals = animals.filter(farm_id=farm)
-        batches = batches.filter(farm_id=farm)
     from .cattle_improvements import filter_purpose
     animals, batches = filter_purpose(animals, production), filter_purpose(batches, production)
     standalone = animals.filter(batch__isnull=True)
@@ -71,26 +64,20 @@ def cattle_overview(organization, farm=None, production=None):
         date__gte=today.replace(day=1),
         date__lte=today,
     )
-    if farm:
-        milk = milk.filter(animal__farm_id=farm)
     milk_totals = milk.aggregate(
         produced=Sum("liters"), discarded=Sum("discarded_liters")
     )
     daily_totals = CattleMilkDailyTotal.objects.filter(farm__organization=organization, date__gte=today.replace(day=1), date__lte=today)
-    if farm:
-        daily_totals = daily_totals.filter(farm_id=farm)
     aggregate_totals = daily_totals.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"))
     milk_totals = {key: (milk_totals[key] or Decimal(0)) + (aggregate_totals[key] or Decimal(0)) for key in ("produced", "discarded")}
     pastures = CattlePasture.objects.filter(farm__organization=organization)
-    if farm:
-        pastures = pastures.filter(farm_id=farm)
     from .cattle_operations import cattle_agenda, agenda_row
     # Keep the overview bounded, with separate space for upcoming and overdue work.
-    today_events = list(cattle_agenda(organization, farm, "today", production=production)[:8])
-    upcoming_events = list(cattle_agenda(organization, farm, "upcoming", production=production)[:8])
-    overdue_events = list(cattle_agenda(organization, farm, "overdue", production=production)[:4])
+    today_events = list(cattle_agenda(organization, None, "today", production=production)[:8])
+    upcoming_events = list(cattle_agenda(organization, None, "upcoming", production=production)[:8])
+    overdue_events = list(cattle_agenda(organization, None, "overdue", production=production)[:4])
     agenda = [agenda_row(row) for row in [*today_events, *upcoming_events, *overdue_events]]
-    agenda_count = cattle_agenda(organization, farm, production=production).count()
+    agenda_count = cattle_agenda(organization, None, production=production).count()
     return {
         "total_head": sum(categories.values()),
         "identified_animals": animals.count(),
@@ -130,10 +117,6 @@ def dairy_overview(organization, day, farm=None):
         date__gte=day.replace(day=1),
         date__lte=day,
     )
-    if farm:
-        animals = animals.filter(farm_id=farm)
-        milk = milk.filter(animal__farm_id=farm)
-        monthly_milk = monthly_milk.filter(animal__farm_id=farm)
     animals = animals.filter(cattle_purpose__in=["dairy", "dual"])
     lactating = Q(gender="F") & (Q(cattle_profile__is_lactating=True) | Q(cattle_profile__isnull=True, reproductive_status="lactante"))
     cows = Q(gender="F", category__in=["Vaca", "Matriz"])
@@ -146,8 +129,6 @@ def dairy_overview(organization, day, farm=None):
     )
     volumes = milk.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"), milked_cows=Count("animal_id", distinct=True))
     daily_totals = CattleMilkDailyTotal.objects.filter(farm__organization=organization, date=day)
-    if farm:
-        daily_totals = daily_totals.filter(farm_id=farm)
     aggregate_totals = daily_totals.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"), total_count=Count("pk"))
     has_total = aggregate_totals["total_count"] > 0
     volumes["produced"] = (volumes["produced"] or Decimal(0)) + (aggregate_totals["produced"] or Decimal(0))
@@ -160,8 +141,6 @@ def dairy_overview(organization, day, farm=None):
         date__gte=day.replace(day=1),
         date__lte=day,
     )
-    if farm:
-        monthly_totals = monthly_totals.filter(farm_id=farm)
     monthly_aggregate_totals = monthly_totals.aggregate(produced=Sum("liters"), discarded=Sum("discarded_liters"))
     monthly_produced = (monthly_volumes["produced"] or Decimal(0)) + (monthly_aggregate_totals["produced"] or Decimal(0))
     monthly_discarded = (monthly_volumes["discarded"] or Decimal(0)) + (monthly_aggregate_totals["discarded"] or Decimal(0))

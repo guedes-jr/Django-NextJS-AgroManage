@@ -44,22 +44,21 @@ class DairyOverviewTests(APITestCase):
         for key, expected in {"lactating_cows": 2, "total_cows": 3, "non_lactating_cows": 1, "young_females": 2, "bulls": 1, "produced_liters": Decimal(24), "usable_liters": Decimal(22), "milked_cows": 2, "average_per_milked_cow": Decimal(12), "monthly_produced_liters": Decimal(74), "monthly_discarded_liters": Decimal(2), "monthly_usable_liters": Decimal(72), "monthly_average_per_lactating_cow": Decimal(37)}.items():
             self.assertEqual(result.data[key], expected, key)
 
-    def test_date_and_farm_are_scoped_without_inventing_an_average(self):
+    def test_date_is_scoped_without_inventing_an_average(self):
         self.milk(self.cow, 15)
         other_org = Organization.objects.create(name="Outra", slug="dairy-foreign")
         other_farm = Farm.objects.create(organization=other_org, name="Outra")
         foreign = self.animal("Other", farm=other_farm)
         self.milk(foreign, 100)
         self.assertEqual(self.client.get(self.url).data["produced_liters"], 15)
-        empty = self.client.get(self.url, {"farm": str(other_farm.pk)})
-        self.assertEqual(empty.data["produced_liters"], 0)
-        self.assertEqual(empty.data["total_cows"], 0)
-        self.assertIsNone(empty.data["average_per_milked_cow"])
+        ignored = self.client.get(self.url, {"farm": str(other_farm.pk)})
+        self.assertEqual(ignored.data["produced_liters"], 15)
+        self.assertEqual(ignored.data["total_cows"], 1)
+        self.assertEqual(ignored.data["average_per_milked_cow"], Decimal(15))
         past = self.client.get(self.url, {"date": str(self.day-timedelta(days=1))})
         self.assertEqual(past.data["produced_liters"], 0)
         self.assertEqual(past.data["total_cows"], 1)
         self.assertEqual(self.client.get(self.url, {"date": str(self.day+timedelta(days=1))}).status_code, 400)
-        self.assertEqual(self.client.get(self.url, {"farm": "invalid"}).status_code, 400)
 
     def test_monthly_metrics_include_aggregate_daily_totals(self):
         previous_month_end = self.day.replace(day=1) - timedelta(days=1)

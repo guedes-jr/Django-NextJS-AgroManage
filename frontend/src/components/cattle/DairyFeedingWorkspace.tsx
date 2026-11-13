@@ -20,7 +20,6 @@ export function DairyFeedingWorkspace() {
   const access = useOrganizationAccess();
   const {t, language} = useOrganizationLocale();
   const manager = !!access && ['admin', 'manager'].includes(access.role);
-  const [farms, setFarms] = useState<{id: string; name: string}[]>([]);
   const [farm, setFarm] = useState('');
   const [date, setDate] = useState(milkToday);
   const [start, setStart] = useState(milkToday);
@@ -54,7 +53,7 @@ export function DairyFeedingWorkspace() {
   useEffect(() => {
     if (!manager) return;
     const controller = new AbortController();
-    cattleService.farms(controller.signal).then(rows => { if (!controller.signal.aborted) { setFarms(rows); if (rows.length === 1) setFarm(rows[0].id); } })
+    cattleService.farms(controller.signal).then(rows => { if (!controller.signal.aborted && rows.length) setFarm(rows[0].id); })
       .catch(err => { if (!controller.signal.aborted) setError(cattleError(err, language)); });
     return () => controller.abort();
   }, [manager, language]);
@@ -123,7 +122,7 @@ export function DairyFeedingWorkspace() {
   return <div className={styles.page}>
     <Link className={styles.back} href={root} onClick={event => { if (locked || (dirty && !window.confirm(t('dairy.worksheet.draftWarning')))) event.preventDefault(); }}><ArrowLeft size={15}/>{t('dairy.worksheet.operations')}</Link>
     <header className={styles.header}><div className={styles.brand}><span className={styles.brandIcon}><Wheat size={24}/></span><div><h1>{t('dairy.worksheet.groupTitle')}</h1><p>{t('dairy.worksheet.groupDescription')}</p></div></div><button className="btn btn-outline-secondary btn-sm" disabled={dirty || locked || loading} onClick={() => { setError(''); setRevision(value => value+1); }}><RefreshCw size={15}/>{t('inventory.alerts.refresh')}</button></header>
-    <div className={styles.filters}><label className={styles.field}>{t('dairy.home.farm')}<select className="form-select form-select-sm" value={farm} disabled={dirty || locked} onChange={event => { setFarm(event.target.value); setCatalog(null); setHistory(null); setPage(1); setHistoryPage(1); }}><option value="">{t('dairy.home.farm')}</option>{farms.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label><label className={styles.field}>{t('dairy.worksheet.periodStart')}<input type="date" className="form-control form-control-sm" required max={date} value={start} disabled={locked || !!groups.length} onChange={event => setStart(event.target.value)}/></label><label className={styles.field}>{t('dairy.worksheet.periodEnd')}<input type="date" className="form-control form-control-sm" required min={start} max={milkToday()} value={date} disabled={locked || !!groups.length} onChange={event => setDate(event.target.value)}/></label></div>
+    <div className={styles.filters}><label className={styles.field}>{t('dairy.worksheet.periodStart')}<input type="date" className="form-control form-control-sm" required max={date} value={start} disabled={locked || !!groups.length} onChange={event => setStart(event.target.value)}/></label><label className={styles.field}>{t('dairy.worksheet.periodEnd')}<input type="date" className="form-control form-control-sm" required min={start} max={milkToday()} value={date} disabled={locked || !!groups.length} onChange={event => setDate(event.target.value)}/></label></div>
     {error && <p className="alert alert-danger" role="alert">{error}</p>}{success && <p className="alert alert-success" role="status">{success}</p>}
     {pending && <div className="alert alert-warning"><p>{t('dairy.worksheet.uncertain')}</p><div className={styles.actions}><button className="btn btn-outline-dark btn-sm" disabled={saving} onClick={checkReceipt}>{t('dairy.worksheet.checkReceipt')}</button><button className="btn btn-outline-dark btn-sm" disabled={saving} onClick={() => execute(pending)}>{t('dairy.worksheet.sameRequest')}</button></div></div>}
     {!farm ? <p className="alert alert-info">{t('dairy.worksheet.chooseFarm')}</p> : <>

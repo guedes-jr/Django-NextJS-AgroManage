@@ -127,7 +127,7 @@ const dayField: CattleField = { name: "date", label: t("lotReport.date"), type: 
   const [reproductionCounts, setReproductionCounts] = useState<Record<string, number>>({});
   const [dairyTab, setDairyTab] = useState("all");
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
-  const [farm, setFarm] = useState("");
+  const [farm] = useState("");
   const [withdrawal, setWithdrawal] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -448,7 +448,6 @@ const dayField: CattleField = { name: "date", label: t("lotReport.date"), type: 
         </div>
       </div>
       <div className={styles.headerActions}>
-        {view !== "management" && <label className={styles.farmFilter}><span>{t("dairy.home.farm")}</span><select aria-label={t("workspace.filterByFarm")} className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">{t("dairy.home.allFarms")}</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         <button className="btn btn-outline-secondary btn-sm" onClick={() => setRefresh(value => value + 1)} disabled={loading}><RefreshCw size={15} className="me-1" aria-hidden="true" />  {t("inventory.alerts.refresh")}</button>
       </div>
     </header>}
@@ -457,7 +456,7 @@ const dayField: CattleField = { name: "date", label: t("lotReport.date"), type: 
     {loading && !overview ? <div className={styles.empty} role="status">{t("workspace.loadingHerdData")}</div> : !error && <>
       {production && <p className="alert alert-info py-2 small">{t("workspace.thisSegmentIncludesThePurpose")} {production === "dairy" ? t("workspace.dairy") : t("workspace.beefLabel")}  {t("workspace.andDualPurpose")} <Link href={cattleHref(`${root}/operacoes?tab=classification`, production || "beef")}>{t("workspace.reviewUnclassifiedAnimalsAndBatches")}</Link>.</p>}
       {(["overview", "reports", "milk"].includes(view)) && <section className={homeStyles.summaryPanel} aria-labelledby="cattle-summary-title">
-        <div className={homeStyles.sectionHeading}><div><span>{view === "milk" ? t("workspace.milkProduction") : t("workspace.herdOverview")}</span><h2 id="cattle-summary-title">{view === "milk" ? t("workspace.milkProductionSummary") : production ? `Resumo · ${productionTitle}` : t("workspace.cattleFarmingSummary")}</h2></div><small className={styles.summaryScope}>{farm ? farms.find(item => item.id === farm)?.name : t("dairy.home.allFarms")}</small></div>
+        <div className={homeStyles.sectionHeading}><div><span>{view === "milk" ? t("workspace.milkProduction") : t("workspace.herdOverview")}</span><h2 id="cattle-summary-title">{view === "milk" ? t("workspace.milkProductionSummary") : production ? `Resumo · ${productionTitle}` : t("workspace.cattleFarmingSummary")}</h2></div><small className={styles.summaryScope}>{t("dairy.home.allFarms")}</small></div>
         <div className={homeStyles.metricsGrid} aria-busy={loading}>{metrics.map(([label, value], index) => {
           if (production === "beef" && label.startsWith("Leite")) return null;
           if (view === "milk" && !label.startsWith("Leite") && !label.startsWith("Fêmeas em lactação")) return null;
@@ -469,7 +468,7 @@ const dayField: CattleField = { name: "date", label: t("lotReport.date"), type: 
       </section>}
       {view === "feeding" && manager && <CattleNutrition key={farm || "all"} farm={farm} canWrite={canWrite} onChanged={() => setRefresh(value => value + 1)} />}
       {view === "reproduction" && <CattleReproduction production={production} counts={reproductionCounts} selected={reproductionGroup} loading={loading || preparing}
-        headerActions={<><label className={styles.farmFilter}><span>{t("dairy.home.farm")}</span><select aria-label={t("workspace.filterByFarm")} className="form-select form-select-sm" value={farm} onChange={event => { setFarm(event.target.value); setPage(1); }}><option value="">{t("dairy.home.allFarms")}</option>{farms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="btn btn-outline-secondary btn-sm" disabled={loading} onClick={() => setRefresh(value => value+1)}><RefreshCw size={15} aria-hidden="true"/>  {t("inventory.alerts.refresh")}</button></>}
+        headerActions={<><button className="btn btn-outline-secondary btn-sm" disabled={loading} onClick={() => setRefresh(value => value+1)}><RefreshCw size={15} aria-hidden="true"/>  {t("inventory.alerts.refresh")}</button></>}
         onNew={canWrite ? () => newAnimal({ gender: "F", category: reproductionGroup === "heifers" ? "Novilha" : "Vaca" }) : undefined}
         onSelect={value => { setReproductionGroup(value); setPage(1); setSearch(""); setReproductionStatus(""); setRows([]); router.replace(cattleHref(`${root}/reproducao?tab=${value}`, production || "beef"), { scroll: false }); }}
         animals={rows as CattleAnimal[]} pagination={{ page: page-1, pageSize: reproductionPageSize, total: count, onPageChange: value => setPage(value+1), onPageSizeChange: value => { setReproductionPageSize(value); setPage(1); } }}

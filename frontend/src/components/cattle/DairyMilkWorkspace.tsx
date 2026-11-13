@@ -23,7 +23,6 @@ export function DairyMilkWorkspace() {
   const { t, language } = useOrganizationLocale();
   const canWrite = !!access && !access.read_only && ['admin', 'manager', 'operator'].includes(access.role);
   const manager = !!access && ['admin', 'manager'].includes(access.role);
-  const [farms, setFarms] = useState<{id: string; name: string}[]>([]);
   const [farm, setFarm] = useState('');
   const [date, setDate] = useState(milkToday);
   const [batch, setBatch] = useState('');
@@ -64,8 +63,8 @@ export function DairyMilkWorkspace() {
     const controller = new AbortController();
     cattleService.farms(controller.signal).then(result => {
       if (controller.signal.aborted) return;
-      setFarms(result); setFarmError('');
-      if (result.length === 1) setFarm(result[0].id);
+      setFarmError('');
+      if (result.length) setFarm(result[0].id);
     }).catch(err => { if (!controller.signal.aborted) setFarmError(cattleError(err, language)); })
       .finally(() => { if (!controller.signal.aborted) setFarmsLoading(false); });
     return () => controller.abort();
@@ -206,14 +205,13 @@ export function DairyMilkWorkspace() {
       <button className="btn btn-outline-secondary btn-sm" disabled={locked || dirty || loading} onClick={() => setRevision(value => value+1)} aria-label={t('dairy.home.refresh')}><RefreshCw size={15}/></button>
     </div></header>
     <section className={styles.filters} aria-label={t('workspace.filters')}>
-      <label className={styles.field}>{t('dairy.home.farm')}<select className="form-select form-select-sm" disabled={locked || dirty || farmsLoading} value={farm} onChange={event => { setData(null); setSummary(null); setFarm(event.target.value); setBatch(''); setTank(''); setPage(1); setSelectedId(''); }}><option value="">{t('dairy.home.farm')}</option>{farms.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
       <label className={styles.field}>{t('dairy.home.referenceDate')}<input className="form-control form-control-sm" type="date" max={milkToday()} required value={date} disabled={locked || dirty} onChange={event => { if (event.target.value) { setData(null); setDate(event.target.value); setPage(1); setSelectedId(''); } }}/></label>
       <label className={styles.field}>{t('reproduction.batch')}<select className="form-select form-select-sm" value={batch} disabled={locked || dirty || loading || !data} onChange={event => { setData(null); setBatch(event.target.value); setPage(1); setSelectedId(''); }}><option value="">{t('dairy.worksheet.allBatches')}</option>{data?.batches.map(row => <option key={row.id} value={row.id}>{row.batch_code}{row.name ? ` · ${row.name}` : ''}</option>)}</select></label>
       <label className={`${styles.field} ${styles.search}`}>{t('dairy.worksheet.search')}<input className="form-control form-control-sm" value={search} disabled={locked || dirty || !farm} onChange={event => { setData(null); setSearch(event.target.value); setPage(1); setSelectedId(''); }}/></label>
       <button className="btn btn-success btn-sm" disabled={!ready} onClick={() => firstInput.current?.focus()}><Plus size={15}/>{t('dairy.worksheet.milkForm')}</button>
     </section>
     {farmError && <p className="alert alert-danger" role="alert">{farmError}</p>}
-    {!farm && <p className="alert alert-info" role="status">{t('dairy.worksheet.chooseFarm')}</p>}
+    {!farm && !farmsLoading && <p className="alert alert-info" role="status">{t('dairy.worksheet.chooseFarm')}</p>}
     {!canWrite && <p className="alert alert-info">{t('dairy.worksheet.readonly')}</p>}
     {message && <p className="alert alert-success" role="status">{message}</p>}
     {error && <p className="alert alert-danger" role="alert">{error}</p>}

@@ -11,10 +11,10 @@ def milk_totals_covering(queryset, start, end=None):
 
 def milk_day_summary(organization, day, farm=None):
     from .cattle_selectors import dairy_overview
-    result = dairy_overview(organization, day, farm)
-    cows = milk_cows(organization, day, farm)
+    result = dairy_overview(organization, day, None)
+    cows = milk_cows(organization, day, None)
     # Aggregate entries carry no individual head count. Never invent a per-cow mean.
-    has_total = milk_totals_covering(CattleMilkDailyTotal.objects.filter(farm__organization=organization, **({'farm_id': farm} if farm else {})), day).exists()
+    has_total = milk_totals_covering(CattleMilkDailyTotal.objects.filter(farm__organization=organization), day).exists()
     return {**result, "expected_cows": cows.count(),
             "milked_cows": None if has_total else result["milked_cows"],
             "average_per_milked_cow": None if has_total else result["average_per_milked_cow"],
@@ -27,8 +27,6 @@ def milk_cows(organization, day, farm=None):
     volumes = records.order_by().values("animal_id").annotate(total=Sum("liters")).values("total")
     totals = milk_totals_covering(CattleMilkDailyTotal.objects.filter(farm_id=OuterRef("farm_id")), day)
     cows = Animal.objects.filter(farm__organization=organization, species__code="bovinos", gender="F", category__in=["Vaca", "Matriz"])
-    if farm:
-        cows = cows.filter(farm_id=farm)
     return cows.annotate(
         has_milk=Exists(records), has_daily_total=Exists(totals),
         day_liters=Subquery(volumes[:1], output_field=DecimalField(max_digits=11, decimal_places=2)),
