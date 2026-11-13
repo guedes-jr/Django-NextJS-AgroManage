@@ -14,17 +14,26 @@
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: .78rem; font-weight: 600; }
 .field :is(input, select, textarea) { width: 100%; min-width: 0; }
 .field small { font-size: .72rem; color: var(--muted-foreground); font-weight: 400; }
-.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
-.metrics article { display: flex; flex-direction: column; gap: 5px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
-.metrics article span { font-size: .76rem; color: var(--muted-foreground); }
-.metrics article strong { font-size: 1.45rem; color: var(--primary); }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.metrics article { display: flex; align-items: center; gap: 11px; min-width: 0; min-height: 76px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: var(--card-premium-shadow); }
+.metricIcon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 11px; color: var(--metric-color); background: var(--metric-soft); }
+.metrics article[data-tone=green] { --metric-color: #16813a; --metric-soft: #eaf7ed; }
+.metrics article[data-tone=blue] { --metric-color: #1768d4; --metric-soft: #eaf3ff; }
+.metrics article[data-tone=cyan] { --metric-color: #129292; --metric-soft: #e7f8f7; }
+.metrics article[data-tone=amber] { --metric-color: #b7791f; --metric-soft: #fff5e8; }
+.metrics article > div { min-width: 0; }
+.metrics article > div > span { display: block; overflow: hidden; color: var(--muted-foreground); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.metrics article strong { display: block; margin-top: 3px; color: var(--foreground); font-size: 1.2rem; font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1.15; }
+.launchAction { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.launchAction button { display: inline-flex; align-items: center; gap: 6px; }
 .tank { display: grid; grid-template-columns: auto minmax(140px, 250px); align-items: center; gap: 7px 12px; font-size: .8rem; margin-bottom: 16px; }
 .tank small { grid-column: 1 / -1; color: var(--muted-foreground); line-height: 1.5; }
 .forms { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 14px; }
 .panel { border: 1px solid var(--border); background: var(--card); border-radius: 12px; min-width: 0; overflow: hidden; }
-.sectionTitle { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 14px; color: #fff; background: linear-gradient(100deg, #14532d, #15803d); font-size: .95rem; font-weight: 650; }
+.sectionTitle { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--foreground); background: color-mix(in srgb, var(--muted), var(--card) 80%); font-size: .95rem; font-weight: 700; }
 .sectionTitle > .actions { margin-left: auto; }
-.sectionTitle h2 { margin: 0; font-size: inherit; font-weight: inherit; }
+.sectionTitle h2 { margin: 0; color: var(--foreground); font-size: inherit; font-weight: inherit; }
+.sectionTitle > svg { color: var(--primary); }
 .panelBody { display: grid; gap: 13px; padding: 14px; }
 .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; }
 .fields > .total { grid-column: 1 / -1; padding: 7px; }
@@ -33,14 +42,21 @@
 .feedLine label { align-self: start; }
 .muted { margin: 0; color: var(--muted-foreground); font-size: .76rem; line-height: 1.5; }
 .formActions { margin-block: 14px; justify-content: flex-end; }
+.entryDialog { max-width: 1000px; }
+.entryForm { display: grid; gap: 14px; padding: 16px; }
+.entrySections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.entrySections > .panel { box-shadow: none; }
+.dialogActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; width: 100%; }
 .draft { font-size: .73rem; font-weight: 400; }
 .tableWrap { max-width: 100%; overflow: auto; }
 .tableWrap:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .table { width: 100%; min-width: 1100px; border-collapse: collapse; font-size: .8rem; }
 .table :is(th, td) { border-bottom: 1px solid var(--border); padding: 8px 6px; vertical-align: middle; }
-.table thead th { text-align: center; font-size: .71rem; color: var(--muted-foreground); background: color-mix(in srgb, var(--primary) 4%, var(--card)); white-space: nowrap; font-weight: 600; }
+.table thead th { text-align: center; font-size: .69rem; color: var(--muted-foreground); background: var(--muted); white-space: nowrap; font-weight: 700; letter-spacing: .035em; text-transform: uppercase; }
 .table tbody th { font-weight: 500; }
 .table td { text-align: center; }
+.table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--muted), transparent 55%); }
+.table tbody tr:hover { background: color-mix(in srgb, var(--primary), transparent 94%); }
 .table small { display: block; font-size: .69rem; color: var(--muted-foreground); line-height: 1.4; max-width: 140px; overflow-wrap: anywhere; }
 .table input[type=number] { width: 77px; min-width: 0; text-align: center; }
 .table input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--primary); }
@@ -53,10 +69,11 @@
 .footer span { font-size: .72rem; color: var(--muted-foreground); }
 .footer strong { font-size: 1.12rem; }
 .pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-block: 14px; font-size: .78rem; color: var(--muted-foreground); }
-@media (max-width: 900px) { .forms { grid-template-columns: minmax(0, 1fr); } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .forms, .entrySections { grid-template-columns: minmax(0, 1fr); } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 767px) {
-  .page :is(input, select, textarea) { font-size: 16px; }
+  .page :is(input, select, textarea), .entryForm :is(input, select, textarea) { font-size: 16px; }
   .page :is(button, a.btn, input:not([type=checkbox]), select) { min-height: 44px; }
+  .dialogActions > button { min-height: 44px; }
   .rowActions button { min-width: 44px; }
   .table input[type=checkbox] { min-width: 24px; min-height: 24px; }
   .table :is(td, th):has(input[type=checkbox]) { padding: 12px; }
