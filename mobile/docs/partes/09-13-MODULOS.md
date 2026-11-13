@@ -2,7 +2,9 @@
 
 [Voltar ao plano](../IMPLEMENTACAO.md). Estas partes ampliam o produto após o primeiro fluxo completo. Podem ser reordenadas conforme o piloto, sem antecipar dependências de autorização, contrato ou armazenamento. Não é necessário concluir todos os domínios para publicar uma primeira versão útil.
 
-Cada domínio deve repetir o mesmo ciclo: conferir contrato → prototipar jornada → consulta real → escrita online → estados e testes → piloto → avaliar offline. Uma tela sem integração real não conta como módulo concluído.
+**Situação de partida:** P09 já possui recortes de estoque, movimentos, fórmulas/produção e trato; P10 possui consulta clínica/sanitária e primeiras operações; perfil mínimo já existe. Os módulos de suínos, plantações e gestão não devem ser considerados nativos completos por aparecerem no menu. Priorizar a consolidação e homologação dos fluxos existentes antes de ampliar o escopo, conforme a [ordem atual](../IMPLEMENTACAO.md#ordem-atual-de-execução).
+
+Cada domínio deve repetir o mesmo ciclo: conferir contrato e acesso → organizar contexto/dados/ação pelo padrão da Agenda → consulta/detalhe → escrita online e efeitos → estados e testes → homologação/piloto → avaliar offline. Uma tela sem integração real não conta como módulo concluído.
 
 ## Parte 09 — Tratos, alimentação e estoque
 

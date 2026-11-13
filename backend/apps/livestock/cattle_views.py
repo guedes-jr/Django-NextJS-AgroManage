@@ -792,7 +792,12 @@ class CattleMilkDailyTotalViewSet(viewsets.ModelViewSet):
         delete_milk(instance)
 
     def get_queryset(self):
-        return CattleMilkDailyTotal.objects.filter(farm__organization=self.request.user.organization).select_related("farm")
+        queryset = CattleMilkDailyTotal.objects.filter(farm__organization=self.request.user.organization).select_related("farm")
+        if "covering_date" in self.request.query_params:
+            from .cattle_milk import milk_totals_covering
+            day = serializers.DateField(validators=[past_date]).run_validation(self.request.query_params["covering_date"])
+            queryset = milk_totals_covering(queryset, day)
+        return queryset
 
 
 @operator_scoped

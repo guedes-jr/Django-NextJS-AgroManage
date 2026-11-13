@@ -12,9 +12,10 @@ import { workspaceMessages } from '../workspace/messages';
 import { organizationDay } from '../workspace/contracts';
 import { canCreateCattle } from '../cattle/contracts';
 import { AgendaShell,AgendaButton,Busy,styles as s } from '../agenda/ui';
-import { AuthFailure } from '../../services/authApi';
-import { milkCommandSchema,milkValuesSchema,type MilkCommand,type MilkValues } from './contracts';
+import { AuthFailure,MilkPeriodReadOnly } from '../../services/authApi';
+import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,type MilkValues } from './contracts';
 import { milkMessages } from './messages';
+import { MilkPeriodDetails } from './MilkPeriodDetails';
 const routeSchema=z.object({mode:z.enum(['individual','total']),id:z.uuid().optional(),date:z.iso.date(),animal:z.uuid().optional(),farm:z.uuid().optional(),session:z.enum(['morning','afternoon','evening']).optional()}).refine(v=>v.mode==='individual'?!!v.animal:!!v.farm);
 export function MilkFormScreen(){
  const instanceId=useId();const params=useLocalSearchParams();const route=routeSchema.safeParse(params);const {state,controller,language}=useAuth();const {farm}=useWorkspace();const [creationFarm]=useState(farm);const w=workspaceMessages[language],t=milkMessages[language];const router=useRouter();
@@ -32,6 +33,7 @@ export function MilkFormScreen(){
  if(query.isPending||query.isFetching)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><Busy label={w.loading}/></AgendaShell>;
  if(query.isError||!query.data)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><View style={s.content}><Text style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void query.refetch()}/></View></AgendaShell>;
  const d=query.data;const editing=!!d.record;
+ if(d.record&&'farm' in d.record&&isPeriodMilkTotal(d.record))return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><ScrollView contentContainerStyle={s.content}><View style={s.card}><Text style={s.title}>{d.record.farm_name}</Text><Text style={s.body}>{t.produced}: {new Intl.NumberFormat(language).format(Number(d.record.liters))} L</Text><Text style={s.body}>{t.discarded}: {new Intl.NumberFormat(language).format(Number(d.record.discarded_liters))} L</Text><MilkPeriodDetails record={d.record}/></View></ScrollView></AgendaShell>;
  const permitted=state.status==='signedIn'&&!d.options.read_only&&d.options.user_id===state.session.user.id&&d.command.date<=d.today&&(!editing||['admin','manager'].includes(state.session.user.access.role))&&(d.command.mode==='individual'?d.animal?.status==='active'&&'identifier' in d.animal&&d.animal.gender==='F'&&['Vaca','Matriz'].includes(d.animal.category):editing||creationFarm?.id===d.command.farm);
  if(!permitted)return <AgendaShell title={t.title} backLabel={w.back} onBack={back}><View style={s.content}><Text style={s.error}>{t.blocked}</Text></View></AgendaShell>;
  return <MilkEditor command={d.command} initial={d.record??{liters:'',discarded_liters:'0',discard_reason:'',notes:''}} label={d.animal&&'identifier' in d.animal?`${d.animal.identifier} · ${d.animal.farm_name}`:d.record?.farm_name??creationFarm?.name??''}/>;
@@ -47,7 +49,7 @@ function MilkEditor({command,initial,label}:{command:MilkCommand;initial:MilkVal
  const persist=async(values:MilkValues)=>{
   if(saving.current||uncertain||saved)return;saving.current=true;setMessage('');
   try{await controller.saveMilk(command.mode==='individual'?{...command,session}:command,values);if(mounted.current){setSaved(true);void client.invalidateQueries({queryKey:['milk-list']});void client.invalidateQueries({queryKey:['milk-summary']});void client.invalidateQueries({queryKey:['cattle-history']});}}
-  catch(error){if(mounted.current){const unknown=!(error instanceof AuthFailure)&&(!isAxiosError(error)||!error.response||error.response.status>=500);setUncertain(unknown);let detail='';if(isAxiosError(error)&&[400,403,409,422].includes(error.response?.status??0)){const body=error.response?.data?.error?.detail??error.response?.data;detail=typeof body?.detail==='string'?body.detail:['liters','discarded_liters','discard_reason','date','session','animal','farm','non_field_errors'].flatMap(k=>typeof body?.[k]==='string'?[body[k]]:Array.isArray(body?.[k])?body[k].filter((v:unknown)=>typeof v==='string'):[]).join(' ');}setMessage(unknown?t.uncertain:detail.slice(0,800)||t.failed);}}
+  catch(error){if(mounted.current){const unknown=!(error instanceof AuthFailure)&&(!isAxiosError(error)||!error.response||error.response.status>=500);setUncertain(unknown);let detail='';if(isAxiosError(error)&&[400,403,409,422].includes(error.response?.status??0)){const body=error.response?.data?.error?.detail??error.response?.data;detail=typeof body?.detail==='string'?body.detail:['liters','discarded_liters','discard_reason','date','session','animal','farm','period_start','non_field_errors'].flatMap(k=>typeof body?.[k]==='string'?[body[k]]:Array.isArray(body?.[k])?body[k].filter((v:unknown)=>typeof v==='string'):[]).join(' ');}setMessage(error instanceof MilkPeriodReadOnly?t.periodReadonly:unknown?t.uncertain:detail.slice(0,800)||t.failed);}}
   finally{saving.current=false;}
  };
  const disabled=isSubmitting||uncertain||saved;

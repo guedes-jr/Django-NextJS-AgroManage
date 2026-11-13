@@ -3466,3 +3466,124 @@ behavior. Native preflights role/org/farm/version, prevents parallel submits and
 blocks UI replay after uncertain transport or malformed receipt. Consultation is
 manual; no durable idempotency or automatic identity reconciliation is claimed for
 metadata creation. No milk movements or financial mutations in this increment.
+
+### Web dairy milk and feeding worksheets
+
+`GET livestock/cattle/dairy-worksheet/?farm=UUID&date=YYYY-MM-DD` returns a
+paginated cow worksheet, with optional `batch`, `search`, `recorded_only`, `page`
+and `page_size`. Each row includes existing morning/afternoon/evening volumes,
+discard/reason, notes, reported `oxytocin_ml`, feed slot/product/kg values and an
+`expected_version` derived from milk records and worksheet state. It also returns
+active dairy batches, eligible bovine kg products, active tanks and the aggregate
+entry whose final date is selected. Private consumption IDs, lot allocations and
+cost snapshots are never serialized. Feed-only worksheet history remains visible
+after drying off. Access uses the existing organization/bovine policy; feeders
+cannot use this API.
+
+`POST` accepts `farm`, `date`, `request_key`, optional `tank`, and either:
+
+- `mode=individual` (default), with up to 100 `rows`: `animal`,
+  `expected_version`, the three session volumes, `discarded_liters`,
+  `discard_reason`, `notes`, `oxytocin_ml`, `feeds` and optional `remove`.
+  Feed slots are `concentrate|silage|mineral`, with item UUID and `quantity_kg`.
+- `mode=total`, with `total`: optional existing `id`/`expected_version`,
+  `period_start`, `liters`, discard/reason, notes, oxytocin, feeds and optional
+  feeding `batch`. Milk is a farm aggregate, not a batch milk yield. A missing
+  feeding batch targets eligible active dairy cows of that farm.
+
+The farm, animals, products and original feed lots are locked in stable order.
+A submission is atomic across milk records, current feed consumption, stock
+movements, optional tank intake and durable receipt. Changing feeding first
+records compensating entries in the original stock lots, then consumes eligible
+lots again. The audit stores the previous allocation/cost snapshots; milk/feed
+reports use the current records. Unchanged feed allocations are not deducted
+again. Operators can create and correct their own milk entries, but cannot
+remove worksheet entries, edit aggregate entries, or replace existing feeding
+consumption. Read-only/scoped roles remain enforced server-side.
+
+`CattleMilkDailyTotal.period_start` is nullable for backwards-compatible daily
+entries. A period aggregate is counted once on `date` (the final date), without
+fabricating daily or per-cow volumes. Overlapping aggregates and individual
+milkings anywhere in the period are mutually exclusive, including legacy API
+writes. Milk already received in tanks cannot be reduced below its allocation.
+Optional worksheet tank intake receives only the new usable-volume increment;
+capacity/ledger failures roll back the entire submission. Cancelling an aggregate
+with worksheet state must use the worksheet to reverse its associated feeding.
+
+`GET livestock/cattle/dairy-worksheet/{farm}/{request_key}/` is read-only receipt
+reconciliation, scoped to organization, farm and submitting user. Repeating an
+identical, committed command returns the original receipt; changing its payload
+or user conflicts. Transport failure never proves the operation failed.
+
+`GET livestock/cattle/dairy-feeding/?farm=UUID` supplies paginated active dairy
+animal selection (`category`, `batch`, `search`) and kg products. `resource=history`
+returns paginated committed group submissions, including cancellation flags.
+Only managers/admins can read or write this group flow. Existing feeder daily
+feeding is separate and retains its original permissions.
+
+`POST .../dairy-feeding/` accepts farm, final `date`, `period_start`, request key,
+notes, and up to ten groups. A group has name, up to 1000 distinct animal UUIDs and
+up to ten distinct products with `quantity_kg` and `mode=per_head_day|total`.
+The server computes inclusive days and actual head count; animals cannot overlap
+between groups. Stock uses the existing cattle feed service and full-period lot
+eligibility. Every group succeeds or all effects roll back.
+
+`POST .../dairy-feeding/cancel/` takes farm, a new request key, `source_key`,
+`group_index` and required reason. It reverses original allocations once while
+preserving the original submission and cancellation in history. The same receipt
+endpoint reconciles both supply and cancellation. A competing cancellation cannot
+return stock twice.
+
+Migration `livestock.0045_dairy_worksheet` adds the period boundary and the
+supplement/audit models. Compatibility and stock concurrency are covered by the
+focused dairy tests; PostgreSQL lock tests use only the disposable test cluster.
+
+### Native milk period compatibility
+
+`GET cattle/milk-totals/?covering_date=YYYY-MM-DD` returns totals whose
+inclusive interval covers the selected day, preserving farm filters, tenant
+isolation and existing role restrictions. Invalid, blank or future dates fail
+validation. The existing `date` filter still matches the final booking date.
+
+Native daily writes send `view=mobile`. Multi-day totals cannot be created,
+converted or corrected through this mode. Updates re-read the current total
+inside the farm/record transaction locks and revalidate before saving, covering
+a concurrent conversion from daily to period. Legacy web writes retain their
+period support. This is a compatibility guard, not a new authorization mode.
+
+### Native milk tank record writes and receipts
+
+Native movement and quality forms POST to `cattle/milk-tank-movements/` or
+`cattle/milk-tank-quality/` with `view=mobile&farm=<uuid>`. The body contains the
+tank UUID, date, explicit request UUID and the existing operational fields.
+Movement writes exclude financial fields; providing price, amount, receivable,
+revenue-generation or due-date fields fails validation. Native responses use the
+same operational projections as native GET, including farm, and never serialize
+financial fields. Quality preserves null versus zero and requires a result.
+Dates, ledger capacity, available production and existing permissions remain
+server-authoritative. No model/schema changes were required.
+
+`GET .../receipt/?view=mobile&farm=<uuid>&tank=<uuid>&request_key=<uuid>` reads a
+single matching record within the authorized organization/farm/tank. Unknown
+receipts return 404; missing/invalid scope returns validation errors. It does not
+write or follow pagination. Identical native POST retries resolve under the
+existing farm/tank locks; reuse of a key with a different operational command
+returns 409. Legacy web retry behavior is unchanged.
+
+Native cancellation POSTs `.../milk-tank-movements/{id}/cancel/` with
+`view=mobile&farm=<uuid>&tank=<uuid>` and a required reason (up to 500 characters).
+The existing manager/admin policy remains in force. Under the service locks,
+movements containing price/amount or a financial receivable are rejected in
+native mode and must be handled on the web; legacy financial cancellation rules
+are unchanged. Nonfinancial cancellation retains the original ledger record and
+its audit trail and revalidates the ledger atomically.
+
+The mobile client revalidates session, organization, role, tank and date, shows a
+review before POST, validates the full operational receipt and refreshes affected
+queries. An uncertain POST is locked against resubmission; reconciliation uses
+GET by the original request key (or movement detail for cancellation). The
+associated history opens in consultation mode and returning keeps the original
+form locked. Missing/unmatched receipts cannot be reported as success. Fields and
+request keys live only in the current form instance: there is no offline outbox
+or automatic replay, and recovery after forced termination requires manual
+history verification. Device/build homologation remains pending.

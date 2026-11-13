@@ -3,14 +3,15 @@ import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { organizationDay } from '../workspace/contracts';
 import { FarmContextButton } from '../workspace/FarmContextButton';
 import { useRead } from '../workspace/useRead';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../auth/AuthProvider';
-import { agendaQuerySchema, canReadAgenda, taskWriteAccess, shiftDay, type AgendaQuery, type agendaPageSchema } from './contracts';
+import { agendaListingQuery, canReadAgenda, taskWriteAccess, shiftDay, type AgendaQuery, type agendaPageSchema } from './contracts';
 import { agendaMessages, agendaLabel } from './messages';
 import { AgendaButton, Busy, styles as s } from './ui';
 import type { z } from 'zod';
+import { restoreAgendaSelection } from './selection';
 import { taskFormMessages } from './formMessages';
 
 type AgendaViewMode = 'month' | 'week' | 'list';
@@ -39,20 +40,27 @@ function AgendaContents({ timezone }: { timezone: string }) {
   const { state, controller, language } = useAuth();
   const router = useRouter();
   const t = agendaMessages[language];
-  const { farm } = useWorkspace();
+  const { farm, agendaSelection, saveAgendaSelection } = useWorkspace();
 
   const today = useMemo(() => organizationDay(timezone), [timezone]);
-  const [currentDate, setCurrentDate] = useState(today);
-  const [viewMode, setViewMode] = useState<AgendaViewMode>('month');
-  const [domain, setDomain] = useState<AgendaQuery['domain']>('all');
-  const [recorded, setRecorded] = useState(false);
-  const [pagination, setPagination] = useState<{ farm: string | null; page: number }>({ farm: farm?.id ?? null, page: 1 });
+  const [initial] = useState(() => restoreAgendaSelection(agendaSelection, farm?.id ?? null, today));
+  const [currentDate, setCurrentDate] = useState(initial.date);
+  const [viewMode, setViewMode] = useState<AgendaViewMode>(initial.mode);
+  const [domain, setDomain] = useState<AgendaQuery['domain']>(initial.domain);
+  const [recorded, setRecorded] = useState(initial.recorded);
+  const [calendarWidth, setCalendarWidth] = useState(308);
+  const offset = useRef(initial.offset);
+  const restoring = useRef(initial.offset > 0);
+  const listRef = useRef<FlatList<z.infer<typeof agendaPageSchema>['results'][number]>>(null);
+  const [pagination, setPagination] = useState<{ farm: string | null; page: number }>({ farm: farm?.id ?? null, page: initial.page });
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState<{ key: string; data: z.infer<typeof agendaPageSchema> | null; failed: boolean }>({ key: '', data: null, failed: false });
 
   const farmKey = farm?.id ?? null;
   const page = pagination.farm === farmKey ? pagination.page : 1;
   const setPage = (value: number | ((current: number) => number)) => setPagination({ farm: farmKey, page: typeof value === 'function' ? value(page) : value });
+
+  const remember = () => saveAgendaSelection({ date: currentDate, mode: viewMode, domain, recorded, farm: farmKey, page, offset: offset.current });
 
   const allowed = state.status === 'signedIn' && canReadAgenda(state.session.user);
 
@@ -77,7 +85,18 @@ function AgendaContents({ timezone }: { timezone: string }) {
     };
   }, [currentDate, viewMode]);
 
-  const requestKey = JSON.stringify([start, end, domain, page, recorded, reload, farm?.id]);
+  const query = agendaListingQuery({ start, end, domain, page, include_recorded: recorded, ...(farm ? { farm: farm.id } : {}) }, viewMode, currentDate);
+  const queryStart = query.start;
+  const queryEnd = query.end;
+  const requestKey = JSON.stringify([queryStart, queryEnd, domain, page, recorded, reload, farm?.id]);
+  const scrollScope = useRef(requestKey);
+  useEffect(() => {
+    if (scrollScope.current !== requestKey) {
+      scrollScope.current = requestKey;
+      offset.current = 0;
+      restoring.current = false;
+    }
+  }, [requestKey]);
   const busy = result.key !== requestKey;
   const data = busy ? null : result.data;
   const failed = !busy && result.failed;
@@ -86,14 +105,11 @@ function AgendaContents({ timezone }: { timezone: string }) {
     if (!allowed) return;
     const abort = new AbortController();
     let active = true;
-    void controller.agenda(agendaQuerySchema.parse({ start, end, domain, page, include_recorded: recorded, ...(farm ? { farm: farm.id } : {}) }), abort.signal)
+    void controller.agenda({ start: queryStart, end: queryEnd, domain, page, include_recorded: recorded, ...(farm ? { farm: farm.id } : {}) }, abort.signal)
       .then(res => { if (active) setResult({ key: requestKey, data: res, failed: false }); })
       .catch(() => { if (active) setResult({ key: requestKey, data: null, failed: true }); });
     return () => { active = false; abort.abort(); };
-  }, [controller, allowed, start, end, domain, page, recorded, requestKey, farm]));
-
-  // Conjunto de datas com eventos para desenhar os pontos indicadores
-  const eventDates = useMemo(() => new Set((data?.results ?? []).map(item => item.date)), [data]);
+  }, [controller, allowed, queryStart, queryEnd, domain, page, recorded, requestKey, farm]));
 
   // Dias da semana traduzidos (Seg, Ter, Qua, Qui, Sex, Sáb, Dom)
   const weekdays = useMemo(() => {
@@ -162,6 +178,9 @@ function AgendaContents({ timezone }: { timezone: string }) {
     });
   }, [currentDate]);
 
+  const visibleCells = viewMode === 'month' ? monthCells : weekCells;
+  const calendarRows = Array.from({ length: Math.ceil(visibleCells.length / 7) }, (_, index) => visibleCells.slice(index * 7, index * 7 + 7));
+
   // Navegar períodos
   const movePeriod = (direction: -1 | 1) => {
     if (viewMode === 'week') {
@@ -190,12 +209,8 @@ function AgendaContents({ timezone }: { timezone: string }) {
 
   const formatDate = (day: string) => new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${day}T12:00:00`));
 
-  // Eventos filtrados para a listagem
-  const displayedEvents = useMemo(() => {
-    const all = data?.results ?? [];
-    if (viewMode === 'list') return all;
-    return all.filter(e => e.date === currentDate);
-  }, [data, viewMode, currentDate]);
+  // Day modes query the selected day directly, including its own pagination.
+  const displayedEvents = data?.results ?? [];
 
   return (
     <WorkspaceShell active="agenda" title={t.title}>
@@ -203,7 +218,16 @@ function AgendaContents({ timezone }: { timezone: string }) {
         <View style={s.state}><Text>{t.unavailable}</Text></View>
       ) : (
         <FlatList
-          key={`${start}:${end}:${domain}:${page}:${recorded}:${viewMode}:${currentDate}`}
+          ref={listRef}
+          onScroll={event => { offset.current = Math.max(0, event.nativeEvent.contentOffset.y); }}
+          scrollEventThrottle={100}
+          onContentSizeChange={() => {
+            if (restoring.current && !busy && !failed && data && data.count > 0 && initial.farm === farmKey) {
+              restoring.current = false;
+              listRef.current?.scrollToOffset({ offset: initial.offset, animated: false });
+            }
+          }}
+          key={`${start}:${end}:${domain}:${page}:${recorded}:${viewMode}:${currentDate}:${farmKey}`}
           data={displayedEvents}
           keyExtractor={item => item.id}
           contentContainerStyle={s.content}
@@ -218,7 +242,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
                     accessibilityRole="button"
                     accessibilityLabel={taskFormMessages[language].create}
                     style={[s.createButton, { flex: 1 }]}
-                    onPress={() => router.push({ pathname: '/agenda/task-form', params: { date: currentDate } })}
+                    onPress={() => { remember(); router.push({ pathname: '/agenda/task-form', params: { date: currentDate } }); }}
                   >
                     <Text style={s.createButtonText}>+ {taskFormMessages[language].create}</Text>
                   </Pressable>
@@ -257,27 +281,31 @@ function AgendaContents({ timezone }: { timezone: string }) {
 
                 {/* Grade do Calendário (Mês ou Semana) */}
                 {viewMode !== 'list' && (
-                  <View style={{ gap: 6, paddingTop: 4 }}>
+                  <ScrollView
+                    horizontal
+                    style={{ flexGrow: 0 }}
+                    onLayout={event => setCalendarWidth(Math.max(308, event.nativeEvent.layout.width))}
+                  ><View style={{ gap: 6, paddingTop: 4, width: calendarWidth }}>
                     {/* Cabeçalho dos dias da semana */}
                     <View style={s.weekdayRow}>
                       {weekdays.map((name, idx) => (
-                        <Text key={idx} style={s.weekdayText}>{name}</Text>
+                        <Text key={idx} style={[s.weekdayText, { width: calendarWidth / 7 }]}>{name}</Text>
                       ))}
                     </View>
 
                     {/* Células dos dias */}
                     <View style={s.calendarGrid}>
-                      {(viewMode === 'month' ? monthCells : weekCells).map(cell => {
+                      {calendarRows.map((week, index) => <View key={index} style={{ flexDirection: 'row' }}>{week.map(cell => {
                         const isSelected = cell.date === currentDate;
                         const isToday = cell.date === today;
-                        const hasEvent = eventDates.has(cell.date);
 
                         return (
                           <Pressable
                             key={cell.date}
                             accessibilityRole="button"
                             accessibilityLabel={formatDate(cell.date)}
-                            style={[s.dayCell, cell.outside && s.dayOutside]}
+                            accessibilityState={{ selected: isSelected }}
+                            style={[s.dayCell, { width: calendarWidth / 7 }, cell.outside && s.dayOutside]}
                             onPress={() => selectDate(cell.date)}
                           >
                             <View style={[s.dayCircle, isToday && s.dayToday, isSelected && s.daySelected]}>
@@ -285,12 +313,11 @@ function AgendaContents({ timezone }: { timezone: string }) {
                                 {cell.day}
                               </Text>
                             </View>
-                            {hasEvent && <View style={[s.dayDot, isSelected && s.dayDotSelected]} />}
                           </Pressable>
                         );
-                      })}
+                      })}</View>)}
                     </View>
-                  </View>
+                  </View></ScrollView>
                 )}
               </View>
 
@@ -300,6 +327,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
                   <Pressable
                     key={value}
                     accessibilityRole="button"
+                    accessibilityState={{ selected: domain === value }}
                     style={[s.chip, domain === value && s.chipSelected]}
                     onPress={() => { setDomain(value); setPage(1); }}
                   >
@@ -324,11 +352,11 @@ function AgendaContents({ timezone }: { timezone: string }) {
               {/* Cabeçalho da Lista de Atividades do Dia/Período */}
               <View style={s.daySummaryHeader}>
                 <Text style={s.daySummaryTitle}>
-                  {viewMode === 'list' ? `${t.title} (${data?.count ?? 0})` : `${formatDate(currentDate)}`}
+                  {viewMode === 'list' ? `${t.title}${data ? ` (${data.count})` : ''}` : `${formatDate(currentDate)}`}
                 </Text>
                 {viewMode !== 'list' && (
                   <Text style={s.daySummaryCount}>
-                    {displayedEvents.length} {displayedEvents.length === 1 ? 'atividade' : 'atividades'}
+                    {data ? `${data.count} ${data.count === 1 ? t.activity : t.activities}` : '—'}
                   </Text>
                 )}
               </View>
@@ -352,10 +380,10 @@ function AgendaContents({ timezone }: { timezone: string }) {
           renderItem={({ item }) => (
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push({
+              onPress={() => { remember(); router.push({
                 pathname: '/agenda/[id]',
-                params: { id: item.id, start, end, domain, page: String(page), recorded: recorded ? '1' : '0', farm: farm?.id },
-              })}
+                params: { id: item.id, start: queryStart, end: queryEnd, domain, page: String(page), recorded: recorded ? '1' : '0', farm: farm?.id },
+              }); }}
               style={s.card}
             >
               <Text style={s.muted}>{formatDate(item.date)} · {item.farm_name}</Text>

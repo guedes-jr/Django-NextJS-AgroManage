@@ -4,6 +4,8 @@ import { CattleWorkspace, type CattleView } from "./CattleWorkspace";
 import { CattleOperationsWorkspace } from "./CattleOperationsWorkspace";
 import { DairyHome } from "./DairyHome";
 import { MilkProduction } from "./MilkProduction";
+import { DairyMilkWorkspace } from "./DairyMilkWorkspace";
+import { DairyFeedingWorkspace } from "./DairyFeedingWorkspace";
 import DailyFeedingPage from "./CattleDailyFeedingPage";
 import FeedProductionPage from "./CattleFeedProductionPage";
 import { FeedFormulaManagerDashboard } from "@/components/dashboard/FeedFormulaManagerDashboard";
@@ -24,10 +26,10 @@ export function cattleSegmentPage(production: CattleProduction, view: View) {
     }
     if (view === "overview" && production === "dairy") return <DairyHome />;
     if (view === "operations") return <CattleOperationsWorkspace production={production} initialTab={tab} />;
-    if (view === "daily-feeding") return <DailyFeedingPage />;
+    if (view === "daily-feeding") return production === "dairy" ? <DairyFeedingWorkspace /> : <DailyFeedingPage />;
     if (view === "feed-production") return <FeedProductionPage />;
     if (view === "formulas") return <FeedFormulaManagerDashboard species="bovino" />;
-    if (view === "milk") return <MilkProduction />;
+    if (view === "milk") return production === "dairy" ? <DairyMilkWorkspace /> : <MilkProduction />;
     const selected = tab && ["dashboard", "heifers", "cows", "pregnant", "lactating", "dry"].includes(tab) ? tab : "dashboard";
     return <CattleWorkspace key={production} view={view} production={production}
       initialMedication={view === "management" && params.launch === "medication"}

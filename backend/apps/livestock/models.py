@@ -62,6 +62,7 @@ class CattleMilkDailyTotal(BaseModel):
     """Daily aggregate entry, mutually exclusive with individual milkings per farm/day."""
     farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT, related_name="milk_daily_totals")
     date = models.DateField()
+    period_start = models.DateField(null=True, blank=True)
     liters = models.DecimalField(max_digits=11, decimal_places=2)
     discarded_liters = models.DecimalField(max_digits=11, decimal_places=2, default=0)
     discard_reason = models.CharField(max_length=200, blank=True)
@@ -72,6 +73,7 @@ class CattleMilkDailyTotal(BaseModel):
         constraints = [
             models.UniqueConstraint(fields=["farm", "date"], name="unique_cattle_daily_milk_total"),
             models.CheckConstraint(condition=models.Q(liters__gt=0) & models.Q(discarded_liters__gte=0) & models.Q(discarded_liters__lte=models.F("liters")), name="valid_daily_milk_total_volume"),
+            models.CheckConstraint(condition=models.Q(period_start__isnull=True) | models.Q(period_start__lte=models.F("date")), name="valid_dairy_milk_period"),
         ]
 
 
@@ -92,6 +94,41 @@ class CattleAnimalProfile(BaseModel):
     is_castrated = models.BooleanField(default=False)
     weaning_date = models.DateField(null=True, blank=True)
     management_group = models.CharField(max_length=100, blank=True)
+
+
+class DairyWorksheetState(BaseModel):
+    """Supplement to existing milk records; never a second source of milk volumes."""
+
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT)
+    animal = models.ForeignKey("Animal", on_delete=models.PROTECT, related_name="dairy_worksheets", null=True, blank=True)
+    total = models.OneToOneField("CattleMilkDailyTotal", on_delete=models.CASCADE, related_name="worksheet", null=True, blank=True)
+    date = models.DateField()
+    oxytocin_ml = models.DecimalField(max_digits=9, decimal_places=2, default=0)
+    # Private stock allocation snapshots support audited replacement/cancellation.
+    feed_allocations = models.JSONField(default=list)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.UniqueConstraint(fields=["animal", "date"], name="unique_dairy_animal_day"),
+            models.CheckConstraint(condition=(models.Q(animal__isnull=False, total__isnull=True) | models.Q(animal__isnull=True, total__isnull=False)), name="dairy_worksheet_single_target"),
+            models.CheckConstraint(condition=models.Q(oxytocin_ml__gte=0), name="valid_dairy_oxytocin_usage"),
+        ]
+
+
+class DairyWorksheetCommand(BaseModel):
+    """Durable receipt and before/after audit for one atomic worksheet submission."""
+
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    request_key = models.UUIDField()
+    fingerprint = models.CharField(max_length=64)
+    before = models.JSONField(default=list)
+    effects = models.JSONField(default=list)
+    receipt = models.JSONField(default=dict)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=["farm", "request_key"], name="unique_dairy_worksheet_command")]
 
 
 class CattleManagement(BaseModel):

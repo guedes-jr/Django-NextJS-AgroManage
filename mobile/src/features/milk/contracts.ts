@@ -3,10 +3,13 @@ const volume=z.union([z.string().regex(/^\d+(\.\d+)?$/),z.number().finite().nonn
 export const milkSummarySchema=z.object({produced_liters:volume,discarded_liters:volume,usable_liters:volume,milked_cows:z.number().int().nonnegative().nullable(),expected_cows:z.number().int().nonnegative(),pending_cows:z.number().int().nonnegative().nullable(),average_per_milked_cow:volume.nullable(),aggregate_mode:z.boolean()});
 export const milkCowSchema=z.object({id:z.uuid(),identifier:z.string(),name:z.string(),farm:z.uuid(),farm_name:z.string(),is_lactating:z.boolean(),liters:volume.nullable(),entry_status:z.enum(['pending','recorded','total'])});
 export const milkRecordSchema=z.object({id:z.uuid(),animal:z.uuid(),identifier:z.string(),farm_name:z.string(),date:z.iso.date(),session:z.enum(['morning','afternoon','evening']),liters:volume,discarded_liters:volume,discard_reason:z.string(),notes:z.string()});
-export const milkTotalSchema=z.object({id:z.uuid(),farm:z.uuid(),farm_name:z.string(),date:z.iso.date(),liters:volume,discarded_liters:volume,discard_reason:z.string(),notes:z.string()});
+export const milkTotalSchema=z.object({id:z.uuid(),farm:z.uuid(),farm_name:z.string(),date:z.iso.date(),period_start:z.iso.date().nullish(),liters:volume,discarded_liters:volume,discard_reason:z.string(),notes:z.string()}).refine(value=>!value.period_start||value.period_start<=value.date,{path:['period_start'],message:'invalid period'});
 const page=<T extends z.ZodType>(row:T)=>z.object({count:z.number().int().nonnegative(),next:z.string().nullable(),previous:z.string().nullable(),results:z.array(row)});
 export const milkCowPageSchema=page(milkCowSchema),milkRecordPageSchema=page(milkRecordSchema),milkTotalPageSchema=page(milkTotalSchema);
 export type MilkCow=z.infer<typeof milkCowSchema>;export type MilkRecord=z.infer<typeof milkRecordSchema>;export type MilkTotal=z.infer<typeof milkTotalSchema>;
+export function isPeriodMilkTotal(value:Pick<MilkTotal,'period_start'|'date'>){return !!value.period_start&&value.period_start!==value.date;}
+export function milkCalendarDate(date:string,language:string){return new Intl.DateTimeFormat(language,{dateStyle:'long',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));}
+export function milkTotalDateLabel(value:Pick<MilkTotal,'period_start'|'date'>,language:string){return isPeriodMilkTotal(value)?`${milkCalendarDate(value.period_start!,language)} — ${milkCalendarDate(value.date,language)}`:milkCalendarDate(value.date,language);}
 export const milkKinds=['cows','records','totals'] as const;
 export const milkQuerySchema=z.object({kind:z.enum(milkKinds),date:z.iso.date(),farm:z.uuid().optional(),page:z.number().int().min(1).max(100000),search:z.string().trim().max(100).default('')});
 export type MilkQuery=z.infer<typeof milkQuerySchema>;

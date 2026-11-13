@@ -2,6 +2,9 @@
 
 [Voltar ao plano](../IMPLEMENTACAO.md). Os testes devem acompanhar cada parte; esta etapa consolida evidências e prepara a operação do produto. Não deixar segurança, acessibilidade ou builds iOS para a semana da publicação.
 
+**Próximo aceite:** acompanhar a consolidação da Agenda e das jornadas atuais desde agora, conforme a [ordem ativa](../IMPLEMENTACAO.md#ordem-atual-de-execução). Priorizar atividade → operação → retorno, compatibilidade dos totais de leite, perfis, teclado/fonte ampliada, interrupção e resposta incerta. Testes e bundles registrados em incrementos anteriores são evidências históricas; o candidato atual precisa de validação pertinente e demonstração nativa própria. Não esperar concluir todos os módulos, push ou offline para homologar o recorte online.
+
+
 **Resultado demonstrável:** versão distribuível, suporte definido e piloto aprovado com dados comparáveis ao PWA. **Dependências:** partes incluídas no marco, não todos os módulos opcionais. **Responsáveis:** mobile, backend, QA, produto e infraestrutura.
 
 ## 17A — Estratégia de testes
@@ -18,7 +21,7 @@
 | Ponta a ponta | Jornada completa | Login → fazenda → animal → leite → confirmação | Candidato a marco |
 | Campo | Usabilidade e rede real | Uma mão, luz, interrupção, rede intermitente | Piloto e mudanças relevantes |
 
-Escolher ferramentas compatíveis com a versão do projeto ao iniciar P01. Não instalar duas soluções E2E para o mesmo objetivo. Testes de código puro não substituem execução nativa; um teste de cliente não prova isolamento que deveria estar no servidor.
+Usar os scripts e ferramentas existentes do projeto; rever a compatibilidade ao introduzir outra capacidade. Não instalar duas soluções E2E para o mesmo objetivo. Testes de código puro não substituem execução nativa; um teste de cliente não prova isolamento que deveria estar no servidor.
 
 ### Matriz mínima de cenários
 

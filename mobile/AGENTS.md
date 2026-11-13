@@ -4,12 +4,12 @@
 
 Estas instruções se aplicam a `mobile/` e complementam o [AGENTS.md da raiz](../AGENTS.md). Preserve as regras do repositório principal. Código e configuração atuais prevalecem sobre o planejamento; não apresente tarefa planejada como implementação concluída.
 
-Estado atual: scaffold Expo e primeiro recorte de login; os módulos operacionais continuam planejados. Consulte [docs/LOGIN.md](docs/LOGIN.md) para execução e limitações. Confira os scripts atuais antes de usar comandos. A stack definida é **React Native + Expo + TypeScript**, com API Django REST Framework existente. `/platform` permanece fora do escopo mobile.
+Estado atual: app Expo com sessão, Agenda atualizada e recortes online de bovinos/leite, estoque/alimentação, clínica e notificações. Há complementos e homologação nativa/piloto pendentes; menu ou tela não comprovam módulo completo. Use a [ordem atual de execução](docs/IMPLEMENTACAO.md#ordem-atual-de-execução) e o inventário, confirmando o código antes de implementar. [docs/LOGIN.md](docs/LOGIN.md) orienta execução; confira os scripts disponíveis. A stack é **React Native + Expo + TypeScript**, com a API Django existente. `/platform` permanece fora do escopo mobile.
 
 ## Contexto mínimo
 
 - Comece pelo pedido e pelos arquivos afetados; não faça varredura recursiva ou carregamento integral da documentação.
-- Use [README.md](README.md) para localização e [docs/IMPLEMENTACAO.md](docs/IMPLEMENTACAO.md) para escopo e dependências. Leia apenas o documento de partes relevante.
+- Use [README.md](README.md) para localização e [docs/IMPLEMENTACAO.md](docs/IMPLEMENTACAO.md) para a ordem ativa, cobertura e dependências. Preserve os IDs das tarefas; checkbox vazio pode indicar aceite pendente de um fluxo já implementado. Leia apenas a parte do incremento escolhido.
 - API/autorização: consulte [o guia de API](../docs/ai/api.md) e a implementação específica antes de assumir contratos. Para mudanças Django, consulte o guia backend correspondente da raiz.
 - Não inspecione `node_modules`, `.expo`, builds, caches, arquivos gerados ou segredos para obter contexto.
 
@@ -54,6 +54,7 @@ Estado atual: scaffold Expo e primeiro recorte de login; os módulos operacionai
 
 ## Interface e idiomas
 
+- Use [DESIGN.md](DESIGN.md) como guia de design. A Agenda atualizada do app é a base conceitual: contexto, dados legíveis e caminhos claros para as operações, com experiência simples, intuitiva e funcional. Adapte ao domínio; não copie calendários, filtros ou limitações de implementação para todas as telas.
 - Implemente navegação móvel e tema nativo alinhados à marca e à densidade compacta do sistema. O shell/CSS web serve de referência visual, não de implementação React Native.
 - Preserve texto legível, alvos de toque de pelo menos 44 unidades lógicas, safe areas, leitor de tela, fonte ampliada, teclado e retorno Android/iOS. Não use escala global para simular compactação.
 - Toda tela precisa dos estados aplicáveis: carregando, vazio, erro, sem acesso, somente leitura, sem rede e dados antigos. Diferencie rascunho local de confirmação remota.

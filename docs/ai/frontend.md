@@ -179,3 +179,30 @@ never edited in the UI and no opening balance is presumed.
 The homepage `SegmentOverview` separates implemented workflows from commercial availability. Its read-only `publicSegments` service reads `/public/plan-segments/` without tenant credentials; only public segments with pricing tiers receive plan CTAs. Empty, loading and failed catalogs must not fabricate offers. Beef/dairy modules without a public offer direct visitors to contact; birds remain identified as in development. Preserve custom public-catalog copy and localize built-in descriptions in all four public languages.
 
 The public `PlanBuilder` uses `publicPlanCatalog` for validated public segments, active tiers, prices, icons and per-segment annual discounts. Do not restore hardcoded offers, fallback prices or preselected products. Selection is keyed by tier ID, not array position. `/planos?segmento=CODE` preselects only an existing offer. Empty/unavailable catalogs block checkout; quote creation remains server-authoritative through `/public/subscription-quotes/` with selected IDs and billing cycle.
+
+## Dairy milk and feeding worksheets
+
+The dairy `/leite` route uses `DairyMilkWorkspace`: a farm/date scope, optional
+batch/search, three milking sessions, discards, oxytocin usage, feed/silage/mineral,
+and a reviewable daily grid. `DairyTotalPanel` handles period aggregates. Existing
+milk records remain authoritative; worksheet state only adds feeding allocation
+snapshots and reported oxytocin usage. The latter is a usage record, not a
+prescription or automatic medication-stock deduction.
+
+Dairy `/racao/tratos` uses `DairyFeedingWorkspace` for managers/admins: remote
+animal selection across pages, multiple non-overlapping groups, kg/head/day or
+period quantities, atomic stock consumption and justified cancellation. Feeders and operators
+retain the existing daily batch-feeding screen and API. Beef routes are unchanged.
+The dairy home keeps the existing domain screens and adds the sales shortcut;
+this increment does not establish full form-by-form parity with the local HTML
+reference. Reproduction, registry, feed mill, tank and sales retain their existing
+contracts and screens.
+
+API access stays in `dairyWorksheetService`/`dairyFeedingService`. Never resubmit
+an uncertain result as a new intention. Keep the original payload and request
+key, consult the durable receipt or explicitly repeat the same submission.
+Farm/day filters are locked while worksheet drafts are pending. Empty fields
+and removed rows never imply deleting other animals or a different page.
+`/leite/historico` retains individual and aggregate production history and shows
+period boundaries. A period's milk is booked once on its final date; it must not
+be presented as estimated daily milkings. See the dairy worksheet API contract.

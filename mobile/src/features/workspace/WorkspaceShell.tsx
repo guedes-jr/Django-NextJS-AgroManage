@@ -13,15 +13,10 @@ import {HomeIcon,type HomeIconName} from '../home/HomeIcon';
 import {homeMessages} from '../home/messages';
 import {homeStyles as s} from '../home/styles';
 import {parseApiUrl} from '../../config/environment';
+import {ModuleMenu} from './ModuleMenu';
 import {moduleKeys,iconFor,nativeDestination} from './navigation';
 type Open=(key:ModuleKey)=>void;
-const moduleSections: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operação', keys: ['agenda', 'crops'] },
-  { title: 'Segmentos', keys: ['beef', 'dairy', 'feeding', 'swine', 'clinic'] },
-  { title: 'Gestão', keys: ['inventory', 'finance', 'structure'] },
-  { title: 'Inteligência', keys: ['assistant'] },
-];
-export function WorkspaceShell({active,title,children}:{active:'home'|'agenda'|'beef'|'dairy'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode)}){
+export function WorkspaceShell({active,title,children,onBack}:{active:'home'|'agenda'|'beef'|'dairy'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void}){
  const {state,language,controller}=useAuth();const router=useRouter();const {width}=useWindowDimensions();const t=homeMessages[language];
  const unread=useQuery({queryKey:['notifications-count'],enabled:state.status==='signedIn'&&canReadNotifications(state.session.user),queryFn:({signal})=>controller.notificationCount(signal),staleTime:30000});
  const [panel,setPanel]=useState<'modules'|'create'|ModuleKey|null>(null);const [query,setQuery]=useState('');const [linkFailed,setLinkFailed]=useState(false);const [keyboard,setKeyboard]=useState(false);
@@ -33,7 +28,8 @@ export function WorkspaceShell({active,title,children}:{active:'home'|'agenda'|'
  const button=(label:string,onPress:()=>void,icon?:HomeIconName)=><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({pressed})=>[s.button,pressed&&s.pressed]}>{icon&&<HomeIcon name={icon}/>}<Text style={s.buttonText}>{label}</Text></Pressable>;
  const currentModule=panel&&panel!=='modules'&&panel!=='create'?panel:null;const listed=(panel==='create'?writable:allowed).filter(key=>t[key].toLocaleLowerCase(language).includes(query.trim().toLocaleLowerCase(language)));
  const modulesSelected=panel==='modules'||(!panel&&!['home','agenda'].includes(active));
- const handleBack=()=>{if(router.canGoBack())router.back();else router.navigate('/');};
+ const closePanel=()=>{Keyboard.dismiss();setPanel(null);};
+ const handleBack=()=>{if(onBack){onBack();return;}if(router.canGoBack())router.back();else router.navigate('/');};
  return <SafeAreaView style={s.safe} edges={['top','left','right','bottom']}><StatusBar style="light"/><View style={{flex:1}} aria-hidden={!!panel} accessibilityElementsHidden={!!panel} importantForAccessibility={panel?'no-hide-descendants':'auto'} pointerEvents={panel?'none':'auto'}>
       <View testID="home-header" style={s.hero}>
         <Image source={require('../../../assets/auth-landscape.png')} style={[s.heroImage,{width,height:width * 1.5,top:-width * 0.025}]}/>
@@ -68,7 +64,7 @@ export function WorkspaceShell({active,title,children}:{active:'home'|'agenda'|'
         </Svg>
       </View>
 <View style={{flex:1,backgroundColor:'#F6F8F1'}}>{typeof children==='function'?children(open):children}</View>
-{!keyboard&&<>    <View pointerEvents="box-none" style={[s.navBackdrop,{marginTop:0,backgroundColor:'#F6F8F1'}]}>
+{!keyboard&&<>    <View pointerEvents="box-none" style={s.navBackdrop}>
     <View testID="home-navigation" accessibilityRole="tablist" style={s.nav}>
       <View pointerEvents="none" style={[StyleSheet.absoluteFill,s.navFill]}>
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} aria-hidden={true}>
@@ -85,32 +81,11 @@ export function WorkspaceShell({active,title,children}:{active:'home'|'agenda'|'
     </View>
     </>}
     </View>
-    <Modal visible={!!panel} transparent animationType="fade" onRequestClose={() => setPanel(null)}><SafeAreaView style={s.overlay}><View accessibilityViewIsModal style={s.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.sheetContent}><View style={s.row}><Text accessibilityRole="header" style={[s.sectionTitle,s.grow]}>{currentModule ? t[currentModule] : panel === 'create' ? t.create : t.modules}</Text>{button(t.close,() => setPanel(null))}</View>
-      {currentModule ? <><Text style={s.subtitle}>{t.pending}</Text>{linkFailed && <Text accessibilityRole="alert">{t.failedLink}</Text>}{button(t.web,() => void goWeb(currentModule),'arrow')}{currentModule === 'profile' && button(t.logout,() => void controller.signOut())}</> : <>{panel === 'create' && <Text style={s.subtitle}>{t.choose}</Text>}<TextInput accessibilityLabel={t.search} placeholder={t.search} placeholderTextColor="#657268" value={query} onChangeText={setQuery} style={s.searchInput}/>
-      {query.trim() ? (
-        listed.map(key => <View key={key}>{button(t[key],() => open(key),iconFor(key))}</View>)
-      ) : panel === 'create' ? (
-        listed.map(key => <View key={key}>{button(t[key],() => open(key),iconFor(key))}</View>)
-      ) : (
-        <>
-          {moduleSections.map(section => {
-            const items = section.keys.filter(key => listed.includes(key));
-            if (!items.length) return null;
-            return (
-              <View key={section.title} style={s.menuSection}>
-                <Text style={s.menuSectionTitle}>{section.title}</Text>
-                {items.map(key => (
-                  <View key={key}>{button(t[key],() => open(key),iconFor(key))}</View>
-                ))}
-              </View>
-            );
-          })}
-          {listed.filter(key => !moduleSections.some(sec => sec.keys.includes(key))).map(key => (
-            <View key={key}>{button(t[key],() => open(key),iconFor(key))}</View>
-          ))}
-        </>
-      )}
-      {!listed.length && <Text>{t.noResults}</Text>}</>}
-    </ScrollView></View></SafeAreaView></Modal>
+    <Modal visible={!!panel} transparent animationType="fade" onRequestClose={closePanel}><SafeAreaView style={s.overlay}>
+     <Pressable style={StyleSheet.absoluteFill} focusable={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden onPress={closePanel}/>
+     {panel==='modules'?<ModuleMenu allowed={allowed} language={language} active={active} query={query} onQuery={setQuery} onClose={closePanel} onOpen={open}/>:<View accessibilityViewIsModal style={s.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.sheetContent}><View style={s.row}><Text accessibilityRole="header" style={[s.sectionTitle,s.grow]}>{currentModule?t[currentModule]:t.create}</Text>{button(t.close,closePanel)}</View>
+      {currentModule?<><Text style={s.subtitle}>{t.pending}</Text>{linkFailed&&<Text accessibilityRole="alert">{t.failedLink}</Text>}{button(t.web,()=>void goWeb(currentModule),'arrow')}{currentModule==='profile'&&button(t.logout,()=>void controller.signOut())}</>:<><Text style={s.subtitle}>{t.choose}</Text><TextInput accessibilityLabel={t.search} placeholder={t.search} placeholderTextColor="#657268" value={query} onChangeText={setQuery} style={s.searchInput}/>{listed.map(key=><View key={key}>{button(t[key],()=>open(key),iconFor(key))}</View>)}{!listed.length&&<Text>{t.noResults}</Text>}</>}
+     </ScrollView></View>}
+    </SafeAreaView></Modal>
 </SafeAreaView>;
 }

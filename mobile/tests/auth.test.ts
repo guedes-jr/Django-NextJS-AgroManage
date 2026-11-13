@@ -15,7 +15,7 @@ const organization = { id: 'org-1', name: 'Organização de teste', language: 'e
 function fixture(overrides: Partial<AuthApi> = {}) {
   let saved: Tokens | null = null;
   let revokeCount = 0;
-  const api: AuthApi = {followUpOptions:async()=>{throw Error('unused');},followUpExecutions:async()=>{throw Error('unused');},resolveFollowUp:async()=>{throw Error('unused');},
+  const api: AuthApi = {tankProductionAvailable:async()=>{throw Error('unused');},saveTankRecord:async()=>{throw Error('unused');},reconcileTankRecord:async()=>{throw Error('unused');},followUpOptions:async()=>{throw Error('unused');},followUpExecutions:async()=>{throw Error('unused');},resolveFollowUp:async()=>{throw Error('unused');},
 sanitaryOptions:async()=>{throw Error('unused');},sanitaryAnimals:async()=>{throw Error('unused');},createCollectiveMedication:async()=>{throw Error('unused');},createSanitary:async()=>{throw Error('unused');},
 reviewCollectiveMedication:async()=>{throw Error('unused');},confirmCollectiveMedication:async()=>{throw Error('unused');},
 reviewSanitary:async()=>{throw Error('unused');},confirmSanitary:async()=>{throw Error('unused');},

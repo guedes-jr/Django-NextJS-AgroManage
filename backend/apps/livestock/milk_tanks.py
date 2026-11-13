@@ -74,12 +74,15 @@ def save_tank(user, data, instance=None, *, expected_version=None):
 
 
 @transaction.atomic
-def move_milk(user, data):
+def move_milk(user, data, *, match_request=False):
     tank = data["tank"]
     Farm.objects.select_for_update().get(pk=tank.farm_id)
     tank = MilkTank.objects.select_for_update().select_related("farm").get(pk=tank.pk)
     previous = tank.movements.filter(request_key=data["request_key"]).first()
-    if previous: return previous
+    if previous:
+        if match_request and any(getattr(previous, field) != data.get(field, "") for field in ["kind", "date", "liters", "buyer", "driver", "vehicle", "document", "reason", "notes"]):
+            raise TankVersionConflict("A chave já pertence a outro movimento. Confira o lançamento original.")
+        return previous
     if not tank.is_active: raise ValidationError({"tank": "Tanque inativo."})
     financial = data.pop("generate_receivable", False)
     due = data.pop("due_date", None)
@@ -106,10 +109,12 @@ def move_milk(user, data):
 
 
 @transaction.atomic
-def cancel_movement(user, movement, reason):
+def cancel_movement(user, movement, reason, *, operational_only=False):
     Farm.objects.select_for_update().get(pk=movement.tank.farm_id)
     tank = MilkTank.objects.select_for_update().get(pk=movement.tank_id)
     movement = MilkTankMovement.objects.select_for_update().get(pk=movement.pk)
+    if operational_only and (movement.receivable_id or movement.unit_price is not None or movement.amount is not None):
+        raise PermissionDenied("Esta coleta possui valores ou vínculo financeiro. Confira e cancele no sistema web.")
     if movement.cancelled_at: return movement
     if movement.receivable_id:
         from apps.finance.models import Transaction
@@ -123,20 +128,26 @@ def cancel_movement(user, movement, reason):
 
 
 @transaction.atomic
-def record_quality(user, data):
+def record_quality(user, data, *, match_request=False):
     tank = data["tank"]
     Farm.objects.select_for_update().get(pk=tank.farm_id)
     tank = MilkTank.objects.select_for_update().get(pk=tank.pk)
     existing = tank.quality_records.filter(request_key=data["request_key"]).first()
-    if existing: return existing
+    if existing:
+        if match_request and any(getattr(existing, field) != data.get(field, None if field in ["temperature_c", "fat_percent", "protein_percent", "scc", "tbc"] else "not_tested" if field == "antibiotics" else "") for field in ["date", "sample", "temperature_c", "fat_percent", "protein_percent", "scc", "tbc", "antibiotics", "notes"]):
+            raise TankVersionConflict("A chave já pertence a outra análise. Confira o registro original.")
+        return existing
     if not tank.is_active: raise ValidationError({"tank": "Tanque inativo."})
     return MilkTankQuality.objects.create(**data, created_by=user)
 
 
 @transaction.atomic
-def delete_milk(record):
+def delete_milk(record, *, worksheet=False):
     farm = record.farm if isinstance(record, CattleMilkDailyTotal) else record.animal.farm
     Farm.objects.select_for_update().get(pk=farm.pk)
+    record = type(record).objects.select_for_update().get(pk=record.pk)
+    if isinstance(record, CattleMilkDailyTotal) and not worksheet and hasattr(record, 'worksheet'):
+        raise ValidationError("Exclua este total na planilha leiteira para estornar também a alimentação vinculada.")
     day = record.date
     record.delete()
     protect_production(farm, day)

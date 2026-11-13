@@ -1,5 +1,8 @@
 # Partes 05 a 08 — Primeiro aplicativo operacional
 
+**Leitura atual:** este documento reúne tarefas e registros de incrementos já implementados. Usar a [ordem ativa de execução](../IMPLEMENTACAO.md#ordem-atual-de-execução); checkboxes vazios não significam que todo o fluxo deva ser refeito. Priorizar P05.11–P05.14, P07.16 e o aceite nativo das jornadas existentes, em conjunto com P04/P17. As seções datadas preservam evidências históricas e não comprovam o estado da versão atual em aparelhos.
+
+
 [Voltar ao plano](../IMPLEMENTACAO.md). Ao concluir estas partes, o objetivo é ter um piloto online de agenda, rebanho e leite, com consulta offline limitada e rascunhos persistentes. Envio automático offline continua condicionado à Parte 16.
 
 ## Parte 05 — Início, Agenda e tarefas
@@ -324,7 +327,7 @@ Referências de compatibilidade: [DocumentPicker SDK58](https://docs.expo.dev/ve
 | Tela | Conteúdo | Ação principal | Estados específicos |
 | --- | --- | --- | --- |
 | Início | Fazenda atual, prioridades, poucos indicadores e atalhos autorizados | Abrir próxima tarefa ou lançamento | Sem tarefas; indicador indisponível sem bloquear a tela |
-| Agenda | Dia/semana, lista paginada e filtros | Abrir evento/tarefa | Sem eventos; cache antigo; filtro sem resultado |
+| Agenda | Mês/Semana/Lista, data selecionada, lista paginada e filtros | Abrir evento/tarefa | Sem eventos; cache antigo; filtro sem resultado |
 | Detalhe de tarefa | Data, prioridade, descrição, origem e situação | Ação permitida conforme tipo | Fonte removida; tarefa não editável; acesso revogado |
 | Criar/editar tarefa | Campos previstos no contrato | Salvar online | Conflito; validação; saída com alterações |
 
@@ -340,6 +343,25 @@ Referências de compatibilidade: [DocumentPicker SDK58](https://docs.expo.dev/ve
 - [ ] P05.08 — Diferenciar lembrete WhatsApp existente, lembrete local proposto e push nativo futuro. Não converter um no outro silenciosamente.
 - [ ] P05.09 — Atualizar consultas afetadas após salvar; retorno à lista conserva dia, filtros e posição quando seguro.
 - [ ] P05.10 — Registrar eventos de medição sem conteúdo de tarefas: abertura, duração até detalhe e falhas por categoria. Não enviar descrição de tarefa para analytics.
+
+### Incremento atual — da Agenda até a operação
+
+- [ ] P05.11 — Conferir a correspondência entre seleção, período, paginação, contagem e vazio em Mês/Semana/Lista. Testar mais eventos que uma página e eventos em dias fora da primeira página. Não apresentar ausência de atividade ou indicadores de mês completo com base apenas na página carregada; adequar as consultas/indicadores ao contrato real.
+
+**Implementação P05.11 (13/11/2026):** Mês/Semana consultam diretamente o dia selecionado, com paginação e contagem próprias; Lista mantém a consulta do período. A navegação ao detalhe recebe o intervalo efetivamente consultado. Contagens ficam indefinidas durante carregamento/erro, sem exibir zero como se fosse um resultado. Foram retirados os pontos do calendário derivados de uma única página: não há indicador de cobertura completa do mês. Testes direcionados da Agenda: 14 aprovados, incluindo seleção de dia fora da primeira página, segunda página diária, escopo e filtros. TypeScript/ESLint aprovados. Homologação visual e nativa permanece pendente.
+
+- [ ] P05.12 — Verificar ida e retorno preservando modo, data selecionada, domínio, finalizados, fazenda e página/posição quando seguro. Incluir abertura direta, recurso removido, mudança de fazenda e acesso revogado; parâmetros de rota não concedem autorização.
+**Implementação P05.12 (13/11/2026):** a Agenda salva em memória modo, data, domínio, finalizados, fazenda, página e posição antes de abrir detalhe/criação. A seleção pertence à sessão autenticada; troca de sessão a oculta, e seleção de fazenda a descarta. Ao remontar, restaura apenas o contexto da fazenda atual, sem selecionar fazendas por parâmetro de rota. A posição é restaurada após dados válidos, limitada pela rolagem disponível; consulta/contexto novos descartam a posição anterior. Detalhes abertos a partir da Agenda bloqueiam leitura/ações quando a fazenda muda. Atividade derivada deslocada pela paginação é procurada novamente dentro do mesmo intervalo/filtro autorizado; consulta incompleta ou falha não é apresentada como recurso removido. Busca limitada a 100 páginas, com falha explícita ao exceder o limite, sem seguir URLs de paginação. Abertura direta sem seleção salva usa os padrões atuais e conserva as verificações de acesso do servidor. Validação: 22 testes direcionados de Agenda/workspace, TypeScript e ESLint aprovados. Retorno, rolagem e abertura direta em aparelhos Android/iOS ainda aguardam homologação; P05.13/P05.14 seguem como próximos recortes.
+
+- [ ] P05.13 — Revisar o caminho detalhe → operação de origem: usar destino nativo validado quando disponível, com identificador/contexto corretos; manter alternativa web identificada para os fluxos sem destino nativo. Não abrir URLs arbitrárias nem transportar tokens em links.
+**Implementação P05.13 (13/11/2026):** “Abrir origem no app” leva às fichas existentes de vacinação (`vaccination`/`vaccine_record`) e manejo sanitário (`sanitary`), com UUID de origem, espécie, fazenda e perfil validados. O evento preserva `farm` recebido do servidor; eventos legados sem fazenda não geram atalhos nativos. Antes de navegar, uma consulta autorizada confere novamente identidade/fazenda/tipo; o destino também mantém suas consultas e permissões. Requisição é cancelada ao sair do detalhe e contexto/sessão são conferidos após a resposta. Apenas a ficha é aberta, sem aplicar dose, resolver retorno ou executar ação automática. Somente leitura pode consultar vacinação; acesso gerencial continua obrigatório para manejos. Demais origens (reprodução, alimentação prevista, plantações e tarefas com link operacional) conservam a alternativa web validada: não se presume animal/lote a partir de título ou UUID de outro tipo. URLs arbitrárias e tokens não são transportados nos links. Validação: 25 testes direcionados Agenda/clínica, TypeScript e ESLint aprovados. Homologação de ida/retorno em aparelhos Android/iOS permanece pendente; P05.14 é o próximo recorte.
+
+- [ ] P05.14 — Conferir criação/edição/situação a partir da seleção atual, preservação de campos após erro, revisão do contexto ao mudar fazenda e atualização da lista após confirmação. Distinguir tarefa editável de atividade derivada ou prevista e manter resultado incerto sem replay indevido.
+
+**Implementação P05.14 (13/11/2026):** criação parte da data selecionada e captura explicitamente a fazenda (ou contexto sem fazenda). O editor preserva campos e bloqueia controles/envio se a seleção de fazenda mudar; a conferência também ocorre durante o preflight e imediatamente antes da mutação. Edição relê a tarefa, compara sua fazenda à versão aberta e impede mover o lançamento por esse fluxo. Permissões e somente leitura são reconferidos; operador restrito envia apenas situação, e atividade operacional vinculada continua sem edição genérica. GET confere UUID da resposta; confirmação de escrita confere identidade da edição, situação e dados essenciais, responsável/fazenda da criação e fazenda da correção. Recibo inconsistente após mutação é resultado incerto, sem replay automático. Erros conhecidos preservam campos; retorno após confirmação aproveita a atualização da Agenda/detalhe ao receber foco e a seleção em memória de P05.12. Validação: 26 testes direcionados Agenda/workspace, TypeScript e ESLint aprovados. Preservação visual de campos, retorno, troca de fazenda e execução Android/iOS permanecem pendentes de homologação.
+
+
+**Demonstração do incremento:** selecionar uma fazenda e data → encontrar atividade → consultar detalhe → abrir o destino autorizado ou alternativa identificada → retornar ao mesmo contexto. Repetir com falha de rede, paginação, somente leitura e perfil sem acesso.
 
 ### Dependências e limites de backend
 
@@ -630,6 +652,15 @@ Rotas nativas `/milk` e `/milk/form`, acessíveis em Pecuária leiteira → Prod
 
 Dados existentes em `milkProductionService.ts`: resumo diário, vacas, registros individuais, registros totais, sessões e descartes. A API distingue modo individual/total; o mobile deve respeitar o comportamento vigente, não somar indiscriminadamente as duas formas.
 
+### Compatibilidade a conferir antes da expansão leiteira
+
+O backend/web recebeu `period_start` em totais de leite e rotas `dairy-worksheet`/`dairy-feeding`, com estado, estoque e reconciliação próprios. O cliente mobile reconhece `period_start`, consulta os totais que abrangem o dia selecionado e apresenta o intervalo com a data de contabilização final. Totais de vários dias são somente leitura, inclusive por acesso direto ao formulário; há orientação para conferência no web. A planilha de leite/alimentação permanece fora do recorte nativo.
+
+- [ ] P07.16 — Conferir migração e contratos vigentes, tipos/validação e apresentação dos totais existentes. Identificar e mostrar corretamente o intervalo de um total por período; impedir sua edição como total de um único dia enquanto essa experiência não estiver suportada. Validar coexistência/intervalos, histórico e compatibilidade web/mobile com dados sintéticos.
+**P07.16 — implementação de compatibilidade (13/11/2026):** contratos aceitam totais antigos sem início e validam intervalos; lista e formulário apresentam períodos sem permitir correção diária. Antes de gravar, o app relê o lançamento; `view=mobile` faz o servidor revalidar a versão atual sob bloqueio da fazenda/registro. Consulta por `covering_date` respeita organização, fazenda e permissões existentes. Criação diária verifica produção prévia; respostas incertas continuam bloqueadas para reenvio. Testes sintéticos cobrem intervalo, escopo, escrita diária e mudança concorrente. Validação: 61 testes mobile direcionados, TypeScript e ESLint aprovados; exportação Expo para Android, iOS e web aprovada. Prévia visual e execução em aparelhos não foram verificadas neste incremento. A migração 0045 foi exercitada apenas no banco descartável de testes; aplicação no ambiente de uso e homologação Android/iOS continuam pendentes, portanto o item não está homologado.
+
+- [ ] P07.17 — Definir o recorte nativo de leite/alimentação por animal e grupos, se priorizado pelo piloto. Auditar capacidades, revisão, versões, idempotência, consumo/estorno, tanque e conferência de resultado incerto antes de implementar; reaproveitar regras do servidor e manter o fluxo restrito do feeder. A existência da planilha web não comprova contrato nativo homologado nem autoriza copiar sua interface.
+
 ### Tarefas
 
 - [ ] P07.01 — Documentar regras de data, sessão, animal em lactação, produção individual/total, descarte e edição. Definir no contrato quando registro existente deve ser editado em vez de criado.
@@ -643,13 +674,26 @@ Dados existentes em `milkProductionService.ts`: resumo diário, vacas, registros
 - [ ] P07.09 — Preparar serialização do rascunho com versão de schema, mas persistência durável entra na Parte 08. Cancelar deve avisar sobre alterações não salvas.
 - [ ] P07.10 — Validar a jornada completa em aparelho no local de trabalho: teclado, luz, identificação e retorno após chamada/interrupção.
 
-### Segundo recorte: tanques e qualidade, após piloto
+### Complemento: operações de tanques e qualidade
+
+Consulta, históricos de movimentos/qualidade e cadastro/edição essencial já têm recortes nativos registrados neste documento. O complemento é lançar/cancelar movimentos e registrar qualidade conforme contrato, além de homologar o conjunto. Não recriar as consultas nem considerar o tanque completo por possuir uma ficha.
+
 
 - [ ] P07.11 — Consulta de tanques, capacidade, saldo e produção disponível, com carregamento sob demanda. Evitar portar o loop web que busca todas as páginas sem avaliar volume.
 - [ ] P07.12 — Detalhe e histórico de movimentos com classificação produção/coleta/descarte e situação cancelada.
 - [ ] P07.13 — Formulário online de movimento, com validação server-side de saldo e vinculação financeira quando existente. Não calcular saldo definitivo localmente.
 - [ ] P07.14 — Registro de qualidade com unidades e limites documentados para temperatura, gordura, proteína, CCS/CBT e antibiótico conforme contrato.
 - [ ] P07.15 — Cancelamento com motivo, auditoria e atualização de impactos vinculados. Não representar cancelamento como exclusão local.
+
+**Formulários nativos de tanques (13/11/2026, P07.13–P07.15):** implementado `/milk/tank-record-form` para entrada da produção, coleta operacional, descarte, análise e cancelamento com motivo. Acesso pela ficha/histórico, com fazenda/tanque fixos e data do filtro quando aplicável. Campos → revisão com contexto consultado → confirmação → ID/ficha; validação conhecida preserva campos. Entrada consulta produção disponível no servidor; saldo/capacidade são conferidos pelo ledger, sem cálculo de saldo definitivo local. Análise distingue campo ausente de zero, preserva unidades e resultado de antibiótico, sem inferir conformidade. Operador bovino autorizado pode criar; cancelamento permanece gerencial; somente leitura e mudanças de sessão/perfil bloqueiam envio por nova validação. Coletas nativas não geram receita nem enviam valores; cancelamento de movimento com preço/valor/vínculo financeiro é restrito ao web, com alternativa identificada no formulário.
+
+Chaves UUID por solicitação e conferência de recibo operacional: sucesso exige identidade, fazenda/tanque e dados compatíveis; repetição nativa de chave com outro conteúdo resulta em 409. Resultado incerto bloqueia novo POST; “Conferir resultado” usa somente GET, e histórico de conferência não oferece escrita nem desbloqueia o formulário ao voltar. Campos/chave permanecem apenas na instância em memória; fila offline, replay automático e recuperação durável após encerramento forçado não estão implementados. Nesse caso, conferir manualmente o histórico antes de iniciar outra solicitação.
+
+Validação: 79 testes mobile direcionados (incluindo autenticação e tanques), 27 testes backend em SQLite descartável (5 novos, com reforços adicionais de cancelamento financeiro), TypeScript/ESLint e bundles Android/iOS/web aprovados. Prévia web com API sintética em 320/768 px verificou preenchimento/revisão, validação com campos preservados, gravações dos tipos, cancelamento auditável, zeros/ausências, resposta perdida após gravação, GET de recibo sem segundo POST e retorno do histórico mantendo bloqueio. Validação em aparelhos Android/iOS, integração contra ambiente de uso e piloto permanecem pendentes; nenhum banco de uso foi migrado. P07 e a Fase 4 não estão homologados por esta entrega.
+
+
+**Históricos de tanques — revisão de apresentação (13/11/2026, P04.13/P07.12/P07.14):** movimentos e qualidade mostram tanque/fazenda, filtros aplicados, contagem do servidor e registros. Controles de tipo/data abrem sob demanda, preservam rascunho ao fechar, validam antes de consultar e permitem limpar filtros. Alteração ainda não aplicada não é tratada como histórico vazio; atualização fica bloqueada até aplicar/limpar. Fichas usam o retorno do cabeçalho; movimento agrupa os dados e prioriza data/motivo do cancelamento, mantendo volume original e fuso auditável. Qualidade agrupa resultados com unidades, distingue ausente de zero e preserva antibiótico positivo sem inferir conformidade/liberação. Permissões, isolamento, contratos e regras de saldo foram preservados. Validação: 13 testes direcionados de movimentos/qualidade, TypeScript, ESLint e exportação web; prévia sintética de quatro telas em 320/768 px, filtros inválidos preservados, paginação, abertura/retorno, cancelamento, valores ausentes/zero e estados vazio/erro sem falso vazio, sem exceções de execução. Homologação Android/iOS permanece pendente. Auditoria confirma: apenas consulta desses históricos está implementada; formulários nativos de entrada/coleta/descarte, cancelamento e registro de qualidade são o próximo bloco, não entregas já concluídas.
+
 
 ### Critérios de aceite
 

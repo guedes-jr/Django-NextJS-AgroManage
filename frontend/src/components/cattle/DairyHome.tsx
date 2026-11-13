@@ -17,6 +17,7 @@ import {
   ChevronRight,
   RefreshCw,
   CalendarDays,
+  BadgeDollarSign,
 } from "lucide-react";
 import { CowIcon, BullIcon, LactationIcon } from "./CattleIcons";
 import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
@@ -48,8 +49,8 @@ const shortcuts: Array<{
   planned?: boolean;
 }> = [
   {
-    title: t("workspace.recordMilkProduction"),
-    description: t("workspace.recordMilkingsSessionsAndDiscardsPerCowOrAsA"),
+    title: t("dairy.worksheet.milkShortcut"),
+    description: t("dairy.worksheet.milkShortcutDescription"),
     href: `${root}/leite`,
     icon: Milk,
     tone: "cyan",
@@ -97,6 +98,14 @@ const shortcuts: Array<{
     href: `${root}/relatorios?production=dairy`,
     icon: ChartNoAxesCombined,
     tone: "cyan",
+    financial: true,
+  },
+  {
+    title: t("dairy.worksheet.salesShortcut"),
+    description: t("dairy.worksheet.salesDescription"),
+    href: `${root}/vendas`,
+    icon: BadgeDollarSign,
+    tone: "green",
     financial: true,
   },
 ];

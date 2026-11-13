@@ -2,6 +2,11 @@
 
 [Voltar ao plano](../IMPLEMENTACAO.md). Estas partes dependem de fluxos reais já integrados. Não adicionar permissões, bibliotecas ou serviços pagos sem um caso de uso que os consuma.
 
+**Situação de partida:** seleção local de CSV com DocumentPicker/FileSystem e inbox/preferências já têm implementação. SecureStore armazena credenciais; isso não implementa cache offline ou rascunho durável. `expo-sqlite` e `expo-notifications` não estão declarados no pacote atual; persistência P08/P16, câmera/anexos e push permanecem recortes próprios. Não reinstalar o projeto nem adicionar bibliotecas só para cumprir a ordem numérica das partes.
+
+**Ordem:** homologar os recursos já usados e escolher o próximo por necessidade observada. Push depende de permissão, registro, política de entrega e destino autorizado; fila de escrita depende de política/schema local e idempotência/reconciliação de cada operação. Nenhum desses recursos bloqueia o piloto online das jornadas já aprovadas. Ver a [ordem ativa](../IMPLEMENTACAO.md#ordem-atual-de-execução).
+
+
 ## Parte 14 — Recursos do aparelho
 
 **Resultado demonstrável:** facilitar identificação e captura de evidência, com funcionamento alternativo quando uma permissão for negada. **Dependências:** P03/P04 e fluxo de domínio consumidor. **Responsáveis:** mobile; backend para lookup/upload.

@@ -8,15 +8,19 @@ export const agendaQuerySchema = z.object({
   include_recorded: z.boolean().default(false),
 }).refine(v => v.end >= v.start && (Date.parse(v.end) - Date.parse(v.start)) / 86400000 <= 41);
 export type AgendaQuery = z.infer<typeof agendaQuerySchema>;
+export function agendaListingQuery(query: AgendaQuery, mode: 'month' | 'week' | 'list', selectedDay: string): AgendaQuery {
+  const selected = daySchema.parse(selectedDay);
+  return agendaQuerySchema.parse(mode === 'list' ? query : { ...query, start: selected, end: selected });
+}
 export const eventSchema = z.object({
   id: z.string().min(1), source_id: z.uuid(), date: daySchema, title: z.string(),
-  domain: z.string(), species: z.string(), farm_name: z.string(), kind: z.string(), status: z.string(),
+  domain: z.string(), species: z.string(), farm: z.uuid().nullish(), farm_name: z.string(), kind: z.string(), status: z.string(),
   source_url: z.string().nullable(), estimated: z.boolean(),
 });
 export type AgendaEvent = z.infer<typeof eventSchema>;
 export const agendaPageSchema = z.object({count:z.number().int().nonnegative(), next:z.string().nullable(), previous:z.string().nullable(), results:z.array(eventSchema)});
 export const taskSchema = z.object({
-  id:z.uuid(), title:z.string(), description:z.string(), due_date:daySchema.nullable(),
+  id:z.uuid(), farm:z.uuid().nullable().default(null), title:z.string(), description:z.string(), due_date:daySchema.nullable(),
   event_kind:z.string(), start_time:z.string().nullable(), end_time:z.string().nullable(),
   location:z.string(), status:z.string(), priority:z.string(), operational_link:z.string().nullable(),
   assigned_to:z.uuid().nullable(),created_by:z.uuid().nullable(),

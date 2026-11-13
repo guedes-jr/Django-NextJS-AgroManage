@@ -1,3 +1,4 @@
+import {tankWriteCommandSchema,validateTankReceipt,type TankWriteCommand} from '../features/milk/tankWriteContracts';
 import {tankFormOptionsSchema,tankFormRecordSchema,tankCommandSchema,tankFormPayload,type TankCommand} from '../features/milk/tankFormContracts';
 import {tankQualityQuerySchema,tankQualitySchema,tankQualityPageSchema,ensureTankQualityScope,type TankQualityQuery} from '../features/milk/tankQualityContracts';
 import {tankMovementQuerySchema,tankMovementSchema,tankMovementPageSchema,ensureTankMovementScope,type TankMovementQuery} from '../features/milk/tankMovementContracts';
@@ -47,7 +48,7 @@ import {movementQuerySchema,movementPageSchema,movementSchema,stockCountPayload,
 import {productPayload,supplierPayload,type InventoryCommand} from '../features/inventory/formContracts';
 import {inventoryFormChoicesSchema,inventoryQuerySchema,itemPageSchema,lotSchema,lotPageSchema,alertPageSchema,supplierPageSchema,itemSchema,supplierSchema,summarySchema,choicesSchema,type InventoryQuery} from '../features/inventory/contracts';
 import {batchPayload,transferInput,transferPreviewSchema,cattleOverviewSchema,type BatchInput,type TransferInput,type TransferPreview} from '../features/cattle/batchContracts';
-import { milkSummarySchema,milkQuerySchema,milkCowPageSchema,milkRecordPageSchema,milkTotalPageSchema,milkRecordSchema,milkTotalSchema,milkCommandSchema,milkPayload,type MilkQuery,type MilkCommand,type MilkValues } from '../features/milk/contracts';
+import { milkSummarySchema,milkQuerySchema,milkCowPageSchema,milkRecordPageSchema,milkTotalPageSchema,milkRecordSchema,milkTotalSchema,milkCommandSchema,milkPayload,isPeriodMilkTotal,type MilkQuery,type MilkCommand,type MilkValues } from '../features/milk/contracts';
 import { cattleQuerySchema, productionSchema, ensureCattleScope, animalPageSchema, batchPageSchema, animalSchema, batchSchema, historyPageSchema, animalPayload, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../features/cattle/contracts';
 import { farmsSchema, profileSchema, parseSearch, searchQuerySchema, type SearchQuery } from '../features/workspace/contracts';
 import { agendaQuerySchema, agendaPageSchema, taskSchema, taskOptionsSchema, taskInputSchema, type TaskInput, type AgendaQuery } from '../features/agenda/contracts';
@@ -57,6 +58,7 @@ import { dashboardSchema } from '../features/home/contracts';
 import type { Language, MessageKey } from '../i18n/messages';
 import { tokensSchema, userSchema, organizationSchema, registrationSchema, type Credentials, type Tokens, type Registration, type RegistrationField } from '../features/auth/contracts';
 
+export class TankRecordUnconfirmed extends Error {}
 export class WeighingConfirmationUnconfirmed extends Error {}
 export class WeighingReviewChanged extends Error {}
 export class CollectiveMedicationConfirmationUnconfirmed extends Error {}
@@ -104,6 +106,7 @@ export class InventorySaveUnconfirmed extends Error {}
 export class AuthFailure extends Error {
   constructor(public readonly key: MessageKey, public readonly detail?: string) { super(key); }
 }
+export class MilkPeriodReadOnly extends AuthFailure { constructor(){super('unsupported');} }
 export class RegistrationFailure extends AuthFailure {
   constructor(public readonly fields: Partial<Record<RegistrationField, string>>, detail?: string) { super('registrationFailed', detail); }
 }
@@ -321,6 +324,21 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     async cattleCostOptions(tokens:Tokens,language:Language,farm:string,production:Production,signal?:AbortSignal){z.uuid().parse(farm);productionSchema.parse(production);const r=costOptionsSchema.parse((await http.get('livestock/cattle/operations/cost-options/',{...options(language,tokens.access),params:{farm,production,view:'mobile'},signal})).data);if(r.farm.id!==farm||r.production!==production)throw Error('cost options scope');return r;},
     async cattleCostBatches(tokens:Tokens,language:Language,farm:string,production:Production,page:number,search:string,signal?:AbortSignal){z.uuid().parse(farm);productionSchema.parse(production);z.number().int().min(1).max(100000).parse(page);search=z.string().trim().max(100).parse(search);const r=costBatchPageSchema.parse((await http.get('livestock/cattle/operations/cost-batches/',{...options(language,tokens.access),params:{farm,production,page,search,view:'mobile'},signal})).data);if(r.results.some(row=>row.farm!==farm||![production,'dual'].includes(row.purpose)))throw Error('cost batches scope');return r;},
     async cattleCosts(tokens:Tokens,language:Language,query:CostQuery,signal?:AbortSignal){const q=costQuerySchema.parse(query),r=costReportSchema.parse((await http.get('livestock/cattle/operations/costs/',{...options(language,tokens.access),params:{...q,view:'mobile'},signal})).data);return validateCostScope(r,q);},
+    async tankProductionAvailable(tokens:Tokens,language:Language,tank:string,farm:string,date:string,signal?:AbortSignal){
+      [tank,farm].forEach(v=>z.uuid().parse(v));const result=z.object({date:z.iso.date(),produced_usable:z.string().regex(/^\d+(?:\.\d+)?$/),allocated:z.string().regex(/^\d+(?:\.\d+)?$/),available:z.string().regex(/^-?\d+(?:\.\d+)?$/)}).parse((await http.get(`livestock/cattle/milk-tanks/${tank}/production-available/`,{...options(language,tokens.access),params:{farm,date:z.iso.date().parse(date)},signal})).data);if(result.date!==date)throw Error('production date');return result;
+    },
+    async saveTankRecord(tokens:Tokens,language:Language,input:TankWriteCommand){
+      const c=tankWriteCommandSchema.parse(input),{mode,farm,...body}=c;
+      const path=mode==='quality'?'milk-tank-quality':mode==='movement'?'milk-tank-movements':`milk-tank-movements/${c.mode==='cancel'?c.id:''}/cancel`;
+      try{const result=await http.post(`livestock/cattle/${path}/`,mode==='cancel'?{reason:c.mode==='cancel'?c.reason:''}:body,{...options(language,tokens.access),params:{view:'mobile',farm,tank:c.tank}});return validateTankReceipt(c,result.data);}
+      catch(error){if(isAxiosError(error)&&error.response&&[400,401,403,404,409,422].includes(error.response.status))throw error;throw new TankRecordUnconfirmed();}
+    },
+    async reconcileTankRecord(tokens:Tokens,language:Language,input:TankWriteCommand,signal?:AbortSignal){
+      const c=tankWriteCommandSchema.parse(input);
+      if(c.mode==='cancel')return validateTankReceipt(c,await this.milkTankMovement(tokens,language,c.id,c.tank,c.farm,signal));
+      const path=c.mode==='quality'?'milk-tank-quality':'milk-tank-movements';
+      return validateTankReceipt(c,(await http.get(`livestock/cattle/${path}/receipt/`,{...options(language,tokens.access),params:{view:'mobile',farm:c.farm,tank:c.tank,request_key:c.request_key},signal})).data);
+    },
     async milkTankMovements(tokens:Tokens,language:Language,query:TankMovementQuery,signal?:AbortSignal){const q=tankMovementQuerySchema.parse(query);const r=tankMovementPageSchema.parse((await http.get('livestock/cattle/milk-tank-movements/',{...options(language,tokens.access),params:{view:'mobile',tank:q.tank,farm:q.farm,kind:q.kind==='all'?undefined:q.kind,date:q.date||undefined,page:q.page,page_size:20},signal})).data);r.results.forEach(row=>{ensureTankMovementScope(row,q);if(q.kind!=='all'&&row.kind!==q.kind||q.date&&row.date!==q.date)throw Error('tank movement filters');});return r;},
     async milkTankMovement(tokens:Tokens,language:Language,id:string,tank:string,farm:string,signal?:AbortSignal){[id,tank,farm].forEach(v=>z.uuid().parse(v));const r=tankMovementSchema.parse((await http.get(`livestock/cattle/milk-tank-movements/${id}/`,{...options(language,tokens.access),params:{view:'mobile',tank,farm},signal})).data);return ensureTankMovementScope(r,{tank,farm},id);},
     async milkTankQualities(tokens:Tokens,language:Language,query:TankQualityQuery,signal?:AbortSignal){const q=tankQualityQuerySchema.parse(query);const r=tankQualityPageSchema.parse((await http.get('livestock/cattle/milk-tank-quality/',{...options(language,tokens.access),params:{view:'mobile',tank:q.tank,farm:q.farm,date:q.date||undefined,page:q.page,page_size:20},signal})).data);r.results.forEach(row=>{ensureTankQualityScope(row,q);if(q.date&&row.date!==q.date)throw Error('tank quality date');});return r;},
@@ -374,15 +392,20 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     async milkSummary(tokens:Tokens,language:Language,date:string,farm?:string,signal?:AbortSignal){return milkSummarySchema.parse((await http.get('livestock/cattle/milk/day-summary/',{...options(language,tokens.access),params:{date:z.iso.date().parse(date),...(farm?{farm:z.uuid().parse(farm)}:{})},signal})).data);},
     async milkPage(tokens:Tokens,language:Language,query:MilkQuery,signal?:AbortSignal){
       const {kind,...params}=milkQuerySchema.parse(query);const path={cows:'milk/cows/',records:'milk/',totals:'milk-totals/'}[kind];
-      const data=(await http.get(`livestock/cattle/${path}`,{...options(language,tokens.access),params:{...params,page_size:20},signal})).data;
-      return kind==='cows'?milkCowPageSchema.parse(data):kind==='records'?milkRecordPageSchema.parse(data):milkTotalPageSchema.parse(data);
+      const {date,...scope}=params;
+      const data=(await http.get(`livestock/cattle/${path}`,{...options(language,tokens.access),params:kind==='totals'?{...scope,covering_date:date,page_size:20}:{...params,page_size:20},signal})).data;
+      if(kind==='cows')return milkCowPageSchema.parse(data);
+      if(kind==='records')return milkRecordPageSchema.parse(data);
+      const result=milkTotalPageSchema.parse(data);
+      if(result.results.some(row=>(params.farm&&row.farm!==params.farm)||(row.period_start??row.date)>date||row.date<date))throw new Error('invalid milk scope');
+      return result;
     },
-    async milkDetail(tokens:Tokens,language:Language,mode:MilkCommand['mode'],id:string,signal?:AbortSignal){const path=z.enum(['individual','total']).parse(mode)==='individual'?'milk':'milk-totals';const data=(await http.get(`livestock/cattle/${path}/${z.uuid().parse(id)}/`,{...options(language,tokens.access),signal})).data;return mode==='individual'?milkRecordSchema.parse(data):milkTotalSchema.parse(data);},
+    async milkDetail(tokens:Tokens,language:Language,mode:MilkCommand['mode'],id:string,signal?:AbortSignal){const path=z.enum(['individual','total']).parse(mode)==='individual'?'milk':'milk-totals';const data=(await http.get(`livestock/cattle/${path}/${z.uuid().parse(id)}/`,{...options(language,tokens.access),signal})).data;const record=mode==='individual'?milkRecordSchema.parse(data):milkTotalSchema.parse(data);if(record.id!==id)throw new Error('invalid milk identity');return record;},
     async saveMilk(tokens:Tokens,language:Language,command:MilkCommand,values:MilkValues){
       const value=milkCommandSchema.parse(command),path=value.mode==='individual'?'milk':'milk-totals';
-      const body=milkPayload(values);const response=value.id?await http.patch(`livestock/cattle/${path}/${value.id}/`,body,options(language,tokens.access)):await http.post(`livestock/cattle/${path}/`,{...body,date:value.date,...(value.mode==='individual'?{animal:value.animal,session:value.session}:{farm:value.farm})},options(language,tokens.access));
+      const body=milkPayload(values),config={...options(language,tokens.access),...(value.mode==='total'?{params:{view:'mobile'}}:{})};const response=value.id?await http.patch(`livestock/cattle/${path}/${value.id}/`,body,config):await http.post(`livestock/cattle/${path}/`,{...body,date:value.date,...(value.mode==='individual'?{animal:value.animal,session:value.session}:{farm:value.farm})},config);
       const record=value.mode==='individual'?milkRecordSchema.parse(response.data):milkTotalSchema.parse(response.data);
-      if(record.date!==value.date||('animal' in record?(value.mode!=='individual'||record.animal!==value.animal||record.session!==value.session):(record.farm!==value.farm)))throw new Error('invalid milk confirmation');
+      if(('farm' in record&&isPeriodMilkTotal(record))||record.date!==value.date||('animal' in record?(value.mode!=='individual'||record.animal!==value.animal||record.session!==value.session):(record.farm!==value.farm)))throw new Error('invalid milk confirmation');
       return record;
     },
     async saveCattleAnimal(tokens:Tokens,language:Language,values:AnimalInput,production:Production,farm?:string,id?:string){
@@ -422,13 +445,18 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       return taskOptionsSchema.parse((await http.get('tasks/agenda-options/',{...options(language,tokens.access),signal})).data);
     },
     async saveAgendaTask(tokens: Tokens, language: Language, payload: TaskInput | {status:string}, id?:string, assignedTo?:string) {
-      const body='title' in payload ? taskInputSchema.parse(payload) : z.object({status:z.enum(['open','in_progress','done','cancelled'])}).parse(payload);
+      const full='title' in payload?taskInputSchema.parse(payload):null;
+      const body=full??z.object({status:z.enum(['open','in_progress','done','cancelled'])}).parse(payload);
       const response=id ? await http.patch(`tasks/${z.uuid().parse(id)}/`,body,options(language,tokens.access))
         : await http.post('tasks/',{...body,assigned_to:z.uuid().parse(assignedTo)},options(language,tokens.access));
-      return taskSchema.parse(response.data);
+      const receipt=taskSchema.parse(response.data);
+      if((id&&receipt.id!==id)||receipt.status!==body.status||(full&&(receipt.title!==full.title||receipt.due_date!==full.due_date))||(!id&&(receipt.assigned_to!==assignedTo||receipt.farm!==(full?.farm??null))))throw new Error('invalid task confirmation');
+      return receipt;
     },
     async agendaTask(tokens: Tokens, language: Language, id: string, signal?: AbortSignal) {
-      return taskSchema.parse((await http.get(`tasks/${z.uuid().parse(id)}/`, { ...options(language,tokens.access), signal })).data);
+      const record=taskSchema.parse((await http.get(`tasks/${z.uuid().parse(id)}/`, { ...options(language,tokens.access), signal })).data);
+      if(record.id!==id)throw new Error('invalid task identity');
+      return record;
     },
     async google(credential: string, language: Language) {
       if (!credential.trim()) throw new AuthFailure('googleFailed');

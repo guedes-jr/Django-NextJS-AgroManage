@@ -104,6 +104,24 @@ Ou, na raiz do repositório:
 make dev-mobile
 ```
 
+Para usar o túnel do Expo:
+
+```sh
+make dev-mobile-tunnel
+```
+
+O túnel usa `@expo/ngrok` instalado **localmente** em `mobile/`, já declarado nas dependências de desenvolvimento. Se o Expo pedir instalação global ou o supervisor informar pacote ausente/inválido, restaure as dependências locais:
+
+```sh
+cd mobile
+npm ci --include=dev
+```
+
+Depois execute novamente o comando da raiz. Não é necessário instalar o pacote globalmente nem usar `sudo npm install`. O supervisor confere o módulo antes de iniciar o backend, evitando a tentativa de instalação global pelo Expo.
+
+O túnel publica o Metro/Expo; ele não publica a API Django. Para um celular na mesma rede, informe `API_HOST` com o IP do computador. Fora dessa rede, a API precisa ter uma URL acessível ao aparelho, informada por `EXPO_PUBLIC_API_URL`.
+
+
 O `make dev` da raiz continua iniciando backend + frontend web. O novo comando não inicia Next.js, Docker, Redis ou Celery; banco e serviços exigidos pela configuração local precisam estar disponíveis previamente. Não instala dependências, não cria arquivos `.env` e não executa migrações ou seed.
 
 Pré-requisitos: macOS/Linux (ou WSL), `backend/.venv` configurado com as dependências do backend, `backend/.env` existente, Node/npm no PATH e `npm ci` executado em `mobile/`. O comando seleciona explicitamente `config.settings.dev`, mantendo a configuração de banco já existente sem ler ou exibir seus valores no supervisor.
@@ -128,13 +146,13 @@ make dev BACKEND_BIND=127.0.0.1
 
 `10.0.2.2` é o endereço do computador no emulador Android padrão; outros emuladores/aparelhos podem exigir outro endereço. `BACKEND_BIND=127.0.0.1` restringe a API ao próprio computador, impedindo o acesso de um celular pela rede. O HTTP local continua sujeito às restrições do build/SO descritas anteriormente.
 
-Uma variável `EXPO_PUBLIC_API_URL` já exportada explicitamente no terminal tem prioridade sobre a URL montada por `API_HOST` e `BACKEND_PORT`. Para usar a API local deste comando, remova esse override do terminal ou informe o endereço local pretendido. Mesmo com override remoto, o comando ainda inicia o backend local; se precisar apenas do app, use `npm start`.
+Uma variável `EXPO_PUBLIC_API_URL` já exportada explicitamente no terminal tem prioridade sobre a URL montada por `API_HOST` e `BACKEND_PORT`. Para usar a API local deste comando, remova esse override do terminal ou informe o endereço local pretendido. Quando a URL exportada aponta para um host externo, o supervisor inicia somente Expo, usando essa API; não inicia Django local.
 
 `BACKEND_PYTHON` permite informar outro executável Python com as dependências instaladas. Os demais parâmetros também funcionam no alias da raiz, por exemplo `make dev-mobile API_HOST=192.168.1.20`.
 
 O supervisor verifica portas antes de iniciar, aguarda o backend aceitar conexão e só então inicia Expo. Mantém o terminal/QR code do Expo e encerra seus próprios grupos de processos com Ctrl+C, falha ou saída de um serviço, incluindo autoreloader/Metro. Não encerra serviços anteriores nem mata processos por nome/porta. Se uma porta estiver ocupada, informa o erro para que você escolha outra ou encerre o serviço conscientemente.
 
-Verificação isolada do supervisor: `make test-dev` dentro de `mobile/`. Os nove testes usam processos sintéticos, sem iniciar o backend real ou alterar o banco, e cobrem configuração, portas ocupadas, timeout, falhas, Ctrl+C e limpeza de descendentes.
+Verificação isolada do supervisor: `make test-dev` dentro de `mobile/`. Os testes usam processos sintéticos, sem iniciar o backend real ou alterar o banco, e cobrem configuração, portas ocupadas, timeout, falhas, Ctrl+C e limpeza de descendentes.
 
 ## Arquivos do login
 

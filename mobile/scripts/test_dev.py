@@ -3,14 +3,22 @@ import argparse
 import contextlib
 import io
 import os
-from pathlib import Path
 import signal
 import socket
 import sys
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from dev import api_url, ensure_port_available, port_number, supervise
+from dev import (
+    api_url,
+    ensure_ngrok_available,
+    ensure_port_available,
+    main,
+    port_number,
+    supervise,
+)
 
 
 def free_port():
@@ -26,6 +34,36 @@ def listener(port):
 
 
 class ConfigurationTests(unittest.TestCase):
+    @patch("dev.subprocess.run")
+    @patch("dev.shutil.which", return_value="node")
+    def test_tunnel_uses_local_ngrok_without_installing_globally(self, _which, run):
+        run.return_value.returncode = 0
+        ensure_ngrok_available(Path("/temporary/mobile"))
+        self.assertEqual(run.call_args.kwargs["cwd"], Path("/temporary/mobile"))
+        self.assertIn("require('@expo/ngrok')", run.call_args.args[0][-1])
+        self.assertEqual(run.call_args.kwargs["stdout"], -3)
+        self.assertEqual(run.call_args.kwargs["stderr"], -3)
+
+    @patch("dev.subprocess.run")
+    @patch("dev.shutil.which", return_value="node")
+    def test_missing_tunnel_dependency_has_local_recovery_instructions(self, _which, run):
+        run.return_value.returncode = 1
+        with self.assertRaisesRegex(ValueError, "npm ci --include=dev"):
+            ensure_ngrok_available(Path("/temporary/mobile"))
+
+    @patch("dev.supervise")
+    @patch("dev.ensure_port_available")
+    @patch("dev.ensure_ngrok_available", side_effect=ValueError("ngrok local ausente"))
+    @patch("dev.shutil.which", return_value="npm")
+    @patch("dev.Path.is_dir", return_value=True)
+    @patch("dev.sys.argv", ["dev.py", "--tunnel"])
+    def test_missing_ngrok_stops_before_opening_ports_or_starting_backend(self, _is_dir, _which, ngrok, ports, supervise_mock):
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(main(), 1)
+        ngrok.assert_called_once()
+        ports.assert_not_called()
+        supervise_mock.assert_not_called()
+
     def test_default_url_and_explicit_override(self):
         self.assertEqual(api_url("192.168.1.20", 8010, None), "http://192.168.1.20:8010/api/v1/")
         self.assertEqual(api_url("127.0.0.1", 8000, "https://api.example.com/api/v1"), "https://api.example.com/api/v1/")
@@ -44,6 +82,15 @@ class ConfigurationTests(unittest.TestCase):
         for value in ["0", "65536"]:
             with self.assertRaises(argparse.ArgumentTypeError):
                 port_number(value)
+
+    @patch("dev.socket.socket")
+    def test_wildcard_bind_cannot_hide_an_existing_loopback_listener(self, socket_factory):
+        probe = socket_factory.return_value.__enter__.return_value
+        probe.connect_ex.return_value = 0
+        with self.assertRaisesRegex(ValueError, "Porta 8000 indisponível"):
+            ensure_port_available("0.0.0.0", 8000)
+        probe.connect_ex.assert_called_once_with(("127.0.0.1", 8000))
+        probe.bind.assert_not_called()
 
     def test_occupied_port_is_reported_without_stopping_owner(self):
         with socket.socket() as sock:

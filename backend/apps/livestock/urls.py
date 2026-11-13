@@ -19,6 +19,8 @@ from .cattle_views import (
 )
 
 from .milk_tank_api import MilkTankViewSet, MilkTankMovementViewSet, MilkTankQualityViewSet
+from .dairy_worksheet_api import DairyWorksheetView, DairyWorksheetReceiptView
+from .dairy_feeding_api import DairyFeedingView, DairyFeedingCancellationView
 
 router = DefaultRouter()
 router.register(r"cattle/milk-tanks", MilkTankViewSet, basename="milk-tank")
@@ -53,6 +55,10 @@ router.register(r'cattle/feed-plans', CattleFeedPlanViewSet, basename='cattle-fe
 router.register(r'cattle/managements', CattleManagementViewSet, basename='cattle-management')
 
 urlpatterns = [
+    path('cattle/dairy-feeding/', DairyFeedingView.as_view(), name='dairy-feeding'),
+    path('cattle/dairy-feeding/cancel/', DairyFeedingCancellationView.as_view(), name='dairy-feeding-cancel'),
+    path('cattle/dairy-worksheet/', DairyWorksheetView.as_view(), name='dairy-worksheet'),
+    path('cattle/dairy-worksheet/<uuid:farm>/<uuid:key>/', DairyWorksheetReceiptView.as_view(), name='dairy-worksheet-receipt'),
     path("cattle/operations/occurrences/<uuid:pk>/mobile-resolve/", CattleOccurrenceMobileResolutionView.as_view(), name="cattle-occurrence-mobile-resolution"),
     path("cattle/operations/<str:kind>/<uuid:pk>/mobile/", CattleOperationMobileDetailView.as_view(), name="cattle-operation-mobile-detail"),
     path("cattle/operations/<str:kind>/", CattleOperationsView.as_view(), name="cattle-operations"),

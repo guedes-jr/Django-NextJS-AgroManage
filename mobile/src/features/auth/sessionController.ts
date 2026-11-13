@@ -1,3 +1,4 @@
+import {canWriteTankRecord,tankWriteCommandSchema,type TankWriteCommand} from '../milk/tankWriteContracts';
 import {canManageTank,tankCommandSchema,type TankCommand} from '../milk/tankFormContracts';
 import type {TankQualityQuery} from '../milk/tankQualityContracts';
 import type {TankMovementQuery} from '../milk/tankMovementContracts';
@@ -48,13 +49,13 @@ import {stockCountSchema,type MovementQuery,type StockCountInput} from '../inven
 import {inventoryCommandSchema,type InventoryCommand} from '../inventory/formContracts';
 import {canReadInventory,canWriteInventory,type InventoryQuery} from '../inventory/contracts';
 import {batchInputSchema,canEditBatch,canTransfer,transferInput,matchesPreview,type BatchInput,type TransferInput,type TransferPreview} from '../cattle/batchContracts';
-import { milkCommandSchema,milkValuesSchema,type MilkCommand,type MilkValues,type MilkQuery } from '../milk/contracts';
+import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,type MilkValues,type MilkQuery } from '../milk/contracts';
 import { organizationDay } from '../workspace/contracts';
 import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalInputSchema, weightInputSchema, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../cattle/contracts';
 import { canSearch, type SearchQuery } from '../workspace/contracts';
 import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
-import { AuthFailure, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, type AuthApi } from '../../services/authApi';
+import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
 import { canLoadFinancialHome } from '../home/contracts';
 
@@ -117,22 +118,29 @@ export class SessionController {
     return this.agendaRequest(tokens=>this.api.agendaOptions(tokens,this.language,signal));
   }
   private taskSaving=false;
-  async saveAgendaTask(payload:TaskInput|{status:string},id?:string) {
+  async saveAgendaTask(payload:TaskInput|{status:string},id?:string,context?:{farm:string|null;taskFarm?:string|null;assertCurrent:()=>void}) {
     if(this.taskSaving) throw new AuthFailure('unsupported');
     this.taskSaving=true;
     try {
       return await this.agendaRequest(async tokens=>{
+        context?.assertCurrent();
         const epoch=this.epoch;
         const options=await this.api.agendaOptions(tokens,this.language);
         if(epoch!==this.epoch)throw new AuthFailure('expired');
         if(this.state.status!=='signedIn'||options.read_only||options.user_id!==this.state.session.user.id) throw new AuthFailure('unsupported');
         const task=id?await this.api.agendaTask(tokens,this.language,id):undefined;
         if(epoch!==this.epoch||this.state.status!=='signedIn')throw new AuthFailure('expired');
+        context?.assertCurrent();
+        if(task&&context&&task.farm!==context.taskFarm)throw new AuthFailure('unsupported');
+        if('title' in payload&&((task&&payload.farm!==undefined&&payload.farm!==task.farm)||(!task&&context&&(payload.farm??null)!==context.farm)))throw new AuthFailure('unsupported');
         const access=taskWriteAccess(this.state.session.user,task);
         if(access==='none'||(access==='status'&&'title' in payload))throw new AuthFailure('unsupported');
         if(!id&&!('title' in payload))throw new AuthFailure('unsupported');
         if('title' in payload)taskInputSchema.parse(payload);
-        return this.api.saveAgendaTask(tokens,this.language,payload,id,options.user_id);
+        context?.assertCurrent();
+        const receipt=await this.api.saveAgendaTask(tokens,this.language,payload,id,options.user_id);
+        if(task&&receipt.farm!==task.farm)throw new Error('invalid task farm confirmation');
+        return receipt;
       });
     } finally {this.taskSaving=false;}
   }
@@ -421,6 +429,21 @@ export class SessionController {
   milkTankMovement(id:string,tank:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankMovement(tokens,this.language,id,tank,farm,signal));}
   milkTankQualities(query:TankQualityQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankQualities(tokens,this.language,query,signal));}
   milkTankQuality(id:string,tank:string,farm:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkTankQuality(tokens,this.language,id,tank,farm,signal));}
+  tankRecordContext(input:TankWriteCommand){return this.cattleWrite(async(tokens,user,today,current)=>{
+    const c=tankWriteCommandSchema.parse(input);if(!canWriteTankRecord(user,c.mode)||('date' in c&&c.date>today))throw new AuthFailure('unsupported');
+    const tank=await this.api.milkTank(tokens,this.language,c.tank,c.farm);current();if(c.mode!=='cancel'&&!tank.is_active)throw new AuthFailure('unsupported');
+    const movement=c.mode==='cancel'?await this.api.milkTankMovement(tokens,this.language,c.id,c.tank,c.farm):undefined;current();
+    if(movement?.cancelled_at)throw new AuthFailure('unsupported');
+    const available=c.mode==='movement'&&c.kind==='production'?await this.api.tankProductionAvailable(tokens,this.language,c.tank,c.farm,c.date):undefined;current();
+    return {tank,movement,available};
+  });}
+  saveTankRecord(input:TankWriteCommand){return this.cattleWrite(async(tokens,user,today,current)=>{
+    const c=tankWriteCommandSchema.parse(input);if(!canWriteTankRecord(user,c.mode)||('date' in c&&c.date>today))throw new AuthFailure('unsupported');
+    const tank=await this.api.milkTank(tokens,this.language,c.tank,c.farm);current();if(c.mode!=='cancel'&&!tank.is_active)throw new AuthFailure('unsupported');
+    if(c.mode==='cancel'){const row=await this.api.milkTankMovement(tokens,this.language,c.id,c.tank,c.farm);current();if(row.cancelled_at)throw new AuthFailure('unsupported');}
+    current();return this.api.saveTankRecord(tokens,this.language,c);
+  });}
+  reconcileTankRecord(input:TankWriteCommand,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.reconcileTankRecord(tokens,this.language,input,signal));}
   tankFormOptions(farm:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canManageTank(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(tokens=>this.api.tankFormOptions(tokens,this.language,farm,signal));}
   tankFormRecord(id:string,farm:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canManageTank(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(tokens=>this.api.tankFormRecord(tokens,this.language,id,farm,signal));}
   private tankSaveBusy=false;
@@ -528,7 +551,12 @@ export class SessionController {
     if(value.id){
       if(!['admin','manager'].includes(user.access.role))throw new AuthFailure('unsupported');
       const saved=await this.api.milkDetail(tokens,this.language,value.mode,value.id);assertCurrent();
+      if('farm' in saved&&isPeriodMilkTotal(saved))throw new MilkPeriodReadOnly();
       if(saved.date!==value.date||('animal' in saved?(value.mode!=='individual'||saved.animal!==value.animal||saved.session!==value.session):saved.farm!==value.farm))throw new AuthFailure('unsupported');
+    }
+    if(value.mode==='total'&&!value.id){
+      const summary=await this.api.milkSummary(tokens,this.language,value.date,value.farm);assertCurrent();
+      if(summary.aggregate_mode||(summary.milked_cows??0)>0)throw new AuthFailure('unsupported');
     }
     if(value.mode==='individual'){
       const animal=await this.api.cattleDetail(tokens,this.language,'animals',value.animal,'dairy',value.farm);assertCurrent();

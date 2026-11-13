@@ -624,7 +624,8 @@ class CattleMilkSerializer(serializers.ModelSerializer):
         animal = validated_data["animal"]
         Farm.objects.select_for_update().get(pk=animal.farm_id)
         Animal.objects.select_for_update().get(pk=animal.pk)
-        if CattleMilkDailyTotal.objects.filter(farm_id=animal.farm_id, date=validated_data["date"]).exists():
+        from .cattle_milk import milk_totals_covering
+        if milk_totals_covering(CattleMilkDailyTotal.objects.filter(farm_id=animal.farm_id), validated_data["date"]).exists():
             raise serializers.ValidationError({"date": "Já existe produção total nesta fazenda e data. Corrija ou remova o total antes de lançar por vaca."})
         if CattleMilkRecord.objects.filter(animal=animal, date=validated_data["date"], session=validated_data["session"]).exists():
             raise serializers.ValidationError({"session": "Já existe ordenha desta vaca na data e turno. Corrija o lançamento existente."})
@@ -636,7 +637,8 @@ class CattleMilkSerializer(serializers.ModelSerializer):
         from .models import CattleMilkDailyTotal
         Farm.objects.select_for_update().get(pk=instance.animal.farm_id)
         Animal.objects.select_for_update().get(pk=instance.animal_id)
-        if CattleMilkDailyTotal.objects.filter(farm_id=instance.animal.farm_id, date=validated_data.get("date", instance.date)).exists():
+        from .cattle_milk import milk_totals_covering
+        if milk_totals_covering(CattleMilkDailyTotal.objects.filter(farm_id=instance.animal.farm_id), validated_data.get("date", instance.date)).exists():
             raise serializers.ValidationError({"date": "Já existe produção total nesta fazenda e data."})
         if (
             "animal" in validated_data
@@ -648,7 +650,8 @@ class CattleMilkSerializer(serializers.ModelSerializer):
         from .milk_tanks import protect_production
         old_day = instance.date
         result = super().update(instance, self.validate(validated_data))
-        protect_production(result.animal.farm, old_day, result.date)
+        if not self.context.get('defer_milk_tank_check'):
+            protect_production(result.animal.farm, old_day, result.date)
         return result
 
 
@@ -1060,12 +1063,24 @@ class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CattleMilkDailyTotal
-        fields = ["id", "farm", "farm_name", "date", "liters", "discarded_liters", "discard_reason", "notes"]
+        fields = ["id", "farm", "farm_name", "date", "period_start", "liters", "discarded_liters", "discard_reason", "notes"]
+
+    def is_mobile(self):
+        return getattr(self.context.get("request"), "query_params", {}).get("view") == "mobile"
 
     def validate(self, attrs):
         validate_tenant_relations(self, attrs, ("farm",))
         day = attrs.get("date", getattr(self.instance, "date", None))
         past_date(day)
+        start = attrs.get("period_start", getattr(self.instance, "period_start", None)) or day
+        past_date(start)
+        if start > day:
+            raise serializers.ValidationError({"period_start": "A data inicial não pode ser posterior à final."})
+        if self.is_mobile():
+            if start != day or (self.instance and (self.instance.period_start or self.instance.date) != self.instance.date):
+                raise serializers.ValidationError({"period_start": "Totais por período são somente leitura no app. Confira o lançamento no sistema web."})
+            if self.instance and day != self.instance.date:
+                raise serializers.ValidationError({"date": "A data é preservada na correção pelo app."})
         liters = attrs.get("liters", getattr(self.instance, "liters", 0))
         discarded = attrs.get("discarded_liters", getattr(self.instance, "discarded_liters", 0))
         if discarded > liters:
@@ -1074,6 +1089,10 @@ class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"discard_reason": "Informe o motivo do descarte."})
         if self.instance and attrs.get("farm", self.instance.farm) != self.instance.farm:
             raise serializers.ValidationError({"farm": "Não altere a fazenda de um lançamento existente."})
+        if self.instance and not self.context.get('dairy_worksheet'):
+            state = getattr(self.instance, 'worksheet', None)
+            if state and state.feed_allocations and (day != self.instance.date or start != (self.instance.period_start or self.instance.date)):
+                raise serializers.ValidationError({"period_start": "Corrija o período na planilha leiteira para conferir também a alimentação vinculada."})
         return attrs
 
     def locked_save(self, attrs):
@@ -1081,12 +1100,14 @@ class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
         farm = attrs.get("farm", getattr(self.instance, "farm", None))
         day = attrs.get("date", getattr(self.instance, "date", None))
         Farm.objects.select_for_update().get(pk=farm.pk)
-        existing = CattleMilkDailyTotal.objects.filter(farm=farm, date=day)
+        from .cattle_milk import milk_totals_covering
+        start = attrs.get("period_start", getattr(self.instance, "period_start", None)) or day
+        existing = milk_totals_covering(CattleMilkDailyTotal.objects.filter(farm=farm), start, day)
         if self.instance:
             existing = existing.exclude(pk=self.instance.pk)
         if existing.exists():
             raise serializers.ValidationError({"date": "Já existe um total nesta fazenda e data. Corrija o lançamento existente."})
-        if CattleMilkRecord.objects.filter(animal__farm=farm, date=day).exists():
+        if CattleMilkRecord.objects.filter(animal__farm=farm, date__range=(start, day)).exists():
             raise serializers.ValidationError({"date": "Já existem ordenhas individuais nesta fazenda e data. Use o resumo das vacas; o total não pode ser somado novamente."})
 
     @transaction.atomic
@@ -1096,6 +1117,12 @@ class CattleMilkDailyTotalSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        if self.is_mobile():
+            from django.shortcuts import get_object_or_404
+            Farm.objects.select_for_update().get(pk=instance.farm_id)
+            instance = get_object_or_404(CattleMilkDailyTotal.objects.select_for_update(), pk=instance.pk)
+            self.instance = instance
+            validated_data = self.validate(validated_data)
         self.locked_save(validated_data)
         from .milk_tanks import protect_production
         old_day = instance.date

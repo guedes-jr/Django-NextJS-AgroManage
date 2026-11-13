@@ -1,1 +1,1 @@
-export { CattleListScreen as default } from '../../../../src/features/cattle/CattleScreens';
+export { CattleLandingScreen as default } from '../../../../src/features/cattle/DairyWorkspace';

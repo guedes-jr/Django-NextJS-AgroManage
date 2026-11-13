@@ -154,6 +154,37 @@ class MobileQualitySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+def validate_mobile_record(data, request):
+    farm = serializers.UUIDField().run_validation(request.query_params.get("farm"))
+    if data["tank"].farm_id != farm:
+        raise serializers.ValidationError({"tank": "O tanque não pertence à fazenda selecionada."})
+    return data
+
+
+class MobileMovementWriteSerializer(MovementSerializer):
+    def validate(self, data):
+        if any(field in self.initial_data for field in ["unit_price", "amount", "receivable", "generate_receivable", "due_date"]):
+            raise serializers.ValidationError("Campos financeiros não estão disponíveis neste formulário do app.")
+        return validate_mobile_record(super().validate(data), self.context["request"])
+
+    def create(self, data):
+        return services.move_milk(self.context["request"].user, data, match_request=True)
+
+    def to_representation(self, instance):
+        return MobileMovementSerializer(instance, context=self.context).data
+
+
+class MobileQualityWriteSerializer(QualitySerializer):
+    def validate(self, data):
+        return validate_mobile_record(super().validate(data), self.context["request"])
+
+    def create(self, data):
+        return services.record_quality(self.context["request"].user, data, match_request=True)
+
+    def to_representation(self, instance):
+        return MobileQualitySerializer(instance, context=self.context).data
+
+
 class MilkTankViewSet(viewsets.ModelViewSet):
     permission_classes = [CattlePermission]
     serializer_class = TankSerializer
@@ -205,6 +236,16 @@ class TankRecordViewSet(viewsets.ModelViewSet):
             rows = rows.filter(tank__farm_id=serializers.UUIDField().run_validation(self.request.query_params["farm"]))
         return rows
 
+    @action(detail=False, methods=["get"])
+    def receipt(self, request):
+        if request.query_params.get("view") != "mobile":
+            raise serializers.ValidationError("Informe a projeção mobile.")
+        tank = serializers.UUIDField().run_validation(request.query_params.get("tank"))
+        serializers.UUIDField().run_validation(request.query_params.get("farm"))
+        key = serializers.UUIDField().run_validation(request.query_params.get("request_key"))
+        record = get_object_or_404(self.get_queryset(), tank_id=tank, request_key=key)
+        return Response(self.get_serializer(record).data)
+
 
 class MilkTankMovementViewSet(TankRecordViewSet):
     model = MilkTankMovement
@@ -213,8 +254,8 @@ class MilkTankMovementViewSet(TankRecordViewSet):
     action_operations = {"cancel": "edit"}
 
     def get_serializer_class(self):
-        if self.request.method == "GET" and self.request.query_params.get("view") == "mobile":
-            return MobileMovementSerializer
+        if self.request.query_params.get("view") == "mobile":
+            return MobileMovementSerializer if self.request.method == "GET" or self.action == "cancel" else MobileMovementWriteSerializer
         return super().get_serializer_class()
 
     def get_queryset(self):
@@ -226,7 +267,14 @@ class MilkTankMovementViewSet(TankRecordViewSet):
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
         reason = serializers.CharField(max_length=500).run_validation(request.data.get("reason"))
-        return Response(self.get_serializer(services.cancel_movement(request.user, self.get_object(), reason)).data)
+        movement = self.get_object()
+        mobile = request.query_params.get("view") == "mobile"
+        if mobile:
+            farm = serializers.UUIDField().run_validation(request.query_params.get("farm"))
+            tank = serializers.UUIDField().run_validation(request.query_params.get("tank"))
+            if movement.tank_id != tank or movement.tank.farm_id != farm:
+                raise serializers.ValidationError({"tank": "Confira o tanque e a fazenda do movimento."})
+        return Response(self.get_serializer(services.cancel_movement(request.user, movement, reason, operational_only=mobile)).data)
 
 
 class MilkTankQualityViewSet(TankRecordViewSet):
@@ -234,6 +282,6 @@ class MilkTankQualityViewSet(TankRecordViewSet):
     serializer_class = QualitySerializer
 
     def get_serializer_class(self):
-        if self.request.method == "GET" and self.request.query_params.get("view") == "mobile":
-            return MobileQualitySerializer
+        if self.request.query_params.get("view") == "mobile":
+            return MobileQualitySerializer if self.request.method == "GET" else MobileQualityWriteSerializer
         return super().get_serializer_class()

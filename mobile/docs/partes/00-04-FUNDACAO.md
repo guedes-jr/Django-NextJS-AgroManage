@@ -1,6 +1,8 @@
 # Partes 00 a 04 — Descoberta, arquitetura e fundação
 
-[Voltar ao plano](../IMPLEMENTACAO.md). O primeiro recorte de login já iniciou P01–P04; consulte [LOGIN.md](../LOGIN.md) para o que foi implementado e validado. Os checkboxes só indicam conclusão quando toda a tarefa foi atendida. IDs permitem transformar tarefas em issues/PRs sem perder sua origem. Responsáveis indicam competências necessárias, não pessoas já alocadas.
+[Voltar ao plano](../IMPLEMENTACAO.md). P01–P04 já possuem implementação de projeto, sessão, transporte e navegação; conferir os recortes no código e em [LOGIN.md](../LOGIN.md), sem reiniciar o scaffold. Os checkboxes registram aceite integral, não ausência de código. Os IDs permanecem estáveis; responsáveis indicam competências, não pessoas já alocadas.
+
+**Foco atual:** conferir a base existente e consolidar o padrão da Agenda, conforme a [ordem de execução](../IMPLEMENTACAO.md#ordem-atual-de-execução) e o [guia de design](../../DESIGN.md). A homologação nativa e o piloto continuam sendo evidências próprias.
 
 ## Parte 00 — Diagnóstico e recorte do piloto
 
@@ -168,11 +170,13 @@ Testar login válido/inválido, dois refresh simultâneos, token revogado, encer
 
 ## Parte 04 — Design system, navegação e internacionalização
 
-**Resultado demonstrável:** estrutura navegável pronta para receber módulos, com componentes móveis consistentes. **Dependências:** P01, P03 e proposta visual. **Responsáveis:** design/mobile.
+**Resultado demonstrável:** estrutura navegável pronta para receber módulos, com componentes móveis consistentes. **Dependências:** P01, P03 e [guia de design mobile](../../DESIGN.md). **Responsáveis:** design/mobile.
+
+A Agenda atualizada é a base conceitual de estilos e interação: contexto, dados legíveis e caminhos claros para as operações. A composição deve ser simples, intuitiva e funcional, adaptada a cada domínio. O mockup anterior não fixa a navegação nem comprova que os requisitos de acessibilidade ou os fluxos já estejam implementados.
 
 ### Tarefas de navegação
 
-- [ ] P04.01 — Implementar quatro tabs e ação central como folha contextual; preservar histórico por tab e comportamento de voltar. Perfis restritos recebem composição apropriada.
+- [ ] P04.01 — Consolidar a navegação compartilhada do `WorkspaceShell` e a criação contextual; preservar histórico e comportamento de voltar. Compor os destinos conforme as capacidades do perfil, sem impor a navegação fixa do mockup anterior.
 - [ ] P04.02 — Definir árvore de rotas protegidas, modais e formulários. IDs em rotas são referências, não autorização nem espaço para payload pessoal.
 - [ ] P04.03 — Implementar seletor de fazenda compartilhado e contexto visível no formulário. Ao mudar contexto, tratar alterações não salvas.
 - [ ] P04.04 — Criar resolvedor de destinos internos por tipo de recurso. Rota desconhecida ou não implementada oferece mensagem e alternativa web segura quando aplicável.
@@ -192,6 +196,22 @@ Cada componente precisa de contrato de props, estados desabilitado/carregando/er
 - [ ] P04.09 — Traduzir validação, permissões do aparelho, estados offline, acessibilidade, notificações e mensagens de atualização. Textos de usuário não são traduzidos automaticamente.
 - [ ] P04.10 — Definir parsing de decimal e formatação de moeda/unidade/data por contrato. Cobrir vírgula, ponto, zero, vazio, precisão e valores inválidos.
 - [ ] P04.11 — Preparar preview de componentes e fluxos para revisão em aparelhos; imagens conceituais são referência, não critério suficiente de implementação.
+
+### Incremento atual — consolidar a referência da Agenda
+
+- [ ] P04.12 — Conferir a área interativa de navegação temporal, abas e chips da Agenda; manter pelo menos 44 × 44 unidades lógicas sem sobrepor alvos. O tamanho visual atual de um controle não define o mínimo de toque.
+
+**Implementação P04.12 (13/11/2026):** navegação temporal, abas e chips usam mínimo de 44 unidades; células preservam largura/altura mínima de 44. A grade permite rolagem horizontal em larguras reduzidas, e o cabeçalho permite quebra de linha. Não há expansão de `hitSlop` sobre controles vizinhos. Validação visual em larguras pequenas/grandes, fonte ampliada e aparelhos Android/iOS ainda necessária para aceite.
+
+- [ ] P04.13 — Aplicar a hierarquia contexto → dados → próxima ação às jornadas já existentes, uma por incremento. Reutilizar shell e componentes com consumidores reais; não exigir calendário, métricas ou o mesmo card em todos os domínios.
+**P04.13 — primeiro recorte aplicado (13/11/2026):** produção de leite organizada em fazenda/data → resumo → lançamentos/operações. Ajuste de data e busca abrem sob demanda, preservando rascunho e filtro aplicado. Produção, descarte e aproveitável têm destaque; contagens e média ficam em expansão opcional. Ações de ordenha/correção permanecem no registro correspondente; atualização/tanques são acessos secundários. A tela reconfere opções ao receber foco, apresenta somente leitura conforme sessão/API e desabilita escrita em listas desatualizadas/em atualização. Totais por período continuam somente leitura e não se infere contagem individual. Validação: 11 testes de leite, TypeScript, ESLint e exportação web aprovados. Prévia web real com API sintética conferida em 320 e 768 px: sem overflow horizontal; expansão, data inválida preservada, vazio, erro e somente leitura verificados, sem exceções de execução. Android/iOS, fonte ampliada, teclado nativo e retomada permanecem pendentes. Este é um recorte de P04.13, não a conclusão de todas as jornadas.
+
+**P04.13 — tanques de leite (13/11/2026):** lista apresenta fazenda/filtros, contagem do filtro e cartões com saldo/capacidade, seguidos do acesso à ficha. Cadastro exige fazenda selecionada e consulta disponível; somente leitura é identificado conforme o perfil. Ficha prioriza identidade/fazenda e armazenamento, depois movimentos, qualidade e edição autorizada; observações abrem sob demanda. Textos foram alinhados às operações já existentes no app, sem anunciar disponibilidade exclusiva no web. Retorno usa apenas o cabeçalho compartilhado, com destino de fallback específico para produção/lista. Nenhuma regra de saldo, autorização ou mutação foi alterada. Validação: 27 testes direcionados de tanques/formulários/movimentos/qualidade, TypeScript, ESLint e exportação web aprovados. Prévia web com dados sintéticos: lista e ficha em 320/768 px sem overflow horizontal; abertura, retorno, expansão de observações, vazio e erro sem falso vazio conferidos, sem exceções de execução. Homologação Android/iOS, fonte ampliada e retomada permanece pendente. Movimentos/qualidade ainda podem receber seu próprio refinamento de apresentação.
+
+- [ ] P04.14 — Homologar a jornada revisada em Android/iOS, incluindo uma largura pequena e uma maior, fonte ampliada, teclado, retorno e retomada. Registrar o que foi validado e o que depende de outro aparelho/build, em conjunto com P17.
+- [ ] P04.15 — Revisar os textos e estados do recorte nos quatro idiomas, inclusive Mês/Semana/Lista, contagens, seleções, estados vazios e rótulos acessíveis. Não elevar textos ou limitações atuais da Agenda a regra do design.
+
+O incremento consolida o app existente. A imagem anterior fica como registro ilustrativo; acabamento isolado não fecha navegação, autorização ou operação.
 
 ### Critérios de aceite e testes
 

@@ -2,7 +2,7 @@ import api from "./api";
 import type { Page, CattleMilk } from "./cattleService";
 export type MilkCow = { id: string; identifier: string; name: string; farm: string; farm_name: string; breed_name: string; is_lactating: boolean; liters: string | null; entry_status: "pending" | "recorded" | "total" };
 export type MilkSummary = { produced_liters: string; discarded_liters: string; usable_liters: string; milked_cows: number | null; expected_cows: number; pending_cows: number | null; average_per_milked_cow: string | null; aggregate_mode: boolean };
-export type MilkTotal = { id: string; farm: string; farm_name: string; date: string; liters: string; discarded_liters: string; discard_reason: string; notes: string };
+export type MilkTotal = { period_start?: string | null; id: string; farm: string; farm_name: string; date: string; liters: string; discarded_liters: string; discard_reason: string; notes: string };
 export type MilkValues = { liters: string; discarded_liters: string; discard_reason: string; notes: string };
 const base = "/livestock/cattle";
 export const milkProductionService = {

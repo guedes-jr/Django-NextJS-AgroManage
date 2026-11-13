@@ -1,6 +1,22 @@
 # Plano de implementação mobile
 
-Plano de 6 de novembro de 2026. Produto: Fazenda Mais / AgroManage. O [primeiro recorte de login](LOGIN.md) iniciou a implementação de P01–P04; o recorte de [Início da Parte 05](partes/05-08-PRIMEIRO-APP.md#recorte-de-início-implementado) também está implementado parcialmente, com resumo financeiro e diretório de módulos. A Agenda já possui um [primeiro recorte nativo de consulta e detalhe](partes/05-08-PRIMEIRO-APP.md#primeiro-recorte-nativo-de-agenda--7-de-novembro-de-2026); o primeiro formulário online de criação/edição/situação também está disponível, com escopo descrito na Parte 05. O complemento funcional da Fase 1 inclui perfil mínimo, busca, contexto de fazenda, fuso e prioridades independentes na Home. O primeiro recorte da Fase 2 inclui consulta de animais/lotes bovinos e ficha/histórico nativos. O recorte seguinte adicionou cadastro/edição essencial de animais e pesagens de animais/lotes. Leite online já tem resumo, listas e lançamento/correção individual e total. O complemento entrega visão inicial por segmento, cadastro/edição essencial de lotes e transferência online de composição com prévia, participantes e conferência idempotente. Históricos completos, operações avançadas de rebanho e os demais módulos permanecem planejados; o cabeçalho/menu principal já é compartilhado por Home, Agenda, Rebanho e Leite, com formulários/fichas preservando navegação de retorno. A Fase 3 começou pela consulta nativa de estoque: resumo operacional, produtos/ficha/lotes/validade, alertas e fornecedores. Cadastro/edição essencial de produtos e fornecedores já usa formulários nativos, preservação de dados aninhados e versão de edição. O histórico de estoque tem filtros/detalhe e contagem física online, com revisão, comparação de saldo/unidade e resultado incerto sem replay. Entradas sem compra, saídas e compras recebidas pendentes já usam prévia assinada e confirmação atômica de estoque/financeiro. Fórmulas e produção de ração já têm consulta e escrita essencial online, com revisão de insumos/lotes e confirmação atômica. Trato diário já tem lista/histórico do dia e fornecimento nativo, com entrada própria do feeder e reconciliação pela mesma chave. Inbox/detalhe/leitura/arquivamento de notificações, contador no sino e preferências pessoais versionadas estão disponíveis. Pagamentos/correções, mídia/bulk/painel especializado de alertas e push nativo seguem pendentes; a Fase 3 passou pela validação integrada com backend HTTP real isolado e concorrência PostgreSQL (124 testes backend), mas ainda requer execução em aparelhos Android/iOS e piloto dos usuários. A Fase 4 iniciou C01/C02 com consulta clínica/sanitária e ocorrência individual; o incremento de vacinação já integra formulário individual/lote, revisão assinada, baixa transacional e histórico somente leitura para resultado incerto. Exames/tratamentos documentais já possuem formulário individual e histórico para resultados incertos, sem efeitos de estoque/financeiro. Aplicação individual de medicamento bovino com revisão de estoque/carência já está disponível a gerente/admin. Demais espécies/aplicações, campos avançados, anexos e correções permanecem pendentes. Reprodução bovina já tem painel/grupos, lista, ficha e histórico de consulta por corte/leite; diagnóstico positivo/negativo já tem formulário com revisão, cobertura vinculada e conferência de resultado incerto. Cobertura natural/IA/IATF já tem formulário, revisão assinada e confirmação com lactação preservada, sem consumo de sêmen não suportado pelo fluxo atual. Parto bovino individual já tem formulário online para cria viva/natimorto, revisão vinculada à gestação e confirmação atômica; cria viva recebe finalidade explícita e vínculo materno. Pastos já têm lista/ficha de consulta, busca, fazenda, disponibilidade/restrições e indicadores de ocupação do servidor compartilhados entre corte/leite. Ocupações já têm histórico paginado por pasto/fazenda, filtros de saída e lote, ficha e navegação ao lote na finalidade atual. Entrada de lote no pasto já tem formulário gerencial online, catálogo elegível, revisão assinada e confirmação atômica; saída da ocupação também tem formulário gerencial, revisão assinada e confirmação com proteção contra duplicidade. Cadastro/edição essencial de pastos já tem formulário gerencial, decimais, disponibilidade/motivo e proteção de versão; consulta após resultado incerto é somente leitura. Manejos coletivos já têm consulta gerencial nativa: lista/ficha, tipos/estados/fazenda/busca, participantes paginados, contagem de manejo misto e informações de retorno/carência. Cadastro de rascunho de pesagem coletiva já tem seleção paginada de animais, pesos individuais e gravação atômica, sem aplicar pesos antes da confirmação. Confirmação de pesagem já tem revisão integral assinada, aplicação atômica pelo serviço existente e preservação de peso mais recente; resposta incerta exige consulta sem replay. Edição e cancelamento de rascunhos de pesagem também estão disponíveis, com versão, motivo obrigatório para cancelar e preservação dos manejos mistos. Castração coletiva já tem cadastro de rascunho com catálogo de machos ativos ainda não marcados como castrados, sem alterar perfil/histórico antes da confirmação. Confirmação de castração já tem revisão integral assinada e gravação atômica de perfil/histórico, com proteção contra castração repetida. Edição e cancelamento de rascunhos de castração estão disponíveis, com versão, preservação de participantes mistos e motivo obrigatório para cancelar. Retornos sanitários já podem ser resolvidos vinculando uma execução confirmada elegível ou cancelando apenas a pendência com justificativa e versão, sem repetir efeitos clínicos/estoque. Cadastro de rascunhos sanitários coletivos documentais (exame/cirurgia/outro) já tem seleção de animais, datas de retorno/carência e gravação atômica sem efeitos. Confirmação dos rascunhos documentais já tem revisão integral assinada, validação de ordenhas/carência e registros de saúde atômicos sem estoque/custos. Edição e cancelamento dos rascunhos sanitários documentais já preservam participantes mistos, usam versão e motivo obrigatório para cancelar e serializam disputas com confirmação. Rascunhos de medicação coletiva com vínculo de estoque já permitem seleção de animais/lote, quantidade por animal e validação do total, saldo, unidade e carências, sem reserva/baixa. Confirmação da medicação coletiva já tem revisão integral assinada de participantes/lote/quantidades/carências e baixa atômica com registros de saúde, proteção contra duplicidade e conferência sem replay. Edição/cancelamento dos rascunhos de medicação coletiva já têm versão, preservação de participantes mistos, troca de lote/quantidade com revalidação de saldo/carência e motivo obrigatório para cancelar, sem movimentar estoque. Transferência integral de lote entre pastos da mesma fazenda já tem seleção paginada do destino, revisão assinada e fechamento da origem/abertura do destino atômicos, com conferência somente leitura para resultado incerto. O painel de operações bovinas já tem consulta nativa de ocorrências, histórico de classificação e transferências entre lotes, com busca/paginação/fichas e links na finalidade atual; transferências restritas à gerência, sem snapshots financeiros. Cadastro e resolução de ocorrências operacionais já criam/concluem a tarefa vinculada atomicamente, com responsável/vínculo autorizados, contexto assinado e conferência sem replay; operador só atribui a si e resolve ocorrências próprias ou atribuídas. Alteração de finalidade de um animal ou lote bovino implementada com seleção, revisão assinada, confirmação atômica e histórico para conferência. Consulta nativa de protocolos bovinos implementada: catálogo organizacional, protocolos iniciados por fazenda/segmento, busca/paginação e ficha com etapas da versão original, prazos, responsáveis e execução registrada. Início de protocolo bovino implementado com matriz ativa, versão do modelo, responsável autorizado, revisão dos prazos e criação atômica/idempotente das tarefas. Execução documental de etapas implementada com confirmação explícita sem estoque/cobertura, revisão assinada, ordem/autorização e conclusão atômica da tarefa. Execução com vínculo de cobertura existente e consumo opcional de sêmen implementada: revisão de lote/unidade/quantidade/saldo/validade e confirmação atômica com estoque/tarefa. Cadastro/versionamento de modelos de protocolo implementado: etapas ordenadas, revisão e criação de versão sem alterar modelos anteriores ou protocolos iniciados. Prévia de importação bovina por conteúdo CSV implementada, com validação por linha, duplicidades, resumo e filtro de erros, sem gravação. Confirmação revisada da importação implementada: CSV assinado por hash, revalidação sob bloqueio da fazenda e criação atômica; resultado incerto oferece conferência somente leitura sem provar automaticamente a origem. Seleção de arquivo CSV integrada em Android/iOS e navegador, mantendo conteúdo colado e validação/revisão explícitas. Leitura UTF-8 limitada, cancelamento/erros preservam CSV anterior; módulos nativos exigem novo development build e homologação em aparelhos. Evolução da produção de leite implementada: período/fazenda/animal, volumes, turnos e alerta de queda sem custos. Apuração de custos bovinos disponível para consulta gerencial com autorização financeira; outras ações reprodutivas avançadas continuam pendentes. Endpoints e comportamentos devem ser confirmados no backend antes de cada integração.
+Plano original de 6 de novembro de 2026, revisado para orientar a evolução do app existente. O próximo trabalho é **consolidar, integrar e homologar**, aproveitando os recortes entregues. A Agenda atualizada é a base conceitual: contexto, dados legíveis e caminhos simples para realizar as operações, conforme o [guia de design](../DESIGN.md).
+
+## Situação de partida
+
+| Área | Evidência atual | O que ainda exige trabalho |
+| --- | --- | --- |
+| Fundação | Expo/React Native/TypeScript, rotas, transporte, sessão, SecureStore, idiomas e contexto de fazenda | Homologação nativa, retomada, acessibilidade e distribuição |
+| Início e Agenda | Prioridades, atalhos, consulta, detalhe e tarefas; Agenda com Mês/Semana/Lista | Coerência entre período/paginação, retorno, áreas de toque e caminho até a operação |
+| Bovinos e leite | Recortes online de rebanho/lotes, produção, reprodução, pastos, manejos, protocolos e importação; tanques com consulta/históricos/formulário essencial | Padronização, aceite em aparelhos e complementos por contrato; compatibilidade com a evolução leiteira do web |
+| Estoque, alimentação e clínica | Recortes nativos de consulta/escrita, revisão e efeitos; trato próprio do feeder | Homologação das jornadas, recuperação de erros e expansões documentadas |
+| Comunicação e perfil | Inbox, detalhe, leitura/arquivamento, preferências e perfil mínimo | Push nativo, complementos de perfil e gestão |
+| Demais domínios | O menu contém destinos que ainda usam alternativa web | Suínos, plantações, gestão, suporte e IA nativos dependem de recortes específicos |
+| Persistência e aparelho | SecureStore e seleção de CSV por DocumentPicker/FileSystem | Sem SQLite/outbox/push declarados na configuração atual; câmera, anexos e demais recursos exigem consumidores reais |
+
+Fontes consultadas: `app/`, `src/features/workspace/navigation.ts`, Agenda, contratos de leite e `package.json`. O inventário detalha a cobertura; cada integração deve confirmar seu endpoint e seus estados no código. Um módulo presente no menu não comprova fluxo nativo completo, e testes históricos não comprovam homologação em aparelhos.
+
+A implementação existente e as validações anteriores estão registradas nas partes abaixo. Este plano não marca fases inteiras como concluídas por haver telas, bundles ou testes de contrato.
 
 ## Inventário atual de telas
 
@@ -51,22 +67,22 @@ Compartilhar apenas contratos, tipos, traduções e funções puras cuja compati
 
 As regras de contribuição estão em [AGENTS.md](../AGENTS.md); o ponto de entrada para Claude está em [CLAUDE.md](../CLAUDE.md). O [.gitignore](../.gitignore) cobre arquivos locais e gerados sem ocultar o planejamento ou os lockfiles.
 
-## Arquitetura proposta
+## Arquitetura existente e extensões planejadas
 
 ```text
 mobile/ (React Native + Expo + TypeScript)
     -> cliente HTTPS próprio -> API Django existente -> PostgreSQL
     -> SecureStore: credenciais de sessão
     -> cache de consultas: dados de servidor necessários à tela
-    -> SQLite: rascunhos e futura fila explicitamente autorizada
+    -> SQLite (planejado, P08/P16): rascunhos e futura fila explicitamente autorizada
 frontend/ (Next.js) -> mesma API
 ```
 
 Expo tem suporte a monorepos, mas workspaces acrescentam configuração. Inicialmente manter a pasta independente; extrair traduções, tipos e validadores puros para um pacote compartilhado somente quando os dois clientes precisarem dele. Não compartilhar componentes DOM, CSS ou código dependente de `window`. [Referência oficial de monorepos](https://docs.expo.dev/guides/monorepos/).
 
-As escolhas de bibliotecas da stack acima serão implementadas gradualmente. Fixar versões compatíveis do SDK, Node e bibliotecas ao iniciar a implementação, com lockfile próprio e builds reproduzíveis. Não instalar todas as integrações antecipadamente. [Integração React Native do TanStack Query](https://tanstack.com/query/latest/docs/framework/react/react-native).
+Expo, navegação, transporte, consultas, formulários e sessão já têm dependências próprias e lockfile. Conferir `package.json` antes de executar comandos ou acrescentar bibliotecas. SQLite e demais integrações entram apenas nos recortes consumidores, com compatibilidade de SDK e builds verificáveis. [Integração React Native do TanStack Query](https://tanstack.com/query/latest/docs/framework/react/react-native).
 
-Estrutura futura, a criar conforme as entregas:
+Estrutura de referência: as áreas principais já existem; `src/storage/` é uma extensão planejada para P08/P16, não implementação atual:
 
 ```text
 mobile/
@@ -98,8 +114,8 @@ mobile/
 | P0 | Login, sessão, idioma, permissões, fazendas autorizadas | Estados de erro, vazio, bloqueio e somente leitura |
 | P0 | Início operacional e Agenda | Próximas tarefas, consultas paginadas e detalhes; sem dashboard pesado |
 | P0 | Operação adaptada ao perfil | Rebanho e leite como primeiro fluxo vertical; atalhos só para módulos permitidos |
-| P0 | Lançamento de leite online e rascunho local | Quantidade, descarte, data e sessão conforme contrato; confirmação apenas após resposta |
-| P0 | Consulta offline limitada | Data da última atualização e indicação clara de dados possivelmente desatualizados |
+| P0 | Consolidar lançamento de leite online | Compatibilidade com a API atual, revisão, descarte e confirmação real; rascunho durável fica em P08 |
+| P1 | Consulta offline limitada, após política e schema local | Data da última atualização, isolamento e retenção; não bloqueia o primeiro piloto online |
 | P1 | Tratos e consulta de estoque | Escritas com impacto em estoque inicialmente online; validar limites do feeder |
 | P1 | Demais rotinas autorizadas: clínica, suínos e plantações | Selecionar fluxos por uso real no piloto; não prometer paridade integral nesta fase |
 | P1 | Câmera, anexos e notificações | Depende dos contratos e da infraestrutura descritos abaixo |
@@ -131,7 +147,7 @@ Push deve carregar informação mínima; ao abrir, autenticar e buscar novamente
 
 ## Como executar o desenvolvimento por partes
 
-O desenvolvimento está dividido em **18 partes, de P00 a P17**. Cada parte contém resultado demonstrável, dependências, tarefas com IDs, impacto no backend, critérios de aceite, testes e sugestões de PRs. Os IDs são uma base para issues; os checkboxes começam vazios porque o aplicativo ainda não foi implementado.
+O desenvolvimento mantém **18 partes, de P00 a P17**, como mapa de escopo e dependências. Os IDs existentes permanecem estáveis para issues/PRs; a ordem ativa é a sequência abaixo, não a numeração das partes. Checkbox vazio significa que o aceite integral ainda precisa ser conferido, não que todo o código esteja ausente. Distinguir **implementado**, **validado tecnicamente**, **homologado em aparelho/piloto** e **distribuído**; registrar evidência e pendências por incremento antes de marcar conclusão.
 
 | Documento detalhado | Partes | Resultado |
 | --- | --- | --- |
@@ -141,30 +157,45 @@ O desenvolvimento está dividido em **18 partes, de P00 a P17**. Cada parte cont
 | [Recursos nativos e sincronização](partes/14-16-NATIVO-SINCRONIZACAO.md) | P14 aparelho; P15 inbox/push; P16 fila offline | Recursos nativos e envio seguro por operação |
 | [Qualidade e publicação](partes/17-QUALIDADE-PUBLICACAO.md) | P17 testes, desempenho, CI, piloto, lojas e sustentação | Evidências de qualidade e distribuição responsável |
 
-### Dependências e caminho principal
+## Ordem atual de execução
+
+| Passo | Trabalho | Partes e entrega verificável | Condição para avançar |
+| --- | --- | --- | --- |
+| 1 — Conferir a base e os contratos | Validar ambiente, sessão, idioma, fazenda, perfis e compatibilidade API/app | P00/P01–P03 e P07.16: confirmar escopo/aparelhos do piloto, comandos reproduzíveis e contratos atuais | Entrar, restaurar e sair com isolamento; identificar lacunas localizadas sem recriar a fundação |
+| 2 — Consolidar a Agenda como referência | Corrigir hierarquia, alvos de toque, período/paginação, textos e retorno; tornar claro o caminho até a operação | P04.12–P04.15 e P05.11–P05.14: lista → detalhe → ação autorizada → retorno ao contexto | Dados corretos para a seleção e estados compreensíveis em larguras pequena e maior; alternativa web identificada quando necessária |
+| 3 — Aplicar o padrão às jornadas existentes | Revisar Início, Rebanho, Leite, Trato, Estoque e Clínica, uma jornada de cada vez | P04/P06/P07/P09/P10: contexto → dados → formulário/revisão → confirmação → histórico | Critérios da Agenda adaptados ao domínio, sem efeitos duplicados, perda de entrada ou ampliação de acesso |
+| 4 — Homologar e pilotar o recorte online | Validar builds e tarefas com dados sintéticos em Android/iOS; comparar com a jornada web | P17: perfis, dispositivo, rede ruim, teclado, fonte ampliada, interrupção e resultado incerto | Evidências nativas e pendências explícitas; liberar internamente apenas o conjunto aprovado |
+| 5 — Fechar lacunas operacionais escolhidas | Completar os contratos e ações que o piloto precisa, antes de ampliar segmentos | P06/P07/P09/P10 e recortes P13/P15; tanques/qualidade e demais complementos conforme prioridade | Fluxo completo e homologado; lista/ficha isoladas não encerram um módulo |
+| 6 — Expandir conforme demanda | Introduzir um fluxo vertical de suínos, plantações ou gestão por vez; continuar o aceite nativo | P11–P13 e complementos P15, após conferência do contrato | Consulta, ação, efeitos, recuperação e suporte demonstráveis no domínio escolhido |
+| 7 — Acrescentar capacidades de campo | Selecionar o que resolve uma necessidade observada: leitura offline, rascunho, captura, push ou compartilhamento | P08/P14/P15; cada capacidade tem consumidor, política e teste próprio | Permissão negada, retenção, troca de conta e retomada tratadas; sem dependências nativas sem consumidor |
+| 8 — Sincronizar e distribuir com segurança | Homologar envio offline por operação, quando necessário, e preparar versões publicáveis | P16 por endpoint; P17 acompanha todas as entregas e consolida distribuição | Idempotência e reconciliação comprovadas; build, atualização, suporte e rollback do escopo liberado |
+
+O passo 4 não precisa esperar todos os módulos nem persistência offline. P17 acompanha cada passo; sua posição no mapa não adia qualidade. Depois do piloto, uma capacidade de campo pode preceder um novo segmento se resolver a necessidade prioritária; P16 continua dependente do contrato seguro da operação.
+
+### Próximo incremento a executar
+
+1. Compatibilidade leiteira P07.16 implementada: intervalo preservado, consulta por dia abrangido e bloqueio de correção diária no app/servidor. Contratos de sessão, idioma e fazenda passaram nos testes direcionados. Restam aplicar a migração 0045 no ambiente de uso identificado e homologar em aparelhos; nenhum banco de uso foi alterado.
+2. Controles e leitura da Agenda implementados (P04.12/P05.11): consulta/paginação direta do dia em Mês/Semana, contagem do servidor e remoção de indicadores incompletos; alvos mínimos de 44. Aceite visual/nativo permanece pendente.
+3. Retorno/contexto P05.12 implementado em memória por sessão/fazenda, com nova localização de eventos deslocados pela paginação; homologação nativa pendente. P05.13 implementado para fichas de vacinação e manejo sanitário, com conferência autorizada e alternativa web para demais origens; homologação nativa pendente. P05.14 implementado: criação/edição/situação preservam contexto, revalidam a fazenda e conferem o recibo, mantendo bloqueio de resultado incerto. Próximo recorte de implementação: aplicar o padrão à jornada já existente priorizada (P04.13); aceite visual/nativo da Agenda continua pendente.
+4. P04.13 aplicado à produção de leite e à lista/ficha de tanques: contexto/dados/operação, detalhes progressivos e retorno pelo cabeçalho. Testes e prévia web em 320/768 px aprovados; validação nativa permanece pendente. Históricos/fichas de movimentos e qualidade revisados, com filtros progressivos, contexto, cancelamento auditável e resultados com unidades/ausências preservados. Formulários nativos de entrada/coleta operacional/descarte, cancelamento e análise implementados com revisão e recibo; financeiro permanece no web. Próximo bloco: validar a integração no ambiente identificado e conferir a migração 0045 pendente antes da homologação/piloto. Chaves/rascunhos são apenas em memória; não há recuperação durável após encerramento forçado.
+5. Demonstrar a jornada em Android/iOS e registrar limitações (P04.14/P17). Código e prévia web são etapas de validação, não homologação nativa.
+
+### Dependências do incremento, sem reiniciar a fundação
 
 ```text
-P00 diagnóstico
- -> P01 projeto/build
- -> P02 contratos + transporte
- -> P03 sessão + contexto + acesso
- -> P04 navegação + componentes + idiomas
- -> P05 início/agenda
- -> P06 rebanho
- -> P07 leite online
- -> P08 consulta offline + rascunhos
- -> piloto do primeiro recorte, com verificações P17
+App e recortes online existentes
+ -> conferir ambiente, sessão e contratos (P01–P03; P07.16)
+ -> consolidar Agenda e componentes necessários (P04/P05)
+ -> aplicar às jornadas atuais (P06/P07/P09/P10)
+ -> homologar e pilotar online (P17 / M2)
+ -> escolher complementos e expansões pelo resultado do piloto
 
-Após a base:
- P09 trato/estoque, P10 clínica, P11 suínos, P12 plantações, P13 gestão
-   -> cada módulo depende dos contratos e efeitos que efetivamente usa
- P14 recursos do aparelho -> requer um fluxo consumidor e lookup/upload válido
- P15 push -> requer inbox, destino nativo e infraestrutura de entrega
- P16 envio offline -> requer P08 + contrato seguro de CADA operação
- P17 qualidade -> acompanha tudo e consolida cada versão publicável
+Em paralelo, por necessidade comprovada:
+ P08 -> leitura offline e rascunhos com política/schema próprios
+ P14/P15 -> recurso do aparelho ou push com fluxo consumidor
+ P16 -> P08 + contrato de idempotência/reconciliação por operação
+ P17 -> qualidade contínua e distribuição do escopo aprovado
 ```
-
-Essa sequência é a sugestão para o primeiro recorte leiteiro. Se a descoberta escolher organização agrícola ou de suínos, substituir o fluxo vertical P06/P07 pelo recorte correspondente de P11/P12, mantendo fundação, acesso, rascunhos e critérios de qualidade. Não obrigar todo piloto a passar por pecuária leiteira.
 
 ### Marcos publicáveis
 
@@ -178,7 +209,7 @@ Essa sequência é a sugestão para o primeiro recorte leiteiro. Se a descoberta
 | M5 — Produto ampliado | Recortes P13/P15; P16 somente para operações aprovadas | Gestão autorizada, inbox/push e sincronização homologada | Automações/hardware não validados |
 | M6 — Distribuição ampliada | P17 sobre o conjunto escolhido | Atualização, suporte, métricas, rollback e publicação gradual | Módulos explicitamente futuros |
 
-M2/M3 podem ser distribuídos internamente. Uma primeira versão de loja pode usar o escopo de M3 se cumprir P17; não é obrigatório esperar M5. Os marcos indicam disponibilidade, não datas prometidas.
+M2/M3 podem ser distribuídos internamente. Uma primeira versão de loja pode usar o escopo online aprovado de M2, ou incluir M3 quando homologado, se cumprir P17; não é obrigatório esperar offline ou M5. Os marcos indicam disponibilidade, não datas prometidas.
 
 ### Regra para iniciar e concluir cada parte
 
@@ -217,7 +248,7 @@ Não há estimativa confiável de prazo total antes de P00/P02. O esforço muda 
 2. Tarefa que não cabe em um incremento demonstrável deve ser dividida em consulta, escrita, efeitos, recuperação e validação conforme aplicável.
 3. Considerar revisão, teste em aparelho, correções e distribuição no esforço; “tela pronta” não é a conclusão de uma tarefa de negócio.
 4. Calcular prazo com capacidade efetiva alocada, não com número de pessoas nominal. Espera por credencial, aparelho ou decisão aparece separadamente do esforço.
-5. Reestimar ao concluir M1 e depois do primeiro fluxo P07: essas entregas revelam o custo real de integração, navegação e testes.
+5. Reestimar após consolidar a Agenda e homologar a primeira jornada atual no aparelho; usar esse resultado para dimensionar os próximos incrementos, sem tratar o app existente como um novo scaffold.
 6. Planejar no máximo o próximo marco em detalhe de agenda; o restante mantém ordem e escopo ajustáveis com o aprendizado do piloto.
 
 Competências mínimas: desenvolvimento mobile, backend para contratos/invariantes, design/produto e validação com usuário de campo. Uma pessoa pode acumular competências, mas a capacidade precisa refletir isso. CI, contas de loja e credenciais precisam de responsável operacional.
@@ -275,6 +306,4 @@ Os marcos abaixo ainda não estão concluídos. O primeiro recorte de P01–P04 
 
 ## Próxima ação recomendada
 
-Iniciar pelas tarefas P00.01–P00.10 e pela ficha de contratos de P02. Priorizar o que pode ser verificado no código e no ambiente de teste; completar os dados de campo com os usuários antes de fixar o recorte. A próxima implementação é P01, seguida de sessão e primeiro fluxo online, sem antecipar a fila offline. Os mockups em [EXPERIENCIA.md](EXPERIENCIA.md) orientam a navegação; não representam um aplicativo já entregue.
-
-Consulta de tanques de leite: lista paginada por fazenda e situação, ficha com capacidade, saldo e observações, navegação compartilhada e sem campos financeiros. Histórico e ficha de movimentos de entrada/coleta/descarte disponíveis em consulta, incluindo cancelados, filtros e paginação, sem dados financeiros. Histórico e ficha de qualidade disponíveis com amostra, temperatura, gordura, proteína, CCS/CBT, antibióticos e autoria, preservando valores ausentes. Cadastro/edição essencial de tanques disponíveis a gerente/admin, com versão, capacidade protegida pelo histórico e bloqueio de reenvio após resposta incerta. Lançamentos, cancelamentos e registro de qualidade continuam pendentes no app.
+Executar o [próximo incremento](#próximo-incremento-a-executar) da ordem atual: conferir a base/contratos, consolidar a Agenda (P04.12–P04.15/P05.11–P05.14), revisar a compatibilidade leiteira (P07.16) e demonstrar a jornada em Android/iOS. Completar as decisões de campo de P00 que ainda faltam sem recriar projeto, sessão ou módulos existentes. O [guia de design](../DESIGN.md) e a [experiência revisada](EXPERIENCIA.md) orientam os percursos; o mockup antigo é histórico.

@@ -1,4 +1,28 @@
-# Prompt da simulação
+# Referências para mockups mobile
+
+## Orientação atual — Agenda como base conceitual
+
+A Agenda atualizada do app orienta as próximas peças de design. Consultar o [guia de design](../../DESIGN.md), o [guia de experiência](../EXPERIENCIA.md) e a composição atual de [AgendaScreen](../../src/features/agenda/AgendaScreen.tsx) com seus [estilos](../../src/features/agenda/ui.tsx). Uma imagem nova precisa comunicar contexto, dados e caminho para realizar a operação, com uma experiência simples, intuitiva e funcional.
+
+Antes de gerar outra peça, usar capturas atuais da Agenda e do shell como referência visual, com dados fictícios. Não deduzir detalhes de implementação a partir do prompt histórico abaixo.
+
+### Brief para a próxima prévia
+
+- Mostrar um conjunto pequeno de telas que conte um percurso: lista/contexto → detalhe → operação/revisão → resultado. Usar apenas ações e estados suportados pelo recorte representado.
+- Preservar a identidade do `WorkspaceShell`: cabeçalho e navegação conforme o perfil ilustrado, sem inventar posições fixas ou ampliar permissões.
+- Aplicar a hierarquia da Agenda: contexto visível, controles agrupados, filtros curtos, resumo e registros legíveis. A Agenda pode mostrar Mês/Semana/Lista; calendários não são obrigatórios nas outras telas.
+- Usar fundos claros, superfícies brancas, bordas discretas, verde para seleção/ação e tipografia legível. Deixar claro o estado do registro e o destino da ação principal.
+- Priorizar dados e operações. Usar ícones, badges e métricas quando contribuírem para reconhecer uma tarefa, sem acrescentar decoração ou indicadores sem propósito.
+- Mostrar nomes de ações específicos, como “Ver atividade”, “Registrar pesagem” ou “Confirmar fornecimento”, conforme o fluxo escolhido. Retorno e cancelamento preservam o contexto.
+- Respeitar áreas seguras, fonte ampliada, área de toque de pelo menos 44 unidades lógicas e campos com fonte de 16. Permitir rolagem; não comprimir o conteúdo para forçar todas as informações na primeira dobra.
+- Identificar abertura no web, resultado estimado, estado local ou resposta incerta quando esses casos fizerem parte do recorte. Não anunciar recursos offline, scanner ou envio confirmado apenas por aparecerem no desenho.
+- Identificar dados fictícios e finalidade conceitual. Mockup não substitui validação nativa nem define autorização, contrato ou regra de negócio.
+
+Esta revisão atualiza a orientação; não gera uma imagem nova. `proposta-mobile.png` permanece como registro da proposta anterior.
+
+## Prompt histórico — 6 de novembro de 2026
+
+O texto a seguir registra como a imagem anterior foi gerada. Sua navegação e o formulário de rascunho são ilustrativos; não prescrevem a experiência atual.
 
 Gerado pela ferramenta integrada `imagegen`, em 6 de novembro de 2026. Arquivo final: `proposta-mobile.png`. Conceito ilustrativo, não captura de um aplicativo implementado.
 

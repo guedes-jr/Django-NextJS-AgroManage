@@ -9,13 +9,14 @@ Para iniciar backend + mobile: execute `make dev` nesta pasta ou `make dev-mobil
 - [Executar e validar o login](docs/LOGIN.md): configuração, comandos, contratos e limitações deste incremento.
 
 - [Inventário de telas pendentes](docs/TELAS-PENDENTES.md): comparação web/mobile, backlog por domínio e sequência de entrega.
-- [Plano de implementação](docs/IMPLEMENTACAO.md): mapa de 18 partes, marcos, dependências, riscos e acompanhamento.
+- [Plano de implementação](docs/IMPLEMENTACAO.md#ordem-atual-de-execução): ordem ativa de consolidação da Agenda, jornadas existentes, homologação e expansão; mapa P00–P17 e critérios de aceite.
 - [Partes 00–04](docs/partes/00-04-FUNDACAO.md): diagnóstico, projeto, contratos, sessão, navegação e idiomas.
 - [Partes 05–08](docs/partes/05-08-PRIMEIRO-APP.md): primeiro app operacional, leite e rascunhos.
 - [Partes 09–13](docs/partes/09-13-MODULOS.md): trato/estoque, clínica, suínos, plantações e gestão.
 - [Partes 14–16](docs/partes/14-16-NATIVO-SINCRONIZACAO.md): câmera/anexos, notificações e sincronização.
 - [Parte 17](docs/partes/17-QUALIDADE-PUBLICACAO.md): testes, desempenho, piloto, CI e publicação.
-- [Proposta de experiência e telas](docs/EXPERIENCIA.md): navegação, fluxos, recursos do aparelho e simulação visual.
+- [Design mobile](DESIGN.md): Agenda atualizada como base conceitual de estilos, hierarquia dos dados e caminhos para as operações.
+- [Experiência e telas](docs/EXPERIENCIA.md): percursos simples, contexto, dados e ações; o mockup anterior permanece como registro ilustrativo.
 - [Mockups](docs/mockups/): imagens conceituais com dados fictícios e prompt de geração.
 
 A stack definida é **React Native + Expo + TypeScript**, com Expo Router, Axios, TanStack Query, React Hook Form + Zod, SecureStore e SQLite introduzidos conforme as partes do plano. O mobile terá dependências, builds e publicações próprios. Não será colocado dentro do Next.js, nem fará uma cópia do backend. A adoção de workspaces e pacotes compartilhados será decidida na primeira etapa, sem alterar agora a organização dos projetos existentes.

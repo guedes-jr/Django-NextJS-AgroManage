@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import shutil
 import signal
 import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 from urllib.parse import urlsplit
 
 MOBILE_DIR = Path(__file__).resolve().parents[1]
@@ -36,12 +36,36 @@ def api_url(host: str, port: int, override: str | None) -> str:
 
 
 def ensure_port_available(host: str, port: int) -> None:
+    # A wildcard bind can coexist with an older loopback listener on macOS.
+    # Check the address used for readiness before accepting a new bind.
+    connect_host = "127.0.0.1" if host == "0.0.0.0" else host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as connection:
+        connection.settimeout(0.25)
+        if connection.connect_ex((connect_host, port)) == 0:
+            raise ValueError(f"Porta {port} indisponível. Encerre o serviço existente ou escolha outra porta.")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind((host, port))
         except OSError as error:
             raise ValueError(f"Porta {port} indisponível. Encerre o serviço existente ou escolha outra porta.") from error
+
+
+def ensure_ngrok_available(mobile_dir: Path) -> None:
+    """Fail locally before Expo offers an unrelated global package installation."""
+    node = shutil.which("node")
+    if not node:
+        raise ValueError("Node não encontrado no PATH. Ative a versão Node do projeto.")
+    try:
+        result = subprocess.run(
+            [node, "-e", "try { const ngrok = require('@expo/ngrok'); process.exit(typeof ngrok.connect === 'function' ? 0 : 1); } catch { process.exit(1); }"],
+            cwd=mobile_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=10, check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("Tempo esgotado verificando @expo/ngrok. Reinstale as dependências locais com npm ci --include=dev em mobile/.") from error
+    if result.returncode:
+        raise ValueError("@expo/ngrok local ausente ou inválido. Execute npm ci --include=dev em mobile/ e tente novamente. Não é necessário instalar globalmente.")
 
 
 def stop_services(children: list[subprocess.Popen], grace: float = 3.0) -> None:
@@ -165,6 +189,8 @@ def main() -> int:
         npm = shutil.which("npm")
         if not npm:
             raise ValueError("npm não encontrado no PATH. Ative a versão Node do projeto.")
+        if args.tunnel:
+            ensure_ngrok_available(MOBILE_DIR)
 
         # Auto-detect: skip backend when EXPO_PUBLIC_API_URL points to an external host.
         external_url = os.environ.get("EXPO_PUBLIC_API_URL")

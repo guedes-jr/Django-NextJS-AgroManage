@@ -2,6 +2,8 @@
 INVENTORY_VERSION = 1
 APPS = ('accounts', 'organizations', 'farms', 'crops', 'livestock', 'inventory', 'finance', 'tasks', 'reports', 'audit', 'ai_assistant', 'billing', 'notifications')
 REGISTRY = {
+    'livestock.dairyworksheetstate': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'animal', 'total', 'date', 'oxytocin_ml', 'feed_allocations', 'recorded_by'), "m2m": ()},
+    'livestock.dairyworksheetcommand': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'recorded_by', 'request_key', 'fingerprint', 'before', 'effects', 'receipt'), "m2m": ()},
     'livestock.milktank': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'name', 'capacity_liters', 'is_active', 'notes'), "m2m": ()},
     'livestock.milktankmovement': {"scope": 'tank__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'tank', 'kind', 'date', 'liters', 'buyer', 'driver', 'vehicle', 'document', 'reason', 'notes', 'unit_price', 'amount', 'receivable', 'request_key', 'created_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason'), "m2m": ()},
     'livestock.milktankquality': {"scope": 'tank__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'tank', 'date', 'sample', 'temperature_c', 'fat_percent', 'protein_percent', 'scc', 'tbc', 'antibiotics', 'notes', 'request_key', 'created_by'), "m2m": ()},
@@ -11,7 +13,7 @@ REGISTRY = {
     'livestock.cattleoccurrence': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'animal', 'batch', 'kind', 'date', 'description', 'task', 'resolved_at', 'resolved_by', 'resolution', 'created_by'), "m2m": ()},
     'livestock.cattletransfer': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'source', 'destination', 'date', 'quantity', 'animal_ids', 'reason', 'request_key', 'snapshot', 'created_by'), "m2m": ()},
     'livestock.cattlepurposechange': {"scope": 'farm__organization', "fields": ('id', 'created_at', 'updated_at', 'farm', 'animal', 'batch', 'previous', 'purpose', 'date', 'created_by'), "m2m": ()},
-    'livestock.cattlemilkdailytotal': {"scope": "farm__organization", "fields": ("id", "created_at", "updated_at", "farm", "date", "liters", "discarded_liters", "discard_reason", "notes"), "m2m": ()},
+    'livestock.cattlemilkdailytotal': {"scope": "farm__organization", "fields": ("id", "created_at", "updated_at", "farm", "date", "period_start", "liters", "discarded_liters", "discard_reason", "notes"), "m2m": ()},
     'livestock.cattletroughreading': {"scope": 'batch__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'plan', 'batch', 'formula', 'formula_name', 'date', 'session', 'score', 'remaining_kg', 'plan_version', 'head_count', 'kg_per_head_day', 'request_key', 'notes', 'created_by'), "m2m": ()},
     'livestock.cattlefeedplan': {"scope": 'batch__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'version', 'batch', 'item', 'kg_per_head_day', 'start_date', 'end_date', 'is_active', 'notes', 'created_by'), "m2m": ()},
     'livestock.cattlefeeddelivery': {"scope": 'plan__batch__farm__organization', "fields": ('id', 'created_at', 'updated_at', 'plan', 'plan_version', 'date', 'quantity_kg', 'remaining_before_kg', 'available_after_kg', 'daily_requirement_kg', 'head_count', 'cost', 'request_key', 'notes', 'created_by'), "m2m": ()},
