@@ -12,6 +12,7 @@ import { agendaMessages, agendaLabel } from './messages';
 import { AgendaButton, Busy, styles as s } from './ui';
 import type { z } from 'zod';
 import { restoreAgendaSelection } from './selection';
+import { agendaActivityCount, agendaDayLabel, agendaWeekLabel } from './presentation';
 import { taskFormMessages } from './formMessages';
 
 type AgendaViewMode = 'month' | 'week' | 'list';
@@ -199,10 +200,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
   const periodTitle = useMemo(() => {
     const d = new Date(`${currentDate}T12:00:00`);
     if (viewMode === 'week') {
-      const startD = new Date(`${start}T12:00:00`);
-      const endD = new Date(`${end}T12:00:00`);
-      const fmt = new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short' });
-      return `${fmt.format(startD)} – ${fmt.format(endD)}`;
+      return agendaWeekLabel(language, start, end);
     }
     return new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric' }).format(d);
   }, [currentDate, viewMode, start, end, language]);
@@ -250,9 +248,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
               </View>
               {state.status === 'signedIn' && state.session.user.access.read_only && <Text style={s.badge}>{t.readonly}</Text>}
 
-              {/* Card do Calendário Interativo */}
               <View style={s.calendarCard}>
-                {/* Cabeçalho do Calendário: < Novembro 2026 > e Botão Hoje */}
                 <View style={s.calendarHeader}>
                   <Pressable accessibilityRole="button" accessibilityLabel={t.previous} style={s.navButton} onPress={() => movePeriod(-1)}>
                     <Text style={s.navButtonText}>‹</Text>
@@ -261,7 +257,6 @@ function AgendaContents({ timezone }: { timezone: string }) {
                   <Pressable accessibilityRole="button" accessibilityLabel={t.next} style={s.navButton} onPress={() => movePeriod(1)}>
                     <Text style={s.navButtonText}>›</Text>
                   </Pressable>
-                  <AgendaButton label={t.today} onPress={() => selectDate(today)} />
                 </View>
 
                 {/* Seletor de visualização: Mês | Semana | Lista */}
@@ -303,14 +298,14 @@ function AgendaContents({ timezone }: { timezone: string }) {
                           <Pressable
                             key={cell.date}
                             accessibilityRole="button"
-                            accessibilityLabel={formatDate(cell.date)}
+                            accessibilityLabel={agendaDayLabel(language, cell.date, today)}
                             accessibilityState={{ selected: isSelected }}
                             style={[s.dayCell, { width: calendarWidth / 7 }, cell.outside && s.dayOutside]}
                             onPress={() => selectDate(cell.date)}
                           >
                             <View style={[s.dayCircle, isToday && s.dayToday, isSelected && s.daySelected]}>
                               <Text style={[s.dayNumber, isSelected && s.daySelectedText]}>
-                                {cell.day}
+                                {new Intl.NumberFormat(language).format(cell.day)}
                               </Text>
                             </View>
                           </Pressable>
@@ -336,6 +331,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
                 ))}
                 <Pressable
                   accessibilityRole="checkbox"
+                  accessibilityLabel={t.recorded}
                   accessibilityState={{ checked: recorded }}
                   style={[s.chip, recorded && s.chipSelected]}
                   onPress={() => { setRecorded(!recorded); setPage(1); }}
@@ -344,7 +340,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
                     {recorded ? `✓ ${t.recorded}` : t.recorded}
                   </Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" style={s.chip} onPress={() => setReload(v => v + 1)}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t.refresh} style={s.chip} onPress={() => setReload(v => v + 1)}>
                   <Text style={s.chipText}>↻ {t.refresh}</Text>
                 </Pressable>
               </ScrollView>
@@ -352,11 +348,11 @@ function AgendaContents({ timezone }: { timezone: string }) {
               {/* Cabeçalho da Lista de Atividades do Dia/Período */}
               <View style={s.daySummaryHeader}>
                 <Text style={s.daySummaryTitle}>
-                  {viewMode === 'list' ? `${t.title}${data ? ` (${data.count})` : ''}` : `${formatDate(currentDate)}`}
+                  {viewMode === 'list' ? t.title : formatDate(currentDate)}
                 </Text>
-                {viewMode !== 'list' && (
-                  <Text style={s.daySummaryCount}>
-                    {data ? `${data.count} ${data.count === 1 ? t.activity : t.activities}` : '—'}
+                {data && (
+                  <Text accessibilityLiveRegion="polite" style={s.daySummaryCount}>
+                    {agendaActivityCount(language, data.count)}
                   </Text>
                 )}
               </View>
@@ -373,7 +369,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
           ListEmptyComponent={
             !busy && !failed ? (
               <View style={[s.card, { alignItems: 'center', paddingVertical: 24 }]}>
-                <Text style={s.body}>{t.empty}</Text>
+                <Text style={s.body}>{viewMode === 'list' ? t.empty : t.emptyDay}</Text>
               </View>
             ) : undefined
           }
@@ -405,7 +401,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
                   onPress={() => setPage(v => Math.max(1, v - 1))}
                 />
                 <Text style={[s.muted, { fontWeight: '700', fontSize: 14 }]}>
-                  {t.page} {page}
+                  {t.page} {new Intl.NumberFormat(language).format(page)}
                 </Text>
                 <AgendaButton
                   label="›"

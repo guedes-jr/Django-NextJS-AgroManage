@@ -124,10 +124,10 @@ test('calendar day pagination queries the selected day beyond the first period p
  assert.throws(()=>agendaListingQuery(period,'month','2026-02-30'));
 });
 
-test('return selection preserves calendar context but cannot select a different farm',async()=>{
+test('opening agenda starts today and preserves only same-farm filters and view mode',async()=>{
  const {restoreAgendaSelection}=await import('../src/features/agenda/selection');
  const selection={date:'2026-11-28',mode:'week',domain:'livestock',recorded:true,farm:id,page:3,offset:410};
- assert.deepEqual(restoreAgendaSelection(selection,id,'2026-11-13'),selection);
+ assert.deepEqual(restoreAgendaSelection(selection,id,'2026-11-13'),{...selection,date:'2026-11-13',page:1,offset:0});
  for(const invalid of [null,{...selection,page:0},{...selection,offset:Infinity},{...selection,date:'2026-02-30'}])assert.equal(restoreAgendaSelection(invalid,id,'2026-11-13').page,1);
  const changed=restoreAgendaSelection(selection,null,'2026-11-13');assert.equal(changed.farm,null);assert.equal(changed.offset,0);assert.equal(changed.date,'2026-11-13');
 });

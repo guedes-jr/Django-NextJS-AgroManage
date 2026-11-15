@@ -50,6 +50,7 @@ import {inventoryCommandSchema,type InventoryCommand} from '../inventory/formCon
 import {canReadInventory,canWriteInventory,type InventoryQuery} from '../inventory/contracts';
 import {batchInputSchema,canEditBatch,canTransfer,transferInput,matchesPreview,type BatchInput,type TransferInput,type TransferPreview} from '../cattle/batchContracts';
 import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,type MilkValues,type MilkQuery } from '../milk/contracts';
+import { canReadDairyFeeding,canWriteDairyFeeding,dairyFeedingCatalogQuerySchema,dairyFeedingCancellationSchema,dairyFeedingCommandSchema,type DairyFeedingCatalogQuery,type DairyFeedingWrite } from '../milk/dairyFeedingContracts';
 import { organizationDay } from '../workspace/contracts';
 import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalInputSchema, weightInputSchema, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../cattle/contracts';
 import { canSearch, type SearchQuery } from '../workspace/contracts';
@@ -542,9 +543,36 @@ export class SessionController {
       return this.api.recordCattleWeight(tokens,this.language,kind,id,production,farm,payload);
     });
   }
+  dairyOverview(date:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.dairyOverview(tokens,this.language,date,signal));}
   milkSummary(date:string,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkSummary(tokens,this.language,date,farm,signal));}
   milkPage(query:MilkQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkPage(tokens,this.language,query,signal));}
   milkDetail(mode:MilkCommand['mode'],id:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkDetail(tokens,this.language,mode,id,signal));}
+  dairyFeedingHistory(farm:string,page:number,signal?:AbortSignal){
+    if(this.state.status!=='signedIn'||!canReadDairyFeeding(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.cattleRead(tokens=>this.api.dairyFeedingHistory(tokens,this.language,farm,page,signal));
+  }
+  dairyFeedingCatalog(query:DairyFeedingCatalogQuery,signal?:AbortSignal){
+    if(this.state.status!=='signedIn'||!canReadDairyFeeding(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.cattleRead(tokens=>this.api.dairyFeedingCatalog(tokens,this.language,dairyFeedingCatalogQuerySchema.parse(query),signal));
+  }
+  dairyFeedingReceipt(write:DairyFeedingWrite,signal?:AbortSignal){
+    if(this.state.status!=='signedIn'||!canReadDairyFeeding(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    const value:DairyFeedingWrite=write.kind==='supply'
+      ?{kind:'supply',command:dairyFeedingCommandSchema.parse(write.command)}
+      :{kind:'cancel',command:dairyFeedingCancellationSchema.parse(write.command)};
+    return this.cattleRead(tokens=>this.api.reconcileDairyFeeding(tokens,this.language,value,signal));
+  }
+  saveDairyFeeding(write:DairyFeedingWrite){
+    if(this.state.status!=='signedIn'||!canWriteDairyFeeding(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    const value:DairyFeedingWrite=write.kind==='supply'
+      ?{kind:'supply',command:dairyFeedingCommandSchema.parse(write.command)}
+      :{kind:'cancel',command:dairyFeedingCancellationSchema.parse(write.command)};
+    return this.cattleWrite(async(tokens,user,today,assertCurrent)=>{
+      if(!canWriteDairyFeeding(user)||(value.kind==='supply'&&value.command.date>today))throw new AuthFailure('unsupported');
+      assertCurrent();
+      return this.api.saveDairyFeeding(tokens,this.language,value);
+    });
+  }
   saveMilk(command:MilkCommand,values:MilkValues){return this.cattleWrite(async(tokens,user,today,assertCurrent)=>{
     const value=milkCommandSchema.parse(command),payload=milkValuesSchema(value.mode).parse(values);
     if(value.date>today)throw new AuthFailure('unsupported');

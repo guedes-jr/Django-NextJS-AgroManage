@@ -211,6 +211,8 @@ Cada componente precisa de contrato de props, estados desabilitado/carregando/er
 - [ ] P04.14 — Homologar a jornada revisada em Android/iOS, incluindo uma largura pequena e uma maior, fonte ampliada, teclado, retorno e retomada. Registrar o que foi validado e o que depende de outro aparelho/build, em conjunto com P17.
 - [ ] P04.15 — Revisar os textos e estados do recorte nos quatro idiomas, inclusive Mês/Semana/Lista, contagens, seleções, estados vazios e rótulos acessíveis. Não elevar textos ou limitações atuais da Agenda a regra do design.
 
+**P04.15 — revisão da Agenda (13/11/2026):** Mês/Semana distinguem dia vazio do período vazio da Lista nos quatro idiomas. Contagens do servidor usam formatação local e singular/plural, inclusive na Lista, e só aparecem após resposta. Datas acessíveis incluem dia da semana, mês por extenso e indicação de hoje; seleção permanece em `accessibilityState`. Símbolos de atualizar/concluídos têm rótulos textuais explícitos. Semanas entre anos mostram ambos os anos. Datas de calendário são formatadas independentemente do fuso do aparelho. Validação: 24 testes direcionados (4 novos), TypeScript e ESLint aprovados. Conferência visual em larguras pequena/maior, fonte ampliada e leitores de tela Android/iOS permanece pendente; item não homologado.
+
 O incremento consolida o app existente. A imagem anterior fica como registro ilustrativo; acabamento isolado não fecha navegação, autorização ou operação.
 
 ### Critérios de aceite e testes

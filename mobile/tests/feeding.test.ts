@@ -4,7 +4,7 @@ import {create,AxiosError,type AxiosAdapter} from 'axios';
 import {createAuthApi,FeedingSaveUnconfirmed} from '../src/services/authApi';
 import {SessionController} from '../src/features/auth/sessionController';
 import {userSchema} from '../src/features/auth/contracts';
-import {canReadDailyFeeding,canWriteDailyFeeding,feedingDraftSchema,feedingCommand,feedingPayload,feedingBatchSchema,feedingCommandSchema,feedingReceiptSchema,type FeedingQuery} from '../src/features/feeding/contracts';
+import {FeedingDayChanged,feedingDeliveriesForDay,canReadDailyFeeding,canWriteDailyFeeding,feedingDraftSchema,feedingCommand,feedingPayload,feedingBatchSchema,feedingCommandSchema,feedingReceiptSchema,type FeedingQuery} from '../src/features/feeding/contracts';
 import {feedingMessages} from '../src/features/feeding/messages';
 const id='00000000-0000-4000-8000-000000000001',item='00000000-0000-4000-8000-000000000002',farm='00000000-0000-4000-8000-000000000003',key='00000000-0000-4000-8000-000000000004';
 const user=userSchema.parse({id,full_name:'Tratador',email:'test@example.com',force_password_change:false,is_platform_staff:false,affiliate_portal_only:false,access:{role:'feeder',can_manage_users:false,can_view_financial:false,can_operate_crops:false,livestock_species:['bovinos'],read_only:false}});
@@ -62,3 +62,13 @@ test('known validation and unconfirmed/invalid receipts stay distinct without au
  assert.equal(feedingReceiptSchema.parse({id,date:'2026-11-07',quantity_kg:5.25}).quantity_kg,'5.25');
 });
 test('daily feeding messages cover every organization language',()=>{for(const language of ['pt-BR','en','es','pt-PT'] as const){assert.deepEqual(Object.keys(feedingMessages[language]).sort(),Object.keys(feedingMessages['pt-BR']).sort());assert.ok(Object.values(feedingMessages[language]).every(text=>text.length>0));}});
+
+test('delivery history keeps the server day, total count and exact quantities without summing a partial page',()=>{
+ const page={date:'2026-11-07',timezone:'America/Fortaleza',count:24,next:'?page=2',previous:null,results:[{id,batch:id,quantity_kg:'0.25',item,item_name:'Ração',recorded_by:'Tratador',created_at:'2026-11-07T12:00:00Z',notes:''}]};
+ const data=feedingDeliveriesForDay(page,'2026-11-07');assert.equal(data.count,24);assert.equal(data.results.length,1);assert.equal(data.results[0]?.quantity_kg,'0.25');assert.equal(data.timezone,'America/Fortaleza');
+});
+test('history from a new feeding day is not presented as the selected batch day, including empty pages',()=>{
+ const page={date:'2026-11-08',timezone:'America/Fortaleza',count:0,next:null,previous:null,results:[]};
+ assert.throws(()=>feedingDeliveriesForDay(page,'2026-11-07'),FeedingDayChanged);
+ assert.equal(feedingDeliveriesForDay(page,'2026-11-08').count,0);
+});

@@ -1,3 +1,4 @@
+import { dairyOverviewSchema } from '../features/cattle/dairyOverviewContracts';
 import {tankWriteCommandSchema,validateTankReceipt,type TankWriteCommand} from '../features/milk/tankWriteContracts';
 import {tankFormOptionsSchema,tankFormRecordSchema,tankCommandSchema,tankFormPayload,type TankCommand} from '../features/milk/tankFormContracts';
 import {tankQualityQuerySchema,tankQualitySchema,tankQualityPageSchema,ensureTankQualityScope,type TankQualityQuery} from '../features/milk/tankQualityContracts';
@@ -49,6 +50,7 @@ import {productPayload,supplierPayload,type InventoryCommand} from '../features/
 import {inventoryFormChoicesSchema,inventoryQuerySchema,itemPageSchema,lotSchema,lotPageSchema,alertPageSchema,supplierPageSchema,itemSchema,supplierSchema,summarySchema,choicesSchema,type InventoryQuery} from '../features/inventory/contracts';
 import {batchPayload,transferInput,transferPreviewSchema,cattleOverviewSchema,type BatchInput,type TransferInput,type TransferPreview} from '../features/cattle/batchContracts';
 import { milkSummarySchema,milkQuerySchema,milkCowPageSchema,milkRecordPageSchema,milkTotalPageSchema,milkRecordSchema,milkTotalSchema,milkCommandSchema,milkPayload,isPeriodMilkTotal,type MilkQuery,type MilkCommand,type MilkValues } from '../features/milk/contracts';
+import { dairyFeedingCatalog,dairyFeedingCatalogQuerySchema,dairyFeedingCancellationSchema,dairyFeedingCommandSchema,dairyFeedingHistoryPage,dairyFeedingHistoryQuerySchema,validateDairyFeedingWriteReceipt,type DairyFeedingCatalogQuery,type DairyFeedingWrite } from '../features/milk/dairyFeedingContracts';
 import { cattleQuerySchema, productionSchema, ensureCattleScope, animalPageSchema, batchPageSchema, animalSchema, batchSchema, historyPageSchema, animalPayload, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../features/cattle/contracts';
 import { farmsSchema, profileSchema, parseSearch, searchQuerySchema, type SearchQuery } from '../features/workspace/contracts';
 import { agendaQuerySchema, agendaPageSchema, taskSchema, taskOptionsSchema, taskInputSchema, type TaskInput, type AgendaQuery } from '../features/agenda/contracts';
@@ -59,6 +61,7 @@ import type { Language, MessageKey } from '../i18n/messages';
 import { tokensSchema, userSchema, organizationSchema, registrationSchema, type Credentials, type Tokens, type Registration, type RegistrationField } from '../features/auth/contracts';
 
 export class TankRecordUnconfirmed extends Error {}
+export class DairyFeedingSaveUnconfirmed extends Error {}
 export class WeighingConfirmationUnconfirmed extends Error {}
 export class WeighingReviewChanged extends Error {}
 export class CollectiveMedicationConfirmationUnconfirmed extends Error {}
@@ -389,6 +392,12 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       const data=transferInput.parse(input);const response=await http.post('livestock/cattle/operations/transfers/',{...data,preview:!preview,...(preview?{expected_source:preview.source_before,expected_destination:preview.destination_before}:{})},options(language,tokens.access));
       return preview?z.object({id:z.uuid()}).parse(response.data):transferPreviewSchema.parse(response.data);
     },
+    async dairyOverview(tokens:Tokens,language:Language,date:string,signal?:AbortSignal){
+      const day=z.iso.date().parse(date);
+      const result=dairyOverviewSchema.parse((await http.get('livestock/cattle/dairy-overview/',{...options(language,tokens.access),params:{date:day},signal})).data);
+      if(result.date!==day)throw new Error('invalid dairy reference date');
+      return result;
+    },
     async milkSummary(tokens:Tokens,language:Language,date:string,farm?:string,signal?:AbortSignal){return milkSummarySchema.parse((await http.get('livestock/cattle/milk/day-summary/',{...options(language,tokens.access),params:{date:z.iso.date().parse(date),...(farm?{farm:z.uuid().parse(farm)}:{})},signal})).data);},
     async milkPage(tokens:Tokens,language:Language,query:MilkQuery,signal?:AbortSignal){
       const {kind,...params}=milkQuerySchema.parse(query);const path={cows:'milk/cows/',records:'milk/',totals:'milk-totals/'}[kind];
@@ -401,6 +410,37 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       return result;
     },
     async milkDetail(tokens:Tokens,language:Language,mode:MilkCommand['mode'],id:string,signal?:AbortSignal){const path=z.enum(['individual','total']).parse(mode)==='individual'?'milk':'milk-totals';const data=(await http.get(`livestock/cattle/${path}/${z.uuid().parse(id)}/`,{...options(language,tokens.access),signal})).data;const record=mode==='individual'?milkRecordSchema.parse(data):milkTotalSchema.parse(data);if(record.id!==id)throw new Error('invalid milk identity');return record;},
+    async dairyFeedingHistory(tokens:Tokens,language:Language,farm:string,page:number,signal?:AbortSignal){
+      const query=dairyFeedingHistoryQuerySchema.parse({farm,page});
+      const data=(await http.get('livestock/cattle/dairy-feeding/',{...options(language,tokens.access),params:{farm:query.farm,resource:'history',page:query.page,page_size:20},signal})).data;
+      return dairyFeedingHistoryPage(data,query.farm);
+    },
+    async dairyFeedingCatalog(tokens:Tokens,language:Language,query:DairyFeedingCatalogQuery,signal?:AbortSignal){
+      const value=dairyFeedingCatalogQuerySchema.parse(query);
+      const data=(await http.get('livestock/cattle/dairy-feeding/',{...options(language,tokens.access),params:{farm:value.farm,page:value.page,page_size:20,search:value.search},signal})).data;
+      return dairyFeedingCatalog(data);
+    },
+    async saveDairyFeeding(tokens:Tokens,language:Language,input:DairyFeedingWrite){
+      const write:DairyFeedingWrite=input.kind==='supply'
+        ?{kind:'supply',command:dairyFeedingCommandSchema.parse(input.command)}
+        :{kind:'cancel',command:dairyFeedingCancellationSchema.parse(input.command)};
+      const path=write.kind==='supply'?'livestock/cattle/dairy-feeding/':'livestock/cattle/dairy-feeding/cancel/';
+      try{
+        const response=await http.post(path,write.command,options(language,tokens.access));
+        return validateDairyFeedingWriteReceipt(write,response.data);
+      }catch(error){
+        if(isAxiosError(error)&&error.response&&[400,401,403,404,409,422].includes(error.response.status))throw error;
+        throw new DairyFeedingSaveUnconfirmed();
+      }
+    },
+    async reconcileDairyFeeding(tokens:Tokens,language:Language,input:DairyFeedingWrite,signal?:AbortSignal){
+      const write:DairyFeedingWrite=input.kind==='supply'
+        ?{kind:'supply',command:dairyFeedingCommandSchema.parse(input.command)}
+        :{kind:'cancel',command:dairyFeedingCancellationSchema.parse(input.command)};
+      const {farm,request_key}=write.command;
+      const receipt=(await http.get(`livestock/cattle/dairy-worksheet/${farm}/${request_key}/`,{...options(language,tokens.access),signal})).data;
+      return validateDairyFeedingWriteReceipt(write,receipt);
+    },
     async saveMilk(tokens:Tokens,language:Language,command:MilkCommand,values:MilkValues){
       const value=milkCommandSchema.parse(command),path=value.mode==='individual'?'milk':'milk-totals';
       const body=milkPayload(values),config={...options(language,tokens.access),...(value.mode==='total'?{params:{view:'mobile'}}:{})};const response=value.id?await http.patch(`livestock/cattle/${path}/${value.id}/`,body,config):await http.post(`livestock/cattle/${path}/`,{...body,date:value.date,...(value.mode==='individual'?{animal:value.animal,session:value.session}:{farm:value.farm})},config);

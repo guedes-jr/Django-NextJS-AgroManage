@@ -25,3 +25,10 @@ export function feedingCommand(batch:FeedingBatch,production:Production,day:stri
 }
 export function feedingPayload(command:FeedingCommand){const v=feedingCommandSchema.parse(command);return {production:v.production,farm:v.farm,batch:v.batch,item:v.item,formula:v.formula,date:v.date,quantity_kg:v.quantity_kg,notes:v.notes,request_key:v.request_key};}
 export const feedingReceiptSchema=z.object({id:z.uuid(),date:z.iso.date(),quantity_kg:z.union([decimal,z.number().finite().positive()]).transform(v=>Number(v).toFixed(2))});
+
+export class FeedingDayChanged extends Error {}
+export function feedingDeliveriesForDay(value:unknown,day:string){
+ const page=deliveryPage.parse(value);
+ if(page.date!==z.iso.date().parse(day))throw new FeedingDayChanged('feeding day changed');
+ return page;
+}

@@ -36,7 +36,7 @@ export function AuthShell({ children, illustrated = false, showBrand = true, sho
     {illustrated && <AuthBackdrop />}
     <SafeAreaView style={styles.flex}>
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView ref={scrollRef} contentContainerStyle={[styles.scroll, illustrated && styles.greenScroll]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, illustrated && styles.greenScroll]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={[styles.content, illustrated && styles.greenContent]}>
           {showBrand && <Brand />}
           {children}

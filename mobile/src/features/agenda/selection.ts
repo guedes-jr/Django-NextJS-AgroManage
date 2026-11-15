@@ -15,6 +15,8 @@ export type AgendaSelection = z.infer<typeof agendaSelectionSchema>;
 // A saved selection is UI state, never authority to select a farm or open a record.
 export function restoreAgendaSelection(value: unknown, farm: string | null, today: string): AgendaSelection {
   const saved = agendaSelectionSchema.safeParse(value);
-  if (saved.success && saved.data.farm === farm) return saved.data;
+  if (saved.success && saved.data.farm === farm) {
+    return { ...saved.data, date: today, page: 1, offset: 0 };
+  }
   return agendaSelectionSchema.parse({ date: today, mode: 'month', domain: 'all', recorded: false, farm, page: 1, offset: 0 });
 }

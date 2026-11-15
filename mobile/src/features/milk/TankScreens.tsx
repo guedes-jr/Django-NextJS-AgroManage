@@ -33,7 +33,7 @@ export function TankListScreen(){
    </View>
    <Text style={s.muted}>{t.readOnly}</Text>
    <View style={s.row}><Text style={[s.title,{flex:1}]}>{t.storage}{data?` (${data.count})`:''}</Text><AgendaButton label={t.refresh} disabled={q.isFetching} onPress={()=>void refetch()}/></View>
-   {state.status==='signedIn'&&canManageTank(state.session.user)&&<><AgendaButton label={tankFormMessages[language].create} disabled={!farm||q.isFetching||q.isError} onPress={()=>{if(farm)router.push({pathname:'/milk/tank-form',params:{mode:'create',farm:farm.id}});}}/>{!farm&&<Text style={s.muted}>{t.selectFarm}</Text>}</>}
+   {state.status==='signedIn'&&canManageTank(state.session.user)&&<><AgendaButton label={tankFormMessages[language].create} disabled={q.isFetching||q.isError} onPress={()=>{if(!farm){router.push('/farms');return;}router.push({pathname:'/milk/tank-form',params:{mode:'create',farm:farm.id}});}}/>{!farm&&<Text style={s.muted}>{t.selectFarm}</Text>}</>}
    {q.isFetching&&<Busy label={w.loading}/>}{q.isError&&<><Text accessibilityRole="alert" style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refetch()}/>{page>1&&<AgendaButton label={`${w.page} 1`} onPress={()=>setPaging({scope,page:1})}/>}</>}
   </View>}
   renderItem={({item})=><View style={s.card}><TankData tank={item}/><AgendaButton label={`${t.view}: ${item.name}`} onPress={()=>router.push({pathname:'/milk/tank',params:{id:item.id,farm:item.farm}})}/></View>}

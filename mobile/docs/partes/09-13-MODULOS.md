@@ -145,6 +145,8 @@ Executar em ambiente de homologação e registrar aparelho/SO/build, perfil, res
 - [x] P09.03 — Mostrar quantidade fornecida e histórico por lote; valores devem ser do servidor e não soma improvisada que ignore cancelamentos ou regras de data.
 - [x] P09.04 — Confirmar se o endpoint aceita filtro de fazenda/data. Não apresentar filtros que o servidor ignora, nem presumir que a data atual do aparelho define o dia operacional.
 
+**P04.13/P09 — consolidação da consulta do trato (13/11/2026):** lista organizada por dia operacional do servidor, segmento, contagem do filtro e cartões de lote (animais e kg fornecidos). Busca progressiva; não soma volumes/cabeças de uma página parcial. A ficha reúne contexto, lançamento autorizado e histórico paginado, com notas/identificador sob demanda. Atualização ou erro desabilita a entrada de novo lançamento; permissões e contrato de escrita/idempotência permanecem existentes. Histórico confere a data do lote: se o servidor virar o dia entre consultas, oculta o conjunto incompatível, bloqueia o acesso ao lançamento e oferece atualização do contexto. Paginação reinicia ao mudar o dia/filtro. Sem seletor global de fazenda. Validação: 10 testes direcionados (2 novos), TypeScript/ESLint e exportações Android/iOS/web aprovados; conferência visual e integração nativa registradas no guia de experiência. Não encerra P09 nem a homologação em aparelhos.
+
 ### Subparte 09B — Fornecimento online
 
 - [x] P09.05 — Formulário com lote, fórmula ou item conforme contrato, quantidade em kg, data e observação. Exibir unidade junto ao valor e evitar troca implícita entre kg, saco e unidade.
