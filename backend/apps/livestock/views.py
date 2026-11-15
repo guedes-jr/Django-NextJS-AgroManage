@@ -128,7 +128,7 @@ class BasePhaseView(APIView):
             return None, None
         return {**org_f, 'species__code': species}, species
 
-    def paginate_queryset(self, request, qs):
+    def get_page_spec(self, request):
         page = request.query_params.get('page', 1)
         page_size = request.query_params.get('page_size', 50)
         try:
@@ -137,10 +137,27 @@ class BasePhaseView(APIView):
         except (ValueError, TypeError):
             page = 1
             page_size = 50
+        page = max(page, 1)
         page_size = min(max(page_size, 1), 100)
+        return page, page_size
+
+    def paginate_queryset(self, request, qs):
+        page, page_size = self.get_page_spec(request)
         start = (page - 1) * page_size
         end = start + page_size
         return qs[start:end], qs.count()
+
+    def mobile_pagination(self, request, count):
+        if request.query_params.get('view') != 'mobile':
+            return {}
+        page, page_size = self.get_page_spec(request)
+        return {
+            "count": count,
+            "page": page,
+            "page_size": page_size,
+            "next": page * page_size < count,
+            "previous": page > 1,
+        }
 
 
 class MarrasView(BasePhaseView):
@@ -153,6 +170,8 @@ class MarrasView(BasePhaseView):
         qs = Animal.objects.filter(**filters, gender='F', category=category).filter(
             reproductive_status__in=['vazia', 'em_preparo', 'pronta', 'aguardando_cobertura']
         )
+        if request.query_params.get('view') == 'mobile':
+            qs = qs.order_by('identifier', 'id')
         total = qs.count()
         prontas = qs.filter(reproductive_status__in=['pronta', 'aguardando_cobertura']).count()
         em_preparo = qs.filter(reproductive_status='em_preparo').count()
@@ -202,6 +221,7 @@ class MarrasView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": ai_suggestions,
+            **self.mobile_pagination(request, total),
         })
 
 
@@ -233,8 +253,10 @@ class MatrizesView(BasePhaseView):
 
         # Filtrar a tabela para exibir apenas matrizes que precisam de manejo reprodutivo
         qs_table = qs.filter(reproductive_status__in=['vazia', 'aguardando_cobertura', 'em_preparo', 'pronta', 'descanso', 'coberta'])
+        if request.query_params.get('view') == 'mobile':
+            qs_table = qs_table.order_by('identifier', 'id')
         
-        qs_paged, _ = self.paginate_queryset(request, qs_table)
+        qs_paged, rows_count = self.paginate_queryset(request, qs_table)
         rows = []
         for a in qs_paged:
             ultima_cob = a.matings_as_female.order_by('-mating_date').first()
@@ -253,6 +275,7 @@ class MatrizesView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": ai_suggestions,
+            **self.mobile_pagination(request, rows_count),
         })
 
 
@@ -322,6 +345,11 @@ class GestacoesView(BasePhaseView):
             request.user.organization, species, include_birth_vaccines=False
         )
         alerts.extend(_expected_birth_alerts(request.user.organization, species))
+        if request.query_params.get('view') == 'mobile':
+            rows.sort(key=lambda row: (row['previsao'] or '9999-12-31', row['identifier'] or ''))
+            page, page_size = self.get_page_spec(request)
+            start = (page - 1) * page_size
+            rows = rows[start:start + page_size]
 
         return Response({
             "kpis": {
@@ -333,6 +361,7 @@ class GestacoesView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": [{"text": f"Há {confirmar_hoje} animais prontos para diagnóstico de prenhez."}] if confirmar_hoje > 0 else [],
+            **self.mobile_pagination(request, total),
         })
 
 
@@ -434,6 +463,7 @@ class MaternidadeView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": ai_suggestions,
+            **self.mobile_pagination(request, em_lactacao),
         })
 
 
@@ -446,6 +476,8 @@ class CrecheView(BasePhaseView):
         # A leitegada da maternidade é um lote técnico para alimentação. Ela só
         # entra na creche depois que o desmame muda sua fase para ``creche``.
         qs = with_batch_birth_date(AnimalBatch.objects.filter(**filters, status='active', phase='creche'))
+        if request.query_params.get('view') == 'mobile':
+            qs = qs.order_by('batch_code', 'id')
         total = qs.count()
         today = timezone.localdate()
         prontos = qs.filter(resolved_birth_date__lte=today - datetime.timedelta(days=70))
@@ -512,6 +544,7 @@ class CrecheView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": ai_suggestions,
+            **self.mobile_pagination(request, total),
         })
 
 
@@ -522,6 +555,8 @@ class CrescimentoView(BasePhaseView):
             return Response({"error": "Unauthorized"}, status=401)
 
         qs = with_batch_birth_date(AnimalBatch.objects.filter(**filters, phase='crescimento', status='active'))
+        if request.query_params.get('view') == 'mobile':
+            qs = qs.order_by('batch_code', 'id')
         total = qs.count()
         total_animais = sum(b.quantity for b in qs)
         now = timezone.localdate()
@@ -585,6 +620,7 @@ class CrescimentoView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": ai_suggestions,
+            **self.mobile_pagination(request, total),
         })
 
 
@@ -596,6 +632,8 @@ class EngordaView(BasePhaseView):
 
         TARGET_WEIGHT = 110
         qs = with_batch_birth_date(AnimalBatch.objects.filter(**filters, phase='engorda', status='active'))
+        if request.query_params.get('view') == 'mobile':
+            qs = qs.order_by('batch_code', 'id')
         total = qs.count()
         total_animais = sum(b.quantity for b in qs)
         now = timezone.localdate()
@@ -670,6 +708,7 @@ class EngordaView(BasePhaseView):
             "rows": rows,
             "alerts": alerts,
             "aiSuggestions": ai_suggestions,
+            **self.mobile_pagination(request, total),
         })
 
 

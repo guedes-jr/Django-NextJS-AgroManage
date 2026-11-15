@@ -16,7 +16,7 @@ import {parseApiUrl} from '../../config/environment';
 import {ModuleMenu} from './ModuleMenu';
 import {moduleKeys,iconFor,nativeDestination} from './navigation';
 type Open=(key:ModuleKey)=>void;
-export function WorkspaceShell({active,title,children,onBack}:{active:'home'|'agenda'|'beef'|'dairy'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void}){
+export function WorkspaceShell({active,title,children,onBack}:{active:'home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void}){
  const {state,language,controller}=useAuth();const router=useRouter();const {width}=useWindowDimensions();const t=homeMessages[language];
  const unread=useQuery({queryKey:['notifications-count'],enabled:state.status==='signedIn'&&canReadNotifications(state.session.user),queryFn:({signal})=>controller.notificationCount(signal),staleTime:30000});
  const [panel,setPanel]=useState<'modules'|'create'|ModuleKey|null>(null);const [query,setQuery]=useState('');const [linkFailed,setLinkFailed]=useState(false);const [keyboard,setKeyboard]=useState(false);

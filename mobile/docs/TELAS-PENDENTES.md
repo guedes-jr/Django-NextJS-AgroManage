@@ -81,7 +81,7 @@ Em cada linha, entregar consulta antes de escrita quando houver risco de estoque
 | E04 | Fornecedores | Lista, detalhe e cadastro/edição conforme API | Fase 3 · P09 |
 | C01 | Clínica: painel e histórico | Consulta paginada/filtros/ficha essencial de ocorrências, saúde, vacinas e alertas implementadas; contexto UUID/fazenda/espécie. Autoria plena e campos avançados pendentes | Fase 4 · P10 |
 | C02 | Consultas, exames, vacinação e medicamentos | Ocorrência clínica individual e aplicação de vacina individual/lote com revisão e baixa de estoque implementadas. Exames/tratamentos documentais com formulário e histórico implementados; aplicação individual de medicamento bovino com estoque/carência disponível a gerente/admin; demais espécies, campos avançados, anexos e correções pendentes | Fase 4 · P10/P14 |
-| S01 | Suínos: hub, inventário e fichas | Lista por fase; animal/lote; ficha técnica; cadastro/edição e histórico | Fase 4 · P11 |
+| S01 | Suínos: hub, inventário e fichas | Hub e listas paginadas somente leitura por fase implementados, agregados por organização; fazenda, fichas, cadastro/edição e histórico permanecem pendentes | Fase 4 · P11 · parcial |
 | S02 | Suínos: reprodução e transições | Detalhe e lançamentos de eventos; origem/destino, quantidade, datas e previsões; transações confirmadas no servidor | Fase 4 · P11 |
 | S03 | Suínos: vendas e mão de obra | Listas, detalhes e formulários específicos, com efeitos e permissões auditados | Fase 5 · P11/P13 |
 | S04 | Suínos: ração e fórmulas | Reaproveitar R01/R02 apenas nos contratos suportados pela espécie | Fase 4 · P09/P11 |

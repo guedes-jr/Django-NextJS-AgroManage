@@ -2,8 +2,11 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useReportWebVitals } from "next/web-vitals";
+
+const metaPixelId = "1057606317278974";
+const googleTagManagerId = "GTM-THDQ3ZBW";
 
 const createSessionId = () => {
   const bytes = new Uint8Array(16);
@@ -47,6 +50,7 @@ function sendInternalEvent(event_name:string,value?:number,metadata:Record<strin
 export function MarketingAnalytics() {
   const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
   const pathname = usePathname();
+  const hasMounted = useRef(false);
   useReportWebVitals(metric=>sendInternalEvent(`web_vital.${metric.name.toLowerCase()}`,metric.value,{rating:metric.rating,id:metric.id}));
 
   useEffect(() => {
@@ -62,16 +66,54 @@ export function MarketingAnalytics() {
     return () => document.removeEventListener("click", click);
   }, []);
 
-  useEffect(() => { const variant=getVariant();document.documentElement.dataset.marketingVariant=variant;window.gtag?.("event", "page_view", { page_path: pathname,variant });sendInternalEvent("page_view"); }, [pathname]);
-  if (!measurementId) return null;
+  useEffect(() => {
+    const variant = getVariant();
+    document.documentElement.dataset.marketingVariant = variant;
+    if (hasMounted.current) window.fbq?.("track", "PageView");
+    else hasMounted.current = true;
+    window.gtag?.("event", "page_view", { page_path: pathname, variant });
+    sendInternalEvent("page_view");
+  }, [pathname]);
 
   return <>
-    <Script src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`} strategy="afterInteractive" />
-    <Script id="agromanage-analytics" strategy="afterInteractive">{`
-      window.dataLayer = window.dataLayer || [];
-      window.gtag = function(){dataLayer.push(arguments);};
-      gtag('js', new Date());
-      gtag('config', '${measurementId}', { send_page_view: false });
+    <Script id="meta-pixel" strategy="afterInteractive">{`
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '${metaPixelId}');
+      fbq('track', 'PageView');
     `}</Script>
+    <Script id="google-tag-manager" strategy="afterInteractive">{`
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};
+      window.gtag('js', new Date());
+      window.dataLayer.push({'gtm.start': new Date().getTime(), event:'gtm.js'});
+      (function(d,s,i){
+        var firstScript = d.getElementsByTagName(s)[0];
+        var script = d.createElement(s);
+        script.async = true;
+        script.src = 'https://www.googletagmanager.com/gtm.js?id=' + i;
+        firstScript.parentNode.insertBefore(script, firstScript);
+      })(document, 'script', '${googleTagManagerId}');
+    `}</Script>
+    <noscript
+      dangerouslySetInnerHTML={{
+        __html: `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1" alt="" />`,
+      }}
+    />
+    {measurementId && <>
+      <Script src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`} strategy="afterInteractive" />
+      <Script id="agromanage-analytics" strategy="afterInteractive">{`
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function(){window.dataLayer.push(arguments);};
+        window.gtag('js', new Date());
+        window.gtag('config', '${measurementId}', { send_page_view: false });
+      `}</Script>
+    </>}
   </>;
 }

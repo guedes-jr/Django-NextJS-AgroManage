@@ -283,6 +283,18 @@ farm/batch link. Crushing mortality uses the recorded death cause and stays null
 The report UI counts births and weanings by their own dates, includes records from
 inactive mothers, and uses only known outcomes for pregnancy/farrowing rates.
 
+### Mobile swine phase lists
+
+The existing `GET livestock/marras/`, `matrizes/`, `gestacoes/`,
+`maternidades/`, `creches/`, `crescimentos/` and `engordas/` resources accept
+`species=suinos`, `page`, `page_size` and the opt-in `view=mobile` parameter.
+Mobile responses add `count`, `page`, `page_size`, `next` and `previous` while
+retaining the existing `rows`, `kpis`, alerts and suggestions. Without
+`view=mobile`, the legacy response shape is unchanged. The counts and rows are
+organization-scoped by the existing livestock permission rules; these resources
+do not currently support a farm filter, so mobile must identify the list as
+organization-wide rather than applying a selected-farm label.
+
 ## Tenant roles and operator scope
 
 | Perfil | Operação | Financeiro | Usuários e permissões |

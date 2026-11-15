@@ -238,6 +238,16 @@ O registro retorna vinculado à entidade correta e é visível na web conforme a
 
 **Resultado demonstrável:** consultar e executar as rotinas selecionadas de uma fase produtiva com continuidade entre fases. **Dependências:** P02–P04; P09/P10 para efeitos compartilhados quando usados. **Responsáveis:** mobile/backend e usuário do segmento.
 
+**Incremento P11-A — consulta nativa inicial (15/11/2026):** adicionados o hub
+de suinocultura e listas paginadas de marrãs, matrizes, gestações, maternidade,
+creche, crescimento e engorda. As contagens vêm do servidor; os dados continuam
+somente leitura e agregados por organização porque os endpoints atuais não
+aceitam filtro por fazenda. Os endpoints só acrescentam metadados de página com
+`view=mobile`, preservando a resposta legada da web. Typecheck e lint passaram;
+testes automatizados e homologação visual/nativa ficam para a rodada final após
+a conclusão das telas. Fichas, eventos, escritas e transferências permanecem
+pendentes.
+
 ### Ordem interna sugerida
 
 1. Consulta de lotes/animais por fase e ficha resumida.
@@ -249,7 +259,7 @@ O registro retorna vinculado à entidade correta e é visível na web conforme a
 ### Tarefas
 
 - [ ] P11.01 — Mapear `livestockService.ts`, produtividade e mão de obra para as fases realmente implementadas. Identificar marrãs, matrizes, cobertura, gestação, maternidade, creche, crescimento e terminação conforme contratos vigentes.
-- [ ] P11.02 — Criar hub de fases com contagens confiáveis e lista paginada; contagens ausentes não devem ser inventadas localmente.
+- [x] P11.02 — Criar hub de fases com contagens confiáveis e lista paginada; contagens ausentes não devem ser inventadas localmente.
 - [ ] P11.03 — Detalhe com identificação, fase, fazenda, datas e eventos necessários para decidir a próxima ação. Respeitar diferenças entre animal individual e lote.
 - [ ] P11.04 — Preservar distinção entre data de nascimento, chegada e início da fase. Idade desconhecida permanece desconhecida; não substituir nascimento por entrada.
 - [ ] P11.05 — Mostrar previsões calculadas pelo servidor e indicar natureza estimada. Estar na data prevista não muda automaticamente a fase no cliente.

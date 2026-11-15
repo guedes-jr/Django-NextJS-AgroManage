@@ -1,4 +1,5 @@
 import { dairyOverviewSchema } from '../features/cattle/dairyOverviewContracts';
+import { parseSwinePhasePage, swinePhaseQuerySchema, type SwinePhaseQuery } from '../features/swine/contracts';
 import {tankWriteCommandSchema,validateTankReceipt,type TankWriteCommand} from '../features/milk/tankWriteContracts';
 import {tankFormOptionsSchema,tankFormRecordSchema,tankCommandSchema,tankFormPayload,type TankCommand} from '../features/milk/tankFormContracts';
 import {tankQualityQuerySchema,tankQualitySchema,tankQualityPageSchema,ensureTankQualityScope,type TankQualityQuery} from '../features/milk/tankQualityContracts';
@@ -383,6 +384,14 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     async reproductionPage(tokens:Tokens,language:Language,query:ReproductionQuery,signal?:AbortSignal){const q=reproductionQuerySchema.parse(query);const data=reproductionPageSchema.parse((await http.get('livestock/cattle/animals/mobile-reproduction/',{...options(language,tokens.access),params:{...q,page_size:20},signal})).data);data.results.forEach(row=>ensureReproductionScope(row,q));return data;},
     async reproductionAnimal(tokens:Tokens,language:Language,id:string,query:ReproductionQuery,signal?:AbortSignal){const q=reproductionQuerySchema.parse(query);z.uuid().parse(id);const data=reproductionDetailSchema.parse((await http.get(`livestock/cattle/animals/${id}/mobile-reproduction/`,{...options(language,tokens.access),params:{production:q.production,farm:q.farm},signal})).data);if(data.id!==id)throw Error('reproduction identity');return ensureReproductionScope(data,q);},
     async cattleOverview(tokens:Tokens,language:Language,production:Production,farm?:string,signal?:AbortSignal){return cattleOverviewSchema.parse((await http.get('livestock/cattle/overview/',{...options(language,tokens.access),params:{production:productionSchema.parse(production),...(farm?{farm:z.uuid().parse(farm)}:{})},signal})).data);},
+    async swinePhasePage(tokens:Tokens,language:Language,query:SwinePhaseQuery,signal?:AbortSignal){
+      const value=swinePhaseQuerySchema.parse(query);
+      const endpoints={marras:'livestock/marras/',matrizes:'livestock/matrizes/',gestacao:'livestock/gestacoes/',maternidade:'livestock/maternidades/',creche:'livestock/creches/',crescimento:'livestock/crescimentos/',engorda:'livestock/engordas/'};
+      const data=(await http.get(endpoints[value.phase],{...options(language,tokens.access),params:{species:'suinos',page:value.page,page_size:value.page_size,view:'mobile'},signal})).data;
+      const result=parseSwinePhasePage(value.phase,data);
+      if(result.page!==value.page||result.page_size!==value.page_size||result.next!==(result.page*result.page_size<result.count)||result.previous!==(result.page>1))throw new Error('invalid swine pagination');
+      return result;
+    },
     async saveCattleBatch(tokens:Tokens,language:Language,values:BatchInput,production:Production,farm:string,id?:string){
       const config={...options(language,tokens.access),params:{production:productionSchema.parse(production),...(id?{farm:z.uuid().parse(farm)}:{})}};
       const response=id?await http.patch(`livestock/cattle/batches/${z.uuid().parse(id)}/`,batchPayload(values),config):await http.post('livestock/cattle/batches/',batchPayload(values,{farm,production}),config);

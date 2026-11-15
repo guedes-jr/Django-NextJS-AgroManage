@@ -52,13 +52,14 @@ import {batchInputSchema,canEditBatch,canTransfer,transferInput,matchesPreview,t
 import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,type MilkValues,type MilkQuery } from '../milk/contracts';
 import { canReadDairyFeeding,canWriteDairyFeeding,dairyFeedingCatalogQuerySchema,dairyFeedingCancellationSchema,dairyFeedingCommandSchema,type DairyFeedingCatalogQuery,type DairyFeedingWrite } from '../milk/dairyFeedingContracts';
 import { organizationDay } from '../workspace/contracts';
+import { canOpenModule, canLoadFinancialHome } from '../home/contracts';
+import type { SwinePhase } from '../swine/contracts';
 import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalInputSchema, weightInputSchema, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../cattle/contracts';
 import { canSearch, type SearchQuery } from '../workspace/contracts';
 import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
 import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
-import { canLoadFinancialHome } from '../home/contracts';
 
 export interface TokenVault {
   read(): Promise<Tokens | null>;
@@ -326,6 +327,13 @@ export class SessionController {
   private cattleRead<T>(read:(tokens:Tokens)=>Promise<T>){
     if(this.state.status!=='signedIn'||!canReadCattle(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
     return this.workspaceRead(read);
+  }
+  private swineRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canOpenModule(this.state.session.user.access,'swine'))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(read);
+  }
+  swinePhasePage(phase:SwinePhase,page:number,pageSize:number,signal?:AbortSignal){
+    return this.swineRead(tokens=>this.api.swinePhasePage(tokens,this.language,{phase,page,page_size:pageSize},signal));
   }
   birthOptions(id:string,production:Production,farm:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canCreateCattle(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(tokens=>this.api.birthOptions(tokens,this.language,id,production,farm,signal));}
   private birthReview?:{token:string;key:string;epoch:number;id:string;production:Production};

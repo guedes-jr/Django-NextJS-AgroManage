@@ -183,6 +183,7 @@ O passo 4 não precisa esperar todos os módulos nem persistência offline. P17 
    Trato diário também recebeu P04.13: cartões por lote, consulta/ficha com busca e detalhes progressivos e bloqueio quando o histórico pertence a outro dia operacional. Formulário, efeitos de estoque e reconciliação permanecem nos contratos existentes; aceite nativo pendente.
 5. P04.15 recebeu revisão de textos/contagens/estados vazios e datas acessíveis da Agenda nos quatro idiomas, com 24 testes direcionados, TypeScript e ESLint aprovados. Conferência visual/leitor de tela permanece pendente. Demonstrar a jornada em Android/iOS e registrar limitações (P04.14/P17). Código e prévia web são etapas de validação, não homologação nativa.
 6. P07.17-A/B implementados: histórico paginado e formulário multi-grupo com seleção paginada de animais/rações, revisão explícita, estimativas identificadas, escrita online, recibo idempotente e cancelamento justificável. Acesso permanece restrito a admin/gestor; feeder/tratador e operador continuam no trato diário existente. Nenhum envio operacional real foi feito; a homologação visual/nativa ainda é necessária.
+7. Por solicitação do usuário (15/11/2026), P11-A foi implementado antes da rodada final de testes: hub e listas paginadas somente leitura por fase, com typecheck e lint aprovados. Testes automatizados, revisão visual e homologação Android/iOS ficam para depois da conclusão das telas; não iniciar escritas suínas até auditar os contratos específicos e selecionar a rotina.
 
 ### Dependências do incremento, sem reiniciar a fundação
 
