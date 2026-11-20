@@ -110,9 +110,17 @@ def crops_general_report(request):
         due_date__range=(start_date, end_date),
     ).exclude(status=Transaction.Status.CANCELLED).select_related("category")
 
+    from apps.crops.selectors import manual_expense_filter, operation_costs
+
     expense_by_cycle = defaultdict(Decimal)
     revenue_actual_by_cycle = defaultdict(Decimal)
     costs_by_category = defaultdict(Decimal)
+    # Operation costs come from the records (same value as each operation page);
+    # finance mirrors of those operations are skipped to avoid double counting.
+    for (cycle_id, category), amount in operation_costs(cycles, start_date, end_date).items():
+        expense_by_cycle[cycle_id] += amount
+        costs_by_category[category] += amount
+    transactions = transactions.filter(manual_expense_filter())
     for transaction in transactions:
         if transaction.category.category_type == FinancialCategory.CategoryType.EXPENSE:
             expense_by_cycle[transaction.planting_cycle_id] += transaction.amount
@@ -310,71 +318,15 @@ def _crop_automatic_reference_q():
 
 def _crop_operation_costs(organization, start, end):
     """Cost of crop operations performed in the period, grouped by finance category name."""
-    from apps.crops.models import (
-        Fertigation,
-        Fertilization,
-        Harvest,
-        Irrigation,
-        LaborRecord,
-        LandPreparation,
-        PesticideApplication,
-        PesticideApplicationEquipment,
-        Planting,
-    )
+    from collections import defaultdict
 
-    def total(queryset, field):
-        return queryset.aggregate(total=Sum(field))["total"] or Decimal("0")
+    from apps.crops.selectors import operation_costs
 
-    scope = {"plantation__organization": organization}
-    costs = {
-        "Plantio": total(
-            Planting.objects.filter(**scope, planting_date__range=(start, end)), "total_price"
-        ),
-        "Adubação": total(
-            Fertilization.objects.filter(**scope, application_date__range=(start, end)),
-            "total_price",
-        ),
-        "Fertirrigação": total(
-            Fertigation.objects.filter(**scope, application_date__range=(start, end)),
-            "total_price",
-        ),
-        "Defensivos": total(
-            PesticideApplication.objects.filter(**scope, application_date__range=(start, end)),
-            "total_price",
-        )
-        + total(
-            PesticideApplicationEquipment.objects.filter(
-                application__plantation__organization=organization,
-                application__application_date__range=(start, end),
-            ),
-            "total_price",
-        ),
-        "Irrigação": total(
-            Irrigation.objects.filter(**scope)
-            .annotate(cost_date=Coalesce("start_date", "date"))
-            .filter(cost_date__range=(start, end)),
-            "energy_cost",
-        ),
-        "Máquinas": sum(
-            (
-                prep.total_price
-                for prep in LandPreparation.objects.filter(**scope, date__range=(start, end))
-            ),
-            Decimal("0"),
-        ),
-        "Mão de Obra": total(
-            LaborRecord.objects.filter(**scope, activity_date__range=(start, end)),
-            "total_amount",
-        ),
-        "Embalagem": total(
-            Harvest.objects.filter(
-                planting_cycle__organization=organization,
-                harvest_date__range=(start, end),
-            ),
-            "packing_cost",
-        ),
-    }
-    return {name: value for name, value in costs.items() if value}
+    totals = defaultdict(Decimal)
+    cycles = PlantingCycle.objects.filter(organization=organization)
+    for (_, category), amount in operation_costs(cycles, start, end).items():
+        totals[category] += amount
+    return {name: value for name, value in totals.items() if value}
 
 
 @api_view(["GET"])

@@ -60,12 +60,23 @@ from .services import (
     create_labor_record, create_harvest,
     update_harvest, delete_harvest,
     create_crop_sale, update_crop_sale, delete_crop_sale,
+    update_crop_operation, delete_crop_operation,
 )
 from .selectors import (
     get_plantation_dashboard,
     get_plantation_indicators,
     get_crops_dashboard,
 )
+
+
+class CropOperationFinanceMixin:
+    """Edits and deletions of crop operations keep their finance expense aligned."""
+
+    def perform_update(self, serializer):
+        update_crop_operation(serializer, self.request)
+
+    def perform_destroy(self, instance):
+        delete_crop_operation(instance)
 
 
 def _consolidate_shared_equipments(applications):
@@ -233,7 +244,7 @@ class HarvestBuyerViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class PlantingViewSet(viewsets.ModelViewSet):
+class PlantingViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = PlantingSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -254,7 +265,7 @@ class PlantingViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class FertilizationViewSet(viewsets.ModelViewSet):
+class FertilizationViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = FertilizationSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -275,7 +286,7 @@ class FertilizationViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class FertigationViewSet(viewsets.ModelViewSet):
+class FertigationViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = FertigationSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -330,7 +341,7 @@ class FertigationViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class PesticideApplicationViewSet(viewsets.ModelViewSet):
+class PesticideApplicationViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = PesticideApplicationSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -375,7 +386,7 @@ class PesticideApplicationViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class IrrigationViewSet(viewsets.ModelViewSet):
+class IrrigationViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = IrrigationSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -502,7 +513,7 @@ class TractorViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class LandPreparationViewSet(viewsets.ModelViewSet):
+class LandPreparationViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = LandPreparationSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -545,7 +556,7 @@ class LaborWorkerViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class LaborRecordViewSet(viewsets.ModelViewSet):
+class LaborRecordViewSet(CropOperationFinanceMixin, viewsets.ModelViewSet):
     serializer_class = LaborRecordSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}

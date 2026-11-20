@@ -26,6 +26,7 @@ type PlantingOperation = {
   operator?: string | null;
 };
 type ApplicationOperation = {
+  equipments?: { total_price?: string | number | null }[];
   id: string;
   application_date?: string | null;
   item_name?: string | null;
@@ -931,7 +932,11 @@ const irrigationSystemOptions = [
   const seedCost = sumTotalPrice(plantings);
   const fertilizationCost = sumTotalPrice(fertilizations);
   const fertigationCost = sumTotalPrice(fertigations);
-  const pesticideCost = sumTotalPrice(pesticides);
+  // Same cost shown in "Foliares / Defensivos": product + equipment of each application.
+  const pesticideCost = pesticides.reduce(
+    (acc, record) => acc + numericValue(record.total_price) + (record.equipments || []).reduce((sum, equipment) => sum + numericValue(equipment.total_price), 0),
+    0,
+  );
   const irrigationCost = irrigations.reduce((acc, record) => acc + numericValue(record.energy_cost), 0);
   const landPreparationCost = landPreparations.reduce((acc, record) => acc + numericValue(record.total_price ?? record.total_amount), 0);
   const laborCost = laborRecords.reduce((acc, record) => acc + laborRecordTotal(record), 0);

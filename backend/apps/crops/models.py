@@ -179,7 +179,13 @@ class PlantingCycle(BaseModel):
         fertigation_total = self.fertigations.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
 
         # Pesticide/foliar application operations (defensivos/foliares)
-        pesticide_total = self.pesticide_applications.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
+        pesticide_total = (
+            self.pesticide_applications.aggregate(total=models.Sum("total_price"))["total"] or Decimal("0")
+        ) + (
+            PesticideApplicationEquipment.objects.filter(application__plantation=self)
+            .aggregate(total=models.Sum("total_price"))["total"]
+            or Decimal("0")
+        )
 
         # Irrigation energy cost
         irrigation_total = self.irrigations.aggregate(total=models.Sum("energy_cost"))["total"] or Decimal("0")
@@ -695,6 +701,9 @@ class Harvest(BaseModel):
         KG = "kg", "Kg"
         BOX = "box", "Caixa"
         TRUCK = "truck", "Carreta"
+        BALE = "bale", "Fardo"
+        SACK = "sack", "Saco"
+        BUNDLE = "bundle", "Feixe"
 
     class PackageType(models.TextChoices):
         SACK = "sack", "Sacos"
@@ -708,7 +717,8 @@ class Harvest(BaseModel):
         max_length=20, choices=HarvestType.choices, default=HarvestType.PARTIAL
     )
     harvest_date = models.DateField()
-    yield_kg = models.DecimalField(max_digits=14, decimal_places=2)
+    # Kg equivalent: equals quantity for kg; for other units only when unit_weight_kg is known.
+    yield_kg = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     yield_per_ha_kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     destination = models.CharField(
         max_length=20, choices=Destination.choices, default=Destination.SALE
@@ -724,7 +734,7 @@ class Harvest(BaseModel):
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     revenue_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     quality_grade = models.CharField(max_length=50, blank=True)
-    # Quantity as informed by the user; yield_kg keeps the kg equivalent.
+    # Quantity in the unit chosen at harvest time (kept as informed by the user).
     quantity = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     quantity_unit = models.CharField(
         max_length=10, choices=QuantityUnit.choices, default=QuantityUnit.KG
@@ -760,7 +770,7 @@ class Harvest(BaseModel):
         ]
 
     def __str__(self) -> str:
-        return f"{self.planting_cycle} — {self.harvest_date} ({self.yield_kg} kg)"
+        return f"{self.planting_cycle} — {self.harvest_date} ({self.quantity} {self.get_quantity_unit_display()})"
 
     def save(self, *args, **kwargs):
         if self.buyer and not self.buyer_name:
@@ -774,6 +784,8 @@ class Harvest(BaseModel):
             self.yield_kg = self.quantity
         elif self.unit_weight_kg:
             self.yield_kg = (self.quantity * self.unit_weight_kg).quantize(Decimal("0.01"))
+        else:
+            self.yield_kg = None
 
         if self.packaged and self.package_count:
             count = Decimal(self.package_count)
@@ -792,7 +804,7 @@ class Harvest(BaseModel):
             self.packing_other_costs = Decimal("0")
             self.packing_cost = Decimal("0")
 
-        if self.destination == self.Destination.SALE and self.unit_price:
+        if self.destination == self.Destination.SALE and self.unit_price and self.yield_kg:
             self.revenue_amount = (self.yield_kg * self.unit_price).quantize(Decimal("0.01"))
         else:
             self.revenue_amount = Decimal("0")

@@ -21,14 +21,13 @@ def get_plantation_dashboard(plantation):
     investment = plantation.investment_total
     real_revenue = (
         plantation.finance_transactions.filter(category__category_type="revenue")
+        .exclude(status="cancelled")
         .aggregate(total=Sum("amount"))["total"]
         or Decimal("0")
     )
-    real_expenses = (
-        plantation.finance_transactions.filter(category__category_type="expense")
-        .aggregate(total=Sum("amount"))["total"]
-        or Decimal("0")
-    )
+    # Expenses come from the operation records (same base as investment_total),
+    # not from finance mirrors that may be outdated.
+    real_expenses = investment
 
     estimated_revenue = plantation.estimated_revenue or Decimal("0")
     estimated_production = plantation.estimated_production_kg or Decimal("0")
@@ -167,3 +166,50 @@ def get_plantation_indicators(plantation):
         "estimated_production_kg": str(plantation.estimated_production_kg or "0"),
         "estimated_bags": str(plantation.estimated_bags or "0"),
     }
+
+
+def operation_costs(cycles, start=None, end=None):
+    """Cost of crop operations per (cycle id, finance category) from the records.
+
+    The single source for every crop cost screen: the same cost each operation
+    page shows (pesticides include their equipment), plus harvest packing. Dates
+    use the operation date; ``start``/``end`` are optional inclusive bounds.
+    """
+    from collections import defaultdict
+
+    from . import models as crop_models
+    from .finance_sync import SPECS
+
+    def in_range(day):
+        return day is not None and (start is None or day >= start) and (end is None or day <= end)
+
+    totals = defaultdict(Decimal)
+    for spec in SPECS:
+        queryset = getattr(crop_models, spec.model_name).objects.filter(plantation__in=cycles)
+        if spec.model_name == "PesticideApplication":
+            queryset = queryset.prefetch_related("equipments")
+        for record in queryset:
+            if in_range(spec.date(record)):
+                cost = spec.cost(record)
+                if cost:
+                    totals[(record.plantation_id, spec.category)] += cost
+    for harvest in crop_models.Harvest.objects.filter(planting_cycle__in=cycles, packing_cost__gt=0):
+        if in_range(harvest.harvest_date):
+            totals[(harvest.planting_cycle_id, "Embalagem")] += harvest.packing_cost
+    return totals
+
+
+AUTOMATIC_REFERENCE_PREFIXES = (
+    "PLANTING-", "FERTILIZATION-", "FERTIGATION-", "PESTICIDE-", "IRRIGATION-",
+    "LANDPREP-", "LABOR-", "HARVEST-PACK-",
+)
+
+
+def manual_expense_filter():
+    """Q that excludes the finance mirrors of crop operations (keeps manual entries)."""
+    from django.db.models import Q
+
+    automatic = Q()
+    for prefix in AUTOMATIC_REFERENCE_PREFIXES:
+        automatic |= Q(reference__startswith=prefix)
+    return ~(automatic & ~Q(reference__startswith="LABOR-SWINE-"))

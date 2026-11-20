@@ -47,6 +47,11 @@ O código vence a documentação. Se divergirem, siga o código e aponte o docum
 - Todo pressionável tem pelo menos 44 × 44. Ícone ou círculo menor ganha `hitSlop` ou área externa.
 - Permita quebra de linha para nomes e estados; trunque apenas informação secundária disponível no detalhe. Teste fonte ampliada, safe areas, teclado, largura pequena e larga, Android e iOS. Prévia web não comprova o comportamento nativo.
 
+## Regras de negócio obrigatórias
+
+- **Mudança que envolve valores** (custo, receita, preço, quantidade, lançamento financeiro, operação que gera despesa ou receita): revise **todas** as dashboards e totais que consomem esse valor antes de concluir, incluindo lançamentos antigos. No mínimo: dashboard geral (`backend/apps/reports/views.py` → `dashboard_summary`, cards de segmentos e KPIs), home e detalhe do segmento (ex.: `PlantacoesDashboard`, `plantacoes/[id]`), relatórios gerais e o Financeiro. Para plantações, o custo de cada operação sai de `apps/crops/finance_sync.py` (`SPECS`/`operation_cost`) e os totais de `apps/crops/selectors.py` (`operation_costs`). Não some valores por outro caminho. Se a regra de cálculo mudar, rode `python manage.py sync_crop_finance --dry-run` e informe o que mudaria nos dados existentes.
+- **Novo segmento** (ou nova área contratável): adicione também o card dele na dashboard geral (`segments` em `dashboard_summary` e `SegmentCard` em `frontend/src/app/home/page.tsx`), com custo, receita, resultado e composição, além do item no menu lateral (`AppSidebar`, seção Segmentos).
+
 ## Checklist antes de concluir mudança visual
 
 1. Contexto, dados e próxima ação ficam claros na primeira dobra (cabeçalho, filtros e toolbar com no máximo 25–30% da altura).

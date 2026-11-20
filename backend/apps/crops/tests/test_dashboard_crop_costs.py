@@ -95,12 +95,15 @@ class HarvestPackingAndSalesTestCase(CropDashboardCostTestCase):
         from apps.finance.models import Transaction
         self.assertFalse(Transaction.objects.filter(reference=f"HARVEST-PACK-{harvest_id}").exists())
 
-    def test_box_without_weight_is_rejected(self):
+    def test_harvest_keeps_the_unit_chosen(self):
         response = self.client.post(reverse("crops-harvests-list"), {
             "planting_cycle": str(self.plantation.id), "harvest_date": date.today().isoformat(),
-            "quantity": "10", "quantity_unit": "box", "destination": "stock",
+            "quantity": "120", "quantity_unit": "bundle", "destination": "stock",
         }, format="json")
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["quantity_unit"], "bundle")
+        self.assertEqual(Decimal(response.data["quantity"]), Decimal("120"))
+        self.assertIsNone(response.data["yield_kg"])
 
     def test_legacy_yield_kg_payload_still_works(self):
         response = self.client.post(reverse("crops-harvests-list"), {
@@ -140,3 +143,11 @@ class HarvestPackingAndSalesTestCase(CropDashboardCostTestCase):
         self.client.force_authenticate(self.user)
         self.assertEqual(self.client.delete(reverse("crops-sales-detail", args=[sale_id])).status_code, 204)
         self.assertFalse(Transaction.objects.filter(reference=f"CROPSALE-{sale_id}").exists())
+
+    def test_harvest_in_bales_converts_to_kg(self):
+        response = self.client.post(reverse("crops-harvests-list"), {
+            "planting_cycle": str(self.plantation.id), "harvest_date": date.today().isoformat(),
+            "quantity": "200", "quantity_unit": "bale", "unit_weight_kg": "25", "destination": "stock",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Decimal(response.data["yield_kg"]), Decimal("5000"))

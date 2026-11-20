@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from django.db import transaction
 
+from .finance_sync import remove_operation_transaction, sync_operation_transaction
+
 
 @transaction.atomic
 def create_plantation(serializer, request):
@@ -116,46 +118,7 @@ def _create_stock_movement(instance, request, description):
     )
 
 
-def _create_financial_transaction(instance, request, category_name, reference_prefix):
-    """Create an expense transaction for any crop operation."""
-    from apps.finance.models import FinancialCategory, Transaction
-
-    plantation = instance.plantation
-    organization = plantation.organization
-    farm = plantation.farm
-
-    amount = getattr(instance, "total_price", Decimal("0")) or Decimal("0")
-    if hasattr(instance, "equipments"):
-        equipment_total = sum((eq.total_price or Decimal("0") for eq in instance.equipments.all()), Decimal("0"))
-        amount += equipment_total
-
-    if amount <= 0:
-        return
-
-    category, _ = FinancialCategory.objects.get_or_create(
-        organization=organization,
-        name=category_name,
-        category_type="expense",
-    )
-
-    item_desc = f" — {instance.item}" if hasattr(instance, "item") and instance.item else ""
-    due_date = getattr(instance, "application_date", None) or getattr(instance, "planting_date", None) or getattr(instance, "date", None)
-
-    Transaction.objects.create(
-        organization=organization,
-        farm=farm,
-        category=category,
-        description=f"{category_name}: {plantation}{item_desc}",
-        amount=amount,
-        due_date=due_date,
-        payment_date=due_date,
-        status="paid",
-        planting_cycle=plantation,
-        reference=f"{reference_prefix}-{instance.id}",
-    )
-
-
-def _process_operation(instance, request, category_name, reference_prefix):
+def _process_operation(instance, request, category_name, reference_prefix):  # noqa: ARG001
     """Shared: create stock movement + financial transaction for an operation."""
     instance = _ensure_stock_lot_and_prices(instance)
     item_nome = instance.item.nome if hasattr(instance.item, "nome") else str(instance.item)
@@ -163,7 +126,7 @@ def _process_operation(instance, request, category_name, reference_prefix):
     desc = f"{category_name}: {instance.plantation} — {item_nome} ({date_str})"
 
     _create_stock_movement(instance, request, desc)
-    _create_financial_transaction(instance, request, category_name, reference_prefix)
+    sync_operation_transaction(instance, request.user)
 
 
 # ── Operation services ────────────────────────────────────────────────────
@@ -234,30 +197,7 @@ def create_irrigation(serializer, request):
     Creates a financial transaction if energy_cost > 0.
     """
     irrigation = serializer.save()
-
-    if irrigation.energy_cost and irrigation.energy_cost > 0:
-        from apps.finance.models import FinancialCategory, Transaction
-
-        plantation = irrigation.plantation
-        category, _ = FinancialCategory.objects.get_or_create(
-            organization=plantation.organization,
-            name="Irrigação",
-            category_type="expense",
-        )
-
-        Transaction.objects.create(
-            organization=plantation.organization,
-            farm=plantation.farm,
-            category=category,
-            description=f"Irrigação: {plantation} — {irrigation.start_date or irrigation.date}",
-            amount=irrigation.energy_cost,
-            due_date=irrigation.start_date or irrigation.date,
-            payment_date=irrigation.start_date or irrigation.date,
-            status="paid",
-            planting_cycle=plantation,
-            reference=f"IRRIGATION-{irrigation.id}",
-        )
-
+    sync_operation_transaction(irrigation, request.user)
     return irrigation
 
 
@@ -265,8 +205,7 @@ def create_irrigation(serializer, request):
 def create_land_preparation(serializer, request):
     """Register a land preparation operation and its cost transaction."""
     prep = serializer.save()
-    if prep.total_price > 0:
-        _create_financial_transaction(prep, request, "Máquinas", "LANDPREP")
+    sync_operation_transaction(prep, request.user)
     return prep
 
 
@@ -274,31 +213,7 @@ def create_land_preparation(serializer, request):
 def create_labor_record(serializer, request):
     """Register a labor record and create its financial expense."""
     labor_record = serializer.save()
-
-    if labor_record.total_amount and labor_record.total_amount > 0:
-        from apps.finance.models import FinancialCategory, Transaction
-
-        plantation = labor_record.plantation
-        category, _ = FinancialCategory.objects.get_or_create(
-            organization=plantation.organization,
-            name="Mão de Obra",
-            category_type="expense",
-        )
-
-        Transaction.objects.create(
-            organization=plantation.organization,
-            farm=plantation.farm,
-            category=category,
-            description=f"Mão de Obra: {plantation} — {labor_record.worker}",
-            amount=labor_record.total_amount,
-            due_date=labor_record.activity_date,
-            payment_date=labor_record.activity_date,
-            status="paid",
-            planting_cycle=plantation,
-            reference=f"LABOR-{labor_record.id}",
-            created_by=request.user if request.user.is_authenticated else None,
-        )
-
+    sync_operation_transaction(labor_record, request.user)
     return labor_record
 
 
@@ -512,3 +427,19 @@ def delete_crop_sale(sale):
         organization=sale.organization, reference=f"CROPSALE-{sale.id}"
     ).delete()
     sale.delete()
+
+
+# ── Edit / delete of crop operations keep the finance mirror aligned ─────
+
+
+@transaction.atomic
+def update_crop_operation(serializer, request):
+    instance = serializer.save()
+    sync_operation_transaction(instance, request.user)
+    return instance
+
+
+@transaction.atomic
+def delete_crop_operation(instance):
+    remove_operation_transaction(instance)
+    instance.delete()

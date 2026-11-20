@@ -508,13 +508,16 @@ class HarvestSerializer(serializers.ModelSerializer):
             error_field = "quantity" if "quantity" in self.initial_data else "yield_kg"
             raise serializers.ValidationError({error_field: translate_message("A quantidade colhida deve ser maior que zero.")})
         unit = current("quantity_unit", Harvest.QuantityUnit.KG)
+        unit_weight = current("unit_weight_kg")
+        if unit_weight is not None and unit_weight <= 0:
+            raise serializers.ValidationError({"unit_weight_kg": translate_message("O peso por unidade deve ser maior que zero.")})
         if unit == Harvest.QuantityUnit.KG:
             attrs["yield_kg"] = quantity
-        else:
-            unit_weight = current("unit_weight_kg")
-            if not unit_weight or unit_weight <= 0:
-                raise serializers.ValidationError({"unit_weight_kg": translate_message("Informe quantos kg tem cada unidade colhida.")})
+        elif unit_weight:
             attrs["yield_kg"] = (quantity * unit_weight).quantize(Decimal("0.01"))
+        else:
+            # The unit chosen at harvest is kept; there is no kg equivalent.
+            attrs["yield_kg"] = None
         if current("packaged", False):
             if not current("package_type"):
                 raise serializers.ValidationError({"package_type": translate_message("Informe o tipo de embalagem.")})

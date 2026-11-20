@@ -3669,3 +3669,17 @@ transactions; the automatic mirrors (`PLANTING-`, `FERTILIZATION-`,
 `FERTIGATION-`, `PESTICIDE-`, `IRRIGATION-`, `LANDPREP-`, `LABOR-`,
 `HARVEST-PACK-`) are excluded to avoid double counting. Land preparation
 `operation_type` also accepts `plantio` and `colheita`.
+
+### Crop operation costs: single source and finance sync
+
+`apps/crops/finance_sync.py` defines the cost of each crop operation (pesticides =
+product + equipment; irrigation = energy; land preparation = own hours + fuel;
+labor = daily quantity × rate). Create, **edit and delete** of planting,
+fertilization, fertigation, pesticide, irrigation, land preparation and labor
+records keep the finance expense (`<PREFIX>-<id>`) aligned; expenses the user
+cancelled in Finance are left untouched. `investment_total`, the plantation
+dashboard (`real_profit` = revenue − investment), the general crop report and the
+organization dashboard read costs from `apps/crops/selectors.operation_costs`.
+Old data: `python manage.py sync_crop_finance [--organization <slug>] [--dry-run]`
+recalculates amounts, creates missing expenses and cancels (never deletes)
+expenses whose operation no longer exists.
