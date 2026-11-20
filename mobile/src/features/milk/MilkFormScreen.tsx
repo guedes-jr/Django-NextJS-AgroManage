@@ -1,5 +1,5 @@
 import { useEffect,useId,useRef,useState } from 'react';
-import { Alert,KeyboardAvoidingView,Platform,ScrollView,Text,TextInput,View } from 'react-native';
+import { Alert,KeyboardAvoidingView,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
 import { useLocalSearchParams,usePreventRemove,useRouter } from 'expo-router';
 import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { Controller,useForm } from 'react-hook-form';
@@ -11,7 +11,7 @@ import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { workspaceMessages } from '../workspace/messages';
 import { organizationDay } from '../workspace/contracts';
 import { canCreateCattle } from '../cattle/contracts';
-import { AgendaShell,AgendaButton,Busy,styles as s } from '../agenda/ui';
+import { AgendaShell,AgendaButton,Busy,FormField,styles as s } from '../agenda/ui';
 import { AuthFailure,MilkPeriodReadOnly } from '../../services/authApi';
 import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,type MilkValues } from './contracts';
 import { milkMessages } from './messages';
@@ -40,7 +40,7 @@ export function MilkFormScreen(){
 }
 function MilkEditor({command,initial,label}:{command:MilkCommand;initial:MilkValues;label:string}){
  const {controller,language}=useAuth();const t=milkMessages[language],w=workspaceMessages[language];const router=useRouter();const client=useQueryClient();const [session,setSession]=useState(command.mode==='individual'?command.session:'morning');
- const {control,handleSubmit,formState:{isDirty,isSubmitting,errors}}=useForm<MilkValues>({resolver:zodResolver(milkValuesSchema(command.mode)),defaultValues:initial});
+ const {control,handleSubmit,setFocus,getValues,formState:{isDirty,isSubmitting,errors}}=useForm<MilkValues>({resolver:zodResolver(milkValuesSchema(command.mode)),defaultValues:initial});
  const [message,setMessage]=useState(''),[uncertain,setUncertain]=useState(false),[saved,setSaved]=useState(false),[discarding,setDiscarding]=useState(false);const saving=useRef(false),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
  usePreventRemove(!saved&&!discarding&&(isDirty||isSubmitting||uncertain||(command.mode==='individual'&&session!==command.session)),({repeat})=>{if(saving.current)return;const leave=()=>{setDiscarding(true);repeat();};if(Platform.OS==='web'){if(window.confirm(`${t.discardTitle}\n${t.discardBody}`))leave();}else Alert.alert(t.discardTitle,t.discardBody,[{text:t.stay,style:'cancel'},{text:t.discard,style:'destructive',onPress:leave}]);});
@@ -53,11 +53,13 @@ function MilkEditor({command,initial,label}:{command:MilkCommand;initial:MilkVal
   finally{saving.current=false;}
  };
  const disabled=isSubmitting||uncertain||saved;
- const input=(name:keyof MilkValues,label:string,multiline=false)=><View key={name} style={{gap:6}}><Text style={s.label}>{label}</Text><Controller control={control} name={name} render={({field})=><TextInput accessibilityLabel={label} value={field.value} ref={field.ref} onChangeText={field.onChange} onBlur={field.onBlur} editable={!disabled} keyboardType={name==='liters'||name==='discarded_liters'?'decimal-pad':'default'} multiline={multiline} style={[s.input,multiline&&{minHeight:80,textAlignVertical:'top',paddingVertical:12},errors[name]&&{borderColor:'#9A3028'}]}/>} /></View>;
+ const fieldError=(name:keyof MilkValues)=>{const code=errors[name]?.message;return !errors[name]?undefined:code==='positive'||(name==='liters'&&!getValues('liters').trim())?t.errPositive:code==='discard'?t.errDiscard:code==='reason'?t.errReason:t.errFormat;};
+ const volume=(name:keyof MilkValues)=>name==='liters'||name==='discarded_liters';
+ const input=(name:keyof MilkValues,label:string,multiline=false,next?:keyof MilkValues)=><FormField key={name} label={volume(name)?label.replace(/\s*\(L\)\s*$/,''):label} unit={volume(name)?'L':undefined} error={fieldError(name)}><Controller control={control} name={name} render={({field})=><TextInput accessibilityLabel={label} value={field.value} ref={field.ref} onChangeText={field.onChange} onBlur={field.onBlur} editable={!disabled} keyboardType={volume(name)?'decimal-pad':'default'} returnKeyType={multiline?'default':next?'next':'done'} onSubmitEditing={next?()=>setFocus(next):undefined} submitBehavior={next?'submit':undefined} selectTextOnFocus={volume(name)} multiline={multiline} style={[s.fieldControl,multiline&&{minHeight:80,textAlignVertical:'top',paddingVertical:12}]}/>} /></FormField>;
  return <AgendaShell title={command.id?t.edit:command.mode==='total'?t.newTotal:t.newIndividual} backLabel={w.back} onBack={back}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
   <View style={s.card}><Text style={s.title}>{label}</Text><Text style={s.body}>{new Intl.DateTimeFormat(language,{dateStyle:'long'}).format(new Date(`${command.date}T12:00:00`))}</Text></View><Text style={s.muted}>{t.modeHint}</Text>{command.id&&<Text style={s.muted}>{t.scope}</Text>}
-  {command.mode==='individual'&&<><Text style={s.label}>{t.session}</Text><View style={s.row}>{(['morning','afternoon','evening'] as const).map(value=><AgendaButton key={value} label={t[value]} selected={session===value} disabled={disabled||!!command.id} onPress={()=>setSession(value)}/>)}</View><Text style={s.muted}>{t.withdrawal}</Text></>}
-  {input('liters',t.produced)}{input('discarded_liters',t.discarded)}{input('discard_reason',t.reason)}{input('notes',t.notes,true)}{!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}
-  <AgendaButton label={isSubmitting?t.saving:t.save} disabled={disabled} onPress={()=>{void handleSubmit(persist,()=>setMessage(t.invalid))();}}/>{uncertain&&<AgendaButton label={t.review} onPress={()=>router.push('/milk')}/>}
+  {command.mode==='individual'&&<View style={{gap:6}}><Text style={s.label}>{t.session}</Text><View accessibilityRole="radiogroup" style={[s.viewTabs,{alignSelf:'stretch'}]}>{(['morning','afternoon','evening'] as const).map(value=><Pressable key={value} accessibilityRole="radio" accessibilityState={{checked:session===value,disabled:disabled||!!command.id}} disabled={disabled||!!command.id} onPress={()=>setSession(value)} style={[s.viewTab,{flex:1},session===value&&s.viewTabActive]}><Text style={[s.viewTabText,session===value&&s.viewTabTextActive]}>{t[value]}</Text></Pressable>)}</View><Text style={s.muted}>{t.withdrawal}</Text></View>}
+  {input('liters',t.produced,false,'discarded_liters')}{input('discarded_liters',t.discarded,false,'discard_reason')}{input('discard_reason',t.reason,false,'notes')}{input('notes',t.notes,true)}{!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}
+  <AgendaButton variant="primary" busy={isSubmitting} label={isSubmitting?t.saving:t.save} disabled={disabled} onPress={()=>{void handleSubmit(persist,()=>setMessage(t.invalid))();}}/>{uncertain&&<AgendaButton label={t.review} onPress={()=>router.push('/milk')}/>}
  </ScrollView></KeyboardAvoidingView></AgendaShell>;
 }

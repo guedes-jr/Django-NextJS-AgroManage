@@ -1,5 +1,5 @@
 import { dairyOverviewSchema } from '../features/cattle/dairyOverviewContracts';
-import { parseSwinePhasePage, swinePhaseQuerySchema, type SwinePhaseQuery } from '../features/swine/contracts';
+import { parseSwinePhasePage, swinePhaseDetailSchema, swinePhaseQuerySchema, type SwinePhaseQuery, type SwinePhase } from '../features/swine/contracts';
 import {tankWriteCommandSchema,validateTankReceipt,type TankWriteCommand} from '../features/milk/tankWriteContracts';
 import {tankFormOptionsSchema,tankFormRecordSchema,tankCommandSchema,tankFormPayload,type TankCommand} from '../features/milk/tankFormContracts';
 import {tankQualityQuerySchema,tankQualitySchema,tankQualityPageSchema,ensureTankQualityScope,type TankQualityQuery} from '../features/milk/tankQualityContracts';
@@ -391,6 +391,11 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       const result=parseSwinePhasePage(value.phase,data);
       if(result.page!==value.page||result.page_size!==value.page_size||result.next!==(result.page*result.page_size<result.count)||result.previous!==(result.page>1))throw new Error('invalid swine pagination');
       return result;
+    },
+    async swinePhaseDetail(tokens:Tokens,language:Language,phase:SwinePhase,id:string,signal?:AbortSignal){
+      const value=swinePhaseDetailSchema.parse((await http.get(`livestock/swine/phases/${phase}/${z.uuid().parse(id)}/mobile/`,{...options(language,tokens.access),params:{view:'mobile'},signal})).data);
+      if(value.phase!==phase||value.id!==id)throw Error('invalid swine detail');
+      return value;
     },
     async saveCattleBatch(tokens:Tokens,language:Language,values:BatchInput,production:Production,farm:string,id?:string){
       const config={...options(language,tokens.access),params:{production:productionSchema.parse(production),...(id?{farm:z.uuid().parse(farm)}:{})}};

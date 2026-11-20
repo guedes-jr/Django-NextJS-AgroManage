@@ -28,6 +28,7 @@ const roleConfig: Record<string, { label: TranslationKey; color: string; bg: str
   admin: { label: "users.role.admin", color: "#1e40af", bg: "#dbeafe" },
   manager: { label: "users.role.manager", color: "#166534", bg: "#dcfce7" },
   operator: { label: "users.role.operator", color: "#374151", bg: "#f3f4f6" },
+  veterinarian: { label: "users.role.veterinarian", color: "#0f766e", bg: "#ccfbf1" },
 };
 
 export default function UsuariosPage() {
@@ -283,7 +284,7 @@ export default function UsuariosPage() {
                 <label className="small fw-bold text-muted-foreground mb-1 d-block">{t("users.assignment")}</label>
                 <select className="w-100" style={{ height: '48px', padding: '0 1rem', border: '1.5px solid var(--border)', borderRadius: '12px', background: 'white' }} value={formData.role} disabled={!!editing && (editing.organization_responsible || editing.id === currentUserId)} onChange={(e) => setFormData({ ...formData, ...(e.target.value !== "operator" ? emptyOperatorScope : {}), role: e.target.value })}>
                   {Object.entries(roleConfig).map(([key, config]) => (
-                    <option key={key} value={key}>{config.label}</option>
+                    <option key={key} value={key}>{t(config.label)}</option>
                   ))}
                 </select>
               </div>

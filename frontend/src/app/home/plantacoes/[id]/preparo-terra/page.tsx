@@ -13,6 +13,7 @@ import {
   Save, 
   Check,
   Sprout,
+  Wheat,
   Pencil,
   Trash2,
   X
@@ -22,6 +23,8 @@ import apiClient from "@/services/api";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { CropPageHeader } from "@/components/crops/CropPageHeader";
+import productionStyles from "@/components/crops/production.module.css";
 import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 interface Plantation {
@@ -51,7 +54,7 @@ type LandPreparationRecord = {
   notes?: string | null;
 };
 
-type OperationType = "calagem" | "aracao" | "gradagem" | "subsolagem" | "nivelamento" | "rocagem" | "plantio" | "outro";
+type OperationType = "calagem" | "aracao" | "gradagem" | "subsolagem" | "nivelamento" | "rocagem" | "plantio" | "colheita" | "outro";
 
 type OperationDetails = Record<OperationType, {
   hoursWorked: string;
@@ -68,6 +71,7 @@ const createEmptyOperationDetails = (): OperationDetails => ({
   nivelamento: { hoursWorked: "", hourlyRate: "" },
   rocagem: { hoursWorked: "", hourlyRate: "" },
   plantio: { hoursWorked: "", hourlyRate: "" },
+  colheita: { hoursWorked: "", hourlyRate: "" },
   outro: { hoursWorked: "", hourlyRate: "" },
 });
 
@@ -135,6 +139,7 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
   nivelamento: { label: t("plantations.preparation.operation.leveling"), icon: AlignJustify },
   rocagem: { label: t("plantations.preparation.operation.weeding"), icon: Scissors },
   plantio: { label: t("plantations.preparation.operation.planting"), icon: Sprout },
+  colheita: { label: t("plantations.preparation.operation.harvest"), icon: Wheat },
   outro: { label: t("reproduction.other"), icon: MoreHorizontal },
 };
   const { id } = useParams<{ id: string }>();
@@ -321,46 +326,31 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
   }
 
   return (
-    <div className="position-relative overflow-hidden" style={{ minHeight: "100vh" }}>
+    <div className="position-relative" style={{ minHeight: "100vh" }}>
       {/* Main Layout Grid */}
       <div className="row g-4">
         <div className="col-12 transition-all">
           
-          {/* Breadcrumb */}
-          <div className="mb-3 d-flex align-items-center gap-2 text-muted small fw-medium">
-            <span style={{ cursor: "pointer" }} onClick={() => router.push(`/home/plantacoes/${id}`)} className="hover-text-primary">
-              {plantation.name || plantation.crop_name}
-            </span>
-            <span>›</span>
-            <span>{plantation.field_name || t("plantations.field")}</span>
-            <span>›</span>
-            <span className="text-primary fw-semibold">{t("plantations.common.mechanizedServices")}</span>
-          </div>
-
-          {/* Page Header */}
-          <div className="d-flex align-items-center gap-3 mb-4">
-
-            <div>
-              <h1 className="fw-black mb-1 text-foreground d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-                <Tractor size={28} className="text-primary" /> {t("plantations.common.mechanizedServices")}
-              </h1>
-              <p className="text-muted-foreground small mb-0">{t("plantations.preparation.description")}</p>
-            </div>
-          </div>
+          <CropPageHeader
+            icon={Tractor}
+            title={t("plantations.common.mechanizedServices")}
+            description={t("plantations.preparation.description")}
+            plantation={{ id, name: plantation.name || plantation.crop_name, field: plantation.field_name || t("plantations.field") }}
+          />
 
           {/* Form Content */}
           <div className="dashboard-card p-4 mb-4">
             {/* Tipo de Operação Selection */}
             <div className="mb-4">
               <label className="form-label fw-bold text-foreground mb-3 d-flex align-items-center gap-2">
-                <span className="bg-primary/10 text-primary rounded-circle d-flex align-items-center justify-content-center" style={{ width: 22, height: 22, fontSize: '0.75rem' }}>1</span>
+                <span className="text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ width: 22, height: 22, fontSize: "0.75rem", background: "color-mix(in srgb, var(--primary), transparent 88%)" }}>1</span>
                 {t("plantations.preparation.operationType")}
               </label>
               
               <div className="d-flex flex-wrap gap-2">
                 {(Object.keys(operationConfig) as OperationType[]).map((type) => {
                   const item = operationConfig[type];
-                  const key = type === "aracao" ? "plowing" : type === "gradagem" ? "harrowing" : type === "subsolagem" ? "subsoiling" : type === "nivelamento" ? "leveling" : type === "rocagem" ? "weeding" : type === "plantio" ? "planting" : type;
+                  const key = type === "aracao" ? "plowing" : type === "gradagem" ? "harrowing" : type === "subsolagem" ? "subsoiling" : type === "nivelamento" ? "leveling" : type === "rocagem" ? "weeding" : type === "plantio" ? "planting" : type === "colheita" ? "harvest" : type;
                   const label = t(`plantations.preparation.operation.${key}` as TranslationKey);
                   const Icon = item.icon;
                   const isSelected = selectedOperation === type;
@@ -496,34 +486,18 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
             </div>
 
             {/* Bottom Actions */}
-            <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top gap-3 flex-wrap">
-              <Button 
-                variant="outline-secondary" 
-                onClick={() => router.back()}
-                style={{ borderRadius: 10 }}
-              >
-
+            <div className={`${productionStyles.actions} mt-4 pt-3 border-top`}>
+              <Button variant="outline-secondary" onClick={() => router.back()}>
                 {t("cattle.form.cancel")}
               </Button>
-              <div className="d-flex gap-2">
-                <Button 
-                  variant="outline-primary" 
-                  disabled={saving}
-                  onClick={() => handleSubmit(false)}
-                  style={{ borderRadius: 10 }}
-                >
-                  <Save size={16} className="me-1.5" />
-                  {saving ? t("plantations.preparation.saving") : t("plantations.save")}
-                </Button>
-                <Button 
-                  onClick={() => handleSubmit(true)}
-                  disabled={saving}
-                  style={{ borderRadius: 10 }}
-                >
-                  <Check size={16} className="me-1.5" />
-                  {saving ? t("plantations.preparation.saving") : t("plantations.preparation.saveFinish")}
-                </Button>
-              </div>
+              <Button variant="outline-primary" disabled={saving} onClick={() => handleSubmit(false)}>
+                <Save size={16} aria-hidden="true" />
+                {saving ? t("plantations.preparation.saving") : t("plantations.save")}
+              </Button>
+              <Button onClick={() => handleSubmit(true)} disabled={saving}>
+                <Check size={16} aria-hidden="true" />
+                {saving ? t("plantations.preparation.saving") : t("plantations.preparation.saveFinish")}
+              </Button>
             </div>
           </div>
 
@@ -557,7 +531,7 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
                       {history.map((record) => (
                         <tr key={record.id}>
                           <td>{formatDate(record.date, language)}</td>
-                          <td>{record.operation_type ? t(`plantations.preparation.operation.${record.operation_type === "aracao" ? "plowing" : record.operation_type === "gradagem" ? "harrowing" : record.operation_type === "subsolagem" ? "subsoiling" : record.operation_type === "nivelamento" ? "leveling" : record.operation_type === "rocagem" ? "weeding" : record.operation_type === "plantio" ? "planting" : record.operation_type}` as TranslationKey) : normalizeOperationLabel(record.operation_type_display)}</td>
+                          <td>{record.operation_type ? t(`plantations.preparation.operation.${record.operation_type === "aracao" ? "plowing" : record.operation_type === "gradagem" ? "harrowing" : record.operation_type === "subsolagem" ? "subsoiling" : record.operation_type === "nivelamento" ? "leveling" : record.operation_type === "rocagem" ? "weeding" : record.operation_type === "plantio" ? "planting" : record.operation_type === "colheita" ? "harvest" : record.operation_type}` as TranslationKey) : normalizeOperationLabel(record.operation_type_display)}</td>
                           <td>{record.operator || "-"}</td>
                           <td>{numberText(record.hours_worked, language)} h</td>
                           <td>{money(record.hourly_rate, language)}</td>
@@ -573,8 +547,8 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
                                   width: 32,
                                   height: 32,
                                   borderRadius: 8,
-                                  border: "1px solid var(--bs-primary)",
-                                  color: "var(--bs-primary)",
+                                  border: "1px solid var(--primary)",
+                                  color: "var(--primary)",
                                   backgroundColor: "transparent",
                                   padding: 0,
                                 }}
@@ -670,7 +644,7 @@ const operationConfig: Record<OperationType, { label: string; icon: LucideIcon }
               <div className="d-flex flex-wrap gap-2">
                 {(Object.keys(operationConfig) as OperationType[]).map((type) => {
                   const item = operationConfig[type];
-                  const key = type === "aracao" ? "plowing" : type === "gradagem" ? "harrowing" : type === "subsolagem" ? "subsoiling" : type === "nivelamento" ? "leveling" : type === "rocagem" ? "weeding" : type === "plantio" ? "planting" : type;
+                  const key = type === "aracao" ? "plowing" : type === "gradagem" ? "harrowing" : type === "subsolagem" ? "subsoiling" : type === "nivelamento" ? "leveling" : type === "rocagem" ? "weeding" : type === "plantio" ? "planting" : type === "colheita" ? "harvest" : type;
                   const label = t(`plantations.preparation.operation.${key}` as TranslationKey);
                   const Icon = item.icon;
                   const isSelected = editForm.operation_type === type;

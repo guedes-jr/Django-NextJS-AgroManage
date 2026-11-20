@@ -39,6 +39,9 @@ type Copy = {
   readyNow: string;
   dailyGain: string;
   unavailable: string;
+  detail: string;
+  close: string;
+  phaseSummary: string;
   phase: Record<SwinePhase, string>;
   state: Record<string, string>;
 };
@@ -81,6 +84,9 @@ const pt: Copy = {
   readyNow: 'Pronto!',
   dailyGain: 'Ganho diário',
   unavailable: 'Não foi possível abrir esta fase.',
+  detail: 'Resumo do registro',
+  close: 'Fechar',
+  phaseSummary: 'Resumo da fase',
   phase: {
     marras: 'Marrãs',
     matrizes: 'Matrizes',
@@ -151,6 +157,9 @@ const en: Copy = {
   readyNow: 'Ready now',
   dailyGain: 'Daily gain',
   unavailable: 'Unable to open this phase.',
+  detail: 'Record summary',
+  close: 'Close',
+  phaseSummary: 'Phase summary',
   phase: {
     marras: 'Gilts',
     matrizes: 'Sows',
@@ -221,6 +230,9 @@ const es: Copy = {
   readyNow: '¡Listo!',
   dailyGain: 'Ganancia diaria',
   unavailable: 'No se pudo abrir esta fase.',
+  detail: 'Resumen del registro',
+  close: 'Cerrar',
+  phaseSummary: 'Resumen de la fase',
   phase: {
     marras: 'Primerizas',
     matrizes: 'Madres',

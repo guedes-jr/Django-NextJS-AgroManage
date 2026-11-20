@@ -235,16 +235,20 @@ def enrich_lot_costs(organization, rows):
     references = {f"PURCHASE-BATCH-{key}": key for key in ids}
     references.update({f"SALE-BATCH-{key}": key for key in ids})
     recorded_purchases = set()
+    general_labor = Decimal(0)
     for tx in (
         Transaction.objects.filter(organization=organization)
-        .filter(Q(animal_batch_id__in=ids) | Q(reference__in=references))
+        .filter(
+            Q(animal_batch_id__in=ids)
+            | Q(reference__in=references)
+            | Q(reference__startswith="LABOR-SWINE-")
+            | Q(category__name__icontains="mão de obra")
+            | Q(category__name__icontains="mao de obra")
+        )
         .select_related("category")
     ):
-        batch_id = (
-            str(tx.animal_batch_id)
-            if str(tx.animal_batch_id) in costs
-            else references.get(tx.reference)
-        )
+        linked_batch = str(tx.animal_batch_id) if str(tx.animal_batch_id) in costs else None
+        batch_id = linked_batch or references.get(tx.reference)
         if tx.reference == f"PURCHASE-BATCH-{batch_id}":
             recorded_purchases.add(batch_id)
         if tx.status == "cancelled":
@@ -254,6 +258,12 @@ def enrich_lot_costs(organization, rows):
                 sales[batch_id] += tx.amount
             continue
         category = normalize(tx.category.name)
+        is_labor = tx.reference.startswith("LABOR-SWINE-") or "mao de obra" in category
+        if is_labor and tx.animal_batch_id is None:
+            general_labor += tx.amount
+            continue
+        if batch_id is None:
+            continue
         key = None
         if tx.reference == f"PURCHASE-BATCH-{batch_id}":
             key = (
@@ -261,7 +271,7 @@ def enrich_lot_costs(organization, rows):
                 if batches[batch_id].category not in BREEDING_CATEGORIES
                 else None
             )
-        elif tx.reference.startswith("LABOR-SWINE-") or "mao de obra" in category:
+        elif is_labor:
             key = "labor"
         elif any(word in category for word in ("medicamento", "vacina", "tratamento")):
             key = "medication"
@@ -270,6 +280,29 @@ def enrich_lot_costs(organization, rows):
         else:
             key = phase_at(batch_id, tx.due_date)
         add(batch_id, tx.amount, key)
+
+    labor_targets = [
+        batch_id
+        for batch_id in ids
+        if batches[batch_id].status == "active"
+        and batches[batch_id].quantity > 0
+        and batches[batch_id].category not in BREEDING_CATEGORIES
+    ]
+    if general_labor and labor_targets:
+        total_quantity = sum(
+            (Decimal(batches[batch_id].quantity) for batch_id in labor_targets),
+            Decimal(0),
+        )
+        unit_share = general_labor / total_quantity
+        distributed = Decimal(0)
+        for index, batch_id in enumerate(labor_targets):
+            amount = (unit_share * Decimal(batches[batch_id].quantity)).quantize(
+                Decimal("0.01")
+            )
+            if index == len(labor_targets) - 1:
+                amount += general_labor - distributed - amount
+            distributed += amount
+            add(batch_id, amount, "labor")
 
     from .sire_costs import allocate_sire_costs
 

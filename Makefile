@@ -97,7 +97,7 @@ dev-mobile: ## Start Django backend + Expo mobile (same as make -C mobile dev)
 	@$(MAKE) -C "$(ROOT_DIR)/mobile" dev
 
 .PHONY: dev-mobile-tunnel
-dev-mobile-tunnel: ## Start Django backend + Expo mobile with tunnel (access from outside LAN)
+dev-mobile-tunnel: ## Start Expo mobile with tunnel using the remote API from mobile/.env.local (no local backend)
 	@$(MAKE) -C "$(ROOT_DIR)/mobile" dev-tunnel
 
 .PHONY: debug
@@ -117,6 +117,10 @@ logs: ## Tail Docker logs for all services (requires Docker stack running)
 .PHONY: shell
 shell: ## Open Django interactive shell
 	@source $(VENV)/bin/activate && cd $(BACKEND_DIR) && DJANGO_SETTINGS_MODULE=config.settings.dev $(PYTHON) manage.py shell_plus 2>/dev/null || $(PYTHON) manage.py shell
+
+.PHONY: ssh
+ssh: ## Open the production server SSH session
+	@ssh root@191.252.218.62
 
 .PHONY: dbshell
 dbshell: ## Open Django database shell

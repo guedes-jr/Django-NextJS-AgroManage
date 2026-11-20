@@ -1,209 +1,73 @@
 import { useState } from 'react';
-import { FlatList, ScrollView, Text, View } from 'react-native';
+import { colors as tokens } from '../../theme/tokens';
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../auth/AuthProvider';
 import { AgendaButton, Busy, styles as s } from '../agenda/ui';
+import { HomeIcon, type HomeIconName } from '../home/HomeIcon';
 import { WorkspaceShell } from '../workspace/WorkspaceShell';
 import { canReadSwine, swinePhaseSchema, swinePhases, type SwinePhase, type SwinePhaseRow } from './contracts';
 import { swineMessages, swineStatusLabel } from './messages';
 import { workspaceMessages } from '../workspace/messages';
 
 const pageSize = 20;
+type Copy = (typeof swineMessages)[keyof typeof swineMessages];
+type RecordSummary = { title: string; status: string; fields: [string, string | null][] };
+const phaseIcons: Record<SwinePhase, HomeIconName> = { marras: 'pig', matrizes: 'heart', gestacao: 'heart', maternidade: 'baby', creche: 'baby', crescimento: 'trend', engorda: 'group' };
+const phaseColors: Record<SwinePhase, { background: string; color: string }> = {
+  marras: { background: '#F7EAF0', color: '#A13B66' }, matrizes: { background: '#F1EAFE', color: '#7445A9' }, gestacao: { background: '#FFF1DC', color: '#AE6B18' }, maternidade: { background: '#E7F3E9', color: '#287443' }, creche: { background: '#E5F3F2', color: '#197B79' }, crescimento: { background: '#E9F0FC', color: '#3970B8' }, engorda: { background: '#EEF0E9', color: '#536451' },
+};
 
-function isAccessDenied(error: unknown) {
-  return isAxiosError(error) && [401, 403, 404].includes(error.response?.status ?? 0);
-}
+function isAccessDenied(error: unknown) { return isAxiosError(error) && [401, 403, 404].includes(error.response?.status ?? 0); }
+function formatDate(value: string | null | undefined, language: string) { if (!value) return null; const date = new Date(`${value.slice(0, 10)}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(language).format(date); }
+function formatNumber(value: number, language: string, maximumFractionDigits = 1) { return new Intl.NumberFormat(language, { maximumFractionDigits }).format(value); }
+function formatWeight(value: number | string | null | undefined, language: string) { return value == null || value === '' ? null : typeof value === 'number' ? `${formatNumber(value, language, 2)} kg` : value; }
+function formatRemaining(value: string, copy: Copy) { if (value.toLocaleLowerCase().startsWith('pronto')) return copy.readyNow; const days = value.match(/\d+/)?.[0]; return days ? `${days} ${copy.dayUnit}` : value; }
 
-function formatDate(value: string | null | undefined, language: string) {
-  if (!value) return null;
-  const raw = value.slice(0, 10);
-  const date = new Date(`${raw}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(language).format(date);
-}
-
-function formatNumber(value: number, language: string, maximumFractionDigits = 1) {
-  return new Intl.NumberFormat(language, { maximumFractionDigits }).format(value);
-}
-
-function formatRemaining(value: string, copy: (typeof swineMessages)[keyof typeof swineMessages]) {
-  if (value.toLocaleLowerCase().startsWith('pronto')) return copy.readyNow;
-  const days = value.match(/\d+/)?.[0];
-  return days ? `${days} ${copy.dayUnit}` : value;
-}
-
-function formatWeight(value: number | string | null | undefined, language: string) {
-  if (value == null || value === '') return null;
-  return typeof value === 'number' ? `${formatNumber(value, language, 2)} kg` : value;
-}
-
-function SwineRecordCard({ title, status, fields }: { title: string; status: string; fields: [string, string | null][] }) {
-  return <View style={s.card}>
-    <Text accessibilityRole="header" style={s.title}>{title || '—'}</Text>
-    <Text style={s.badge}>{status}</Text>
-    {fields.map(([label, value]) => value != null && value !== '' ? <Text key={label} style={s.muted}>{label}: {value}</Text> : null)}
-  </View>;
-}
-
-function renderRecord(record: SwinePhaseRow, copy: (typeof swineMessages)[keyof typeof swineMessages], language: string) {
+function recordSummary(record: SwinePhaseRow, copy: Copy, language: string): RecordSummary {
   const { phase, data } = record;
   switch (phase) {
-    case 'marras':
-      return <SwineRecordCard
-        key={`${phase}:${data.id}`}
-        title={data.identifier ?? ''}
-        status={swineStatusLabel(data.status, copy)}
-        fields={[
-          [copy.age, data.idade == null ? null : `${formatNumber(data.idade, language, 0)} d`],
-          [copy.weight, formatWeight(data.peso, language)],
-          [copy.entry, formatDate(data.entrada, language)],
-        ]}
-      />;
-    case 'matrizes':
-      return <SwineRecordCard
-        key={`${phase}:${data.id}`}
-        title={data.identifier ?? ''}
-        status={swineStatusLabel(data.status, copy)}
-        fields={[
-          [copy.parity, formatNumber(data.op, language, 0)],
-          [copy.openDays, data.dias_abertos == null ? null : formatNumber(data.dias_abertos, language, 0)],
-          [copy.lastCoverage, data.ultima_cobertura === '—' ? null : formatDate(data.ultima_cobertura, language)],
-        ]}
-      />;
-    case 'gestacao':
-      return <SwineRecordCard
-        key={`${phase}:${data.id}`}
-        title={data.identifier ?? ''}
-        status={swineStatusLabel(data.status, copy)}
-        fields={[
-          [copy.coverage, formatDate(data.cobertura, language)],
-          [copy.gestationDays, formatNumber(data.dias, language, 0)],
-          [copy.forecast, formatDate(data.previsao, language)],
-          [copy.daysRemaining, formatRemaining(data.dias_faltantes, copy)],
-        ]}
-      />;
-    case 'maternidade':
-      return <SwineRecordCard
-        key={`${phase}:${data.id}`}
-        title={data.identifier ?? ''}
-        status={swineStatusLabel(data.status, copy)}
-        fields={[
-          [copy.birthDate, formatDate(data.data_parto, language)],
-          [copy.bornAlive, formatNumber(data.vivos, language, 0)],
-          [copy.currentAlive, formatNumber(data.vivos_atual, language, 0)],
-          [copy.deaths, formatNumber(data.obitos, language, 0)],
-          [copy.weaning, formatDate(data.previsao_desmame, language)],
-        ]}
-      />;
-    case 'creche':
-      return <SwineRecordCard
-        key={`${phase}:${data.id}`}
-        title={data.lote}
-        status={swineStatusLabel(data.status, copy)}
-        fields={[
-          [copy.quantity, formatNumber(data.qtd, language, 0)],
-          [copy.weight, formatWeight(data.peso, language)],
-          [copy.entry, formatDate(data.entrada, language)],
-          [copy.forecast, formatDate(data.prev_crescimento, language)],
-        ]}
-      />;
+    case 'marras': return { title: data.identifier ?? '', status: swineStatusLabel(data.status, copy), fields: [[copy.age, data.idade == null ? null : `${formatNumber(data.idade, language, 0)} ${copy.dayUnit}`], [copy.weight, formatWeight(data.peso, language)], [copy.entry, formatDate(data.entrada, language)]] };
+    case 'matrizes': return { title: data.identifier ?? '', status: swineStatusLabel(data.status, copy), fields: [[copy.parity, formatNumber(data.op, language, 0)], [copy.openDays, data.dias_abertos == null ? null : formatNumber(data.dias_abertos, language, 0)], [copy.lastCoverage, data.ultima_cobertura === '—' ? null : formatDate(data.ultima_cobertura, language)]] };
+    case 'gestacao': return { title: data.identifier ?? '', status: swineStatusLabel(data.status, copy), fields: [[copy.coverage, formatDate(data.cobertura, language)], [copy.gestationDays, formatNumber(data.dias, language, 0)], [copy.forecast, formatDate(data.previsao, language)], [copy.daysRemaining, formatRemaining(data.dias_faltantes, copy)]] };
+    case 'maternidade': return { title: data.identifier ?? '', status: swineStatusLabel(data.status, copy), fields: [[copy.birthDate, formatDate(data.data_parto, language)], [copy.bornAlive, formatNumber(data.vivos, language, 0)], [copy.currentAlive, formatNumber(data.vivos_atual, language, 0)], [copy.deaths, formatNumber(data.obitos, language, 0)], [copy.weaning, formatDate(data.previsao_desmame, language)]] };
+    case 'creche': return { title: data.lote, status: swineStatusLabel(data.status, copy), fields: [[copy.quantity, formatNumber(data.qtd, language, 0)], [copy.weight, formatWeight(data.peso, language)], [copy.entry, formatDate(data.entrada, language)], [copy.forecast, formatDate(data.prev_crescimento, language)]] };
     case 'crescimento':
-    case 'engorda':
-      return <SwineRecordCard
-        key={`${phase}:${data.id}`}
-        title={data.lote}
-        status={swineStatusLabel(data.status, copy)}
-        fields={[
-          [copy.quantity, formatNumber(data.qtd, language, 0)],
-          [copy.weight, formatWeight(data.peso, language)],
-          [copy.days, data.dias == null ? null : formatNumber(data.dias, language, 0)],
-          [copy.dailyGain, data.gpd == null ? null : `${formatNumber(data.gpd, language, 2)} kg/d`],
-          [copy.forecast, formatDate(data.previsao, language)],
-        ]}
-      />;
+    case 'engorda': return { title: data.lote, status: swineStatusLabel(data.status, copy), fields: [[copy.quantity, formatNumber(data.qtd, language, 0)], [copy.weight, formatWeight(data.peso, language)], [copy.days, data.dias == null ? null : formatNumber(data.dias, language, 0)], [copy.dailyGain, data.gpd == null ? null : `${formatNumber(data.gpd, language, 2)} kg/d`], [copy.forecast, formatDate(data.previsao, language)]] };
   }
 }
 
-export function SwineHomeScreen() {
-  const { state, controller, language } = useAuth();
-  const router = useRouter();
-  const copy = swineMessages[language];
-  const workspaceCopy = workspaceMessages[language];
-  const allowed = state.status === 'signedIn' && canReadSwine(state.session.user);
-  const sessionKey = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : 'signed-out';
-  const summaries = useQueries({
-    queries: swinePhases.map(phase => ({
-      queryKey: ['swine-phase-summary', sessionKey, phase],
-      enabled: allowed,
-      staleTime: 30_000,
-      queryFn: ({ signal }: { signal: AbortSignal }) => controller.swinePhasePage(phase, 1, 1, signal),
-    })),
-  });
+function PhaseIcon({ phase, size = 24 }: { phase: SwinePhase; size?: number }) { const colors = phaseColors[phase]; return <View style={[styles.iconTile, { backgroundColor: colors.background }]}><HomeIcon name={phaseIcons[phase]} color={colors.color} size={size}/></View>; }
 
-  return <WorkspaceShell active="swine" title={copy.title}>
-    {!allowed ? <View style={s.content}><Text style={s.error}>{workspaceCopy.noAccess}</Text></View> : <ScrollView contentContainerStyle={s.content}>
-      <Text style={s.body}>{copy.subtitle}</Text>
-      <Text style={s.muted}>{copy.scopeHint}</Text>
-      {swinePhases.map((phase, index) => {
-        const query = summaries[index];
-        if (!query) return null;
-        const count = query.data?.count;
-        return <View key={phase} style={s.card}>
-          <Text accessibilityRole="header" style={s.title}>{copy.phase[phase]}</Text>
-          {query.isPending ? <Busy label={workspaceCopy.loading}/> : query.isError
-            ? <><Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.error}</Text><AgendaButton label={copy.retry} onPress={() => void query.refetch()}/></>
-            : <Text style={s.body}>{count == null ? '—' : formatNumber(count, language, 0)} {copy.total}</Text>}
-          <AgendaButton label={copy.open} onPress={() => router.push({ pathname: '/swine/[phase]', params: { phase } })}/>
-        </View>;
-      })}
-    </ScrollView>}
-  </WorkspaceShell>;
+function SwineRecordCard({ record, copy, language, onPress }: { record: SwinePhaseRow; copy: Copy; language: string; onPress: () => void }) {
+  const summary = recordSummary(record, copy, language); const colors = phaseColors[record.phase];
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${summary.title || '—'}. ${summary.status}. ${copy.detail}`} onPress={onPress} style={({ pressed }) => [styles.record, pressed && styles.pressed]}>
+    <PhaseIcon phase={record.phase} size={23}/><View style={styles.recordMain}><View style={styles.recordHeading}><Text accessibilityRole="header" style={s.title} numberOfLines={1}>{summary.title || '—'}</Text><HomeIcon name="arrow" color={tokens.muted} size={18}/></View><Text style={[s.badge, { color: colors.color }]} numberOfLines={1}>{summary.status}</Text><View style={styles.metrics}>{summary.fields.slice(0, 3).map(([label, value]) => value != null && value !== '' ? <View key={label} style={styles.metric}><Text style={styles.metricLabel} numberOfLines={1}>{label}</Text><Text style={styles.metricValue} numberOfLines={1}>{value}</Text></View> : null)}</View></View>
+  </Pressable>;
+}
+
+function RecordDetail({ record, copy, language, onClose }: { record: SwinePhaseRow; copy: Copy; language: string; onClose: () => void }) {
+  const summary = recordSummary(record, copy, language); const colors = phaseColors[record.phase];
+  return <Modal transparent animationType="slide" visible onRequestClose={onClose}><View style={styles.modal}><Pressable style={StyleSheet.absoluteFill} onPress={onClose}/><View accessibilityViewIsModal style={styles.sheet}><View style={styles.sheetHeader}><PhaseIcon phase={record.phase}/><View style={styles.recordMain}><Text accessibilityRole="header" style={s.title}>{summary.title || '—'}</Text><Text style={[s.badge, { color: colors.color }]}>{summary.status}</Text></View></View><View style={styles.detailGrid}>{summary.fields.map(([label, value]) => value != null && value !== '' ? <View key={label} style={styles.detailRow}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.detailValue}>{value}</Text></View> : null)}</View><AgendaButton label={copy.close} onPress={onClose}/></View></View></Modal>;
+}
+
+export function SwineHomeScreen() {
+  const { state, controller, language } = useAuth(); const router = useRouter(); const copy = swineMessages[language]; const workspaceCopy = workspaceMessages[language];
+  const allowed = state.status === 'signedIn' && canReadSwine(state.session.user); const sessionKey = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : 'signed-out';
+  const summaries = useQueries({ queries: swinePhases.map(phase => ({ queryKey: ['swine-phase-summary', sessionKey, phase], enabled: allowed, staleTime: 30_000, queryFn: ({ signal }: { signal: AbortSignal }) => controller.swinePhasePage(phase, 1, 1, signal) })) });
+  return <WorkspaceShell active="swine" title={copy.title}>{!allowed ? <View style={s.content}><Text style={s.error}>{workspaceCopy.noAccess}</Text></View> : <ScrollView contentContainerStyle={s.content}><View style={styles.intro}><View style={styles.introIcon}><HomeIcon name="pig" color={tokens.primary} size={25}/></View><View style={styles.introText}><Text style={s.title}>{copy.subtitle}</Text><Text style={s.muted}>{copy.scopeHint}</Text></View></View>{swinePhases.map((phase, index) => { const query = summaries[index]; if (!query) return null; const count = query.data?.count; return <Pressable key={phase} accessibilityRole="button" accessibilityLabel={`${copy.phase[phase]}. ${copy.open}`} onPress={() => router.push({ pathname: '/swine/[phase]', params: { phase } })} style={({ pressed }) => [styles.phaseCard, pressed && styles.pressed]}><PhaseIcon phase={phase} size={25}/><View style={styles.phaseMain}><Text accessibilityRole="header" style={s.title}>{copy.phase[phase]}</Text>{query.isPending ? <Busy label={workspaceCopy.loading}/> : query.isError ? <Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.error}</Text> : <Text style={styles.phaseCount}>{count == null ? '—' : formatNumber(count, language, 0)} <Text style={s.muted}>{copy.total}</Text></Text>}</View>{query.isError ? <AgendaButton label={copy.retry} onPress={() => void query.refetch()}/> : <HomeIcon name="arrow" color={tokens.muted} size={20}/>}</Pressable>; })}</ScrollView>}</WorkspaceShell>;
 }
 
 export function SwinePhaseScreen() {
-  const params = useLocalSearchParams<{ phase?: string }>();
-  const route = swinePhaseSchema.safeParse(params.phase);
-  const { state, controller, language } = useAuth();
-  const copy = swineMessages[language];
-  const workspaceCopy = workspaceMessages[language];
-  const phase: SwinePhase = route.success ? route.data : 'marras';
-  const [pagination, setPagination] = useState<{ phase: SwinePhase; page: number }>({ phase, page: 1 });
-  const page = pagination.phase === phase ? pagination.page : 1;
-  const allowed = route.success && state.status === 'signedIn' && canReadSwine(state.session.user);
-  const sessionKey = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : 'signed-out';
-  const query = useQuery({
-    queryKey: ['swine-phase-page', sessionKey, phase, page],
-    enabled: allowed,
-    staleTime: 30_000,
-    queryFn: ({ signal }) => controller.swinePhasePage(phase, page, pageSize, signal),
-  });
-  const data = isAccessDenied(query.error) ? undefined : query.data;
-  const rows = data?.rows ?? [];
-  const setPage = (nextPage: number) => setPagination({ phase, page: nextPage });
-
-  return <WorkspaceShell active="swine" title={route.success ? copy.phase[phase] : copy.title}>
-    {!allowed ? <View style={s.content}><Text style={s.error}>{route.success ? workspaceCopy.noAccess : copy.unavailable}</Text></View> : <FlatList<SwinePhaseRow>
-      key={`${phase}:${page}`}
-      contentContainerStyle={s.content}
-      data={rows}
-      keyExtractor={item => `${item.phase}:${item.data.id}`}
-      renderItem={({ item }) => renderRecord(item, copy, language)}
-      ListHeaderComponent={<View style={{ gap: 10 }}>
-        <Text style={s.muted}>{copy.scopeHint}</Text>
-        {query.isPending && <Busy label={workspaceCopy.loading}/>}
-        {query.isError && <View style={s.card}>
-          <Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.error}</Text>
-          <AgendaButton label={copy.retry} onPress={() => void query.refetch()}/>
-        </View>}
-        {data && <Text style={s.muted}>{formatNumber(data.count, language, 0)} {copy.total}</Text>}
-      </View>}
-      ListEmptyComponent={!query.isPending && !query.isError ? <Text style={s.body}>{copy.empty}</Text> : undefined}
-      ListFooterComponent={data && data.count > 0 ? <View style={s.row}>
-        <AgendaButton label={copy.previous} disabled={!data.previous || query.isFetching} onPress={() => setPage(Math.max(1, page - 1))}/>
-        <Text style={s.muted}>{copy.page} {page}</Text>
-        <AgendaButton label={copy.next} disabled={!data.next || query.isFetching} onPress={() => setPage(page + 1)}/>
-      </View> : undefined}
-    />}
-  </WorkspaceShell>;
+  const params = useLocalSearchParams<{ phase?: string }>(); const route = swinePhaseSchema.safeParse(params.phase); const { state, controller, language } = useAuth(); const copy = swineMessages[language]; const workspaceCopy = workspaceMessages[language]; const phase: SwinePhase = route.success ? route.data : 'marras';
+  const [pagination, setPagination] = useState<{ phase: SwinePhase; page: number }>({ phase, page: 1 }); const [selected, setSelected] = useState<SwinePhaseRow | null>(null); const page = pagination.phase === phase ? pagination.page : 1;
+  const allowed = route.success && state.status === 'signedIn' && canReadSwine(state.session.user); const sessionKey = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : 'signed-out';
+  const query = useQuery({ queryKey: ['swine-phase-page', sessionKey, phase, page], enabled: allowed, staleTime: 30_000, queryFn: ({ signal }) => controller.swinePhasePage(phase, page, pageSize, signal) }); const data = isAccessDenied(query.error) ? undefined : query.data; const rows = data?.rows ?? [];
+  return <WorkspaceShell active="swine" title={route.success ? copy.phase[phase] : copy.title}>{!allowed ? <View style={s.content}><Text style={s.error}>{route.success ? workspaceCopy.noAccess : copy.unavailable}</Text></View> : <><FlatList<SwinePhaseRow> key={`${phase}:${page}`} contentContainerStyle={s.content} data={rows} keyExtractor={item => `${item.phase}:${item.data.id}`} renderItem={({ item }) => <SwineRecordCard record={item} copy={copy} language={language} onPress={() => setSelected(item)}/>} ListHeaderComponent={<View style={styles.listHeader}><View style={styles.phaseHeader}><PhaseIcon phase={phase}/><View style={styles.phaseMain}><Text style={s.title}>{copy.phaseSummary}</Text><Text style={s.muted}>{copy.scopeHint}</Text></View></View>{query.isPending && <Busy label={workspaceCopy.loading}/>} {query.isError && <View style={s.card}><Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.error}</Text><AgendaButton label={copy.retry} onPress={() => void query.refetch()}/></View>}{data && <Text style={s.muted}>{formatNumber(data.count, language, 0)} {copy.total}</Text>}</View>} ListEmptyComponent={!query.isPending && !query.isError ? <Text style={s.body}>{copy.empty}</Text> : undefined} ListFooterComponent={data && data.count > 0 ? <View style={s.row}><AgendaButton label={copy.previous} disabled={!data.previous || query.isFetching} onPress={() => setPagination({ phase, page: Math.max(1, page - 1) })}/><Text style={s.muted}>{copy.page} {page}</Text><AgendaButton label={copy.next} disabled={!data.next || query.isFetching} onPress={() => setPagination({ phase, page: page + 1 })}/></View> : undefined}/>{selected && <RecordDetail record={selected} copy={copy} language={language} onClose={() => setSelected(null)}/>}</>}</WorkspaceShell>;
 }
+
+const styles = StyleSheet.create({
+  intro: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingBottom: 4 }, introIcon: { width: 46, height: 46, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.primarySoft }, introText: { flex: 1, gap: 3 }, iconTile: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }, phaseCard: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: tokens.borderSoft, backgroundColor: tokens.surface }, phaseMain: { flex: 1, gap: 3 }, phaseCount: { color: tokens.primary, fontSize: 22, fontWeight: '800' }, pressed: { opacity: .72 }, record: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, marginBottom: 10, borderRadius: 16, borderWidth: 1, borderColor: tokens.borderSoft, backgroundColor: tokens.surface }, recordMain: { flex: 1, gap: 4 }, recordHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 }, metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }, metric: { minWidth: 66, flexGrow: 1, gap: 1 }, metricLabel: { color: tokens.muted, fontSize: 12, fontWeight: '600' }, metricValue: { color: tokens.forest, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }, listHeader: { gap: 10, paddingBottom: 12 }, phaseHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 2 }, modal: { flex: 1, justifyContent: 'flex-end', backgroundColor: tokens.overlay }, sheet: { maxWidth: 720, width: '100%', alignSelf: 'center', padding: 18, gap: 16, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: tokens.background }, sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 }, detailGrid: { gap: 1, borderWidth: 1, borderColor: tokens.borderSoft, borderRadius: 14, overflow: 'hidden', backgroundColor: tokens.surface }, detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingHorizontal: 13, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: tokens.divider }, detailValue: { flexShrink: 1, color: tokens.forest, fontSize: 14, fontWeight: '700', textAlign: 'right' },
+});

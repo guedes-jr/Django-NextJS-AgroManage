@@ -119,14 +119,14 @@ npm ci --include=dev
 
 Depois execute novamente o comando da raiz. Não é necessário instalar o pacote globalmente nem usar `sudo npm install`. O supervisor confere o módulo antes de iniciar o backend, evitando a tentativa de instalação global pelo Expo.
 
-O túnel publica o Metro/Expo; ele não publica a API Django. Para um celular na mesma rede, informe `API_HOST` com o IP do computador. Fora dessa rede, a API precisa ter uma URL acessível ao aparelho, informada por `EXPO_PUBLIC_API_URL`.
+O túnel publica o Metro/Expo; ele não publica a API Django. Por isso `make dev-mobile-tunnel` não inicia o Django local: usa a API remota definida em `EXPO_PUBLIC_API_URL` no `mobile/.env.local` (ou exportada no terminal, que tem prioridade). Sem uma URL remota, ou com uma URL local, o comando para antes de abrir portas. Para um celular na mesma rede com o backend local, use `make dev-mobile API_HOST=<IP do computador>`.
 
 
 O `make dev` da raiz continua iniciando backend + frontend web. O novo comando não inicia Next.js, Docker, Redis ou Celery; banco e serviços exigidos pela configuração local precisam estar disponíveis previamente. Não instala dependências, não cria arquivos `.env` e não executa migrações ou seed.
 
 Pré-requisitos: macOS/Linux (ou WSL), `backend/.venv` configurado com as dependências do backend, `backend/.env` existente, Node/npm no PATH e `npm ci` executado em `mobile/`. O comando seleciona explicitamente `config.settings.dev`, mantendo a configuração de banco já existente sem ler ou exibir seus valores no supervisor.
 
-O backend escuta em `0.0.0.0:8000` para permitir acesso pela rede local; Expo usa a porta `8081`. O app recebe `EXPO_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1/` no processo por padrão. Essa configuração de execução prevalece sobre a variável correspondente em `.env.local`, sem alterar o arquivo.
+O backend escuta em `0.0.0.0:8000` para permitir acesso pela rede local; Expo usa a porta `8081`. O app recebe `http://127.0.0.1:8000/api/v1/` por padrão. Em desenvolvimento, o Expo aplica os arquivos `.env*` por cima do ambiente do processo, então uma `EXPO_PUBLIC_API_URL` no `.env.local` substituiria a URL da sessão. Por isso o supervisor também envia `EXPO_PUBLIC_DEV_API_URL`, que nenhum arquivo define e que o app lê primeiro quando `__DEV__` está ativo. Assim, `make dev-mobile` usa o backend local mesmo que o `.env.local` aponte para a API remota usada pelo tunnel. Builds de release ignoram essa variável. Não defina `EXPO_PUBLIC_DEV_API_URL` em arquivos `.env`.
 
 Para celular físico, use o IP do computador na mesma rede; `127.0.0.1` não aponta para o computador nesse caso:
 

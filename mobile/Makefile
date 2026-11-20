@@ -12,7 +12,7 @@ CLEAR ?=
 
 .PHONY: help dev dev-tunnel test-dev
 help:
-	@printf '%s\n' 'make dev                     Backend Django + Expo (Ctrl+C encerra ambos)' 'make dev MOBILE_PLATFORM=web  Backend + prévia web' 'make dev API_HOST=192.168.x.x Use o IP do computador para aparelho físico' 'make dev-tunnel              Backend + Expo com tunnel (acesso fora da rede)' 'make test-dev                Testa o supervisor com serviços simulados'
+	@printf '%s\n' 'make dev                     Backend Django + Expo (Ctrl+C encerra ambos)' 'make dev MOBILE_PLATFORM=web  Backend + prévia web' 'make dev API_HOST=192.168.x.x Use o IP do computador para aparelho físico' 'make dev-tunnel              Expo com tunnel + API remota de mobile/.env.local (sem backend local)' 'make test-dev                Testa o supervisor com serviços simulados'
 
 dev:
 	@test -x "$(BACKEND_PYTHON)" || { printf '%s\n' 'Ambiente Python ausente. Configure backend/.venv ou informe BACKEND_PYTHON.'; exit 1; }

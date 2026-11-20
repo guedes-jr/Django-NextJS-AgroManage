@@ -163,6 +163,19 @@ export const cropService = {
   deleteHarvest: (id: string) =>
     apiClient.delete(`/crops/harvests/${id}/`),
 
+  // ── Production sales ───────────────────────────────────
+  listSales: (params?: Record<string, string | number>) =>
+    apiClient.get("/crops/sales/", { params }),
+
+  createSale: (data: Record<string, unknown>) =>
+    apiClient.post("/crops/sales/", data),
+
+  updateSale: (id: string, data: Record<string, unknown>) =>
+    apiClient.patch(`/crops/sales/${id}/`, data),
+
+  deleteSale: (id: string) =>
+    apiClient.delete(`/crops/sales/${id}/`),
+
   listHarvestBuyers: (params?: Record<string, string | number | boolean>) =>
     apiClient.get("/crops/harvest-buyers/", { params }),
 

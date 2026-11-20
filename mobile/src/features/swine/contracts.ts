@@ -21,6 +21,13 @@ export const swinePhaseQuerySchema = z.object({
   page_size: z.number().int().min(1).max(100),
 });
 export type SwinePhaseQuery = z.infer<typeof swinePhaseQuerySchema>;
+export const swinePhaseDetailSchema = z.object({
+  id: z.uuid(), phase: swinePhaseSchema, kind: z.enum(['animal', 'batch', 'pregnancy', 'birth']), identifier: z.string(), status: z.string(),
+  farm: z.object({ id: z.uuid(), name: z.string() }),
+  dates: z.object({ birth: z.string().nullable(), entry: z.string().nullable(), phase_start: z.string().nullable(), forecast: z.string().nullable() }),
+  events: z.array(z.object({ type: z.string(), date: z.string(), title: z.string(), subtitle: z.string() })).max(5),
+});
+export type SwinePhaseDetail = z.infer<typeof swinePhaseDetailSchema>;
 
 const recordId = z.union([z.string().min(1), z.number().int()]);
 const nullableText = z.string().nullable();

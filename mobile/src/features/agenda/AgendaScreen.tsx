@@ -9,10 +9,10 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../auth/AuthProvider';
 import { agendaListingQuery, canReadAgenda, taskWriteAccess, shiftDay, type AgendaQuery, type agendaPageSchema } from './contracts';
 import { agendaMessages, agendaLabel } from './messages';
-import { AgendaButton, Busy, styles as s } from './ui';
+import { AgendaButton, Busy, StatusPill, styles as s } from './ui';
 import type { z } from 'zod';
 import { restoreAgendaSelection } from './selection';
-import { agendaActivityCount, agendaDayLabel, agendaWeekLabel } from './presentation';
+import { agendaActivityCount, agendaDayLabel, agendaStatusTone, agendaWeekLabel } from './presentation';
 import { taskFormMessages } from './formMessages';
 
 type AgendaViewMode = 'month' | 'week' | 'list';
@@ -385,8 +385,8 @@ function AgendaContents({ timezone }: { timezone: string }) {
               <Text style={s.muted}>{formatDate(item.date)} · {item.farm_name}</Text>
               <Text style={s.title}>{item.title}</Text>
               <View style={s.row}>
-                <Text style={s.badge}>{agendaLabel(t, item.status)}</Text>
-                {item.estimated && <Text style={s.muted}>· {t.estimated}</Text>}
+                <StatusPill label={agendaLabel(t, item.status)} tone={agendaStatusTone(item.status)} />
+                {item.estimated && <Text style={s.muted}>{t.estimated}</Text>}
               </View>
             </Pressable>
           )}

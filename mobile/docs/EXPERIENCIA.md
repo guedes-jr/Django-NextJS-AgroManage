@@ -41,6 +41,16 @@ A tabela define a intenção da experiência, não a cobertura funcional de cada
 
 A hierarquia deve funcionar em telas pequenas e com fonte ampliada. Permitir rolagem em vez de apertar controles para caber uma quantidade fixa de conteúdo na primeira dobra. Preservar alvos de toque de 44 unidades lógicas, fonte de campo de 16 e áreas seguras. Medidas e acabamento estão no guia de design.
 
+## Início orientado à operação (20/11/2026)
+
+A Home deixa de ser apenas uma lista de módulos para quem lança dados. Para quem não tem dashboard financeira, o topo traz **Registrar agora** com as rotinas permitidas ao perfil, em rótulos de ação. Perfis com acesso financeiro mantêm a dashboard como primeiro conteúdo e registram pelo "+". Em seguida (ou após os indicadores, no caso da dashboard), **Próximas atividades** lista os próximos 7 dias da Agenda com data, fazenda e situação, abrindo o detalhe com um toque. O botão central "+" abre a mesma lista de rotinas em tiles descritivos, em vez de nomes de módulos com busca. O feeder vê apenas o trato; perfis somente leitura não recebem atalhos de registro.
+
+Nos formulários, a ação principal de cada etapa (salvar, revisar ou confirmar) passou a ser um botão primário de largura total com indicador de envio, em 42 arquivos de tela. O lançamento de leite serve de referência para `FormField`: turno em controle segmentado, unidade ao lado do valor, avanço entre campos pelo teclado e erro específico em cada campo.
+
+Validação: TypeScript, ESLint e suíte mobile (541/542; a falha restante é anterior e pertence à navegação de suínos em andamento), mais 5 testes novos de ações rápidas e tons de situação. Prévia web com API sintética em 360 e 768 px conferiu Home, painel "+" e formulário de leite (vazio e com erros), sem rolagem horizontal nem exceções. Homologação em Android/iOS, teclado nativo, leitor de tela e fonte ampliada permanece pendente.
+
+**Barra inferior.** O "+" permanece no centro mesmo quando faltam abas: o lado mais curto recebe **Buscar** (quando o perfil pode pesquisar) e, sem busca, um espaço vazio. Regra em `balanceNavSlots` ([navigation.ts](../src/features/workspace/navigation.ts)).
+
 ## Contexto de fazenda
 
 O seletor global de fazendas foi retirado das telas principais. Quando houver contexto definido, o nome aparece apenas como informação. Cadastros e consultas cujo contrato exige uma fazenda continuam permitindo informá-la ao iniciar a operação; ações de total de leite, tanque, manejo, protocolo, pasto e ocorrência não ficam bloqueadas pela ausência do antigo seletor. A seleção operacional e os parâmetros de registros existentes preservam os contratos de acesso e isolamento. Validação: 51 testes direcionados, TypeScript e ESLint aprovados. Conferência visual em larguras pequena/maior e aparelhos Android/iOS permanece pendente.

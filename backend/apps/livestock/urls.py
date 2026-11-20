@@ -6,7 +6,7 @@ from .views import (
     PregnancyViewSet, BirthViewSet, LitterViewSet,
     ReproductionDashboardView, SpeciesSummaryView, IncubationViewSet,
     MarrasView, MatrizesView, GestacoesView, MaternidadeView,
-    CrecheView, CrescimentoView, EngordaView,
+    CrecheView, CrescimentoView, EngordaView, SwinePhaseMobileDetailView,
     VaccinationRecordViewSet, WeightRecordViewSet,
     ClinicalRecordViewSet, DiseaseViewSet, AcknowledgeOperationalAlertView,
     MedicationViewSet, AlertViewSet, SymptomViewSet, HealthRecordViewSet
@@ -79,6 +79,7 @@ urlpatterns = [
     path('creches/', CrecheView.as_view(), name='creches'),
     path('crescimentos/', CrescimentoView.as_view(), name='crescimentos'),
     path('engordas/', EngordaView.as_view(), name='engordas'),
+    path('swine/phases/<str:phase>/<uuid:pk>/mobile/', SwinePhaseMobileDetailView.as_view(), name='swine-phase-mobile-detail'),
     
     # Manual re_path to allow optional trailing slashes for the main actions
     re_path(r'^batches/?$', AnimalBatchViewSet.as_view({'get': 'list', 'post': 'create'})),

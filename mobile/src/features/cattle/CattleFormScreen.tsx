@@ -84,7 +84,7 @@ function AnimalEditor({route,record,today,timezone}:{route:Route;record?:CattleA
     <Text style={s.label}>{t.category}</Text><Controller control={control} name="category" render={({field})=><View style={s.row}>{cattleCategories.map(value=><AgendaButton key={value} label={cattleLabel(t,value)} selected={field.value===value} disabled={disabled} onPress={()=>field.onChange(value)}/>)}</View>}/>
     {input('birth_date',f.birth)}{input('entry_date',f.entry)}{!record&&<>{input('breed_name_input',f.breed)}{input('initial_weight_kg',f.initialWeight)}</>}{input('notes',t.notes,true)}
     {!!mutation.message&&<Text accessibilityRole="alert" style={s.error}>{mutation.message}</Text>}
-    <AgendaButton label={isSubmitting?f.saving:f.save} disabled={disabled||(!record&&!farm)} onPress={()=>{void handleSubmit(persist,mutation.invalid)();}}/>
+    <AgendaButton variant="primary" busy={isSubmitting} label={isSubmitting?f.saving:f.save} disabled={disabled||(!record&&!farm)} onPress={()=>{void handleSubmit(persist,mutation.invalid)();}}/>
     {mutation.uncertain&&<AgendaButton label={f.reconcile} onPress={mutation.review}/>}
   </ScrollView></KeyboardAvoidingView></AgendaShell>;
 }
@@ -102,6 +102,6 @@ function WeightEditor({route,record,today,timezone}:{route:Route;record:CattleAn
   return <AgendaShell title={f.weigh} backLabel={w.back} onBack={mutation.back}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
     <View style={s.card}><Text style={s.title}>{'identifier' in record?record.identifier:record.batch_code}</Text><Text style={s.body}>{record.farm_name}</Text></View><Text style={s.muted}>{f.timezone} {timezone}</Text><Text style={s.muted}>{f.weightHint}</Text>
     {input('weight_kg',f.weight)}{input('weighing_date',f.weightDate)}{input('notes',t.notes,true)}{!!mutation.message&&<Text accessibilityRole="alert" style={s.error}>{mutation.message}</Text>}
-    <AgendaButton label={isSubmitting?f.saving:f.save} disabled={disabled} onPress={()=>{void handleSubmit(persist,mutation.invalid)();}}/>{mutation.uncertain&&<AgendaButton label={f.reconcile} onPress={mutation.review}/>}
+    <AgendaButton variant="primary" busy={isSubmitting} label={isSubmitting?f.saving:f.save} disabled={disabled} onPress={()=>{void handleSubmit(persist,mutation.invalid)();}}/>{mutation.uncertain&&<AgendaButton label={f.reconcile} onPress={mutation.review}/>}
   </ScrollView></KeyboardAvoidingView></AgendaShell>;
 }

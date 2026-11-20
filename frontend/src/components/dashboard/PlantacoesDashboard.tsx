@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2, CircleCheck } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Sprout, Ruler, DollarSign, Calendar, Tag, FileText, MapPin, Activity, AlignLeft, AlertTriangle, Filter, Eye, Pencil, BarChart3, ChevronRight, Wheat, Leaf, Flower2, CircleCheck, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/services/api";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { FarmFormModal, type CreatedFarm } from "@/components/farm/FarmFormModal";
 import { useOrganizationLocale } from "@/lib/locale";
+import { decimalValue, extractArray, monthBounds } from "@/components/crops/production";
 
 type FieldOption = { id: string; name: string; farm_name: string; area_ha?: string | number | null };
 type FarmOption = { id: string; name: string; city?: string; state?: string };
@@ -277,6 +278,18 @@ export default function PlantacoesDashboard() {
     notes: "",
   });
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [monthSales, setMonthSales] = useState<{ count: number; total: number } | null>(null);
+
+  useEffect(() => {
+    const { from, to } = monthBounds();
+    cropService
+      .listSales({ date_from: from, date_to: to, page_size: 500 })
+      .then(({ data }) => {
+        const rows = extractArray<{ total_amount: string }>(data);
+        setMonthSales({ count: rows.length, total: rows.reduce((sum, row) => sum + decimalValue(row.total_amount), 0) });
+      })
+      .catch(() => setMonthSales(null));
+  }, []);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -637,9 +650,14 @@ export default function PlantacoesDashboard() {
             <p className="mb-0 text-muted-foreground" style={{ fontSize: "0.86rem" }}>{t("plantations.description")}</p>
           </div>
         </div>
-        <Button variant="agro" onClick={openCreate} className="align-self-start align-self-md-center" style={{ borderRadius: 8, height: 38, paddingInline: 18, fontSize: "0.84rem" }}>
-          <Plus size={16} /> {t("plantations.new")}
-        </Button>
+        <div className="d-flex flex-wrap gap-2 align-self-start align-self-md-center">
+          <Button variant="outline-primary" onClick={() => window.open("/relatorios/plantacoes", "_blank", "noopener,noreferrer")} style={{ borderRadius: 8, height: 38, paddingInline: 16, fontSize: "0.84rem" }}>
+            <FileText size={16} aria-hidden="true" /> {t("plantations.report")}
+          </Button>
+          <Button variant="agro" onClick={openCreate} style={{ borderRadius: 8, height: 38, paddingInline: 18, fontSize: "0.84rem" }}>
+            <Plus size={16} aria-hidden="true" /> {t("plantations.new")}
+          </Button>
+        </div>
       </div>
 
       <div
@@ -718,10 +736,34 @@ export default function PlantacoesDashboard() {
         <div>
           <KpiCard color="oklch(0.55 0.14 150)" icon={<BarChart3 size={27} />} label={t("plantations.estimatedRevenue")} value={dashboardData?.total_estimated_revenue ? money(dashboardData.total_estimated_revenue) : "-"} sub={t("plantations.totalEstimate")} />
         </div>
-        <div>
-          <KpiCard color="oklch(0.52 0.12 145)" icon={<FileText size={27} />} label={t("plantations.report")} value={String(plantations.length)} sub={t("plantations.openReport")} onClick={() => window.open("/relatorios/plantacoes", "_blank", "noopener,noreferrer")} />
-        </div>
       </div>
+
+      <section className="dashboard-card mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3" style={{ borderRadius: 12, padding: "16px 20px", borderLeft: "4px solid var(--primary)" }} aria-label={t("sales.card.title")}>
+        <div className="d-flex align-items-center gap-3 min-w-0">
+          <span className="d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: 52, height: 52, borderRadius: 14, color: "var(--primary)", background: "color-mix(in srgb, var(--primary), transparent 88%)" }}>
+            <ShoppingCart size={26} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.15rem", letterSpacing: "-0.01em" }}>{t("sales.card.title")}</h2>
+            <p className="mb-0 text-muted-foreground" style={{ fontSize: "0.86rem" }}>{t("sales.description")}</p>
+          </div>
+        </div>
+        <div className="d-flex flex-wrap align-items-center gap-3">
+          <div>
+            <div className="text-muted-foreground" style={{ fontSize: "0.78rem", fontWeight: 600 }}>{t("sales.card.month")}</div>
+            <div className="fw-black text-primary" style={{ fontSize: "1.35rem", fontVariantNumeric: "tabular-nums" }}>
+              {monthSales ? money(monthSales.total) : "-"}
+              {monthSales && <span className="text-muted-foreground fw-semibold ms-2" style={{ fontSize: "0.8rem" }}>{t("sales.count")}: {monthSales.count}</span>}
+            </div>
+          </div>
+          <Button variant="outline-primary" onClick={() => router.push("/home/plantacoes/vendas")} style={{ borderRadius: 8, minHeight: 38 }}>
+            {t("sales.card.open")}
+          </Button>
+          <Button variant="agro" onClick={() => router.push("/home/plantacoes/vendas")} style={{ borderRadius: 8, minHeight: 38 }}>
+            <Plus size={16} aria-hidden="true" /> {t("sales.register")}
+          </Button>
+        </div>
+      </section>
 
       <div className="dashboard-card mb-3" style={{ borderRadius: 8, padding: "14px 18px" }}>
         <div className="mb-2">

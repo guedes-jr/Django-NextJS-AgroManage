@@ -32,6 +32,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         MANAGER = "manager", "Gerente"
         OPERATOR = "operator", "Operador"
         FEEDER = "feeder", "Tratador"
+        VETERINARIAN = "veterinarian", "Veterinário"
 
     class Theme(models.TextChoices):
         LIGHT = "light", "Padrão"

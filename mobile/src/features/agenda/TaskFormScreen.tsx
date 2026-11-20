@@ -77,7 +77,7 @@ function TaskEditor({task,options,access,initialDate,onBack}:{task?:AgendaTask;o
     {choices('status',t.status,taskStatuses,value=>agendaLabel(t,value))}
     {contextChanged&&<Text accessibilityRole="alert" style={s.error}>{t.contextChanged}</Text>}
     {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-    <AgendaButton label={isSubmitting?f.saving:f.save} disabled={isSubmitting||uncertain||saved||contextChanged} onPress={()=>{void handleSubmit(persist,()=>setError(f.invalid))();}}/>
+    <AgendaButton variant="primary" busy={isSubmitting} label={isSubmitting?f.saving:f.save} disabled={isSubmitting||uncertain||saved||contextChanged} onPress={()=>{void handleSubmit(persist,()=>setError(f.invalid))();}}/>
     {uncertain&&<AgendaButton label={f.openAgenda} onPress={()=>router.push('/agenda')}/>}
   </ScrollView></KeyboardAvoidingView></AgendaShell>;
 }

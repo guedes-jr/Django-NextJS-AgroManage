@@ -23,7 +23,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        className={`btn ${variant === "agro" ? "btn-agro" : variant === "outline-agro" ? "btn-outline-agro" : variant} ${sizeClass} ${widthClass} ${className}`}
+        className={`btn btn-${variant} ${sizeClass} ${widthClass} ${className}`}
         disabled={disabled || loading}
         {...props}
       >

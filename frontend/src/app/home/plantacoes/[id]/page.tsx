@@ -79,7 +79,9 @@ type HarvestOperation = {
   id: string;
   yield_kg?: string | number | null;
   revenue_amount?: string | number | null;
+  packing_cost?: string | number | null;
 };
+type CropSaleRecord = { quantity: string | number; unit: string; total_amount: string | number };
 type AgronomistRecommendationProduct = {
   item_name?: string | null;
   dose_per_ha?: string | number | null;
@@ -119,14 +121,15 @@ type ApplicationLine = {
   total_price: string;
 };
 
+/** Status tone (text + soft surface) from the system tokens; the label always goes with the color. */
 const statusColors: Record<PlantationStatus, string> = {
-  planned: "#6b7280",
-  planting: "#f59e0b",
-  growing: "#10b981",
-  management: "#3b82f6",
-  harvesting: "#8b5cf6",
-  finished: "#059669",
-  cancelled: "#ef4444",
+  planned: "var(--muted-foreground)",
+  planting: "var(--warning-foreground, oklch(0.5 0.12 75))",
+  growing: "var(--primary)",
+  management: "var(--primary)",
+  harvesting: "var(--primary)",
+  finished: "var(--success, var(--primary))",
+  cancelled: "var(--destructive)",
 };
 
 const statusOptions: PlantationStatus[] = ["planned", "planting", "growing", "management", "harvesting", "finished", "cancelled"];
@@ -451,6 +454,7 @@ const irrigationSystemOptions = [
   const [laborRecords, setLaborRecords] = useState<LaborOperation[]>([]);
   const [harvests, setHarvests] = useState<HarvestOperation[]>([]);
   const [sectorStructureItems, setSectorStructureItems] = useState<SectorStructureCost[]>([]);
+  const [cropSales, setCropSales] = useState<CropSaleRecord[]>([]);
   const [agronomistRecommendations, setAgronomistRecommendations] = useState<AgronomistRecommendation[]>([]);
   const [completingRecommendationId, setCompletingRecommendationId] = useState<string | null>(null);
 
@@ -480,7 +484,7 @@ const irrigationSystemOptions = [
           estimated_production_kg: merged.estimated_production_kg || "",
           estimated_bags: merged.estimated_bags || "",
         });
-        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes, recommendationRes, structureRes] = await Promise.all([
+        const [plantingsRes, fertsRes, fertigsRes, pestsRes, irrigsRes, itemsRes, pumpsRes, landPrepRes, laborRes, harvestRes, recommendationRes, structureRes, salesRes] = await Promise.all([
           cropService.listPlantings({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertilizations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listFertigations({ plantation: id }).catch(() => ({ data: { results: [] } })),
@@ -493,6 +497,7 @@ const irrigationSystemOptions = [
           cropService.listHarvests({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
           cropService.listAgronomistRecommendations({ plantation: id }).catch(() => ({ data: { results: [] } })),
           cropService.listSectorStructureItems(id).catch(() => ({ data: { results: [] } })),
+          cropService.listSales({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
         ]);
         setPlantings(Array.isArray(plantingsRes.data?.results) ? plantingsRes.data.results : []);
         setFertilizations(Array.isArray(fertsRes.data?.results) ? fertsRes.data.results : []);
@@ -506,6 +511,7 @@ const irrigationSystemOptions = [
         setHarvests(Array.isArray(harvestRes.data?.results) ? harvestRes.data.results : []);
         setAgronomistRecommendations(Array.isArray(recommendationRes.data?.results) ? recommendationRes.data.results : []);
         setSectorStructureItems(Array.isArray(structureRes.data?.results) ? structureRes.data.results : []);
+        setCropSales(Array.isArray(salesRes.data?.results) ? salesRes.data.results : Array.isArray(salesRes.data) ? salesRes.data : []);
       } catch { console.error("Failed to load plantation"); }
       finally { setLoading(false); }
     })();
@@ -916,8 +922,11 @@ const irrigationSystemOptions = [
   };
 
   const harvestedKg = harvests.reduce((acc, h) => acc + numericValue(h.yield_kg), 0);
-  const harvestRevenue = harvests.reduce((acc, h) => acc + numericValue(h.revenue_amount), 0);
-  const soldKg = harvests.reduce((acc, h) => acc + (numericValue(h.revenue_amount) > 0 ? numericValue(h.yield_kg) : 0), 0);
+  // Revenue: sales recorded on older harvests plus the production sales ("Venda da produção").
+  const harvestRevenue = harvests.reduce((acc, h) => acc + numericValue(h.revenue_amount), 0)
+    + cropSales.reduce((acc, sale) => acc + numericValue(sale.total_amount), 0);
+  const soldKg = harvests.reduce((acc, h) => acc + (numericValue(h.revenue_amount) > 0 ? numericValue(h.yield_kg) : 0), 0)
+    + cropSales.reduce((acc, sale) => acc + (sale.unit === "kg" ? numericValue(sale.quantity) : sale.unit === "ton" ? numericValue(sale.quantity) * 1000 : 0), 0);
 
   const seedCost = sumTotalPrice(plantings);
   const fertilizationCost = sumTotalPrice(fertilizations);
@@ -927,10 +936,11 @@ const irrigationSystemOptions = [
   const landPreparationCost = landPreparations.reduce((acc, record) => acc + numericValue(record.total_price ?? record.total_amount), 0);
   const laborCost = laborRecords.reduce((acc, record) => acc + laborRecordTotal(record), 0);
   const structureCost = sectorStructureItems.reduce((acc, record) => acc + numericValue(record.total_value), 0);
+  const packingCost = harvests.reduce((acc, record) => acc + numericValue(record.packing_cost), 0);
 
   // Use backend investment_total when available (more accurate — based on financial transactions)
   // Fall back to local sum when backend value is 0 and local sum is positive (initial load before transactions are created)
-  const localInvestmentTotal = structureCost + seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost;
+  const localInvestmentTotal = structureCost + seedCost + fertilizationCost + fertigationCost + pesticideCost + irrigationCost + landPreparationCost + laborCost + packingCost;
   const backendInvestmentTotal = numericValue(plantation.investment_total);
   const investmentTotal = backendInvestmentTotal > 0 ? backendInvestmentTotal : localInvestmentTotal;
 
@@ -946,14 +956,15 @@ const irrigationSystemOptions = [
   const lucroPorKg = harvestedKg > 0 ? realProfit / harvestedKg : null;
 
   const costData = [
-    { name: t("plantations.structure.title"), value: structureCost, fill: "oklch(0.55 0.14 145)" },
-    { name: t("plantations.operation.seeds.title"), value: seedCost, fill: "var(--bs-success)" },
-    { name: t("plantations.operation.fertilization.title"), value: fertilizationCost + fertigationCost, fill: "var(--bs-primary)" },
-    { name: t("plantations.operation.pesticide.title"), value: pesticideCost, fill: "var(--bs-danger)" },
-    { name: t("plantations.operation.irrigation.title"), value: irrigationCost, fill: "var(--bs-info)" },
-    { name: t("plantations.common.mechanizedServices"), value: landPreparationCost, fill: "var(--bs-warning)" },
-    { name: t("plantations.labor.title"), value: laborCost, fill: "var(--bs-secondary)" },
-  ].filter(item => item.value > 0);
+    { name: t("plantations.structure.title"), value: structureCost },
+    { name: t("plantations.operation.seeds.title"), value: seedCost },
+    { name: t("plantations.operation.fertilization.title"), value: fertilizationCost + fertigationCost },
+    { name: t("plantations.operation.pesticide.title"), value: pesticideCost },
+    { name: t("plantations.operation.irrigation.title"), value: irrigationCost },
+    { name: t("plantations.common.mechanizedServices"), value: landPreparationCost },
+    { name: t("plantations.labor.title"), value: laborCost },
+    { name: t("harvestForm.table.packing"), value: packingCost },
+  ].filter(item => item.value > 0).map((item, index) => ({ ...item, fill: `var(--chart-${(index % 5) + 1})` }));
 
   const itemCategories = (item: InventoryItem) =>
     item.categorias?.length ? item.categorias : item.categoria ? [item.categoria] : [];
@@ -990,7 +1001,7 @@ const irrigationSystemOptions = [
             <h1 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.75rem" }}>{plantation.name || plantation.crop_name}</h1>
             <div className="text-muted-foreground fw-medium small">{plantation.farm_name} › {plantation.field_name}</div>
           </div>
-          <Badge style={{ background: statusColors[plantation.status] || "#6b7280", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", borderRadius: "8px" }}>
+          <Badge style={{ background: `color-mix(in srgb, ${statusColors[plantation.status] || "var(--muted-foreground)"}, transparent 88%)`, color: statusColors[plantation.status] || "var(--muted-foreground)", fontSize: "0.78rem", fontWeight: 700, padding: "6px 12px", borderRadius: 999 }}>
             {t(`plantations.status.${plantation.status}` as TranslationKey)}
           </Badge>
           {financial && (<Button variant="outline-secondary" size="sm" onClick={() => setShowEdit(true)}>

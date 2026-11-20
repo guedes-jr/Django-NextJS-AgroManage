@@ -2,17 +2,25 @@ import { cattleAccessPath, legacyCattleRoot } from "./cattleNavigation";
 import apiClient, { setOrganizationOperatorMode } from "./api";
 
 export type OrganizationAccess = {
-  role: "admin" | "manager" | "operator" | "feeder";
+  role: "admin" | "manager" | "operator" | "feeder" | "veterinarian";
   can_manage_users: boolean;
   can_view_financial: boolean;
   can_operate_crops: boolean;
   livestock_species: string[] | null;
   read_only: boolean;
+  /** Área do veterinário contracted by the organization and allowed for this role. */
+  veterinary?: boolean;
 };
+
+export const VETERINARY_PATH = "/home/veterinario";
 
 export function canAccessOrganizationPath(access: OrganizationAccess | null, path: string) {
   path = cattleAccessPath(path);
   if (!access) return path === "/home";
+  if (path === VETERINARY_PATH || path.startsWith(`${VETERINARY_PATH}/`)) return !!access.veterinary;
+  if (access.role === "veterinarian") {
+    return ["/home/profile", "/home/notifications", "/home/suporte"].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  }
   if (access.role === "feeder") {
     return ["/home/profile", "/home/notifications", "/home/suporte"].some(prefix => path === prefix || path.startsWith(`${prefix}/`))
       || ((access.livestock_species || []).includes("bovinos") && path === `${legacyCattleRoot}/racao/tratos`);

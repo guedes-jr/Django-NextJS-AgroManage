@@ -41,7 +41,7 @@ class LotCostsTest(APITestCase):
         self.batch = self.new_batch("L001", purchase_value=Decimal(100))
 
     def new_batch(self, code, **kwargs):
-        return AnimalBatch.objects.create(
+        values = dict(
             farm=self.farm,
             species=self.species,
             batch_code=code,
@@ -50,8 +50,9 @@ class LotCostsTest(APITestCase):
             origin="purchased",
             entry_date=self.start,
             phase="engorda",
-            **kwargs,
         )
+        values.update(kwargs)
+        return AnimalBatch.objects.create(**values)
 
     def transaction(self, name, amount, batch=None, kind="expense", **kwargs):
         category, _ = FinancialCategory.objects.get_or_create(
@@ -133,7 +134,7 @@ class LotCostsTest(APITestCase):
         self.assertIsNone(row["finishing"])
         self.assertEqual(Decimal(row["total_cost"]), 137)
 
-    def test_general_labor_and_other_tenant_costs_are_not_allocated(self):
+    def test_general_labor_is_allocated_to_active_lots_and_other_tenant_costs_are_ignored(self):
         self.transaction("Mão de Obra", 999)
         other = Organization.objects.create(name="Outra", slug="other-lot-costs")
         category = FinancialCategory.objects.create(
@@ -148,8 +149,26 @@ class LotCostsTest(APITestCase):
             status="paid",
         )
         row = self.report()[str(self.batch.pk)]
-        self.assertIsNone(row["labor"])
-        self.assertEqual(Decimal(row["total_cost"]), 100)
+        self.assertEqual(Decimal(row["labor"]), 999)
+        self.assertEqual(Decimal(row["total_cost"]), 1099)
+
+    def test_swine_labor_is_shared_between_active_lots_by_quantity(self):
+        other = self.new_batch("L002")
+        other.quantity = 30
+        other.save()
+        breeding = self.new_batch("MATRIZ", category="Matriz")
+        breeding.species = self.species
+        breeding.save()
+        self.transaction("Mão de Obra - Suinocultura", Decimal("100.00"), reference="LABOR-SWINE-1")
+
+        rows = self.report()
+        self.assertEqual(Decimal(rows[str(self.batch.pk)]["labor"]), Decimal("25.00"))
+        self.assertEqual(Decimal(rows[str(other.pk)]["labor"]), Decimal("75.00"))
+        self.assertIsNone(rows[str(breeding.pk)]["labor"])
+        self.assertEqual(
+            sum(Decimal(row["labor"]) for row in rows.values() if row["labor"]),
+            Decimal("100.00"),
+        )
 
     def test_legacy_purchase_and_cancellation_never_duplicate(self):
         tx = Transaction.objects.get(reference=f"PURCHASE-BATCH-{self.batch.pk}")

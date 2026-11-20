@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
-  Boxes, CircleDollarSign, Droplets, Fence, Plus, Save,
+  Boxes, CircleDollarSign, Droplets, Fence, Plus,
   Trash2, Warehouse, Waves, Zap, Wrench, Car, Layers3,
 } from "lucide-react";
 
@@ -13,9 +13,10 @@ import { farmStructureService } from "@/services/farmStructureService";
 import type { FarmStructure } from "@/types";
 import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 import styles from "./sector-structure.module.css";
+import { CropPageHeader } from "@/components/crops/CropPageHeader";
 
 type PlantationInfo = {
-  id: string; farm: string; farm_name: string; field_name: string;
+  id: string; name?: string; farm: string; farm_name: string; field_name: string;
   sector_name?: string; crop_name: string; planted_area_ha?: string | null;
 };
 type StructureGroup = "irrigation" | "support" | "fence" | "storage" | "water" | "electrical" | "machine" | "vehicle" | "other";
@@ -47,7 +48,6 @@ const money = (value: string | number, language: string) => number(value).toLoca
 export default function SectorStructurePage() {
   const { language, t } = useOrganizationLocale();
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [plantation, setPlantation] = useState<PlantationInfo | null>(null);
   const [items, setItems] = useState<SectorItem[]>([]);
   const [farmStructures, setFarmStructures] = useState<FarmStructure[]>([]);
@@ -116,11 +116,12 @@ export default function SectorStructurePage() {
   };
 
   return <div className={styles.page}>
-    <header className={styles.hero}>
-
-      <div><h1>{t("plantations.structure.title")}</h1><p>{t("plantations.structure.subtitle")}</p></div>
-      <button className={styles.saveButton} onClick={() => router.back()}><Save size={20} /> {t("plantations.save")}</button>
-    </header>
+    <CropPageHeader
+      icon={Layers3}
+      title={t("plantations.structure.title")}
+      description={t("plantations.structure.subtitle")}
+      plantation={plantation ? { id, name: plantation.name || plantation.crop_name, field: plantation.sector_name || plantation.field_name } : null}
+    />
 
     <main className={styles.content}>
       {error && <div className="alert alert-danger">{error}</div>}
@@ -137,7 +138,7 @@ export default function SectorStructurePage() {
       <section className={styles.structurePanel}>
         <div className={styles.panelHeading}>
           <div><h2>{t("plantations.structure.used")}</h2><p>{t("plantations.structure.usedDescription")}</p></div>
-          <button onClick={() => setShowForm(true)}><Plus size={18} /> {t("plantations.structure.addItem")}</button>
+          <button type="button" className={styles.addButton} onClick={() => setShowForm(true)}><Plus size={18} aria-hidden="true" /> {t("plantations.structure.addItem")}</button>
         </div>
 
         {loading ? <div className="text-center p-5"><span className="spinner-border text-success" /></div>
@@ -152,7 +153,7 @@ export default function SectorStructurePage() {
                   <td><strong>{item.item_type}</strong>{item.farm_structure_name && <small>{t("plantations.structure.asset")} {item.farm_structure_name}</small>}</td>
                   <td>{item.specification || "—"}</td><td>{number(item.quantity).toLocaleString(language)}</td><td>{item.unit}</td>
                   <td>{money(item.unit_value, language)}</td><td className="fw-bold text-success">{money(item.total_value, language)}</td>
-                  <td><button className={styles.deleteButton} onClick={() => void remove(item)} title={t("plantations.agronomist.delete")}><Trash2 size={16} /></button></td>
+                  <td><button type="button" className={styles.deleteButton} onClick={() => void remove(item)} title={t("plantations.agronomist.delete")} aria-label={t("plantations.agronomist.delete")}><Trash2 size={16} /></button></td>
                 </tr>)}</tbody>
                 <tfoot><tr><td colSpan={5}>{t("plantations.structure.total")} {label}</td><td>{money(groupTotal, language)}</td><td /></tr></tfoot>
               </table></div>

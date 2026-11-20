@@ -1,5 +1,10 @@
+import { veterinaryMessages } from "./veterinaryMessages";
+import { cropSalesMessages } from "./cropSalesMessages";
+
 export const messages = {
   "pt-BR": {
+    ...veterinaryMessages["pt-BR"],
+    ...cropSalesMessages["pt-BR"],
     "dairy.worksheet.groupTitle": "Lançar ração por grupos",
     "dairy.worksheet.groupDescription": "Selecione animais por categoria, organize grupos e confira o consumo total do período.",
     "dairy.worksheet.groupName": "Nome do grupo",
@@ -3519,6 +3524,7 @@ export const messages = {
     "plantations.preparation.operation.weeding": "Roçagem",
     "plantations.preparation.operation.other": "Outro",
     "plantations.preparation.operation.planting": "Plantio",
+    "plantations.preparation.operation.harvest": "Colheita",
     "plantations.common.seed": "Semente / plantio",
     "plantations.common.mechanizedServices": "Serviços mecanizados",
     "plantations.common.recordDate": "Data",
@@ -4487,6 +4493,8 @@ export const messages = {
     "swine.feed.permissionDenied": "A produção de ração exige um gerente ou administrador. Acesse a aba de alimentação para registrar o consumo.", "swine.feed.loading": "Carregando alimentação...",
   },
   en: {
+    ...veterinaryMessages["en"],
+    ...cropSalesMessages["en"],
     "dairy.worksheet.groupTitle": "Feed groups",
     "dairy.worksheet.groupDescription": "Select animals by category, create groups and review period consumption.",
     "dairy.worksheet.groupName": "Group name",
@@ -7959,6 +7967,7 @@ export const messages = {
     "plantations.preparation.operation.weeding": "Brush clearing",
     "plantations.preparation.operation.other": "Other",
     "plantations.preparation.operation.planting": "Planting",
+    "plantations.preparation.operation.harvest": "Harvest",
     "plantations.common.seed": "Seed / planting",
     "plantations.common.mechanizedServices": "Mechanized services",
     "plantations.common.recordDate": "Date",
@@ -8927,6 +8936,8 @@ export const messages = {
     "swine.feed.permissionDenied": "Feed production requires a manager or administrator. Use the feeding tab to record consumption.", "swine.feed.loading": "Loading feeding...",
   },
   es: {
+    ...veterinaryMessages["es"],
+    ...cropSalesMessages["es"],
     "dairy.worksheet.groupTitle": "Alimentar por grupos",
     "dairy.worksheet.groupDescription": "Seleccione animales por categoría, cree grupos y revise el consumo del período.",
     "dairy.worksheet.groupName": "Nombre del grupo",
@@ -12393,6 +12404,7 @@ export const messages = {
     "plantations.preparation.operation.weeding": "Desbroce",
     "plantations.preparation.operation.other": "Otro",
     "plantations.preparation.operation.planting": "Siembra",
+    "plantations.preparation.operation.harvest": "Cosecha",
     "plantations.common.seed": "Semilla / siembra",
     "plantations.common.mechanizedServices": "Servicios mecanizados",
     "plantations.common.recordDate": "Fecha",
@@ -13361,6 +13373,8 @@ export const messages = {
     "swine.feed.permissionDenied": "La producción de pienso requiere un gerente o administrador. Use la pestaña de alimentación para registrar el consumo.", "swine.feed.loading": "Cargando alimentación...",
   },
   "pt-PT": {
+    ...veterinaryMessages["pt-PT"],
+    ...cropSalesMessages["pt-PT"],
     "dairy.worksheet.groupTitle": "Fornecer ração por grupos",
     "dairy.worksheet.groupDescription": "Selecione animais por categoria, crie grupos e confira o consumo do período.",
     "dairy.worksheet.groupName": "Nome do grupo",
@@ -16827,6 +16841,7 @@ export const messages = {
     "plantations.preparation.operation.weeding": "Roçagem",
     "plantations.preparation.operation.other": "Outro",
     "plantations.preparation.operation.planting": "Plantação",
+    "plantations.preparation.operation.harvest": "Colheita",
     "plantations.common.seed": "Semente / plantação",
     "plantations.common.mechanizedServices": "Serviços mecanizados",
     "plantations.common.recordDate": "Data",

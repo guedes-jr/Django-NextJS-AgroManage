@@ -156,6 +156,7 @@ class PlantingCycle(BaseModel):
             | models.Q(reference__startswith="IRRIGATION-")
             | models.Q(reference__startswith="LANDPREP-")
             | models.Q(reference__startswith="LABOR-")
+            | models.Q(reference__startswith="HARVEST-PACK-")
         )
         financial_total = (
             self.finance_transactions.filter(category__category_type="expense")
@@ -216,8 +217,11 @@ class PlantingCycle(BaseModel):
             computed = quantity * rate
             labor_total += computed if computed > 0 else (record.total_amount or Decimal("0"))
 
+        packing_total = self.harvests.aggregate(total=models.Sum("packing_cost"))["total"] or Decimal("0")
+
         return (
             financial_total
+            + packing_total
             + structure_total
             + planting_total
             + fertilization_total
@@ -687,6 +691,18 @@ class Harvest(BaseModel):
         SEED = "seed", "Semente"
         OTHER = "other", "Outro"
 
+    class QuantityUnit(models.TextChoices):
+        KG = "kg", "Kg"
+        BOX = "box", "Caixa"
+        TRUCK = "truck", "Carreta"
+
+    class PackageType(models.TextChoices):
+        SACK = "sack", "Sacos"
+        BOX = "box", "Caixas"
+        BIG_BAG = "big_bag", "Big bag"
+        CRATE = "crate", "Engradados"
+        OTHER = "other", "Outro"
+
     planting_cycle = models.ForeignKey(PlantingCycle, on_delete=models.CASCADE, related_name="harvests")
     harvest_type = models.CharField(
         max_length=20, choices=HarvestType.choices, default=HarvestType.PARTIAL
@@ -708,6 +724,24 @@ class Harvest(BaseModel):
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     revenue_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     quality_grade = models.CharField(max_length=50, blank=True)
+    # Quantity as informed by the user; yield_kg keeps the kg equivalent.
+    quantity = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    quantity_unit = models.CharField(
+        max_length=10, choices=QuantityUnit.choices, default=QuantityUnit.KG
+    )
+    unit_weight_kg = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Kg per box/truck when quantity_unit is not kg",
+    )
+    # Packing of the production (optional).
+    packaged = models.BooleanField(default=False)
+    package_type = models.CharField(max_length=20, choices=PackageType.choices, blank=True)
+    package_weight_kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    package_count = models.PositiveIntegerField(null=True, blank=True)
+    package_unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    packing_labor_per_package = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    packing_other_costs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    packing_cost = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -732,11 +766,81 @@ class Harvest(BaseModel):
         if self.buyer and not self.buyer_name:
             self.buyer_name = self.buyer.name
 
+        if self.quantity is None:
+            self.quantity = self.yield_kg
+            self.quantity_unit = self.QuantityUnit.KG
+        if self.quantity_unit == self.QuantityUnit.KG:
+            self.unit_weight_kg = None
+            self.yield_kg = self.quantity
+        elif self.unit_weight_kg:
+            self.yield_kg = (self.quantity * self.unit_weight_kg).quantize(Decimal("0.01"))
+
+        if self.packaged and self.package_count:
+            count = Decimal(self.package_count)
+            self.packing_cost = (
+                count * (self.package_unit_cost or Decimal("0"))
+                + count * (self.packing_labor_per_package or Decimal("0"))
+                + (self.packing_other_costs or Decimal("0"))
+            ).quantize(Decimal("0.01"))
+        else:
+            self.packaged = False
+            self.package_type = ""
+            self.package_weight_kg = None
+            self.package_count = None
+            self.package_unit_cost = Decimal("0")
+            self.packing_labor_per_package = Decimal("0")
+            self.packing_other_costs = Decimal("0")
+            self.packing_cost = Decimal("0")
+
         if self.destination == self.Destination.SALE and self.unit_price:
             self.revenue_amount = (self.yield_kg * self.unit_price).quantize(Decimal("0.01"))
         else:
             self.revenue_amount = Decimal("0")
 
+        super().save(*args, **kwargs)
+
+
+class CropSale(BaseModel):
+    """Sale of harvested production ("Venda da produção")."""
+
+    class Unit(models.TextChoices):
+        KG = "kg", "Kg"
+        SACK = "sack", "Saca"
+        BOX = "box", "Caixa"
+        TON = "ton", "Tonelada"
+        TRUCK = "truck", "Carreta"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="crop_sales"
+    )
+    planting_cycle = models.ForeignKey(
+        PlantingCycle, on_delete=models.PROTECT, related_name="sales"
+    )
+    buyer = models.ForeignKey(
+        "HarvestBuyer", on_delete=models.SET_NULL, null=True, blank=True, related_name="sales"
+    )
+    sale_date = models.DateField()
+    quantity = models.DecimalField(max_digits=14, decimal_places=2)
+    unit = models.CharField(max_length=10, choices=Unit.choices, default=Unit.KG)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="crop_sales_created",
+    )
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Venda da produção"
+        verbose_name_plural = "Vendas da produção"
+        ordering = ["-sale_date", "-created_at"]
+        indexes = [models.Index(fields=["organization", "sale_date"])]
+
+    def __str__(self) -> str:
+        return f"{self.planting_cycle} — {self.sale_date} ({self.quantity} {self.unit})"
+
+    def save(self, *args, **kwargs):
+        self.total_amount = (self.quantity * self.unit_price).quantize(Decimal("0.01"))
         super().save(*args, **kwargs)
 
 
@@ -800,6 +904,8 @@ class LandPreparation(BaseModel):
         SUBSOLAGEM = "subsolagem", "Subsolagem"
         NIVELAMENTO = "nivelamento", "Nivelamento"
         ROCAGEM = "rocagem", "Roçagem"
+        PLANTIO = "plantio", "Plantio"
+        COLHEITA = "colheita", "Colheita"
         OUTRO = "outro", "Outro"
 
     class ExecutionType(models.TextChoices):

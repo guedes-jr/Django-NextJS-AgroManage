@@ -220,7 +220,9 @@ including non-cancelled expenses and stored feed/vaccine/treatment snapshots.
 Phase attribution uses the recorded destination or dated phase history. Source
 lots supply mother identifiers but retain their own direct costs to avoid duplication.
 Sire upkeep follows the allocation rule below instead of being duplicated on sources.
-General expenses without a batch are not allocated. Missing prices are counted;
+General labor expenses without a batch are shared between active production lots in the
+returned report, proportionally to their current quantity; other general expenses without
+a batch are not allocated. Missing prices are counted;
 zero sales produce a null margin. Closed sales use their preserved sale quantity
 for cost per animal. Purchase expenses use financial references, with a fallback
 to the recorded purchase value only when no matching transaction exists.
@@ -294,6 +296,14 @@ retaining the existing `rows`, `kpis`, alerts and suggestions. Without
 organization-scoped by the existing livestock permission rules; these resources
 do not currently support a farm filter, so mobile must identify the list as
 organization-wide rather than applying a selected-farm label.
+
+`GET livestock/swine/phases/<phase>/<uuid:pk>/mobile/?view=mobile` is the
+read-only detail projection for rows with UUID IDs from those lists. It verifies
+organization, species and current phase before returning identifier, phase,
+farm identity/name, status, known dates and up to five operational-history
+events. It omits financial values and is not available for synthetic pending
+diagnosis rows (`cob_<animal-id>`), which remain list-only until their specific
+detail contract exists.
 
 ## Tenant roles and operator scope
 
@@ -3599,3 +3609,63 @@ form locked. Missing/unmatched receipts cannot be reported as success. Fields an
 request keys live only in the current form instance: there is no offline outbox
 or automatic replay, and recovery after forced termination requires manual
 history verification. Device/build homologation remains pending.
+
+## Área do veterinário (`/api/v1/veterinary/`)
+
+Contractable segment `area-veterinario` (billing migration `0011_veterinary_segment`,
+quote-only tier). Access requires an enabled subscription item for that segment
+(`trialing`, `active`, `past_due`) **and** role `admin`, `manager` or
+`veterinarian`; otherwise 403. `effective_access` exposes `veterinary: bool`.
+The `veterinarian` role is restricted by `request_allowed` to auth, notifications,
+support, `GET organizations/me` and `/veterinary/*`; the web redirects it from
+`/home` to `/home/veterinario`.
+
+Data is isolated from the farm segments (the vet's own clients/animals), always
+scoped by `organization`. Endpoints:
+
+- `GET workspace/` → `today`, `settings`, `open_alerts`, `can_wipe` (admin only).
+- `PATCH settings/` → procedure prices (`price_*`) and `last_responsible`.
+- `clients/` (list/create/destroy). List adds `animals`, `month_procedures`,
+  `receivable`, `procedures`. Delete is blocked when the client has procedures.
+- `animals/` list (status, tone, `next`, `deadline`, `last`, `source`),
+  `PATCH {id}/` (category), `GET {id}/history/`, `GET lookup/?client=&q=`
+  (pending protocol step, not-inseminated date, default coverage method),
+  `POST {id}/quick/` (quick launch).
+- `POST procedures/` registers following the prototype order: pending D8 removal
+  step → IATF insemination (status protocol) → diagnosis (category, result,
+  conduct when open, coverage method when pregnant, `confirm_pregnancy` when a
+  source exists). Can create a client by `new_client_name`. Returns `branch`,
+  `procedure` and generated `alerts` (D8/D10 or D9/D11, calving at −7 days,
+  ultrasound +30, heat observation 21 / induction 10 days). Gestation = 283 days.
+  `PATCH procedures/{id}/` only changes `value`/`paid`.
+- `GET report/` filters `client,date,procedure,result,bull,category,responsible,q,mode`
+  (`event|animal`) → rows/animals, stats (pregnancy rate), bulls, responsibles.
+- `GET billing/?month=YYYY-MM&client=` and `POST billing/pay-all/` (`client`, `month`).
+- `POST wipe/` (admin only) deletes all clients/animals of the area.
+
+Errors use the standard envelope; writes are audited via `record_client_action`.
+
+## Crop harvest packing and production sales
+
+`/api/v1/crops/harvests/` accepts `quantity` + `quantity_unit` (`kg|box|truck`) and
+`unit_weight_kg` (required when the unit is not kg); `yield_kg` is derived and the
+legacy `yield_kg`-only payload still works. Optional packing: `packaged`,
+`package_type` (`sack|box|big_bag|crate|other`), `package_weight_kg`,
+`package_count`, `package_unit_cost`, `packing_labor_per_package`,
+`packing_other_costs`; read-only `packing_cost` = count × (unit cost + labor) +
+other. It is mirrored as an "Embalagem" expense (`HARVEST-PACK-<id>`) created,
+updated and removed with the harvest, and counts in `investment_total`.
+
+`/api/v1/crops/sales/` (CRUD, organization-scoped; filters `planting_cycle`,
+`date_from`, `date_to`): `planting_cycle`, optional `buyer`, `sale_date`,
+`quantity`, `unit` (`kg|sack|box|ton|truck`), `unit_price`; read-only
+`total_amount`, `product` (crop name). Each sale keeps one paid revenue
+transaction "Venda da produção" (`CROPSALE-<id>`) linked to the cycle.
+
+Dashboard crop segment costs are read from the operation records (planting,
+fertilization, fertigation, pesticides incl. equipment, irrigation, land
+preparation "Máquinas", labor, packing) by operation date, plus manual crop
+transactions; the automatic mirrors (`PLANTING-`, `FERTILIZATION-`,
+`FERTIGATION-`, `PESTICIDE-`, `IRRIGATION-`, `LANDPREP-`, `LABOR-`,
+`HARVEST-PACK-`) are excluded to avoid double counting. Land preparation
+`operation_type` also accepts `plantio` and `colheita`.

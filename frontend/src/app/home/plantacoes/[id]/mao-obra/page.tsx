@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cropService } from "@/services/cropService";
+import { CropPageHeader } from "@/components/crops/CropPageHeader";
 import { useOrganizationLocale } from "@/lib/locale";
 
 type Plantation = {
@@ -353,32 +354,7 @@ const activityOptions = [
 
   return (
     <div className="pb-4">
-      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-        <div className="d-flex align-items-start gap-3">
-          <div
-            className="d-flex align-items-center justify-content-center flex-shrink-0"
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "color-mix(in srgb, var(--primary), transparent 90%)",
-              color: "var(--primary)",
-            }}
-          >
-            <UserRound size={30} />
-          </div>
-          <div>
-            <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.75rem" }}>
-              {t("plantations.labor.title")}
-            </h1>
-            <p className="text-muted-foreground mb-0">
-              {t("plantations.labor.description")}
-            </p>
-          </div>
-        </div>
-
-
-      </div>
+      <CropPageHeader icon={UserRound} title={t("plantations.labor.title")} description={t("plantations.labor.description")} plantation={plantation ? { id, name: plantation.name || plantation.crop_name, field: plantation.field_name } : null} />
 
       {error && (
         <div className="alert alert-danger py-2 px-3 mb-3" role="alert">
@@ -410,35 +386,35 @@ const activityOptions = [
             </select>
           </div>
 
-          <div className="col-12 col-lg-5">
-            <label className="form-label fw-bold text-foreground">
+          <div className="col-12 col-lg-6">
+            <label className="form-label fw-bold text-foreground" htmlFor="labor-worker">
               {t("plantations.labor.worker")} / {t("plantations.labor.provider")} <span className="text-danger">*</span>
             </label>
-            <select
-              className="form-select"
-              value={form.worker}
-              onChange={(event) => updateForm({ worker: event.target.value })}
-              style={{ height: 50, borderRadius: 10 }}
-            >
-              <option value="">{t("plantations.harvest.select")}</option>
-              {workers.map((worker) => (
-                <option key={worker.id} value={worker.id}>
-                  {worker.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="col-12 col-lg-1">
-            <button
-              type="button"
-              className="btn btn-outline-success d-flex align-items-center justify-content-center gap-2 w-100"
-              onClick={() => setShowWorkerForm(true)}
-              style={{ height: 50, minWidth: 132, borderRadius: 10, fontWeight: 800 }}
-            >
-              <Plus size={20} />
-              {t("plantations.labor.register")}
-            </button>
+            <div className="d-flex gap-2">
+              <select
+                id="labor-worker"
+                className="form-select"
+                value={form.worker}
+                onChange={(event) => updateForm({ worker: event.target.value })}
+                style={{ height: 50, borderRadius: 10, minWidth: 0 }}
+              >
+                <option value="">{t("plantations.harvest.select")}</option>
+                {workers.map((worker) => (
+                  <option key={worker.id} value={worker.id}>
+                    {worker.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-outline-success d-flex align-items-center justify-content-center gap-2 flex-shrink-0"
+                onClick={() => setShowWorkerForm(true)}
+                style={{ height: 50, borderRadius: 10, fontWeight: 800 }}
+              >
+                <Plus size={20} aria-hidden="true" />
+                {t("plantations.labor.register")}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -667,7 +643,7 @@ const activityOptions = [
                             title={t("plantations.edit")}
                             aria-label={t("plantations.edit")}
                             className="btn btn-sm d-flex align-items-center justify-content-center"
-                            style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                            style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--primary)", color: "var(--primary)", backgroundColor: "transparent", padding: 0 }}
                             onClick={() => openEditRecord(record)}
                           >
                             <Pencil size={13} />

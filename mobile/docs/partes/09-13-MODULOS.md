@@ -246,7 +246,11 @@ aceitam filtro por fazenda. Os endpoints só acrescentam metadados de página co
 `view=mobile`, preservando a resposta legada da web. Typecheck e lint passaram;
 testes automatizados e homologação visual/nativa ficam para a rodada final após
 a conclusão das telas. Fichas, eventos, escritas e transferências permanecem
-pendentes.
+pendentes. A revisão de apresentação posterior substituiu os cartões textuais
+por cartões compactos por fase, com ícones e uma ficha resumida por toque usando
+somente os dados da lista já autorizada. A auditoria P11.01 confirmou que estes
+recursos não expõem ficha individual, fazenda ou eventos por `view=mobile`; por
+isso a ficha não inventa esses campos e continua sendo consulta parcial.
 
 ### Ordem interna sugerida
 
@@ -258,7 +262,7 @@ pendentes.
 
 ### Tarefas
 
-- [ ] P11.01 — Mapear `livestockService.ts`, produtividade e mão de obra para as fases realmente implementadas. Identificar marrãs, matrizes, cobertura, gestação, maternidade, creche, crescimento e terminação conforme contratos vigentes.
+- [x] P11.01 — Mapeados `livestockService.ts` e os recursos de fase existentes: o recorte mobile atual entrega somente linhas e contagem organizacionais, sem detalhe individual/fazenda/eventos. Produtividade e mão de obra exigem contratos próprios antes de entrar na ficha.
 - [x] P11.02 — Criar hub de fases com contagens confiáveis e lista paginada; contagens ausentes não devem ser inventadas localmente.
 - [ ] P11.03 — Detalhe com identificação, fase, fazenda, datas e eventos necessários para decidir a próxima ação. Respeitar diferenças entre animal individual e lote.
 - [ ] P11.04 — Preservar distinção entre data de nascimento, chegada e início da fase. Idade desconhecida permanece desconhecida; não substituir nascimento por entrada.

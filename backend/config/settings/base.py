@@ -60,6 +60,7 @@ LOCAL_APPS = [
     "apps.finance",
     "apps.reports",
     "apps.tasks",
+    "apps.veterinary",
     "apps.audit",
     "apps.notifications",
     "apps.platform_admin",

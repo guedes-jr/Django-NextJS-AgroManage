@@ -72,3 +72,19 @@ class CattleMobileProjectionTests(APITestCase):
         self.assertEqual(self.client.get(url, {"view": "operational", "production": "beef"}).status_code, 403)
         self.user.allowed_livestock.add(self.species)
         self.assertEqual(self.client.get(url, {"view": "operational", "production": "beef"}).status_code, 200)
+
+    def test_swine_phase_detail_is_tenant_scoped_and_omits_financial_fields(self):
+        swine, _ = Species.objects.get_or_create(code="suinos", defaults={"name": "Suínos"})
+        animal = Animal.objects.create(farm=self.farm, species=swine, identifier="S-001", gender="F", category="Marrã", entry_date=self.today)
+        HistoricoEvento.objects.create(farm=self.farm, matriz=animal, tipo_evento="Observação", data_evento=self.today, descricao="Conferência")
+        url = reverse("swine-phase-mobile-detail", args=["marras", animal.pk])
+        response = self.client.get(url, {"view": "mobile"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["identifier"], "S-001")
+        self.assertEqual(response.data["farm"]["id"], str(self.farm.pk))
+        self.assertEqual(response.data["events"][0]["title"], "Observação")
+        self.assertNotIn("purchase_value", response.data)
+
+        foreign_org = Organization.objects.create(name="Estrangeira", slug="mobile-swine-foreign")
+        foreign = Animal.objects.create(farm=Farm.objects.create(organization=foreign_org, name="Fora"), species=swine, identifier="S-OUT", gender="F", category="Marrã", entry_date=self.today)
+        self.assertEqual(self.client.get(reverse("swine-phase-mobile-detail", args=["marras", foreign.pk]), {"view": "mobile"}).status_code, 404)

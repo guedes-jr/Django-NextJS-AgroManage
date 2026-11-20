@@ -65,14 +65,14 @@ function Editor({route,tank,today}:{route:Route;tank:MilkTank;today:string}){
     {context?.available&&<Text style={s.body}>{t.available}: {number(context.available.available)}</Text>}
    </View>
    {review.mode==='movement'&&review.kind==='collection'&&<Text style={s.muted}>{t.finance}</Text>}
-   <AgendaButton label={busy?w.loading:t.confirm} disabled={disabled} onPress={()=>void confirm()}/><AgendaButton label={t.edit} disabled={disabled} onPress={()=>{setReview(null);setContext(null);setMessage('');}}/>
+   <AgendaButton variant="primary" busy={busy} label={busy?w.loading:t.confirm} disabled={disabled} onPress={()=>void confirm()}/><AgendaButton label={t.edit} disabled={disabled} onPress={()=>{setReview(null);setContext(null);setMessage('');}}/>
   </>:<>
    {route.mode==='movement'&&<Controller control={control} name="kind" render={({field})=><View style={s.row}>{(['production','collection','discard'] as const).map(value=><AgendaButton key={value} label={m[value]} selected={field.value===value} disabled={disabled} onPress={()=>field.onChange(value)}/>)}</View>}/>} 
    {fields.map(input)}
    {route.mode==='quality'&&<><Text style={s.label}>{q.antibiotics}</Text><Controller control={control} name="antibiotics" render={({field})=><View style={s.row}>{(['not_tested','negative','positive'] as const).map(value=><AgendaButton key={value} label={q[value]} selected={field.value===value} disabled={disabled} onPress={()=>field.onChange(value)}/>)}</View>}/></>}
-   <AgendaButton label={busy?w.loading:t.review} disabled={disabled} onPress={()=>void handleSubmit(preview)()}/>
+   <AgendaButton variant="primary" busy={busy} label={busy?w.loading:t.review} disabled={disabled} onPress={()=>void handleSubmit(preview)()}/>
   </>}
   {!saved&&(route.mode==='cancel'||kind==='collection')&&<AgendaButton label={milkMessages[language].openWeb} disabled={busy} onPress={()=>void openWeb()}/>}
-  {!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}{unknown&&!saved&&<AgendaButton label={busy?w.loading:t.check} disabled={busy} onPress={()=>void reconcile()}/>}{(unknown||blocked)&&!saved&&<AgendaButton label={route.mode==='quality'?q.title:m.title} disabled={busy} onPress={()=>router.push({pathname:route.mode==='quality'?'/milk/tank-qualities':'/milk/tank-movements',params:{tank:tank.id,farm:tank.farm,reconcile:'1'}})}/>} 
+  {!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}{unknown&&!saved&&<AgendaButton variant="primary" busy={busy} label={busy?w.loading:t.check} disabled={busy} onPress={()=>void reconcile()}/>}{(unknown||blocked)&&!saved&&<AgendaButton label={route.mode==='quality'?q.title:m.title} disabled={busy} onPress={()=>router.push({pathname:route.mode==='quality'?'/milk/tank-qualities':'/milk/tank-movements',params:{tank:tank.id,farm:tank.farm,reconcile:'1'}})}/>} 
  </ScrollView></KeyboardAvoidingView></WorkspaceShell>;
 }

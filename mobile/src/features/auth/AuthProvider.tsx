@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
 import { getLocales } from 'expo-localization';
-import { parseApiUrl } from '../../config/environment';
+import { selectApiUrl } from '../../config/environment';
 import { messages, resolveLanguage } from '../../i18n/messages';
 import { createAuthApi } from '../../services/authApi';
 import { SessionController } from './sessionController';
@@ -9,7 +9,7 @@ import { createTokenVault } from './tokenVault';
 
 function createRuntime() {
   const deviceLanguage = resolveLanguage(getLocales()[0]?.languageTag);
-  const baseURL = parseApiUrl(process.env.EXPO_PUBLIC_API_URL, __DEV__);
+  const baseURL = selectApiUrl({ api: process.env.EXPO_PUBLIC_API_URL, devApi: process.env.EXPO_PUBLIC_DEV_API_URL }, __DEV__);
   const api = createAuthApi(baseURL);
   return { api, controller: new SessionController(api, createTokenVault(baseURL), deviceLanguage), deviceLanguage, configured: !!baseURL };
 }

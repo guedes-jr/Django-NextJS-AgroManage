@@ -26,6 +26,7 @@ import type { LucideIcon } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { CropPageHeader } from "@/components/crops/CropPageHeader";
 import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 type Plantation = {
@@ -658,19 +659,18 @@ export default function RelatorioPlantacaoPage() {
   if (!plantation) return <div className="p-4 text-muted">{t("plantations.notFound")}</div>;
 
   return (
-    <div className="p-3 p-md-4">
-      <div className="d-flex align-items-center justify-content-between gap-3 mb-4 flex-wrap">
-        <div>
-
-          <h1 className="fw-black text-foreground mb-1" style={{ fontSize: "1.85rem" }}>{t("plantations.report")}</h1>
-          <p className="text-muted-foreground mb-0">{t("plantations.history.pageDescription")}</p>
-        </div>
-        <div className="d-flex gap-2 flex-wrap">
-          <Button variant="outline-secondary" size="sm" onClick={handlePreviewPdf}><Eye size={15} /> {t("plantations.history.previewPdf")}</Button>
-          <Button variant="agro" size="sm" onClick={() => handleDownloadPdf(false)}><Download size={15} /> {t("plantations.history.generatePdf")}</Button>
-          <Button variant="outline-primary" size="sm" onClick={handleSendToAgronomist} disabled={sharing}><Send size={15} /> {t("plantations.history.sendAgronomist")}</Button>
-        </div>
-      </div>
+    <div>
+      <CropPageHeader
+        icon={FileText}
+        title={t("plantations.report")}
+        description={t("plantations.history.pageDescription")}
+        plantation={{ id, name: plantation.name || plantation.crop_name, field: plantation.field_name }}
+        actions={<>
+          <Button variant="outline-secondary" size="sm" onClick={handlePreviewPdf}><Eye size={15} aria-hidden="true" /> {t("plantations.history.previewPdf")}</Button>
+          <Button variant="outline-primary" size="sm" onClick={handleSendToAgronomist} disabled={sharing}><Send size={15} aria-hidden="true" /> {t("plantations.history.sendAgronomist")}</Button>
+          <Button variant="agro" size="sm" onClick={() => handleDownloadPdf(false)}><Download size={15} aria-hidden="true" /> {t("plantations.history.generatePdf")}</Button>
+        </>}
+      />
 
       <div className="row g-4 align-items-start">
         <div className="col-12 col-xl-8">

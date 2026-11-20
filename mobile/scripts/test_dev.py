@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from dev import (
     api_url,
+    dotenv_api_url,
     ensure_ngrok_available,
     ensure_port_available,
     main,
@@ -63,6 +64,65 @@ class ConfigurationTests(unittest.TestCase):
         ngrok.assert_called_once()
         ports.assert_not_called()
         supervise_mock.assert_not_called()
+
+    def test_effective_env_file_api_url_follows_expo_precedence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertIsNone(dotenv_api_url(root))
+            (root / ".env").write_text("EXPO_PUBLIC_SITE_URL=https://site.example\n", encoding="utf-8")
+            self.assertIsNone(dotenv_api_url(root))
+            (root / ".env.local").write_text("export EXPO_PUBLIC_API_URL='https://remote.example/api/v1/' # remoto\n", encoding="utf-8")
+            self.assertEqual(dotenv_api_url(root), "https://remote.example/api/v1/")
+            (root / ".env.development.local").write_text("EXPO_PUBLIC_API_URL=https://other.example/api/v1/\n", encoding="utf-8")
+            self.assertEqual(dotenv_api_url(root), "https://other.example/api/v1/")
+
+    def _run_main(self, argv, env_local):
+        """Run main() against a temporary mobile/ and backend/ tree; return captured mocks and output."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            mobile = root / "mobile"
+            (mobile / "node_modules").mkdir(parents=True)
+            (root / "backend").mkdir()
+            (root / "backend" / ".env").write_text("", encoding="utf-8")
+            if env_local is not None:
+                (mobile / ".env.local").write_text(env_local, encoding="utf-8")
+            stderr, stdout = io.StringIO(), io.StringIO()
+            with patch("dev.MOBILE_DIR", mobile), patch("dev.ROOT_DIR", root), \
+                    patch("dev.sys.argv", argv), patch("dev.shutil.which", return_value="npm"), \
+                    patch("dev.ensure_port_available"), patch("dev.ensure_ngrok_available"), \
+                    patch("dev.supervise", return_value=0) as both, \
+                    patch("dev.supervise_mobile_only", return_value=0) as mobile_only, \
+                    patch.dict(os.environ, {}, clear=False), \
+                    contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
+                os.environ.pop("EXPO_PUBLIC_API_URL", None)
+                code = main()
+            return code, both, mobile_only, stderr.getvalue()
+
+    def test_dev_uses_local_backend_even_when_env_local_points_to_remote_api(self):
+        code, both, mobile_only, _ = self._run_main(["dev.py"], "EXPO_PUBLIC_API_URL=https://remote.example/api/v1/\n")
+        self.assertEqual(code, 0)
+        mobile_only.assert_not_called()
+        env = both.call_args.kwargs["mobile_env"]
+        self.assertEqual(env["EXPO_PUBLIC_DEV_API_URL"], "http://127.0.0.1:8000/api/v1/")
+        self.assertEqual(env["EXPO_PUBLIC_API_URL"], "http://127.0.0.1:8000/api/v1/")
+
+    def test_tunnel_uses_remote_api_from_env_local_without_local_backend(self):
+        code, both, mobile_only, _ = self._run_main(["dev.py", "--tunnel"], "EXPO_PUBLIC_API_URL=https://remote.example/api/v1\n")
+        self.assertEqual(code, 0)
+        both.assert_not_called()
+        env = mobile_only.call_args.kwargs["mobile_env"]
+        self.assertEqual(env["EXPO_PUBLIC_DEV_API_URL"], "https://remote.example/api/v1/")
+        self.assertIn("--tunnel", mobile_only.call_args.args[0])
+
+    def test_tunnel_without_remote_api_stops_without_exposing_values(self):
+        for env_local in (None, "EXPO_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1/\n"):
+            with self.subTest(env_local=env_local):
+                code, both, mobile_only, stderr = self._run_main(["dev.py", "--tunnel"], env_local)
+                self.assertEqual(code, 1)
+                self.assertIn("EXPO_PUBLIC_API_URL", stderr)
+                self.assertNotIn("127.0.0.1", stderr)
+                both.assert_not_called()
+                mobile_only.assert_not_called()
 
     def test_default_url_and_explicit_override(self):
         self.assertEqual(api_url("192.168.1.20", 8010, None), "http://192.168.1.20:8010/api/v1/")

@@ -430,7 +430,7 @@ function DairyFeedingForm({ farmId, farmName, today }: { farmId: string; farmNam
                 ))}
                 <TextInput accessibilityLabel={history.notes} style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} value={notes} maxLength={1000} multiline editable={!pending} placeholder={history.notes} onChangeText={setNotes} />
                 <Text style={s.muted}>{t.estimateWarning}</Text>
-                <AgendaButton label={t.review} disabled={!canReview} onPress={() => { setError(''); setReview(true); }} />
+                <AgendaButton variant="primary" label={t.review} disabled={!canReview} onPress={() => { setError(''); setReview(true); }} />
               </View>
             </>
           )}
@@ -454,6 +454,8 @@ function DairyFeedingForm({ farmId, farmName, today }: { farmId: string; farmNam
               {!pending && <View style={s.row}>
                 <AgendaButton label={t.edit} disabled={busy} onPress={() => setReview(false)} />
                 <AgendaButton
+                  variant="primary"
+                  busy={busy}
                   label={busy ? w.loading : t.confirm}
                   disabled={busy || !canReview}
                   onPress={() => {

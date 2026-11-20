@@ -58,18 +58,18 @@ const sidebarSections: SidebarSection[] = [
     items: [
       { title: "Dashboard", href: "/home", icon: PanelsTopLeft, iconTone: "emerald" },
       { title: "Agenda", href: "/home/agenda", icon: CalendarDays, iconTone: "blue" },
-      { title: "Plantações", href: "/home/plantacoes", icon: Sprout, iconTone: "lime" },
     ],
   },
   {
     label: "Segmentos",
     items: [
+      { title: "Plantações", href: "/home/plantacoes", icon: Sprout, iconTone: "lime" },
       { title: "Suinocultura", href: "/home/seguimento/suinos", icon: PigIcon, iconTone: "rose" },
       { title: "Tratos bovinos", href: "/home/seguimento/gado-de-corte/racao/tratos", icon: Wheat, iconTone: "amber" },
       { title: "Gado de corte", href: "/home/seguimento/gado-de-corte", icon: BullIcon, iconTone: "amber" },
       { title: "Pecuária leiteira", href: "/home/seguimento/pecuaria-leiteira", icon: LactationIcon, iconTone: "cyan" },
       { title: "Aves", href: "/home/seguimento/aves", icon: Bird, iconTone: "sky", underDevelopment: true },
-      { title: "Clínica veterinária", href: "/home/clinico", icon: Stethoscope, iconTone: "teal" },
+      { title: "Área do veterinário", href: "/home/veterinario", icon: Stethoscope, iconTone: "teal" },
     ],
   },
   {
@@ -127,7 +127,7 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
     "Gado de corte": "sidebar.beefCattle",
     "Pecuária leiteira": "sidebar.dairy",
     Aves: "sidebar.birds",
-    "Clínica veterinária": "sidebar.clinic",
+    "Área do veterinário": "sidebar.veterinary",
     Estoque: "sidebar.inventory",
     Financeiro: "sidebar.finance",
     "Estrutura da fazenda": "sidebar.farmStructure",

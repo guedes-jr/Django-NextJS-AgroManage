@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { getOrganizationAccess, canAccessOrganizationPath, type OrganizationAccess } from "@/services/organizationAccess";
+import { getOrganizationAccess, canAccessOrganizationPath, type OrganizationAccess, VETERINARY_PATH } from "@/services/organizationAccess";
 import Link from "next/link";
 import { OrganizationAccessContext } from "@/components/auth/OrganizationAccessContext";
 import { useCallback, useEffect, useState } from "react";
@@ -48,6 +48,8 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
   }, []);
   useEffect(() => {
     if (access?.role === "feeder" && pathname === "/home" && access.livestock_species?.includes("bovinos")) router.replace("/home/seguimento/gado-de-corte/racao/tratos");
+    // The veterinarian works only in the Área do veterinário; the general dashboard is not available to this role.
+    if (access?.role === "veterinarian" && pathname === "/home") router.replace(VETERINARY_PATH);
   }, [access, pathname, router]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const openSidebar = useCallback(() => setIsSidebarOpen(true), []);

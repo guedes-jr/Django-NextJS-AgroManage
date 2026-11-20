@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
+    CropSale,
     Field,
     PlantingCycle,
     Planting,
@@ -31,6 +32,7 @@ from .models import (
     SectorStructureItem,
 )
 from .serializers import (
+    CropSaleSerializer,
     FieldSerializer,
     PlantingCycleListSerializer,
     PlantingCycleDetailSerializer,
@@ -57,6 +59,7 @@ from .services import (
     create_irrigation, create_land_preparation,
     create_labor_record, create_harvest,
     update_harvest, delete_harvest,
+    create_crop_sale, update_crop_sale, delete_crop_sale,
 )
 from .selectors import (
     get_plantation_dashboard,
@@ -563,3 +566,35 @@ class LaborRecordViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         create_labor_record(serializer, self.request)
+
+
+@operator_scoped
+class CropSaleViewSet(viewsets.ModelViewSet):
+    serializer_class = CropSaleSerializer
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
+
+    def get_queryset(self):
+        user = self.request.user
+        if not (user.is_authenticated and user.organization):
+            return CropSale.objects.none()
+        qs = CropSale.objects.filter(organization=user.organization).select_related(
+            "planting_cycle", "buyer"
+        )
+        params = self.request.query_params
+        if params.get("planting_cycle"):
+            qs = qs.filter(planting_cycle_id=params["planting_cycle"])
+        if params.get("date_from"):
+            qs = qs.filter(sale_date__gte=params["date_from"])
+        if params.get("date_to"):
+            qs = qs.filter(sale_date__lte=params["date_to"])
+        return qs.order_by("-sale_date", "-created_at")
+
+    def perform_create(self, serializer):
+        create_crop_sale(serializer, self.request)
+
+    def perform_update(self, serializer):
+        update_crop_sale(serializer, self.request)
+
+    def perform_destroy(self, instance):
+        delete_crop_sale(instance)

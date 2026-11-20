@@ -160,6 +160,76 @@ class BasePhaseView(APIView):
         }
 
 
+@operator_scoped
+class SwinePhaseMobileDetailView(BasePhaseView):
+    """Read-only operational detail for a row previously returned by a swine phase."""
+
+    batch_phases = {"creche", "crescimento", "engorda"}
+    animal_phases = {"marras", "matrizes"}
+
+    def get(self, request, phase, pk):
+        if request.query_params.get("view") != "mobile":
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if phase not in {*self.batch_phases, *self.animal_phases, "gestacao", "maternidade"}:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        organization = getattr(request.user, "organization", None)
+        if organization is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        target = None
+        target_kind = None
+        if phase in self.batch_phases:
+            target = get_object_or_404(
+                AnimalBatch.objects.select_related("farm"),
+                pk=pk, farm__organization=organization, species__code="suinos", status="active", phase=phase,
+            )
+            target_kind = "batch"
+        elif phase == "gestacao":
+            target = get_object_or_404(
+                Pregnancy.objects.select_related("female__farm"),
+                pk=pk, female__farm__organization=organization, female__species__code="suinos", status=Pregnancy.Status.ONGOING,
+            )
+            target_kind = "pregnancy"
+        elif phase == "maternidade":
+            target = get_object_or_404(
+                Birth.objects.select_related("female__farm", "litter"),
+                pk=pk, female__farm__organization=organization, female__species__code="suinos", litter__weaning_date__isnull=True,
+            )
+            target_kind = "birth"
+        else:
+            category = "Marrã" if phase == "marras" else "Matriz"
+            target = get_object_or_404(
+                Animal.objects.select_related("farm"),
+                pk=pk, farm__organization=organization, species__code="suinos", category=category, status="active",
+            )
+            target_kind = "animal"
+
+        if target_kind == "batch":
+            farm, label, events = target.farm, target.batch_code, target.historicos.all()
+            dates = {"birth": target.birth_date, "entry": target.entry_date, "phase_start": target.entry_date, "forecast": None}
+            state = target.status
+        elif target_kind == "pregnancy":
+            animal, farm = target.female, target.female.farm
+            label, events = animal.identifier, animal.historicos.all()
+            dates = {"birth": animal.birth_date, "entry": animal.entry_date, "phase_start": target.start_date, "forecast": target.expected_birth_date}
+            state = animal.reproductive_status
+        elif target_kind == "birth":
+            animal, farm = target.female, target.female.farm
+            label, events = animal.identifier, animal.historicos.all()
+            dates = {"birth": animal.birth_date, "entry": animal.entry_date, "phase_start": target.birth_date, "forecast": target.birth_date + datetime.timedelta(days=target.expected_weaning_days)}
+            state = animal.reproductive_status
+        else:
+            farm, label, events = target.farm, target.identifier, target.historicos.all()
+            dates = {"birth": target.birth_date, "entry": target.entry_date, "phase_start": target.entry_date, "forecast": None}
+            state = target.reproductive_status
+        return Response({
+            "id": str(target.pk), "phase": phase, "kind": target_kind, "identifier": label,
+            "farm": {"id": str(farm.pk), "name": farm.name}, "status": state,
+            "dates": {key: value.isoformat() if value else None for key, value in dates.items()},
+            "events": [{"type": event.tipo_evento, "date": event.data_evento.isoformat(), "title": event.tipo_evento, "subtitle": event.descricao} for event in events.order_by("-data_evento", "-id")[:5]],
+        })
+
+
 class MarrasView(BasePhaseView):
     def get(self, request):
         filters, species = self.get_species_filter(request)

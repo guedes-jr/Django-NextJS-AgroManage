@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from rest_framework import serializers
 
 from .models import (
+    CropSale,
     Field,
     PlantingCycle,
     Planting,
@@ -461,14 +462,19 @@ class HarvestSerializer(serializers.ModelSerializer):
             "buyer", "buyer_name", "buyer_name_display",
             "unit_price", "revenue_amount",
             "quality_grade", "created_by", "created_by_name",
+            "quantity", "quantity_unit", "unit_weight_kg",
+            "packaged", "package_type", "package_weight_kg", "package_count",
+            "package_unit_cost", "packing_labor_per_package", "packing_other_costs",
+            "packing_cost",
             "notes", "created_at", "updated_at",
         ]
         read_only_fields = [
             "id", "planting_cycle_name", "harvest_type_display",
             "destination_display", "buyer_name_display",
-            "revenue_amount", "created_by", "created_by_name",
+            "revenue_amount", "packing_cost", "created_by", "created_by_name",
             "created_at", "updated_at",
         ]
+        extra_kwargs = {"yield_kg": {"required": False}}
 
     def get_created_by_name(self, obj):
         if not obj.created_by:
@@ -490,8 +496,37 @@ class HarvestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"buyer": translate_message("Comprador inválido para esta organização.")})
         if planting_cycle and buyer and planting_cycle.organization_id != buyer.organization_id:
             raise serializers.ValidationError({"buyer": translate_message("Comprador não pertence à organização da plantação.")})
-        if yield_kg is not None and yield_kg <= 0:
-            raise serializers.ValidationError({"yield_kg": translate_message("A quantidade colhida deve ser maior que zero.")})
+        current = lambda field, default=None: attrs.get(field, getattr(self.instance, field, default))  # noqa: E731
+        quantity = attrs.get("quantity")
+        if quantity is None and "yield_kg" in attrs:
+            quantity = attrs["yield_kg"]
+            attrs["quantity"] = quantity
+            attrs["quantity_unit"] = Harvest.QuantityUnit.KG
+        if quantity is None:
+            quantity = current("quantity") or yield_kg
+        if quantity is None or quantity <= 0:
+            error_field = "quantity" if "quantity" in self.initial_data else "yield_kg"
+            raise serializers.ValidationError({error_field: translate_message("A quantidade colhida deve ser maior que zero.")})
+        unit = current("quantity_unit", Harvest.QuantityUnit.KG)
+        if unit == Harvest.QuantityUnit.KG:
+            attrs["yield_kg"] = quantity
+        else:
+            unit_weight = current("unit_weight_kg")
+            if not unit_weight or unit_weight <= 0:
+                raise serializers.ValidationError({"unit_weight_kg": translate_message("Informe quantos kg tem cada unidade colhida.")})
+            attrs["yield_kg"] = (quantity * unit_weight).quantize(Decimal("0.01"))
+        if current("packaged", False):
+            if not current("package_type"):
+                raise serializers.ValidationError({"package_type": translate_message("Informe o tipo de embalagem.")})
+            weight = current("package_weight_kg")
+            if not weight or weight <= 0:
+                raise serializers.ValidationError({"package_weight_kg": translate_message("Informe o peso de cada embalagem.")})
+            if not current("package_count"):
+                raise serializers.ValidationError({"package_count": translate_message("Informe o número de embalagens usadas.")})
+            for field in ("package_unit_cost", "packing_labor_per_package", "packing_other_costs"):
+                value = current(field)
+                if value is not None and value < 0:
+                    raise serializers.ValidationError({field: translate_message("O valor não pode ser negativo.")})
         if destination == Harvest.Destination.SALE:
             if not buyer and not attrs.get("buyer_name", getattr(self.instance, "buyer_name", "")):
                 raise serializers.ValidationError({"buyer": translate_message("Informe o comprador para vendas.")})
@@ -592,4 +627,37 @@ class LaborRecordSerializer(serializers.ModelSerializer):
         if notes and len(notes) > 300:
             raise serializers.ValidationError({"notes": translate_message("As observações devem ter no máximo 300 caracteres.")})
 
+        return attrs
+
+
+class CropSaleSerializer(serializers.ModelSerializer):
+    product = serializers.CharField(source="planting_cycle.crop_name", read_only=True)
+    planting_cycle_name = serializers.CharField(source="planting_cycle.name", read_only=True)
+    buyer_name = serializers.CharField(source="buyer.name", read_only=True, default="")
+    unit_display = serializers.CharField(source="get_unit_display", read_only=True)
+
+    class Meta:
+        model = CropSale
+        fields = [
+            "id", "planting_cycle", "planting_cycle_name", "product",
+            "buyer", "buyer_name", "sale_date", "quantity", "unit", "unit_display",
+            "unit_price", "total_amount", "notes", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "total_amount", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        organization = getattr(getattr(request, "user", None), "organization", None)
+        planting_cycle = attrs.get("planting_cycle") or getattr(self.instance, "planting_cycle", None)
+        buyer = attrs.get("buyer", getattr(self.instance, "buyer", None))
+        if planting_cycle and organization and planting_cycle.organization_id != organization.id:
+            raise serializers.ValidationError({"planting_cycle": translate_message("Plantação inválida para esta organização.")})
+        if buyer and organization and buyer.organization_id != organization.id:
+            raise serializers.ValidationError({"buyer": translate_message("Comprador inválido para esta organização.")})
+        for field in ("quantity", "unit_price"):
+            value = attrs.get(field)
+            if value is not None and value <= 0:
+                raise serializers.ValidationError({field: translate_message("O valor deve ser maior que zero.")})
+        if attrs.get("notes") and len(attrs["notes"]) > 500:
+            raise serializers.ValidationError({"notes": translate_message("As observações devem ter no máximo 500 caracteres.")})
         return attrs

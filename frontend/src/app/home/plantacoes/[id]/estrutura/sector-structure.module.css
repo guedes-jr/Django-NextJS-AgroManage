@@ -1,15 +1,102 @@
-.page { min-height: 100%; background: var(--background); }
-.hero { margin: -1.5rem -1.5rem 0; padding: 18px 26px; background: linear-gradient(120deg,#087535,#075628); color: white; display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 14px; text-align: center; }
-.hero > button:first-child { color: white; border: 0; background: transparent; justify-self: start; }
-.hero h1 { margin: 0; font-size: 1.65rem; font-weight: 850; text-transform: uppercase; }.hero p { margin: 2px 0 0; opacity: .85; }
-.saveButton, .panelHeading button { border: 1px solid rgba(255,255,255,.7); border-radius: 8px; background: transparent; color: white; padding: 10px 15px; display: flex; align-items: center; gap: 8px; font-weight: 750; }
-.content { padding: 20px 0 40px; }.infoPanel,.structurePanel,.summary { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
-.infoPanel h2,.structurePanel h2 { color: #087535; text-transform: uppercase; font-size: 1rem; font-weight: 800; display: flex; gap: 8px; align-items: center; }
-.infoGrid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }.infoGrid div { display: flex; flex-direction: column; gap: 6px; }.infoGrid span { color: var(--muted-foreground); font-size: .8rem; }.infoGrid strong { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); }
-.panelHeading,.groupTitle { display: flex; justify-content: space-between; align-items: center; gap: 15px; }.panelHeading p { color: var(--muted-foreground); font-size: .84rem; margin: 0; }.panelHeading button { color: #087535; border-color: #76bc91; }
-.group { margin-top: 20px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }.groupTitle { padding: 13px 15px; }.groupTitle h3 { margin: 0; color: #087535; font-size: .95rem; font-weight: 800; display: flex; gap: 9px; align-items: center; }.groupTitle strong { color: #087535; }
-.group th { background: var(--muted); font-size: .73rem; text-transform: uppercase; white-space: nowrap; }.group td,.group th { padding: 11px 14px; }.group td small { display: block; color: var(--muted-foreground); }.group tfoot td { background: color-mix(in srgb,#dff3e6 65%,var(--card)); color: #087535; font-weight: 800; }
-.deleteButton { border: 0; background: transparent; color: #dc3545; }.empty { padding: 52px 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted-foreground); text-align: center; }
-.summary { display: grid; grid-template-columns: auto 1fr 1fr 1.5fr; align-items: center; gap: 20px; color: #087535; }.summary > div { display: flex; flex-direction: column; }.summary span { color: var(--muted-foreground); font-size: .75rem; text-transform: uppercase; }.summary strong { font-size: 1.3rem; }.grandTotal { background: color-mix(in srgb,#dff3e6 70%,var(--card)); padding: 15px 18px; border-radius: 9px; }
-.backdrop { position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,.5); display: grid; place-items: center; padding: 20px; }.modal { width: min(850px,100%); background: var(--card); border-radius: 14px; overflow: hidden; }.modalHeading { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }.modalHeading h2 { font-size: 1.25rem; margin: 0; }.modalHeading p { color: var(--muted-foreground); margin: 4px 0 0; font-size: .84rem; }.modalActions { border-top: 1px solid var(--border); padding: 14px 24px; display: flex; justify-content: flex-end; gap: 10px; }
-@media(max-width:700px){.hero{margin:-1rem -1rem 0;grid-template-columns:40px 1fr}.saveButton{grid-column:1/-1;justify-self:stretch;justify-content:center}.infoGrid{grid-template-columns:1fr 1fr}.panelHeading{align-items:stretch;flex-direction:column}.panelHeading button{justify-content:center}.summary{grid-template-columns:1fr 1fr}.summary>svg{display:none}.grandTotal{grid-column:1/-1}}
+.page { min-height: 100%; }
+.content { display: grid; gap: 16px; padding-bottom: 32px; }
+
+.infoPanel, .structurePanel, .summary {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.infoPanel h2, .structurePanel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.infoPanel h2 svg, .structurePanel h2 svg { color: var(--primary); }
+
+.infoGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.infoGrid div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.infoGrid span { color: var(--muted-foreground); font-size: 0.8rem; }
+.infoGrid strong { font-weight: 700; color: var(--foreground); overflow-wrap: anywhere; }
+
+.panelHeading, .groupTitle { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.panelHeading h2 { margin-bottom: 2px; }
+.panelHeading p { color: var(--muted-foreground); font-size: 0.85rem; margin: 0; }
+
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  .addButton:hover { background: color-mix(in srgb, var(--primary), transparent 90%); }
+}
+
+.group { margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.groupTitle { padding: 12px 16px; }
+.groupTitle h3 { margin: 0; display: flex; gap: 8px; align-items: center; font-size: 0.95rem; font-weight: 800; color: var(--foreground); }
+.groupTitle h3 svg { color: var(--primary); }
+.groupTitle strong { color: var(--primary); font-variant-numeric: tabular-nums; }
+.group th { background: var(--muted); color: var(--muted-foreground); font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.group td, .group th { padding: 10px 16px; }
+.group td { font-variant-numeric: tabular-nums; }
+.group td small { display: block; color: var(--muted-foreground); }
+.group tfoot td { background: color-mix(in srgb, var(--primary), transparent 92%); color: var(--foreground); font-weight: 800; }
+
+.deleteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--destructive);
+}
+
+@media (hover: hover) {
+  .deleteButton:hover { background: var(--muted); }
+}
+
+.empty { padding: 40px 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted-foreground); text-align: center; }
+.empty strong { color: var(--foreground); }
+
+.summary { display: grid; grid-template-columns: auto 1fr 1fr 1.5fr; align-items: center; gap: 20px; }
+.summary > svg { color: var(--primary); }
+.summary > div { display: flex; flex-direction: column; min-width: 0; }
+.summary span { color: var(--muted-foreground); font-size: 0.8rem; font-weight: 600; }
+.summary strong { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.grandTotal { background: color-mix(in srgb, var(--primary), transparent 90%); padding: 12px 16px; border-radius: 10px; }
+.grandTotal strong { color: var(--primary); }
+
+.backdrop { position: fixed; inset: 0; z-index: 1100; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; padding: 16px; }
+.modal { width: min(850px, 100%); max-height: calc(100dvh - 32px); overflow: auto; background: var(--card); border-radius: 14px; }
+.modalHeading { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; }
+.modalHeading h2 { font-size: 1.2rem; font-weight: 800; margin: 0; }
+.modalHeading p { color: var(--muted-foreground); margin: 4px 0 0; font-size: 0.85rem; }
+.modalActions { border-top: 1px solid var(--border); padding: 14px 24px; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 700px) {
+  .infoGrid { grid-template-columns: 1fr 1fr; }
+  .panelHeading { align-items: stretch; flex-direction: column; }
+  .addButton { justify-content: center; min-height: 44px; }
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary > svg { display: none; }
+  .grandTotal { grid-column: 1 / -1; }
+}

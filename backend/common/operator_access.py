@@ -87,7 +87,15 @@ def is_operator(user):
 
 
 def effective_access(user):
+    from apps.veterinary.access import can_use_veterinary
+
     operator = is_operator(user)
+    if getattr(user, "role", None) == "veterinarian":
+        # Phase 1: the vet works only in the Área do veterinário (plus personal pages).
+        return {
+            "role": user.role, "can_manage_users": False, "can_view_financial": False, "can_operate_crops": False,
+            "livestock_species": [], "read_only": False, "veterinary": can_use_veterinary(user),
+        }
     return {
         "role": user.role,
         "can_manage_users": user.role == "admin",
@@ -97,10 +105,22 @@ def effective_access(user):
         if operator
         else None,
         "read_only": operator and user.operator_read_only,
+        "veterinary": can_use_veterinary(user),
     }
 
 
+VETERINARIAN_PATHS = (
+    "auth/me", "auth/preferences", "auth/change-password", "auth/force-change-password", "auth/token",
+    "auth/logout", "notifications", "support", "veterinary",
+)
+
+
 def request_allowed(user, request):
+    if getattr(user, "role", None) == "veterinarian":
+        path = request.path.removeprefix("/api/v1/").strip("/")
+        if path == "organizations/me":
+            return request.method in SAFE_METHODS
+        return any(path == prefix or path.startswith(prefix + "/") for prefix in VETERINARIAN_PATHS)
     if not is_operator(user):
         return getattr(user, "role", None) in ("admin", "manager")
     path = request.path.removeprefix("/api/v1/").strip("/")

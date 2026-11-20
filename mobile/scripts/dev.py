@@ -35,6 +35,34 @@ def api_url(host: str, port: int, override: str | None) -> str:
     return value.rstrip("/") + "/"
 
 
+# In development Expo spreads these files over process.env (expo/virtual/env.js), last one winning.
+EXPO_DEV_ENV_FILES = (".env", ".env.development", ".env.local", ".env.development.local")
+
+
+def dotenv_api_url(mobile_dir: Path) -> str | None:
+    """Return the EXPO_PUBLIC_API_URL that Expo would load from mobile/.env* (last file wins).
+
+    Only that key is read; values are never printed.
+    """
+    effective: str | None = None
+    for name in EXPO_DEV_ENV_FILES:
+        path = mobile_dir / name
+        if not path.is_file():
+            continue
+        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.strip()
+            if line.startswith("export "):
+                line = line[len("export "):].lstrip()
+            key, separator, value = line.partition("=")
+            if separator and key.strip() == "EXPO_PUBLIC_API_URL":
+                effective = value.split(" #", 1)[0].strip().strip("'\"") or None
+    return effective
+
+
+def is_local_host(url: str) -> bool:
+    return urlsplit(url).hostname in {None, "127.0.0.1", "localhost", "0.0.0.0", "::"}
+
+
 def ensure_port_available(host: str, port: int) -> None:
     # A wildcard bind can coexist with an older loopback listener on macOS.
     # Check the address used for readiness before accepting a new bind.
@@ -192,18 +220,26 @@ def main() -> int:
         if args.tunnel:
             ensure_ngrok_available(MOBILE_DIR)
 
-        # Auto-detect: skip backend when EXPO_PUBLIC_API_URL points to an external host.
+        # dev: local Django (or an API exported explicitly in the terminal).
+        # dev-tunnel: the device may be outside the LAN, so use the remote API from the terminal or mobile/.env*.
         external_url = os.environ.get("EXPO_PUBLIC_API_URL")
         skip_backend = args.no_backend
-        if external_url and not skip_backend:
-            parsed = urlsplit(external_url)
-            if parsed.hostname not in {None, "127.0.0.1", "localhost", "0.0.0.0", "::"}:
-                skip_backend = True
-                print(f"[DEV] EXPO_PUBLIC_API_URL aponta para host externo — pulando backend local.", flush=True)
+        if args.tunnel:
+            external_url = external_url or dotenv_api_url(MOBILE_DIR)
+            if not external_url or is_local_host(external_url):
+                raise ValueError(
+                    "O tunnel usa a API remota: defina EXPO_PUBLIC_API_URL com uma URL pública em mobile/.env.local "
+                    "ou exporte-a no terminal."
+                )
+        if external_url and not skip_backend and not is_local_host(external_url):
+            skip_backend = True
+            print("[DEV] EXPO_PUBLIC_API_URL aponta para host externo — pulando backend local.", flush=True)
 
         url = api_url(args.api_host, args.backend_port, external_url)
+        # Expo applies mobile/.env* over the process environment in development; the dev-only variable
+        # is defined by no file, so the URL chosen here is the one the app uses.
+        mobile_env = {**os.environ, "EXPO_PUBLIC_API_URL": url, "EXPO_PUBLIC_DEV_API_URL": url}
         ensure_port_available("0.0.0.0", args.expo_port)
-        mobile_env = {**os.environ, "EXPO_PUBLIC_API_URL": url}
         mobile_command = [npm, "start", "--", "--port", str(args.expo_port)]
         if args.clear:
             mobile_command.append("-c")

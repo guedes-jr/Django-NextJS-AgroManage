@@ -72,8 +72,15 @@ Os valores abaixo existem em `src/theme/tokens.ts`. Não criar nomes de tokens q
 | `colors.soft` | `#EAF1E6` | Superfícies suaves |
 | `colors.error` / `colors.errorSurface` | `#A62C32` / `#FFF0EF` | Erro |
 | `colors.success` | `#1D6338` | Situação positiva |
+| `colors.textSoft` | `#3E5544` | Corpo de texto e rótulos |
+| `colors.borderSoft` / `colors.divider` | `#DCE5D7` / `#E7EDE2` | Contorno decorativo de cards e divisores |
+| `colors.inputBorder` | `#7A8F7C` | Contorno de controles (3,5:1 sobre branco) |
+| `colors.primarySoft` / `colors.softStrong` / `colors.track` | `#EBF4EA` / `#E7EFDF` / `#E9EFE4` | Chips, ícones, botões secundários e trilho de abas |
+| `colors.warning*`, `colors.info*`, `colors.neutral*`, `colors.danger` | ver arquivo | Tons semânticos, texto ≥ 4,5:1 sobre a própria superfície |
 
-A Agenda e o shell também têm estilos locais, como fundo `#F6F8F1` e verde `#205D32`. Eles são referências existentes de acabamento, não tokens compartilhados já consolidados. Uma consolidação futura deve atualizar os consumidores de forma consistente, sem criar um tema paralelo por módulo. `authSizing` atende à autenticação; suas dimensões não devem ser impostas às listas operacionais.
+Papéis: **títulos usam `forest`; ação, seleção e foco usam `primary`** (um único acento). Texto secundário é verde acinzentado (`muted`), nunca cinza neutro, e não deve ficar abaixo de 4,5:1. `brand` reúne as cores do shell (verde profundo, lima e dourado) e não deve ser usado no conteúdo operacional. `space` (4–32), `radius` (8/12/16/24), `type` (títulos, corpo, metadados, `numeric` com dígitos tabulares) e `touchTarget` (44) completam a escala.
+
+[agenda/ui.tsx](src/features/agenda/ui.tsx), [home/styles.ts](src/features/home/styles.ts) e os painéis de Leite, Trato, Suíno e menu de módulos já consomem esses tokens. Cores categóricas de ícones (fases, indicadores) permanecem locais ao módulo. Não reintroduzir hex locais para papéis que já têm token. `authSizing` atende à autenticação; suas dimensões não devem ser impostas às listas operacionais.
 
 ### Dimensões e legibilidade
 
@@ -92,7 +99,33 @@ Medidas em **unidades lógicas do React Native**, sem zoom ou escala global. A r
 
 Ícone ou círculo visual menor pode ficar dentro de uma área de toque maior. Permitir quebra de linha para nomes, estados e ações importantes. Truncar apenas informações secundárias que continuem acessíveis no detalhe. A exigência de 16 para campos atende à legibilidade nativa; não pressupor comportamentos de zoom do navegador no React Native.
 
+### Componentes compartilhados
+
+Reutilizar estes primitivos de [agenda/ui.tsx](src/features/agenda/ui.tsx) antes de criar variações locais:
+
+| Componente | Uso |
+| --- | --- |
+| `AgendaButton variant="primary" busy` | A única ação principal da etapa (salvar, revisar, confirmar). Largura total, 52 de altura, indicador durante o envio. Demais botões permanecem secundários. |
+| `FormField` | Rótulo persistente, unidade ao lado do valor (`unit="L"`, `"kg"`), dica e erro específico ligado à entrada. O `TextInput` interno usa `styles.fieldControl`. |
+| `StatusPill` + `agendaStatusTone` | Situação em texto com ponto e tom semântico (`success`, `warning`, `info`, `danger`, `neutral`). Status desconhecido fica neutro. |
+| `ActionTile` | Atalho de rotina com ícone, verbo e descrição. `compact` na Home; completo no painel de criação. |
+| `styles.viewTabs` / `viewTab` | Controle segmentado para opções curtas e exclusivas (turno, modo, período). |
+
+Formulários de lançamento: avançar com o teclado entre campos numéricos (`returnKeyType="next"` + `setFocus`), selecionar o valor ao focar campos de quantidade e traduzir códigos de validação em mensagens por campo.
+
 ## 4. Navegação compartilhada e operações
+
+**Ações rápidas.** [quickActions.ts](src/features/workspace/quickActions.ts) é o catálogo único das rotinas de registro: a Home ("Registrar agora") e o botão central "+" usam a mesma lista. Ela é ordenada pela frequência no campo (leite, trato, ocorrência, atividade, cadastro, estoque) e filtrada pelas mesmas regras de permissão das telas de destino. Rotinas ainda web aparecem identificadas e abrem a alternativa web. Uma nova rotina nativa entra no catálogo com rótulo de verbo nos quatro idiomas, nunca como nome de módulo. **Home por cargo.** [homeSections.ts](src/features/home/homeSections.ts) define as seções e sua ordem a partir do acesso efetivo; quanto mais permissão, mais painéis. Cada seção só aparece quando o perfil pode carregar os dados dela:
+
+| Perfil | Seções |
+| --- | --- |
+| Tratador | Rotina de trato · módulos |
+| Operador | Registrar agora · resumo da pecuária leiteira (com bovinos) · próximas atividades · módulos |
+| Gerente | Indicadores financeiros · resumo leiteiro · próximas atividades · desempenho, alertas, movimentações e estoque |
+| Admin | Tudo do gerente · Administração (equipe e acessos, estrutura, estoque) |
+
+Nova seção entra em `homeSections` com o mesmo gate do endpoint que a alimenta. Na Home, os atalhos aparecem apenas para perfis sem dashboard financeira; com dashboard, ela continua sendo o primeiro conteúdo. As próximas atividades da Agenda (7 dias) vêm depois, com data em bloco, "Hoje" destacado e situação em pílula. Na barra inferior, o "+" permanece centralizado: o lado mais curto recebe Buscar ou um espaço vazio (`balanceNavSlots`).
+
 
 Reutilizar `WorkspaceShell` nas áreas principais. Sua composição atual contempla **Início, Agenda, ação de criação, Financeiro e Módulos**, conforme acesso e capacidade. O guia não exige cinco posições para todos os perfis. A criação abre opções permitidas; Financeiro só aparece para quem pode consultá-lo. O feeder mantém sua rotina autorizada e não recebe Agenda ou gestão por decisão visual.
 

@@ -285,6 +285,98 @@ def _inventory_purchase_references(organization):
     )
 
 
+# Crop operation services mirror each operation into a finance transaction with
+# these reference prefixes. The crop segment reads the operation records
+# themselves (as PlantingCycle.investment_total does), so it stays correct when
+# a mirror is missing, outdated by an edit or left behind by a deletion.
+CROP_AUTOMATIC_REFERENCE_PREFIXES = (
+    "PLANTING-",
+    "FERTILIZATION-",
+    "FERTIGATION-",
+    "PESTICIDE-",
+    "IRRIGATION-",
+    "LANDPREP-",
+    "LABOR-",
+    "HARVEST-PACK-",
+)
+
+
+def _crop_automatic_reference_q():
+    query = Q()
+    for prefix in CROP_AUTOMATIC_REFERENCE_PREFIXES:
+        query |= Q(reference__startswith=prefix)
+    return query & ~Q(reference__startswith="LABOR-SWINE-")
+
+
+def _crop_operation_costs(organization, start, end):
+    """Cost of crop operations performed in the period, grouped by finance category name."""
+    from apps.crops.models import (
+        Fertigation,
+        Fertilization,
+        Harvest,
+        Irrigation,
+        LaborRecord,
+        LandPreparation,
+        PesticideApplication,
+        PesticideApplicationEquipment,
+        Planting,
+    )
+
+    def total(queryset, field):
+        return queryset.aggregate(total=Sum(field))["total"] or Decimal("0")
+
+    scope = {"plantation__organization": organization}
+    costs = {
+        "Plantio": total(
+            Planting.objects.filter(**scope, planting_date__range=(start, end)), "total_price"
+        ),
+        "Adubação": total(
+            Fertilization.objects.filter(**scope, application_date__range=(start, end)),
+            "total_price",
+        ),
+        "Fertirrigação": total(
+            Fertigation.objects.filter(**scope, application_date__range=(start, end)),
+            "total_price",
+        ),
+        "Defensivos": total(
+            PesticideApplication.objects.filter(**scope, application_date__range=(start, end)),
+            "total_price",
+        )
+        + total(
+            PesticideApplicationEquipment.objects.filter(
+                application__plantation__organization=organization,
+                application__application_date__range=(start, end),
+            ),
+            "total_price",
+        ),
+        "Irrigação": total(
+            Irrigation.objects.filter(**scope)
+            .annotate(cost_date=Coalesce("start_date", "date"))
+            .filter(cost_date__range=(start, end)),
+            "energy_cost",
+        ),
+        "Máquinas": sum(
+            (
+                prep.total_price
+                for prep in LandPreparation.objects.filter(**scope, date__range=(start, end))
+            ),
+            Decimal("0"),
+        ),
+        "Mão de Obra": total(
+            LaborRecord.objects.filter(**scope, activity_date__range=(start, end)),
+            "total_amount",
+        ),
+        "Embalagem": total(
+            Harvest.objects.filter(
+                planting_cycle__organization=organization,
+                harvest_date__range=(start, end),
+            ),
+            "packing_cost",
+        ),
+    }
+    return {name: value for name, value in costs.items() if value}
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_summary(request):
@@ -398,26 +490,28 @@ def dashboard_summary(request):
     # ── Finance ───────────────────────────────────────────────────────────────
     production_lot_references = _production_lot_references(org)
     inventory_purchase_references = _inventory_purchase_references(org)
-    transactions_qs = Transaction.objects.filter(organization=org).exclude(
-        reference__in=production_lot_references
+    transactions_qs = (
+        Transaction.objects.filter(organization=org)
+        .exclude(reference__in=production_lot_references)
+        .exclude(status=Transaction.Status.CANCELLED)
+        .annotate(effective_date=Coalesce("payment_date", "due_date"))
+    )
+    period_transactions = transactions_qs.filter(
+        effective_date__gte=period_start,
+        effective_date__lte=period_end,
     )
 
-    # KPI: receita do mês atual
+    # KPIs use recognized amounts: operational sales and purchases are counted
+    # even before settlement, using payment date when available and due date otherwise.
     month_revenue = (
-        transactions_qs.filter(
+        period_transactions.filter(
             category__category_type=FinancialCategory.CategoryType.REVENUE,
-            payment_date__gte=period_start,
-            payment_date__lte=period_end,
-            status=Transaction.Status.PAID,
         ).aggregate(total=Sum("amount"))["total"]
         or 0
     )
     month_expense_from_transactions = (
-        transactions_qs.filter(
+        period_transactions.filter(
             category__category_type=FinancialCategory.CategoryType.EXPENSE,
-            payment_date__gte=period_start,
-            payment_date__lte=period_end,
-            status=Transaction.Status.PAID,
         ).aggregate(total=Sum("amount"))["total"]
         or 0
     )
@@ -455,11 +549,6 @@ def dashboard_summary(request):
             if row["total"]
         ]
 
-    paid_month = transactions_qs.filter(
-        payment_date__gte=period_start,
-        payment_date__lte=period_end,
-        status=Transaction.Status.PAID,
-    )
     # Stock purchases do not belong to a planting cycle yet, but agricultural
     # inputs must still be represented in the organization crop segment.
     agricultural_categories = {
@@ -503,14 +592,19 @@ def dashboard_summary(request):
         | Q(category__name__icontains="foliar")
         | Q(category__name__icontains="corretivo")
     )
-    crop_transactions = paid_month.filter(
+    crop_transactions = period_transactions.filter(
         Q(planting_cycle__isnull=False)
         | Q(reference__in=agricultural_lot_references)
         | (agricultural_finance_terms & ~Q(reference__startswith="LOTE-"))
     )
-    crop_cost = crop_transactions.filter(
-        category__category_type=FinancialCategory.CategoryType.EXPENSE
-    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    crop_expense_transactions = crop_transactions.exclude(_crop_automatic_reference_q())
+    crop_operation_costs = _crop_operation_costs(org, period_start, period_end)
+    crop_cost = (
+        crop_expense_transactions.filter(
+            category__category_type=FinancialCategory.CategoryType.EXPENSE
+        ).aggregate(total=Sum("amount"))["total"]
+        or Decimal("0")
+    ) + sum(crop_operation_costs.values(), Decimal("0"))
     crop_revenue = crop_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.REVENUE
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
@@ -530,7 +624,7 @@ def dashboard_summary(request):
     livestock_terms |= Q(category__name__icontains="granja") | Q(category__name__icontains="criação")
     # Captura apenas transações com vínculo explícito a animal ou espécie.
     # NÃO usa org_farm_q (catch-all de fazenda) para evitar incluir compras de grãos.
-    livestock_transactions = paid_month.filter(planting_cycle__isnull=True).filter(
+    livestock_transactions = period_transactions.filter(planting_cycle__isnull=True).filter(
         livestock_terms | Q(species__isnull=False) | Q(animal_batch__isnull=False)
     ).exclude(
         reference__in=inventory_purchase_references
@@ -620,6 +714,23 @@ def dashboard_summary(request):
             "revenue_breakdown": revenues,
         }
 
+    def crop_cost_breakdown():
+        totals = dict(crop_operation_costs)
+        for row in (
+            crop_expense_transactions.filter(
+                category__category_type=FinancialCategory.CategoryType.EXPENSE
+            )
+            .values("category__name")
+            .annotate(total=Sum("amount"))
+        ):
+            if row["total"]:
+                name = row["category__name"] or "Outros"
+                totals[name] = totals.get(name, Decimal("0")) + row["total"]
+        return [
+            {"name": name, "value": float(value)}
+            for name, value in sorted(totals.items(), key=lambda item: item[1], reverse=True)
+        ]
+
     livestock_cost_breakdown = financial_breakdown(
         livestock_transactions, FinancialCategory.CategoryType.EXPENSE
     )
@@ -673,7 +784,7 @@ def dashboard_summary(request):
         # REGRA: mesmo em org de espécie única, não usamos catch-all de fazenda.
         # Compras de grãos/ingredientes de ração ficam no KPI geral (despesa),
         # e não como custo do segmento. O custo de alimentação vem do ConsumoRacao.
-        species_transactions = paid_month.filter(
+        species_transactions = period_transactions.filter(
             planting_cycle__isnull=True
         ).filter(
             Q(species=species)
@@ -777,23 +888,19 @@ def dashboard_summary(request):
             "amount": float(transaction.amount),
             "category": transaction.category.name,
         }
-        for transaction in transactions_qs.filter(
-            status=Transaction.Status.PAID,
-            payment_date__isnull=False,
-            payment_date__gte=period_start,
-            payment_date__lte=period_end,
-        ).select_related("category").order_by("-payment_date", "-created_at")[:4]
+        for transaction in period_transactions.select_related("category").order_by(
+            "-effective_date", "-created_at"
+        )[:4]
     ]
 
     # Chart: last 7 months revenue vs expense
     seven_months_ago = (period_end - relativedelta(months=6)).replace(day=1)
     monthly_finance = list(
         transactions_qs.filter(
-            payment_date__gte=seven_months_ago,
-            payment_date__lte=period_end,
-            status=Transaction.Status.PAID,
+            effective_date__gte=seven_months_ago,
+            effective_date__lte=period_end,
         )
-        .annotate(month=TruncMonth("payment_date"))
+        .annotate(month=TruncMonth("effective_date"))
         .values("month", "category__category_type")
         .annotate(total=Sum("amount"))
         .order_by("month")
@@ -878,7 +985,7 @@ def dashboard_summary(request):
                 "crops": segment_payload(
                     crop_cost,
                     crop_revenue,
-                    financial_breakdown(crop_transactions, FinancialCategory.CategoryType.EXPENSE),
+                    crop_cost_breakdown(),
                     financial_breakdown(crop_transactions, FinancialCategory.CategoryType.REVENUE, "planting_cycle__crop_name"),
                 ),
                 "livestock": segment_payload(

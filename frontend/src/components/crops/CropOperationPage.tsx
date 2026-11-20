@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Droplets, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, Wheat, X } from "lucide-react";
+import { Check, Droplets, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, Wheat, X } from "lucide-react";
 import apiClient from "@/services/api";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useOrganizationLocale } from "@/lib/locale";
+import { CropPageHeader } from "./CropPageHeader";
+import productionStyles from "./production.module.css";
 
 type OperationKind = "plantio" | "adubacao" | "fertirrigacao" | "defensivos" | "irrigacao";
 
@@ -701,26 +703,13 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
   }
 
   return (
-    <div className="position-relative overflow-hidden" style={{ minHeight: "100vh" }}>
-      <div className="mb-3 d-flex align-items-center gap-2 text-muted small fw-medium">
-        <span style={{ cursor: "pointer" }} onClick={() => router.push(`/home/plantacoes/${id}`)} className="hover-text-primary">
-          {plantation.name || plantation.crop_name}
-        </span>
-        <span>›</span>
-        <span>{plantation.field_name || "Talhão"}</span>
-        <span>›</span>
-        <span className="text-primary fw-semibold">{config.title as string}</span>
-      </div>
-
-      <div className="d-flex align-items-center gap-3 mb-4">
-
-        <div>
-          <h1 className="fw-black mb-1 text-foreground d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-            <Icon size={28} className="text-primary" /> {config.title as string}
-          </h1>
-          <p className="text-muted-foreground small mb-0">{config.subtitle as string}</p>
-        </div>
-      </div>
+    <div className="position-relative" style={{ minHeight: "100vh" }}>
+      <CropPageHeader
+        icon={Icon}
+        title={config.title as string}
+        description={config.subtitle as string}
+        plantation={{ id, name: plantation.name || plantation.crop_name, field: plantation.field_name }}
+      />
 
       <div className="dashboard-card p-4 mb-4">
         {isIrrigation ? (
@@ -752,19 +741,18 @@ export function CropOperationPage({ kind }: { kind: OperationKind }) {
           />
         )}
 
-        <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top gap-3 flex-wrap">
-          <Button variant="outline-secondary" onClick={() => router.back()} style={{ borderRadius: 10 }}>
+        <div className={`${productionStyles.actions} mt-4 pt-3 border-top`}>
+          <Button variant="outline-secondary" onClick={() => router.back()}>
             {t("plantations.cancel")}
           </Button>
-          <div className="d-flex gap-2">
-            <Button variant="outline-primary" disabled={saving} onClick={() => isIrrigation ? handleSaveIrrigation(false) : handleSaveApplications(false)} style={{ borderRadius: 10 }}>
-              <Save size={16} />
-              {saving ? t("plantations.saving") : t("plantations.save")}
-            </Button>
-            <Button disabled={saving} onClick={() => isIrrigation ? handleSaveIrrigation(true) : handleSaveApplications(true)} style={{ borderRadius: 10 }}>
-              {saving ? t("plantations.saving") : t("plantations.saveAndFinish")}
-            </Button>
-          </div>
+          <Button variant="outline-primary" disabled={saving} onClick={() => isIrrigation ? handleSaveIrrigation(false) : handleSaveApplications(false)}>
+            <Save size={16} aria-hidden="true" />
+            {saving ? t("plantations.saving") : t("plantations.save")}
+          </Button>
+          <Button disabled={saving} onClick={() => isIrrigation ? handleSaveIrrigation(true) : handleSaveApplications(true)}>
+            <Check size={16} aria-hidden="true" />
+            {saving ? t("plantations.saving") : t("plantations.saveAndFinish")}
+          </Button>
         </div>
       </div>
 
@@ -1240,7 +1228,7 @@ function ApplicationHistory({
                         title={t("plantations.edit")}
                         aria-label={t("plantations.edit")}
                         className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--primary)", color: "var(--primary)", backgroundColor: "transparent", padding: 0 }}
                         onClick={() => onEdit(record)}
                       >
                         <Pencil size={13} />
@@ -1334,7 +1322,7 @@ function IrrigationHistory({
                         title={t("plantations.edit")}
                         aria-label={t("plantations.edit")}
                         className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--bs-primary)", color: "var(--bs-primary)", backgroundColor: "transparent", padding: 0 }}
+                        style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--primary)", color: "var(--primary)", backgroundColor: "transparent", padding: 0 }}
                         onClick={() => onEdit(record)}
                       >
                         <Pencil size={13} />

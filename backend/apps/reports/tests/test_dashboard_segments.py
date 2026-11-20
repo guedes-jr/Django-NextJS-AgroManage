@@ -336,6 +336,54 @@ class DashboardSegmentTestCase(APITestCase):
             swine_segment["cost_breakdown"],
         )
 
+    def test_animal_sale_appears_as_revenue_before_settlement(self):
+        swine = Species.objects.create(name="Suínos", code="suinos")
+        batch = AnimalBatch.objects.create(
+            farm=self.farm,
+            species=swine,
+            batch_code="SU-VENDA",
+            quantity=10,
+            entry_date=date.today(),
+            exit_date=date.today(),
+            phase="engorda",
+            status=AnimalBatch.Status.SOLD,
+            sale_value=Decimal("2500.00"),
+        )
+        revenue = Transaction.objects.get(reference=f"SALE-BATCH-{batch.id}")
+        self.assertEqual(revenue.status, Transaction.Status.PENDING)
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["kpis"]["month_revenue"], 2500.0)
+        self.assertEqual(response.data["segments"]["livestock"]["revenue"], 2500.0)
+        self.assertEqual(
+            response.data["segments"]["livestock_by_species"][0]["revenue"], 2500.0
+        )
+
+    def test_finishing_batch_purchase_appears_in_dashboard(self):
+        swine = Species.objects.create(name="Suínos", code="suinos")
+        AnimalBatch.objects.create(
+            farm=self.farm,
+            species=swine,
+            batch_code="SU-ENGORDA",
+            quantity=30,
+            category=AnimalBatch.Category.LEITAO,
+            phase=AnimalBatch.Phase.ENGORDA,
+            entry_date=date.today(),
+            origin=AnimalBatch.Origin.PURCHASED,
+            purchase_value=Decimal("3200.00"),
+        )
+
+        response = self.client.get(reverse("dashboard-summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["kpis"]["month_expense"], 3200.0)
+        self.assertEqual(response.data["segments"]["livestock"]["cost"], 3200.0)
+        self.assertEqual(
+            response.data["segments"]["livestock_by_species"][0]["cost"], 3200.0
+        )
+
     def test_feed_purchase_and_consumption_are_not_double_counted(self):
         swine = Species.objects.create(name="Suínos", code="suinos")
         batch = AnimalBatch.objects.create(

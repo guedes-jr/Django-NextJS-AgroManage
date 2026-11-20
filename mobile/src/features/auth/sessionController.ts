@@ -335,6 +335,9 @@ export class SessionController {
   swinePhasePage(phase:SwinePhase,page:number,pageSize:number,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swinePhasePage(tokens,this.language,{phase,page,page_size:pageSize},signal));
   }
+  swinePhaseDetail(phase:SwinePhase,id:string,signal?:AbortSignal){
+    return this.swineRead(tokens=>this.api.swinePhaseDetail(tokens,this.language,phase,id,signal));
+  }
   birthOptions(id:string,production:Production,farm:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canCreateCattle(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.cattleRead(tokens=>this.api.birthOptions(tokens,this.language,id,production,farm,signal));}
   private birthReview?:{token:string;key:string;epoch:number;id:string;production:Production};
   async previewBirth(id:string,production:Production,input:BirthInput){return this.matingMutation(async(tokens,current)=>{this.birthReview=undefined;const value=birthInputSchema.parse(input);const options=await this.api.birthOptions(tokens,this.language,id,production,value.expected_farm);current();if(options.animal.version!==value.animal_version||options.pregnancy.id!==value.expected_pregnancy||options.pregnancy.version!==value.pregnancy_version||value.date<options.earliest_date||value.date>options.today)throw new BirthContextChanged();const review=await this.api.previewBirth(tokens,this.language,id,production,value);current();this.birthReview={token:review.preview_token,key:birthKey(value),epoch:this.epoch,id,production};return review;});}

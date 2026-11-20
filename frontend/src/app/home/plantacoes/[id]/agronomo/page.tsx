@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import apiClient from "@/services/api";
 import styles from "./products-table.module.css";
+import { CropPageHeader } from "@/components/crops/CropPageHeader";
 import { cropService } from "@/services/cropService";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -445,22 +446,12 @@ export default function AgronomoPage() {
 
   return (
     <div>
-      <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-4">
-        <div className="d-flex align-items-center gap-3">
-
-          <div>
-            <h1 className="fw-black mb-1 d-flex align-items-center gap-2" style={{ fontSize: "1.75rem" }}>
-              <FlaskConical size={28} className="text-success" /> {t("plantations.agronomist.title")}
-            </h1>
-            <p className="text-muted mb-0 small">
-              {plantation.name || plantation.crop_name} › {plantation.field_name || t("plantations.field")}
-            </p>
-          </div>
-        </div>
-        <Button variant="outline-secondary" onClick={() => router.push(`/home/plantacoes/${id}`)}>
-          {t("plantations.back")}
-        </Button>
-      </div>
+      <CropPageHeader
+        icon={FlaskConical}
+        title={t("plantations.agronomist.title")}
+        description={t("plantations.detail.agronomistDescription")}
+        plantation={{ id, name: plantation.name || plantation.crop_name, field: plantation.field_name || t("plantations.field") }}
+      />
 
       <div className="row g-4">
         <div className="col-lg-5">

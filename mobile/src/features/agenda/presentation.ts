@@ -23,3 +23,12 @@ export function agendaWeekLabel(language: Language, start: string, end: string):
   });
   return `${format.format(calendarDate(start))} – ${format.format(calendarDate(end))}`;
 }
+
+// Colour reinforces the status text; unknown statuses stay neutral instead of guessing.
+export function agendaStatusTone(status: string): 'success' | 'warning' | 'info' | 'danger' | 'neutral' {
+  if (['done', 'recorded', 'completed'].includes(status)) return 'success';
+  if (['open', 'pending', 'scheduled'].includes(status)) return 'warning';
+  if (status === 'in_progress') return 'info';
+  if (['critical', 'overdue', 'late'].includes(status)) return 'danger';
+  return 'neutral';
+}

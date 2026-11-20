@@ -92,7 +92,7 @@ class OperatorAccessTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             {role["value"] for role in response.data["roles"]},
-            {"admin", "manager", "operator", "feeder"},
+            {"admin", "manager", "operator", "feeder", "veterinarian"},
         )
         self.assertTrue(
             any(item["id"] == self.pigs.pk for item in response.data["species"])

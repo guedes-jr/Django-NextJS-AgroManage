@@ -488,6 +488,32 @@ body {
   background-color: var(--secondary) !important;
 }
 
+/* Outline com o acento único (verde) e perigo */
+.btn-outline-primary, .btn-outline-success, .btn-outline-agro {
+  background-color: var(--card) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+.btn-outline-primary:hover, .btn-outline-success:hover, .btn-outline-agro:hover,
+.btn-outline-primary:focus-visible, .btn-outline-success:focus-visible, .btn-outline-agro:focus-visible {
+  background-color: color-mix(in srgb, var(--primary), transparent 90%) !important;
+}
+
+.btn-outline-danger {
+  background-color: var(--card) !important;
+  border-color: color-mix(in srgb, var(--destructive), transparent 50%) !important;
+  color: var(--destructive) !important;
+}
+
+.btn-outline-danger:hover {
+  background-color: color-mix(in srgb, var(--destructive), transparent 92%) !important;
+}
+
+.btn-link {
+  color: var(--primary) !important;
+}
+
 /* Botão perigo */
 .btn-danger {
   background-color: var(--destructive) !important;

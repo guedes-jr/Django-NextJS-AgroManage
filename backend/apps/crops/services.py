@@ -334,7 +334,47 @@ def create_harvest(serializer, request):
             created_by=request.user if request.user.is_authenticated else None,
         )
 
+    _sync_harvest_packing_transaction(harvest, request)
     return harvest
+
+
+def _sync_harvest_packing_transaction(harvest, request=None):
+    """Keep the packing expense ("Embalagem") aligned with the harvest."""
+    from apps.finance.models import FinancialCategory, Transaction
+
+    reference = f"HARVEST-PACK-{harvest.id}"
+    existing = Transaction.objects.filter(reference=reference)
+    if not harvest.packaged or harvest.packing_cost <= 0:
+        existing.delete()
+        return
+
+    plantation = harvest.planting_cycle
+    category, _ = FinancialCategory.objects.get_or_create(
+        organization=plantation.organization,
+        name="Embalagem",
+        category_type="expense",
+    )
+    values = {
+        "organization": plantation.organization,
+        "farm": plantation.farm,
+        "category": category,
+        "description": f"Embalagem da colheita: {plantation} — {harvest.package_count} {harvest.get_package_type_display()}",
+        "amount": harvest.packing_cost,
+        "due_date": harvest.harvest_date,
+        "payment_date": harvest.harvest_date,
+        "status": "paid",
+        "planting_cycle": plantation,
+    }
+    current = existing.order_by("created_at").first()
+    if current:
+        existing.exclude(id=current.id).delete()
+        for field, value in values.items():
+            setattr(current, field, value)
+        current.save()
+        return
+    if request and request.user.is_authenticated:
+        values["created_by"] = request.user
+    Transaction.objects.create(reference=reference, **values)
 
 
 def _sync_harvest_transaction(harvest, request=None):
@@ -389,6 +429,7 @@ def update_harvest(serializer, request):
     previous_plantation = serializer.instance.planting_cycle
     harvest = serializer.save()
     _sync_harvest_transaction(harvest, request)
+    _sync_harvest_packing_transaction(harvest, request)
     _sync_planting_cycle_harvest_state(harvest.planting_cycle)
     if previous_plantation.pk != harvest.planting_cycle_id:
         _sync_planting_cycle_harvest_state(previous_plantation)
@@ -401,6 +442,73 @@ def delete_harvest(harvest):
     from apps.finance.models import Transaction
 
     plantation = harvest.planting_cycle
-    Transaction.objects.filter(reference=f"HARVEST-{harvest.id}").delete()
+    Transaction.objects.filter(
+        reference__in=[f"HARVEST-{harvest.id}", f"HARVEST-PACK-{harvest.id}"]
+    ).delete()
     harvest.delete()
     _sync_planting_cycle_harvest_state(plantation)
+
+
+# ── Production sales ──────────────────────────────────────────────────────
+
+
+def _sync_crop_sale_transaction(sale, request=None):
+    """Keep the revenue transaction ("Venda da produção") aligned with the sale."""
+    from apps.finance.models import FinancialCategory, Transaction
+
+    plantation = sale.planting_cycle
+    category, _ = FinancialCategory.objects.get_or_create(
+        organization=sale.organization,
+        name="Venda da produção",
+        category_type="revenue",
+    )
+    reference = f"CROPSALE-{sale.id}"
+    values = {
+        "organization": sale.organization,
+        "farm": plantation.farm,
+        "category": category,
+        "description": f"Venda da produção: {plantation.crop_name} — {sale.buyer or plantation}",
+        "amount": sale.total_amount,
+        "due_date": sale.sale_date,
+        "payment_date": sale.sale_date,
+        "status": "paid",
+        "planting_cycle": plantation,
+    }
+    existing = Transaction.objects.filter(organization=sale.organization, reference=reference)
+    current = existing.order_by("created_at").first()
+    if current:
+        existing.exclude(id=current.id).delete()
+        for field, value in values.items():
+            setattr(current, field, value)
+        current.save()
+        return
+    if request and request.user.is_authenticated:
+        values["created_by"] = request.user
+    Transaction.objects.create(reference=reference, **values)
+
+
+@transaction.atomic
+def create_crop_sale(serializer, request):
+    sale = serializer.save(
+        organization=request.user.organization,
+        created_by=request.user if request.user.is_authenticated else None,
+    )
+    _sync_crop_sale_transaction(sale, request)
+    return sale
+
+
+@transaction.atomic
+def update_crop_sale(serializer, request):
+    sale = serializer.save()
+    _sync_crop_sale_transaction(sale, request)
+    return sale
+
+
+@transaction.atomic
+def delete_crop_sale(sale):
+    from apps.finance.models import Transaction
+
+    Transaction.objects.filter(
+        organization=sale.organization, reference=f"CROPSALE-{sale.id}"
+    ).delete()
+    sale.delete()
