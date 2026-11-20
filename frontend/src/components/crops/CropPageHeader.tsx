@@ -28,7 +28,7 @@ export function CropPageHeader({ icon: Icon, title, description, plantation, act
       )}
       <div className={styles.headerRow}>
         <header className={styles.header}>
-          <div className={styles.headerIcon}><Icon size={24} aria-hidden="true" /></div>
+          <div className={styles.headerIcon}><Icon size={26} strokeWidth={1.8} aria-hidden="true" /></div>
           <div>
             <h1>{title}</h1>
             {description && <p>{description}</p>}

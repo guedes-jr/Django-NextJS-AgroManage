@@ -155,7 +155,7 @@ export default function FarmMachineryPage() {
   };
 
   return <div className={styles.page}>
-    <header className={styles.hero}><div className="d-flex gap-3 align-items-center"><button className="btn btn-link text-white p-0" onClick={() => router.push("/home/estrutura")}><ArrowLeft size={28} /></button><Tractor size={38} /><div><h1>{t(vehicleMode ? "structure.machines.vehicleTitle" : "structure.machines.title")}</h1><p>{t(vehicleMode ? "structure.machines.vehicleDescription" : "structure.machines.description")}</p></div></div><button className="btn btn-light fw-semibold" onClick={resetForm}><Plus size={17} /> {t("structure.machines.new")}</button></header>
+    <header className={styles.hero}><div className="d-flex gap-3 align-items-center"><button className="btn btn-link text-white p-0" onClick={() => router.push("/home/estrutura")}><ArrowLeft size={28} /></button><Tractor size={38} /><div><h1>{t(vehicleMode ? "structure.machines.vehicleTitle" : "structure.machines.title")}</h1><p>{t(vehicleMode ? "structure.machines.vehicleDescription" : "structure.machines.pageDescription")}</p></div></div><button className="btn btn-light fw-semibold" onClick={resetForm}><Plus size={17} /> {t("structure.machines.new")}</button></header>
     <main className={styles.content}>
       <div className="d-flex justify-content-end mb-3"><select className="form-select" style={{ maxWidth: 320 }} value={farmId} onChange={(e) => { setLoading(true); setFarmId(e.target.value); setForm({ ...emptyAsset, farm: e.target.value }); }}>
         {farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}</select></div>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { FarmFormModal, type CreatedFarm } from "@/components/farm/FarmFormModal";
 import { useOrganizationLocale } from "@/lib/locale";
+import segmentTitle from "@/components/livestock/species-module-home.module.css";
 import { decimalValue, extractArray, monthBounds } from "@/components/crops/production";
 
 type FieldOption = { id: string; name: string; farm_name: string; area_ha?: string | number | null };
@@ -641,13 +642,13 @@ export default function PlantacoesDashboard() {
   return (
     <div style={{ maxWidth: 1500, margin: "0 auto" }}>
       <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
-        <div className="d-flex align-items-start gap-3">
-          <span className="d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: 30, height: 30, color: "var(--primary)" }}>
-            <Sprout size={28} strokeWidth={2.2} />
+        <div className="d-flex align-items-center gap-3">
+          <span className={segmentTitle.titleIcon} aria-hidden="true">
+            <Sprout size={26} strokeWidth={1.8} />
           </span>
-          <div>
-            <h1 className="fw-black mb-1 text-foreground" style={{ fontSize: "1.52rem", letterSpacing: 0, lineHeight: 1.1 }}>{t("plantations.title")}</h1>
-            <p className="mb-0 text-muted-foreground" style={{ fontSize: "0.86rem" }}>{t("plantations.description")}</p>
+          <div className={segmentTitle.header} style={{ display: "block", margin: 0 }}>
+            <h1 className="text-foreground">{t("plantations.title")}</h1>
+            <p>{t("plantations.description")}</p>
           </div>
         </div>
         <div className="d-flex flex-wrap gap-2 align-self-start align-self-md-center">

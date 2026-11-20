@@ -8,8 +8,8 @@
 
 .header {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  align-items: center;
+  gap: 15px;
 }
 
 .headerIcon {
@@ -17,24 +17,25 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary), transparent 88%);
 }
 
 .header h1 {
   margin: 0 0 2px;
-  font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.5rem, 2.3vw, 2rem);
+  font-weight: 850;
+  letter-spacing: -0.04em;
   color: var(--foreground);
 }
 
 .header p {
-  margin: 0;
+  margin: 4px 0 0;
   color: var(--muted-foreground);
+  font-size: 0.9rem;
 }
 
 .pageHeader {
