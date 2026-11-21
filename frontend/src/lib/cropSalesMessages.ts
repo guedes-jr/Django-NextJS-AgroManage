@@ -111,6 +111,19 @@ const pt = {
   "sales.unit.ton": "t",
   "sales.unit.truck": "carreta",
   "sales.retry": "Tentar novamente",
+  "crops.salesSection": "6. Vendas realizadas",
+  "crops.noSales": "Nenhuma venda no período.",
+  "crops.salesTotals": "Total das vendas",
+  "crops.revenueSources": "{harvests} colheita(s) · {sales} venda(s)",
+  "crops.packing": "Embalagem",
+  "sales.available": "Disponível: {value}",
+  "sales.availableNone": "Sem saldo colhido",
+  "sales.availableLow": "Saldo baixo",
+  "sales.availableOk": "Saldo bom",
+  "sales.availableHint": "Saldo = colhido − vendido nesta plantação, na mesma unidade.",
+  "sales.overAvailable": "A quantidade é maior que o saldo disponível ({value}).",
+  "sales.harvestedSold": "Colhido {harvested} · vendido {sold}",
+  "sales.noHarvest": "Nenhuma colheita registrada",
 } as const;
 
 export type CropSalesMessages = Record<keyof typeof pt, string>;
@@ -227,6 +240,19 @@ const en: CropSalesMessages = {
   "sales.unit.ton": "t",
   "sales.unit.truck": "truckload",
   "sales.retry": "Try again",
+  "crops.salesSection": "6. Sales",
+  "crops.noSales": "No sales in this period.",
+  "crops.salesTotals": "Sales total",
+  "crops.revenueSources": "{harvests} harvest(s) · {sales} sale(s)",
+  "crops.packing": "Packing",
+  "sales.available": "Available: {value}",
+  "sales.availableNone": "No harvested balance",
+  "sales.availableLow": "Low balance",
+  "sales.availableOk": "Good balance",
+  "sales.availableHint": "Balance = harvested − sold in this plantation, in the same unit.",
+  "sales.overAvailable": "The quantity is above the available balance ({value}).",
+  "sales.harvestedSold": "Harvested {harvested} · sold {sold}",
+  "sales.noHarvest": "No harvest recorded",
 };
 
 const es: CropSalesMessages = {
@@ -336,6 +362,19 @@ const es: CropSalesMessages = {
   "sales.unit.box": "caja",
   "sales.unit.truck": "camión",
   "sales.retry": "Intentar de nuevo",
+  "crops.salesSection": "6. Ventas realizadas",
+  "crops.noSales": "No hay ventas en el período.",
+  "crops.salesTotals": "Total de ventas",
+  "crops.revenueSources": "{harvests} cosecha(s) · {sales} venta(s)",
+  "crops.packing": "Embalaje",
+  "sales.available": "Disponible: {value}",
+  "sales.availableNone": "Sin saldo cosechado",
+  "sales.availableLow": "Saldo bajo",
+  "sales.availableOk": "Saldo bueno",
+  "sales.availableHint": "Saldo = cosechado − vendido en esta plantación, en la misma unidad.",
+  "sales.overAvailable": "La cantidad es mayor que el saldo disponible ({value}).",
+  "sales.harvestedSold": "Cosechado {harvested} · vendido {sold}",
+  "sales.noHarvest": "Ninguna cosecha registrada",
 };
 
 const ptPT: CropSalesMessages = {

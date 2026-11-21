@@ -151,3 +151,44 @@ class HarvestPackingAndSalesTestCase(CropDashboardCostTestCase):
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(Decimal(response.data["yield_kg"]), Decimal("5000"))
+
+
+class SaleAvailabilityTestCase(CropDashboardCostTestCase):
+    def _harvest(self, quantity, unit):
+        response = self.client.post(reverse("crops-harvests-list"), {
+            "planting_cycle": str(self.plantation.id), "harvest_date": date.today().isoformat(),
+            "quantity": quantity, "quantity_unit": unit, "destination": "stock",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def _sell(self, quantity, unit):
+        response = self.client.post(reverse("crops-sales-list"), {
+            "planting_cycle": str(self.plantation.id), "sale_date": date.today().isoformat(),
+            "quantity": quantity, "unit": unit, "unit_price": "1",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def _balances(self):
+        rows = self.client.get(reverse("crops-sales-availability")).data
+        row = next(item for item in rows if item["planting_cycle"] == str(self.plantation.id))
+        return {item["unit"]: item for item in row["balances"]}
+
+    def test_balance_levels_and_ton_conversion(self):
+        self.assertEqual(self._balances(), {})
+        self._harvest("10000", "kg")
+        self._harvest("100", "bale")
+        self._sell("2", "ton")  # 2.000 kg
+        self._sell("85", "bale")
+        balances = self._balances()
+        self.assertEqual((Decimal(balances["kg"]["available"]), balances["kg"]["level"]), (Decimal("8000"), "ok"))
+        self.assertEqual((Decimal(balances["bale"]["available"]), balances["bale"]["level"]), (Decimal("15"), "low"))
+        self._sell("15", "bale")
+        self.assertEqual(self._balances()["bale"]["level"], "none")
+
+    def test_other_organization_does_not_see_balances(self):
+        self._harvest("500", "kg")
+        other = Organization.objects.create(name="Outra", slug="outra-avail")
+        intruder = User.objects.create_user(email="x@avail.com", password="Password-8472", full_name="X",
+                                            role=User.Role.ADMIN, organization=other)
+        self.client.force_authenticate(intruder)
+        self.assertEqual(self.client.get(reverse("crops-sales-availability")).data, [])

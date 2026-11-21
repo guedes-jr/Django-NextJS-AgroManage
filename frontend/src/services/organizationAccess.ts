@@ -38,7 +38,6 @@ export function canAccessOrganizationPath(access: OrganizationAccess | null, pat
     if (["vendas", "mao-de-obra"].includes(segments[4])) return false;
     return (access.livestock_species || []).includes(segments[3]);
   }
-  if (path.startsWith("/home/clinico")) return !!access.livestock_species?.length;
   return false;
 }
 

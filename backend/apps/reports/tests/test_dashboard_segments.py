@@ -32,7 +32,7 @@ class DashboardSegmentTestCase(APITestCase):
             name="Fazenda Dashboard",
         )
 
-    def test_agricultural_stock_purchase_appears_in_crop_segment(self):
+    def test_agricultural_stock_purchase_is_general_expense_not_crop_cost(self):
         item = ItemEstoque.objects.create(
             organization=self.organization,
             nome="Abamex",
@@ -53,11 +53,9 @@ class DashboardSegmentTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["kpis"]["month_expense"], 475.0)
-        self.assertEqual(response.data["segments"]["crops"]["cost"], 475.0)
-        self.assertEqual(
-            response.data["segments"]["crops"]["cost_breakdown"],
-            [{"name": "Compra de Insumos", "value": 475.0}],
-        )
+        # Inputs only become crop cost when used in an operation.
+        self.assertEqual(response.data["segments"]["crops"]["cost"], 0.0)
+        self.assertEqual(response.data["segments"]["crops"]["cost_breakdown"], [])
 
     def test_animal_inventory_purchase_is_not_classified_as_crop_cost(self):
         item = ItemEstoque.objects.create(
@@ -83,7 +81,7 @@ class DashboardSegmentTestCase(APITestCase):
         self.assertEqual(response.data["kpis"]["month_expense"], 100.0)
         self.assertEqual(response.data["segments"]["crops"]["cost"], 0.0)
 
-    def test_legacy_agricultural_expense_without_cycle_is_classified_by_category(self):
+    def test_legacy_agricultural_expense_without_cycle_is_not_crop_cost(self):
         category = FinancialCategory.objects.create(
             organization=self.organization,
             name="Compra de Insumos",
@@ -104,7 +102,7 @@ class DashboardSegmentTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["kpis"]["month_expense"], 570.0)
-        self.assertEqual(response.data["segments"]["crops"]["cost"], 570.0)
+        self.assertEqual(response.data["segments"]["crops"]["cost"], 0.0)
 
     def test_swine_batch_purchase_appears_in_swine_segment(self):
         swine = Species.objects.create(name="Suínos", code="suinos")

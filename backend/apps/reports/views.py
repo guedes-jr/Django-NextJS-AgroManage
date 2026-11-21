@@ -549,7 +549,13 @@ def dashboard_summary(request):
         | Q(reference__in=agricultural_lot_references)
         | (agricultural_finance_terms & ~Q(reference__startswith="LOTE-"))
     )
-    crop_expense_transactions = crop_transactions.exclude(_crop_automatic_reference_q())
+    # Crop segment cost = inputs actually used in the operations (operation
+    # records) + manual expenses linked to a planting cycle. Stock purchases of
+    # inputs are a general expense: they may be used by other segments too, so
+    # they are not a crop cost until consumed (same rule as livestock feed).
+    crop_expense_transactions = crop_transactions.filter(planting_cycle__isnull=False).exclude(
+        _crop_automatic_reference_q()
+    ).exclude(reference__in=inventory_purchase_references)
     crop_operation_costs = _crop_operation_costs(org, period_start, period_end)
     crop_cost = (
         crop_expense_transactions.filter(

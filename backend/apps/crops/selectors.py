@@ -213,3 +213,57 @@ def manual_expense_filter():
     for prefix in AUTOMATIC_REFERENCE_PREFIXES:
         automatic |= Q(reference__startswith=prefix)
     return ~(automatic & ~Q(reference__startswith="LABOR-SWINE-"))
+
+
+SALE_LOW_BALANCE_RATIO = Decimal("0.20")
+
+
+def sale_availability(organization):
+    """Harvested − sold balance of each plantation, per unit, for the sales screen.
+
+    Harvests keep the unit chosen at harvest time; sales in tons count as kg.
+    ``level`` is "ok" (> 20% of the harvested quantity left), "low" (≤ 20%) or
+    "none" (nothing left or nothing harvested).
+    """
+    from collections import defaultdict
+
+    from .models import CropSale, Harvest, PlantingCycle
+
+    harvested = defaultdict(Decimal)
+    for row in Harvest.objects.filter(planting_cycle__organization=organization).values(
+        "planting_cycle_id", "quantity", "quantity_unit", "yield_kg"
+    ):
+        quantity = row["quantity"] if row["quantity"] is not None else row["yield_kg"]
+        if quantity:
+            harvested[(row["planting_cycle_id"], row["quantity_unit"] or "kg")] += quantity
+    sold = defaultdict(Decimal)
+    for row in CropSale.objects.filter(organization=organization).values("planting_cycle_id", "quantity", "unit"):
+        unit, quantity = row["unit"], row["quantity"]
+        if unit == CropSale.Unit.TON:
+            unit, quantity = "kg", quantity * 1000
+        sold[(row["planting_cycle_id"], unit)] += quantity
+
+    result = []
+    cycles = PlantingCycle.objects.filter(organization=organization).select_related("field").order_by("crop_name", "name")
+    for cycle in cycles:
+        units = sorted({unit for (cycle_id, unit) in [*harvested, *sold] if cycle_id == cycle.id})
+        balances = []
+        for unit in units:
+            done, gone = harvested[(cycle.id, unit)], sold[(cycle.id, unit)]
+            available = done - gone
+            if available <= 0 or done <= 0:
+                level = "none"
+            elif available <= done * SALE_LOW_BALANCE_RATIO:
+                level = "low"
+            else:
+                level = "ok"
+            balances.append({
+                "unit": unit, "harvested": str(done), "sold": str(gone),
+                "available": str(available), "level": level,
+            })
+        result.append({
+            "planting_cycle": str(cycle.id), "name": cycle.name, "crop_name": cycle.crop_name,
+            "field_name": cycle.field.name if cycle.field_id else "", "status": cycle.status,
+            "balances": balances,
+        })
+    return result

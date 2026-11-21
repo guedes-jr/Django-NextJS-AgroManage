@@ -21,7 +21,6 @@ function homeParent(pathname: string, searchParams: URLSearchParams | null): Par
     if (parts.length >= 4) return { href: `/home/plantacoes/${parts[2]}`, label: "Voltar para a plantação" };
     if (parts.length === 3) return { href: "/home/plantacoes", label: "Voltar para Plantações" };
   }
-  if (parts[1] === "clinico") return { href: "/home/clinico", label: "Voltar para Clínico" };
   if (parts[1] === "relatorios") {
     const species = searchParams?.get("species");
     if (species === "bovinos") return cattleParent(pathname, searchParams);

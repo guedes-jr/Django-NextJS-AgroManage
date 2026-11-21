@@ -821,6 +821,8 @@ class CropSale(BaseModel):
         BOX = "box", "Caixa"
         TON = "ton", "Tonelada"
         TRUCK = "truck", "Carreta"
+        BALE = "bale", "Fardo"
+        BUNDLE = "bundle", "Feixe"
 
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.CASCADE, related_name="crop_sales"

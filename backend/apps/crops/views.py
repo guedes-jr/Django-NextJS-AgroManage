@@ -601,6 +601,12 @@ class CropSaleViewSet(viewsets.ModelViewSet):
             qs = qs.filter(sale_date__lte=params["date_to"])
         return qs.order_by("-sale_date", "-created_at")
 
+    @action(detail=False, methods=["get"], url_path="availability")
+    def availability(self, request):
+        from .selectors import sale_availability
+
+        return Response(sale_availability(request.user.organization))
+
     def perform_create(self, serializer):
         create_crop_sale(serializer, self.request)
 

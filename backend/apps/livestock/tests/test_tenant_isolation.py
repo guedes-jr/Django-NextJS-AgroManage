@@ -46,26 +46,12 @@ class LivestockTenantIsolationTestCase(APITestCase):
         )
         self.client.force_authenticate(self.user_a)
 
-    def test_clinical_list_and_detail_hide_foreign_tenant(self):
-        response = self.client.get(reverse("clinicalrecord-list"))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn(str(self.clinical_b.id), {str(item["id"]) for item in response.data["results"]})
-        detail = self.client.get(reverse("clinicalrecord-detail", args=[self.clinical_b.id]))
-        self.assertEqual(detail.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_rejects_clinical_record_with_foreign_farm_and_animal(self):
-        response = self.client.post(
-            reverse("clinicalrecord-list"),
-            {
-                "farm": self.farm_b.id,
-                "animal": self.animal_b.id,
-                "record_type": "consultation",
-                "record_date": date.today().isoformat(),
-                "clinical_notes": "Tentativa externa",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_clinical_record_crud_routes_were_removed(self):
+        base = "/api/v1/livestock/clinical/records/"
+        self.assertEqual(self.client.get(base).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.get(f"{base}{self.clinical_b.id}/").status_code, status.HTTP_404_NOT_FOUND)
+        response = self.client.post(base, {"farm": self.farm_b.id, "animal": self.animal_b.id}, format="json")
+        self.assertIn(response.status_code, (status.HTTP_404_NOT_FOUND, status.HTTP_405_METHOD_NOT_ALLOWED))
 
     def test_rejects_foreign_vaccine_item(self):
         response = self.client.post(

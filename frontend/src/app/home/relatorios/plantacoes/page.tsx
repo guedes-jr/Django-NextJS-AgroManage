@@ -16,9 +16,13 @@ type ApplicationRow = {
   id: string; plantation: string; date: string; product: string; purpose: string;
   area: number; quantity: number; unit: string; equipment: string;
 };
+type SaleRow = {
+  id: string; plantingCycle: string; date: string; product: string; plantation: string;
+  quantity: number; unit: string; unitPrice: number; buyer: string; total: number;
+};
 type HarvestRow = {
   id: string; plantingCycle: string; plantation: string; date: string; type: string;
-  production: number; destination: string; buyer: string; unitPrice: number; revenue: number;
+  production: number; quantity: number; quantityUnit: string; destination: string; buyer: string; unitPrice: number; revenue: number;
 };
 
 const arrayOf = <T,>(payload: unknown): T[] => {
@@ -54,7 +58,8 @@ export default function RelatorioGeralPlantacoesPage() {
       cropService.listLaborRecords({ page_size: 500 }),
       cropService.listLandPreparations({ page_size: 500 }),
       cropService.listHarvests({ page_size: 500 }),
-    ]).then(async ([plantationRes, plantingRes, fertilizerRes, fertigationRes, pesticideRes, irrigationRes, laborRes, landRes, harvestRes]) => {
+      cropService.listSales({ page_size: 500 }).catch(() => ({ data: [] })),
+    ]).then(async ([plantationRes, plantingRes, fertilizerRes, fertigationRes, pesticideRes, irrigationRes, laborRes, landRes, harvestRes, salesRes]) => {
       const listed = arrayOf<Plantation>(plantationRes.data);
       const detailed = await Promise.all(listed.map((item) => cropService.get(item.id).then((res) => res.data as Plantation).catch(() => item)));
       if (!active) return;
@@ -63,7 +68,7 @@ export default function RelatorioGeralPlantacoesPage() {
         plantings: arrayOf(plantingRes.data), fertilizers: arrayOf(fertilizerRes.data),
         fertigations: arrayOf(fertigationRes.data), pesticides: arrayOf(pesticideRes.data),
         irrigations: arrayOf(irrigationRes.data), labor: arrayOf(laborRes.data),
-        land: arrayOf(landRes.data), harvests: arrayOf(harvestRes.data),
+        land: arrayOf(landRes.data), harvests: arrayOf(harvestRes.data), sales: arrayOf(salesRes.data),
       });
       const dates = detailed.map((item) => iso(item.planting_date)).filter(Boolean).sort();
       setStartDate(dates[0] || "");
@@ -94,6 +99,8 @@ export default function RelatorioGeralPlantacoesPage() {
       date: iso(item.harvest_date),
       type: String(item.harvest_type_display || item.harvest_type || t("crops.harvest")),
       production: num(item.yield_kg),
+      quantity: num(item.quantity ?? item.yield_kg),
+      quantityUnit: String(item.quantity_unit || "kg"),
       destination: String(item.destination_display || item.destination || t("crops.unknown")),
       buyer: String(item.buyer_name_display || item.buyer_name || "—"),
       unitPrice: num(item.unit_price),
@@ -102,12 +109,32 @@ export default function RelatorioGeralPlantacoesPage() {
     .filter((item) => (!startDate || !item.date || item.date >= startDate) && (!endDate || !item.date || item.date <= endDate))
     .sort((a, b) => b.date.localeCompare(a.date)), [endDate, ids, sources.harvests, startDate, t]);
 
+  // Production sales ("Venda da produção") are realized revenue of the plantation.
+  const sales = useMemo<SaleRow[]>(() => (sources.sales || [])
+    .filter((item) => ids.has(String(item.planting_cycle || "")))
+    .map((item) => ({
+      id: String(item.id),
+      plantingCycle: String(item.planting_cycle || ""),
+      date: iso(item.sale_date),
+      product: String(item.product || item.planting_cycle_name || "—"),
+      plantation: String(item.planting_cycle_name || ""),
+      quantity: num(item.quantity),
+      unit: String(item.unit || "kg"),
+      unitPrice: num(item.unit_price),
+      buyer: String(item.buyer_name || "—"),
+      total: num(item.total_amount),
+    }))
+    .filter((item) => (!startDate || !item.date || item.date >= startDate) && (!endDate || !item.date || item.date <= endDate))
+    .sort((a, b) => b.date.localeCompare(a.date)), [endDate, ids, sources.sales, startDate]);
+  const salesTotal = sales.reduce((sum, sale) => sum + sale.total, 0);
+
   const rows = useMemo(() => filtered.map((item) => {
     const cost = num(item.investment_total);
     const predictedRevenue = num(item.estimated_revenue);
     const predictedProduction = num(item.estimated_production_kg);
     const cycleHarvests = harvests.filter((harvest) => harvest.plantingCycle === item.id);
-    const actualRevenue = cycleHarvests.reduce((sum, harvest) => sum + harvest.revenue, 0);
+    const actualRevenue = cycleHarvests.reduce((sum, harvest) => sum + harvest.revenue, 0)
+      + sales.filter((sale) => sale.plantingCycle === item.id).reduce((sum, sale) => sum + sale.total, 0);
     const harvestedProduction = cycleHarvests.reduce((sum, harvest) => sum + harvest.production, 0);
     const area = num(item.planted_area_ha);
     const predictedProfit = predictedRevenue - cost;
@@ -116,7 +143,7 @@ export default function RelatorioGeralPlantacoesPage() {
     const referenceDate = cultivationEnd ? new Date(`${cultivationEnd}T12:00:00`).getTime() : 0;
     const days = item.planting_date && referenceDate ? Math.max(0, Math.floor((referenceDate - new Date(`${item.planting_date}T12:00:00`).getTime()) / 86400000)) : 0;
     return { item, cost, predictedRevenue, predictedProduction, actualRevenue, harvestedProduction, area, predictedProfit, actualProfit, days, predictedMargin: predictedRevenue ? predictedProfit / predictedRevenue * 100 : 0, actualMargin: actualRevenue ? actualProfit / actualRevenue * 100 : 0 };
-  }), [endDate, filtered, harvests]);
+  }), [endDate, filtered, harvests, sales]);
 
   const totals = useMemo(() => rows.reduce((acc, row) => ({
     area: acc.area + row.area, cost: acc.cost + row.cost,
@@ -134,11 +161,12 @@ export default function RelatorioGeralPlantacoesPage() {
     { label: t("crops.seeds"), value: (sources.plantings || []).filter(inReport).reduce((s, x) => s + num(x.total_price), 0), color: "#1685c7" },
     { label: t("crops.fertilizers"), value: (sources.fertilizers || []).filter(inReport).reduce((s, x) => s + num(x.total_price), 0), color: "#ef9d00" },
     { label: t("crops.fertigation"), value: (sources.fertigations || []).filter(inReport).reduce((s, x) => s + num(x.total_price), 0), color: "#52a962" },
-    { label: t("crops.pesticides"), value: (sources.pesticides || []).filter(inReport).reduce((s, x) => s + num(x.total_price), 0), color: "#e5484d" },
+    { label: t("crops.pesticides"), value: (sources.pesticides || []).filter(inReport).reduce((s, x) => s + num(x.total_price) + (Array.isArray(x.equipments) ? (x.equipments as AnyRecord[]).reduce((e, eq) => e + num(eq.total_price), 0) : 0), 0), color: "#e5484d" },
     { label: t("crops.irrigation"), value: (sources.irrigations || []).filter(inReport).reduce((s, x) => s + num(x.energy_cost), 0), color: "#6741b8" },
     { label: t("crops.labor"), value: (sources.labor || []).filter(inReport).reduce((s, x) => s + num(x.total_amount), 0), color: "#238636" },
     { label: t("crops.landPreparation"), value: (sources.land || []).filter(inReport).reduce((s, x) => s + num(x.total_price), 0), color: "#ca4a86" },
-  ].filter((item) => item.value > 0), [inReport, sources, t]);
+    { label: t("crops.packing"), value: (sources.harvests || []).filter((x) => ids.has(String(x.planting_cycle || ""))).reduce((s, x) => s + num(x.packing_cost), 0), color: "#8a6d1f" },
+  ].filter((item) => item.value > 0), [ids, inReport, sources, t]);
   const costTotal = costs.reduce((sum, item) => sum + item.value, 0);
 
   const consumption = useMemo(() => ({
@@ -160,7 +188,7 @@ export default function RelatorioGeralPlantacoesPage() {
     { label: t("crops.totalArea"), value: `${number(totals.area)} ha`, sub: t("crops.plantations").replace("{count}", number(rows.length)), icon: Leaf, tone: "green" },
     { label: t("crops.totalCost"), value: money(totals.cost), sub: t("crops.fullCost"), icon: CircleDollarSign, tone: "green" },
     { label: t("crops.expectedRevenue"), value: money(totals.predictedRevenue), sub: t("crops.registeredEstimate"), icon: CircleDollarSign, tone: "blue" },
-    { label: t("crops.realizedRevenue"), value: money(totals.actualRevenue), sub: harvests.length ? t("crops.harvestCount").replace("{count}", number(harvests.length)) : t("crops.noHarvestRevenue"), icon: CircleDollarSign, tone: "blue" },
+    { label: t("crops.realizedRevenue"), value: money(totals.actualRevenue), sub: harvests.length || sales.length ? t("crops.revenueSources").replace("{harvests}", number(harvests.length, 0)).replace("{sales}", number(sales.length, 0)) : t("crops.noHarvestRevenue"), icon: CircleDollarSign, tone: "blue" },
     { label: t("crops.expectedProfit"), value: money(totals.predictedProfit), sub: t("crops.expectedRevenueLessCost"), icon: TrendingUp, tone: "orange" },
     { label: t("crops.actualProfit"), value: money(totals.actualProfit), sub: t("crops.actualRevenueLessCost"), icon: TrendingUp, tone: "orange" },
     { label: t("crops.expectedMargin"), value: `${number(predictedMargin)}%`, sub: t("crops.onExpectedRevenue"), icon: Percent, tone: "purple" },
@@ -207,9 +235,13 @@ export default function RelatorioGeralPlantacoesPage() {
       {!applications.length && <tr><td colSpan={7} className={styles.empty}>{t("crops.noApplications")}</td></tr>}
     </tbody></table></div></section>
     <section className={styles.panel}><h2>{t("crops.harvests")}</h2><div className={styles.tableWrap}><table><thead><tr><th>{t("crops.date")}</th><th>{t("crops.plantation")}</th><th>{t("crops.type")}</th><th>{t("crops.totalHarvest")}</th><th>{t("crops.destination")}</th><th>{t("crops.buyer")}</th><th>{t("crops.unitPrice")}</th><th>{t("crops.actualRevenueColumn")}</th></tr></thead><tbody>
-      {harvests.map((harvest) => <tr key={harvest.id}><td>{date(harvest.date)}</td><td>{filtered.find((plantation) => plantation.id === harvest.plantingCycle)?.crop_name || harvest.plantation}</td><td>{harvest.type}</td><td>{number(harvest.production, 0)} kg</td><td>{harvest.destination}</td><td>{harvest.buyer}</td><td>{harvest.unitPrice ? `${money(harvest.unitPrice)}/kg` : "—"}</td><td><b>{money(harvest.revenue)}</b></td></tr>)}
+      {harvests.map((harvest) => <tr key={harvest.id}><td>{date(harvest.date)}</td><td>{filtered.find((plantation) => plantation.id === harvest.plantingCycle)?.crop_name || harvest.plantation}</td><td>{harvest.type}</td><td>{number(harvest.quantity, harvest.quantity % 1 ? 2 : 0)} {t((harvest.quantity === 1 ? `harvestForm.unit.${harvest.quantityUnit}` : `harvestForm.unitPlural.${harvest.quantityUnit}`) as "harvestForm.unit.kg").toLowerCase()}</td><td>{harvest.destination}</td><td>{harvest.buyer}</td><td>{harvest.unitPrice ? `${money(harvest.unitPrice)}/kg` : "—"}</td><td><b>{money(harvest.revenue)}</b></td></tr>)}
       {!harvests.length && <tr><td colSpan={8} className={styles.empty}>{t("crops.noHarvests")}</td></tr>}
-    </tbody><tfoot><tr><th colSpan={3}>{t("crops.harvestTotals")}</th><th>{number(totals.harvestedProduction, 0)} kg</th><th colSpan={3}></th><th>{money(totals.actualRevenue)}</th></tr></tfoot></table></div></section>
+    </tbody><tfoot><tr><th colSpan={3}>{t("crops.harvestTotals")}</th><th>{number(totals.harvestedProduction, 0)} kg</th><th colSpan={3}></th><th>{money(harvests.reduce((sum, harvest) => sum + harvest.revenue, 0))}</th></tr></tfoot></table></div></section>
+    <section className={styles.panel}><h2>{t("crops.salesSection")}</h2><div className={styles.tableWrap}><table><thead><tr><th>{t("crops.date")}</th><th>{t("crops.product")}</th><th>{t("crops.plantation")}</th><th>{t("crops.quantity")}</th><th>{t("crops.buyer")}</th><th>{t("crops.unitPrice")}</th><th>{t("sales.totalColumn")}</th></tr></thead><tbody>
+      {sales.map((sale) => <tr key={sale.id}><td>{date(sale.date)}</td><td>{sale.product}</td><td>{filtered.find((plantation) => plantation.id === sale.plantingCycle)?.name || sale.plantation || "—"}</td><td>{number(sale.quantity, sale.quantity % 1 ? 2 : 0)} {t(`sales.unit.${sale.unit}` as "sales.unit.kg")}</td><td>{sale.buyer}</td><td>{money(sale.unitPrice)}</td><td><b>{money(sale.total)}</b></td></tr>)}
+      {!sales.length && <tr><td colSpan={7} className={styles.empty}>{t("crops.noSales")}</td></tr>}
+    </tbody><tfoot><tr><th colSpan={6}>{t("crops.salesTotals")}</th><th>{money(salesTotal)}</th></tr></tfoot></table></div></section>
     <footer className={styles.footer}>{t("crops.footer")}</footer>
     <div className={styles.printAction}>
       <button type="button" onClick={() => window.print()}><Printer /> {t("crops.print")}</button>

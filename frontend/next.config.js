@@ -15,6 +15,17 @@ const nextConfig = {
 
   async redirects() {
     return [{
+        // The veterinary clinic was replaced by the "Área do veterinário".
+        source: "/home/clinico/:path*",
+        destination: "/home/veterinario",
+        permanent: false,
+      },
+      {
+        source: "/home/clinico",
+        destination: "/home/veterinario",
+        permanent: false,
+      },
+      {
       source: "/home/rebanho/:path*",
       destination: "/home/seguimento/:path*",
       permanent: true,
