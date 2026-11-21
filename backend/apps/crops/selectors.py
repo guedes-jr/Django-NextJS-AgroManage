@@ -218,35 +218,77 @@ def manual_expense_filter():
 SALE_LOW_BALANCE_RATIO = Decimal("0.20")
 
 
-def sale_availability(organization):
-    """Harvested − sold balance of each plantation, per unit, for the sales screen.
+def _weighted_average(pairs):
+    total_count = sum((count for count, _ in pairs), Decimal("0"))
+    if not total_count:
+        return None
+    return sum((count * weight for count, weight in pairs), Decimal("0")) / total_count
 
-    Harvests keep the unit chosen at harvest time; sales in tons count as kg.
-    ``level`` is "ok" (> 20% of the harvested quantity left), "low" (≤ 20%) or
-    "none" (nothing left or nothing harvested).
+
+def sale_availability(organization):
+    """Harvested − sold balance of each plantation, for the sales screen.
+
+    Everything with a known weight is netted in kg: kg and tons, and sacks,
+    boxes, bales… whose weight comes from the harvest (package weight of a
+    packed harvest, or the unit weight informed at harvest time). A sale of
+    800 sacks of a harvest packed in 30 kg sacks takes 24.000 kg from the
+    balance. Units without a known weight keep their own balance.
+
+    ``unit_weights`` gives kg per sale unit so the screen can show the
+    remaining balance in the unit being sold. ``level`` is "ok" (> 20% of the
+    harvested quantity left), "low" (≤ 20%) or "none" (nothing left).
     """
     from collections import defaultdict
 
     from .models import CropSale, Harvest, PlantingCycle
 
     harvested = defaultdict(Decimal)
-    for row in Harvest.objects.filter(planting_cycle__organization=organization).values(
-        "planting_cycle_id", "quantity", "quantity_unit", "yield_kg"
+    weights = defaultdict(lambda: defaultdict(list))  # cycle -> unit -> [(count, kg per unit)]
+    for harvest in Harvest.objects.filter(planting_cycle__organization=organization).only(
+        "planting_cycle_id", "quantity", "quantity_unit", "unit_weight_kg", "yield_kg",
+        "packaged", "package_type", "package_weight_kg", "package_count",
     ):
-        quantity = row["quantity"] if row["quantity"] is not None else row["yield_kg"]
-        if quantity:
-            harvested[(row["planting_cycle_id"], row["quantity_unit"] or "kg")] += quantity
+        cycle_id = harvest.planting_cycle_id
+        unit = harvest.quantity_unit or "kg"
+        quantity = harvest.quantity if harvest.quantity is not None else harvest.yield_kg
+        packed_kg = (
+            Decimal(harvest.package_count) * harvest.package_weight_kg
+            if harvest.packaged and harvest.package_count and harvest.package_weight_kg
+            else None
+        )
+        if packed_kg:
+            weights[cycle_id][harvest.package_type].append((Decimal(harvest.package_count), harvest.package_weight_kg))
+        if unit != "kg" and quantity and harvest.unit_weight_kg:
+            weights[cycle_id][unit].append((quantity, harvest.unit_weight_kg))
+
+        kg = harvest.yield_kg or packed_kg
+        if kg:
+            harvested[(cycle_id, "kg")] += kg
+        elif quantity:
+            harvested[(cycle_id, unit)] += quantity
+
+    unit_weights = {
+        cycle_id: {unit: _weighted_average(pairs) for unit, pairs in units.items() if _weighted_average(pairs)}
+        for cycle_id, units in weights.items()
+    }
+
     sold = defaultdict(Decimal)
     for row in CropSale.objects.filter(organization=organization).values("planting_cycle_id", "quantity", "unit"):
-        unit, quantity = row["unit"], row["quantity"]
+        cycle_id, unit, quantity = row["planting_cycle_id"], row["unit"], row["quantity"]
         if unit == CropSale.Unit.TON:
             unit, quantity = "kg", quantity * 1000
-        sold[(row["planting_cycle_id"], unit)] += quantity
+        weight = unit_weights.get(cycle_id, {}).get(unit)
+        if unit != "kg" and weight and not harvested.get((cycle_id, unit)):
+            unit, quantity = "kg", quantity * weight
+        sold[(cycle_id, unit)] += quantity
 
     result = []
     cycles = PlantingCycle.objects.filter(organization=organization).select_related("field").order_by("crop_name", "name")
     for cycle in cycles:
-        units = sorted({unit for (cycle_id, unit) in [*harvested, *sold] if cycle_id == cycle.id})
+        units = sorted(
+            {unit for (cycle_id, unit) in [*harvested, *sold] if cycle_id == cycle.id},
+            key=lambda unit: (unit != "kg", unit),
+        )
         balances = []
         for unit in units:
             done, gone = harvested[(cycle.id, unit)], sold[(cycle.id, unit)]
@@ -265,5 +307,9 @@ def sale_availability(organization):
             "planting_cycle": str(cycle.id), "name": cycle.name, "crop_name": cycle.crop_name,
             "field_name": cycle.field.name if cycle.field_id else "", "status": cycle.status,
             "balances": balances,
+            "unit_weights": {
+                unit: str(weight.quantize(Decimal("0.01")))
+                for unit, weight in unit_weights.get(cycle.id, {}).items()
+            },
         })
     return result

@@ -18,6 +18,7 @@ from rest_framework.response import Response
 
 from apps.farms.models import Farm
 from apps.livestock.models import AnimalBatch, Species, VaccinationRecord
+from apps.organizations import segment_features
 from apps.crops.models import Field, PlantingCycle
 from apps.inventory.models import (
     ConsumoRacao,
@@ -773,28 +774,28 @@ def dashboard_summary(request):
         feed_breakdown + vaccine_breakdown + semen_breakdown + livestock_cost_breakdown
     )
 
-    # Cada atividade pecuária ganha seu próprio card na dashboard. Suinocultura
-    # permanece disponível mesmo antes do primeiro lote ser cadastrado.
-    organization_species = list(
-        Species.objects.filter(batches__farm__in=farm_ids)
-        .distinct()
-        .order_by("name")
+    # Os cards da dashboard seguem os segmentos do sistema (Configurações ›
+    # Recursos dos segmentos), não as espécies que já têm lotes: Suinocultura e
+    # Bovinos aparecem sempre, mesmo antes do primeiro lote. Suinocultura vem
+    # primeiro porque absorve os registros de ração sem vínculo animal.
+    livestock_segments = (
+        (segment_features.SWINE, ("suinos", "suino"), "Suinocultura"),
+        (segment_features.CATTLE, ("bovinos", "bovino"), "Bovinos"),
     )
-    swine = Species.objects.filter(code__in=["suinos", "suino"]).first()
-    if swine:
-        organization_species = [item for item in organization_species if item.pk != swine.pk]
-        organization_species.insert(0, swine)
-
-    def species_title(species):
-        code = species.code.lower()
-        if code in {"suino", "suinos"}:
-            return "Suinocultura"
-        if code in {"ave", "aves"}:
-            return "Aves"
-        return species.name
+    segment_species = [
+        (code, title, Species.objects.filter(code__in=species_codes).order_by("code").first())
+        for code, species_codes, title in livestock_segments
+    ]
+    organization_species = [species for _, _, species in segment_species if species]
 
     livestock_by_species = []
-    for species in organization_species:
+    for code, title, species in segment_species:
+        if species is None:
+            livestock_by_species.append({
+                "code": code, "name": title,
+                **segment_payload(Decimal("0"), Decimal("0"), [], []),
+            })
+            continue
         species_batches = AnimalBatch.objects.filter(
             farm__in=farm_ids, species=species
         ).values_list("id", flat=True)
@@ -897,8 +898,8 @@ def dashboard_summary(request):
             if row["total"]
         ] + species_vaccine_breakdown + species_semen_breakdown + species_costs
         livestock_by_species.append({
-            "code": species.code,
-            "name": species_title(species),
+            "code": code,
+            "name": title,
             **segment_payload(
                 species_cost,
                 species_revenue,

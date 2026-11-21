@@ -32,6 +32,13 @@ class DashboardSegmentTestCase(APITestCase):
             name="Fazenda Dashboard",
         )
 
+    def test_livestock_cards_follow_segments_not_herds(self):
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cards = response.data["segments"]["livestock_by_species"]
+        self.assertEqual([card["code"] for card in cards], ["suinos", "bovinos"])
+        self.assertEqual([card["cost"] for card in cards], [0.0, 0.0])
+
     def test_agricultural_stock_purchase_is_general_expense_not_crop_cost(self):
         item = ItemEstoque.objects.create(
             organization=self.organization,

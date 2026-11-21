@@ -185,6 +185,23 @@ class SaleAvailabilityTestCase(CropDashboardCostTestCase):
         self._sell("15", "bale")
         self.assertEqual(self._balances()["bale"]["level"], "none")
 
+    def test_sacks_sold_are_taken_from_the_packed_harvest_in_kg(self):
+        # Production case: 35.000 kg packed in 30 kg sacks, sold by the sack.
+        response = self.client.post(reverse("crops-harvests-list"), {
+            "planting_cycle": str(self.plantation.id), "harvest_date": date.today().isoformat(),
+            "quantity": "35000", "quantity_unit": "kg", "destination": "stock",
+            "packaged": True, "package_type": "sack", "package_weight_kg": "30", "package_count": 1167,
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self._sell("300", "sack")
+        self._sell("500", "sack")
+        balances = self._balances()
+        self.assertEqual(list(balances), ["kg"])  # only what is left, in a single balance
+        self.assertEqual(Decimal(balances["kg"]["available"]), Decimal("11000"))
+        row = next(item for item in self.client.get(reverse("crops-sales-availability")).data
+                   if item["planting_cycle"] == str(self.plantation.id))
+        self.assertEqual(row["unit_weights"], {"sack": "30.00"})
+
     def test_other_organization_does_not_see_balances(self):
         self._harvest("500", "kg")
         other = Organization.objects.create(name="Outra", slug="outra-avail")

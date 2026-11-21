@@ -23,7 +23,8 @@ const UNITS: SaleUnit[] = ["kg", "sack", "box", "ton", "truck", "bale", "bundle"
 
 type BalanceLevel = "ok" | "low" | "none";
 type Balance = { unit: string; harvested: string; sold: string; available: string; level: BalanceLevel };
-type Availability = { planting_cycle: string; balances: Balance[] };
+type Availability = { planting_cycle: string; balances: Balance[]; unit_weights?: Record<string, string> };
+type CycleAvailability = { balances: Balance[]; weights: Record<string, number> };
 
 type PlantationOption = { id: string; name?: string; crop_name?: string; field_name?: string };
 type Buyer = { id: string; name: string };
@@ -61,12 +62,15 @@ export default function VendaProducaoPage() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<Record<string, Balance[]>>({});
+  const [availability, setAvailability] = useState<Record<string, CycleAvailability>>({});
 
   const loadAvailability = useCallback(() => {
     cropService
       .saleAvailability()
-      .then(({ data }) => setAvailability(Object.fromEntries(extractArray<Availability>(data).map((row) => [row.planting_cycle, row.balances]))))
+      .then(({ data }) => setAvailability(Object.fromEntries(extractArray<Availability>(data).map((row) => [row.planting_cycle, {
+        balances: row.balances,
+        weights: Object.fromEntries(Object.entries(row.unit_weights || {}).map(([unit, kg]) => [unit, decimalValue(kg)])),
+      }]))))
       .catch(() => setAvailability({}));
   }, []);
 
@@ -124,20 +128,32 @@ export default function VendaProducaoPage() {
   const editingSale = editingId ? sales.find((sale) => sale.id === editingId) : undefined;
   const unitLabel = (unit: string) => t(`sales.unit.${unit}` as TranslationKey);
 
-  /** Balance of the chosen plantation in the unit of the sale (tons are kept as kg). */
+  /**
+   * Remaining balance of the chosen plantation in the unit of the sale. The backend nets
+   * everything with a known weight in kg (sacks/boxes use the harvest package weight);
+   * tons and weighed units are converted from that kg balance.
+   */
   const balanceFor = (cycle: string, unit: SaleUnit) => {
-    const key = unit === "ton" ? "kg" : unit;
-    const balance = (availability[cycle] || []).find((item) => item.unit === key);
+    const { balances = [], weights = {} } = availability[cycle] || {};
+    const own = balances.find((item) => item.unit === unit && unit !== "ton");
+    const kgPerUnit = unit === "ton" ? 1000 : unit === "kg" ? 1 : weights[unit];
+    const balance = own ?? (kgPerUnit ? balances.find((item) => item.unit === "kg") : undefined);
     if (!balance) return null;
+    const factor = own ? 1 : kgPerUnit || 1;
     let available = decimalValue(balance.available);
     // While editing, the quantity of the sale itself is still available to it.
     if (editingSale && editingSale.planting_cycle === cycle) {
-      const own = decimalValue(editingSale.quantity) * (editingSale.unit === "ton" ? 1000 : 1);
-      if ((editingSale.unit === "ton" ? "kg" : editingSale.unit) === key) available += own;
+      const saleUnit = editingSale.unit as SaleUnit;
+      const quantity = decimalValue(editingSale.quantity);
+      if (balance.unit === saleUnit && saleUnit !== "ton") available += quantity;
+      else if (balance.unit === "kg") {
+        const saleKg = saleUnit === "ton" ? 1000 : saleUnit === "kg" ? 1 : weights[saleUnit];
+        if (saleKg) available += quantity * saleKg;
+      }
     }
     const harvested = decimalValue(balance.harvested);
     const level: BalanceLevel = available <= 0 || harvested <= 0 ? "none" : available <= harvested * 0.2 ? "low" : "ok";
-    return { available: unit === "ton" ? available / 1000 : available, level, unit };
+    return { available: available / factor, level, unit };
   };
   const selectedBalance = form.planting_cycle ? balanceFor(form.planting_cycle, form.unit) : null;
   const overBalance = !!selectedBalance && quantity > selectedBalance.available;
@@ -250,7 +266,7 @@ export default function VendaProducaoPage() {
                   id: plantation.id,
                   name: productName(plantation),
                   detail: plantation.field_name || "",
-                  badges: (availability[plantation.id] || []).map((balance) => {
+                  badges: (availability[plantation.id]?.balances || []).map((balance) => {
                     const own = balanceFor(plantation.id, balance.unit as SaleUnit);
                     return { key: balance.unit, level: own?.level ?? balance.level, text: badgeText(own?.available ?? decimalValue(balance.available), balance.unit) };
                   }),

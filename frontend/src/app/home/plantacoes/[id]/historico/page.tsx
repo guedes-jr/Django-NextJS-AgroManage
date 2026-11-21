@@ -49,12 +49,16 @@ type ApiList<T> = T[] | { results?: T[] };
 type BaseRecord = { id: string; created_at?: string; notes?: string | null };
 type LandPreparation = BaseRecord & { date?: string | null; operation_type_display?: string | null; execution_type_display?: string | null; tractor_name?: string | null; hours_worked?: string | number | null; total_price?: string | number | null; total_amount?: string | number | null; operator?: string | null };
 type Planting = BaseRecord & { planting_date?: string | null; item_name?: string | null; quantity?: string | number | null; unit?: string | null; total_price?: string | number | null; operator?: string | null };
-type Application = BaseRecord & { application_date?: string | null; item_name?: string | null; quantity?: string | number | null; unit?: string | null; dose_per_ha?: string | number | null; total_price?: string | number | null; application_method_display?: string | null; pesticide_type_display?: string | null; target?: string | null; operator?: string | null };
+type Application = BaseRecord & { application_date?: string | null; item_name?: string | null; quantity?: string | number | null; unit?: string | null; dose_per_ha?: string | number | null; total_price?: string | number | null; application_method_display?: string | null; pesticide_type_display?: string | null; target?: string | null; operator?: string | null; equipments?: { equipment?: string | null; total_price?: string | number | null }[] | null };
 type Irrigation = BaseRecord & { date?: string | null; start_date?: string | null; end_date?: string | null; irrigation_system_display?: string | null; pump_name?: string | null; operating_days?: number | null; hours?: string | number | null; liters_used?: string | number | null; energy_cost?: string | number | null; operator?: string | null };
 type SoilAnalysis = BaseRecord & { original_name?: string | null; uploaded_by_name?: string | null };
 type Recommendation = BaseRecord & { title?: string | null; objective?: string | null; recommendation_date?: string | null; suggested_application_date?: string | null; priority_display?: string | null; status_display?: string | null };
 type LaborRecord = BaseRecord & { worker_name?: string | null; activity_type_display?: string | null; activity_date?: string | null; daily_quantity?: string | number | null; daily_rate?: string | number | null; total_amount?: string | number | null };
-type Harvest = BaseRecord & { harvest_date?: string | null; harvest_type_display?: string | null; yield_kg?: string | number | null; destination_display?: string | null; revenue_amount?: string | number | null; buyer_name?: string | null; buyer_name_display?: string | null };
+type Harvest = BaseRecord & { harvest_date?: string | null; harvest_type_display?: string | null; yield_kg?: string | number | null; quantity?: string | number | null; quantity_unit?: string | null; packaged?: boolean | null; package_type?: string | null; package_weight_kg?: string | number | null; package_count?: number | null; packing_cost?: string | number | null; destination_display?: string | null; revenue_amount?: string | number | null; buyer_name?: string | null; buyer_name_display?: string | null };
+type CropSale = BaseRecord & { sale_date?: string | null; quantity?: string | number | null; unit?: string | null; unit_display?: string | null; unit_price?: string | number | null; total_amount?: string | number | null; buyer_name?: string | null };
+
+const HARVEST_UNITS: Record<string, string> = { kg: "kg", box: "caixas", truck: "carretas", bale: "fardos", sack: "sacos", bundle: "feixes" };
+const PACKAGE_TYPES: Record<string, string> = { sack: "sacos", box: "caixas", big_bag: "big bags", crate: "engradados", other: "embalagens" };
 
 type ReportType = "preparo" | "plantio" | "irrigacao" | "adubacao" | "defensivos" | "mao_obra" | "colheita" | "agronomo" | "anexos";
 type ReportEvent = {
@@ -65,7 +69,10 @@ type ReportEvent = {
   subtitle: string;
   details: string[];
   amount?: number;
+  /** Cost carried by a harvest event (packing), counted as investment. */
+  cost?: number;
   quantityKg?: number;
+  soldKg?: number;
   revenue?: number;
   notes?: string | null;
 };
@@ -163,6 +170,7 @@ function buildEvents(plantation: Plantation, sources: {
   recommendations: Recommendation[];
   laborRecords: LaborRecord[];
   harvests: Harvest[];
+  sales: CropSale[];
 }, language: string): ReportEvent[] {
   const events: ReportEvent[] = [];
 
@@ -223,7 +231,10 @@ function buildEvents(plantation: Plantation, sources: {
   });
 
   sources.pesticides.forEach((item) => {
-    const amount = parseNumber(item.total_price);
+    // Same cost as "Foliares / Defensivos": product + equipment used in the application.
+    const equipments = (item.equipments || []).filter((equipment) => equipment.equipment || parseNumber(equipment.total_price));
+    const equipmentCost = equipments.reduce((sum, equipment) => sum + parseNumber(equipment.total_price), 0);
+    const amount = parseNumber(item.total_price) + equipmentCost;
     events.push({
       id: `defensivos-${item.id}`,
       type: "defensivos",
@@ -234,6 +245,7 @@ function buildEvents(plantation: Plantation, sources: {
         item.target ? `Alvo: ${item.target}` : undefined,
         item.quantity ? `Quantidade: ${numberText(item.quantity, language, item.unit ? ` ${item.unit}` : "")}` : undefined,
         item.operator ? `Operador: ${item.operator}` : undefined,
+        equipments.length ? `Equipamentos: ${equipments.map((equipment) => `${equipment.equipment || "-"}${parseNumber(equipment.total_price) ? ` (${formatAmount(parseNumber(equipment.total_price), language)})` : ""}`).join(", ")}` : undefined,
         amount ? `Custo: ${formatAmount(amount, language)}` : undefined,
       ]),
       amount,
@@ -298,7 +310,13 @@ function buildEvents(plantation: Plantation, sources: {
 
   sources.harvests.forEach((item) => {
     const revenue = parseNumber(item.revenue_amount);
-    const quantityKg = parseNumber(item.yield_kg);
+    const packageCount = Number(item.package_count) || 0;
+    const packageWeight = parseNumber(item.package_weight_kg);
+    // Harvests in boxes/sacks without unit weight have no yield_kg: the packed weight is the best kg figure.
+    const quantityKg = parseNumber(item.yield_kg) || (item.packaged ? packageCount * packageWeight : 0);
+    const unit = item.quantity_unit || "kg";
+    const packingCost = parseNumber(item.packing_cost);
+    const packageLabel = PACKAGE_TYPES[item.package_type || ""] || "embalagens";
     events.push({
       id: `colheita-${item.id}`,
       type: "colheita",
@@ -306,12 +324,40 @@ function buildEvents(plantation: Plantation, sources: {
       title: item.harvest_type_display || "Colheita registrada",
       subtitle: item.destination_display || "Destino da produção",
       details: compact([
-        item.yield_kg ? `Produção: ${numberText(item.yield_kg, language, " kg")}` : undefined,
+        unit !== "kg" && parseNumber(item.quantity) ? `Produção: ${numberText(item.quantity, language, ` ${HARVEST_UNITS[unit] || unit}`)}` : undefined,
+        quantityKg ? `${unit !== "kg" ? "Peso" : "Produção"}: ${numberText(quantityKg, language, " kg")}` : undefined,
+        item.packaged && packageCount ? `Ensacado: ${numberText(packageCount, language, ` ${packageLabel}`)}${packageWeight ? ` de ${numberText(packageWeight, language, " kg")}` : ""}` : undefined,
+        packingCost ? `Custo de embalagem: ${formatAmount(packingCost, language)}` : undefined,
         item.buyer_name_display || item.buyer_name ? `Comprador: ${item.buyer_name_display || item.buyer_name}` : undefined,
         revenue ? `Receita: ${formatAmount(revenue, language)}` : undefined,
       ]),
       amount: revenue,
+      cost: packingCost,
       quantityKg,
+      soldKg: revenue > 0 ? quantityKg : 0,
+      revenue,
+      notes: item.notes,
+    });
+  });
+
+  // "Venda da produção": sales of the harvested production are the realized revenue.
+  sources.sales.forEach((item) => {
+    const revenue = parseNumber(item.total_amount);
+    const quantity = parseNumber(item.quantity);
+    const soldKg = item.unit === "kg" ? quantity : item.unit === "ton" ? quantity * 1000 : 0;
+    events.push({
+      id: `venda-${item.id}`,
+      type: "colheita",
+      date: item.sale_date || item.created_at || "",
+      title: "Venda da produção",
+      subtitle: item.buyer_name || "Comprador não informado",
+      details: compact([
+        quantity ? `Quantidade: ${numberText(quantity, language, ` ${item.unit_display || item.unit || ""}`)}` : undefined,
+        item.unit_price ? `Preço: ${formatAmount(parseNumber(item.unit_price), language)}` : undefined,
+        revenue ? `Receita: ${formatAmount(revenue, language)}` : undefined,
+      ]),
+      amount: revenue,
+      soldKg,
       revenue,
       notes: item.notes,
     });
@@ -364,8 +410,9 @@ export default function RelatorioPlantacaoPage() {
       cropService.listAgronomistRecommendations({ plantation: id }).catch(() => ({ data: { results: [] } })),
       cropService.listLaborRecords({ plantation: id }).catch(() => ({ data: { results: [] } })),
       cropService.listHarvests({ planting_cycle: id }).catch(() => ({ data: { results: [] } })),
+      cropService.listSales({ planting_cycle: id, page_size: 500 }).catch(() => ({ data: { results: [] } })),
     ])
-      .then(([plantationRes, dashboardRes, landRes, plantingRes, fertilizationRes, fertigationRes, pesticideRes, irrigationRes, soilRes, recommendationRes, laborRes, harvestRes]) => {
+      .then(([plantationRes, dashboardRes, landRes, plantingRes, fertilizationRes, fertigationRes, pesticideRes, irrigationRes, soilRes, recommendationRes, laborRes, harvestRes, salesRes]) => {
         if (!active) return;
         const currentPlantation = { ...plantationRes.data, ...dashboardRes.data } as Plantation;
         const reportEvents = buildEvents(currentPlantation, {
@@ -379,6 +426,7 @@ export default function RelatorioPlantacaoPage() {
           recommendations: extractArray<Recommendation>(recommendationRes.data),
           laborRecords: extractArray<LaborRecord>(laborRes.data),
           harvests: extractArray<Harvest>(harvestRes.data),
+          sales: extractArray<CropSale>(salesRes.data),
         }, language);
 
         const eventDates = reportEvents.map((event) => isoDate(event.date)).filter(Boolean);
@@ -424,13 +472,12 @@ export default function RelatorioPlantacaoPage() {
   }, [periodEvents]);
 
   const totals = useMemo(() => {
-    const investment = selectedEvents.filter((event) => event.type !== "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
-    const revenue = selectedEvents.filter((event) => event.type === "colheita").reduce((sum, event) => sum + (event.amount || 0), 0);
+    // Harvest events carry revenue and packing cost; every other module is cost.
+    const investment = selectedEvents.reduce((sum, event) => sum + (event.type === "colheita" ? event.cost || 0 : event.amount || 0), 0);
     const harvestEvents = selectedEvents.filter((event) => event.type === "colheita");
+    const revenue = harvestEvents.reduce((sum, event) => sum + (event.revenue || 0), 0);
     const harvestedKg = harvestEvents.reduce((sum, event) => sum + (event.quantityKg || 0), 0);
-    const soldKg = harvestEvents
-      .filter((event) => (event.revenue || 0) > 0)
-      .reduce((sum, event) => sum + (event.quantityKg || 0), 0);
+    const soldKg = harvestEvents.reduce((sum, event) => sum + (event.soldKg || 0), 0);
     const area = parseNumber(plantation?.planted_area_ha);
     const profit = revenue - investment;
 
