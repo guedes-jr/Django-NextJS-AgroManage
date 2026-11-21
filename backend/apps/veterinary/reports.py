@@ -175,7 +175,10 @@ def billing(organization, month, client_id=None):
 
     for client in VeterinaryClient.objects.filter(organization=organization):
         clients[str(client.id)] = {"id": str(client.id), "name": client.name, "farm_name": client.farm_name, "count": 0, "total": zero, "receivable": zero}
+    from .integrations import commission_percent
+
     responsibles = OrderedDict()
+    commissions = {}
     for p in procedures:
         row = clients.get(str(p.client_id))
         if row:
@@ -183,10 +186,12 @@ def billing(organization, month, client_id=None):
             row["total"] += p.value
             if not p.paid:
                 row["receivable"] += p.value
-        key = p.responsible or ""
-        bucket = responsibles.setdefault(key, {"name": key, "count": 0, "value": zero})
+        key = str(p.responsible_user_id) if p.responsible_user_id else (p.responsible or "")
+        bucket = responsibles.setdefault(key, {"name": p.responsible or "", "user": str(p.responsible_user_id) if p.responsible_user_id else None, "count": 0, "value": zero, "commission": zero})
         bucket["count"] += 1
         bucket["value"] += p.value
+        if p.responsible_user_id and not p.not_done:
+            bucket["commission"] += (p.value * commissions.setdefault(p.responsible_user_id, commission_percent(organization, p.responsible_user_id)) / 100).quantize(Decimal("0.01"))
     detail = None
     if client_id and client_id in clients:
         detail = [
@@ -208,3 +213,45 @@ def receivable_by_client(organization):
         receivable=Sum("value", filter=Q(paid=False)), count=Count("id"),
     )
     return {str(r["client"]): {"receivable": r["receivable"] or Decimal("0"), "count": r["count"]} for r in rows}
+
+
+def indicators(organization, start=None, end=None, client_id=None):
+    """Pregnancy rate of the inseminations with a known diagnosis, grouped by bull/semen,
+    responsible, farm (client) and month of the insemination. Same rule as ``pregnancy_rate``."""
+    from collections import defaultdict
+
+    clients, states = selectors.load_state(organization)
+    procedures = [p for s in states.values() for p in s.procedures]
+    by_animal = selectors.procedures_by_animal(procedures)
+    groups = {"bull": defaultdict(lambda: [0, 0]), "responsible": defaultdict(lambda: [0, 0]), "farm": defaultdict(lambda: [0, 0]), "month": defaultdict(lambda: [0, 0])}
+    total = [0, 0]
+    for p in procedures:
+        if p.kind not in selectors.INSEMINATIONS or p.not_done:
+            continue
+        if (start and p.date < start) or (end and p.date > end) or (client_id and str(p.client_id) != str(client_id)):
+            continue
+        result = selectors.report_result(p, by_animal[p.animal_id])
+        if result not in ("pregnant", "open"):
+            continue
+        hit = 1 if result == "pregnant" else 0
+        client = clients.get(p.client_id)
+        keys = {
+            "bull": selectors.report_bull(p, by_animal[p.animal_id]) or "—",
+            "responsible": p.responsible or "—",
+            "farm": (client.name + (f" · {client.farm_name}" if client.farm_name else "")) if client else "—",
+            "month": p.date.isoformat()[:7],
+        }
+        for name, key in keys.items():
+            groups[name][key][0] += 1
+            groups[name][key][1] += hit
+        total[0] += 1
+        total[1] += hit
+
+    def rows(name):
+        data = [{"name": key, "total": n, "pregnant": hit, "rate": round(hit / n * 100, 1)} for key, (n, hit) in groups[name].items()]
+        return sorted(data, key=lambda r: r["name"]) if name == "month" else sorted(data, key=lambda r: (-r["total"], r["name"]))
+
+    return {
+        "total": total[0], "pregnant": total[1], "rate": round(total[1] / total[0] * 100, 1) if total[0] else None,
+        "by_bull": rows("bull"), "by_responsible": rows("responsible"), "by_farm": rows("farm"), "by_month": rows("month"),
+    }

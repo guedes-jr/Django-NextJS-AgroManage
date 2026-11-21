@@ -10,15 +10,27 @@ export type OrganizationAccess = {
   read_only: boolean;
   /** Área do veterinário contracted by the organization and allowed for this role. */
   veterinary?: boolean;
+  /** Configurações › Recursos dos segmentos: {segment: {feature: on}}. */
+  segment_features?: SegmentFeatures;
 };
 
+export type SegmentFeatures = Record<string, Record<string, boolean>>;
+
 export const VETERINARY_PATH = "/home/veterinario";
+/** Fired after the admin changes something the access payload carries (segment features). */
+export const ACCESS_CHANGED_EVENT = "fm:organization-access-changed";
+
+/** True when the segment feature is on. Missing segments or features count as off. */
+export function featureOn(access: OrganizationAccess | null | undefined, segment: string, feature: string) {
+  return !!access?.segment_features?.[segment]?.[feature];
+}
 
 export function canAccessOrganizationPath(access: OrganizationAccess | null, path: string) {
   path = cattleAccessPath(path);
   if (!access) return path === "/home";
   if (path === VETERINARY_PATH || path.startsWith(`${VETERINARY_PATH}/`)) return !!access.veterinary;
   if (access.role === "veterinarian") {
+    if (path === "/home/agenda") return featureOn(access, "area-veterinario", "agenda");
     return ["/home/profile", "/home/notifications", "/home/suporte"].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
   }
   if (access.role === "feeder") {

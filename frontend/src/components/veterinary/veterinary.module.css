@@ -75,6 +75,10 @@
 .greetingStats div { flex: 1 1 0; min-width: 0; padding: 8px 6px; border-radius: 12px; background: rgba(255, 255, 255, .16); text-align: center; }
 .greetingStats b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .greetingStats span { font-size: .72rem; opacity: .9; }
+.refresh { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 10px; border: 1px solid rgba(255, 255, 255, .45); border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.refresh:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (hover: hover) { .refresh:hover { background: rgba(255, 255, 255, .22); } }
+@media (max-width: 991.98px) { .refresh { min-height: 44px; } }
 .week { display: flex; gap: 6px; align-items: flex-end; }
 .weekDay { flex: 1; text-align: center; min-width: 0; }
 .weekBar { height: 46px; display: flex; align-items: flex-end; justify-content: center; }
@@ -111,3 +115,34 @@
 @media print {
   .noPrint { display: none !important; }
 }
+
+/* Stock used in a procedure */
+.inputs { display: grid; gap: 8px; margin-top: 12px; }
+.label { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 600; color: var(--muted-foreground); }
+.inputRow { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 6px; align-items: center; }
+@media (max-width: 575.98px) { .inputRow { grid-template-columns: minmax(0, 1fr) 90px auto; } }
+
+/* Reproduction indicators: one series (pregnancy rate per month), primary hue, hover readout */
+.rateHead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.rateHead b { font-size: 1.6rem; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.rateHead span { color: var(--muted-foreground); font-size: .82rem; }
+.rateChart { margin: 0 0 14px; }
+.rateReadout { min-height: 20px; font-size: .8rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.rateReadout b { color: var(--foreground); }
+.rateBars { display: flex; gap: 2px; align-items: flex-end; height: 150px; padding-top: 6px; border-bottom: 1px solid var(--border); background-image: linear-gradient(to top, color-mix(in srgb, var(--border), transparent 50%) 1px, transparent 1px); background-size: 100% 50%; margin-bottom: 20px; }
+.rateCol { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; cursor: default; }
+.rateColTrack { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.rateColTrack i { display: block; width: min(70%, 28px); border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--primary), transparent 35%); }
+.rateCol[data-active="true"] .rateColTrack i { background: var(--primary); }
+.rateCol small { font-size: .66rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; transform: translateY(18px); }
+.rateCol:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.rateTables { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.rateTable h3 { font-size: .82rem; font-weight: 700; margin: 0 0 6px; }
+.rateCell { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.rateTrack { display: inline-block; width: 48px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--primary), transparent 85%); overflow: hidden; }
+.rateBar { display: block; height: 100%; border-radius: 3px; background: var(--primary); }
+
+/* Attachments and prescriptions of an animal */
+.records { display: grid; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.fileList { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; }
+.fileList li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

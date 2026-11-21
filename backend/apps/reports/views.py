@@ -25,6 +25,8 @@ from apps.inventory.models import (
     LoteEstoque,
     MovimentacaoEstoque,
 )
+from collections import defaultdict
+
 from apps.finance.models import Transaction, FinancialCategory
 from apps.tasks.models import Task
 from common.permissions import OrganizationRolePermission
@@ -329,6 +331,69 @@ def _crop_operation_costs(organization, start, end):
     return {name: value for name, value in totals.items() if value}
 
 
+def _unmirrored_crop_sales(organization, start, end):
+    """Crop sales of the period that have no CROPSALE-<id> transaction, grouped by crop."""
+    from apps.crops.models import CropSale
+
+    mirrored = set(Transaction.objects.filter(organization=organization, reference__startswith="CROPSALE-").values_list("reference", flat=True))
+    totals = defaultdict(Decimal)
+    for sale in CropSale.objects.filter(organization=organization, sale_date__range=(start, end)).select_related("planting_cycle"):
+        if f"CROPSALE-{sale.id}" not in mirrored:
+            totals[sale.planting_cycle.crop_name or "Outros"] += sale.total_amount or Decimal("0")
+    return [{"name": name, "value": value} for name, value in totals.items() if value]
+
+
+def _merge_breakdown(rows, extra, limit=5):
+    """Adds {name, value} rows (Decimal values) into a breakdown list, keeping the top ``limit``."""
+    if not extra:
+        return rows
+    merged = defaultdict(float)
+    for row in rows:
+        merged[row["name"]] += row["value"]
+    for row in extra:
+        merged[row["name"]] += float(row["value"])
+    return [{"name": name, "value": value} for name, value in sorted(merged.items(), key=lambda item: -item[1])[:limit]]
+
+
+def _veterinary_segment(organization, start, end, segment_payload):
+    """Card of the Área do veterinário (contracted segment): what the area billed.
+
+    Revenue is the value of the procedures performed in the period (paid or not).
+    Costs are the stock used in the procedures (semen, hormones, devices) and the team
+    commissions. Stock purchases stay a general expense, as in the other segments.
+    ``None`` when the segment is not contracted.
+    """
+    from apps.veterinary.access import veterinary_enabled
+    from apps.veterinary.integrations import commission_percent
+    from apps.veterinary.models import VeterinaryProcedure, VeterinaryProcedureInput
+
+    if not veterinary_enabled(organization):
+        return None
+    procedures = VeterinaryProcedure.objects.filter(
+        organization=organization, date__range=(start, end), not_done=False
+    )
+    labels = dict(VeterinaryProcedure.Kind.choices)
+    revenue_breakdown = [
+        {"name": str(labels.get(row["kind"], row["kind"])), "value": float(row["total"])}
+        for row in procedures.values("kind").annotate(total=Sum("value")).order_by("-total")
+        if row["total"]
+    ]
+    revenue = procedures.aggregate(total=Sum("value"))["total"] or Decimal("0")
+    inputs = VeterinaryProcedureInput.objects.filter(procedure__in=procedures)
+    cost_breakdown = [
+        {"name": row["item__nome"] or "Insumos", "value": float(row["total"])}
+        for row in inputs.values("item__nome").annotate(total=Sum("total_cost")).order_by("-total")[:5]
+        if row["total"]
+    ]
+    input_cost = inputs.aggregate(total=Sum("total_cost"))["total"] or Decimal("0")
+    commission = Decimal("0")
+    for row in procedures.filter(responsible_user__isnull=False).values("responsible_user").annotate(total=Sum("value")):
+        commission += (row["total"] * commission_percent(organization, row["responsible_user"]) / 100).quantize(Decimal("0.01"))
+    if commission:
+        cost_breakdown.append({"name": "Comissões da equipe", "value": float(commission)})
+    return segment_payload(input_cost + commission, revenue, cost_breakdown, revenue_breakdown)
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_summary(request):
@@ -566,6 +631,10 @@ def dashboard_summary(request):
     crop_revenue = crop_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.REVENUE
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    # Sales without a finance mirror (Plantações › Financeiro switched off) still are
+    # crop revenue: they are read from the sales themselves so nothing is counted twice.
+    unmirrored_sales = _unmirrored_crop_sales(org, period_start, period_end)
+    crop_revenue += sum((row["value"] for row in unmirrored_sales), Decimal("0"))
 
     # ── Transações do segmento pecuário ──────────────────────────────────────
     # REGRA DE NEGÓCIO:
@@ -944,7 +1013,10 @@ def dashboard_summary(request):
                     crop_cost,
                     crop_revenue,
                     crop_cost_breakdown(),
-                    financial_breakdown(crop_transactions, FinancialCategory.CategoryType.REVENUE, "planting_cycle__crop_name"),
+                    _merge_breakdown(
+                        financial_breakdown(crop_transactions, FinancialCategory.CategoryType.REVENUE, "planting_cycle__crop_name"),
+                        unmirrored_sales,
+                    ),
                 ),
                 "livestock": segment_payload(
                     livestock_cost,
@@ -953,6 +1025,7 @@ def dashboard_summary(request):
                     financial_breakdown(livestock_transactions, FinancialCategory.CategoryType.REVENUE),
                 ),
                 "livestock_by_species": livestock_by_species,
+                "veterinary": _veterinary_segment(org, period_start, period_end, segment_payload),
             },
             "recent_activities": recent_transactions,
             "tasks": tasks_data,

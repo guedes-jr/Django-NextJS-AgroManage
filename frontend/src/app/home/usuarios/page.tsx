@@ -95,6 +95,10 @@ export default function UsuariosPage() {
       return;
     }
     setSaving(true);
+    // Crops and read-only options belong to the operator; the veterinarian only gets the herd species.
+    const scope = formData.role === "veterinarian"
+      ? { can_operate_crops: false, operator_read_only: false }
+      : formData.role === "operator" || formData.role === "feeder" ? {} : { can_operate_crops: false, allowed_livestock: [], operator_read_only: false };
     try {
       if (editing) {
         const changes = {
@@ -104,10 +108,11 @@ export default function UsuariosPage() {
           can_operate_crops: formData.can_operate_crops,
           allowed_livestock: formData.allowed_livestock,
           operator_read_only: formData.operator_read_only,
+          ...scope,
         };
         await apiClient.patch(`/auth/members/${editing.id}/`, changes);
       } else {
-        await apiClient.post("/auth/members/create/", formData);
+        await apiClient.post("/auth/members/create/", { ...formData, ...scope });
       }
       showToast(editing ? t("users.updated") : t("users.created"), "success");
       setShowModal(false);
@@ -207,6 +212,7 @@ export default function UsuariosPage() {
                       >
                         {role ? t(role.label) : user.role}
                       </span>
+                      {user.role === "veterinarian" && <small className="d-block text-muted mt-2">{user.allowed_livestock.length ? t("users.livestockCount", { count: user.allowed_livestock.length }) : t("users.noAreas")}</small>}
                       {user.role === "operator" && <small className="d-block text-muted mt-2">{[
                         user.can_operate_crops ? t("users.crops") : "",
                         user.allowed_livestock.length ? t("users.livestockCount", { count: user.allowed_livestock.length }) : "",
@@ -278,6 +284,7 @@ export default function UsuariosPage() {
               </div>
 
               {formData.role === "operator" && <OperatorScopeOptions value={formData} disabled={saving} onChange={value => setFormData({...formData,...value})}/>}
+              {formData.role === "veterinarian" && <OperatorScopeOptions role="veterinarian" value={formData} disabled={saving} onChange={value => setFormData({...formData,...value})}/>}
               <WhatsAppContactOptions value={formData} onChange={value => setFormData({ ...formData, ...value })} />
 
               <div>

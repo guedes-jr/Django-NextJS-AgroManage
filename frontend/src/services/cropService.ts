@@ -176,6 +176,10 @@ export const cropService = {
   deleteSale: (id: string) =>
     apiClient.delete(`/crops/sales/${id}/`),
 
+  /** Harvested − sold balance per plantation and unit (badges of the sales screen). */
+  saleAvailability: () =>
+    apiClient.get("/crops/sales/availability/"),
+
   listHarvestBuyers: (params?: Record<string, string | number | boolean>) =>
     apiClient.get("/crops/harvest-buyers/", { params }),
 

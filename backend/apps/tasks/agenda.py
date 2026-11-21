@@ -14,7 +14,7 @@ class AgendaQuery(serializers.Serializer):
     start = serializers.DateField(required=False)
     end = serializers.DateField(required=False)
     farm = serializers.UUIDField(required=False)
-    domain = serializers.ChoiceField(choices=["all", "livestock", "crops", "tasks", "holidays"], default="all")
+    domain = serializers.ChoiceField(choices=["all", "livestock", "crops", "tasks", "holidays", "veterinary"], default="all")
     species = serializers.CharField(required=False, max_length=50)
     include_recorded = serializers.BooleanField(default=False)
 
@@ -26,6 +26,13 @@ class AgendaQuery(serializers.Serializer):
             raise serializers.ValidationError("Selecione um intervalo de até 42 dias, com fim igual ou posterior ao início.")
         attrs.update(start=start, end=end)
         return attrs
+
+
+# Short agenda titles for the Área do veterinário alerts (kind → label).
+VAGENDA_LABELS = {
+    "calving": "Parto previsto", "removal": "Retirar dispositivo (IATF)", "inseminate": "Inseminar (IATF)",
+    "observe_heat": "Observar cio", "induction_review": "Reavaliar indução", "ultrasound": "Ultrassom",
+}
 
 
 class OrganizationAgenda:
@@ -41,17 +48,28 @@ class OrganizationAgenda:
         from apps.livestock.operational_alerts import pending_diagnoses
         from apps.crops.models import PlantingCycle, AgronomistRecommendation, Planting, Fertilization, Fertigation, PesticideApplication, Harvest
         self.start, self.end, self.projections = start, end, []
+        from apps.organizations import segment_features as features
+        from apps.veterinary.access import can_use_veterinary
         org = user.organization
         operator = user.role == "operator"
         allowed = list(user.allowed_livestock.values_list("code", flat=True)) if operator else None
+        # Segments whose Agenda option is off (Configurações › Recursos dos segmentos).
+        crops_off = not features.enabled(org, features.CROPS, features.AGENDA)
+        species_off = [code for code in (features.CATTLE, features.SWINE) if not features.enabled(org, code, features.AGENDA)]
+        veterinary_on = can_use_veterinary(user) and features.enabled(org, features.VETERINARY, features.AGENDA)
+        if user.role == "veterinarian":
+            # The vet only follows the area's own schedule.
+            domain = "veterinary"
         sources = []
         def project(query, day, title, kind, group, farm_path, *, species_path=None, fixed_species="", status="planned", target=None, organization_wide=False, purpose=None):
             if domain != "all" and domain != group: return
+            if group == "crops" and crops_off: return
             if group == "livestock":
                 if species_path:
                     if allowed is not None: query = query.filter(**{species_path + "__in": allowed})
                     if species: query = query.filter(**{species_path: species})
-                elif (allowed is not None and fixed_species not in allowed) or (species and species != fixed_species): return
+                    if species_off: query = query.exclude(**{species_path + "__in": species_off})
+                elif (allowed is not None and fixed_species not in allowed) or (species and species != fixed_species) or fixed_species in species_off: return
             if farm and not organization_wide: query = query.filter(**{farm_path: farm})
             sources.append(query.order_by().annotate(
                 _source=Cast(F("pk"), CharField()), _day=day, _title=title,
@@ -93,7 +111,15 @@ class OrganizationAgenda:
                 for model, field, label in [(Planting, "planting_date", "Plantio"), (Fertilization, "application_date", "Adubação"), (Fertigation, "application_date", "Fertirrigação"), (PesticideApplication, "application_date", "Aplicação")]:
                     project(model.objects.filter(plantation__in=cycles), F(field), Concat(Value(label + " registrado · "), F("plantation__name")), "crop_record", "crops", "plantation__field__farm_id", target="plantation_id", status="recorded")
                 project(Harvest.objects.filter(planting_cycle__in=cycles), F("harvest_date"), Concat(Value("Colheita registrada · "), F("planting_cycle__name")), "crop_record", "crops", "planting_cycle__field__farm_id", target="planting_cycle_id", status="recorded")
-        if domain in ("all", "livestock") and (not species or species == "bovinos") and (allowed is None or "bovinos" in allowed):
+        if veterinary_on and not species and not farm:
+            from apps.veterinary.models import VeterinaryAlert
+            labels = Case(*[When(kind=code, then=Value(str(label))) for code, label in VAGENDA_LABELS.items()], default=Value("Retorno"), output_field=CharField())
+            alerts = VeterinaryAlert.objects.filter(organization=org, done=False).annotate(
+                _effective_farm=Value(None, output_field=UUIDField()),
+                _effective_farm_name=Concat(F("client__name"), Value(" · Área do veterinário"), output_field=CharField()),
+            )
+            project(alerts, F("date"), Concat(labels, Value(" · "), F("animal__identifier"), output_field=CharField()), "vet_alert", "veterinary", "_effective_farm", organization_wide=True)
+        if domain in ("all", "livestock") and (not species or species == "bovinos") and (allowed is None or "bovinos" in allowed) and "bovinos" not in species_off and user.role != "veterinarian":
             from apps.livestock.cattle_operations import feed_plans, feed_forecast
             plans = feed_plans().filter(batch__farm__organization=org, is_active=True, batch__status="active")
             if farm: plans = plans.filter(batch__farm_id=farm)
@@ -128,5 +154,6 @@ def agenda_event(row):
         if code == "bovinos":
             url = "/home/seguimento/pecuaria-leiteira" if purpose == "dairy" else "/home/seguimento/gado-de-corte"
             url += "/racao" if kind == "nutrition" else "/manejos" if kind == "sanitary" else "/sanidade" if kind in ["vaccination", "vaccine_record"] else "/reproducao"
+    elif domain == "veterinary": url = "/home/veterinario?aba=al"
     else: url = None
     return {"id": f"{kind}:{source}", "source_id": source, "date": day.isoformat(), "title": title, "domain": domain, "species": species, "farm": farm, "farm_name": name or "Organização", "kind": kind, "status": status, "source_url": url, "estimated": kind == "nutrition"}

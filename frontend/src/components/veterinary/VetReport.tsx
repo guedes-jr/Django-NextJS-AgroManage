@@ -5,6 +5,7 @@ import { FileSpreadsheet, FileText, Image as ImageIcon, Printer, Share2 } from "
 import { veterinaryService, vetError, type VetReport as Report, type VetReportFilters, type VetReportResult } from "@/services/veterinaryService";
 import styles from "./veterinary.module.css";
 import type { VetContext } from "./VeterinaryArea";
+import { VetIndicators } from "./VetIndicators";
 import { exportPdf, exportPng, exportXlsx, printPdf, sharePdf, type ExportDocument } from "./vetExport";
 import {
   CATEGORIES, categoryLabel, conductLabel, deadlineMark, nextLabel, reportConduct, reportDetails, reportKindLabel, resultLabel,
@@ -121,6 +122,7 @@ export function VetReport({ ctx }: { ctx: VetContext }) {
 
   return (
     <>
+      <VetIndicators ctx={ctx} />
       <p className={styles.muted} style={{ margin: "0 0 12px" }}>{t("vet.report.subtitle")}</p>
       <section className={styles.panel}>
         <div className={styles.panelHead}><h2><FileText size={18} className={styles.ok} aria-hidden="true" /> {t("vet.report.heading")}</h2></div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Baby, CalendarDays, CalendarRange, CircleCheck, Flame, LayoutGrid, Pill, Plus, Radar, Stethoscope, Syringe, type LucideProps } from "lucide-react";
+import { AlertTriangle, RefreshCw, Baby, CalendarDays, CalendarRange, CircleCheck, Flame, LayoutGrid, Pill, Plus, Radar, Stethoscope, Syringe, type LucideProps } from "lucide-react";
 import type { ComponentType } from "react";
 import type { VetStatus } from "@/services/veterinaryService";
 import styles from "./veterinary.module.css";
@@ -65,7 +65,13 @@ export function VetSummary({ ctx }: { ctx: VetContext }) {
   return (
     <>
       <section className={styles.greeting} aria-label={t("vet.tab.summary")}>
-        <small>{greeting} · {dateLabel}</small>
+        <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+          <small>{greeting} · {dateLabel}</small>
+          <button type="button" className={styles.refresh} onClick={() => void ctx.reload()}>
+            <RefreshCw size={13} aria-hidden="true" />
+            {ctx.updatedAt ? t("vet.summary.updatedAt", { time: ctx.updatedAt.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" }) }) : t("vet.summary.refresh")}
+          </button>
+        </div>
         <h2>{urgent ? t(urgent > 1 ? "vet.summary.urgentMany" : "vet.summary.urgentOne", { count: urgent }) : t("vet.summary.nothingUrgent")}</h2>
         <p>{urgent ? t("vet.summary.inFarms", { count: urgentFarms }) : ""}{t("vet.summary.followed", { animals: total, farms: farms.length })}</p>
         <div className={styles.greetingStats}>

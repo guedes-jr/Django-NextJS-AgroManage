@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Bell, CalendarDays, NotebookPen, Save } from "lucide-react";
 import {
   veterinaryService, vetError, type VetConduct, type VetCycling, type VetDiscardReason, type VetLookup,
-  type VetMethod, type VetRegisterPayload, type VetRegisterResult, type VetResult,
+  type VetInputRow, type VetMethod, type VetRegisterPayload, type VetRegisterResult, type VetResult,
 } from "@/services/veterinaryService";
 import styles from "./veterinary.module.css";
 import { StatusPill, type LaunchPreset, type VetContext } from "./VeterinaryArea";
+import { VetInputs } from "./VetInputs";
 import {
   CATEGORIES, DISCARD_REASONS, GESTATION_DAYS, METHODS, OPEN_CONDUCTS, addDays, categoryLabel, conductLabel,
   deadlineMark, diffDays, discardLabel, lastShort, methodLabel, nextLabel, procedureText, protocolOrigin, resultLabel, statusLabel,
@@ -92,6 +93,9 @@ export function VetLaunch({ ctx, preset }: { ctx: VetContext; preset: LaunchPres
   const lookup = lookupState?.key === lookupKey ? lookupState.data : null;
   const setLookup = (value: null) => setLookupState(value);
   const [saving, setSaving] = useState(false);
+  const [inputs, setInputs] = useState<VetInputRow[]>([]);
+  // Team member with a login (item "Equipe"); preselected when the last name typed is one of them.
+  const [responsibleUser, setResponsibleUser] = useState(() => workspace.team.find(user => user.name === workspace.settings.last_responsible)?.id || "");
   const [error, setError] = useState("");
   const set = (patch: Partial<Form>) => { setError(""); setForm(f => ({ ...f, ...patch })); };
 
@@ -155,6 +159,8 @@ export function VetLaunch({ ctx, preset }: { ctx: VetContext; preset: LaunchPres
     const payload: VetRegisterPayload = {
       client: form.client === NEW ? null : form.client, new_client_name: form.client === NEW ? form.newClient.trim() : "",
       date: form.date, responsible: form.responsible, animal: form.animal.trim(), notes: form.notes,
+      responsible_user: responsibleUser || null,
+      inputs: inputs.filter(row => row.lot && row.quantity.trim()).map(row => ({ lot: row.lot, quantity: row.quantity.replace(",", ".") })),
     };
     if (pendingStep || inProtocol) {
       Object.assign(payload, { step_done: form.stepDone, step_date: form.stepDone === "yes" ? form.stepDate : null, step_bull: form.stepBull });
@@ -173,6 +179,7 @@ export function VetLaunch({ ctx, preset }: { ctx: VetContext; preset: LaunchPres
       const result = await veterinaryService.register(payload);
       ctx.notify(savedMessage(t, fmt, result));
       setForm(blank(result.client.id, form.date, form.responsible));
+      setInputs([]);
       setLookup(null);
       await ctx.reload();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -214,7 +221,14 @@ export function VetLaunch({ ctx, preset }: { ctx: VetContext; preset: LaunchPres
           </label>
           <label className={styles.field}>
             <span>{t("vet.launch.responsible")}</span>
-            <input className="form-control" placeholder={t("vet.launch.responsiblePlaceholder")} value={form.responsible} onChange={e => set({ responsible: e.target.value })} />
+            {workspace.team.length > 0 && (
+              <select className="form-select" value={responsibleUser} aria-label={t("vet.team.pick")}
+                onChange={e => { const user = workspace.team.find(u => u.id === e.target.value); setResponsibleUser(e.target.value); if (user) set({ responsible: user.name }); }}>
+                <option value="">{t("vet.team.typed")}</option>
+                {workspace.team.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+            )}
+            {!responsibleUser && <input className={`form-control ${workspace.team.length ? "mt-1" : ""}`} placeholder={t("vet.launch.responsiblePlaceholder")} value={form.responsible} onChange={e => set({ responsible: e.target.value })} />}
           </label>
         </div>
       </section>
@@ -419,6 +433,7 @@ export function VetLaunch({ ctx, preset }: { ctx: VetContext; preset: LaunchPres
           <span><NotebookPen size={14} aria-hidden="true" /> {t("vet.launch.notes")}</span>
           <input className="form-control" value={form.notes} onChange={e => set({ notes: e.target.value })} />
         </label>
+        <VetInputs ctx={ctx} rows={inputs} onChange={setInputs} />
         {error && <div role="alert" className="alert alert-danger py-2 mt-3 mb-0">{error}</div>}
         <button type="button" className={`btn btn-agro ${styles.save}`} disabled={saving} onClick={() => void save()}>
           <Save size={18} aria-hidden="true" /> {confirming ? t("vet.launch.confirmPregnancy") : t("vet.launch.save")}

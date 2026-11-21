@@ -699,3 +699,115 @@
     padding: 10px 12px;
   }
 }
+
+/* Harvested − sold balance badge (sales product picker) */
+.stockBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 9px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary), transparent 92%);
+}
+
+.stockBadge[data-level="low"] {
+  color: var(--warning-foreground, oklch(0.5 0.12 75));
+  background: color-mix(in srgb, var(--warning, oklch(0.8 0.15 85)), transparent 80%);
+}
+
+.stockBadge[data-level="none"] {
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+
+.picker {
+  position: relative;
+}
+
+.pickerButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  text-align: left;
+}
+
+.pickerButton:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.pickerList {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max(100%, min(360px, calc(100vw - 32px)));
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground), transparent 85%);
+}
+
+.pickerOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+}
+
+.pickerOption[aria-selected="true"] {
+  background: color-mix(in srgb, var(--primary), transparent 90%);
+}
+
+@media (hover: hover) {
+  .pickerOption:hover {
+    background: var(--muted);
+  }
+}
+
+.pickerOption > span:first-child {
+  min-width: 0;
+}
+
+.pickerOption strong {
+  display: block;
+  font-weight: 700;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+@media (max-width: 991.98px) {
+  .pickerButton { min-height: 44px; font-size: 16px; }
+}

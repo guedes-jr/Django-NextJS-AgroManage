@@ -144,3 +144,25 @@ class OrganizationContact(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.get_contact_type_display()}: {self.value})"
+
+
+class SegmentFeature(BaseModel):
+    """Optional behaviour of one segment, switched on or off by the organization admin.
+
+    The catalog (codes, defaults, availability) lives in ``segment_features.py``; a row only
+    exists once the admin changes a default.
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="segment_features")
+    segment = models.SlugField(max_length=80)
+    feature = models.SlugField(max_length=80)
+    enabled = models.BooleanField(default=False)
+    updated_by = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.UniqueConstraint(fields=("organization", "segment", "feature"), name="unique_organization_segment_feature"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.segment}.{self.feature}={self.enabled}"

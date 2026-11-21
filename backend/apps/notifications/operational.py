@@ -62,6 +62,19 @@ def collect_operational_notifications():
     cache = {}
     created = 0
     organization_codes = {}
+    switches = {}
+
+    def whatsapp_on(organization, code):
+        """Configurações › Recursos dos segmentos: species without the option stay on."""
+        from apps.organizations import segment_features as features
+
+        segment = features.species_segment(code)
+        if segment is None:
+            return True
+        key = (organization.pk, segment)
+        if key not in switches:
+            switches[key] = features.enabled(organization, segment, features.WHATSAPP)
+        return switches[key]
     for user in users.iterator(chunk_size=100):
         if user.organization_id not in organization_codes:
             organization_codes[user.organization_id] = list(
@@ -87,6 +100,8 @@ def collect_operational_notifications():
             else []
         )
         for code in allowed:
+            if not whatsapp_on(user.organization, code):
+                continue
             cache_key = (user.organization_id, code)
             if cache_key not in cache:
                 cache[cache_key] = [

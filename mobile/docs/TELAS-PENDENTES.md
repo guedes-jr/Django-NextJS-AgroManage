@@ -16,6 +16,26 @@ A navegação principal usa `WorkspaceShell`, com acesso por perfil, área ativa
 
 Entregues resumo operacional, produtos com busca/categoria/situação/paginação, ficha e lotes/validade sob demanda, alertas não resolvidos e fornecedores com busca/ficha/contatos. A busca geral abre produtos no app. Consulta por organização, sem filtro fictício de fazenda; sem custos na projeção operacional. E01 é o primeiro recorte de resumo/alertas; E02 tem consulta/ficha e cadastro/edição essencial de produtos, preservando unidade/categorias na edição. E04 inclui cadastro/edição de fornecedores ativos com contatos/endereços e proteção de versão. Campos técnicos, imagens e inativação permanecem no web. E03 já tem histórico/detalhe de movimentos, ficha de lote e contagem física online com ajuste auditado. Entrada sem compra, saída e compra recebida com título pendente já têm prévia assinada e confirmação atômica. Fórmulas têm lista/ficha e cadastro/edição essencial; produção de ração tem histórico/ficha e revisão/confirmação atômica, em `/feed`. Trato diário tem lista/histórico do dia e fornecimento nativo com reconciliação pela mesma chave, incluindo entrada direta do feeder. Notificações já têm inbox/detalhe/leitura/arquivamento e preferências nativas; push nativo e complementos de comunicação permanecem pendentes; pagamentos/correções/baixas especiais permanecem no web. O incremento de formulários já está disponível em `/inventory/form`, com revalidação de acesso, proteção de versão e conferência após resultado incerto. O complemento de movimentos inclui filtros/paginação, origem, contagem revisada e bloqueio após conflito ou resultado incerto. A Fase 3 não está concluída. [Escopo, validação e limites](partes/09-13-MODULOS.md#primeiro-incremento-da-fase-3--consulta-de-estoque-7-de-novembro-de-2026).
 
+## Ajuste obrigatório — clínica web removida (21 de novembro de 2026)
+
+A clínica veterinária do web foi removida e substituída pela **Área do veterinário** (`/home/veterinario`, segmento contratável). O backend deixou de ter doenças, sintomas, estoque próprio de medicamentos e alertas sanitários, e `livestock/clinical/records/mobile*` passou a aceitar só `kind=health` e `kind=vaccinations` (padrão `health`). A escrita de ocorrência clínica (`POST livestock/clinical/records/`) não existe mais. Reprodução e Sanidade continuam nos segmentos.
+
+O app ainda usa o contrato antigo. Até este ajuste, o módulo Clínica **quebra** no aparelho:
+
+| Ponto no app | Comportamento atual | Ajuste necessário |
+| --- | --- | --- |
+| `ClinicScreens.tsx`: painel abre com `kind='clinical'` | API responde 400 e a tela mostra erro | Padrão `health`; `clinicKinds` só com `health` e `vaccinations` |
+| Abas "Ocorrências" e "Alertas" do painel | 400 | Remover as abas, os textos e os campos `severity`/`status`/`disease`/`affected_*` da ficha |
+| `ClinicFormScreen.tsx` e rota `/clinic/form` (nova ocorrência) | Seletor usa `kind='clinical'` (400) e o POST não existe | Remover a tela, a rota, o botão "Novo" da ficha e as mensagens; manter `/clinic/health-form` |
+| Histórico do animal (`/clinic/history`) com padrão `kind='clinical'` | 400 | Padrão `health` |
+| `clinicOptions`: `record_types`, `severities`, `outcomes` | Chegam vazios | Remover o uso e os tipos em `contracts.ts` |
+| "Abrir no web" (`openClinicWeb`), atalho `clinic` da Home e origem `/home/clinico` nas notificações | `/home/clinico` redireciona para `/home/veterinario`, que só abre com o segmento contratado | Apontar exames/vacinas para a rota do segmento correspondente e tratar `/home/veterinario` como destino web |
+| Vacinação, exames/tratamentos e medicamento bovino (`mobile-medication-*`, lotes do estoque geral) | Continuam funcionando | Nenhum, além de homologar após o ajuste |
+
+Cargo **Veterinário**: o login do app precisa tratar `role=veterinarian` como sem acesso aos módulos operacionais (ele vê só a Área do veterinário no web, e as espécies liberadas pelo admin em `allowed_livestock`). A Área do veterinário nativa (clientes, atendimentos, alertas de curral, cobrança e rebanho da fazenda) entra como item **VT01** do backlog, depois do ajuste acima; o contrato está em `backend/apps/veterinary` e em [docs/ai/api.md](../../docs/ai/api.md).
+
+**Aceite:** nenhuma chamada com `kind=clinical`/`alerts` ou POST de ocorrência; painel, ficha, histórico e formulários de exame e vacina abrindo sem erro; testes de contrato atualizados; `npm run typecheck`, `npm run lint` e testes de `mobile/` passando; verificação em Android/iOS.
+
 ## Como usar este inventário agora
 
 Este arquivo organiza cobertura e lacunas por tela/domínio; a [ordem ativa de execução](IMPLEMENTACAO.md#ordem-atual-de-execução) fica no plano principal. A próxima entrega consolida a Agenda como referência de experiência, confere os contratos atuais de leite e homologa as jornadas existentes. As fases abaixo agrupam escopo; não são uma instrução para recriar os fluxos já implementados.
@@ -79,8 +99,9 @@ Em cada linha, entregar consulta antes de escrita quando houver risco de estoque
 | E02 | Produtos: lista, detalhe, cadastro e edição | Saldo, unidade, histórico e dados autorizados do produto | Fase 3 · P09 |
 | E03 | Movimentações e ajustes | Listagem/detalhe; entrada, saída e ajustes somente se disponíveis e autorizados; justificativa e revisão | Fase 3 · P09 |
 | E04 | Fornecedores | Lista, detalhe e cadastro/edição conforme API | Fase 3 · P09 |
-| C01 | Clínica: painel e histórico | Consulta paginada/filtros/ficha essencial de ocorrências, saúde, vacinas e alertas implementadas; contexto UUID/fazenda/espécie. Autoria plena e campos avançados pendentes | Fase 4 · P10 |
-| C02 | Consultas, exames, vacinação e medicamentos | Ocorrência clínica individual e aplicação de vacina individual/lote com revisão e baixa de estoque implementadas. Exames/tratamentos documentais com formulário e histórico implementados; aplicação individual de medicamento bovino com estoque/carência disponível a gerente/admin; demais espécies, campos avançados, anexos e correções pendentes | Fase 4 · P10/P14 |
+| C01 | Clínica: painel e histórico | **Ajuste obrigatório** (ver "clínica web removida"): ocorrências e alertas saíram do backend; manter só exames/tratamentos e vacinas, com contexto UUID/fazenda/espécie. Campos avançados pendentes | Fase 4 · P10 |
+| C02 | Exames, vacinação e medicamentos | Ocorrência clínica individual **removida** (sem contrato no backend). Vacina individual/lote com revisão e baixa de estoque, exames/tratamentos documentais e aplicação individual de medicamento bovino com estoque/carência continuam; demais espécies, campos avançados, anexos e correções pendentes | Fase 4 · P10/P14 |
+| VT01 | Área do veterinário | Segmento contratável e cargo Veterinário: resumo, lançar atendimento, animais, clientes, cobrança, relatório, alertas de curral e rebanho da fazenda (somente leitura). Começa depois do ajuste da clínica | Após Fase 4 · contrato `apps/veterinary` |
 | S01 | Suínos: hub, inventário e fichas | Hub e listas paginadas somente leitura por fase implementados, agregados por organização, com ficha resumida dos campos já recebidos; ficha individual completa, fazenda, cadastro/edição e histórico permanecem pendentes | Fase 4 · P11 · parcial |
 | S02 | Suínos: reprodução e transições | Detalhe e lançamentos de eventos; origem/destino, quantidade, datas e previsões; transações confirmadas no servidor | Fase 4 · P11 |
 | S03 | Suínos: vendas e mão de obra | Listas, detalhes e formulários específicos, com efeitos e permissões auditados | Fase 5 · P11/P13 |
@@ -144,7 +165,7 @@ Em cada linha, entregar consulta antes de escrita quando houver risco de estoque
 
 ### Fase 4 — Demais rotinas de campo (B06–B09, L02, C01–C02, S01–S02/S04, P01–P04)
 
-Clínica/sanidade iniciou com consulta essencial de quatro áreas e primeiro formulário de ocorrência individual; vacinação individual/lote já possui formulário, revisão assinada, baixa de estoque e histórico de reconciliação somente leitura. Exames/tratamentos documentais já possuem formulário individual e reconciliação somente leitura. Aplicação individual de medicamento bovino com estoque/carência já está disponível a gerente/admin; demais espécies e ações permanecem pendentes. Reprodução bovina já possui painel/grupos/lista/ficha/histórico de consulta; diagnóstico positivo/negativo já possui revisão, controle de contexto e histórico de conferência; cobertura natural/IA/IATF já possui formulário/revisão/confirmação; parto individual cria viva/natimorto já possui formulário/revisão/confirmação atômica. Manejos/pastos e tanques também têm recortes implementados descritos no inventário. Homologar o conjunto e fechar as lacunas remanescentes; suínos e atividades agrícolas entram como fluxos verticais novos, conforme prioridade do piloto. Em cada domínio: lista → detalhe → primeira escrita → demais ações → histórico. Não reunir todos em um único PR ou condicionar publicação de um módulo à conclusão dos demais.
+Clínica/sanidade iniciou com consulta essencial de quatro áreas e primeiro formulário de ocorrência individual (ocorrências e alertas foram removidos do backend em 21/11/2026: aplicar antes o ajuste da clínica); vacinação individual/lote já possui formulário, revisão assinada, baixa de estoque e histórico de reconciliação somente leitura. Exames/tratamentos documentais já possuem formulário individual e reconciliação somente leitura. Aplicação individual de medicamento bovino com estoque/carência já está disponível a gerente/admin; demais espécies e ações permanecem pendentes. Reprodução bovina já possui painel/grupos/lista/ficha/histórico de consulta; diagnóstico positivo/negativo já possui revisão, controle de contexto e histórico de conferência; cobertura natural/IA/IATF já possui formulário/revisão/confirmação; parto individual cria viva/natimorto já possui formulário/revisão/confirmação atômica. Manejos/pastos e tanques também têm recortes implementados descritos no inventário. Homologar o conjunto e fechar as lacunas remanescentes; suínos e atividades agrícolas entram como fluxos verticais novos, conforme prioridade do piloto. Em cada domínio: lista → detalhe → primeira escrita → demais ações → histórico. Não reunir todos em um único PR ou condicionar publicação de um módulo à conclusão dos demais.
 
 **Aceite:** associação correta a fazenda/animal/lote/ciclo; transições e consumos atômicos conforme servidor; previsões identificadas como estimativas. Cada módulo só aparece como nativo pronto após seu fluxo real ser homologado.
 
@@ -221,10 +242,11 @@ Caminhos relativos a `frontend/src/app/`. Esta lista cobre todas as páginas for
 | `/home/afiliados` | Portal de afiliados fora do escopo mobile inicial; manter web |
 | `/home/agenda` | A01–A02 · pendente nativo |
 | `/home/assistente-ia` | I01 · pendente nativo |
-| `/home/clinico/consultas` | C01–C02 · pendente nativo |
+| `/home/clinico/consultas` | Removida no web (redireciona para `/home/veterinario`); remover a ocorrência nativa (C01–C02) |
 | `/home/clinico/exames` | C01–C02 · consulta/ficha e registro documental em `/clinic/health-form`; campos avançados/anexos/correções pendentes |
-| `/home/clinico/medicamentos` | C01–C02 · pendente nativo |
-| `/home/clinico` | C01–C02 · pendente nativo |
+| `/home/clinico/medicamentos` | Removida no web (redireciona); medicamento bovino nativo usa lotes do estoque geral |
+| `/home/clinico` | Removida no web (redireciona para `/home/veterinario`); ajustar links do app |
+| `/home/veterinario` | VT01 · pendente nativo |
 | `/home/clinico/vacinacao` | C01–C02 · consulta/ficha e aplicação essencial em `/clinic` (Vacinações) e `/clinic/vaccination`; correções pendentes |
 | `/home/estoque/alertas` | E01–E04 / R01–R02 conforme rotina · pendente nativo |
 | `/home/estoque/fornecedores` | E01–E04 / R01–R02 conforme rotina · pendente nativo |

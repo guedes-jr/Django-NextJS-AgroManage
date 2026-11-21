@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, CircleCheck, Coins, Edit3, List, Plus, Save, ShoppingCart, Sprout, Trash2, Weight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Box, ChevronDown, CircleCheck, Coins, Edit3, List, Plus, Save, ShoppingCart, Sprout, Trash2, Weight } from "lucide-react";
 import { cropService } from "@/services/cropService";
 import { useOrganizationLocale } from "@/lib/locale";
 import type { TranslationKey } from "@/lib/localeMessages";
@@ -18,8 +18,12 @@ import {
   todayIso,
 } from "@/components/crops/production";
 
-type SaleUnit = "kg" | "sack" | "box" | "ton" | "truck";
-const UNITS: SaleUnit[] = ["kg", "sack", "box", "ton", "truck"];
+type SaleUnit = "kg" | "sack" | "box" | "ton" | "truck" | "bale" | "bundle";
+const UNITS: SaleUnit[] = ["kg", "sack", "box", "ton", "truck", "bale", "bundle"];
+
+type BalanceLevel = "ok" | "low" | "none";
+type Balance = { unit: string; harvested: string; sold: string; available: string; level: BalanceLevel };
+type Availability = { planting_cycle: string; balances: Balance[] };
 
 type PlantationOption = { id: string; name?: string; crop_name?: string; field_name?: string };
 type Buyer = { id: string; name: string };
@@ -57,6 +61,18 @@ export default function VendaProducaoPage() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<Record<string, Balance[]>>({});
+
+  const loadAvailability = useCallback(() => {
+    cropService
+      .saleAvailability()
+      .then(({ data }) => setAvailability(Object.fromEntries(extractArray<Availability>(data).map((row) => [row.planting_cycle, row.balances]))))
+      .catch(() => setAvailability({}));
+  }, []);
+
+  useEffect(() => {
+    loadAvailability();
+  }, [loadAvailability]);
 
   useEffect(() => {
     Promise.all([
@@ -105,6 +121,29 @@ export default function VendaProducaoPage() {
     };
   }, [language, sales, t]);
 
+  const editingSale = editingId ? sales.find((sale) => sale.id === editingId) : undefined;
+  const unitLabel = (unit: string) => t(`sales.unit.${unit}` as TranslationKey);
+
+  /** Balance of the chosen plantation in the unit of the sale (tons are kept as kg). */
+  const balanceFor = (cycle: string, unit: SaleUnit) => {
+    const key = unit === "ton" ? "kg" : unit;
+    const balance = (availability[cycle] || []).find((item) => item.unit === key);
+    if (!balance) return null;
+    let available = decimalValue(balance.available);
+    // While editing, the quantity of the sale itself is still available to it.
+    if (editingSale && editingSale.planting_cycle === cycle) {
+      const own = decimalValue(editingSale.quantity) * (editingSale.unit === "ton" ? 1000 : 1);
+      if ((editingSale.unit === "ton" ? "kg" : editingSale.unit) === key) available += own;
+    }
+    const harvested = decimalValue(balance.harvested);
+    const level: BalanceLevel = available <= 0 || harvested <= 0 ? "none" : available <= harvested * 0.2 ? "low" : "ok";
+    return { available: unit === "ton" ? available / 1000 : available, level, unit };
+  };
+  const selectedBalance = form.planting_cycle ? balanceFor(form.planting_cycle, form.unit) : null;
+  const overBalance = !!selectedBalance && quantity > selectedBalance.available;
+
+  const badgeText = (value: number, unit: string) => `${formatNumber(value, language, value % 1 ? 2 : 0)} ${unitLabel(unit)}`;
+
   const productName = (plantation?: PlantationOption) =>
     plantation ? [plantation.crop_name || plantation.name, plantation.name && plantation.crop_name !== plantation.name ? plantation.name : null].filter(Boolean).join(" — ") : "";
 
@@ -138,6 +177,7 @@ export default function VendaProducaoPage() {
       setMessage(editingId ? t("sales.updated") : t("sales.saved"));
       reset();
       await loadSales();
+      loadAvailability();
     } catch {
       setError(t("sales.saveError"));
     } finally {
@@ -169,6 +209,7 @@ export default function VendaProducaoPage() {
       await cropService.deleteSale(sale.id);
       if (editingId === sale.id) reset();
       await loadSales();
+      loadAvailability();
     } catch {
       setError(t("sales.deleteError"));
     } finally {
@@ -199,16 +240,26 @@ export default function VendaProducaoPage() {
           <p className={styles.hint}>{t("sales.noPlantations")}</p>
         ) : (
           <div className={styles.grid} style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))" }}>
-            <label className={styles.field}>
-              <span className={styles.label}>{t("sales.product")}<span className={styles.required}>*</span></span>
-              <select className="form-select" value={form.planting_cycle} onChange={(event) => update({ planting_cycle: event.target.value })}>
-                <option value="">{t("sales.select")}</option>
-                {plantations.map((plantation) => (
-                  <option key={plantation.id} value={plantation.id}>{productName(plantation)}</option>
-                ))}
-              </select>
-              <span className={styles.hint}>{t("sales.productHint")}</span>
-            </label>
+            <div className={styles.field}>
+              <span className={styles.label} id="sale-product-label">{t("sales.product")}<span className={styles.required}>*</span></span>
+              <ProductPicker
+                labelId="sale-product-label"
+                value={form.planting_cycle}
+                placeholder={t("sales.select")}
+                options={plantations.map((plantation) => ({
+                  id: plantation.id,
+                  name: productName(plantation),
+                  detail: plantation.field_name || "",
+                  badges: (availability[plantation.id] || []).map((balance) => {
+                    const own = balanceFor(plantation.id, balance.unit as SaleUnit);
+                    return { key: balance.unit, level: own?.level ?? balance.level, text: badgeText(own?.available ?? decimalValue(balance.available), balance.unit) };
+                  }),
+                }))}
+                emptyBadge={t("sales.noHarvest")}
+                onChange={(id) => update({ planting_cycle: id })}
+              />
+              <span className={styles.hint}>{t("sales.availableHint")}</span>
+            </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="sale-quantity">{t("sales.quantity")}<span className={styles.required}>*</span></label>
               <div className={styles.inputGroup}>
@@ -217,6 +268,19 @@ export default function VendaProducaoPage() {
                   {UNITS.map((unit) => <option key={unit} value={unit}>{t(unitKey(unit))}</option>)}
                 </select>
               </div>
+              {form.planting_cycle && (
+                <span className="d-flex flex-wrap align-items-center gap-2">
+                  <span className={styles.stockBadge} data-level={selectedBalance?.level ?? "none"}>
+                    {selectedBalance ? t("sales.available").replace("{value}", badgeText(selectedBalance.available, form.unit)) : t("sales.availableNone")}
+                  </span>
+                  {selectedBalance?.level === "low" && <span className={styles.hint}>{t("sales.availableLow")}</span>}
+                </span>
+              )}
+              {overBalance && selectedBalance && (
+                <span role="status" className={styles.hint} style={{ color: "var(--warning-foreground, oklch(0.5 0.12 75))", fontWeight: 600 }}>
+                  <AlertTriangle size={14} aria-hidden="true" /> {t("sales.overAvailable").replace("{value}", badgeText(selectedBalance.available, form.unit))}
+                </span>
+              )}
             </div>
             <label className={styles.field}>
               <span className={styles.label}>{t("sales.date")}<span className={styles.required}>*</span></span>
@@ -328,6 +392,56 @@ export default function VendaProducaoPage() {
           <div style={{ minWidth: 0 }}><small>{t("sales.valueSold")}</small><strong>{formatMoney(totals.value, language)}</strong></div>
         </div>
       </section>
+    </div>
+  );
+}
+
+type PickerOption = { id: string; name: string; detail: string; badges: { key: string; level: BalanceLevel; text: string }[] };
+
+/** Product select that shows the harvested − sold balance of each plantation as badges. */
+function ProductPicker({ labelId, value, placeholder, options, emptyBadge, onChange }: {
+  labelId: string; value: string; placeholder: string; options: PickerOption[]; emptyBadge: string; onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.id === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const badges = (option: PickerOption) => (
+    <span className={styles.badgeRow}>
+      {option.badges.length
+        ? option.badges.map((badge) => <span key={badge.key} className={styles.stockBadge} data-level={badge.level}>{badge.text}</span>)
+        : <span className={styles.stockBadge} data-level="none">{emptyBadge}</span>}
+    </span>
+  );
+
+  return (
+    <div className={styles.picker} ref={rootRef} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
+      <button type="button" className={styles.pickerButton} aria-haspopup="listbox" aria-expanded={open} aria-labelledby={labelId} onClick={() => setOpen((current) => !current)}>
+        <span style={{ minWidth: 0 }}>{selected ? selected.name : <span className="text-muted-foreground">{placeholder}</span>}</span>
+        <span className="d-flex align-items-center gap-2">{selected && badges(selected)}<ChevronDown size={16} aria-hidden="true" /></span>
+      </button>
+      {open && (
+        <ul className={styles.pickerList} role="listbox" aria-labelledby={labelId}>
+          {options.map((option) => (
+            <li key={option.id}>
+              <button type="button" role="option" aria-selected={option.id === value} className={styles.pickerOption} onClick={() => { onChange(option.id); setOpen(false); }}>
+                <span>
+                  <strong>{option.name}</strong>
+                  {option.detail && <small className="text-muted-foreground">{option.detail}</small>}
+                </span>
+                {badges(option)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

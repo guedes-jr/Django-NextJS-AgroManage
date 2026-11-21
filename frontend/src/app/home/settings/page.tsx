@@ -1,6 +1,7 @@
 "use client";
 
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
+import SegmentFeaturesPanel from "@/components/settings/SegmentFeaturesPanel";
 import OperatorScopeOptions, {emptyOperatorScope} from "@/components/auth/OperatorScopeOptions";
 import { Member, UserRole, roleLabels, canManageMembers, canChangeMemberRole, updateMemberRole, memberError } from "@/services/memberService";
 
@@ -31,7 +32,8 @@ import {
   Moon,
   Contrast,
   Languages,
-  ChevronDown
+  ChevronDown,
+  SlidersHorizontal
 } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { isAxiosError } from "axios";
@@ -94,7 +96,7 @@ interface Organization {
 type PlanCatalogSegment = { code: string; name: string; subtitle: string; description: string; accent: "green" | "wine"; annual_discount_percent: string; tiers: Array<{ id: string; label: string; monthly_price: string | null; requires_quote: boolean }> };
 type ChangePreview = { quote: { public_token: string; billing_cycle: "monthly" | "yearly"; monthly_subtotal: string; monthly_discount: string; monthly_total: string; billing_total: string; requires_contact: boolean }; current_monthly_total: string; new_monthly_total: string; monthly_difference: string; prorated_difference: string; remaining_days: number; effective_at: "immediately" | "next_renewal" };
 
-type Tab = "organization" | "members" | "subscription" | "security" | "preferences";
+type Tab = "organization" | "members" | "subscription" | "security" | "preferences" | "segmentFeatures";
 
 interface CurrentUser {
   id: string;
@@ -818,6 +820,7 @@ export default function SettingsPage() {
     { id: "subscription", label: t("settings.tabs.subscription"), icon: CreditCard },
     { id: "security", label: t("settings.tabs.security"), icon: ShieldCheck },
     { id: "preferences", label: t("settings.tabs.preferences"), icon: Settings },
+    { id: "segmentFeatures", label: t("settings.tabs.segmentFeatures"), icon: SlidersHorizontal },
   ];
 
   return (
@@ -1202,6 +1205,8 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 )}
+
+                {activeTab === "segmentFeatures" && <SegmentFeaturesPanel />}
 
                 {/* --- Preferences Tab --- */}
                 {activeTab === "preferences" && (

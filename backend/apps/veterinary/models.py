@@ -1,8 +1,10 @@
 """
 Área do veterinário: the vet's own clients, the animals attended and every procedure.
 
-Clients and animals are isolated from the organization's herd on purpose: a vet attends
-external farms. Business rules (status, next procedure, alerts) live in services/selectors.
+Clients and animals are isolated from the organization's herd: a vet attends external farms.
+A client may be linked to a farm of the organization; with Recursos dos segmentos › Integração
+com o rebanho on, procedures are also written to that farm's herd (see ``herd_sync``).
+Business rules (status, next procedure, alerts) live in services/selectors.
 """
 from decimal import Decimal
 
@@ -22,6 +24,9 @@ class VeterinaryClient(BaseModel):
     name = models.CharField(max_length=150)
     farm_name = models.CharField(max_length=150, blank=True)
     phone = models.CharField(max_length=40, blank=True)
+    # Farm of this organization the client corresponds to (herd integration).
+    farm = models.ForeignKey("farms.Farm", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    data = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         ordering = ("created_at",)
@@ -36,6 +41,8 @@ class VeterinaryAnimal(BaseModel):
     identifier = models.CharField(max_length=60)
     name = models.CharField(max_length=120, blank=True)
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.OPEN_COW)
+    # Metadata and integrations; {"herd_animal_id": "<uuid>"} links the herd animal.
+    data = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         ordering = ("created_at",)
@@ -110,6 +117,10 @@ class VeterinaryProcedure(BaseModel):
     # Where the pregnancy came from when it was confirmed (IATF protocol or insemination).
     origin_kind = models.CharField(max_length=20, blank=True, default="")
     not_done = models.BooleanField(default=False)
+    # Team member with a login who performed it (``responsible`` keeps the typed name).
+    responsible_user = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    # Metadata: herd records written by the integration, pricing applied, API data.
+    data = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 
     class Meta(BaseModel.Meta):
@@ -154,6 +165,17 @@ class VeterinarySettings(BaseModel):
     price_palpation = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("10"))
     price_other = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("30"))
     last_responsible = models.CharField(max_length=120, blank=True)
+    # Finance integration: days until an unpaid procedure is due in Contas a receber.
+    payment_days = models.PositiveSmallIntegerField(default=30)
+    # Client pricing: discount when a visit attends at least ``discount_min_animals`` animals,
+    # and a closed price for the IATF package (protocol + insemination), charged at insemination.
+    discount_min_animals = models.PositiveSmallIntegerField(null=True, blank=True)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    price_iatf_package = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Prescription header.
+    vet_name = models.CharField(max_length=120, blank=True)
+    vet_registry = models.CharField(max_length=60, blank=True)
+    vet_phone = models.CharField(max_length=40, blank=True)
 
     PRICE_FIELDS = {
         VeterinaryProcedure.Kind.INSEMINATION: "price_insemination",
@@ -166,3 +188,91 @@ class VeterinarySettings(BaseModel):
 
     def price(self, kind):
         return getattr(self, self.PRICE_FIELDS[kind])
+
+
+class VeterinaryClientPrice(BaseModel):
+    """Price of one procedure kind for one client (Recursos › Preço por cliente)."""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="veterinary_client_prices")
+    client = models.ForeignKey(VeterinaryClient, on_delete=models.CASCADE, related_name="prices")
+    kind = models.CharField(max_length=20, choices=VeterinaryProcedure.Kind.choices)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta(BaseModel.Meta):
+        constraints = [models.UniqueConstraint(fields=("client", "kind"), name="unique_veterinary_client_price")]
+
+
+class VeterinaryTeamMember(BaseModel):
+    """A user with a login who attends for the area, and the commission paid per procedure."""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="veterinary_team")
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="veterinary_memberships")
+    commission_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    active = models.BooleanField(default=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("created_at",)
+        constraints = [models.UniqueConstraint(fields=("organization", "user"), name="unique_veterinary_team_member")]
+
+
+class VeterinaryProcedureInput(BaseModel):
+    """Stock used in a procedure (semen, hormones, devices); the movement is the stock exit."""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="veterinary_inputs")
+    procedure = models.ForeignKey(VeterinaryProcedure, on_delete=models.CASCADE, related_name="inputs")
+    lot = models.ForeignKey("inventory.LoteEstoque", on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey("inventory.ItemEstoque", on_delete=models.PROTECT, related_name="+")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    movement = models.ForeignKey("inventory.MovimentacaoEstoque", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta(BaseModel.Meta):
+        ordering = ("created_at",)
+
+
+def attachment_path(instance, filename):
+    """veterinary/<organization>/<animal>/<random>.<ext>: the original name stays in ``name``."""
+    import uuid
+    from pathlib import Path
+
+    suffix = Path(filename).suffix.lower()[:10]
+    return f"veterinary/{instance.organization_id}/{instance.animal_id}/{uuid.uuid4().hex}{suffix}"
+
+
+class VeterinaryAttachment(BaseModel):
+    """Photo (ultrasound) or document attached to an animal, optionally to one procedure."""
+
+    class Kind(models.TextChoices):
+        PHOTO = "photo", "Foto"
+        DOCUMENT = "document", "Documento"
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="veterinary_attachments")
+    animal = models.ForeignKey(VeterinaryAnimal, on_delete=models.CASCADE, related_name="attachments")
+    procedure = models.ForeignKey(VeterinaryProcedure, on_delete=models.SET_NULL, null=True, blank=True, related_name="attachments")
+    file = models.FileField(upload_to=attachment_path)
+    name = models.CharField(max_length=200)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PHOTO)
+    size = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-created_at",)
+
+
+class VeterinaryPrescription(BaseModel):
+    """Receituário: products, doses and instructions for one animal (or the whole visit)."""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="veterinary_prescriptions")
+    client = models.ForeignKey(VeterinaryClient, on_delete=models.CASCADE, related_name="prescriptions")
+    animal = models.ForeignKey(VeterinaryAnimal, on_delete=models.CASCADE, null=True, blank=True, related_name="prescriptions")
+    procedure = models.ForeignKey(VeterinaryProcedure, on_delete=models.SET_NULL, null=True, blank=True, related_name="prescriptions")
+    date = models.DateField()
+    # [{"product": str, "dose": str, "route": str, "frequency": str, "duration": str}]
+    items = models.JSONField(default=list)
+    notes = models.TextField(blank=True)
+    withdrawal = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-date", "-created_at")

@@ -6,6 +6,7 @@ import { veterinaryService, vetError, type VetAnimal, type VetConduct, type VetC
 import styles from "./veterinary.module.css";
 import { StatusPill, VetKpis, type VetContext } from "./VeterinaryArea";
 import { CyclingInfo, ProtocolInfo, protocolAlertsText, savedMessage } from "./VetLaunch";
+import { AnimalRecords } from "./VetRecords";
 import {
   CATEGORIES, METHODS, OPEN_CONDUCTS, STATUSES, addDays, categoryLabel, conductLabel, gestationNow, kindLabel, lastShort,
   methodLabel, naturalCompare, nextKey, nextLabel, norm, procedureText, statusLabel,
@@ -163,7 +164,7 @@ export function VetAnimals({ ctx }: { ctx: VetContext }) {
                           </div>
                         </td>
                       </tr>
-                      {open === animal.id && <tr className={styles.subRow}><td colSpan={7}><History ctx={ctx} animalId={animal.id} /></td></tr>}
+                      {open === animal.id && <tr className={styles.subRow}><td colSpan={7}><History ctx={ctx} animal={animal} /></td></tr>}
                     </Fragment>
                   );
                 })}
@@ -177,8 +178,9 @@ export function VetAnimals({ ctx }: { ctx: VetContext }) {
 }
 
 /** Procedures of one animal (prototype vFicha). */
-function History({ ctx, animalId }: { ctx: VetContext; animalId: string }) {
+function History({ ctx, animal }: { ctx: VetContext; animal: VetAnimal }) {
   const { t, fmt, today } = ctx;
+  const animalId = animal.id;
   const [items, setItems] = useState<VetProcedure[] | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -186,9 +188,9 @@ function History({ ctx, animalId }: { ctx: VetContext; animalId: string }) {
     return () => controller.abort();
   }, [animalId]);
   if (!items) return <span className={styles.muted}>{t("vet.loading")}</span>;
-  if (!items.length) return <span className={styles.muted}>{t("vet.history.empty")}</span>;
   return (
     <div>
+      {!items.length && <span className={styles.muted}>{t("vet.history.empty")}</span>}
       {items.map(p => {
         const lines: string[] = [];
         if (p.result === "pregnant" && (p.gestation_days || p.coverage_date)) {
@@ -200,6 +202,7 @@ function History({ ctx, animalId }: { ctx: VetContext; animalId: string }) {
             <div>
               <b style={{ fontWeight: 600 }}>{fmt.fd(p.date)} · {kindLabel(t, p.kind)}</b>{" "}
               {p.result && <StatusPill tone={p.result === "pregnant" ? "success" : "danger"}>{t(`vet.result.${p.result}`)}</StatusPill>}
+              {p.herd_synced && <> <StatusPill tone="info">{t("vet.history.inHerd")}</StatusPill></>}
               {lines.length > 0 && <div className={styles.muted}>{lines.join(" · ")}</div>}
               {p.responsible && <div className={styles.muted}>{t("vet.history.responsible", { value: p.responsible })}</div>}
               {(p.step || p.result || p.kind === "insemination") && <div className={styles.muted}>{t("vet.history.note", { value: procedureText(t, fmt, p, today) })}</div>}
@@ -209,6 +212,7 @@ function History({ ctx, animalId }: { ctx: VetContext; animalId: string }) {
           </div>
         );
       })}
+      <AnimalRecords ctx={ctx} animal={animal} />
     </div>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { ClipboardCheck, PawPrint, Plus, Trash2, Users } from "lucide-react";
+import { Fragment, useState } from "react";
+import { ClipboardCheck, PawPrint, Plus, Send, Settings2, Trash2, Users } from "lucide-react";
 import { veterinaryService, vetError } from "@/services/veterinaryService";
 import styles from "./veterinary.module.css";
 import { VetKpis, type VetContext } from "./VeterinaryArea";
+import { ClientSettings, ClientShare } from "./VetClientExtras";
 
 export function VetClients({ ctx }: { ctx: VetContext }) {
   const { t, fmt, clients, animals, workspace } = ctx;
@@ -14,6 +15,10 @@ export function VetClients({ ctx }: { ctx: VetContext }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [wipeArmed, setWipeArmed] = useState(false);
+  const [open, setOpen] = useState<{ id: string; panel: "settings" | "share" } | null>(null);
+  const features = workspace.features;
+  const configurable = !!(features.herd_integration || features.client_pricing);
+  const toggle = (id: string, panel: "settings" | "share") => setOpen(open?.id === id && open.panel === panel ? null : { id, panel });
   const procedures = clients.reduce((sum, c) => sum + c.procedures, 0);
 
   const create = async () => {
@@ -81,9 +86,10 @@ export function VetClients({ ctx }: { ctx: VetContext }) {
               </tr></thead>
               <tbody>
                 {clients.map(c => (
-                  <tr key={c.id}>
+                  <Fragment key={c.id}>
+                  <tr>
                     <td><b>{c.name}</b>{c.phone && <div className={styles.muted}>{c.phone}</div>}</td>
-                    <td>{c.farm_name || "—"}</td>
+                    <td>{c.farm_name || "—"}{features.herd_integration && c.farm && <div className={styles.muted}>{t("vet.clientCfg.linked")}</div>}</td>
                     <td>{c.animals}</td>
                     <td>{c.month_procedures}</td>
                     <td>{fmt.money(c.receivable)}</td>
@@ -91,10 +97,18 @@ export function VetClients({ ctx }: { ctx: VetContext }) {
                       <div className={styles.actions}>
                         <button type="button" className="btn btn-sm btn-agro" onClick={() => ctx.go("at", { preset: { client: c.id } })}>{t("vet.animals.launch")}</button>
                         <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => ctx.go("co", { client: c.id })}>{t("vet.tab.billing")}</button>
+                        {features.client_share && <button type="button" className="btn btn-sm btn-outline-secondary" aria-expanded={open?.id === c.id && open.panel === "share"} onClick={() => toggle(c.id, "share")}><Send size={14} aria-hidden="true" /> {t("vet.share.button")}</button>}
+                        {configurable && <button type="button" className="btn btn-sm btn-outline-secondary" title={t("vet.clientCfg.button")} aria-label={`${t("vet.clientCfg.button")} ${c.name}`} aria-expanded={open?.id === c.id && open.panel === "settings"} onClick={() => toggle(c.id, "settings")}><Settings2 size={14} /></button>}
                         <button type="button" className="btn btn-sm btn-outline-secondary" title={t("vet.clients.delete")} aria-label={`${t("vet.clients.delete")} ${c.name}`} onClick={() => void remove(c.id)}><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
+                  {open?.id === c.id && (
+                    <tr className={styles.subRow}><td colSpan={6}>
+                      {open.panel === "settings" ? <ClientSettings ctx={ctx} client={c} /> : <ClientShare ctx={ctx} client={c} />}
+                    </td></tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

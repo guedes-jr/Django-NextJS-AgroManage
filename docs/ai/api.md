@@ -3683,3 +3683,32 @@ organization dashboard read costs from `apps/crops/selectors.operation_costs`.
 Old data: `python manage.py sync_crop_finance [--organization <slug>] [--dry-run]`
 recalculates amounts, creates missing expenses and cancels (never deletes)
 expenses whose operation no longer exists.
+
+### Área do veterinário — phase 2
+
+- **Web clinic removed.** `/home/clinico` redirects to `/home/veterinario`. Removed
+  models/endpoints: `Symptom`, `Disease`, `MedicationInventory`, `SanitaryAlert`
+  (`livestock/diseases|symptoms|medications|alerts/`) and the clinical-record CRUD.
+  `ClinicalRecord` stays (without `disease`) only because old `treatment_cost`
+  values feed lot/sire costs. `livestock/clinical/records/` keeps only the mobile
+  read actions (`mobile`, `{id}/mobile`, `mobile-options`, `mobile-animals`) for
+  `kind=health|vaccinations`; `record_types/severities/outcomes` are empty lists.
+  Reproduction and health stay in the farm segments.
+- **Farm herd (read-only):** `GET /veterinary/herd/?species=&q=&page=` and
+  `GET /veterinary/herd/{animal_id}/` list organization animals with last
+  vaccine/health, open pregnancy and mating, and the animal history (matings,
+  pregnancies, births, heats, vaccinations, health). No cost fields. Admin/manager
+  see every species; the `veterinarian` sees the species in `allowed_livestock`,
+  which the admin sets in Users (`PATCH /auth/members/{id}/`). The veterinarian
+  still has no access to the segment APIs.
+- **Dashboard:** `segments.veterinary` in `GET /reports/dashboard/` (value of the
+  procedures in the period, by kind; no costs), `null` when the segment is not
+  contracted.
+
+### Crop sales availability
+
+`GET /crops/sales/availability/` → per plantation `balances` by unit
+(`harvested`, `sold`, `available`, `level` = `ok` > 20% left, `low` ≤ 20%, `none`).
+Sales in `ton` count as kg. `CropSale.unit` also accepts `bale` and `bundle`.
+The crop segment card no longer counts input stock purchases (general expense);
+only inputs used in operations and manual expenses linked to a cycle.

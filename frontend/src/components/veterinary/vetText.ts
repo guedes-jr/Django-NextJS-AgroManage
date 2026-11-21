@@ -40,11 +40,14 @@ export function formatters(language: string) {
   const short = new Intl.DateTimeFormat(language, { day: "2-digit", month: "2-digit", timeZone: "UTC" });
   const money = new Intl.NumberFormat(language, { style: "currency", currency: "BRL" });
   const number = new Intl.NumberFormat(language, { maximumFractionDigits: 0 });
+  const decimal = new Intl.NumberFormat(language, { maximumFractionDigits: 2 });
   return {
     fd: (day?: string | null) => (day ? full.format(parseDay(day)) : ""),
     fd5: (day?: string | null) => (day ? short.format(parseDay(day)) : ""),
     money: (value: string | number | null | undefined) => money.format(Number(value || 0)),
     number: (value: number) => number.format(value),
+    num: (value: number) => decimal.format(value),
+    percent: (value: number | null | undefined) => (value === null || value === undefined ? "—" : `${decimal.format(value)}%`),
   };
 }
 export type Fmt = ReturnType<typeof formatters>;

@@ -36,16 +36,16 @@ export interface HealthRecord {
 
 export const clinicalService = {
   // Vacinas
-  getVaccinations: (filters: any = {}) =>
+  getVaccinations: (filters: Record<string, unknown> = {}) =>
     apiClient.get('/livestock/vaccinations/', { params: filters }),
   
-  createVaccination: (data: any) =>
+  createVaccination: (data: Record<string, unknown>) =>
     apiClient.post('/livestock/vaccinations/', data),
 
   // Registros de Saúde / Exames
-  getHealthRecords: (filters: any = {}) =>
+  getHealthRecords: (filters: Record<string, unknown> = {}) =>
     apiClient.get('/livestock/health/records/', { params: filters }),
   
-  createHealthRecord: (data: any) =>
+  createHealthRecord: (data: Record<string, unknown>) =>
     apiClient.post('/livestock/health/records/', data),
 };

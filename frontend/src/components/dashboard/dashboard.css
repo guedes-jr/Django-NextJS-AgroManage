@@ -255,6 +255,7 @@
 .org-segment > header { padding:10px 14px; color:white; }
 .org-segment.agriculture > header { background:linear-gradient(100deg,color-mix(in srgb,var(--primary),#000 8%),var(--primary)); }
 .org-segment.livestock > header { background:linear-gradient(100deg,color-mix(in srgb,var(--chart-3),#000 22%),color-mix(in srgb,var(--chart-3),#000 5%)); }
+.org-segment.veterinary > header { background:linear-gradient(100deg,color-mix(in srgb,var(--chart-4),#000 22%),color-mix(in srgb,var(--chart-4),#000 5%)); }
 .org-segment > header span { display:flex; align-items:center; gap:8px; font-size:.79rem; font-weight:800; letter-spacing:.02em; text-transform:uppercase; }
 .org-segment-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-bottom:1px solid var(--border); }
 .org-segment-stats > div { min-width:0; padding:12px 9px; text-align:center; }

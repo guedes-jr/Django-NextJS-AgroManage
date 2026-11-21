@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, CircleCheck, Coins, FileText, LayoutGrid, PawPrint, Stethoscope, Users, type LucideProps } from "lucide-react";
+import { Bell, CircleCheck, Coins, FileText, LayoutGrid, PawPrint, Stethoscope, Users, Warehouse, type LucideProps } from "lucide-react";
 import { useOrganizationLocale } from "@/lib/locale";
 import type { TranslationKey } from "@/lib/localeMessages";
 import { veterinaryService, vetError, type VetAnimal, type VetClient, type VetWorkspace } from "@/services/veterinaryService";
@@ -17,8 +17,9 @@ import { VetClients } from "./VetClients";
 import { VetBilling } from "./VetBilling";
 import { VetReport } from "./VetReport";
 import { VetAlerts } from "./VetAlerts";
+import { VetHerd } from "./VetHerd";
 
-export type VetTab = "res" | "at" | "an" | "cl" | "co" | "rp" | "al";
+export type VetTab = "res" | "at" | "an" | "cl" | "co" | "rp" | "al" | "rb";
 export interface LaunchPreset { client?: string; animal?: string }
 
 export interface VetContext {
@@ -30,6 +31,8 @@ export interface VetContext {
   animals: VetAnimal[];
   today: string;
   reload: () => Promise<void>;
+  /** When the workspace, clients and animals were last loaded. */
+  updatedAt: Date | null;
   notify: (message: string) => void;
   go: (tab: VetTab, options?: { client?: string; preset?: LaunchPreset }) => void;
   focusClient: string;
@@ -39,11 +42,12 @@ export interface VetContext {
 const TABS: Array<[VetTab, ComponentType<LucideProps>, TranslationKey]> = [
   ["res", LayoutGrid, "vet.tab.summary"],
   ["at", Stethoscope, "vet.tab.launch"],
+  ["rp", FileText, "vet.tab.report"],
   ["an", PawPrint, "vet.tab.animals"],
   ["cl", Users, "vet.tab.clients"],
   ["co", Coins, "vet.tab.billing"],
-  ["rp", FileText, "vet.tab.report"],
   ["al", Bell, "vet.tab.alerts"],
+  ["rb", Warehouse, "vet.tab.herd"],
 ];
 const isTab = (value: string | null): value is VetTab => !!value && TABS.some(([key]) => key === value);
 
@@ -61,6 +65,7 @@ export function VeterinaryArea() {
   const [message, setMessage] = useState("");
   const [preset, setPreset] = useState<LaunchPreset>({});
   const [focusClient, setFocusClient] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const [ws, cl, an] = await Promise.all([veterinaryService.workspace(signal), veterinaryService.clients(signal), veterinaryService.animals(signal)]);
@@ -68,12 +73,13 @@ export function VeterinaryArea() {
     setClients(cl);
     setAnimals(an);
     setError("");
+    setUpdatedAt(new Date());
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([veterinaryService.workspace(controller.signal), veterinaryService.clients(controller.signal), veterinaryService.animals(controller.signal)])
-      .then(([ws, cl, an]) => { setWorkspace(ws); setClients(cl); setAnimals(an); setError(""); })
+      .then(([ws, cl, an]) => { setWorkspace(ws); setClients(cl); setAnimals(an); setError(""); setUpdatedAt(new Date()); })
       .catch(err => { if (!controller.signal.aborted) setError(vetError(err, t("vet.error"))); });
     return () => controller.abort();
   }, [t]);
@@ -108,7 +114,7 @@ export function VeterinaryArea() {
   if (!workspace) return <div className={base.page}><p className={styles.muted}>{t("vet.loading")}</p></div>;
 
   const context: VetContext = {
-    t, language, fmt: formatters(language), workspace, clients, animals, today: workspace.today, reload,
+    t, language, fmt: formatters(language), workspace, clients, animals, today: workspace.today, reload, updatedAt,
     notify: setMessage, go, focusClient, setFocusClient,
   };
 
@@ -147,6 +153,7 @@ export function VeterinaryArea() {
       {tab === "co" && <VetBilling ctx={context} />}
       {tab === "rp" && <VetReport ctx={context} />}
       {tab === "al" && <VetAlerts ctx={context} />}
+      {tab === "rb" && <VetHerd ctx={context} />}
     </div>
   );
 }

@@ -141,3 +141,27 @@ export async function sharePdf(doc: ExportDocument) {
   download(blob, `${doc.fileName}.pdf`);
   return false;
 }
+
+/** Native share sheet with the PNG when supported; otherwise the image is downloaded. Returns false on fallback. */
+export async function sharePng(doc: ExportDocument) {
+  const blob = await renderPng(doc);
+  const file = new File([blob], `${doc.fileName}.png`, { type: "image/png" });
+  const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+  if (nav.canShare && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: doc.title });
+    } catch {
+      /* the user closed the share sheet */
+    }
+    return true;
+  }
+  download(blob, `${doc.fileName}.png`);
+  return false;
+}
+
+/** wa.me link with the text; the phone is completed with the Brazilian country code when missing. */
+export function whatsappLink(phone: string, text: string) {
+  const digits = (phone || "").replace(/\D/g, "");
+  const number = digits ? (digits.length <= 11 ? `55${digits}` : digits) : "";
+  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+}

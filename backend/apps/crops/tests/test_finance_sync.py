@@ -86,3 +86,43 @@ class CropFinanceSyncTestCase(APITestCase):
         orphan.refresh_from_db()
         self.assertEqual(orphan.status, "cancelled")
         self.assertEqual(resync_organization(self.org)["updated"], 0)
+
+
+class CropSegmentFeatureTests(CropFinanceSyncTestCase):
+    """Configurações › Recursos dos segmentos › Plantações."""
+
+    def _turn(self, **values):
+        response = self.client.put("/api/v1/organizations/segment-features/", {"segments": {"plantacoes": values}}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def _sell(self):
+        response = self.client.post(reverse("crops-sales-list"), {
+            "planting_cycle": str(self.cycle.id), "sale_date": date.today().isoformat(), "quantity": "10",
+            "unit": "sack", "unit_price": "60",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data["id"]
+
+    def test_finance_off_skips_mirrors_but_keeps_dashboard_values(self):
+        self._turn(finance=False)
+        application_id = self._apply()
+        sale_id = self._sell()
+        self.assertFalse(Transaction.objects.filter(reference__in=[f"PESTICIDE-{application_id}", f"CROPSALE-{sale_id}"]).exists())
+        crops = self.client.get(reverse("dashboard-summary")).data["segments"]["crops"]
+        self.assertEqual(Decimal(str(crops["cost"])), Decimal("180"))
+        self.assertEqual(Decimal(str(crops["revenue"])), Decimal("600"))
+        self.assertIn({"name": "Milho", "value": 600.0}, crops["revenue_breakdown"])
+        self.assertTrue(resync_organization(self.org)["disabled"])
+        # Turning it back on mirrors what was saved meanwhile; the card does not double count.
+        self._turn(finance=True)
+        self.assertEqual(self._mirror(application_id).amount, Decimal("180"))
+        crops = self.client.get(reverse("dashboard-summary")).data["segments"]["crops"]
+        self.assertEqual(Decimal(str(crops["revenue"])), Decimal("600"))
+
+    def test_agenda_off_hides_crop_events(self):
+        self.cycle.status = "planned"
+        self.cycle.save(update_fields=["status"])
+        params = {"start": date.today().isoformat(), "end": date.today().isoformat(), "domain": "crops"}
+        self.assertTrue(self.client.get("/api/v1/tasks/agenda/", params).data["results"])
+        self._turn(agenda=False)
+        self.assertFalse(self.client.get("/api/v1/tasks/agenda/", params).data["results"])

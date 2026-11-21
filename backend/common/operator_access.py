@@ -25,14 +25,10 @@ SPECIES_PATHS = {
     "WeightRecord": ["species"],
     "HealthRecord": ["animal__species"],
     "FeedingRecord": ["animal__species", "batch__species"],
-    "Symptom": ["species"],
-    "Disease": ["species"],
     "ClinicalRecord": ["animal__species", "batch__species"],
     "HeatRecord": ["animal__species"],
     "LitterMedication": ["batch__species"],
     "HistoricoEvento": ["matriz__species", "lote__species"],
-    "SanitaryAlert": ["affected_animals__species", "affected_batches__species"],
-    "MedicationInventory": ["species_indicated"],
     "ConsumoRacao": ["lote_animal__species", "animais__species"],
 }
 OPERATIONAL_MODELS = {
@@ -87,14 +83,18 @@ def is_operator(user):
 
 
 def effective_access(user):
+    from apps.organizations.segment_features import feature_map
     from apps.veterinary.access import can_use_veterinary
 
     operator = is_operator(user)
     if getattr(user, "role", None) == "veterinarian":
-        # Phase 1: the vet works only in the Área do veterinário (plus personal pages).
+        # The vet works in the Área do veterinário (plus personal pages). The species
+        # granted by the admin are the farm herd they may consult there (read-only).
         return {
             "role": user.role, "can_manage_users": False, "can_view_financial": False, "can_operate_crops": False,
-            "livestock_species": [], "read_only": False, "veterinary": can_use_veterinary(user),
+            "livestock_species": [species.code for species in user.allowed_livestock.all()],
+            "read_only": False, "veterinary": can_use_veterinary(user),
+            "segment_features": feature_map(user.organization),
         }
     return {
         "role": user.role,
@@ -106,6 +106,7 @@ def effective_access(user):
         else None,
         "read_only": operator and user.operator_read_only,
         "veterinary": can_use_veterinary(user),
+        "segment_features": feature_map(user.organization),
     }
 
 
@@ -118,8 +119,13 @@ VETERINARIAN_PATHS = (
 def request_allowed(user, request):
     if getattr(user, "role", None) == "veterinarian":
         path = request.path.removeprefix("/api/v1/").strip("/")
-        if path == "organizations/me":
+        if path in ("organizations/me", "platform/client-state"):
             return request.method in SAFE_METHODS
+        if path in ("tasks/agenda", "tasks/agenda-options"):
+            # The vet follows the area's returns in the Agenda when the admin turned it on.
+            from apps.organizations import segment_features as features
+
+            return request.method in SAFE_METHODS and features.enabled(user.organization, features.VETERINARY, features.AGENDA)
         return any(path == prefix or path.startswith(prefix + "/") for prefix in VETERINARIAN_PATHS)
     if not is_operator(user):
         return getattr(user, "role", None) in ("admin", "manager")

@@ -257,6 +257,10 @@ def _sync_harvest_packing_transaction(harvest, request=None):
     """Keep the packing expense ("Embalagem") aligned with the harvest."""
     from apps.finance.models import FinancialCategory, Transaction
 
+    from .finance_sync import finance_enabled
+
+    if not finance_enabled(harvest.planting_cycle.organization):
+        return
     reference = f"HARVEST-PACK-{harvest.id}"
     existing = Transaction.objects.filter(reference=reference)
     if not harvest.packaged or harvest.packing_cost <= 0:
@@ -371,6 +375,10 @@ def _sync_crop_sale_transaction(sale, request=None):
     """Keep the revenue transaction ("Venda da produção") aligned with the sale."""
     from apps.finance.models import FinancialCategory, Transaction
 
+    from .finance_sync import finance_enabled
+
+    if not finance_enabled(sale.organization):
+        return
     plantation = sale.planting_cycle
     category, _ = FinancialCategory.objects.get_or_create(
         organization=sale.organization,

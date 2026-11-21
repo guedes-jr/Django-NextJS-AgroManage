@@ -55,6 +55,32 @@ def my_organization_view(request):
     return Response(serializer.data)
 
 
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def segment_features_view(request):
+    """Optional features per segment (Configurações › Recursos dos segmentos). Admin edits."""
+    from apps.audit.models import AuditLog
+    from apps.audit.services import record_client_action
+    from . import segment_features
+
+    org = getattr(request.user, "organization", None)
+    if not org:
+        return Response({"detail": _("Usuário não vinculado a uma organização.")}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "GET":
+        return Response({"segments": segment_features.feature_map(org), "can_edit": request.user.role == "admin"})
+    if request.user.role != "admin":
+        return Response({"detail": _("Apenas administradores podem alterar os recursos dos segmentos.")}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        segments = segment_features.update(org, request.user, request.data.get("segments"))
+    except ValueError as error:
+        return Response({"detail": _("Recurso inválido: %(code)s") % {"code": error}}, status=status.HTTP_400_BAD_REQUEST)
+    record_client_action(
+        request=request, action=AuditLog.Action.UPDATE, model_name="SegmentFeature", object_id=org.pk,
+        description=f"Recursos dos segmentos alterados: {request.data.get('segments')}",
+    )
+    return Response({"segments": segments, "can_edit": True})
+
+
 def _current_monthly_total(subscription):
     items = list(subscription.items.all())
     if items:

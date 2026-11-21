@@ -349,6 +349,8 @@ def process_marketing_outbox():
 def check_operational_notifications():
     from .operational import collect_operational_notifications
     created=collect_operational_notifications()
+    from apps.veterinary.notifications import collect_veterinary_notifications
+    created+=collect_veterinary_notifications()
     check_stock_levels_notifications()
     return {'created':created}
 

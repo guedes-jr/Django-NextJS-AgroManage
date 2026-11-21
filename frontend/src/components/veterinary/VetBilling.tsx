@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, CircleCheck, ClipboardCheck, Hourglas
 import { veterinaryService, vetError, type VetBilling as Billing, type VetSettings } from "@/services/veterinaryService";
 import styles from "./veterinary.module.css";
 import { VetKpis, type VetContext } from "./VeterinaryArea";
+import { VetTeam } from "./VetTeam";
 import { PRICE_KINDS, kindLabel, parseDay, resultLabel, type Fmt, type Translate } from "./vetText";
 
 function shiftMonth(month: string, delta: number) {
@@ -75,6 +76,18 @@ export function VetBilling({ ctx }: { ctx: VetContext }) {
     await veterinaryService.payAll(client, month);
     ctx.notify(t("vet.billing.allPaid"));
     await Promise.all([load(), ctx.reload()]);
+  };
+  const features = ctx.workspace.features;
+  const canEditTeam = ["admin", "manager"].includes(ctx.workspace.role);
+  const saveSetting = async (field: keyof VetSettings, value: string, optional = false) => {
+    const clean = String(value).trim().replace(",", ".");
+    const amount = optional && !clean ? null : field === "payment_days" || field === "discount_min_animals" ? Math.round(Number(clean) || 0) : clean || "0";
+    try {
+      await veterinaryService.updateSettings({ [field]: amount } as Partial<VetSettings>);
+      await ctx.reload();
+    } catch (err) {
+      setError(vetError(err, t("vet.saveError")));
+    }
   };
   const savePrice = async (field: keyof VetSettings, value: string) => {
     const amount = String(Number(String(value).replace(",", ".")) || 0);
@@ -169,20 +182,62 @@ export function VetBilling({ ctx }: { ctx: VetContext }) {
           {PRICE_KINDS.map(([kind, field]) => (
             <label key={kind} className={styles.field}>
               <span>{t("vet.billing.priceLabel", { kind: kindLabel(t, kind) })}</span>
-              <input className="form-control" inputMode="decimal" defaultValue={prices[field as keyof VetSettings]} onBlur={e => void savePrice(field as keyof VetSettings, e.target.value)} />
+              <input className="form-control" inputMode="decimal" defaultValue={String(prices[field as keyof VetSettings] ?? "")} onBlur={e => void savePrice(field as keyof VetSettings, e.target.value)} />
             </label>
           ))}
         </div>
         <p className={styles.muted} style={{ marginTop: 8 }}>{t("vet.billing.pricesHint")}</p>
+        {(features.client_pricing || features.finance) && (
+          <div className={styles.grid} style={{ marginTop: 12 }}>
+            {features.client_pricing && <>
+              <label className={styles.field}>
+                <span>{t("vet.pricing.package")}</span>
+                <input className="form-control" inputMode="decimal" placeholder={t("vet.pricing.packagePlaceholder")} defaultValue={prices.price_iatf_package ?? ""} onBlur={e => void saveSetting("price_iatf_package", e.target.value, true)} />
+              </label>
+              <label className={styles.field}>
+                <span>{t("vet.pricing.minAnimals")}</span>
+                <input className="form-control" inputMode="numeric" defaultValue={prices.discount_min_animals ?? ""} onBlur={e => void saveSetting("discount_min_animals", e.target.value, true)} />
+              </label>
+              <label className={styles.field}>
+                <span>{t("vet.pricing.discount")}</span>
+                <input className="form-control" inputMode="decimal" defaultValue={prices.discount_percent} onBlur={e => void saveSetting("discount_percent", e.target.value)} />
+              </label>
+            </>}
+            {features.finance && (
+              <label className={styles.field}>
+                <span>{t("vet.finance.paymentDays")}</span>
+                <input className="form-control" inputMode="numeric" defaultValue={prices.payment_days} onBlur={e => void saveSetting("payment_days", e.target.value)} />
+              </label>
+            )}
+          </div>
+        )}
+        {features.client_pricing && <p className={styles.muted} style={{ marginTop: 8 }}>{t("vet.pricing.hint")}</p>}
+        {features.finance && <p className={styles.muted} style={{ marginTop: 4 }}>{t("vet.finance.hint")}</p>}
       </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHead}><h2>{t("vet.profile.title")}</h2></div>
+        <p className={styles.hint}>{t("vet.profile.hint")}</p>
+        <div className={styles.grid}>
+          {(["vet_name", "vet_registry", "vet_phone"] as const).map(field => (
+            <label key={field} className={styles.field}>
+              <span>{t(`vet.profile.${field}` as never)}</span>
+              <input className="form-control" defaultValue={prices[field]} inputMode={field === "vet_phone" ? "tel" : undefined}
+                onBlur={e => { if (e.target.value !== prices[field]) { const value = e.target.value.trim(); setPrices(p => ({ ...p, [field]: value })); void veterinaryService.updateSettings({ [field]: value }).then(() => ctx.reload()).catch(err => setError(vetError(err, t("vet.saveError")))); } }} />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <VetTeam ctx={ctx} canEdit={canEditTeam} />
 
       {!!data?.responsibles.length && (
         <section className={styles.panel}>
           <div className={styles.panelHead}><h2>{t("vet.billing.byResponsible")}</h2></div>
           <div className={styles.tableWrap}>
             <table className={styles.table} style={{ minWidth: 360 }}>
-              <thead><tr><th>{t("vet.report.responsible")}</th><th>{t("vet.clients.visits")}</th><th>{t("vet.billing.value")}</th></tr></thead>
-              <tbody>{data.responsibles.map(r => <tr key={r.name || "-"}><td><b>{r.name || t("vet.billing.noResponsible")}</b></td><td>{r.count}</td><td>{fmt.money(r.value)}</td></tr>)}</tbody>
+              <thead><tr><th>{t("vet.report.responsible")}</th><th>{t("vet.clients.visits")}</th><th>{t("vet.billing.value")}</th><th>{t("vet.team.commissionValue")}</th></tr></thead>
+              <tbody>{data.responsibles.map(r => <tr key={r.user || r.name || "-"}><td><b>{r.name || t("vet.billing.noResponsible")}</b></td><td>{r.count}</td><td>{fmt.money(r.value)}</td><td>{Number(r.commission) ? fmt.money(r.commission) : "—"}</td></tr>)}</tbody>
             </table>
           </div>
         </section>

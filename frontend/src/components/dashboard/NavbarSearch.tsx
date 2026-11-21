@@ -15,7 +15,8 @@ export function NavbarSearch() {
   const { t } = useOrganizationLocale();
   const router = useRouter();
   const access = useOrganizationAccess();
-  const allowed = !!access && access.role !== "feeder" && (access.role !== "operator" || !!access.livestock_species?.length);
+  // The feeder and the veterinarian do not access the searched modules (animals, stock, structures).
+  const allowed = !!access && access.role !== "feeder" && access.role !== "veterinarian" && (access.role !== "operator" || !!access.livestock_species?.length);
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState<{ query: string; items: NavbarSearchResult[]; error: boolean } | null>(null);
   const [open, setOpen] = useState(false);

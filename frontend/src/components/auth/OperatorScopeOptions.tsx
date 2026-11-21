@@ -37,6 +37,7 @@ export default function OperatorScopeOptions({ value, onChange, disabled = false
     return () => { active = false; };
   }, []);
 
+  const vet = role === "veterinarian";
   const toggleSpecies = (id: string, checked: boolean) => onChange({
     ...value,
     allowed_livestock: checked
@@ -46,13 +47,13 @@ export default function OperatorScopeOptions({ value, onChange, disabled = false
 
   return (
     <fieldset className="border rounded-3 p-3" disabled={disabled}>
-      <legend className="float-none w-auto h6 px-1">{t(role === "feeder" ? "operatorScope.titleFeeder" : "operatorScope.titleOperator")}</legend>
-      {role !== "feeder" && <label className="form-check">
+      <legend className="float-none w-auto h6 px-1">{t(vet ? "users.vetSpecies" : role === "feeder" ? "operatorScope.titleFeeder" : "operatorScope.titleOperator")}</legend>
+      {role !== "feeder" && !vet && <label className="form-check">
         <input className="form-check-input" type="checkbox" checked={value.can_operate_crops}
           onChange={event => onChange({ ...value, can_operate_crops: event.target.checked })} />
         {t("operatorScope.crops")}
       </label>}
-      <p className="fw-semibold small mt-3 mb-2">{t("operatorScope.authorizedLivestock")}</p>
+      {!vet && <p className="fw-semibold small mt-3 mb-2">{t("operatorScope.authorizedLivestock")}</p>}
       {hasError && <p className="text-danger small" role="alert">{t("operatorScope.loadFailed")}</p>}
       {species.filter(option => role !== "feeder" || option.code === "bovinos").map(option => (
         <label className="form-check" key={option.id}>
@@ -63,16 +64,15 @@ export default function OperatorScopeOptions({ value, onChange, disabled = false
       ))}
       {loading && <small className="text-muted" role="status">{t("operatorScope.loading")}</small>}
       {!loading && !hasError && !species.length && <small className="text-muted">{t("operatorScope.noneAvailable")}</small>}
-      <label className="form-check mt-3">
+      {!vet && <label className="form-check mt-3">
         <input className="form-check-input" type="checkbox" checked={value.operator_read_only}
           onChange={event => onChange({ ...value, operator_read_only: event.target.checked })} />
         {t("operatorScope.readOnly")}
-      </label>
+      </label>}
       <p className="small text-muted mb-0 mt-3">
-        {t(role === "feeder" ? "operatorScope.feederDescription" : "operatorScope.operatorDescription")}{" "}
-        {t("operatorScope.restrictions")}
+        {vet ? t("users.vetSpeciesHint") : <>{t(role === "feeder" ? "operatorScope.feederDescription" : "operatorScope.operatorDescription")}{" "}{t("operatorScope.restrictions")}</>}
       </p>
-      {!value.can_operate_crops && !value.allowed_livestock.length && (
+      {!vet && !value.can_operate_crops && !value.allowed_livestock.length && (
         <p className="small text-warning mb-0 mt-2">
           {t(role === "feeder" ? "operatorScope.noFeederAreas" : "operatorScope.noOperatorAreas")}
         </p>

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { getOrganizationAccess, canAccessOrganizationPath, type OrganizationAccess, VETERINARY_PATH } from "@/services/organizationAccess";
+import { getOrganizationAccess, canAccessOrganizationPath, type OrganizationAccess, VETERINARY_PATH, ACCESS_CHANGED_EVENT } from "@/services/organizationAccess";
 import Link from "next/link";
 import { OrganizationAccessContext } from "@/components/auth/OrganizationAccessContext";
 import { useCallback, useEffect, useState } from "react";
@@ -40,10 +40,12 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
     refresh();
     const interval = window.setInterval(refresh, 60000);
     window.addEventListener("focus", refresh);
+    window.addEventListener(ACCESS_CHANGED_EVENT, refresh);
     return () => {
       active = false;
       window.clearInterval(interval);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener(ACCESS_CHANGED_EVENT, refresh);
     };
   }, []);
   useEffect(() => {

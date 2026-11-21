@@ -67,6 +67,13 @@ def _description(spec: OperationSpec, instance) -> str:
 
 
 @transaction.atomic
+def finance_enabled(organization) -> bool:
+    """Configurações › Recursos dos segmentos › Plantações › Financeiro (on by default)."""
+    from apps.organizations import segment_features as features
+
+    return features.enabled(organization, features.CROPS, features.FINANCE)
+
+
 def sync_operation_transaction(instance, user=None) -> str:
     """Create, update or remove the finance mirror of one operation.
 
@@ -80,6 +87,9 @@ def sync_operation_transaction(instance, user=None) -> str:
         return "skipped"
     plantation = instance.plantation
     organization = plantation.organization
+    if not finance_enabled(organization):
+        # Recursos dos segmentos › Plantações › Financeiro is off: existing mirrors stay as they are.
+        return "skipped"
     reference = spec.reference(instance)
     existing = Transaction.objects.filter(organization=organization, reference=reference).order_by("created_at")
     current = existing.first()
@@ -151,6 +161,9 @@ def resync_organization(organization, dry_run: bool = False) -> dict:
     from apps.finance.models import Transaction
 
     report = {"created": 0, "updated": 0, "unchanged": 0, "removed": 0, "skipped": 0, "orphans_cancelled": 0}
+    if not finance_enabled(organization):
+        report["disabled"] = True
+        return report
     with transaction.atomic():
         for spec in SPECS:
             model = getattr(crop_models, spec.model_name)

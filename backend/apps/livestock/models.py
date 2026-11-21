@@ -373,6 +373,9 @@ class Animal(BaseModel):
         max_length=100, blank=True,
         help_text='Nome/registro da mãe se não cadastrada no sistema'
     )
+    # Free-form metadata: origin of the record (e.g. {"source": "veterinary", ...}) and data
+    # received from API integrations. Do not store business rules that need queries here.
+    data = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         verbose_name = "Animal"
