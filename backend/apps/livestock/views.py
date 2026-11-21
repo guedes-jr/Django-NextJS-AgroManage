@@ -1,7 +1,7 @@
 from django.utils.translation import gettext as translate_message
 from common.operator_access import operator_scoped, remember_operator_record
 from common.permissions import OrganizationRolePermission
-from rest_framework import viewsets, status, serializers, filters
+from rest_framework import viewsets, status, serializers
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -13,13 +13,12 @@ import hashlib
 import json
 import uuid
 from django.shortcuts import get_object_or_404
-from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, Symptom, Disease, ClinicalRecord, MedicationInventory, SanitaryAlert, HistoricoEvento, HeatRecord, LitterMedication, AcknowledgedOperationalAlert
+from .models import AnimalBatch, Animal, Mating, Pregnancy, Birth, Litter, WeightRecord, VaccinationRecord, HealthRecord, FeedingRecord, HistoricoEvento, HeatRecord, LitterMedication, AcknowledgedOperationalAlert
 from .selectors import with_batch_birth_date
 from .serializers import (
     AnimalBatchSerializer, AnimalSerializer, MatingSerializer,
     PregnancySerializer, BirthSerializer, LitterSerializer,
-    IncubationSerializer, SymptomSerializer, DiseaseSerializer,
-    ClinicalRecordSerializer, MedicationSerializer, AlertSerializer,
+    IncubationSerializer,
     HealthRecordSerializer, HeatRecordSerializer, LitterMedicationSerializer
 )
 from rest_framework.views import APIView
@@ -2930,14 +2929,6 @@ class SpeciesSummaryView(APIView):
             active_batches.filter(category__in=female_categories).aggregate(total=Sum("quantity"))["total"] or 0
         ) + standalone_animals.filter(category__in=female_categories).count()
 
-        sanitary_alerts = SanitaryAlert.objects.filter(
-            farm__organization=organization,
-            status=SanitaryAlert.STATUS_CHOICES[0][0],
-        ).filter(
-            Q(affected_animals__species__code=species_code)
-            | Q(affected_batches__species__code=species_code)
-        ).distinct().count()
-
         reproductive_actions = 0
         if species_code in {"suinos", "bovinos"}:
             reproductive_actions = len(_heat_prediction_alerts(organization, species_code))
@@ -2984,7 +2975,7 @@ class SpeciesSummaryView(APIView):
             "species": species_code,
             "total_animals": int(batch_total) + standalone_animals.count(),
             "active_females": int(active_females),
-            "active_alerts": sanitary_alerts + reproductive_actions,
+            "active_alerts": reproductive_actions,
             "feed_consumed_month": float(feed_totals["quantity"] or 0),
             "feed_cost_month": float(feed_totals["cost"] or 0),
             "semen_doses_month": float(semen_quantity),
@@ -3166,7 +3157,17 @@ class WeightRecordViewSet(viewsets.ModelViewSet):
 
 
 @operator_scoped
-class ClinicalRecordViewSet(viewsets.ModelViewSet):
+class ClinicalRecordViewSet(viewsets.GenericViewSet):
+    """Mobile health and vaccination listings (the web clinic and its consultations were removed).
+
+    The route keeps its historical prefix (``clinical/records``) for app compatibility.
+    """
+    permission_classes = [OrganizationRolePermission]
+    write_roles = {"admin", "manager", "operator"}
+
+    def get_queryset(self):
+        return HealthRecord.objects.none()
+
     @action(detail=False, methods=['get'], url_path='mobile')
     def mobile(self, request):
         from . import mobile_clinic as clinic
@@ -3194,120 +3195,6 @@ class ClinicalRecordViewSet(viewsets.ModelViewSet):
         value=clinic.Query(data=request.query_params);value.is_valid(raise_exception=True)
         page=self.paginate_queryset(clinic.animals(request.user,value.validated_data))
         return self.get_paginated_response([clinic.animal_data(obj) for obj in page])
-
-    def _mobile_create(self, request):
-        from . import mobile_clinic as clinic
-        clinic.authorize(request.user)
-        value=clinic.ClinicalInput(data=request.data,context={'request':request});value.is_valid(raise_exception=True)
-        self.perform_create(value)
-        return Response({'id':str(value.instance.pk)},status=201)
-
-    permission_classes = [OrganizationRolePermission]
-    write_roles = {"admin", "manager", "operator"}
-    serializer_class = ClinicalRecordSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['farm', 'animal', 'disease', 'severity', 'record_type']
-    search_fields = ['animal__identifier', 'clinical_notes']
-    ordering_fields = ['record_date']
-    ordering = ['-record_date']
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated and hasattr(user, 'organization'):
-            return ClinicalRecord.objects.filter(farm__organization=user.organization)
-        return ClinicalRecord.objects.none()
-
-    def create(self, request, *args, **kwargs):
-        if request.query_params.get('view') == 'mobile':
-            return self._mobile_create(request)
-        data = request.data.copy()
-        
-        # Resolve animal from animal_identifier
-        animal_identifier = data.get('animal_identifier')
-        if animal_identifier:
-            try:
-                from .models import Animal
-                animal = Animal.objects.filter(
-                    identifier=animal_identifier,
-                    farm__organization=request.user.organization
-                ).first()
-                if animal:
-                    data['animal'] = animal.id
-                    data['farm'] = animal.farm.id
-                else:
-                    return Response(
-                        {"detail": f"Animal com brinco '{animal_identifier}' não foi encontrado."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            except Exception as e:
-                return Response(
-                    {"detail": f"Erro ao buscar animal: {str(e)}"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-    
-    @action(detail=True, methods=['get'])
-    def history(self, request, pk=None):
-        """Histórico clínico do animal"""
-        record = self.get_object()
-        animal_records = self.get_queryset().filter(animal=record.animal).order_by('-record_date')
-        serializer = self.get_serializer(animal_records, many=True)
-        return Response(serializer.data)
-
-@operator_scoped
-class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Disease.objects.all()
-    serializer_class = DiseaseSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['species']
-    search_fields = ['name', 'code']
-
-@operator_scoped
-class MedicationViewSet(viewsets.ModelViewSet):
-    permission_classes = [OrganizationRolePermission]
-    write_roles = {"admin", "manager", "operator"}
-    serializer_class = MedicationSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['farm', 'is_available']
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated and hasattr(user, 'organization'):
-            return MedicationInventory.objects.filter(farm__organization=user.organization)
-        return MedicationInventory.objects.none()
-    
-    @action(detail=False, methods=['get'])
-    def expiring_soon(self, request):
-        """Medicamentos vencendo em 30 dias"""
-        from datetime import timedelta
-        from django.utils import timezone
-        today = timezone.now().date()
-        expiring = self.get_queryset().filter(
-            expiry_date__lte=today + timedelta(days=30),
-            expiry_date__gte=today
-        )
-        serializer = self.get_serializer(expiring, many=True)
-        return Response(serializer.data)
-
-@operator_scoped
-class AlertViewSet(viewsets.ModelViewSet):
-    permission_classes = [OrganizationRolePermission]
-    write_roles = {"admin", "manager", "operator"}
-    serializer_class = AlertSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['farm', 'status', 'severity']
-    ordering = ['-created_date']
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated and hasattr(user, 'organization'):
-            return SanitaryAlert.objects.filter(farm__organization=user.organization)
-        return SanitaryAlert.objects.none()
 
 
 @operator_scoped
@@ -3371,10 +3258,3 @@ class HealthRecordViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-@operator_scoped
-class SymptomViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Symptom.objects.all()
-    serializer_class = SymptomSerializer
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name', 'code']

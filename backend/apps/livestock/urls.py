@@ -8,8 +8,7 @@ from .views import (
     MarrasView, MatrizesView, GestacoesView, MaternidadeView,
     CrecheView, CrescimentoView, EngordaView, SwinePhaseMobileDetailView,
     VaccinationRecordViewSet, WeightRecordViewSet,
-    ClinicalRecordViewSet, DiseaseViewSet, AcknowledgeOperationalAlertView,
-    MedicationViewSet, AlertViewSet, SymptomViewSet, HealthRecordViewSet
+    ClinicalRecordViewSet, AcknowledgeOperationalAlertView, HealthRecordViewSet
 )
 
 from .cattle_views import (
@@ -36,10 +35,6 @@ router.register(r'incubations', IncubationViewSet, basename='incubation')
 router.register(r'vaccinations', VaccinationRecordViewSet, basename='vaccination')
 router.register(r'weights', WeightRecordViewSet, basename='weight')
 router.register(r'clinical/records', ClinicalRecordViewSet, basename='clinicalrecord')
-router.register(r'diseases', DiseaseViewSet, basename='disease')
-router.register(r'medications', MedicationViewSet, basename='medication')
-router.register(r'alerts', AlertViewSet, basename='alert')
-router.register(r'symptoms', SymptomViewSet, basename='symptom')
 router.register(r'health/records', HealthRecordViewSet, basename='healthrecord')
 
 
