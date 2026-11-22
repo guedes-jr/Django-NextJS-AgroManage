@@ -149,3 +149,45 @@ def movement_has_financial_origin(movement):
     if movement.tipo in (TipoMovimentacao.COMPRA, TipoMovimentacao.ENTRADA) and movement.lote_id:
         references.append(f"LOTE-{movement.lote_id}")
     return Transaction.objects.filter(organization_id=movement.item.organization_id, reference__in=references).exists()
+
+
+EXIT_MOVEMENTS = ("venda", "consumo", "perda", "saida", "vencimento", "ajuste")
+
+
+def cancel_unused_purchases(item, user):
+    """Deleting a product cancels the payables of purchases that never left stock.
+
+    A lot that was only received (no consumption, sale, loss or adjustment) was
+    a purchase registered by mistake: its finance entry (``LOTE-<lot>`` from the
+    initial stock, or ``STOCK-MOV-<movement>`` from a stock launch) is cancelled
+    so it leaves the Financeiro and the dashboards together with the stock.
+    Paid entries are reversed first through the regular finance reversal, so the
+    bank history stays consistent. Lots that were used keep their purchase.
+    Returns the number of cancelled entries.
+    """
+    import uuid
+
+    from apps.finance.models import Transaction
+    from apps.finance.services import reverse_payment
+
+    cancelled = 0
+    for lot in item.lotes.all():
+        if lot.movimentacoes.filter(tipo__in=EXIT_MOVEMENTS).exists():
+            continue
+        references = [f"LOTE-{lot.pk}", *(f"STOCK-MOV-{pk}" for pk in lot.movimentacoes.values_list("pk", flat=True))]
+        documents = Transaction.objects.select_for_update().filter(
+            organization_id=item.organization_id, reference__in=references,
+        ).exclude(status="cancelled")
+        for document in documents:
+            if document.status == "paid":
+                reverse_payment(
+                    document, user, reason=f"Produto excluído: compra de {item.nome} cancelada.",
+                    idempotency_key=uuid.uuid5(uuid.NAMESPACE_URL, f"item-delete-{document.pk}"),
+                    payment=document.payment_events.filter(kind="payment", reversal__isnull=True).values_list("pk", flat=True).first(),
+                )
+                document.refresh_from_db()
+            document.status = "cancelled"
+            document._settlement_operation = True
+            document.save(update_fields=["status", "updated_at"])
+            cancelled += 1
+    return cancelled

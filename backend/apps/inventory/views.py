@@ -152,9 +152,14 @@ class ItemEstoqueViewSet(OperationalInventoryProjection, viewsets.ModelViewSet):
         
         serializer.save(organization=organization)
 
+    @transaction.atomic
     def perform_destroy(self, instance):
+        from .services import cancel_unused_purchases
+        instance = ItemEstoque.objects.select_for_update().get(pk=instance.pk)
         instance.ativo = False
         instance.save(update_fields=["ativo", "updated_at"])
+        # The stock value leaves with the product; its unused purchases must leave the finance too.
+        cancel_unused_purchases(instance, self.request.user)
 
     @action(detail=False, methods=["post"], url_path="bulk_create")
     def bulk_create(self, request):

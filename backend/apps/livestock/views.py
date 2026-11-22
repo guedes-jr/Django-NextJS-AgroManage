@@ -1095,6 +1095,36 @@ def build_animal_history(animal):
     return events
 
 
+# Relations that are part of an animal's own record, not history to preserve.
+_ANIMAL_OWN_RECORDS = {"CattleAnimalProfile"}
+
+
+def _animal_has_history(animal):
+    for relation in Animal._meta.related_objects:
+        if relation.related_model.__name__ in _ANIMAL_OWN_RECORDS:
+            continue
+        if getattr(animal, relation.get_accessor_name()).exists():
+            return True
+    return False
+
+
+def remove_batch_animals(batch):
+    """Take the individual animals of a deleted lot out of every module.
+
+    Animals without any record are deleted with the lot. Animals with history
+    (matings, births, health, weights, feed…) are written off instead, so the
+    history stays but they no longer count as active or in a reproductive phase.
+    """
+    for animal in Animal.objects.select_for_update().filter(batch=batch):
+        if _animal_has_history(animal):
+            animal.status = AnimalBatch.Status.FINISHED
+            animal.reproductive_status = ''
+            animal.batch = None
+            animal.save(update_fields=['status', 'reproductive_status', 'batch', 'updated_at'])
+        else:
+            animal.delete()
+
+
 @operator_scoped
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     search_fields = ['batch_code', 'name']
@@ -1108,9 +1138,14 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         from .services import batch_financial_details
         return Response(batch_financial_details(self.get_object()))
 
+    @transaction.atomic
     def perform_destroy(self, instance):
         if instance.status == AnimalBatch.Status.SOLD or instance.historicos.filter(tipo_evento='Venda de Animais').exists():
             raise serializers.ValidationError({'detail': translate_message('Lotes com vendas devem permanecer disponíveis no relatório geral.')})
+        # Reproductive lots create one Animal per head (matrizes, marrãs, cachaços…). Their
+        # FK to the lot is SET_NULL, so without this they stayed active in the dashboard and
+        # in the reproductive phase after the registration was deleted.
+        remove_batch_animals(instance)
         super().perform_destroy(instance)
 
     @action(detail=False, methods=['get'], url_path='sales')
@@ -2190,12 +2225,12 @@ class AnimalViewSet(viewsets.ModelViewSet):
         observacao = request.data.get('observacao', '')
 
         status_map = {
-            'VENDA': Animal.Status.SOLD,
-            'MORTE': Animal.Status.DEAD,
-            'DESCARTE_SANITARIO': Animal.Status.DEAD,
-            'BAIXA_PRODUTIVA': Animal.Status.FINISHED,
+            'VENDA': AnimalBatch.Status.SOLD,
+            'MORTE': AnimalBatch.Status.DEAD,
+            'DESCARTE_SANITARIO': AnimalBatch.Status.DEAD,
+            'BAIXA_PRODUTIVA': AnimalBatch.Status.FINISHED,
         }
-        animal.status = status_map.get(tipo_descarte, Animal.Status.FINISHED)
+        animal.status = status_map.get(tipo_descarte, AnimalBatch.Status.FINISHED)
         animal.reproductive_status = ''
         animal.save(update_fields=['status', 'reproductive_status'])
 
