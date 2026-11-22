@@ -720,3 +720,33 @@ body {
   .contextual-back-button span { display: none; }
   .contextual-back-button { width: 36px; padding: 0; justify-content: center; }
 }
+
+/* Inventory item form: multi-category picker (click to toggle, no CTRL). */
+.inventory-category-picker { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.inventory-category-chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 14px;
+  border: 1px solid var(--input, var(--border)); border-radius: 999px;
+  background: var(--card); color: var(--foreground);
+  font-size: .85rem; font-weight: 600; line-height: 1.2;
+  cursor: pointer; user-select: none;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.inventory-category-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.inventory-category-chip.is-checked {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary), transparent 88%);
+  color: var(--primary); font-weight: 750;
+}
+.inventory-category-chip.is-custom { border-style: dashed; }
+.inventory-category-chip.is-custom.is-checked { border-style: solid; }
+.inventory-category-chip.is-add { border-style: dashed; border-color: var(--primary); color: var(--primary); }
+.inventory-category-chip:focus-within,
+.inventory-category-chip:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary), transparent 55%); outline-offset: 2px; }
+@media (hover: hover) {
+  .inventory-category-chip:hover { border-color: var(--primary); }
+}
+@media (max-width: 991.98px) {
+  .inventory-category-chip { min-height: 44px; }
+}

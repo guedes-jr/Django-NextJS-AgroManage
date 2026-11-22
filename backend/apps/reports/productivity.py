@@ -15,6 +15,32 @@ PHASES = ("creche", "crescimento", "engorda")
 CATEGORY_PHASE = {"Leitão": "creche", "Crescimento": "crescimento", "Terminação": "engorda"}
 
 
+def batch_phase_windows(batch, phases=PHASES):
+    """Phase windows of a batch: (phase, entry, exit, initial weight, initial quantity, history).
+
+    Batches need ``phase_histories`` and ``historicos`` prefetched.
+    """
+    histories = sorted(batch.phase_histories.all(), key=lambda item: item.entry_date)
+    events = sorted(batch.historicos.all(), key=lambda item: item.data_evento)
+    entry = next((item for item in events if item.tipo_evento == "Entrada de Lote"), None)
+    sale = next((item.metadata for item in reversed(events) if item.tipo_evento == "Fechamento de Venda do Lote"), None)
+    windows = []
+    for index, history in enumerate(histories):
+        previous = histories[index-1] if index else None
+        metadata = entry.metadata if entry else {}
+        initial_weight = history.avg_weight_kg if history.exit_date is None else previous.avg_weight_kg if previous else metadata.get("peso_medio_entrada")
+        initial_quantity = history.quantity if history.exit_date is None else previous.quantity if previous else metadata.get("quantidade")
+        if sale and sale.get("phase") == history.phase and sale.get("exit_date") == str(history.exit_date):
+            initial_weight, initial_quantity = sale.get("entry_weight_kg"), sale.get("entry_quantity")
+        windows.append((history.phase, history.entry_date, history.exit_date, initial_weight, initial_quantity, history))
+    fallback_phase = batch.phase or CATEGORY_PHASE.get(batch.category)
+    if not windows and (phases is None or fallback_phase in phases):
+        metadata = entry.metadata if entry else {}
+        windows.append((fallback_phase, batch.entry_date, batch.exit_date,
+            metadata.get("peso_medio_entrada"), metadata.get("quantidade"), None))
+    return windows
+
+
 def swine_phase_indicators(organization, year, farm_id=None):
     start, end = date(year, 1, 1), min(date(year, 12, 31), timezone.localdate())
     farms = Farm.objects.filter(organization=organization)
@@ -38,24 +64,10 @@ def swine_phase_indicators(organization, year, farm_id=None):
         "sale_days": 0, "sale_quantity": 0} for phase in PHASES}
     phase_windows = {}
     for batch in batches:
-        histories = sorted(batch.phase_histories.all(), key=lambda item: item.entry_date)
+        windows = batch_phase_windows(batch)
         events = sorted(batch.historicos.all(), key=lambda item: item.data_evento)
-        entry = next((item for item in events if item.tipo_evento == "Entrada de Lote"), None)
         sale = next((item.metadata for item in reversed(events) if item.tipo_evento == "Fechamento de Venda do Lote"), None)
         weights = sorted(batch.weights.all(), key=lambda item: item.weighing_date)
-        windows = []
-        for index, history in enumerate(histories):
-            previous = histories[index-1] if index else None
-            metadata = entry.metadata if entry else {}
-            initial_weight = history.avg_weight_kg if history.exit_date is None else previous.avg_weight_kg if previous else metadata.get("peso_medio_entrada")
-            initial_quantity = history.quantity if history.exit_date is None else previous.quantity if previous else metadata.get("quantidade")
-            if sale and sale.get("phase") == history.phase and sale.get("exit_date") == str(history.exit_date):
-                initial_weight, initial_quantity = sale.get("entry_weight_kg"), sale.get("entry_quantity")
-            windows.append((history.phase, history.entry_date, history.exit_date, initial_weight, initial_quantity, history))
-        if not windows and (batch.phase or CATEGORY_PHASE.get(batch.category)) in PHASES:
-            metadata = entry.metadata if entry else {}
-            windows.append((batch.phase or CATEGORY_PHASE[batch.category], batch.entry_date, batch.exit_date,
-                metadata.get("peso_medio_entrada"), metadata.get("quantidade"), None))
         phase_windows[batch.pk] = windows
         for phase, entered, exited, initial_weight, initial_quantity, history in windows:
             if phase not in stats or not entered or entered > end or (exited and exited < start):

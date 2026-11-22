@@ -254,7 +254,10 @@ def enrich_lot_costs(organization, rows):
         if tx.status == "cancelled":
             continue
         if tx.category.category_type == "revenue":
-            if tx.status == "paid":
+            # Same recognition rule as the general dashboard and as the costs
+            # above: a sale counts once recorded (pending or paid), not only
+            # after it is received. Cancelled entries were skipped already.
+            if batch_id is not None:
                 sales[batch_id] += tx.amount
             continue
         category = normalize(tx.category.name)
@@ -312,12 +315,21 @@ def enrich_lot_costs(organization, rows):
             add(batch_id, Decimal(entry["amount"]), "reproduction")
 
     sale_quantities = {}
+    entry_quantities, sold_quantities, death_quantities = {}, defaultdict(int), defaultdict(int)
     for event in HistoricoEvento.objects.filter(
         farm__organization=organization,
         lote_id__in=ids,
-        tipo_evento="Fechamento de Venda do Lote",
-    ).order_by("created_at"):
-        sale_quantities[str(event.lote_id)] = event.metadata.get("quantity")
+        tipo_evento__in=["Fechamento de Venda do Lote", "Entrada de Lote", "Venda de Animais", "Mortalidade de Lote"],
+    ).order_by("data_evento", "created_at"):
+        lot_id, metadata = str(event.lote_id), event.metadata or {}
+        if event.tipo_evento == "Fechamento de Venda do Lote":
+            sale_quantities[lot_id] = metadata.get("quantity")
+        elif event.tipo_evento == "Entrada de Lote":
+            entry_quantities.setdefault(lot_id, metadata.get("quantidade"))
+        elif event.tipo_evento == "Venda de Animais":
+            sold_quantities[lot_id] += int(metadata.get("quantity") or 0)
+        else:
+            death_quantities[lot_id] += int(metadata.get("quantidade_mortes") or 0)
     for row in rows:
         batch_id = row["id"]
         batch = batches[batch_id]
@@ -365,6 +377,14 @@ def enrich_lot_costs(organization, rows):
         cost_quantity = (
             sale_quantities.get(batch_id) if batch.status == "sold" else batch.quantity
         )
+        # A closed lot keeps its last quantity on the model; nobody is left in it.
+        current_quantity = batch.quantity if batch.status == "active" else 0
+        # Original lot size: entry record, else first phase entry, else what is left + what left it.
+        total_quantity = entry_quantities.get(batch_id)
+        if total_quantity is None and histories[batch_id]:
+            total_quantity = histories[batch_id][0].quantity
+        if total_quantity is None:
+            total_quantity = current_quantity + sold_quantities[batch_id] + death_quantities[batch_id]
         row.update(
             reproduction_allocation_pending=batch_id
             in sire_allocation["pending_batches"],
@@ -372,6 +392,8 @@ def enrich_lot_costs(organization, rows):
             production_type=production,
             matrices=sorted(names),
             missing_cost_count=missing[batch_id],
+            current_quantity=current_quantity,
+            total_quantity=int(total_quantity),
             cost_quantity=cost_quantity,
             **{
                 key: str(value) if value is not None else None

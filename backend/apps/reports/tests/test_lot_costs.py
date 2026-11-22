@@ -63,10 +63,7 @@ class LotCostsTest(APITestCase):
             category=category,
             animal_batch=batch,
             amount=amount,
-            due_date=self.start,
-            payment_date=self.start,
-            status="paid",
-            **kwargs,
+            **{"due_date": self.start, "payment_date": self.start, "status": "paid", **kwargs},
         )
 
     def report(self):
@@ -118,6 +115,38 @@ class LotCostsTest(APITestCase):
         }.items():
             self.assertEqual(Decimal(row[key]), amount, key)
         self.assertIsNone(row["finishing"])
+
+    def test_total_lot_size_stays_after_sales_and_current_goes_to_zero(self):
+        lot = self.new_batch("L010", quantity=10)
+        HistoricoEvento.objects.create(farm=self.farm, lote=lot, tipo_evento="Entrada de Lote",
+            data_evento=self.start, metadata={"quantidade": 10})
+        lot.quantity = 5  # first sale: 5 animals
+        lot.save()
+        HistoricoEvento.objects.create(farm=self.farm, lote=lot, tipo_evento="Venda de Animais",
+            data_evento=self.start, metadata={"quantity": 5})
+        row = self.report()[str(lot.pk)]
+        self.assertEqual((row["total_quantity"], row["current_quantity"]), (10, 5))
+        lot.status = "sold"  # closing sale keeps quantity=5 on the model
+        lot.save()
+        row = self.report()[str(lot.pk)]
+        self.assertEqual((row["total_quantity"], row["current_quantity"]), (10, 0))
+
+    def test_total_lot_size_without_entry_record_uses_sales_and_deaths(self):
+        lot = self.new_batch("L011", quantity=6, origin="born", purchase_value=None)
+        HistoricoEvento.objects.create(farm=self.farm, lote=lot, tipo_evento="Venda de Animais",
+            data_evento=self.start, metadata={"quantity": 3})
+        HistoricoEvento.objects.create(farm=self.farm, lote=lot, tipo_evento="Mortalidade de Lote",
+            data_evento=self.start, metadata={"quantidade_mortes": 1})
+        self.assertEqual(self.report()[str(lot.pk)]["total_quantity"], 10)
+
+    def test_recorded_sale_counts_before_it_is_received(self):
+        sold = self.new_batch("L009")
+        self.transaction("Venda de Animais", 500, sold, kind="revenue", status="pending", payment_date=None,
+            reference=f"SALE-BATCH-{sold.pk}")
+        self.transaction("Venda de Animais", 70, sold, kind="revenue", status="cancelled")
+        row = self.report()[str(sold.pk)]
+        self.assertEqual(Decimal(row["sales"]), 500)
+        self.assertEqual(Decimal(row["profit"]), 500 - Decimal(row["total_cost"]))
 
     def test_phase_is_historical_not_current_and_unknown_stays_unassigned(self):
         BatchPhaseHistory.objects.create(

@@ -12,6 +12,7 @@ router.register(r"widgets", views.ReportWidgetViewSet, basename="report-widget")
 urlpatterns = [
     path("", include(router.urls)),
     path("livestock/productivity/", views.livestock_productivity_report, name="livestock-productivity-report"),
+    path("livestock/lot-indicators/", views.livestock_lot_indicators_report, name="livestock-lot-indicators-report"),
     path("dashboard/", views.dashboard_summary, name="dashboard-summary"),
     path("stock/general/", views.stock_general_report, name="stock-general-report"),
     path("stock/movement/", views.stock_movement_report, name="stock-movement-report"),

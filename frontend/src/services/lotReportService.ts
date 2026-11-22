@@ -22,7 +22,9 @@ export type LotReportItem = Partial<Record<LotCostKey, string | null>> & {
   id: string; batch_code: string; name?: string; quantity: number; category?: string;
   breed?: string; farm: string; entry_date?: string; status: string; status_display?: string;
   avg_weight?: number; species_code: string; phase?: string; production_type?: string;
-  matrices?: string[]; missing_cost_count?: number; cost_quantity?: number | null; reproduction_allocation_pending?: boolean;
+  matrices?: string[]; missing_cost_count?: number;
+  /** Original lot size (entry), kept after sales. */ total_quantity?: number;
+  /** Animals still in the lot: 0 once it is closed. */ current_quantity?: number; cost_quantity?: number | null; reproduction_allocation_pending?: boolean;
 };
 export interface LotReport {
   total_animals: number; total_active_animals: number; items: LotReportItem[];
@@ -56,8 +58,26 @@ export function lotReportTotals(items: LotReportItem[]): Record<LotCostKey, numb
   totals.margin = totals.sales && totals.profit != null ? totals.profit / totals.sales * 100 : null;
   return totals;
 }
-export const lotReportHeaders = ["Lote", "Tipo de Produção", "Matrizes", "Animais Atuais", "Status do Lote", ...lotCostColumns.map(column => column.label)];
+/** Animals still in the lot (a closed lot keeps its last quantity on the model). */
+export const lotCurrentQuantity = (item: LotReportItem) => item.current_quantity ?? (item.status === "active" ? item.quantity : 0);
+export const lotReportHeaders = ["Lote", "Tipo de Produção", "Matrizes", "Total do Lote", "Animais Atuais", "Status do Lote", ...lotCostColumns.map(column => column.label)];
 export function lotReportExportRow(item: LotReportItem) {
-  return [item.batch_code, item.production_type || "—", item.matrices?.join(", ") || "—", item.quantity,
+  return [item.batch_code, item.production_type || "—", item.matrices?.join(", ") || "—", item.total_quantity ?? "—", lotCurrentQuantity(item),
     lotReportStatus(item), ...lotCostColumns.map(({ key }) => item[key] == null ? "—" : Number(item[key]))];
+}
+
+export interface LotIndicators {
+  start: string; end: string; lots: number;
+  initial_quantity: number; initial_weight_kg: number | null;
+  current_quantity: number; current_weight_kg: number | null;
+  daily_gain_kg: number | null; total_gain_kg: number | null;
+  feed_conversion: number | null; deaths: number; mortality_pct: number | null;
+  feed_kg: number; feed_per_animal_day_kg: number | null;
+  feed_cost: number; cost_per_kg_gain: number | null;
+}
+/** Zootechnical indicators of the given lots in the period (same rules as the productivity tab). */
+export async function getLotIndicators(start: string, end: string, batchIds: string[], signal?: AbortSignal) {
+  return (await apiClient.get<LotIndicators>("/reports/livestock/lot-indicators/", {
+    params: { start, end, batches: batchIds.join(",") }, signal,
+  })).data;
 }

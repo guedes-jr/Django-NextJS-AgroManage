@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
+import { Check, Plus, Trash2, Package, Tag, Calendar, Banknote, Warehouse, Thermometer, Leaf, FileText, CheckCircle2, ChevronRight, Hash, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, Clock, Activity } from "lucide-react";
 import { useOrganizationLocale } from "@/lib/locale";
 
 export type InventoryCategory =
@@ -179,6 +179,16 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
 
   const categorySelectValue = (row: InventoryRow) => row.categorias || [row.categoria || "outro"];
 
+  // One click marks or unmarks a category (no CTRL needed). Unmarking everything falls back to "outro".
+  const toggleCategory = (row: InventoryRow, value: InventoryCategory) => {
+    const current = categorySelectValue(row);
+    updateCategories(row.id, current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  };
+
+  const clearCustomCategory = (id: number) => {
+    setRows(r => r.map(x => x.id === id ? { ...x, categoria_personalizada: "", categoria_personalizada_id: "" } : x));
+  };
+
   const openCategoryDialog = (rowId: number) => {
     setCategoryDialogRowId(rowId);
     setNewCategoryName("");
@@ -332,64 +342,42 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                           </div>
 
                           {!category && (
-                            <div className="col-12 col-md-3">
-                              <div className="login-input-group mb-0">
-                                <label className="login-label fw-semibold text-xs">{t("stock.category")} <span className="text-danger">*</span></label>
-                                <div className="d-flex gap-2">
-                                  <select
-                                    multiple
-                                    className="login-input bg-transparent text-foreground rounded-xl"
-                                    style={{ paddingLeft: "1rem", minHeight: 92 }}
-                                    value={categorySelectValue(row)}
-                                    onChange={e => {
-                                      const selectedCategories = Array.from(e.target.selectedOptions)
-                                        .map((option) => option.value)
-                                        .filter((value) => !value.startsWith("custom:")) as InventoryCategory[];
-                                      const selectedCustom = Array.from(e.target.selectedOptions)
-                                        .map((option) => option.value)
-                                        .find((value) => value.startsWith("custom:"));
-                                      updateCategories(row.id, selectedCategories);
-                                      if (selectedCustom) {
-                                        const customCategory = customCategories.find((item) => item.id === selectedCustom.replace("custom:", ""));
-                                        if (customCategory) updateCustomCategory(row.id, customCategory);
-                                      }
-                                    }}
-                                  >
-                                    {categoryEntries.map(([v]) => (
-                                      <option key={v} value={v}>{categoryLabel(v as InventoryCategory)}</option>
-                                    ))}
-                                    {customCategories.length > 0 && (
-                                      <optgroup label={t("inventory.form.registeredCategories")}>
-                                        {customCategories.map((item) => (
-                                          <option key={item.id} value={`custom:${item.id}`}>{item.label}</option>
-                                        ))}
-                                      </optgroup>
-                                    )}
-                                  </select>
+                            <div className="col-12">
+                              <fieldset className="login-input-group mb-0">
+                                <legend className="login-label fw-semibold text-xs">
+                                  {t("stock.category")} <span className="text-danger">*</span>
+                                  <span className="fw-normal text-muted-foreground ms-2">{t("inventory.form.categoriesHint")}</span>
+                                </legend>
+                                <div className="inventory-category-picker">
+                                  {categoryEntries.map(([v]) => {
+                                    const checked = categorySelectValue(row).includes(v as InventoryCategory);
+                                    return (
+                                      <label key={v} className={`inventory-category-chip${checked ? " is-checked" : ""}`}>
+                                        <input type="checkbox" checked={checked} onChange={() => toggleCategory(row, v as InventoryCategory)} />
+                                        {checked && <Check size={14} aria-hidden="true" />}
+                                        {categoryLabel(v as InventoryCategory)}
+                                      </label>
+                                    );
+                                  })}
+                                  {customCategories.map((item) => {
+                                    const checked = row.categoria_personalizada_id === item.id;
+                                    return (
+                                      <label key={item.id} className={`inventory-category-chip is-custom${checked ? " is-checked" : ""}`}>
+                                        <input type="checkbox" checked={checked} onChange={() => checked ? clearCustomCategory(row.id) : updateCustomCategory(row.id, item)} />
+                                        {checked && <Check size={14} aria-hidden="true" />}
+                                        {item.label}
+                                      </label>
+                                    );
+                                  })}
                                   <button
                                     type="button"
-                                    className="btn btn-outline-primary d-flex align-items-center justify-content-center"
-                                    title={t("inventory.form.addCategory")}
-                                    aria-label={t("inventory.form.addCategory")}
+                                    className="inventory-category-chip is-add"
                                     onClick={() => openCategoryDialog(row.id)}
-                                    style={{ width: 46, height: 46, borderRadius: 12, flex: "0 0 46px" }}
                                   >
-                                    <Plus size={18} />
+                                    <Plus size={14} aria-hidden="true" /> {t("inventory.form.addCategory")}
                                   </button>
                                 </div>
-                                <div className="d-flex flex-wrap gap-1 mt-2">
-                                  {categorySelectValue(row).map((value) => (
-                                    <span key={value} className="badge bg-primary/10 text-primary border border-primary/10">
-                                      {CATEGORY_CONFIG[value as InventoryCategory] ? categoryLabel(value as InventoryCategory) : value}
-                                    </span>
-                                  ))}
-                                  {row.categoria_personalizada && (
-                                    <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
-                                      {row.categoria_personalizada}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                              </fieldset>
                             </div>
                           )}
 

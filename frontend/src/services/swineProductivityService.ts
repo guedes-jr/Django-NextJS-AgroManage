@@ -18,8 +18,13 @@ export async function getSwineProductivity(year: string, farm: string, signal?: 
 }
 
 export async function getAllSwineFemales<T>(signal?: AbortSignal): Promise<T[]> {
+  return getAllPages<T>("/livestock/animals/?species=suinos", signal);
+}
+
+/** Follows `next` links: the API caps each page at 100 items, so a single large page_size is not enough. */
+export async function getAllPages<T>(path: string, signal?: AbortSignal): Promise<T[]> {
   const items: T[] = [];
-  let next: string | null = "/livestock/animals/?species=suinos&page_size=100";
+  let next: string | null = `${path}${path.includes("?") ? "&" : "?"}page_size=100`;
   while (next) {
     const { data }: { data: T[] | { results: T[]; next: string | null } } = await apiClient.get(next, { signal });
     if (Array.isArray(data)) return [...items, ...data];

@@ -3,15 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowLeft, CalendarDays, ClipboardList, DollarSign, MapPin,
-  Maximize2, Pencil, Plus, RulerIcon, Search, Trash2,
-} from "lucide-react";
+import { ArrowLeft, Check, MapPin, Pencil, Plus, RulerIcon, Search, Trash2, X } from "lucide-react";
 
 import { apiClient } from "@/services/api";
 import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
-import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
+import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem } from "@/types";
 import { LocationPicker } from "@/components/farm/LocationPicker";
+import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganizationLocale } from "@/lib/locale";
 
@@ -33,7 +31,8 @@ export interface StructureDedicatedPageProps {
   defaultName: string;
 }
 
-const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "0.00" };
+const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "" };
+const structureTotal = (asset: FarmStructure) => Number(asset.current_value) * asset.quantity + Number(asset.items_value || 0);
 
 const apiMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error) || !error.response?.data) return fallback;
@@ -85,7 +84,6 @@ export function StructureDedicatedPage({
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [structures, setStructures] = useState<FarmStructure[]>([]);
-  const [summary, setSummary] = useState<FarmStructureSummary | null>(null);
   const [allCategoryCounts, setAllCategoryCounts] = useState<Partial<Record<FarmStructureCategory, number>>>({});
 
   const emptyForm: FarmStructurePayload = useMemo(() => ({
@@ -101,6 +99,9 @@ export function StructureDedicatedPage({
   const [selected, setSelected] = useState<FarmStructure | null>(null);
   const [structureItem, setStructureItem] = useState<FarmStructureItemPayload>(emptyItem);
   const [showAddItem, setShowAddItem] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [costsOpen, setCostsOpen] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
 
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -117,8 +118,21 @@ export function StructureDedicatedPage({
   const subtitle = t("structure.dedicated.subtitle");
   const formatMoney = (value: string | number) =>
     Number(value || 0).toLocaleString(language, { style: "currency", currency: "BRL" });
-  const formatArea = (value: string | number | null | undefined) =>
-    value ? `${Number(value).toLocaleString(language, { minimumFractionDigits: 2 })} m²` : "—";
+
+  const editStructure = (asset: FarmStructure) => {
+    setEditing(asset); setSelected(asset);
+    setStructureItem({ ...emptyItem, structure: asset.id });
+    setForm({
+      farm: asset.farm, category: asset.category, name: asset.name, description: asset.description,
+      built_area_m2: asset.built_area_m2, length_m: asset.length_m, width_m: asset.width_m,
+      quantity: asset.quantity, acquisition_value: asset.acquisition_value,
+      current_value: asset.current_value, acquisition_date: asset.acquisition_date,
+      last_maintenance_date: asset.last_maintenance_date, next_maintenance_date: asset.next_maintenance_date,
+      maintenance_notes: asset.maintenance_notes,
+      is_active: asset.is_active, notes: asset.notes, latitude: asset.latitude, longitude: asset.longitude,
+    });
+    setFormOpen(true);
+  };
 
   useEffect(() => {
     let active = true;
@@ -136,16 +150,15 @@ export function StructureDedicatedPage({
   useEffect(() => {
     if (!farmId) return;
     let active = true;
-    Promise.all([farmStructureService.list(farmId), farmStructureService.summary(farmId)])
-      .then(([listResponse, summaryResponse]) => {
+    farmStructureService.list(farmId)
+      .then((listResponse) => {
         if (active) {
           const all: FarmStructure[] = listResponse.data.results;
           const counts: Partial<Record<FarmStructureCategory, number>> = {};
-          all.forEach((s) => { counts[s.category] = (counts[s.category] || 0) + s.items.length; });
+          all.forEach((s) => { counts[s.category] = (counts[s.category] || 0) + 1; });
           setAllCategoryCounts(counts);
           const items = all.filter((s) => s.category === category);
           setStructures(items);
-          setSummary(summaryResponse.data);
           const editId = searchParams?.get("edit");
           if (editId) {
             const itemToEdit = items.find((s) => s.id === editId);
@@ -160,17 +173,13 @@ export function StructureDedicatedPage({
   }, [farmId, category, categoryLabel, t]);
 
   const refresh = async () => {
-    const [listResponse, summaryResponse] = await Promise.all([
-      farmStructureService.list(farmId),
-      farmStructureService.summary(farmId),
-    ]);
+    const listResponse = await farmStructureService.list(farmId);
     const all: FarmStructure[] = listResponse.data.results;
     const counts: Partial<Record<FarmStructureCategory, number>> = {};
-    all.forEach((s) => { counts[s.category] = (counts[s.category] || 0) + s.items.length; });
+    all.forEach((s) => { counts[s.category] = (counts[s.category] || 0) + 1; });
     setAllCategoryCounts(counts);
     const items = all.filter((s) => s.category === category);
     setStructures(items);
-    setSummary(summaryResponse.data);
     if (selected) setSelected(items.find((a) => a.id === selected.id) || null);
   };
 
@@ -200,19 +209,21 @@ export function StructureDedicatedPage({
     setStructureItem(emptyItem); setShowAddItem(false);
   };
 
-  const editStructure = (asset: FarmStructure) => {
-    setEditing(asset); setSelected(asset);
+  const openNew = () => { resetForm(); setFormOpen(true); };
+  const closeForm = () => { setFormOpen(false); setError(""); resetForm(); };
+
+  const openCosts = (asset: FarmStructure) => {
+    setSelected(asset);
     setStructureItem({ ...emptyItem, structure: asset.id });
-    setForm({
-      farm: asset.farm, category: asset.category, name: asset.name, description: asset.description,
-      built_area_m2: asset.built_area_m2, length_m: asset.length_m, width_m: asset.width_m,
-      quantity: asset.quantity, acquisition_value: asset.acquisition_value,
-      current_value: asset.current_value, acquisition_date: asset.acquisition_date,
-      last_maintenance_date: asset.last_maintenance_date, next_maintenance_date: asset.next_maintenance_date,
-      maintenance_notes: asset.maintenance_notes,
-      is_active: asset.is_active, notes: asset.notes, latitude: asset.latitude, longitude: asset.longitude,
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setShowAddItem(true);
+    setError("");
+    setCostsOpen(true);
+  };
+  const closeCosts = () => { setCostsOpen(false); setError(""); setSelected(null); setShowAddItem(false); };
+  const editStructureData = () => {
+    const asset = selected;
+    setCostsOpen(false);
+    if (asset) editStructure(asset);
   };
 
   const saveStructure = async (e: FormEvent) => {
@@ -222,10 +233,12 @@ export function StructureDedicatedPage({
       const response = editing
         ? await farmStructureService.update(editing.id, payload)
         : await farmStructureService.create(payload);
-      setEditing(response.data); setSelected(response.data);
-      setStructureItem({ ...emptyItem, structure: response.data.id });
       await refresh();
       showToast(editing ? t("structure.dedicated.updateSuccess") : t("structure.dedicated.saveSuccess"), "success");
+      setFormOpen(false);
+      resetForm();
+      // New structure: go straight to its cost entries.
+      if (!editing) openCosts(response.data);
     } catch (err) {
       const msg = apiMessage(err, t("structure.dedicated.save"));
       setError(msg); showToast(msg, "error");
@@ -233,34 +246,43 @@ export function StructureDedicatedPage({
   };
 
   const addMaterial = async () => {
-    if (!selected) return;
+    if (!selected || addingItem) return;
+    if (!structureItem.name.trim()) { setError(t("structure.dedicated.itemNameRequired")); return; }
+    setAddingItem(true); setError("");
     try {
-      await farmStructureService.addItem({ ...structureItem, structure: selected.id });
+      await farmStructureService.addItem({
+        ...structureItem,
+        name: structureItem.name.trim(),
+        quantity: structureItem.quantity || "1",
+        value: structureItem.value || "0",
+        structure: selected.id,
+      });
       setStructureItem({ ...emptyItem, structure: selected.id });
-      setShowAddItem(false);
       await refresh();
       showToast(t("structure.dedicated.itemAdded"), "success");
     } catch (err) {
       const msg = apiMessage(err, t("structure.dedicated.addItemFailed"));
       setError(msg); showToast(msg, "error");
-    }
+    } finally { setAddingItem(false); }
+  };
+
+  const removeMaterial = async (item: FarmStructureItem) => {
+    if (!confirm(t("structure.dedicated.removeItemConfirm", { name: item.name }))) return;
+    try {
+      await farmStructureService.removeItem(item.id);
+      await refresh();
+    } catch { setError(t("structure.dedicated.removeItemFailed")); }
   };
 
   const removeStructure = async (asset: FarmStructure) => {
     if (!confirm(t("structure.dedicated.deleteConfirm", { name: asset.name }))) return;
     try {
       await farmStructureService.remove(asset.id);
-      if (selected?.id === asset.id) resetForm();
+      if (selected?.id === asset.id) { closeForm(); closeCosts(); }
       await refresh();
       showToast(t("structure.dedicated.deleted"), "success");
     } catch { setError(t("structure.dedicated.deleteFailed")); }
   };
-
-  // Summary totals
-  const totalItems = selected?.items.length || 0;
-  const acquisitionDate = selected?.acquisition_date
-    ? new Date(selected.acquisition_date).toLocaleDateString(language)
-    : "—";
 
   return (
     <div className={styles.page}>
@@ -276,25 +298,25 @@ export function StructureDedicatedPage({
             <p>{subtitle}</p>
           </div>
         </div>
-        <button className={styles.heroBtn} onClick={resetForm}>
-          <Plus size={16} /> {t("structure.dedicated.new")}
-        </button>
       </header>
 
       <main className={styles.content}>
-        {/* Farm selector */}
-        <div className={styles.farmRow}>
+        {/* Farm selector + launch action */}
+        <div className={styles.toolbar}>
           <select
-            className="form-select"
-            style={{ maxWidth: 300 }}
+            className={`form-select ${styles.farmSelect}`}
+            aria-label={t("structure.dedicated.farm")}
             value={farmId}
             onChange={(e) => { setLoading(true); setFarmId(e.target.value); setForm({ ...emptyForm, farm: e.target.value }); }}
           >
             {farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}
           </select>
+          <button type="button" className={styles.launchBtn} onClick={openNew} disabled={!farmId}>
+            <Plus size={18} /> {t("structure.dedicated.launchNew")}
+          </button>
         </div>
 
-        {error && <div className={styles.error}>{error}</div>}
+        {error && !formOpen && !costsOpen && <div className={styles.error}>{error}</div>}
 
         {/* ── 1. Category nav ── */}
         <p className={styles.stepLabel}>{t("structure.dedicated.stepCategory")}</p>
@@ -307,17 +329,30 @@ export function StructureDedicatedPage({
             >
               <div className={styles.catIcon}>{icon}</div>
               <h3>{t(CATEGORY_LABEL_KEYS[value] as Parameters<typeof t>[0])}</h3>
-              <span>{t("structure.home.categoryCount", { count: (allCategoryCounts[value] ?? 0).toLocaleString(language) })}</span>
+              <span>{t((allCategoryCounts[value] ?? 0) === 1 ? "structure.dedicated.countOne" : "structure.home.categoryCount", { count: (allCategoryCounts[value] ?? 0).toLocaleString(language) })}</span>
             </button>
           ))}
         </div>
 
-        {/* ── 2. Launch panel ── */}
-        <form onSubmit={saveStructure}>
-          <div className={styles.launchPanel}>
-            <p className={styles.launchTitle}>
-              {t("structure.dedicated.launch")} — {categoryLabel}
-            </p>
+        {/* ── Launch dialog ── */}
+        <Modal
+          isOpen={formOpen}
+          onClose={closeForm}
+          title={`${editing ? t("structure.dedicated.editTitle") : t("structure.dedicated.launchNew")} — ${categoryLabel}`}
+          maxWidth="max-w-5xl"
+          footer={
+            <div className={styles.modalActions}>
+              {!editing && <button type="button" className={styles.btnSecondary} onClick={resetForm}>{t("structure.dedicated.clear")}</button>}
+              <button type="button" className={styles.btnSecondary} onClick={closeForm}>{t("structure.dedicated.close")}</button>
+              <button type="submit" form="structure-launch-form" className={styles.btnPrimary} disabled={saving || !farmId}>
+                {saving ? t("structure.dedicated.saving") : editing ? t("structure.dedicated.update") : t("structure.dedicated.save")}
+              </button>
+            </div>
+          }
+        >
+        <form id="structure-launch-form" onSubmit={saveStructure}>
+          <div className={styles.modalBody}>
+            {error && <div className={styles.error} role="alert">{error}</div>}
 
             {/* top field row */}
             <div className="row g-3 mb-4">
@@ -389,123 +424,13 @@ export function StructureDedicatedPage({
               </div>
             </div>
 
-            {/* Two-column: Items + Map */}
-            <div className={styles.twoCol}>
-              {/* Items panel */}
-              <div className={styles.itemsPanel}>
-                <div className={styles.itemsPanelHeader}>
-                  <div className={styles.itemsPanelTitle}>
-                    <span className={styles.itemsNum}>1</span>
-                    {t("structure.dedicated.items")}
-                  </div>
-                  {selected && (
-                    <button type="button" className={styles.addItemBtn} onClick={() => setShowAddItem(!showAddItem)}>
-                      <Plus size={14} /> {t("structure.dedicated.addItem")}
-                    </button>
-                  )}
-                </div>
-                {!selected && (
-                  <div className="p-3 text-muted small">
-                    {t("structure.dedicated.saveBeforeItems")}
-                  </div>
-                )}
-                {selected && (
-                  <table className={styles.itemsTable}>
-                    <thead>
-                      <tr>
-                        <th>{t("structure.dedicated.item")}</th>
-                        <th>{t("structure.dedicated.quantity")}</th>
-                        <th>{t("structure.dedicated.unit")}</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {showAddItem && (
-                        <tr className={styles.addItemRow}>
-                          <td>
-                            <input
-                              required
-                              value={structureItem.name}
-                              onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })}
-                              list="dedicated-materials"
-                              placeholder={t("structure.dedicated.itemName")}
-                            />
-                            <datalist id="dedicated-materials">
-                              {defaultMaterials.map((opt) => <option key={opt} value={opt} />)}
-                            </datalist>
-                          </td>
-                          <td>
-                            <input
-                              type="number" min="0.01" step="0.01"
-                              value={structureItem.quantity}
-                              onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })}
-                            />
-                          </td>
-                          <td>
-                            <select value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })}>
-                              <option value="un">un</option>
-                              <option value="m">m</option>
-                              <option value="m²">m²</option>
-                              <option value="m³">m³</option>
-                              <option value="kg">kg</option>
-                              <option value="L">L</option>
-                              <option value="serviço">serviço</option>
-                            </select>
-                          </td>
-                          <td style={{ display: "flex", gap: 4 }}>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-success"
-                              onClick={() => void addMaterial()}
-                            >
-                              ✓
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-secondary"
-                              onClick={() => setShowAddItem(false)}
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      )}
-                      {selected.items.length === 0 && !showAddItem && (
-                        <tr>
-                          <td colSpan={4} className="text-center text-muted small py-3">
-                            {t("structure.dedicated.noItems")}
-                          </td>
-                        </tr>
-                      )}
-                      {selected.items.map((item) => (
-                        <tr key={item.id}>
-                          <td className="fw-medium">{item.name}</td>
-                          <td>{Number(item.quantity).toLocaleString(language)}</td>
-                          <td>{item.unit}</td>
-                          <td>
-                            {canDelete && (
-                              <button
-                                type="button"
-                                className="btn btn-sm text-danger p-0"
-                                onClick={() => void farmStructureService.removeItem(item.id).then(refresh)}
-                                title={t("structure.dedicated.removeItem")}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
+            {/* Location */}
+            <div className="mb-4">
               {/* Location panel */}
               <div className={styles.locationPanel}>
                 <div className={styles.locationPanelHeader}>
                   <div className={styles.locationPanelTitle}>
-                    <span className={styles.locationNum}>2</span>
+                    <span className={styles.locationNum}>1</span>
                     {t("structure.dedicated.location")}
                   </div>
                 </div>
@@ -535,7 +460,7 @@ export function StructureDedicatedPage({
             {/* Dimensions */}
             <div className={styles.dimSection}>
               <div className={styles.dimTitle}>
-                <span className={styles.dimNum}>3</span>
+                <span className={styles.dimNum}>2</span>
                 <RulerIcon size={14} />
                 {t("structure.dedicated.dimensions")}
               </div>
@@ -570,52 +495,149 @@ export function StructureDedicatedPage({
               </div>
             </div>
 
-            {/* Actions */}
-            <div className={styles.formActions}>
-              <button type="button" className={styles.btnSecondary} onClick={resetForm}>{t("structure.dedicated.clear")}</button>
-              <button className={styles.btnPrimary} disabled={saving || !farmId}>
-                {saving ? t("structure.dedicated.saving") : editing ? t("structure.dedicated.update") : t("structure.dedicated.save")}
-              </button>
-            </div>
           </div>
         </form>
+        </Modal>
 
-        {/* ── Summary Total ── */}
-        <div className={styles.summaryTotal}>
-          <p className={styles.summaryTotalTitle}>{t("structure.dedicated.totalSummary")}</p>
-          <div className={styles.summaryCards}>
-            <div className={styles.summaryCard}>
-              <div className={styles.summaryCardIcon}><ClipboardList size={20} /></div>
-              <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>{t("structure.dedicated.registeredItems")}</span>
-                <span className={styles.summaryCardValue}>{totalItems.toLocaleString(language)}</span>
-                <span className={styles.summaryCardSub}>{t("structure.dedicated.registeredItemsHelp")}</span>
+        {/* ── Cost entries dialog (pencil) ── */}
+        <Modal
+          isOpen={costsOpen && !!selected}
+          onClose={closeCosts}
+          title={`${t("structure.dedicated.costsTitle")} — ${selected?.name ?? ""}`}
+          description={categoryLabel}
+          maxWidth="max-w-4xl"
+          footer={
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={editStructureData}>
+                <Pencil size={14} /> {t("structure.dedicated.editData")}
+              </button>
+              <button type="button" className={styles.btnPrimary} onClick={closeCosts}>{t("structure.dedicated.done")}</button>
+            </div>
+          }
+        >
+          {selected && (
+            <div className={styles.modalBody}>
+              {error && <div className={styles.error} role="alert">{error}</div>}
+              <div className={styles.itemsPanel}>
+                <div className={styles.itemsPanelHeader}>
+                  <h3 className={styles.itemsPanelTitle}>
+                    <span className={styles.itemsNum}>1</span>
+                    {t("structure.dedicated.itemsServices")}
+                  </h3>
+                  {!showAddItem && (
+                    <button type="button" className={styles.addItemBtn} onClick={() => setShowAddItem(true)}>
+                      <Plus size={16} /> {t("structure.dedicated.addItemService")}
+                    </button>
+                  )}
+                </div>
+                <div className={styles.itemsScroll}>
+                  <table className={styles.itemsTable}>
+                    <thead>
+                      <tr>
+                        <th>{t("structure.dedicated.itemService")}</th>
+                        <th>{t("structure.dedicated.quantity")}</th>
+                        <th>{t("structure.dedicated.unit")}</th>
+                        <th>{t("structure.dedicated.valueBrl")}</th>
+                        <th aria-label={t("structure.home.tableActions")} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {showAddItem && (
+                        <tr className={styles.addItemRow}>
+                          <td>
+                            <input
+                              autoFocus
+                              aria-label={t("structure.dedicated.itemService")}
+                              value={structureItem.name}
+                              onChange={(e) => setStructureItem({ ...structureItem, name: e.target.value })}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addMaterial(); } }}
+                              list="dedicated-materials"
+                              placeholder={t("structure.dedicated.itemServiceName")}
+                            />
+                            <datalist id="dedicated-materials">
+                              {defaultMaterials.map((opt) => <option key={opt} value={opt} />)}
+                            </datalist>
+                          </td>
+                          <td>
+                            <input
+                              aria-label={t("structure.dedicated.quantity")}
+                              type="number" min="0.01" step="0.01" inputMode="decimal"
+                              value={structureItem.quantity}
+                              onChange={(e) => setStructureItem({ ...structureItem, quantity: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <select aria-label={t("structure.dedicated.unit")} value={structureItem.unit} onChange={(e) => setStructureItem({ ...structureItem, unit: e.target.value })}>
+                              <option value="un">un</option>
+                              <option value="m">m</option>
+                              <option value="m²">m²</option>
+                              <option value="m³">m³</option>
+                              <option value="kg">kg</option>
+                              <option value="L">L</option>
+                              <option value="serviço">serviço</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              aria-label={t("structure.dedicated.valueBrl")}
+                              type="number" min="0" step="0.01" inputMode="decimal"
+                              placeholder="0,00"
+                              value={structureItem.value}
+                              onChange={(e) => setStructureItem({ ...structureItem, value: e.target.value })}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addMaterial(); } }}
+                            />
+                          </td>
+                          <td>
+                            <div className={styles.addItemActions}>
+                              <button type="button" className={styles.confirmItemBtn} onClick={() => void addMaterial()} disabled={addingItem} aria-label={t("structure.dedicated.confirmItem")} title={t("structure.dedicated.confirmItem")}>
+                                <Check size={18} />
+                              </button>
+                              <button type="button" className={styles.cancelItemBtn} onClick={() => { setShowAddItem(false); setStructureItem({ ...emptyItem, structure: selected.id }); }} aria-label={t("structure.dedicated.cancelItem")} title={t("structure.dedicated.cancelItem")}>
+                                <X size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {selected.items.length === 0 && !showAddItem && (
+                        <tr><td colSpan={5} className={styles.itemsEmpty}>{t("structure.dedicated.noItems")}</td></tr>
+                      )}
+                      {selected.items.map((item) => (
+                        <tr key={item.id}>
+                          <td className={styles.itemName}>{item.name}</td>
+                          <td className={styles.num}>{Number(item.quantity).toLocaleString(language)}</td>
+                          <td>{item.unit}</td>
+                          <td className={styles.num}>{Number(item.value).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td>
+                            {canDelete && (
+                              <button type="button" className={styles.removeItemBtn} onClick={() => void removeMaterial(item)} aria-label={`${t("structure.dedicated.removeItem")}: ${item.name}`} title={t("structure.dedicated.removeItem")}>
+                                <Trash2 size={18} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {selected.items.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={3}>{t("structure.dedicated.costsTotal")}</td>
+                          <td className={styles.num}>{formatMoney(selected.items_value)}</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+              <div className={styles.costsSummary}>
+                <span>{t("structure.dedicated.totalValue")}</span>
+                <strong>{formatMoney(structureTotal(selected))}</strong>
+                <small>{t("structure.dedicated.totalValueHelp")}</small>
               </div>
             </div>
-            <div className={styles.summaryCard}>
-              <div className={styles.summaryCardIcon}><DollarSign size={20} /></div>
-              <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>{t("structure.dedicated.category")}</span>
-                <span className={styles.summaryCardValue}>{categoryLabel}</span>
-                <span className={styles.summaryCardSub}>{t("structure.dedicated.records", { count: structures.length.toLocaleString(language) })}</span>
-              </div>
-            </div>
-            <div className={styles.summaryCard}>
-              <div className={styles.summaryCardIcon}><Maximize2 size={20} /></div>
-              <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>{t("structure.dedicated.builtArea")}</span>
-                <span className={styles.summaryCardValue}>{formatArea(selected?.built_area_m2)}</span>
-              </div>
-            </div>
-            <div className={styles.summaryCard}>
-              <div className={styles.summaryCardIcon}><CalendarDays size={20} /></div>
-              <div className={styles.summaryCardInfo}>
-                <span className={styles.summaryCardLabel}>{t("structure.dedicated.registrationDate")}</span>
-                <span className={styles.summaryCardValue} style={{ fontSize: "1rem" }}>{acquisitionDate}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          )}
+        </Modal>
 
         {/* ── Complete report ── */}
         <div className={styles.reportPanel}>
@@ -635,23 +657,31 @@ export function StructureDedicatedPage({
                   <th>{t("structure.dedicated.linkedTo")}</th>
                   <th>{t("structure.dedicated.area")}</th>
                   <th>{t("structure.dedicated.quantity")}</th>
-                  <th>{t("structure.dedicated.paidValue")}</th>
-                  <th>{t("structure.dedicated.currentValue")}</th>
+                  <th>{t("structure.dedicated.totalValue")}</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {loading
-                  ? <tr><td colSpan={8} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
+                  ? <tr><td colSpan={7} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
                   : filteredReportRows.length
                     ? filteredReportRows.map((row) =>
                         row.kind === "structure"
-                          ? <StructureReportRow key={row.key} asset={row.asset} categoryLabel={categoryLabel} canDelete={canDelete} onEdit={editStructure} onRemove={removeStructure} language={language} t={t} />
-                          : <MaterialReportRow key={row.key} asset={row.asset} item={row.item!} canDelete={canDelete} onRemoved={refresh} language={language} t={t} />
+                          ? <StructureReportRow key={row.key} asset={row.asset} categoryLabel={categoryLabel} canDelete={canDelete} onEdit={openCosts} onRemove={removeStructure} language={language} t={t} />
+                          : <MaterialReportRow key={row.key} asset={row.asset} item={row.item!} canDelete={canDelete} onRemove={removeMaterial} language={language} t={t} />
                       )
-                    : <tr><td colSpan={8} className="text-center text-muted py-5">{t("structure.dedicated.noRecords")}</td></tr>
+                    : <tr><td colSpan={7} className="text-center text-muted py-5">{t("structure.dedicated.noRecords")}</td></tr>
                 }
               </tbody>
+              {!loading && structures.length > 0 && (
+                <tfoot>
+                  <tr className={styles.reportTotal}>
+                    <td colSpan={5}>{t("structure.dedicated.reportTotal")}</td>
+                    <td>{formatMoney(structures.reduce((sum, asset) => sum + structureTotal(asset), 0))}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
@@ -674,18 +704,17 @@ function StructureReportRow({ asset, categoryLabel, canDelete, onEdit, onRemove,
       <td>{t("structure.dedicated.mainStructure")}</td>
       <td>{asset.built_area_m2 ? `${asset.built_area_m2} m²` : "—"}</td>
       <td>{asset.quantity}</td>
-      <td>{(Number(asset.acquisition_value) * asset.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
-      <td className="text-success fw-semibold">{(Number(asset.current_value) * asset.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
+      <td className="text-success fw-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>{structureTotal(asset).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
-        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(asset)} title={t("structure.home.edit")}><Pencil size={14} /></button>
+        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(asset)} title={t("structure.dedicated.costsTitle")} aria-label={`${t("structure.dedicated.costsTitle")}: ${asset.name}`}><Pencil size={14} /></button>
         {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(asset)} title={t("structure.home.delete")}><Trash2 size={14} /></button>}
       </td>
     </tr>
   );
 }
 
-function MaterialReportRow({ asset, item, canDelete, onRemoved, language, t }: {
-  asset: FarmStructure; item: FarmStructureItem; canDelete: boolean; onRemoved: () => Promise<void>;
+function MaterialReportRow({ asset, item, canDelete, onRemove, language, t }: {
+  asset: FarmStructure; item: FarmStructureItem; canDelete: boolean; onRemove: (item: FarmStructureItem) => Promise<void>;
   language: string; t: ReturnType<typeof useOrganizationLocale>["t"];
 }) {
   return (
@@ -694,12 +723,11 @@ function MaterialReportRow({ asset, item, canDelete, onRemoved, language, t }: {
       <td><strong>{item.name}</strong></td>
       <td>{asset.name}</td>
       <td>—</td>
-      <td>{item.quantity} {item.unit}</td>
-      <td>{Number(item.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
-      <td>—</td>
+      <td>{Number(item.quantity).toLocaleString(language)} {item.unit}</td>
+      <td style={{ fontVariantNumeric: "tabular-nums" }}>{Number(item.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
         {canDelete && (
-          <button className="btn btn-sm btn-outline-danger" onClick={() => void farmStructureService.removeItem(item.id).then(onRemoved)} title={t("structure.dedicated.removeItem")}>
+          <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(item)} title={t("structure.dedicated.removeItem")} aria-label={`${t("structure.dedicated.removeItem")}: ${item.name}`}>
             <Trash2 size={14} />
           </button>
         )}

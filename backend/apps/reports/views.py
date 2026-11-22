@@ -1413,3 +1413,26 @@ def livestock_productivity_report(request):
     if farm_id and not Farm.objects.filter(pk=farm_id, organization=organization).exists():
         return Response({"detail": "Fazenda não encontrada."}, status=404)
     return Response(swine_phase_indicators(organization, year, farm_id))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def livestock_lot_indicators_report(request):
+    from datetime import date as date_type
+    from uuid import UUID
+    from .lot_indicators import swine_lot_indicators
+    organization = getattr(request.user, "organization", None)
+    if not organization:
+        return Response({"detail": "Organização não encontrada."}, status=404)
+    try:
+        start = date_type.fromisoformat(request.query_params["start"])
+        end = date_type.fromisoformat(request.query_params["end"])
+        if start > end:
+            raise ValueError
+        raw_batches = request.query_params.get("batches")
+        batch_ids = None
+        if raw_batches is not None:
+            batch_ids = [str(UUID(item)) for item in raw_batches.split(",") if item.strip()]
+    except (KeyError, ValueError, TypeError):
+        return Response({"detail": "Informe um período e lotes válidos."}, status=400)
+    return Response(swine_lot_indicators(organization, start, end, batch_ids))
