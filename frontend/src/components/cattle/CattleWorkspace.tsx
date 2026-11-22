@@ -1,4 +1,5 @@
 "use client";
+import { ownerSegment, usableBySegment } from "@/lib/segments";
 import { useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 import { translateMessage, type AppLanguage } from "@/lib/localeMessages";
 
@@ -288,7 +289,7 @@ const dayField: CattleField = { name: "date", label: t("lotReport.date"), type: 
   async function newFeed() {
     setPreparing(true);
     try {
-      const items = (await cattleService.stockItems()).filter(item => ["racao", "suplemento", "nucleo"].includes(item.categoria) && item.unidade_medida === "kg" && ["", "bovino", "multiplo"].includes(item.especie_animal || ""));
+      const items = (await cattleService.stockItems()).filter(item => ["racao", "suplemento", "nucleo"].includes(item.categoria) && item.unidade_medida === "kg" && (production ? usableBySegment(item, ownerSegment("bovino", production)!) : usableBySegment(item, "gado-de-corte") || usableBySegment(item, "pecuaria-leiteira")));
       const batches = await cattleService.all<CattleBatch>("batches", { status: "active", ...(production ? { production } : {}) });
       setForm({ title: t("workspace.recordFeeding"), description: t("workspace.enterACollectiveBatchOrAnAnimalSEarTag"), initial: { farm_id: farmInitial, destination: "batch", data_inicio: today(), data_fim: today() }, fields: [farmField, { name: "destination", label: t("crops.destination"), type: "select", required: true, options: options({ batch: t("workspace.collectiveBatch"), animal: t("workspace.animalByEarTag") }) }, { name: "batch_id", label: t("workspace.collectiveBatch"), type: "select", required: true, dependsOn: "farm_id", visibleWhen: { field: "destination", value: "batch" }, options: batches.map(batch => ({ value: batch.id, label: `${batch.batch_code} · ${batch.quantity} animais`, parentValue: batch.farm_id })) }, { name: "identifier", label: t("cattleReproduction.tag"), required: true, maxLength: 50, visibleWhen: { field: "destination", value: "animal" } }, { name: "item_estoque", label: t("workspace.feedSupplementInStockKg"), type: "select", required: true, options: items.map(item => ({ value: item.id, label: `${item.nome.slice(0, 30)}${item.nome.length > 30 ? "..." : ""} · ${number(item.estoque_atual, language)} kg` })) }, { name: "data_inicio", label: t("workspace.periodStart"), type: "date", required: true, max: today() }, { name: "data_fim", label: t("workspace.periodEnd"), type: "date", required: true, max: today() }, positive("quantidade", t("workspace.totalQuantityConsumedKg")), notes], save: async values => {
         let target: Record<string, unknown>;

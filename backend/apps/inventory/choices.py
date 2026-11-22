@@ -45,6 +45,58 @@ class EspecieAnimal(models.TextChoices):
     OUTRO = "outro", "Outro"
 
 
+class Segmento(models.TextChoices):
+    """Segmento dono do item/fórmula. Vazio = geral, compartilhado por todos."""
+
+    GERAL = "", "Geral"
+    SUINOS = "suinos", "Suinocultura"
+    GADO_DE_CORTE = "gado-de-corte", "Gado de corte"
+    PECUARIA_LEITEIRA = "pecuaria-leiteira", "Pecuária leiteira"
+
+
+# Espécie implícita em cada segmento (mantém especie_animal coerente para clientes antigos).
+SEGMENTO_ESPECIE = {"suinos": "suino", "gado-de-corte": "bovino", "pecuaria-leiteira": "bovino"}
+CATTLE_SEGMENTS = ("gado-de-corte", "pecuaria-leiteira")
+# Finalidade do lote/animal bovino -> segmento.
+CATTLE_PURPOSE_SEGMENT = {"beef": "gado-de-corte", "dairy": "pecuaria-leiteira"}
+
+
+def sync_segmento(instance):
+    """Alinha segmento e especie_animal: o segmento manda; suíno sem segmento vira Suinocultura."""
+    if instance.segmento:
+        instance.especie_animal = SEGMENTO_ESPECIE[instance.segmento]
+    elif instance.especie_animal in {"suino", "suinos"}:
+        instance.segmento = Segmento.SUINOS
+
+
+def segment_items_q(segments, prefix=""):
+    """Itens/fórmulas utilizáveis pelos segmentos informados: os deles e os gerais compatíveis.
+
+    Itens gerais (sem segmento) só entram se a espécie for compatível, para que um
+    item legado de suínos nunca apareça para bovinos e vice-versa.
+    """
+    from django.db.models import Q
+
+    segments = [segments] if isinstance(segments, str) else list(segments)
+    species = {SEGMENTO_ESPECIE[segment] for segment in segments}
+    return Q(**{f"{prefix}segmento__in": segments}) | Q(
+        **{f"{prefix}segmento": "", f"{prefix}especie_animal__in": ["", "multiplo", *species]}
+    )
+
+
+def cattle_segments(purpose=None):
+    """Segments a cattle lot/animal with this purpose may use; unknown/dual -> both cattle segments."""
+    segment = CATTLE_PURPOSE_SEGMENT.get(purpose)
+    return [segment] if segment else list(CATTLE_SEGMENTS)
+
+
+def item_in_segments(item, segments):
+    segments = [segments] if isinstance(segments, str) else list(segments)
+    if item.segmento:
+        return item.segmento in segments
+    return item.especie_animal in {"", "multiplo", *(SEGMENTO_ESPECIE[segment] for segment in segments)}
+
+
 class ViaAplicacao(models.TextChoices):
     ORAL = "oral", "Oral"
     INJETAVEL = "injetavel", "Injetável"

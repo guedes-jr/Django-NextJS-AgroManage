@@ -31,7 +31,7 @@ export type CattleManagement = {
   entries: { animal: string; identifier: string; weight_kg: string | null }[];
 };
 export type CattleFeed = { id: string; lote_codigo?: string; animais_identificadores: string[]; item_nome: string; data_inicio: string; data_fim: string; quantidade: string; custo_total?: string };
-export type CattleStockItem = { id: string; nome: string; estoque_atual: string; categoria: string; especie_animal: string; unidade_medida: string };
+export type CattleStockItem = { id: string; nome: string; estoque_atual: string; categoria: string; especie_animal: string; segmento?: string; unidade_medida: string };
 export type CattleHistory = { type: string; date: string | null; title: string; subtitle: string; details?: { weight_kg?: number } };
 export type CattleOverview = {
   total_head: number; identified_animals: number; active_batches: number; pregnant_females: number;

@@ -76,7 +76,7 @@ class ItemEstoqueViewSet(OperationalInventoryProjection, viewsets.ModelViewSet):
       POST /inventory/items/bulk_create/  — create multiple items at once
       GET  /inventory/items/choices/      — return all TextChoices for the front-end
     """
-    operational_fields = {"id", "nome", "categoria", "categoria_display", "categorias", "categorias_display", "unidade_medida", "unidade_display", "descricao", "fabricante", "especie_animal", "estoque_minimo", "prioridade", "ativo", "estoque_atual", "estoque_baixo", "updated_at"}
+    operational_fields = {"id", "nome", "categoria", "categoria_display", "categorias", "categorias_display", "unidade_medida", "unidade_display", "descricao", "fabricante", "especie_animal", "segmento", "estoque_minimo", "prioridade", "ativo", "estoque_atual", "estoque_baixo", "updated_at"}
     permission_classes = [OrganizationRolePermission]
 
     queryset = (
@@ -259,6 +259,10 @@ class ItemEstoqueViewSet(OperationalInventoryProjection, viewsets.ModelViewSet):
             ).distinct()
         if especie_animal:
             items = items.filter(especie_animal=especie_animal)
+        segmento = request.query_params.get("segmento")
+        if segmento:
+            from .choices import segment_items_q
+            items = items.filter(segment_items_q(segmento))
 
         serializer = self.get_serializer(items, many=True)
         return Response(serializer.data)
@@ -966,6 +970,11 @@ class FormulaRacaoViewSet(viewsets.ModelViewSet):
             especie = self.request.query_params.get("especie")
             if especie:
                 qs = qs.filter(especie_animal=especie)
+            # Each segment sees only its own formulas (plus general ones): ?segmento=suinos
+            segmento = self.request.query_params.get("segmento")
+            if segmento:
+                from .choices import segment_items_q
+                qs = qs.filter(segment_items_q(segmento))
             
             return qs
         return FormulaRacao.objects.none()
@@ -1024,7 +1033,12 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.is_authenticated and getattr(self.request.user, 'organization', None):
-            return ProducaoRacao.objects.filter(organization=self.request.user.organization).select_related("formula", "responsavel").order_by("-data_producao")
+            qs = ProducaoRacao.objects.filter(organization=self.request.user.organization).select_related("formula", "responsavel").order_by("-data_producao")
+            segmento = self.request.query_params.get("segmento")
+            if segmento:
+                from .choices import segment_items_q
+                qs = qs.filter(segment_items_q(segmento, prefix="formula__"))
+            return qs
         return ProducaoRacao.objects.none()
 
     @action(detail=False, methods=["post"], url_path="produzir")
@@ -1069,6 +1083,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                     categorias=["racao"],
                     unidade_medida="kg",
                     especie_animal=formula.especie_animal,
+                    segmento=formula.segmento,
                     descricao=f"Ração produzida pela fórmula {formula.nome}",
                     ativo=True,
                 )
@@ -1076,6 +1091,12 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
             elif not formula.item_final.ativo:
                 formula.item_final.ativo = True
                 formula.item_final.save(update_fields=["ativo", "updated_at"])
+            # The produced feed belongs to the formula's segment (e.g. only Suinocultura uses it).
+            if formula.segmento and formula.item_final.segmento != formula.segmento:
+                if formula.item_final.segmento:
+                    return Response({"error": translate_message("O produto final da fórmula pertence a outro segmento.")}, status=400)
+                formula.item_final.segmento = formula.segmento
+                formula.item_final.save(update_fields=["segmento", "updated_at"])
 
             for ingrediente in formula.ingredientes.all():
                 qtde_necessaria = (quantidade_teorica * ingrediente.percentual) / Decimal("100")

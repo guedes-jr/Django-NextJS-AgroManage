@@ -1,4 +1,5 @@
 "use client";
+import { ownerSegment } from "@/lib/segments";
 import { useCattleSegment } from "@/components/cattle/CattleSegmentContext";
 import { cattleHome } from "@/services/cattleNavigation";
 
@@ -20,6 +21,7 @@ type Formula = {
   nome: string;
   descricao: string;
   especie_animal?: string;
+  segmento?: string;
   item_final?: number | null;
   item_final_nome?: string | null;
   ativa: boolean;
@@ -38,6 +40,8 @@ interface FeedFormulaManagerDashboardProps {
 export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashboardProps = {}) {
   const { language, t } = useOrganizationLocale();
   const segment = useCattleSegment();
+  // Each segment manages only its own formulas (plus general ones).
+  const owner = ownerSegment(species, segment);
   const speciesLabel: Record<string, string> = {
     suino: t("inventory.feed.swine"),
     ave: t("inventory.feed.birds"),
@@ -57,10 +61,10 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
   const fetchData = async () => {
     try {
       setLoading(true);
-      const params = species ? `?especie=${species}` : "";
+      const params = owner ? `?segmento=${owner}` : species ? `?especie=${species}` : "";
       const [resFormulas, resItems] = await Promise.all([
         apiClient.get(`/inventory/formulas/${params}`),
-        apiClient.get("/inventory/items/all_items/")
+        apiClient.get("/inventory/items/all_items/", { params: owner ? { segmento: owner } : undefined })
       ]);
       setFormulas(resFormulas.data.results || resFormulas.data || []);
       setInventoryItems(resItems.data || []);
@@ -125,6 +129,7 @@ export function FeedFormulaManagerDashboard({ species }: FeedFormulaManagerDashb
       nome: t("inventory.formulas.newFormula"),
       descricao: "",
       especie_animal: species ?? "",
+      segmento: owner ?? "",
       ativa: true,
       ingredientes: []
     };

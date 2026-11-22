@@ -48,6 +48,7 @@ type ProductModalInitialData = Partial<InventoryItem> & {
   ultimo_custo?: string | number;
   fabricante?: string;
   especie_animal?: string;
+  segmento?: string;
 };
 
 type PaginatedResponse<T> = {
@@ -213,6 +214,7 @@ export function ProdutosDashboard() {
         unidade_medida: produto.unidade_medida,
         fabricante: produto.fabricante,
         especie_animal: produto.especie_animal,
+        segmento: produto.segmento ?? "",
         item_id: produto.id,
         ultimo_custo: produto.custo_medio || produto.ultimo_custo,
         custo_medio: produto.custo_medio,
@@ -246,6 +248,7 @@ export function ProdutosDashboard() {
       unidade_medida: row.unidade_medida,
       fabricante: row.fabricante || "",
       especie_animal: row.especie_animal || "",
+      segmento: row.segmento || "",
       composicao: row.composicao || "",
       local_armazenamento: row.local_armazenamento || "",
       fornecedor: row.fornecedor || null,
@@ -268,6 +271,7 @@ export function ProdutosDashboard() {
         unidade_medida: payload[0].unidade_medida,
         fabricante: payload[0].fabricante,
         especie_animal: payload[0].especie_animal,
+        segmento: payload[0].segmento,
         composicao: payload[0].composicao,
         estoque_minimo: payload[0].estoque_minimo,
         carencia_dias: payload[0].carencia_dias,

@@ -53,7 +53,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     write_roles = {"admin", "manager", "operator"}
     action_operations = {"settle": "edit", "reverse": "edit", "series": "create"}
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = {"farm": ["exact"], "bank_account": ["exact"], "species": ["exact"], "animal_batch": ["exact"], "planting_cycle": ["exact"], "due_date": ["gte", "lte"], "payment_date": ["gte", "lte"]}
+    filterset_fields = {"farm": ["exact"], "bank_account": ["exact"], "species": ["exact"], "segmento": ["exact"], "animal_batch": ["exact"], "planting_cycle": ["exact"], "due_date": ["gte", "lte"], "payment_date": ["gte", "lte"]}
     search_fields = ["description", "reference", "category__name"]
 
     def get_queryset(self):
@@ -118,8 +118,8 @@ class TransactionViewSet(viewsets.ModelViewSet):
         organization = request.user.organization
         return Response({
             "farms": list(Farm.objects.filter(organization=organization).order_by("name").values("id", "name")),
-            "species": list(Species.objects.order_by("name").values("id", "name")),
-            "batches": list(AnimalBatch.objects.filter(farm__organization=organization).order_by("batch_code").values("id", "batch_code", "farm_id", "species_id")),
+            "species": list(Species.objects.order_by("name").values("id", "name", "code")),
+            "batches": list(AnimalBatch.objects.filter(farm__organization=organization).order_by("batch_code").values("id", "batch_code", "farm_id", "species_id", "cattle_purpose")),
             "plantations": list(PlantingCycle.objects.filter(Q(organization=organization) | Q(organization__isnull=True, field__farm__organization=organization)).order_by("name").values("id", "name", "farm_id", "field__farm_id")),
         })
 

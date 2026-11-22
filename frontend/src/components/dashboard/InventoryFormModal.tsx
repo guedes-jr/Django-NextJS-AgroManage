@@ -78,7 +78,7 @@ function emptyRow(category?: InventoryCategory) {
     categoria_personalizada: "",
     categoria_personalizada_id: "",
     unidade_medida: cfg?.unidade || "unidade",
-    descricao: "", fabricante: "", especie_animal: "",
+    descricao: "", fabricante: "", especie_animal: "", segmento: "",
     tipo_semen: "convencional",
     estoque_minimo: "",
     custo_unitario: "", ultimo_custo: 0,
@@ -416,6 +416,18 @@ export function InventoryFormModal({ isOpen, onClose, category, onSave, initialD
                                 value={row.especie_animal} onChange={e => update(row.id as any, "especie_animal", e.target.value)}>
                                 <option value="">{t("inventory.form.allOrNotApplicable")}</option>
                                 {ESPECIES.map(e => <option key={e} value={e}>{t(`inventory.form.species.${e}` as Parameters<typeof t>[0])}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="col-12 col-md-4">
+                            <div className="login-input-group mb-0">
+                              <label className="login-label fw-semibold text-xs">{t("inventory.form.segment")}</label>
+                              <select className="login-input bg-transparent text-foreground rounded-xl" style={{ paddingLeft: "1rem" }}
+                                value={row.segmento ?? ""} onChange={e => update(Number(row.id), "segmento", e.target.value)}>
+                                <option value="">{t("inventory.form.segmentGeneral")}</option>
+                                <option value="suinos">{t("sidebar.swine")}</option>
+                                <option value="gado-de-corte">{t("sidebar.beefCattle")}</option>
+                                <option value="pecuaria-leiteira">{t("sidebar.dairy")}</option>
                               </select>
                             </div>
                           </div>

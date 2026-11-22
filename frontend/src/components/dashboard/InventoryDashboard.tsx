@@ -330,6 +330,7 @@ export function InventoryDashboard() {
       marca: row.marca || "",
       fabricante: row.fabricante || "",
       especie_animal: row.especie_animal || "",
+      segmento: row.segmento || "",
       composicao: row.composicao || "",
       lote_numero: row.lote_numero || "",
       data_validade: row.data_validade || null,

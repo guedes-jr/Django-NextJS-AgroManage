@@ -1,4 +1,5 @@
 """Transactional cattle planning/execution; projections never mutate warehouse stock."""
+from apps.inventory.choices import cattle_segments, item_in_segments
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Q, F
@@ -50,7 +51,7 @@ def deliver_feed(plan, user, *, quantity_kg, remaining_before_kg, date, request_
     if not plan.is_active or batch.status != "active" or batch.quantity < 1 or date < plan.start_date or (plan.end_date and date > plan.end_date):
         raise ValidationError("Selecione um plano vigente para um lote ativo.")
     item = ItemEstoque.objects.select_for_update().get(pk=plan.item_id, organization=user.organization)
-    if not item.ativo or item.categoria not in ["racao", "suplemento"] or item.unidade_medida != "kg" or item.especie_animal not in ["", "bovino", "multiplo"]:
+    if not item.ativo or item.categoria not in ["racao", "suplemento"] or item.unidade_medida != "kg" or not item_in_segments(item, cattle_segments(batch.cattle_purpose)):
         raise ValidationError("O produto do plano não é mais elegível para alimentação bovina.")
     lots = list(item.lotes.select_for_update().filter(
         Q(data_validade__isnull=True) | Q(data_validade__gte=date),

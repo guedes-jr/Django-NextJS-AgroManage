@@ -1,4 +1,5 @@
 "use client";
+import { ownerSegment } from "@/lib/segments";
 import { useCattleSegment } from "@/components/cattle/CattleSegmentContext";
 import { cattleHref, cattleHome } from "@/services/cattleNavigation";
 
@@ -22,7 +23,8 @@ export function FeedProductionDashboard({species,showHeader=true}:{species?:stri
  const segment=useCattleSegment();
  const rawFormulaPath=species==="bovino"?`${cattleHome(segment || "beef")}/racao/gerenciar-formulas`:species?`/home/seguimento/${species==="suino"?"suinos":"aves"}/racao/gerenciar-formulas`:"/home/estoque/producao-racao/gerenciar-formulas";
  const formulaPath=species==="bovino" && segment ? cattleHref(rawFormulaPath,segment) : rawFormulaPath;
- const load=async()=>{const suffix=species?`?especie=${species}`:"";const[formulaResponse,productionResponse]=await Promise.all([apiClient.get(`/inventory/formulas/${suffix}`),apiClient.get(`/inventory/producoes/${suffix}`)]);const formulaList=formulaResponse.data.results||formulaResponse.data||[];setFormulas(formulaList);setProductions(productionResponse.data.results||productionResponse.data||[]);setFormulaId(current=>formulaList.some((item:Formula)=>String(item.id)===current)?current:String(formulaList[0]?.id||""));};
+ const owner=ownerSegment(species,segment);
+ const load=async()=>{const suffix=owner?`?segmento=${owner}`:species?`?especie=${species}`:"";const[formulaResponse,productionResponse]=await Promise.all([apiClient.get(`/inventory/formulas/${suffix}`),apiClient.get(`/inventory/producoes/${suffix}`)]);const formulaList=formulaResponse.data.results||formulaResponse.data||[];setFormulas(formulaList);setProductions(productionResponse.data.results||productionResponse.data||[]);setFormulaId(current=>formulaList.some((item:Formula)=>String(item.id)===current)?current:String(formulaList[0]?.id||""));};
  useEffect(()=>{setLoading(true);load().catch(()=>setMessage(t("inventory.feed.failed"))).finally(()=>setLoading(false));},[species,t]);
  const formula=useMemo(()=>formulas.find(item=>String(item.id)===formulaId),[formulas,formulaId]);
  const summary=useMemo(()=>{const items=(formula?.ingredientes||[]).map(item=>{const percentage=Number(item.percentual),required=quantity*percentage/100,available=Number(item.estoque_atual),unitCost=Number(item.custo_medio),totalCost=required*unitCost;return{...item,percentage,required,available,unitCost,totalCost,enough:available>=required};});const totalCost=items.reduce((sum,item)=>sum+item.totalCost,0),totalAvailable=items.reduce((sum,item)=>sum+item.available,0);return{items,totalCost,totalAvailable,costKg:quantity>0?totalCost/quantity:0,enough:items.length>0&&items.every(item=>item.enough)};},[formula,quantity]);

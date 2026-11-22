@@ -143,6 +143,16 @@ class FornecedorSerializer(serializers.ModelSerializer):
         return instance
 
 
+def drop_stale_segment(attrs, instance):
+    """An older client that changes only the species must not keep a segment of another species."""
+    from .choices import SEGMENTO_ESPECIE
+
+    if instance is not None and "especie_animal" in attrs and "segmento" not in attrs and instance.segmento:
+        if SEGMENTO_ESPECIE[instance.segmento] != attrs["especie_animal"]:
+            attrs["segmento"] = ""
+    return attrs
+
+
 class ItemEstoqueSerializer(serializers.ModelSerializer):
     expected_updated_at = serializers.DateTimeField(write_only=True, required=False)
     categorias = serializers.ListField(
@@ -184,7 +194,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             "categorias", "categorias_display",
             "unidade_medida", "unidade_display",
             # General
-            "descricao", "fabricante", "especie_animal",
+            "descricao", "fabricante", "especie_animal", "segmento",
             "tipo_semen", "tipo_semen_display",
             "estoque_minimo", "prioridade", "ativo",
             # Technical — medicine/vaccine
@@ -212,6 +222,7 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
         return [labels.get(categoria, categoria) for categoria in categorias]
 
     def validate(self, attrs):
+        drop_stale_segment(attrs, self.instance)
         categorias = attrs.get("categorias")
         categoria = attrs.get("categoria")
         if categorias:
@@ -561,11 +572,12 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = FormulaRacao
         fields = [
-            "id", "nome", "descricao", "especie_animal", "especie_animal_display",
+            "id", "nome", "descricao", "especie_animal", "especie_animal_display", "segmento",
             "item_final", "item_final_nome", "ativa", "ingredientes",
         ]
 
     def validate(self, attrs):
+        drop_stale_segment(attrs, self.instance)
         organization = getattr(getattr(self.context.get("request"), "user", None), "organization", None)
         item_final = attrs.get("item_final", getattr(self.instance, "item_final", None))
         ingredientes = attrs.get("ingredientes", [])
@@ -573,6 +585,9 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"organization": translate_message("Usuário não possui organização vinculada.")})
         if item_final and item_final.organization_id != organization.id:
             raise serializers.ValidationError({"item_final": translate_message("Item final não pertence à sua organização.")})
+        segmento = attrs.get("segmento", getattr(self.instance, "segmento", ""))
+        if item_final and segmento and item_final.segmento not in {"", segmento}:
+            raise serializers.ValidationError({"item_final": translate_message("O item final pertence a outro segmento.")})
         foreign_items = [item["item"].id for item in ingredientes if item["item"].organization_id != organization.id]
         if foreign_items:
             raise serializers.ValidationError({"ingredientes": translate_message("Um ou mais ingredientes pertencem a outra organização.")})
@@ -594,6 +609,7 @@ class FormulaRacaoSerializer(serializers.ModelSerializer):
         instance.nome = validated_data.get('nome', instance.nome)
         instance.descricao = validated_data.get('descricao', instance.descricao)
         instance.especie_animal = validated_data.get('especie_animal', instance.especie_animal)
+        instance.segmento = validated_data.get('segmento', instance.segmento)
         instance.item_final = validated_data.get('item_final', instance.item_final)
         instance.ativa = validated_data.get('ativa', instance.ativa)
         instance.save()
@@ -709,7 +725,8 @@ class ConsumoRacaoSerializer(serializers.ModelSerializer):
                 if not compatible:
                     raise serializers.ValidationError({"animais": translate_message("Um ou mais animais não pertencem à categoria ou fase selecionada.")})
 
-        if item.especie_animal not in {"", "suino", "multiplo"}:
+        from .choices import item_in_segments
+        if not item_in_segments(item, "suinos"):
             raise serializers.ValidationError({"item_estoque": translate_message("A ração selecionada não é indicada para suínos.")})
         return attrs
 

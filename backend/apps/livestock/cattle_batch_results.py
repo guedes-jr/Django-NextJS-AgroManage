@@ -1,4 +1,5 @@
 """Collective cattle launches and accrual results, independent of cash settlement."""
+from apps.inventory.choices import cattle_segments, item_in_segments
 from datetime import date
 from decimal import Decimal
 from django.utils import timezone
@@ -143,7 +144,7 @@ def record_batch_treatment(batch, user, data):
     if lot_id:
         lot_id = serializers.UUIDField().run_validation(lot_id)
         lot = LoteEstoque.objects.select_for_update().select_related("item").filter(pk=lot_id, item__organization=user.organization).first()
-        if not lot or not lot.item.ativo or not lot.ativo or lot.item.categoria not in {"medicamento", "vacina", "medicamento_vacina"} or lot.item.especie_animal not in {"", "bovino", "multiplo"}:
+        if not lot or not lot.item.ativo or not lot.ativo or lot.item.categoria not in {"medicamento", "vacina", "medicamento_vacina"} or not item_in_segments(lot.item, cattle_segments(batch.cattle_purpose)):
             raise serializers.ValidationError({"inventory_lot": "Produto sanitário incompatível ou indisponível."})
         if lot.data_entrada > day or (lot.data_validade and lot.data_validade < day):
             raise serializers.ValidationError({"inventory_lot": "Produto vencido ou ainda não recebido na data da aplicação."})

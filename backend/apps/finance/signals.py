@@ -57,6 +57,7 @@ def create_inventory_transaction(sender, instance, created, **kwargs):
             species=Species.objects.filter(
                 code__in=_species_codes(instance.item.especie_animal)
             ).first(),
+            segmento=instance.item.segmento,
         )
 
 @receiver(post_save, sender=AnimalBatch)

@@ -20,6 +20,8 @@ from .choices import (
     TipoContratoFornecedor,
     TipoRegistroConsumo,
     TipoSemen,
+    Segmento,
+    sync_segmento,
 )
 
 
@@ -49,6 +51,10 @@ class ItemEstoque(BaseModel):
     fabricante = models.CharField(max_length=100, blank=True)
     especie_animal = models.CharField(
         max_length=30, choices=EspecieAnimal.choices, blank=True
+    )
+    segmento = models.CharField(
+        max_length=30, choices=Segmento.choices, blank=True, default="", db_index=True,
+        help_text="Segmento dono do item; vazio = geral (compartilhado)",
     )
     tipo_semen = models.CharField(
         max_length=20,
@@ -109,6 +115,12 @@ class ItemEstoque(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.nome} ({self.get_unidade_medida_display()})"
+
+    def save(self, *args, **kwargs):
+        sync_segmento(self)
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "segmento", "especie_animal"}
+        super().save(*args, **kwargs)
 
     @property
     def estoque_atual(self) -> "Decimal":
@@ -383,6 +395,10 @@ class FormulaRacao(BaseModel):
         blank=True,
         help_text="Espécie animal para a qual esta fórmula é destinada",
     )
+    segmento = models.CharField(
+        max_length=30, choices=Segmento.choices, blank=True, default="", db_index=True,
+        help_text="Segmento dono da fórmula; a ração produzida herda este segmento",
+    )
     item_final = models.ForeignKey(
         ItemEstoque, 
         on_delete=models.SET_NULL, 
@@ -399,6 +415,12 @@ class FormulaRacao(BaseModel):
 
     def __str__(self) -> str:
         return self.nome
+
+    def save(self, *args, **kwargs):
+        sync_segmento(self)
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "segmento", "especie_animal"}
+        super().save(*args, **kwargs)
 
 
 

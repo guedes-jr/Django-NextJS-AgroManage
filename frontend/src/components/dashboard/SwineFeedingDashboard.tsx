@@ -1,4 +1,5 @@
 "use client";
+import { usableBySegment } from "@/lib/segments";
 import { useOrganizationLocale } from "@/lib/locale";
 
 import Link from "next/link";
@@ -11,7 +12,7 @@ import styles from "./swine-feeding.module.css";
 type Target = "lotes" | "matrizes" | "marras" | "reprodutores";
 type Batch = { id:string; batch_code:string; name?:string; category?:string; phase?:string; quantity?:number; status?:string; species_code?:string; farm_name?:string };
 type Animal = { id:string; identifier:string; category?:string; reproductive_status?:string; status?:string; species_code?:string };
-type Feed = { id:string; nome:string; estoque_atual?:string; unidade_display?:string; custo_medio?:string; custo_unitario?:string; valor_unitario?:string; especie_animal?:string; indicacao_uso?:string };
+type Feed = { id:string; nome:string; estoque_atual?:string; unidade_display?:string; custo_medio?:string; custo_unitario?:string; valor_unitario?:string; especie_animal?:string; segmento?:string; indicacao_uso?:string };
 type Entry = { id:string; data_inicio:string; data_fim:string; categoria_destino?:string; fase_destino?:string; lote_codigo?:string; animais?:string[]; animais_identificadores?:string[]; item_nome:string; quantidade:number; custo_unitario:number; custo_total:number; usuario_nome?:string };
 
 const targetOptions = [
@@ -44,7 +45,7 @@ export function SwineFeedingDashboard(){
 
  const availableBatches=useMemo(()=>{const allowed=batchPhaseMap[phase]||[],unique=new Map<string,Batch>();batches.forEach(batch=>{if(batch.species_code==="suinos"&&batch.status==="active"&&allowed.includes(batch.phase||"")&&!unique.has(batch.id))unique.set(batch.id,batch);});return Array.from(unique.values()).sort((a,b)=>a.batch_code.localeCompare(b.batch_code,"pt-BR",{numeric:true}));},[batches,phase]);
  const availableAnimals=useMemo(()=>animals.filter(animal=>{const category=normalize(animal.category),reproductive=normalize(animal.reproductive_status);const categoryMatch=target==="matrizes"?category==="matriz":target==="marras"?category==="marra":category==="reprodutor"||category==="cachaco";return !["dead","sold","finished"].includes(animal.status||"")&&categoryMatch&&(target!=="matrizes"||reproductive===normalize(phase))&&normalize(animal.identifier).includes(normalize(search));}).sort((a,b)=>a.identifier.localeCompare(b.identifier,"pt-BR",{numeric:true})),[animals,phase,search,target]);
- const compatibleFeeds=useMemo(()=>feeds.filter(item=>{if(item.especie_animal&&!["suino","multiplo"].includes(item.especie_animal))return false;const indication=normalize(item.indicacao_uso);if(!indication)return true;const terms=["maternidade","creche","crescimento","engorda","gestante","lactante","vazia","marra","reprodutor"],declared=terms.filter(term=>indication.includes(term));return !declared.length||declared.some(term=>normalize(phaseLabel(target,phase)).includes(term)||normalize(phase).includes(term));}),[feeds,phase,target]);
+ const compatibleFeeds=useMemo(()=>feeds.filter(item=>{if(!usableBySegment(item,"suinos"))return false;const indication=normalize(item.indicacao_uso);if(!indication)return true;const terms=["maternidade","creche","crescimento","engorda","gestante","lactante","vazia","marra","reprodutor"],declared=terms.filter(term=>indication.includes(term));return !declared.length||declared.some(term=>normalize(phaseLabel(target,phase)).includes(term)||normalize(phase).includes(term));}),[feeds,phase,target]);
  const selectedFeed=compatibleFeeds.find(item=>item.id===feed),unitCost=Number(selectedFeed?.custo_medio||selectedFeed?.custo_unitario||selectedFeed?.valor_unitario||0),totalCost=Number(quantity||0)*unitCost,selectedBatchData=availableBatches.find(item=>item.id===selectedBatch),selectedAnimalData=animals.filter(animal=>selectedAnimals.includes(animal.id));
  const allVisibleSelected=availableAnimals.length>0&&availableAnimals.every(animal=>selectedAnimals.includes(animal.id)),someVisibleSelected=availableAnimals.some(animal=>selectedAnimals.includes(animal.id));
  useEffect(()=>{if(selectAllRef.current)selectAllRef.current.indeterminate=someVisibleSelected&&!allVisibleSelected;},[allVisibleSelected,someVisibleSelected]);

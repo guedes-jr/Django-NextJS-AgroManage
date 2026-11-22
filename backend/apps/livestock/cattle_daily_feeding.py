@@ -1,4 +1,5 @@
 """Daily cattle feeding uses existing batches, feed formulas and consumption records."""
+from apps.inventory.choices import CATTLE_SEGMENTS, cattle_segments, segment_items_q
 from decimal import Decimal
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -19,8 +20,8 @@ def daily_feeding(organization):
             "supplied_kg": sum((row.quantidade for row in batch.today_feeds), Decimal(0)),
             "deliveries": [{"id": str(row.pk), "quantity_kg": row.quantidade, "item_name": row.item_estoque.nome,
                             "recorded_by": row.usuario.full_name if row.usuario else "", "created_at": row.created_at, "notes": row.observacao} for row in batch.today_feeds]})
-    formulas = list(FormulaRacao.objects.filter(organization=organization, ativa=True, especie_animal__in=["", "bovino", "multiplo"]).order_by("nome").values("id", "nome", "item_final_id"))
-    products = list(ItemEstoque.objects.filter(organization=organization, ativo=True, categoria__in=["racao", "suplemento", "nucleo"], unidade_medida="kg", especie_animal__in=["", "bovino", "multiplo"]).order_by("nome").values("id", "nome"))
+    formulas = list(FormulaRacao.objects.filter(segment_items_q(CATTLE_SEGMENTS), organization=organization, ativa=True).order_by("nome").values("id", "nome", "item_final_id"))
+    products = list(ItemEstoque.objects.filter(organization=organization, ativo=True, categoria__in=["racao", "suplemento", "nucleo"], unidade_medida="kg").filter(segment_items_q(CATTLE_SEGMENTS)).order_by("nome").values("id", "nome"))
     return {"date": today, "results": rows, "formulas": formulas, "products": products}
 
 
@@ -65,13 +66,14 @@ def mobile_daily_feeding(request):
             return {'id': str(obj.pk), 'batch': str(obj.lote_animal_id), 'quantity_kg': str(obj.quantidade), 'item': str(obj.item_estoque_id),
                     'item_name': obj.item_estoque.nome, 'recorded_by': obj.usuario.full_name if obj.usuario_id else '', 'created_at': obj.created_at.isoformat(), 'notes': obj.observacao}
     else:
-        eligible = ItemEstoque.objects.filter(organization=org, ativo=True, categoria__in=['racao','suplemento','nucleo'], unidade_medida='kg', especie_animal__in=['','bovino','multiplo'])
+        segments = cattle_segments(value['production'])
+        eligible = ItemEstoque.objects.filter(segment_items_q(segments), organization=org, ativo=True, categoria__in=['racao','suplemento','nucleo'], unidade_medida='kg')
         if kind == 'products':
             qs = eligible.filter(nome__icontains=value['search']).order_by('nome','id')
             def row(obj):
                 return {'id': str(obj.pk), 'name': obj.nome, 'unit': obj.unidade_medida}
         else:
-            qs = FormulaRacao.objects.filter(organization=org, ativa=True, especie_animal__in=['','bovino','multiplo'], item_final__in=eligible, nome__icontains=value['search']).select_related('item_final').order_by('nome','id')
+            qs = FormulaRacao.objects.filter(segment_items_q(segments), organization=org, ativa=True, item_final__in=eligible, nome__icontains=value['search']).select_related('item_final').order_by('nome','id')
             def row(obj):
                 return {'id': str(obj.pk), 'name': obj.nome, 'item': str(obj.item_final_id), 'item_name': obj.item_final.nome}
     pagination = StandardResultsPagination()

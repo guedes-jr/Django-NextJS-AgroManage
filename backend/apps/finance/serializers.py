@@ -75,6 +75,11 @@ class TransactionSerializer(serializers.ModelSerializer):
     bank_account_name = serializers.CharField(source="bank_account.name", read_only=True)
     farm_name = serializers.CharField(source="farm.name", read_only=True)
     species_name = serializers.CharField(source="species.name", read_only=True)
+    segmento = serializers.ChoiceField(
+        choices=[("", "Geral"), ("plantacoes", "Plantações"), ("suinos", "Suinocultura"),
+                 ("gado-de-corte", "Gado de corte"), ("pecuaria-leiteira", "Pecuária leiteira")],
+        required=False, allow_blank=True,
+    )
     animal_batch_purpose = serializers.CharField(source="animal_batch.cattle_purpose", read_only=True, default="unknown")
     animal_batch_name = serializers.CharField(source="animal_batch.batch_code", read_only=True)
     planting_cycle_name = serializers.CharField(source="planting_cycle.name", read_only=True)
@@ -87,7 +92,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "description", "amount", "due_date", "payment_date", "status",
             "reference", "notes", "payment_method", "attachment",
             "bank_account", "bank_account_name", "planting_cycle",
-            "animal_batch", "species", "created_by", "created_at",
+            "animal_batch", "species", "segmento", "created_by", "created_at",
             "farm_name", "species_name", "animal_batch_name", "animal_batch_purpose", "planting_cycle_name", "payment_events",
             "series_id", "series_kind", "series_number", "series_count"
         ]

@@ -384,16 +384,10 @@ def _cattle_segments(organization, start, end, period_transactions, inventory_pu
             {"name": CATTLE_COST_LABELS.get(source, source), "value": value}
             for source, value in report["totals"].items()
         ]
-        linked = period_transactions.filter(
-            animal_batch__in=bovine_batches.filter(cattle_purpose=purpose)
-        ).exclude(reference__in=inventory_purchase_references)
+        # Finance entries carry their own segment (lot purpose, milk sale, manual choice).
+        linked = period_transactions.filter(segmento=code).exclude(reference__in=inventory_purchase_references)
         expenses = linked.filter(category__category_type=FinancialCategory.CategoryType.EXPENSE)
         revenues = linked.filter(category__category_type=FinancialCategory.CategoryType.REVENUE)
-        if purpose == "dairy":
-            revenues = (revenues | period_transactions.filter(
-                reference__startswith="SALE-MILK-TANK-",
-                category__category_type=FinancialCategory.CategoryType.REVENUE,
-            )).distinct()
         cost = Decimal(report["operational_total"]) + (expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0"))
         revenue = revenues.aggregate(total=Sum("amount"))["total"] or Decimal("0")
         cards.append({
@@ -884,16 +878,18 @@ def dashboard_summary(request):
         # REGRA: mesmo em org de espécie única, não usamos catch-all de fazenda.
         # Compras de grãos/ingredientes de ração ficam no KPI geral (despesa),
         # e não como custo do segmento. O custo de alimentação vem do ConsumoRacao.
+        # Entries of another segment never count here, even if the category name matches.
         species_transactions = period_transactions.filter(
             planting_cycle__isnull=True
         ).filter(
-            Q(species=species)
+            Q(segmento=code)
+            | Q(species=species)
             | Q(animal_batch__species=species)
             | species_references
             | species_terms
         ).exclude(
             reference__in=inventory_purchase_references
-        ).distinct()
+        ).exclude(segmento__in=["plantacoes", "gado-de-corte", "pecuaria-leiteira"]).distinct()
         # Registros de ração atribuídos à espécie via lote_animal ou animais M2M.
         _attributed_ids = list(
             feed_consumption.filter(

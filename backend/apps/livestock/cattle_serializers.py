@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from apps.inventory.choices import cattle_segments, item_in_segments
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -715,7 +716,8 @@ class CattleFeedSerializer(ConsumoRacaoSerializer):
             not item
             or item.organization_id != organization.pk
             or item.categoria not in ["racao", "suplemento", "nucleo"]
-            or item.especie_animal not in ["", "bovino", "multiplo"]
+            # Feed must belong to the segment of the lot/animals (corte or leite).
+            or not item_in_segments(item, sorted({segment for purpose in ([batch.cattle_purpose] if batch else [animal.cattle_purpose for animal in animals]) for segment in cattle_segments(purpose)}))
             or item.unidade_medida != "kg"
         ):
             raise serializers.ValidationError(
@@ -992,7 +994,7 @@ class CattleFeedPlanSerializer(serializers.ModelSerializer):
         active = attrs.get("is_active", getattr(self.instance, "is_active", True))
         if not item or item.organization_id != org.id:
             raise serializers.ValidationError({"item": "O produto deve pertencer à sua organização."})
-        if active and (item.categoria not in ["racao", "suplemento", "nucleo"] or item.unidade_medida != "kg" or item.especie_animal not in ["", "bovino", "multiplo"] or not item.ativo):
+        if active and (item.categoria not in ["racao", "suplemento", "nucleo"] or item.unidade_medida != "kg" or not item_in_segments(item, cattle_segments(batch.cattle_purpose)) or not item.ativo):
             raise serializers.ValidationError({"item": "Selecione ração ou suplemento bovino ativo em kg da sua organização."})
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
         end = attrs.get("end_date", getattr(self.instance, "end_date", None))

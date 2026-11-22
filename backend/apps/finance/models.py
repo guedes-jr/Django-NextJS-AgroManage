@@ -65,6 +65,29 @@ class BankAccount(BaseModel):
 
 
 
+def segment_for(transaction):
+    """Segment implied by what the transaction is linked to, or None to keep the stored one.
+
+    The link wins over a stored value so the segment follows a lot whose purpose changes.
+    """
+    reference = transaction.reference or ""
+    if transaction.planting_cycle_id:
+        return "plantacoes"
+    if transaction.animal_batch_id:
+        batch = transaction.animal_batch
+        code = (batch.species.code or "").lower()
+        if code in {"suino", "suinos"}:
+            return "suinos"
+        if code in {"bovino", "bovinos"}:
+            return {"beef": "gado-de-corte", "dairy": "pecuaria-leiteira"}.get(batch.cattle_purpose, "")
+        return ""
+    if reference.startswith("SALE-MILK-TANK-"):
+        return "pecuaria-leiteira"
+    if reference.startswith("LABOR-SWINE-"):
+        return "suinos"
+    return None
+
+
 class Transaction(BaseModel):
     """A single financial transaction (revenue or expense)."""
 
@@ -117,6 +140,9 @@ class Transaction(BaseModel):
         "livestock.Species", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="finance_transactions",
     )
+    # Segmento dono do lançamento (plantacoes, suinos, gado-de-corte, pecuaria-leiteira).
+    # Vazio = despesa/receita geral. Derivado do vínculo em save(); ver segment_for().
+    segmento = models.CharField(max_length=30, blank=True, default="", db_index=True)
 
     series_id = models.UUIDField(null=True, blank=True, editable=False, db_index=True)
     series_kind = models.CharField(max_length=12, blank=True, editable=False)
@@ -138,6 +164,11 @@ class Transaction(BaseModel):
     @transaction.atomic
     def save(self, *args, **kwargs):
         from .services import refresh_account_balances
+        derived = segment_for(self)
+        if derived is not None:
+            self.segmento = derived
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = {*kwargs["update_fields"], "segmento"}
         previous = type(self).objects.select_for_update().filter(pk=self.pk).first()
         if previous and self.payment_events.exists() and not getattr(self, "_settlement_operation", False):
             protected = ["amount", "category_id", "bank_account_id", "status", "payment_date", "payment_method", "farm_id", "animal_batch_id", "species_id", "planting_cycle_id"]

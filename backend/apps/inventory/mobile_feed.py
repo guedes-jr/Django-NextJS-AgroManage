@@ -9,7 +9,7 @@ from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import serializers, exceptions
 from .models import FormulaRacao, FormulaIngrediente, ItemEstoque, LoteEstoque, MovimentacaoEstoque, ProducaoRacao
-from .choices import EspecieAnimal
+from .choices import SEGMENTO_ESPECIE, EspecieAnimal, Segmento
 from .stock_launches import authorize
 
 CENT = Decimal('.01')
@@ -36,6 +36,8 @@ class FormulaInput(Strict):
     nome = serializers.CharField(max_length=150)
     descricao = serializers.CharField(max_length=5000, allow_blank=True, default='')
     especie_animal = serializers.ChoiceField(choices=EspecieAnimal.choices, allow_blank=True, default='')
+    # Optional so older app versions keep working; when sent it decides the owning segment.
+    segmento = serializers.ChoiceField(choices=Segmento.choices, allow_blank=True, required=False)
     item_final = serializers.UUIDField()
     ingredientes = IngredientInput(many=True, min_length=1, max_length=50)
 
@@ -67,7 +69,7 @@ def formulas(user):
 def formula_data(obj):
     if obj.item_final_id and obj.item_final.organization_id != obj.organization_id or any(row.item.organization_id != obj.organization_id for row in obj.ingredientes.all()):
         raise serializers.ValidationError({'formula': ['Cadastro inconsistente. Revise as referências da fórmula.']})
-    return {'id': str(obj.pk), 'nome': obj.nome, 'descricao': obj.descricao, 'especie_animal': obj.especie_animal,
+    return {'id': str(obj.pk), 'nome': obj.nome, 'descricao': obj.descricao, 'especie_animal': obj.especie_animal, 'segmento': obj.segmento,
             'item_final': str(obj.item_final_id) if obj.item_final_id else None,
             'item_final_nome': obj.item_final.nome if obj.item_final_id else '', 'ativa': obj.ativa,
             'updated_at': obj.updated_at.isoformat(),
@@ -111,6 +113,13 @@ def save_formula(user, data):
         obj = FormulaRacao(organization_id=user.organization_id)
     for field in ('nome', 'descricao', 'especie_animal', 'item_final'):
         setattr(obj, field if field != 'item_final' else 'item_final_id', data[field])
+    if 'segmento' in data:
+        obj.segmento = data['segmento']
+    elif obj.segmento and SEGMENTO_ESPECIE[obj.segmento] != data['especie_animal']:
+        # Older app changed only the species: drop the segment that no longer matches.
+        obj.segmento = ''
+    if obj.segmento and final.segmento not in {'', obj.segmento}:
+        raise serializers.ValidationError({'item_final': ['O produto final pertence a outro segmento.']})
     obj.save()
     obj.ingredientes.all().delete()
     FormulaIngrediente.objects.bulk_create([FormulaIngrediente(formula=obj, item_id=row['item'], percentual=row['percentual']) for row in data['ingredientes']])

@@ -8,7 +8,7 @@ import {formulaInputSchema,formulaPayload,productionInputSchema,productionPayloa
 import {feedMessages} from '../src/features/feed/messages';
 const id='00000000-0000-4000-8000-000000000001',item='00000000-0000-4000-8000-000000000002',lot='00000000-0000-4000-8000-000000000003';
 const user=userSchema.parse({id,full_name:'Gestor',email:'test@example.com',force_password_change:false,is_platform_staff:false,affiliate_portal_only:false,access:{role:'manager',can_manage_users:true,can_view_financial:false,can_operate_crops:false,livestock_species:[],read_only:false}});
-const formulaInput:FormulaInput={nome:'Mistura',descricao:'',especie_animal:'bovino',item_final:id,ingredientes:[{item,percentual:'100'}]};
+const formulaInput:FormulaInput={nome:'Mistura',descricao:'',especie_animal:'bovino',segmento:'gado-de-corte',item_final:id,ingredientes:[{item,percentual:'100'}]};
 const production:ProductionInput={formula:id,quantidade_teorica:'10,01',quantidade_real:'9,50'};
 const formula=formulaSchema.parse({id,nome:'Mistura',descricao:'',especie_animal:'bovino',item_final:id,item_final_nome:'Ração',ativa:true,updated_at:'2026-11-07T12:00:00Z',ingredientes:[{item,item_nome:'Milho',unidade:'kg',ativo:true,percentual:'100.00'}]});
 const review=previewSchema.parse({preview_token:'synthetic',formula:id,nome:'Mistura',item_final:id,item_final_nome:'Ração',quantidade_teorica:'10.01',quantidade_real:'9.50',saldo_final_anterior:'0.00',saldo_final_posterior:'9.50',ingredientes:[{item,nome:'Milho',percentual:'100.00',quantidade:'10.01',disponivel:'100.00',lotes:[{id:lot,numero:'A',quantidade:'10.01'}]}]});

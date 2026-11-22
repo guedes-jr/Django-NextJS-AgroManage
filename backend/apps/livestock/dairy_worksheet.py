@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from apps.inventory.choices import segment_items_q
 from decimal import Decimal
 from uuid import uuid4
 
@@ -164,8 +165,7 @@ def feed_products(organization):
         ativo=True,
         categoria__in=["racao", "suplemento", "nucleo"],
         unidade_medida="kg",
-        especie_animal__in=["", "bovino", "multiplo"],
-    ).order_by("nome", "id")
+    ).filter(segment_items_q("pecuaria-leiteira")).order_by("nome", "id")
 
 
 def version(records, state):
