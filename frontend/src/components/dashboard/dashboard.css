@@ -258,6 +258,7 @@
 .org-segment.veterinary > header { background:linear-gradient(100deg,color-mix(in srgb,var(--chart-4),#000 22%),color-mix(in srgb,var(--chart-4),#000 5%)); }
 .org-segment > header span { display:flex; align-items:center; gap:8px; font-size:.79rem; font-weight:800; letter-spacing:.02em; text-transform:uppercase; }
 .org-segment-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-bottom:1px solid var(--border); }
+.org-segment-note { margin:0; padding:8px 14px 10px; border-top:1px solid var(--border); color:var(--muted-foreground); font-size:.68rem; }
 .org-segment-stats > div { min-width:0; padding:12px 9px; text-align:center; }
 .org-segment-stats > div + div { border-left:1px solid var(--border); }
 .org-segment-stats small { display:block; overflow:hidden; margin-bottom:4px; color:var(--muted-foreground); font-size:.58rem; font-weight:750; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }

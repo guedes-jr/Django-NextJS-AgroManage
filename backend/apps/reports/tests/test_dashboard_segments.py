@@ -36,8 +36,27 @@ class DashboardSegmentTestCase(APITestCase):
         response = self.client.get(reverse("dashboard-summary"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         cards = response.data["segments"]["livestock_by_species"]
-        self.assertEqual([card["code"] for card in cards], ["suinos", "bovinos"])
-        self.assertEqual([card["cost"] for card in cards], [0.0, 0.0])
+        self.assertEqual([card["code"] for card in cards], ["suinos", "gado-de-corte", "pecuaria-leiteira"])
+        self.assertEqual([card["cost"] for card in cards], [0.0, 0.0, 0.0])
+
+    def test_beef_and_dairy_cards_keep_their_own_values(self):
+        cattle, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
+        expense = FinancialCategory.objects.create(organization=self.organization, name="Compra de Animais", category_type="expense")
+        revenue = FinancialCategory.objects.create(organization=self.organization, name="Venda de leite", category_type="revenue")
+        lots = {}
+        for code, purpose, amount in (("CORTE-1", "beef", "7000"), ("LEITE-1", "dairy", "3000"), ("SEM-1", "unknown", "900")):
+            lots[purpose] = AnimalBatch.objects.create(farm=self.farm, species=cattle, batch_code=code, name=code,
+                                                       quantity=10, entry_date=date.today(), cattle_purpose=purpose)
+            Transaction.objects.create(organization=self.organization, category=expense, description=code, amount=Decimal(amount),
+                                       due_date=date.today(), payment_date=date.today(), status="paid", animal_batch=lots[purpose])
+        Transaction.objects.create(organization=self.organization, category=revenue, description="Leite", amount=Decimal("1200"),
+                                   due_date=date.today(), payment_date=date.today(), status="paid", reference="SALE-MILK-TANK-1")
+
+        cards = {card["code"]: card for card in self.client.get(reverse("dashboard-summary")).data["segments"]["livestock_by_species"]}
+        self.assertEqual((cards["gado-de-corte"]["cost"], cards["gado-de-corte"]["revenue"]), (7000.0, 0.0))
+        self.assertEqual((cards["pecuaria-leiteira"]["cost"], cards["pecuaria-leiteira"]["revenue"]), (3000.0, 1200.0))
+        # The unclassified lot is in no card and is flagged to be fixed.
+        self.assertEqual(cards["gado-de-corte"]["unclassified"], 1)
 
     def test_agricultural_stock_purchase_is_general_expense_not_crop_cost(self):
         item = ItemEstoque.objects.create(

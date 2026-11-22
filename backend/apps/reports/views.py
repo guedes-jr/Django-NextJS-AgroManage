@@ -332,6 +332,79 @@ def _crop_operation_costs(organization, start, end):
     return {name: value for name, value in totals.items() if value}
 
 
+CATTLE_COST_LABELS = {
+    "feed": "Ração", "sanitary": "Manejo sanitário", "health": "Tratamentos",
+    "vaccine": "Vacinas", "semen": "Sêmen e protocolos",
+}
+CATTLE_SEGMENTS = (
+    ("gado-de-corte", "Gado de corte", "beef"),
+    ("pecuaria-leiteira", "Pecuária leiteira", "dairy"),
+)
+
+
+def _cattle_segments(organization, start, end, period_transactions, inventory_purchase_references, segment_payload):
+    """Gado de corte and Pecuária leiteira cards, each with only its own records.
+
+    Operational costs come from the cattle cost report (same base as the cattle
+    screens), restricted to one purpose so nothing is shared between the cards.
+    Finance entries count when linked to a lot of that purpose; milk sales are
+    dairy revenue. Lots/animals still "Não informado" or "Dupla finalidade"
+    belong to no segment and are reported as ``unclassified`` to be fixed.
+    """
+    from apps.livestock.cattle_analytics import cattle_cost_report
+    from apps.livestock.models import Animal
+
+    def breakdown(queryset):
+        return [
+            {"name": row["category__name"] or "Outros", "value": row["total"]}
+            for row in queryset.values("category__name").annotate(total=Sum("amount"))
+            if row["total"]
+        ]
+
+    def merged(rows):
+        totals = defaultdict(Decimal)
+        for row in rows:
+            totals[row["name"]] += Decimal(str(row["value"]))
+        return [
+            {"name": name, "value": float(value)}
+            for name, value in sorted(totals.items(), key=lambda item: item[1], reverse=True)
+            if value
+        ]
+
+    bovine_batches = AnimalBatch.objects.filter(farm__organization=organization, species__code="bovinos")
+    bovine_animals = Animal.objects.filter(farm__organization=organization, species__code="bovinos")
+    unclassified = (
+        bovine_batches.exclude(cattle_purpose__in=["beef", "dairy"]).exclude(status="sold").count()
+        + bovine_animals.exclude(cattle_purpose__in=["beef", "dairy"]).filter(status="active").count()
+    )
+    cards = []
+    for code, title, purpose in CATTLE_SEGMENTS:
+        report = cattle_cost_report(organization, start=start, end=end, exact_purposes=[purpose])
+        operational = [
+            {"name": CATTLE_COST_LABELS.get(source, source), "value": value}
+            for source, value in report["totals"].items()
+        ]
+        linked = period_transactions.filter(
+            animal_batch__in=bovine_batches.filter(cattle_purpose=purpose)
+        ).exclude(reference__in=inventory_purchase_references)
+        expenses = linked.filter(category__category_type=FinancialCategory.CategoryType.EXPENSE)
+        revenues = linked.filter(category__category_type=FinancialCategory.CategoryType.REVENUE)
+        if purpose == "dairy":
+            revenues = (revenues | period_transactions.filter(
+                reference__startswith="SALE-MILK-TANK-",
+                category__category_type=FinancialCategory.CategoryType.REVENUE,
+            )).distinct()
+        cost = Decimal(report["operational_total"]) + (expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0"))
+        revenue = revenues.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        cards.append({
+            "code": code,
+            "name": title,
+            "unclassified": unclassified,
+            **segment_payload(cost, revenue, merged(operational + breakdown(expenses)), merged(breakdown(revenues))),
+        })
+    return cards
+
+
 def _unmirrored_crop_sales(organization, start, end):
     """Crop sales of the period that have no CROPSALE-<id> transaction, grouped by crop."""
     from apps.crops.models import CropSale
@@ -774,13 +847,12 @@ def dashboard_summary(request):
         feed_breakdown + vaccine_breakdown + semen_breakdown + livestock_cost_breakdown
     )
 
-    # Os cards da dashboard seguem os segmentos do sistema (Configurações ›
-    # Recursos dos segmentos), não as espécies que já têm lotes: Suinocultura e
-    # Bovinos aparecem sempre, mesmo antes do primeiro lote. Suinocultura vem
-    # primeiro porque absorve os registros de ração sem vínculo animal.
+    # Os cards da dashboard seguem os segmentos do sistema, não as espécies que
+    # já têm lotes: Suinocultura, Gado de corte e Pecuária leiteira aparecem
+    # sempre. Suinocultura absorve os registros de ração sem vínculo animal; os
+    # bovinos são separados por finalidade em _cattle_segments (abaixo).
     livestock_segments = (
         (segment_features.SWINE, ("suinos", "suino"), "Suinocultura"),
-        (segment_features.CATTLE, ("bovinos", "bovino"), "Bovinos"),
     )
     segment_species = [
         (code, title, Species.objects.filter(code__in=species_codes).order_by("code").first())
@@ -907,6 +979,10 @@ def dashboard_summary(request):
                 financial_breakdown(species_transactions, FinancialCategory.CategoryType.REVENUE),
             ),
         })
+
+    livestock_by_species += _cattle_segments(
+        org, period_start, period_end, period_transactions, inventory_purchase_references, segment_payload
+    )
 
     recent_transactions = [
         {

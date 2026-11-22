@@ -59,12 +59,15 @@ NATIVE_COST_MAX_ENTRIES = 5000
 NATIVE_COST_MAX_ANIMALS = 10000
 
 
-def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpose=None, native=False):
+def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpose=None, native=False, exact_purposes=None):
+    """``exact_purposes`` limits to those purposes only (no dual-purpose sharing), as the dashboard segments do."""
     from apps.inventory.models import ConsumoRacao
     from apps.finance.models import Transaction
     from .models import VaccinationRecord, HealthRecord, CattleProtocolStep
-    batches = filter_purpose(AnimalBatch.objects.filter(farm__organization=organization, species__code="bovinos"), purpose)
-    animals = filter_purpose(Animal.objects.filter(farm__organization=organization, species__code="bovinos"), purpose)
+    def scoped(queryset):
+        return queryset.filter(cattle_purpose__in=exact_purposes) if exact_purposes else filter_purpose(queryset, purpose)
+    batches = scoped(AnimalBatch.objects.filter(farm__organization=organization, species__code="bovinos"))
+    animals = scoped(Animal.objects.filter(farm__organization=organization, species__code="bovinos"))
     if farm:
         batches, animals = batches.filter(farm_id=farm), animals.filter(farm_id=farm)
     if batch:
@@ -125,7 +128,7 @@ def cattle_cost_report(organization, *, start, end, farm=None, batch=None, purpo
     # Cash/accounting expenses are a separate ledger view: never add them to physical
     # stock consumption, since a purchase may already finance the same material.
     cash = Transaction.objects.filter(organization=organization, category__category_type="expense", due_date__range=(start,end)).exclude(status="cancelled").filter(animal_batch__in=batches)
-    if not batch and purpose in {None, "all"}:
+    if not batch and not exact_purposes and purpose in {None, "all"}:
         overhead = Transaction.objects.filter(organization=organization, category__category_type="expense", due_date__range=(start,end), animal_batch__isnull=True, species__code="bovinos").exclude(status="cancelled")
         if farm:
             overhead = overhead.filter(farm_id=farm)
