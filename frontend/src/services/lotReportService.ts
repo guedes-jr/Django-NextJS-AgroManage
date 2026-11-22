@@ -20,7 +20,7 @@ export const lotCostColumns = [
 export type LotCostKey = typeof lotCostColumns[number]["key"];
 export type LotReportItem = Partial<Record<LotCostKey, string | null>> & {
   id: string; batch_code: string; name?: string; quantity: number; category?: string;
-  breed?: string; farm: string; entry_date?: string; status: string; status_display?: string;
+  breed?: string; farm: string; entry_date?: string; exit_date?: string | null; status: string; status_display?: string;
   avg_weight?: number; species_code: string; phase?: string; production_type?: string;
   matrices?: string[]; missing_cost_count?: number;
   /** Original lot size (entry), kept after sales. */ total_quantity?: number;
@@ -60,6 +60,18 @@ export function lotReportTotals(items: LotReportItem[]): Record<LotCostKey, numb
 }
 /** Animals still in the lot (a closed lot keeps its last quantity on the model). */
 export const lotCurrentQuantity = (item: LotReportItem) => item.current_quantity ?? (item.status === "active" ? item.quantity : 0);
+/**
+ * Animals that went through production lots in the period: still in an active lot,
+ * or left a closed lot (sale/finish) within it. Breeding stock is not a produced animal.
+ */
+export function animalsInPeriod(items: LotReportItem[], from: string, to: string) {
+  return items.filter(isProductionLot).reduce((sum, item) => {
+    if (item.entry_date && item.entry_date > to) return sum;
+    if (item.status === "active") return sum + lotCurrentQuantity(item);
+    if (!item.exit_date || item.exit_date < from || item.exit_date > to) return sum;
+    return sum + (item.cost_quantity ?? item.total_quantity ?? item.quantity);
+  }, 0);
+}
 export const lotReportHeaders = ["Lote", "Tipo de Produção", "Matrizes", "Total do Lote", "Animais Atuais", "Status do Lote", ...lotCostColumns.map(column => column.label)];
 export function lotReportExportRow(item: LotReportItem) {
   return [item.batch_code, item.production_type || "—", item.matrices?.join(", ") || "—", item.total_quantity ?? "—", lotCurrentQuantity(item),

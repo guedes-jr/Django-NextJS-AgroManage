@@ -235,7 +235,7 @@ def enrich_lot_costs(organization, rows):
     references = {f"PURCHASE-BATCH-{key}": key for key in ids}
     references.update({f"SALE-BATCH-{key}": key for key in ids})
     recorded_purchases = set()
-    general_labor = Decimal(0)
+    general_labor = []  # (date, amount) of labor not linked to a lot
     for tx in (
         Transaction.objects.filter(organization=organization)
         .filter(
@@ -262,8 +262,15 @@ def enrich_lot_costs(organization, rows):
             continue
         category = normalize(tx.category.name)
         is_labor = tx.reference.startswith("LABOR-SWINE-") or "mao de obra" in category
-        if is_labor and tx.animal_batch_id is None:
-            general_labor += tx.amount
+        closed = batches.get(str(tx.animal_batch_id))
+        linked_after_close = (
+            closed is not None and closed.status != "active"
+            and closed.exit_date is not None and tx.due_date >= closed.exit_date
+        )
+        if is_labor and (tx.animal_batch_id is None or linked_after_close):
+            # A closed lot keeps its historic costs frozen: labor dated after its
+            # closing goes to the lots still available on that date.
+            general_labor.append((tx.due_date, tx.amount))
             continue
         if batch_id is None:
             continue
@@ -284,38 +291,9 @@ def enrich_lot_costs(organization, rows):
             key = phase_at(batch_id, tx.due_date)
         add(batch_id, tx.amount, key)
 
-    labor_targets = [
-        batch_id
-        for batch_id in ids
-        if batches[batch_id].status == "active"
-        and batches[batch_id].quantity > 0
-        and batches[batch_id].category not in BREEDING_CATEGORIES
-    ]
-    if general_labor and labor_targets:
-        total_quantity = sum(
-            (Decimal(batches[batch_id].quantity) for batch_id in labor_targets),
-            Decimal(0),
-        )
-        unit_share = general_labor / total_quantity
-        distributed = Decimal(0)
-        for index, batch_id in enumerate(labor_targets):
-            amount = (unit_share * Decimal(batches[batch_id].quantity)).quantize(
-                Decimal("0.01")
-            )
-            if index == len(labor_targets) - 1:
-                amount += general_labor - distributed - amount
-            distributed += amount
-            add(batch_id, amount, "labor")
-
-    from .sire_costs import allocate_sire_costs
-
-    sire_allocation = allocate_sire_costs(organization, batches, sources)
-    for batch_id in ids:
-        for entry in sire_allocation["entries"].get(batch_id, []):
-            add(batch_id, Decimal(entry["amount"]), "reproduction")
-
     sale_quantities = {}
     entry_quantities, sold_quantities, death_quantities = {}, defaultdict(int), defaultdict(int)
+    sale_events, death_events = defaultdict(list), defaultdict(list)
     for event in HistoricoEvento.objects.filter(
         farm__organization=organization,
         lote_id__in=ids,
@@ -328,8 +306,63 @@ def enrich_lot_costs(organization, rows):
             entry_quantities.setdefault(lot_id, metadata.get("quantidade"))
         elif event.tipo_evento == "Venda de Animais":
             sold_quantities[lot_id] += int(metadata.get("quantity") or 0)
+            sale_events[lot_id].append((event.data_evento, int(metadata.get("quantity") or 0)))
         else:
             death_quantities[lot_id] += int(metadata.get("quantidade_mortes") or 0)
+            death_events[lot_id].append((event.data_evento, int(metadata.get("quantidade_mortes") or 0)))
+
+    def quantity_on(batch_id, day):
+        """Animals in the lot on ``day``, rebuilt backwards from today.
+
+        A closed lot has nobody left; sales and deaths after ``day`` were still
+        in the lot then. A lot that had not entered yet, or was closed on or
+        before ``day``, had no animals. Transfers out are not rebuilt.
+        """
+        batch = batches[batch_id]
+        if batch.entry_date and day < batch.entry_date:
+            return 0
+        if batch.status != "active":
+            # Without an exit date the closing cannot be placed in time.
+            if not batch.exit_date or day >= batch.exit_date:
+                return 0
+        if batch.status == "active":
+            current = batch.quantity
+        elif batch.status == "sold" and sale_events[batch_id]:
+            current = 0  # the closing sale event (after ``day``) holds the animals
+        else:
+            current = batch.quantity  # legacy sale or other closing: last known size
+        later = sum(q for event_day, q in sale_events[batch_id] if event_day > day)
+        later += sum(q for event_day, q in death_events[batch_id] if event_day > day)
+        return current + later
+
+    # General labor (not linked to a lot) is shared on its own date among the
+    # production lots that had animals then. Sold lots keep what they received
+    # while active and receive nothing after closing; later entries go only to
+    # the lots still available.
+    production_ids = [
+        batch_id for batch_id in ids if batches[batch_id].category not in BREEDING_CATEGORIES
+    ]
+    for day, labor_amount in general_labor:
+        weights = [(batch_id, quantity_on(batch_id, day)) for batch_id in production_ids]
+        weights = [(batch_id, quantity) for batch_id, quantity in weights if quantity > 0]
+        total_quantity = sum(quantity for _, quantity in weights)
+        if not total_quantity:
+            continue
+        distributed = Decimal(0)
+        for index, (batch_id, quantity) in enumerate(weights):
+            amount = (labor_amount * quantity / total_quantity).quantize(Decimal("0.01"))
+            if index == len(weights) - 1:
+                amount = labor_amount - distributed
+            distributed += amount
+            add(batch_id, amount, "labor")
+
+    from .sire_costs import allocate_sire_costs
+
+    sire_allocation = allocate_sire_costs(organization, batches, sources)
+    for batch_id in ids:
+        for entry in sire_allocation["entries"].get(batch_id, []):
+            add(batch_id, Decimal(entry["amount"]), "reproduction")
+
     for row in rows:
         batch_id = row["id"]
         batch = batches[batch_id]

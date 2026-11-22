@@ -651,6 +651,9 @@ class LivestockReportService:
                     "entry_date": batch.entry_date.isoformat()
                     if batch.entry_date
                     else None,
+                    "exit_date": batch.exit_date.isoformat()
+                    if batch.exit_date
+                    else None,
                     "avg_weight": float(batch.avg_weight_kg)
                     if batch.avg_weight_kg
                     else None,

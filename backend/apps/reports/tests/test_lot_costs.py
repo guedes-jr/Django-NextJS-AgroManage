@@ -199,6 +199,24 @@ class LotCostsTest(APITestCase):
             Decimal("100.00"),
         )
 
+    def test_sold_lot_keeps_labor_and_later_labor_goes_to_available_lots(self):
+        other = self.new_batch("L002", quantity=30)
+        self.transaction("Mão de Obra - Suinocultura", Decimal("100.00"), reference="LABOR-SWINE-1")
+        sale_day = self.start + timedelta(days=30)
+        HistoricoEvento.objects.create(farm=self.farm, lote=self.batch, tipo_evento="Venda de Animais",
+            data_evento=sale_day, metadata={"quantity": 10})
+        self.batch.status, self.batch.exit_date = "sold", sale_day
+        self.batch.save()
+        self.transaction("Mão de Obra - Suinocultura", Decimal("80.00"), reference="LABOR-SWINE-2",
+            due_date=sale_day + timedelta(days=1))
+        self.transaction("Mão de Obra", Decimal("40.00"), self.batch, due_date=sale_day + timedelta(days=2))
+
+        rows = self.report()
+        # Before the sale: 10 of 40 animals -> 25.00 stays with the sold lot.
+        self.assertEqual(Decimal(rows[str(self.batch.pk)]["labor"]), Decimal("25.00"))
+        # After the sale: everything (80 general + 40 linked after closing) goes to the available lot.
+        self.assertEqual(Decimal(rows[str(other.pk)]["labor"]), Decimal("75.00") + 80 + 40)
+
     def test_legacy_purchase_and_cancellation_never_duplicate(self):
         tx = Transaction.objects.get(reference=f"PURCHASE-BATCH-{self.batch.pk}")
         tx.animal_batch = None
