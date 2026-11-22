@@ -845,6 +845,22 @@ def operations_health(request):
         "checks": checks,
     })
 
+def _related_count(relation, **filters):
+    """Count of an organization's related rows as an independent subquery."""
+    from django.db.models import IntegerField, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+
+    field = Organization._meta.get_field(relation)
+    rows = (
+        field.related_model._base_manager.filter(**{field.field.name: OuterRef("pk")}, **filters)
+        .order_by()
+        .values(field.field.name)
+        .annotate(total=Count("pk"))
+        .values("total")
+    )
+    return Coalesce(Subquery(rows, output_field=IntegerField()), 0)
+
+
 class PlatformOrganizationViewSet(viewsets.ModelViewSet):
     """Global organization management restricted to platform staff."""
 
@@ -861,16 +877,14 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         queryset = Organization.objects.select_related("subscription__plan", "administrator_invitation__user", "adoption", "quota_snapshot").prefetch_related(
             Prefetch("members", queryset=User.objects.filter(organization_responsible=True, platform_staff_profile__isnull=True).exclude(affiliate_profile__portal_access_only=True).only("id", "organization_id", "full_name", "email", "role", "is_active"), to_attr="responsible_members"),
         ).annotate(
-            users_count=Count("members", distinct=True),
-            active_users_count=Count(
-                "members",
-                filter=Q(members__is_active=True),
-                distinct=True,
-            ),
-            farms_count=Count("farms", distinct=True),
-            transactions_count=Count("transactions", distinct=True),
-            planting_cycles_count=Count("plantations", distinct=True),
-            inventory_items_count=Count("inventory_items", distinct=True),
+            # One subquery per relation: COUNT(DISTINCT) over joined members × farms ×
+            # transactions × … multiplies the rows and took ~55 s in production.
+            users_count=_related_count("members"),
+            active_users_count=_related_count("members", is_active=True),
+            farms_count=_related_count("farms"),
+            transactions_count=_related_count("transactions"),
+            planting_cycles_count=_related_count("plantations"),
+            inventory_items_count=_related_count("inventory_items"),
         )
 
         if self.action != "list":
