@@ -879,6 +879,7 @@ def dashboard_summary(request):
     organization_species = [species for _, _, species in segment_species if species]
 
     livestock_by_species = []
+    swine_cost = Decimal("0")
     for code, title, species in segment_species:
         if species is None:
             livestock_by_species.append({
@@ -976,6 +977,8 @@ def dashboard_summary(request):
         species_missing_cost = sum((item["purchase_value"] for item in period_purchases
                                     if item["species_id"] == species.pk), Decimal("0"))
         species_cost += species_missing_cost
+        if code == segment_features.SWINE:
+            swine_cost = species_cost
         species_revenue = species_transactions.filter(
             category__category_type=FinancialCategory.CategoryType.REVENUE
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
@@ -1087,6 +1090,7 @@ def dashboard_summary(request):
             "kpis": {
                 "month_revenue": float(month_revenue),
                 "month_expense": float(month_expense),
+                "dashboard_expense": float(inventory_value + crop_cost + swine_cost),
                 "total_animals": total_animals,
                 "planted_area_ha": float(planted_area),
                 "inventory_items": total_items,

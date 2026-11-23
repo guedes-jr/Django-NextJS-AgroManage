@@ -1,3 +1,4 @@
+import { dashboardExpenses } from './contracts';
 import {WorkspaceShell} from '../workspace/WorkspaceShell';
 import {moduleKeys,iconFor} from '../workspace/navigation';
 import {homeStyles as s} from './styles';
@@ -57,7 +58,7 @@ export function HomeScreen({ session }: { session: Session }) {
             case 'actions': return actions.length > 0 && <View key={section}><View style={{ gap: 8 }}><View style={ui.sectionHeader}><Text accessibilityRole="header" style={ui.sectionHeading}>{qa.title}</Text></View><View style={ui.tileGrid}>{actions.map(action => { const copy = qa.actions[action.id]; return <ActionTile key={action.id} label={copy.label} description={copy.description} icon={<HomeIcon name={action.icon} size={20}/>} compact onPress={() => action.destination && router.navigate(action.destination)}/>; })}</View></View></View>;
             case 'finance': return <View key={section} style={{ gap: 12 }}><View style={s.period}>{button('‹',() => changeMonth(-1),undefined,t.previous)}<Text accessibilityLabel={t.period} style={s.periodText}>{new Intl.DateTimeFormat(language,{month:'long',year:'numeric'}).format(new Date(`${period}-15T12:00:00`))}</Text>{button('›',() => changeMonth(1),undefined,t.next)}</View>
               {loading ? <View style={s.state}><ActivityIndicator color={colors.primary}/><Text style={s.subtitle}>{t.loading}</Text></View> : failed ? <View style={s.state}><Text accessibilityRole="alert" style={ui.error}>{t.error}</Text>{button(t.retry,refresh)}</View> : data && <>
-            <View style={s.metrics}>{metric(t.costs,money.format(data.segments.crops.cost+data.segments.livestock.cost),'wallet')}{metric(t.expenses,money.format(data.kpis.month_expense),'wallet')}{metric(t.revenue,money.format(data.kpis.month_revenue),'trend')}{metric(t.balance,money.format(data.kpis.month_revenue-data.kpis.month_expense),'trend',t.balanceHint)}</View>
+            <View style={s.metrics}>{metric(t.costs,money.format(data.segments.crops.cost+data.segments.livestock.cost),'wallet')}{metric(t.expenses,money.format(dashboardExpenses(data)),'wallet',t.expensesHint)}{metric(t.revenue,money.format(data.kpis.month_revenue),'trend')}{metric(t.balance,money.format(data.kpis.month_revenue-data.kpis.month_expense),'trend',t.balanceHint)}</View>
           </>}</View>;
             case 'veterinary': return <View key={section} style={s.card}>{title(t.veterinary)}<Text style={s.subtitle}>{t.veterinaryHint}</Text>{button(t.veterinaryOpen,() => router.push('/veterinary'),'leaf')}</View>;
             case 'dairy': return <DairyHomePanel key={section}/>;

@@ -456,3 +456,29 @@ class DashboardSegmentTestCase(APITestCase):
             swine_segment["cost_breakdown"],
             [{"name": "Ração crescimento", "value": 900.0}],
         )
+
+    def test_expense_card_sums_current_inventory_crop_cost_and_swine_cost(self):
+        from apps.crops.models import Field, PlantingCycle
+
+        today = date.today()
+        field = Field.objects.create(farm=self.farm, name="Talhão", area_ha=1)
+        crop = PlantingCycle.objects.create(organization=self.organization, farm=self.farm, field=field,
+                                            name="Milho", crop_name="Milho", planting_date=today)
+        swine, _ = Species.objects.get_or_create(code="suinos", defaults={"name": "Suínos"})
+        cattle, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
+        category = FinancialCategory.objects.create(
+            organization=self.organization, name="Despesa de teste", category_type="expense",
+        )
+        for amount, scope in [(30, {"planting_cycle": crop}), (40, {"species": swine}), (90, {"species": cattle})]:
+            Transaction.objects.create(organization=self.organization, farm=self.farm, category=category,
+                                       amount=amount, due_date=today, **scope)
+
+        item = ItemEstoque.objects.create(organization=self.organization, nome="Insumo", unidade_medida="kg")
+        lot = LoteEstoque(item=item, numero_lote="EST-01", quantidade_inicial=20, quantidade_atual=10,
+                          custo_unitario=2, data_entrada=today)
+        lot._skip_finance_transaction = True
+        lot.save()
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["kpis"]["dashboard_expense"], 90.0)
+        self.assertEqual(response.data["kpis"]["month_expense"], 160.0)

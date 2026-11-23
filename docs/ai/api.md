@@ -441,6 +441,10 @@ follow scope. Notification history, email digests and queued deliveries exclude
 financial categories and reproductive events outside authorized tenant/species.
 System notifications and opted-in marketing remain available.
 
+For the management dashboard, `kpis.dashboard_expense` adds the current stock
+value to the crop and swine costs for the selected period. `kpis.month_expense`
+continues to report financial payables for that period.
+
 Accounts migrations 0007/0008 convert owners to admins with the responsible flag.
 Existing operators retain crops and the species already in the catalog; new species
 require explicit authorization. Former viewers become read-only operators with no
