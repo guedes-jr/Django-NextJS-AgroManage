@@ -8,6 +8,12 @@ Este é o ponto de entrada para trabalho no projeto `mobile/`. Antes de editar, 
 - [Planejamento](docs/IMPLEMENTACAO.md): stack, 18 partes, dependências e critérios de avanço.
 - Leia somente o documento de partes e os arquivos necessários à tarefa; não carregue todo o plano automaticamente.
 
+## Paridade entre Web e Mobile
+
+Toda alteração implementada no Web ou no Mobile deve ser propagada para o outro app na mesma entrega. Confira os dois clientes e a API compartilhada para identificar funcionalidades, regras de negócio, validações, permissões, dados e fluxos afetados. Reaproveite os contratos compartilhados quando possível e adapte a interface a cada plataforma.
+
+Se a alteração correspondente estiver explicitamente fora do escopo acordado ou depender de um bloqueio concreto, registre o fluxo afetado, o motivo e a pendência antes de encerrar a entrega.
+
 ## Direção técnica
 
 **Regra obrigatória:** preserve a compatibilidade com Android e iOS e com diferentes dispositivos — celulares pequenos/grandes e tablets, nas versões suportadas do projeto. Adapte telas ao espaço disponível, fontes ampliadas, safe areas e teclado; confirme suporte das dependências e recursos nativos nos dois sistemas. Siga os critérios completos de [compatibilidade entre dispositivos](AGENTS.md#compatibilidade-obrigatória-entre-dispositivos), valide nas plataformas pertinentes e informe explicitamente o que não foi testado. Uma prévia web não comprova compatibilidade nativa.

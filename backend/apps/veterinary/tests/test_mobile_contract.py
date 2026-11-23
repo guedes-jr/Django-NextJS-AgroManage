@@ -52,3 +52,103 @@ class MobileLaunchContractTests(VeterinaryBase):
         self.assertEqual(VeterinaryProcedure.objects.get(pk=pregnant["procedure"]["id"]).gestation_days, 60)
         created = self.post(self.payload("discard_new_client"))
         self.assertTrue(VeterinaryClient.objects.filter(organization=self.org, name="Antônio", pk=created["client"]["id"]).exists())
+
+    def test_mobile_client_directory_and_billing_project_only_needed_fields(self):
+        base = "/api/v1/veterinary/"
+        self.post(self.payload("protocol"))
+        directory = self.client.get(base + "clients/", {"view": "mobile"})
+        self.assertEqual(directory.status_code, 200)
+        row = next(row for row in directory.json() if row["id"] == str(self.farm["id"]))
+        self.assertEqual(set(row), {"id", "name", "farm_name", "phone", "updated_at", "farm", "herd_purpose"})
+
+        month = self.today.isoformat()[:7]
+        billing = self.client.get(base + "billing/", {"view": "mobile", "month": month, "client": self.farm["id"]})
+        self.assertEqual(billing.status_code, 200, billing.data)
+        result = billing.json()
+        self.assertEqual(result["month"], month)
+        self.assertRegex(result["total"], r"^\d+\.\d{2}$")
+        self.assertRegex(result["receivable"], r"^\d+\.\d{2}$")
+        self.assertTrue(result["detail"])
+        self.assertEqual(set(result["detail"][0]), {"id", "date", "identifier", "kind", "value", "paid", "updated_at"})
+        self.assertRegex(result["detail"][0]["value"], r"^\d+\.\d{2}$")
+        self.assertNotIn("responsibles", result)
+
+    def test_client_upsert_replays_without_creating_duplicate_and_rejects_stale_edit(self):
+        from uuid import uuid4
+
+        url = "/api/v1/veterinary/clients/mobile-save/"
+        body = {"id": str(uuid4()), "version": None, "name": "Novo", "farm_name": "Fazenda", "phone": ""}
+        saved = self.client.post(url, body, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(self.client.post(url, body, format="json").json(), saved.json())
+        self.assertEqual(VeterinaryClient.objects.filter(pk=body["id"]).count(), 1)
+        updated = self.client.post(url, body | {"version": saved.json()["updated_at"], "phone": "123"}, format="json")
+        self.assertEqual(updated.status_code, 200, updated.data)
+        stale = self.client.post(url, body | {"version": saved.json()["updated_at"], "phone": "456"}, format="json")
+        self.assertEqual(stale.status_code, 409, stale.data)
+        self.assertEqual(VeterinaryClient.objects.get(pk=body["id"]).phone, "123")
+
+    def test_mobile_settlement_pays_only_reviewed_charges_and_can_repeat(self):
+        base = "/api/v1/veterinary/"
+        self.post(self.payload("protocol"))
+        query = {"view": "mobile", "month": self.today.isoformat()[:7], "client": self.farm["id"]}
+        review = self.client.get(base + "billing/", query).json()["detail"]
+        self.post(self.payload("heat") | {"animal": "998"})
+        command = {
+            "client": self.farm["id"], "month": query["month"],
+            "charges": [{"id": row["id"], "value": row["value"], "version": row["updated_at"]} for row in review],
+        }
+        url = base + "billing/pay-all/?view=mobile"
+        bad = self.client.post(url, command | {"charges": [command["charges"][0] | {"value": "9999.99"}]}, format="json")
+        self.assertEqual(bad.status_code, 409)
+        from unittest.mock import patch
+
+        with patch("apps.veterinary.mobile_accounts.integrations.sync_finance") as sync:
+            response = self.client.post(url, command, format="json")
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(self.client.post(url, command, format="json").json(), response.json())
+            self.assertEqual(sync.call_count, len(review))
+        self.assertEqual(VeterinaryProcedure.objects.filter(organization=self.org, paid=True).count(), len(review))
+        self.assertTrue(VeterinaryProcedure.objects.filter(organization=self.org, paid=False).exists())
+
+    def test_mobile_report_filters_rows_and_only_returns_consultation_fields(self):
+        self.post(self.payload("heat"))
+        url = "/api/v1/veterinary/report/"
+        params = {"view": "mobile", "client": self.farm["id"], "procedure": "observe_heat"}
+        result = self.client.get(url, params)
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertTrue(result.data["rows"])
+        self.assertNotIn("paid", result.data["rows"][0])
+        self.assertNotIn("value", result.data["rows"][0])
+        grouped = self.client.get(url, params | {"mode": "animal"})
+        self.assertEqual(grouped.status_code, 200, grouped.data)
+        self.assertEqual(grouped.data["rows"], [])
+        self.assertEqual(grouped.data["animals"][0]["count"], 1)
+
+    def test_mobile_client_link_uses_web_scope_and_delete_protection(self):
+        from apps.farms.models import Farm
+        from apps.organizations.models import Organization
+
+        farm = Farm.objects.create(organization=self.org, name="Vínculo")
+        other = Organization.objects.create(name="Outra", slug="vet-mobile-outra")
+        foreign = Farm.objects.create(organization=other, name="Outra fazenda")
+        base = "/api/v1/veterinary/clients/"
+        client = VeterinaryClient.objects.get(pk=self.farm["id"])
+        original = {
+            "id": str(client.pk), "version": client.updated_at.isoformat(), "name": client.name,
+            "farm_name": client.farm_name, "phone": client.phone, "herd_purpose": "dairy",
+        }
+        rejected = self.client.post(base + "mobile-save/", original | {"farm": str(foreign.pk)}, format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        command = original | {"farm": str(farm.pk)}
+        saved = self.client.post(base + "mobile-save/", command, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(saved.json()["farm"], str(farm.pk))
+        self.assertEqual(saved.json()["herd_purpose"], "dairy")
+        self.assertEqual(self.client.post(base + "mobile-save/", command, format="json").json(), saved.json())
+
+        empty = VeterinaryClient.objects.create(organization=self.org, name="Sem atendimentos")
+        self.assertEqual(self.client.delete(f"{base}{empty.pk}/").status_code, 204)
+        self.post(self.payload("heat"))
+        self.assertEqual(self.client.delete(f"{base}{client.pk}/").status_code, 400)
+        self.assertTrue(VeterinaryClient.objects.filter(pk=client.pk).exists())

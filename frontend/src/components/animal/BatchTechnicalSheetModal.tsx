@@ -441,6 +441,7 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
   };
 
   // Deaths — somente registros reais
+  const balanceClosures = history.filter((event: { type: string }) => event.type === "balance_close");
   const deathRows = history.filter((e: any) => e.type === "death" || e.type === "discard").slice(0, 20);
 
   // Transfers — somente registros reais (sem transferDefault fictício)
@@ -1080,6 +1081,17 @@ export function BatchTechnicalSheetModal({ isOpen, onClose, batchId }: BatchTech
                   </tbody>
                 </table>
               </div>
+
+              {balanceClosures.length > 0 && (
+                <div>
+                  <h4>{t("livestock.sale.closeBalance")}</h4>
+                  {balanceClosures.map((event: { date: string; batch_id: string; quantity: number; reason?: string }) => (
+                    <p key={`${event.batch_id}:${event.date}`}>
+                      {event.date} · {fmtInt(event.quantity, language)}{event.reason ? ` · ${event.reason}` : ""}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Section 4 — Mortes/Descartes */}
               <div>

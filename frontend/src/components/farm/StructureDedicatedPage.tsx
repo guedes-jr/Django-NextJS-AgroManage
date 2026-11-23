@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useOrganizationLocale } from "@/lib/locale";
 
 import styles from "./StructureDedicatedPage.module.css";
+import { calculateBuiltArea } from "./structureDimensions";
 import axios from "axios";
 import type { LucideIcon } from "lucide-react";
 
@@ -239,10 +240,13 @@ export function StructureDedicatedPage({
     if (asset) editStructure(asset);
   };
 
+  const calculatedArea = editing ? null : calculateBuiltArea(form.length_m, form.width_m);
+  const builtArea = calculatedArea ?? form.built_area_m2;
+
   const saveStructure = async (e: FormEvent) => {
     e.preventDefault(); setSaving(true); setError("");
     try {
-      const payload = { ...form, category };
+      const payload = { ...form, category, built_area_m2: builtArea };
       const response = editing
         ? await farmStructureService.update(editing.id, payload)
         : await farmStructureService.create(payload);
@@ -409,32 +413,24 @@ export function StructureDedicatedPage({
                   <option value="inactive">{t("structure.dedicated.inactive")}</option>
                 </select>
               </div>
-              <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.builtArea")}</label>
-                <input
-                  type="number" min="0" step="0.01"
-                  className="form-control"
-                  placeholder="Ex.: 500,00"
-                  value={form.built_area_m2 || ""}
-                  onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })}
-                />
-              </div>
-              <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.length")}</label>
+              <div className="col-6">
+                <label className="form-label fw-semibold small mb-1" htmlFor="structure-length">{t("structure.dedicated.length")}</label>
                 <input
                   type="number" min="0" step="0.01"
                   className="form-control"
                   placeholder="Ex.: 250,00"
+                  id="structure-length"
                   value={form.length_m || ""}
                   onChange={(e) => setForm({ ...form, length_m: e.target.value || null })}
                 />
               </div>
-              <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.width")}</label>
+              <div className="col-6">
+                <label className="form-label fw-semibold small mb-1" htmlFor="structure-width">{t("structure.dedicated.width")}</label>
                 <input
                   type="number" min="0" step="0.01"
                   className="form-control"
                   placeholder="Ex.: 200,00"
+                  id="structure-width"
                   value={form.width_m || ""}
                   onChange={(e) => setForm({ ...form, width_m: e.target.value || null })}
                 />
@@ -480,6 +476,20 @@ export function StructureDedicatedPage({
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="col-12 col-md-4">
+                <label className="form-label fw-semibold small mb-1" htmlFor="structure-built-area">{t("structure.dedicated.builtArea")}</label>
+                <input
+                  id="structure-built-area"
+                  type="number" min="0" step="0.01"
+                  className="form-control"
+                  value={builtArea ?? ""}
+                  readOnly={calculatedArea !== null}
+                  onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })}
+                />
               </div>
             </div>
 

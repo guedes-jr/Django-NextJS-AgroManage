@@ -1,3 +1,7 @@
+import { canReadSwineSales } from '../swine/sales';
+import type { HerdQuery, ReportQuery } from '../veterinary/consultation';
+import type { VetClientCommand, VetSettlementCommand } from '../veterinary/contracts';
+import type { SwineTransitionInput, SwineTransitionKind } from '../swine/transitions';
 import { isAxiosError } from 'axios';
 import {canWriteTankRecord,tankWriteCommandSchema,type TankWriteCommand} from '../milk/tankWriteContracts';
 import {canManageTank,tankCommandSchema,type TankCommand} from '../milk/tankFormContracts';
@@ -264,6 +268,30 @@ export class SessionController {
   }
   vetWorkspace(signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetWorkspace(tokens,this.language,signal));}
   vetAnimals(signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetAnimals(tokens,this.language,signal));}
+  vetHerd(input: HerdQuery, signal?: AbortSignal) {
+    return this.veterinaryRead(tokens => this.api.vetHerd(tokens, this.language, input, signal));
+  }
+  vetHerdHistory(id: string, signal?: AbortSignal) {
+    return this.veterinaryRead(tokens => this.api.vetHerdHistory(tokens, this.language, id, signal));
+  }
+  vetReport(input: ReportQuery, signal?: AbortSignal) {
+    return this.veterinaryRead(tokens => this.api.vetReport(tokens, this.language, input, signal));
+  }
+  vetBilling(month: string, client?: string, signal?: AbortSignal) {
+    return this.veterinaryRead(tokens => this.api.vetBilling(tokens, this.language, month, client, signal));
+  }
+  vetFarms(signal?: AbortSignal) {
+    return this.veterinaryRead(tokens => this.api.vetFarms(tokens, this.language, signal));
+  }
+  vetDeleteClient(id: string) {
+    return this.veterinaryRead(tokens => this.api.vetDeleteClient(tokens, this.language, id));
+  }
+  vetSaveClient(input: VetClientCommand) {
+    return this.veterinaryRead(tokens => this.api.vetSaveClient(tokens, this.language, input));
+  }
+  vetSettle(input: VetSettlementCommand) {
+    return this.veterinaryRead(tokens => this.api.vetSettle(tokens, this.language, input));
+  }
   vetClients(signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetClients(tokens,this.language,signal));}
   vetHistory(animal:string,signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetHistory(tokens,this.language,animal,signal));}
   vetLookup(client:string,q:string,signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetLookup(tokens,this.language,client,q,signal));}
@@ -346,6 +374,12 @@ export class SessionController {
   swinePhasePage(phase:SwinePhase,page:number,pageSize:number,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swinePhasePage(tokens,this.language,{phase,page,page_size:pageSize},signal));
   }
+  swineSales(signal?: AbortSignal) {
+    if (this.state.status !== 'signedIn' || !canReadSwineSales(this.state.session.user)) {
+      return Promise.reject(new AuthFailure('unsupported'));
+    }
+    return this.swineRead(tokens => this.api.swineSales(tokens, this.language, signal));
+  }
   swineRecordDetail(phase:SwinePhase,id:string,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swineRecordDetail(tokens,this.language,phase,id,signal));
   }
@@ -384,6 +418,35 @@ export class SessionController {
       current();
       return this.api.registerSwineMating(tokens,this.language,id,command);
     });}finally{this.swineMatingSaving=false;}
+  }
+  swineTransitionOptions(kind: SwineTransitionKind, id: string, signal?: AbortSignal) {
+    return this.swineRead(tokens => this.api.swineTransitionOptions(tokens, this.language, kind, id, signal));
+  }
+  private swineTransitionSaving = false;
+  async recordSwineTransition(id: string, input: SwineTransitionInput) {
+    if (this.swineTransitionSaving || this.state.status !== 'signedIn' || !canWriteSwine(this.state.session.user)) {
+      throw new AuthFailure('unsupported');
+    }
+    this.swineTransitionSaving = true;
+    try {
+      return await this.swineRead(async tokens => {
+        const epoch = this.epoch;
+        if (this.state.status !== 'signedIn') throw new AuthFailure('expired');
+        const { user: sessionUser, organization } = this.state.session;
+        const user = await this.api.user(tokens, this.language);
+        if (this.epoch !== epoch) throw new AuthFailure('expired');
+        if (!canWriteSwine(user) || (input.kind === 'sale' && !user.access.can_view_financial)) throw new AuthFailure('unsupported');
+        const org = await this.api.organization(tokens, this.language);
+        if (this.epoch !== epoch) throw new AuthFailure('expired');
+        if (user.id !== sessionUser.id || org.id !== organization.id) {
+          await this.signOut();
+          throw new AuthFailure('expired');
+        }
+        return this.api.recordSwineTransition(tokens, this.language, id, input);
+      });
+    } finally {
+      this.swineTransitionSaving = false;
+    }
   }
   swineBirthOptions(id:string,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swineBirthOptions(tokens,this.language,id,signal));

@@ -1,3 +1,6 @@
+import { swineSales } from '../features/swine/sales';
+import { herdHistory, herdPage, herdQuery, reportQuery, reportResponse, type HerdQuery, type ReportQuery } from '../features/veterinary/consultation';
+import { swineSaleAmount, swineTransitionInput, swineTransitionOptions, swineTransitionReceipt, swineTransitions, type SwineTransitionInput, type SwineTransitionKind } from '../features/swine/transitions';
 import { dairyOverviewSchema } from '../features/cattle/dairyOverviewContracts';
 import { parseSwineBatchHistoryPage, parseSwinePhasePage, parseSwineRecordDetail, swineBatchWeightCommandSchema, swineBatchWeightReceiptSchema, swineBirthDetailSchema, swineDiagnosisInputSchema, swineDiagnosisOptionsSchema, swineDiagnosisReceiptSchema, swineBirthInputSchema, swineBirthOptionsSchema, swineBirthReceiptSchema, swineMatingCommandSchema, swineMatingReceiptSchema, swinePhaseQuerySchema, swinePregnancyDetailSchema, type SwineBatchHistoryPage, type SwineBatchWeightCommand, type SwineBatchWeightReceipt, type SwineDiagnosisInput, type SwineDiagnosisOptions, type SwineDiagnosisReceipt, type SwineBirthInput, type SwineBirthOptions, type SwineBirthReceipt, type SwineMatingCommand, type SwineMatingReceipt, type SwinePhase, type SwinePhaseQuery, type SwineRecordDetail } from '../features/swine/contracts';
 import {tankWriteCommandSchema,validateTankReceipt,type TankWriteCommand} from '../features/milk/tankWriteContracts';
@@ -42,7 +45,7 @@ import {medicationOptionsSchema,medicationLotsSchema,medicationInputSchema,medic
 import {healthOptionsSchema,healthInputSchema,type HealthInput} from '../features/clinic/healthContracts';
 import {vaccinationQuerySchema,vaccinationTargetPage,vaccinePage,vaccinationOptionsSchema,vaccinationInputSchema,vaccinationReviewSchema,validateVaccinationReview,type VaccinationQuery,type VaccinationInput,type VaccinationReview} from '../features/clinic/vaccinationContracts';
 import {clinicQuerySchema,clinicPageSchema,clinicDetailSchema,clinicAnimalPageSchema,clinicOptionsSchema,matchesClinic,type ClinicQuery} from '../features/clinic/contracts';
-import {vetAnimalListSchema,vetClientListSchema,vetHistoryListSchema,vetWorkspaceSchema} from '../features/veterinary/contracts';
+import {vetFarms,vetClientCommand,vetClientSchema,vetSettlementCommand,vetSettlementReceipt,vetSettlementTotal,type VetClientCommand,type VetSettlementCommand,vetAnimalListSchema,vetBillingSchema,veterinaryMonthSchema,vetClientListSchema,vetHistoryListSchema,vetWorkspaceSchema} from '../features/veterinary/contracts';
 import {vetLookupSchema,vetRegisterResultSchema} from '../features/veterinary/launchContracts';
 import {notificationSchema,notificationPageSchema,notificationQuerySchema,preferencesSchema,preferencesPatch,type NotificationQuery,type PreferenceValues,type Preferences} from '../features/notifications/contracts';
 import {feedingQuerySchema,feedingBatchPage,feedingProductPage,feedingFormulaPage,deliveryPage,feedingPayload,feedingReceiptSchema,type FeedingQuery,type FeedingCommand} from '../features/feeding/contracts';
@@ -87,6 +90,7 @@ export class SwineMatingUnconfirmed extends Error {}
 export class SwineDiagnosisUnconfirmed extends Error {}
 export class SwineDiagnosisContextChanged extends Error {}
 export class SwineBirthUnconfirmed extends Error {}
+export class SwineTransitionUnconfirmed extends Error {}
 export class SwineBirthContextChanged extends Error {}
 export class WeighingContextChanged extends Error {}
 export class TankSaveUnconfirmed extends Error {}
@@ -195,7 +199,60 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       return result.data;
     },
     async vetHistory(tokens:Tokens,language:Language,animal:string,signal?:AbortSignal){return vetHistoryListSchema.parse((await http.get(`veterinary/animals/${z.uuid().parse(animal)}/history/`,{...options(language,tokens.access),signal})).data);},
-    async vetClients(tokens:Tokens,language:Language,signal?:AbortSignal){return vetClientListSchema.parse((await http.get('veterinary/clients/',{...options(language,tokens.access),signal})).data);},
+    async vetHerd(tokens: Tokens, language: Language, input: HerdQuery, signal?: AbortSignal) {
+      const params = herdQuery.parse(input);
+      const result = herdPage.parse((await http.get('veterinary/herd/', { ...options(language, tokens.access), params, signal })).data);
+      if (result.page !== params.page) throw new Error('herd page');
+      return result;
+    },
+    async vetHerdHistory(tokens: Tokens, language: Language, id: string, signal?: AbortSignal) {
+      const target = z.uuid().parse(id);
+      const result = herdHistory.parse((await http.get(`veterinary/herd/${target}/`, { ...options(language, tokens.access), signal })).data);
+      if (result.id !== target) throw new Error('herd identity');
+      return result;
+    },
+    async vetReport(tokens: Tokens, language: Language, input: ReportQuery, signal?: AbortSignal) {
+      return reportResponse.parse((await http.get('veterinary/report/', {
+        ...options(language, tokens.access), params: { ...reportQuery.parse(input), view: 'mobile' }, signal,
+      })).data);
+    },
+    async vetBilling(tokens: Tokens, language: Language, month: string, client?: string, signal?: AbortSignal) {
+      const period = veterinaryMonthSchema.parse(month);
+      const response = await http.get('veterinary/billing/', {
+        ...options(language, tokens.access), signal,
+        params: { month: period, view: 'mobile', ...(client ? { client: z.uuid().parse(client) } : {}) },
+      });
+      const result = vetBillingSchema.parse(response.data);
+      if (result.month !== period || (client && !result.clients.some(row => row.id === client))) {
+        throw new Error('veterinary billing context');
+      }
+      return result;
+    },
+    async vetFarms(tokens: Tokens, language: Language, signal?: AbortSignal) {
+      return vetFarms.parse((await http.get('veterinary/farms/', { ...options(language, tokens.access), signal })).data);
+    },
+    async vetDeleteClient(tokens: Tokens, language: Language, id: string) {
+      await http.delete(`veterinary/clients/${z.uuid().parse(id)}/`, options(language, tokens.access));
+    },
+    async vetSaveClient(tokens: Tokens, language: Language, input: VetClientCommand) {
+      const command = vetClientCommand.parse(input);
+      const response = await http.post('veterinary/clients/mobile-save/', command, options(language, tokens.access));
+      const result = vetClientSchema.parse(response.data);
+      if (result.id !== command.id || !result.updated_at || result.name !== command.name ||
+          result.farm_name !== command.farm_name || result.phone !== command.phone ||
+          result.farm !== command.farm || result.herd_purpose !== command.herd_purpose) throw new Error('veterinary client receipt');
+      return result;
+    },
+    async vetSettle(tokens: Tokens, language: Language, input: VetSettlementCommand) {
+      const command = vetSettlementCommand.parse(input);
+      const response = await http.post('veterinary/billing/pay-all/', command, {
+        ...options(language, tokens.access), params: { view: 'mobile' },
+      });
+      const receipt = vetSettlementReceipt.parse(response.data);
+      if (receipt.count !== command.charges.length || receipt.total !== vetSettlementTotal(command.charges)) throw new Error('veterinary settlement receipt');
+      return receipt;
+    },
+    async vetClients(tokens:Tokens,language:Language,signal?:AbortSignal){return vetClientListSchema.parse((await http.get('veterinary/clients/',{...options(language,tokens.access),params:{view:'mobile'},signal})).data);},
     async clinicOptions(tokens:Tokens,language:Language,signal?:AbortSignal){return clinicOptionsSchema.parse((await http.get('livestock/clinical/records/mobile-options/',{...options(language,tokens.access),signal})).data);},
     async clinicPage(tokens:Tokens,language:Language,query:ClinicQuery,signal?:AbortSignal){const q=clinicQuerySchema.parse(query);const data=clinicPageSchema.parse((await http.get('livestock/clinical/records/mobile/',{...options(language,tokens.access),params:{...q,species:q.species||undefined,start:q.start||undefined,end:q.end||undefined,page_size:20},signal})).data);if(data.results.some(row=>!matchesClinic(row,q)))throw Error('clinic scope');return data;},
     async clinicDetail(tokens:Tokens,language:Language,id:string,query:ClinicQuery,signal?:AbortSignal){const q=clinicQuerySchema.parse(query);z.uuid().parse(id);const row=clinicDetailSchema.parse((await http.get(`livestock/clinical/records/${id}/mobile/`,{...options(language,tokens.access),params:{kind:q.kind,farm:q.farm,animal:q.animal,batch:q.batch,species:q.species||undefined},signal})).data);if(row.id!==id||!matchesClinic(row,q))throw Error('clinic scope');return row;},
@@ -419,6 +476,11 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       if(result.page!==value.page||result.page_size!==value.page_size||result.next!==(result.page*result.page_size<result.count)||result.previous!==(result.page>1))throw new Error('invalid swine pagination');
       return result;
     },
+    async swineSales(tokens: Tokens, language: Language, signal?: AbortSignal) {
+      return swineSales.parse((await http.get('livestock/batches/sales/', {
+        ...options(language, tokens.access), params: { species: 'suinos' }, signal,
+      })).data);
+    },
     async swineRecordDetail(tokens:Tokens,language:Language,phase:SwinePhase,id:string,signal?:AbortSignal):Promise<SwineRecordDetail>{
       const key=z.string().trim().min(1).max(100).parse(id);
       const config={...options(language,tokens.access),params:{species:'suinos'},signal};
@@ -440,7 +502,7 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
         const birth=swineBirthDetailSchema.parse(data);
         relatedAnimal=await animalData(String(birth.female));
       }else{
-        data=(await http.get(`livestock/batches/${encodeURIComponent(key)}/`,config)).data;
+        data=(await http.get(`livestock/batches/${encodeURIComponent(key)}/`,{...config,params:{...config.params,view:'mobile'}})).data;
       }
       return parseSwineRecordDetail(phase,key,data,relatedAnimal);
     },
@@ -515,6 +577,47 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       }
       const result=swineDiagnosisReceiptSchema.safeParse(response.data);
       if(!result.success||result.data.animal!==animalId||result.data.mating!==command.expected_mating||result.data.result!==command.result||command.result==='positive'&&result.data.status!=='gestante'||command.result==='negative'&&result.data.status==='gestante')throw new SwineDiagnosisUnconfirmed();
+      return result.data;
+    },
+    async swineTransitionOptions(tokens: Tokens, language: Language, kind: SwineTransitionKind, id: string, signal?: AbortSignal) {
+      const path = swineTransitions[kind];
+      const target = z.uuid().parse(id);
+      const response = await http.get(`livestock/${path.resource}/${target}/${path.options}/`, {
+        ...options(language, tokens.access), params: { species: 'suinos' }, signal,
+      });
+      const data = swineTransitionOptions.parse(response.data);
+      if (data.id !== target || data.kind !== kind) throw new Error('swine transition identity');
+      return data;
+    },
+    async recordSwineTransition(tokens: Tokens, language: Language, id: string, input: SwineTransitionInput) {
+      const command = swineTransitionInput.parse(input);
+      const { kind, ...body } = command;
+      const target = z.uuid().parse(id);
+      const path = swineTransitions[kind];
+      let response;
+      try {
+        response = await http.post(`livestock/${path.resource}/${target}/${path.action}/`, body, {
+          ...options(language, tokens.access), params: { species: 'suinos', view: 'mobile' },
+        });
+      } catch (error) {
+        if (isAxiosError(error) && (!error.response || error.response.status === 408 || error.response.status >= 500)) {
+          throw new SwineTransitionUnconfirmed();
+        }
+        throw error;
+      }
+      const result = swineTransitionReceipt.safeParse(response.data);
+      if (!result.success || result.data.id !== target || result.data.kind !== kind ||
+          result.data.request_key !== body.request_key || result.data.date !== body.date ||
+          (command.kind === 'loss' && result.data.reason !== command.reason) ||
+          (command.kind !== 'loss' && (!result.data.batch || result.data.quantity !== command.quantity)) ||
+          (command.kind === 'transfer' && (result.data.batch !== target || result.data.destination !== command.destination)) ||
+          (command.kind === 'close' && (result.data.batch !== target || result.data.remaining !== 0 || !result.data.status)) ||
+          (command.kind === 'mortality' && (result.data.batch !== target || result.data.remaining === undefined)) ||
+          (command.kind === 'sale' && (result.data.batch !== target || result.data.remaining === undefined ||
+            !result.data.reference || result.data.due_date !== command.due_date ||
+            result.data.amount !== swineSaleAmount(command.weight_kg, command.price_per_kg)))) {
+        throw new SwineTransitionUnconfirmed();
+      }
       return result.data;
     },
     async swineBirthOptions(tokens:Tokens,language:Language,id:string,signal?:AbortSignal):Promise<SwineBirthOptions>{

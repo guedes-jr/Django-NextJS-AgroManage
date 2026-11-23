@@ -1,3 +1,5 @@
+import { swineSales } from '../src/features/swine/sales';
+import { swineSaleAmount, swineTransitionInput, swineTransitionOptions } from '../src/features/swine/transitions';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -104,4 +106,60 @@ test('every language labels the farrowing form', () => {
   for (const copy of Object.values(swineMessages)) {
     for (const value of [copy.birthTitle, copy.reviewBirth, copy.confirmBirth, copy.birthInvalid, copy.birthUnconfirmed, copy.expectedWeaningDate]) assert.ok(value.trim());
   }
+});
+
+test('reproductive transitions accept only the inputs for the reviewed operation', () => {
+  const context = {
+    request_key: 'ee78b0af-ed06-474e-862f-0c6e557a0ebe',
+    expected_farm: '9c102c1d-9c6e-4a37-aa16-4a3a874a6149',
+    version: 'reviewed', date: '2026-11-23',
+  };
+  const weaning = { ...context, kind: 'weaning', quantity: 12, weight: '6,50' };
+  const parsed = swineTransitionInput.parse(weaning);
+  assert.equal(parsed.kind === 'weaning' && parsed.weight, '6.50');
+  assert.equal(swineTransitionInput.safeParse({ ...weaning, quantity: 0 }).success, false);
+  assert.equal(swineTransitionInput.safeParse({ ...weaning, weight: '0' }).success, false);
+  const loss = { ...context, kind: 'loss', reason: 'REABSORCAO', notes: '' };
+  assert.equal(swineTransitionInput.safeParse(loss).success, true);
+  assert.equal(swineTransitionInput.safeParse({ ...loss, reason: 'unknown' }).success, false);
+});
+
+test('transfer options require the immediate next phase and the quantity of the lot', () => {
+  const options = {
+    id: 'ee78b0af-ed06-474e-862f-0c6e557a0ebe',
+    farm: '9c102c1d-9c6e-4a37-aa16-4a3a874a6149',
+    farm_name: 'Farm', animal: 'L-01', version: 'reviewed',
+    since: '2026-11-10', today: '2026-11-23',
+    kind: 'transfer', source: 'creche', destination: 'crescimento', quantity: 20,
+  };
+  assert.equal(swineTransitionOptions.safeParse(options).success, true);
+  assert.equal(swineTransitionOptions.safeParse({ ...options, destination: 'engorda' }).success, false);
+  assert.equal(swineTransitionOptions.safeParse({ ...options, quantity: null }).success, false);
+});
+
+test('mortality requires a positive count and a reviewed cause', () => {
+  const command = {
+    request_key: 'ee78b0af-ed06-474e-862f-0c6e557a0ebe',
+    expected_farm: '9c102c1d-9c6e-4a37-aa16-4a3a874a6149',
+    version: 'reviewed', date: '2026-11-23',
+    kind: 'mortality', quantity: 2, notes: '', cause: 'Test cause',
+  };
+  assert.equal(swineTransitionInput.safeParse(command).success, true);
+  assert.equal(swineTransitionInput.safeParse({ ...command, cause: ' ' }).success, false);
+  assert.equal(swineTransitionInput.safeParse({ ...command, quantity: 1.5 }).success, false);
+});
+
+test('sale review uses exact decimal rounding at the cent', () => {
+  assert.equal(swineSaleAmount('200.500', '4.35'), '872.18');
+  assert.equal(swineSaleAmount('1.005', '1'), '1.00');
+  assert.equal(swineSaleAmount('1.015', '1'), '1.02');
+  assert.equal(swineSaleAmount('0.001', '0.01'), null);
+  assert.equal(swineSaleAmount('999999999', '1000.00'), null);
+});
+
+
+test('sales history retains unknown legacy prices and weight', () => {
+  const row = { id: 'ee78b0af-ed06-474e-862f-0c6e557a0ebe', date: '2026-11-23', batch_code: 'L-1',
+    quantity: 2, amount: '350.25', buyer: 'Comprador', price_per_kg: null, weight_kg: null };
+  assert.deepEqual(swineSales.parse([row]), [row]);
 });

@@ -36,6 +36,12 @@ Do not read unrelated guides. Consult architecture or planning only for tasks th
 - Schema changes require migrations; other changes do not.
 - For changed behavior, add or update the narrowest relevant test.
 
+## Web and mobile parity
+
+Every change implemented in Web or Mobile must be propagated to the other app in the same delivery. Check both clients and their shared API for affected features, business rules, validations, permissions, data, and user flows. Reuse shared contracts where possible and adapt the interface to each platform.
+
+If a counterpart is explicitly outside the agreed scope or cannot be implemented because of a concrete dependency, record the affected flow, the reason, and the remaining work before closing the delivery.
+
 ## UI sizing and density
 
 - New screens and UI changes must follow the system's compact dimensions, reflecting the approved "75%" visual reference through layout and spacing. Reuse `frontend/src/app/workspace.css`, the `app-workspace` shell and existing components; consult `docs/ai/frontend.md` for the sizing rules.

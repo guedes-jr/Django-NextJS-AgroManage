@@ -1,6 +1,6 @@
 from datetime import date
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -15,7 +15,7 @@ from apps.audit.services import record_client_action
 
 from apps.organizations import segment_features as features
 
-from . import integrations, reports, selectors, services
+from . import integrations, mobile_accounts, reports, selectors, services
 from .access import VeterinaryAccess, VeterinaryAdmin
 from .models import (
     VeterinaryAnimal,
@@ -126,6 +126,8 @@ class ClientViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Updat
         return VeterinaryClient.objects.filter(organization=organization_of(self.request))
 
     def list(self, request, *args, **kwargs):
+        if request.query_params.get("view") == "mobile":
+            return Response([mobile_accounts.client_data(client) for client in self.get_queryset()])
         organization = organization_of(request)
         today = timezone.localdate()
         month_start = date(today.year, today.month, 1)
@@ -144,6 +146,39 @@ class ClientViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Updat
                 "receivable": totals.get(key, {}).get("receivable", 0), "procedures": totals.get(key, {}).get("count", 0),
             })
         return Response(data)
+
+    @action(detail=False, methods=["post"], url_path="mobile-save")
+    @transaction.atomic
+    def mobile_save(self, request):
+        command = mobile_accounts.ClientInput(data=request.data)
+        command.is_valid(raise_exception=True)
+        values = command.validated_data.copy()
+        pk, version = values.pop("id"), values.pop("version")
+        clients = self.get_queryset()
+        client = clients.select_for_update().filter(pk=pk).first()
+        if client is None and version is None:
+            serializer = self.get_serializer(data=values)
+            serializer.is_valid(raise_exception=True)
+            try:
+                with transaction.atomic():
+                    client = serializer.save(id=pk, organization=organization_of(request))
+            except IntegrityError:
+                client = clients.select_for_update().filter(pk=pk).first()
+                if client is None:
+                    raise mobile_accounts.AccountsConflict()
+            else:
+                record_client_action(request=request, action=AuditLog.Action.CREATE, model_name="VeterinaryClient",
+                                     object_id=client.pk, description=f"Cliente do veterinário criado: {client.name}")
+        if client is None:
+            raise mobile_accounts.AccountsConflict()
+        current = mobile_accounts.client_data(client)
+        if any(current[key] != value for key, value in values.items()):
+            if client.updated_at != version:
+                raise mobile_accounts.AccountsConflict()
+            serializer = self.get_serializer(client, data=values, partial=True)
+            serializer.is_valid(raise_exception=True)
+            client = serializer.save()
+        return Response(mobile_accounts.client_data(client))
 
     def perform_create(self, serializer):
         client = serializer.save(organization=organization_of(self.request))
@@ -241,7 +276,17 @@ class ReportView(APIView):
             "result": params.get("result", ""), "bull": params.get("bull", ""), "category": params.get("category", ""),
             "responsible": params.get("responsible", ""), "q": params.get("q", ""), "mode": params.get("mode", "event"),
         }
-        return Response(reports.report(organization_of(request), filters, timezone.localdate()))
+        result = reports.report(organization_of(request), filters, timezone.localdate())
+        if params.get("view") == "mobile":
+            event_fields = ("id", "animal", "identifier", "client_name", "date", "report_kind", "report_result", "report_bull")
+            animal_fields = ("animal", "identifier", "client_name", "count", "result", "last")
+            result = {
+                **{key: result[key] for key in ("stats", "bulls", "responsibles")},
+                "rows": [{field: row[field] for field in event_fields} for row in result["rows"]]
+                if filters["mode"] != "animal" else [],
+                "animals": [{field: row[field] for field in animal_fields} for row in result["animals"]],
+            }
+        return Response(result)
 
 
 class BillingView(APIView):
@@ -249,13 +294,34 @@ class BillingView(APIView):
 
     def get(self, request):
         month = parse_month(request.query_params.get("month"))
-        return Response(reports.billing(organization_of(request), month, request.query_params.get("client") or None))
+        client = request.query_params.get("client") or None
+        result = reports.billing(organization_of(request), month, client, mobile=request.query_params.get("view") == "mobile")
+        if request.query_params.get("view") != "mobile":
+            return Response(result)
+        return Response({
+            "month": result["month"],
+            **{field: format(result[field], ".2f") for field in ("total", "received", "receivable")},
+            "clients": [{
+                **{field: row[field] for field in ("id", "name", "farm_name", "count")},
+                **{field: format(row[field], ".2f") for field in ("total", "receivable")},
+            } for row in result["clients"]],
+            "detail": None if result["detail"] is None else [
+                {field: row[field] for field in ("id", "date", "identifier", "kind", "value", "paid", "updated_at")}
+                for row in result["detail"]
+            ],
+        })
 
 
 class BillingPayAllView(APIView):
     permission_classes = [VeterinaryAccess]
 
     def post(self, request):
+        if request.query_params.get("view") == "mobile":
+            command = mobile_accounts.PaymentInput(data=request.data)
+            command.is_valid(raise_exception=True)
+            organization = organization_of(request)
+            client = get_object_or_404(VeterinaryClient, organization=organization, pk=command.validated_data["client"])
+            return Response(mobile_accounts.settle(organization, client, command.validated_data))
         organization = organization_of(request)
         client = get_object_or_404(VeterinaryClient, organization=organization, pk=request.data.get("client"))
         start, end = reports.month_bounds(parse_month(request.data.get("month")))

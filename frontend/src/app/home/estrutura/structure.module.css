@@ -49,9 +49,8 @@
 .search input { border: 0; outline: 0; background: transparent; color: var(--foreground); min-width: 220px; }
 .tableCard { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .tableCard th { background: var(--muted); color: var(--muted-foreground); font-size: .75rem; text-transform: uppercase; padding: 13px 16px; white-space: nowrap; }
-.tableCard td { padding: 13px 16px; color: var(--foreground); }
-.materialRow { background: color-mix(in srgb, var(--muted) 45%, transparent); }
-.materialRow td:nth-child(2) { padding-left: 24px; }
+.tableCard td, .tableCard th[scope="row"] { padding: 13px 16px; color: var(--foreground); }
+.tableCard th[scope="row"] { background: transparent; font-size: inherit; text-transform: none; white-space: normal; overflow-wrap: anywhere; }
 .reportTotal td { background: color-mix(in srgb, var(--bs-success-bg-subtle) 65%, var(--card)); color: #087333; font-weight: 800; border-top: 2px solid #83c89f; }
 .summaryGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .summaryCard { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 17px; display: flex; gap: 13px; align-items: center; }
@@ -104,7 +103,14 @@
   .itemsStep tr { position:relative; margin-top:8px; padding:10px 42px 10px 10px; border:1px solid var(--border); border-radius:9px; }
   .itemsStep td { padding:2px!important; border:0; }
   .itemsStep td:last-child { position:absolute; top:8px; right:6px; }
-  .tableCard table,.tableCard thead,.tableCard tbody,.tableCard tfoot,.tableCard tr,.tableCard th,.tableCard td { display:block; }.tableCard thead { display:none; }.tableCard tr { position:relative; margin:9px; padding:11px 48px 11px 11px; border:1px solid var(--border); border-radius:9px; }.tableCard td { padding:3px!important; border:0; }.tableCard td:last-child { position:absolute; top:8px; right:6px; }.tableCard tfoot tr { padding-right:11px; }.reportTotal td:last-child { display:none; }
+  .tableCard table, .tableCard tbody, .tableCard tfoot, .tableCard tr, .tableCard th, .tableCard td { display: block; }
+  .tableCard thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .tableCard tr { margin: 9px; padding: 10px; border: 1px solid var(--border); border-radius: 9px; }
+  .tableCard th[scope="row"] { padding: 3px; }
+  .tableCard td { padding: 3px; border: 0; }
+  .tableCard td[data-label] { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .tableCard td[data-label]::before { content: attr(data-label); color: var(--muted-foreground); }
+  .tableCard .reportTotal td { background: transparent; }
   .successBar { align-items: flex-start; flex-wrap: wrap; }
   .successBar button { width: 100%; }
 }

@@ -24,6 +24,12 @@ Estado atual: app Expo com sessão, Agenda atualizada e recortes online de bovin
 - Compartilhe apenas tipos, traduções e funções puras após verificar dependências. Não importe DOM, `window`, `localStorage`, CSS, Bootstrap ou providers Next.js.
 - Adicione módulos nativos somente quando houver consumidor real e alternativa para permissão negada. Teste em development build; Expo Go não comprova toda integração nativa.
 
+## Paridade entre Web e Mobile
+
+Toda alteração implementada no Web ou no Mobile deve ser propagada para o outro app na mesma entrega. Confira os dois clientes e a API compartilhada para identificar funcionalidades, regras de negócio, validações, permissões, dados e fluxos afetados. Reaproveite os contratos compartilhados quando possível e adapte a interface a cada plataforma.
+
+Se a alteração correspondente estiver explicitamente fora do escopo acordado ou depender de um bloqueio concreto, registre o fluxo afetado, o motivo e a pendência antes de encerrar a entrega.
+
 ## Compatibilidade obrigatória entre dispositivos
 
 - Toda implementação ou alteração deve preservar compatibilidade com **Android e iOS**, nas versões suportadas pelo SDK Expo e pelas dependências efetivamente adotadas. Não restrinja o suporte a um sistema ou aumente a versão mínima silenciosamente.

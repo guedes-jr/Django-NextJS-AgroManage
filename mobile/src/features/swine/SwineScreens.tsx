@@ -12,6 +12,9 @@ import { HomeIcon, type HomeIconName } from '../home/HomeIcon';
 import { WorkspaceShell } from '../workspace/WorkspaceShell';
 import { SwineBatchWeightUnconfirmed, SwineBirthContextChanged, SwineBirthUnconfirmed, SwineDiagnosisContextChanged, SwineDiagnosisUnconfirmed, SwineMatingUnconfirmed } from '../../services/authApi';
 import { canReadSwine, canWriteSwine, matchesSwineBirth, matchesSwineDiagnosis, swineBirthInputSchema, swineBatchWeightCommandSchema, swineDiagnosisInputSchema, swineMatingCommandSchema, swinePhaseSchema, swinePhases, type SwineAnimalDetail, type SwineBatchHistoryEvent, type SwineBatchWeightCommand, type SwineBatchWeightReceipt, type SwineBirthInput, type SwineBirthReceipt, type SwineDiagnosisInput, type SwineDiagnosisReceipt, type SwineMatingCommand, type SwineMatingReceipt, type SwinePhase, type SwinePhaseRow, type SwineRecordDetail } from './contracts';
+import { canReadSwineSales } from './sales';
+import { salesTitle } from './SwineSalesScreen';
+import { SwineTransitionForm } from './SwineTransitionForm';
 import { swineMessages, swineStatusLabel } from './messages';
 import { workspaceMessages } from '../workspace/messages';
 
@@ -61,7 +64,7 @@ export function SwineHomeScreen() {
   const { state, controller, language } = useAuth(); const router = useRouter(); const copy = swineMessages[language]; const workspaceCopy = workspaceMessages[language];
   const allowed = state.status === 'signedIn' && canReadSwine(state.session.user); const sessionKey = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : 'signed-out';
   const summaries = useQueries({ queries: swinePhases.map(phase => ({ queryKey: ['swine-phase-summary', sessionKey, phase], enabled: allowed, staleTime: 30_000, queryFn: ({ signal }: { signal: AbortSignal }) => controller.swinePhasePage(phase, 1, 1, signal) })) });
-  return <WorkspaceShell active="swine" title={copy.title}>{!allowed ? <View style={s.content}><Text style={s.error}>{workspaceCopy.noAccess}</Text></View> : <ScrollView contentContainerStyle={s.content}><View style={styles.intro}><View style={styles.introIcon}><HomeIcon name="pig" color={tokens.primary} size={25}/></View><View style={styles.introText}><Text style={s.title}>{copy.subtitle}</Text><Text style={s.muted}>{copy.scopeHint}</Text></View></View>{swinePhases.map((phase, index) => { const query = summaries[index]; if (!query) return null; const count = query.data?.count; return <Pressable key={phase} accessibilityRole="button" accessibilityLabel={`${copy.phase[phase]}. ${copy.open}`} onPress={() => router.push({ pathname: '/swine/[phase]', params: { phase } })} style={({ pressed }) => [styles.phaseCard, pressed && styles.pressed]}><PhaseIcon phase={phase} size={25}/><View style={styles.phaseMain}><Text accessibilityRole="header" style={s.title}>{copy.phase[phase]}</Text>{query.isPending ? <Busy label={workspaceCopy.loading}/> : query.isError ? <Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.error}</Text> : <Text style={styles.phaseCount}>{count == null ? '—' : formatNumber(count, language, 0)} <Text style={s.muted}>{copy.total}</Text></Text>}</View>{query.isError ? <AgendaButton label={copy.retry} onPress={() => void query.refetch()}/> : <HomeIcon name="arrow" color={tokens.muted} size={20}/>}</Pressable>; })}</ScrollView>}</WorkspaceShell>;
+  return <WorkspaceShell active="swine" title={copy.title}>{!allowed ? <View style={s.content}><Text style={s.error}>{workspaceCopy.noAccess}</Text></View> : <ScrollView contentContainerStyle={s.content}><View style={styles.intro}><View style={styles.introIcon}><HomeIcon name="pig" color={tokens.primary} size={25}/></View><View style={styles.introText}><Text style={s.title}>{copy.subtitle}</Text><Text style={s.muted}>{copy.scopeHint}</Text></View></View>{state.status === 'signedIn' && canReadSwineSales(state.session.user) ? <AgendaButton label={salesTitle[language]} onPress={() => router.push('/swine/sales')}/> : null}{swinePhases.map((phase, index) => { const query = summaries[index]; if (!query) return null; const count = query.data?.count; return <Pressable key={phase} accessibilityRole="button" accessibilityLabel={`${copy.phase[phase]}. ${copy.open}`} onPress={() => router.push({ pathname: '/swine/[phase]', params: { phase } })} style={({ pressed }) => [styles.phaseCard, pressed && styles.pressed]}><PhaseIcon phase={phase} size={25}/><View style={styles.phaseMain}><Text accessibilityRole="header" style={s.title}>{copy.phase[phase]}</Text>{query.isPending ? <Busy label={workspaceCopy.loading}/> : query.isError ? <Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.error}</Text> : <Text style={styles.phaseCount}>{count == null ? '—' : formatNumber(count, language, 0)} <Text style={s.muted}>{copy.total}</Text></Text>}</View>{query.isError ? <AgendaButton label={copy.retry} onPress={() => void query.refetch()}/> : <HomeIcon name="arrow" color={tokens.muted} size={20}/>}</Pressable>; })}</ScrollView>}</WorkspaceShell>;
 }
 
 export function SwinePhaseScreen() {
@@ -520,6 +523,12 @@ function swineHistoryFields(event: SwineBatchHistoryEvent, copy: (typeof swineMe
         [copy.cause, event.cause ?? null],
         [copy.notes, event.notes ?? event.subtitle ?? null],
       ];
+    case 'balance_close':
+      return [
+        [copy.entry, formatDate(event.date, language)],
+        [copy.quantity, formatHistoryNumber(event.quantity, language)],
+        [copy.reason, event.reason ?? null],
+      ];
     case 'vaccine':
       return [
         [copy.entry, formatDate(event.date ?? event.entry_date, language)],
@@ -896,6 +905,7 @@ function SwineDetailContent({ detail, copy, language }: { detail: SwineRecordDet
       ]}/>
       <SwineReproductiveHistory animal={detail.animal} copy={copy} language={language}/>
       <SwineBirth detail={detail} copy={copy} language={language}/>
+      <SwineTransitionForm key={detail.data.id} id={String(detail.data.id)} kind="loss" eligible={detail.data.status === 'ongoing'}/>
     </>;
   }
   if (detail.kind === 'birth') {
@@ -912,6 +922,7 @@ function SwineDetailContent({ detail, copy, language }: { detail: SwineRecordDet
         [copy.notes, detail.data.notes ?? null],
       ]}/>
       <SwineReproductiveHistory animal={detail.animal} copy={copy} language={language}/>
+      <SwineTransitionForm key={detail.data.id} id={String(detail.data.id)} kind="weaning" eligible={detail.animal.reproductive_status === 'lactante'}/>
     </>;
   }
   return <>
@@ -928,6 +939,14 @@ function SwineDetailContent({ detail, copy, language }: { detail: SwineRecordDet
       [copy.notes, detail.data.notes ?? null],
     ]}/>
     <SwineBatchWeighing detail={detail} copy={copy} language={language}/>
+    <SwineTransitionForm key={`sale-${detail.data.id}`} id={String(detail.data.id)} kind="sale"
+      eligible={detail.data.status === 'active' && (detail.data.quantity ?? 0) > 0}/>
+    <SwineTransitionForm key={`close-${detail.data.id}`} id={String(detail.data.id)} kind="close"
+      eligible={detail.data.status === 'active' && (detail.data.quantity ?? 0) > 0}/>
+    <SwineTransitionForm key={`mortality-${detail.data.id}`} id={String(detail.data.id)} kind="mortality"
+      eligible={detail.data.status === 'active' && (detail.data.quantity ?? 0) > 0}/>
+    <SwineTransitionForm key={`transfer-${detail.data.id}`} id={String(detail.data.id)} kind="transfer"
+      eligible={(detail.phase === 'creche' || detail.phase === 'crescimento') && detail.data.status === 'active'}/>
     <SwineBatchHistory id={String(detail.data.id)} copy={copy} language={language}/>
   </>;
 }

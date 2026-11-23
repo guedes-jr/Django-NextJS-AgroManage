@@ -22,6 +22,12 @@ O código vence a documentação. Se divergirem, siga o código e aponte o docum
 - **Retorno com estado** (filtros, data, página e fazenda preservados) e **ações pré-contextualizadas** (o "+ Novo" herda o contexto em foco).
 - **Identidade de marca** (verde profundo, lima, dourado, paisagens e ondas) fica no shell e na autenticação, não no conteúdo operacional.
 
+## Paridade entre Web e Mobile
+
+Toda alteração implementada no Web ou no Mobile deve ser propagada para o outro app na mesma entrega. Confira os dois clientes e a API compartilhada para identificar funcionalidades, regras de negócio, validações, permissões, dados e fluxos afetados. Reaproveite os contratos compartilhados quando possível e adapte a interface a cada plataforma.
+
+Se a alteração correspondente estiver explicitamente fora do escopo acordado ou depender de um bloqueio concreto, registre o fluxo afetado, o motivo e a pendência antes de encerrar a entrega.
+
 ## Cor e tipografia
 
 - **Um acento.** Verde `primary` para ação, seleção e foco; verde-floresta para títulos. Não crie novos verdes, fundos quase iguais ou um tema paralelo por módulo.

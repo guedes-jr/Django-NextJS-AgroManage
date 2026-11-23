@@ -21,7 +21,9 @@ export const vetAnimalSchema=z.object({
   procedures_count:z.number().int().nonnegative(),last:vetLastSchema,
 });
 export const vetAnimalListSchema=z.array(vetAnimalSchema);
-export const vetClientSchema=z.object({id:z.uuid(),name:z.string(),farm_name:z.string()});
+export const vetHerdPurposes = z.enum(['unknown', 'beef', 'dairy', 'dual']);
+export const vetFarms = z.array(z.object({ id: z.uuid(), name: z.string() }));
+export const vetClientSchema=z.object({id:z.uuid(),name:z.string(),farm_name:z.string(),phone:z.string().optional(),farm:z.uuid().nullable().optional(),herd_purpose:vetHerdPurposes.optional(),updated_at:z.iso.datetime({offset:true}).optional()});
 export const vetClientListSchema=z.array(vetClientSchema);
 export const vetWorkspaceSchema=z.object({today:z.iso.date(),open_alerts:z.number().int().nonnegative(),role:z.string(),features:z.record(z.string(),z.boolean()).default({}),
   team:z.array(z.object({id:z.uuid(),name:z.string(),role:z.string()})).default([]),settings:z.object({last_responsible:z.string().default('')}).optional()});
@@ -82,4 +84,46 @@ export function animalRows(animals:VetAnimal[],filter:AnimalFilter){
     &&(!filter.category||animal.category===filter.category)
     &&(!query||[animal.identifier,animal.name,animal.client_name,animal.farm_name].some(value=>normalize(value).includes(query))))
     .sort((a,b)=>a.client_name.localeCompare(b.client_name)||a.identifier.localeCompare(b.identifier,undefined,{numeric:true}));
+}
+
+
+export const veterinaryMonthSchema = z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/);
+const billingAmount = z.string().regex(/^-?\d+\.\d{2}$/);
+export const vetBillingSchema = z.object({
+  month: veterinaryMonthSchema,
+  total: billingAmount,
+  received: billingAmount,
+  receivable: billingAmount,
+  clients: z.array(vetClientSchema.extend({
+    count: z.number().int().nonnegative(), total: billingAmount, receivable: billingAmount,
+  })),
+  detail: z.array(z.object({
+    id: z.uuid(), date: z.iso.date(), identifier: z.string(), kind: z.string(),
+    value: billingAmount, paid: z.boolean(), updated_at: z.iso.datetime({ offset: true }),
+  })).nullable(),
+});
+
+export const vetClientCommand = z.object({
+  id: z.uuid(),
+  version: z.iso.datetime({ offset: true }).nullable(),
+  name: z.string().trim().min(1).max(150),
+  farm_name: z.string().trim().max(150),
+  phone: z.string().trim().max(40),
+  farm: z.uuid().nullable(),
+  herd_purpose: vetHerdPurposes,
+});
+export type VetClientCommand = z.infer<typeof vetClientCommand>;
+
+export const vetSettlementCommand = z.object({
+  client: z.uuid(), month: veterinaryMonthSchema,
+  charges: z.array(z.object({ id: z.uuid(), value: billingAmount, version: z.iso.datetime({ offset: true }) })).min(1),
+});
+export type VetSettlementCommand = z.infer<typeof vetSettlementCommand>;
+export const vetSettlementReceipt = z.object({ count: z.number().int().positive(), total: billingAmount });
+
+
+export function vetSettlementTotal(charges: VetSettlementCommand['charges']) {
+  const cents = charges.reduce((total, row) => total + BigInt(row.value.replace('.', '')), 0n);
+  const absolute = cents < 0n ? -cents : cents;
+  return `${cents < 0n ? '-' : ''}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`;
 }

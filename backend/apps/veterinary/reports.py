@@ -161,7 +161,7 @@ def month_bounds(month):
     return date(month.year, month.month, 1), date(month.year, month.month, calendar.monthrange(month.year, month.month)[1])
 
 
-def billing(organization, month, client_id=None):
+def billing(organization, month, client_id=None, *, mobile=False):
     start, end = month_bounds(month)
     procedures = list(
         VeterinaryProcedure.objects.filter(organization=organization, date__gte=start, date__lte=end)
@@ -195,7 +195,7 @@ def billing(organization, month, client_id=None):
     detail = None
     if client_id and client_id in clients:
         detail = [
-            {**procedure_data(p), "identifier": p.animal.identifier}
+            {**procedure_data(p), "identifier": p.animal.identifier, **({"updated_at": p.updated_at.isoformat()} if mobile else {})}
             for p in procedures if str(p.client_id) == client_id
         ]
     return {

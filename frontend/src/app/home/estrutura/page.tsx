@@ -4,22 +4,20 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Beef, Bird, Building2, Calculator, ClipboardList, Droplets, Ellipsis,
-  ChevronRight, Info, Pencil, PiggyBank, Search, Trash2, Warehouse,
+  ChevronRight, Info, PiggyBank, Search, Warehouse,
   Waves, PanelsTopLeft, Tractor, ListChecks, CircleAlert
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiClient } from "@/services/api";
 import { farmStructureService } from "@/services/farmStructureService";
-import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureItem, FarmStructureSummary } from "@/types";
-import { useToast } from "@/components/ui/Toast";
+import type { Farm, FarmStructure, FarmStructureCategory, FarmStructureSummary } from "@/types";
 import { type TranslationKey, useOrganizationLocale } from "@/lib/locale";
 
 import styles from "./structure.module.css";
 import axios from "axios";
 
 interface PaginatedFarms { results: Farm[] }
-interface StoredUser { role?: string }
 
 const categories: Array<{
   value: FarmStructureCategory;
@@ -69,7 +67,6 @@ function FarmStructureContent() {
   const requestedFarm = searchParams.get("farm") || "";
   const requestedSearch = searchParams.get("search") || "";
   const router = useRouter();
-  const { showToast } = useToast();
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState("");
   const [items, setItems] = useState<FarmStructure[]>([]);
@@ -77,24 +74,6 @@ function FarmStructureContent() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [role] = useState(() => {
-    if (typeof window === "undefined") return "";
-    try { return (JSON.parse(localStorage.getItem("user") || "{}") as StoredUser).role || ""; }
-    catch { return ""; }
-  });
-
-  const canDelete = role === "owner" || role === "admin";
-  const categoryLabelKeys: Record<FarmStructureCategory, string> = {
-    corral: "structure.home.corral",
-    pigsty: "structure.category.pigsty",
-    poultry_house: "structure.category.poultry",
-    warehouse: "structure.category.warehouse",
-    irrigation: "structure.category.irrigation",
-    water_reservoir: "structure.category.reservoir",
-    facility: "structure.category.facility",
-    fence: "structure.category.fence",
-    other: "structure.category.other",
-  };
   const formatMoney = (value: string | number) => Number(value || 0).toLocaleString(language, {
     style: "currency", currency: "BRL",
   });
@@ -133,46 +112,15 @@ function FarmStructureContent() {
     return () => { active = false; };
   }, [loadStructures, requestedFarm, requestedSearch, t]);
 
-  const reportRows = useMemo(() => items
-    .flatMap((structure) => [
-      {
-        key: `structure-${structure.id}`,
-        kind: "structure" as const,
-        structure,
-        material: null,
-        searchable: `${structure.name} ${structure.description} ${structure.category_label}`,
-      },
-      ...structure.items.map((material) => ({
-        key: `material-${material.id}`,
-        kind: "material" as const,
-        structure,
-        material,
-        searchable: `${material.name} ${material.unit} ${structure.name} ${structure.category_label}`,
-      })),
-    ]), [items]);
-
   const filteredReportRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase(language);
-    return reportRows.filter((row) => !term || row.searchable.toLocaleLowerCase(language).includes(term));
-  }, [reportRows, search, language]);
+    return items.filter((structure) => (
+      `${structure.name} ${structure.description} ${structure.category_label}`.toLocaleLowerCase(language).includes(term)
+    ));
+  }, [items, search, language]);
 
   const openCreate = (category: FarmStructureCategory) => {
     router.push(`/home/estrutura/${getCategoryPath(category)}`);
-  };
-
-  const openEdit = (item: FarmStructure) => {
-    router.push(`/home/estrutura/${getCategoryPath(item.category)}?edit=${item.id}`);
-  };
-
-  const remove = async (item: FarmStructure) => {
-    if (!confirm(`${t("structure.home.delete")}: “${item.name}”?`)) return;
-    try {
-      await farmStructureService.remove(item.id);
-      await loadStructures(farmId);
-      showToast(t("structure.home.deleted"), "success");
-    } catch {
-      setError(t("structure.home.deleteFailed"));
-    }
   };
 
   return (
@@ -238,19 +186,33 @@ function FarmStructureContent() {
               <h2 className={`${styles.sectionTitle} mb-1`}>{t("structure.home.reportTitle")}</h2>
               <p className="text-muted small mb-0">{t("structure.home.report")}</p>
             </div>
-            <div className={styles.search}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("structure.home.search")} /></div>
+            <div className={styles.search}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("structure.home.search")} aria-label={t("structure.home.search")} /></div>
           </div>
           <div className={styles.tableCard}>
             <div className="table-responsive"><table className="table align-middle mb-0">
-              <thead><tr><th>{t("structure.home.type")}</th><th>{t("structure.home.structureItem")}</th><th>{t("structure.home.linkedTo")}</th><th>{t("structure.home.areaUnit")}</th><th>{t("structure.home.quantity")}</th><th>{t("structure.home.cost")}</th><th className="text-end">{t("structure.home.tableActions")}</th></tr></thead>
+              <thead><tr>
+                <th scope="col">{t("structure.home.structureName")}</th>
+                <th scope="col">{t("structure.dedicated.builtArea")}</th>
+                <th scope="col">{t("structure.home.quantity")}</th>
+                <th scope="col">{t("structure.dedicated.totalValue")}</th>
+              </tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={7} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
-                  : filteredReportRows.length ? filteredReportRows.map((row) => row.kind === "structure"
-                    ? <StructureReportRow key={row.key} structure={row.structure} categoryLabel={t(categoryLabelKeys[row.structure.category] as Parameters<typeof t>[0])} canDelete={canDelete} onEdit={openEdit} onRemove={remove} language={language} t={t} />
-                    : <MaterialReportRow key={row.key} structure={row.structure} material={row.material!} canDelete={canDelete} onRemoved={() => loadStructures(farmId)} language={language} t={t} />
-                  ) : <tr><td colSpan={7} className="text-center text-muted py-5">{t("structure.home.emptyReport")}</td></tr>}
+                {loading ? <tr><td colSpan={4} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
+                  : filteredReportRows.length ? filteredReportRows.map((structure) => (
+                    <tr key={structure.id}>
+                      <th scope="row">{structure.name}</th>
+                      <td data-label={t("structure.dedicated.builtArea")}>{structure.built_area_m2 != null && structure.built_area_m2 !== ""
+                        ? `${Number(structure.built_area_m2).toLocaleString(language)} m²` : "—"}</td>
+                      <td data-label={t("structure.home.quantity")}>{structure.quantity.toLocaleString(language)}</td>
+                      <td data-label={t("structure.dedicated.totalValue")} className="text-success fw-semibold">{formatMoney(structure.items_value || 0)}</td>
+                    </tr>
+                  )) : <tr><td colSpan={4} className="text-center text-muted py-5">{t("structure.home.emptyReport")}</td></tr>}
               </tbody>
-              {!!items.length && <tfoot><tr className={styles.reportTotal}><td colSpan={4}>{t("structure.home.farmTotal")}</td><td>{t("structure.home.recordsCount", { count: reportRows.length.toLocaleString(language) })}</td><td>{Number(summary?.structure_items_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td><td /></tr></tfoot>}
+              {!loading && !!items.length && <tfoot><tr className={styles.reportTotal}>
+                <td colSpan={2}>{t("structure.home.farmTotal")}</td>
+                <td>{t("structure.home.recordsCount", { count: items.length.toLocaleString(language) })}</td>
+                <td>{formatMoney(summary?.structure_items_value || 0)}</td>
+              </tr></tfoot>}
             </table></div>
           </div>
         </section>
@@ -258,7 +220,7 @@ function FarmStructureContent() {
         <section className={styles.quickActions} style={{ order: 3 }}>
           <h2 className={styles.sectionTitle}>{t("structure.home.quickActions")}</h2>
           <div>
-            <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>{t("structure.home.viewAllItems")}</strong><small>{t("structure.home.consolidatedList")}</small></span></button>
+            <button onClick={() => document.getElementById("structure-report")?.scrollIntoView({ behavior: "smooth" })}><ListChecks size={20} /><span><strong>{t("structure.home.viewAllStructures")}</strong><small>{t("structure.home.consolidatedList")}</small></span></button>
           </div>
         </section>
       </div>
@@ -272,53 +234,5 @@ function SummaryCard({ icon: Icon, label, value, detail }: { icon: LucideIcon; l
       <Icon size={28} />
       <div className={styles.summaryInfo}><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
     </div>
-  );
-}
-
-function StructureReportRow({ structure, categoryLabel, canDelete, onEdit, onRemove, language, t }: {
-  structure: FarmStructure;
-  categoryLabel: string;
-  canDelete: boolean;
-  onEdit: (item: FarmStructure) => void;
-  onRemove: (item: FarmStructure) => Promise<void>;
-  language: string;
-  t: ReturnType<typeof useOrganizationLocale>["t"];
-}) {
-  return (
-    <tr>
-      <td><span className={`badge border ${styles.badge} ${styles.badgeStructure}`}>{categoryLabel}</span></td>
-      <td><strong>{structure.name}</strong>{structure.description && <div className="text-muted small text-truncate" style={{ maxWidth: 250 }}>{structure.description}</div>}</td>
-      <td>{t("structure.home.structure")}</td>
-      <td>{structure.built_area_m2 ? `${structure.built_area_m2} m²` : "—"}</td>
-      <td>{structure.quantity}</td>
-      <td className="text-success fw-semibold">{Number(structure.items_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
-      <td className="text-end">
-        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title={t("structure.home.edit")}><Pencil size={15} /></button>
-        {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title={t("structure.home.delete")}><Trash2 size={15} /></button>}
-      </td>
-    </tr>
-  );
-}
-
-function MaterialReportRow({ structure, material, canDelete, onRemoved, language, t }: {
-  structure: FarmStructure;
-  material: FarmStructureItem;
-  canDelete: boolean;
-  onRemoved: () => void;
-  language: string;
-  t: ReturnType<typeof useOrganizationLocale>["t"];
-}) {
-  return (
-    <tr className={styles.materialRow}>
-      <td><span className={`badge border ${styles.badge} ${styles.badgeMaterial}`}>{t("structure.home.material")}</span></td>
-      <td><strong>{material.name}</strong></td>
-      <td className="text-truncate" style={{ maxWidth: 150 }}>{structure.name}</td>
-      <td>—</td>
-      <td>{material.quantity} {material.unit}</td>
-      <td>{Number(material.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
-      <td className="text-end">
-        {canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title={t("structure.home.removeItem")}><Trash2 size={15} /></button>}
-      </td>
-    </tr>
   );
 }

@@ -237,6 +237,11 @@ class AnimalBatchSerializer(serializers.ModelSerializer):
         if ret['sale_summary'] and ret['age_days'] is not None and instance.exit_date:
             ret['age_days'] = max(1, (instance.exit_date - parsed_birth_date).days + 1)
 
+        request = self.context.get('request')
+        if request and request.query_params.get('view') == 'mobile' and request.user.role == 'operator':
+            ret.pop('sale_summary', None)
+            ret.pop('sale_value', None)
+
         return ret
 
     def validate_entry_date(self, value):

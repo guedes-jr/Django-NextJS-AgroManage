@@ -12,9 +12,9 @@ Plano original de 6 de novembro de 2026, revisado para orientar a evolução do 
 | Início e Agenda | Prioridades, atalhos, consulta, detalhe e tarefas; Agenda com Mês/Semana/Lista | Coerência entre período/paginação, retorno, áreas de toque e caminho até a operação |
 | Bovinos e leite | Recortes online de rebanho/lotes, produção, reprodução, pastos, manejos, protocolos e importação; tanques com consulta/históricos/formulário essencial | Padronização, aceite em aparelhos e complementos por contrato; compatibilidade com a evolução leiteira do web |
 | Estoque, alimentação e clínica | Recortes nativos de consulta/escrita, revisão e efeitos; trato próprio do feeder | Homologação das jornadas, recuperação de erros e expansões documentadas |
-| Clínica após a remoção no web (21/11/2026) | Ajuste aplicado em 22/11/2026: só exames/tratamentos e vacinas; ocorrência e alertas removidos; cargo Veterinário reconhecido, sem módulos operacionais, com ponte web para a Área | Homologar em Android/iOS. VT01 recortes 1 (Alertas e lista de curral), 2 (Lançar atendimento, online) e 3 (Animais e histórico) implementados; próximo: clientes e cobrança |
+| Clínica após a remoção no web (21/11/2026) | Ajuste aplicado em 22/11/2026: só exames/tratamentos e vacinas; ocorrência e alertas removidos; cargo Veterinário reconhecido, sem módulos operacionais, com ponte web para a Área | Homologar em Android/iOS. VT01 recortes 1 (Alertas e lista de curral), 2 (Lançar atendimento, online) e 3 (Animais e histórico) implementados; consulta e cadastro/edição de clientes, consulta/baixa de cobranças, Rebanho e Relatório implementados |
 | Comunicação e perfil | Inbox, detalhe, leitura/arquivamento, preferências e perfil mínimo | Push nativo, complementos de perfil e gestão |
-| Suínos | Hub, listas por fase com resumo por toque, ficha completa com histórico, pesagem média de lote, cobertura e diagnóstico online (P11-A/B/C) | Testes automatizados das escritas, convergência dos dois contratos de detalhe, parto/transferências/vendas e homologação nativa |
+| Suínos | Hub, listas e fichas por fase, pesagem média, cobertura, diagnóstico, parto, perda gestacional, desmame total, transferência integral e mortalidade e venda de lotes online | Complementos de operação e homologação nativa |
 | Demais domínios | O menu contém destinos que ainda usam alternativa web | Plantações, estruturas, gestão, suporte e IA nativos dependem de recortes específicos |
 | Persistência e aparelho | SecureStore e seleção de CSV por DocumentPicker/FileSystem | Sem SQLite/outbox/push declarados na configuração atual; câmera, anexos e demais recursos exigem consumidores reais |
 
@@ -168,13 +168,13 @@ O desenvolvimento mantém **18 partes, de P00 a P17**, como mapa de escopo e dep
 | 1 — Conferir a base e os contratos | Validar ambiente, sessão, idioma, fazenda, perfis e compatibilidade API/app | P00/P01–P03 e P07.16: confirmar escopo/aparelhos do piloto, comandos reproduzíveis e contratos atuais | Entrar, restaurar e sair com isolamento; identificar lacunas localizadas sem recriar a fundação |
 | 2 — Consolidar a Agenda como referência | Corrigir hierarquia, alvos de toque, período/paginação, textos e retorno; tornar claro o caminho até a operação | P04.12–P04.15 e P05.11–P05.14: lista → detalhe → ação autorizada → retorno ao contexto | Dados corretos para a seleção e estados compreensíveis em larguras pequena e maior; alternativa web identificada quando necessária |
 | 3 — Aplicar o padrão às jornadas existentes | Revisar Início, Rebanho, Leite, Trato, Estoque e Clínica, uma jornada de cada vez | P04/P06/P07/P09/P10: contexto → dados → formulário/revisão → confirmação → histórico | Critérios da Agenda adaptados ao domínio, sem efeitos duplicados, perda de entrada ou ampliação de acesso |
-| 4 — Homologar e pilotar o recorte online | Validar builds e tarefas com dados sintéticos em Android/iOS; comparar com a jornada web | P17: perfis, dispositivo, rede ruim, teclado, fonte ampliada, interrupção e resultado incerto | Evidências nativas e pendências explícitas; liberar internamente apenas o conjunto aprovado |
-| 5 — Fechar lacunas operacionais escolhidas | Completar os contratos e ações que o piloto precisa, antes de ampliar segmentos | P06/P07/P09/P10 e recortes P13/P15; tanques/qualidade e demais complementos conforme prioridade | Fluxo completo e homologado; lista/ficha isoladas não encerram um módulo |
-| 6 — Expandir conforme demanda | Introduzir um fluxo vertical de suínos, plantações ou gestão por vez; continuar o aceite nativo | P11–P13 e complementos P15, após conferência do contrato | Consulta, ação, efeitos, recuperação e suporte demonstráveis no domínio escolhido |
-| 7 — Acrescentar capacidades de campo | Selecionar o que resolve uma necessidade observada: leitura offline, rascunho, captura, push ou compartilhamento | P08/P14/P15; cada capacidade tem consumidor, política e teste próprio | Permissão negada, retenção, troca de conta e retomada tratadas; sem dependências nativas sem consumidor |
-| 8 — Sincronizar e distribuir com segurança | Homologar envio offline por operação, quando necessário, e preparar versões publicáveis | P16 por endpoint; P17 acompanha todas as entregas e consolida distribuição | Idempotência e reconciliação comprovadas; build, atualização, suporte e rollback do escopo liberado |
+| 4 — Fechar lacunas operacionais escolhidas | Completar os contratos e ações que o piloto precisa, antes de ampliar segmentos | P06/P07/P09/P10 e recortes P13/P15; tanques/qualidade e demais complementos conforme prioridade | Fluxo implementado e checado em testes de integração |
+| 5 — Expandir conforme demanda | Introduzir um fluxo vertical de suínos, plantações ou gestão por vez | P11–P13 e complementos P15, após conferência do contrato | Consulta, ação, efeitos, recuperação e suporte demonstráveis no domínio escolhido |
+| 6 — Acrescentar capacidades de campo | Selecionar o que resolve uma necessidade observada: leitura offline, rascunho, captura, push ou compartilhamento | P08/P14/P15; cada capacidade tem consumidor, política e teste próprio | Permissão negada, retenção, troca de conta e retomada tratadas; sem dependências nativas sem consumidor |
+| 7 — Implementar a sincronização prevista | Validar contratos de envio offline por operação quando estiver no escopo | P16 por endpoint | Idempotência e reconciliação comprovadas com testes automatizados |
+| 8 — Homologar em aparelhos e pilotar | Após terminar as telas e fluxos previstos, validar em Android/iOS e comparar as jornadas com o web | P17: rede ruim, retomada, teclado, acessibilidade, perfis e resultado incerto | Evidências em aparelho, distribuição interna, suporte e rollback |
 
-O passo 4 não precisa esperar todos os módulos nem persistência offline. P17 acompanha cada passo; sua posição no mapa não adia qualidade. Depois do piloto, uma capacidade de campo pode preceder um novo segmento se resolver a necessidade prioritária; P16 continua dependente do contrato seguro da operação.
+A verificação automatizada acompanha cada incremento. A rodada em dispositivos começa quando a implementação de todas as telas e fluxos previstos termina. P16 continua dependente do contrato seguro da operação.
 
 ### Próximo incremento a executar
 
@@ -198,8 +198,8 @@ App e recortes online existentes
  -> conferir ambiente, sessão e contratos (P01–P03; P07.16)
  -> consolidar Agenda e componentes necessários (P04/P05)
  -> aplicar às jornadas atuais (P06/P07/P09/P10)
- -> homologar e pilotar online (P17 / M2)
- -> escolher complementos e expansões pelo resultado do piloto
+ -> implementar complementos e telas previstas
+ -> homologar em Android/iOS e pilotar (P17)
 
 Em paralelo, por necessidade comprovada:
  P08 -> leitura offline e rascunhos com política/schema próprios
@@ -259,7 +259,7 @@ Não há estimativa confiável de prazo total antes de P00/P02. O esforço muda 
 2. Tarefa que não cabe em um incremento demonstrável deve ser dividida em consulta, escrita, efeitos, recuperação e validação conforme aplicável.
 3. Considerar revisão, teste em aparelho, correções e distribuição no esforço; “tela pronta” não é a conclusão de uma tarefa de negócio.
 4. Calcular prazo com capacidade efetiva alocada, não com número de pessoas nominal. Espera por credencial, aparelho ou decisão aparece separadamente do esforço.
-5. Reestimar após consolidar a Agenda e homologar a primeira jornada atual no aparelho; usar esse resultado para dimensionar os próximos incrementos, sem tratar o app existente como um novo scaffold.
+5. Reestimar após consolidar a Agenda e validar a jornada com dados sintéticos. Usar a rodada em aparelhos para estimar os ajustes finais.
 6. Planejar no máximo o próximo marco em detalhe de agenda; o restante mantém ordem e escopo ajustáveis com o aprendizado do piloto.
 
 Competências mínimas: desenvolvimento mobile, backend para contratos/invariantes, design/produto e validação com usuário de campo. Uma pessoa pode acumular competências, mas a capacidade precisa refletir isso. CI, contas de loja e credenciais precisam de responsável operacional.
@@ -317,20 +317,35 @@ Os marcos abaixo ainda não estão concluídos. O primeiro recorte de P01–P04 
 
 ## Próxima ação recomendada
 
-Por decisão do usuário (23/11/2026), validações e homologações em aparelho ficam para o final; a implementação das tarefas pendentes segue antes.
+As verificações técnicas acompanham cada incremento. A homologação em Android e iOS fica para depois da implementação de todas as telas e fluxos previstos no plano. O piloto online depende desse aceite.
 
 Concluído em 23/11/2026: suíte do mobile verde (`home.test.ts` atualizado); testes de contrato das escritas suínas no app e testes de backend com `species=suinos` (`test_mobile_swine_writes.py`, em SQLite via `config.settings.test`); detalhe suíno convergido em `swineRecordDetail` (wrapper `swinePhaseDetail` removido do app; o endpoint remoto permanece no backend, documentado e sem consumidor mobile); **parto suíno online (P11.07)** na ficha da gestação.
 
-Próximos incrementos de implementação, em ordem:
+P11.07/P11.08: implementados o desmame total da leitegada para a creche, a perda gestacional e a transferência integral de lotes creche → crescimento → engorda. Os fluxos conferem o contexto e retornam o mesmo recibo para o mesmo comando. Desmame parcial está disponível nas duas plataformas, com saldo remanescente visível na maternidade. A transferência mobile usa os papéis gerenciais já exigidos pelo backend.
 
-1. **P11.07 — completar a sequência reprodutiva:** desmame da leitegada (maternidade → creche) e perda gestacional, com o mesmo padrão de opções/versões/chave idempotente.
-2. **P11.08 — transferência de fase de lotes** (creche → crescimento → engorda) com origem, destino, quantidade e efeito confirmados pelo servidor.
-3. **P11.09 — mortalidade e venda de lotes suínos**, explicitando efeitos financeiros/estoque existentes.
-4. **P09.15 — entradas, ajustes e transferências de estoque** online e em incremento separado.
-5. **VT01 — clientes e cobrança** da Área do veterinário.
+P11.09: venda parcial e integral de lotes suínos implementada para administradores e gerentes. A confirmação usa o serviço de venda existente para atualizar o lote e gerar um único título a receber pendente, com recibo em reenvios do mesmo comando. A mortalidade de lotes já tem revisão, baixa de saldo, encerramento quando o saldo zera e recibo.
+
+P09.15: o web registra saídas com destino em texto. O app já registra o destino no histórico e baixa o saldo do lote escolhido. O escopo de paridade usa esse fluxo. Transferências com débito e crédito entre saldos não têm operação equivalente no web.
+
+VT01: cadastro e edição de clientes e baixa de cobranças revisadas por cliente e mês implementados. A baixa aplica apenas aos atendimentos conferidos e sincroniza o Financeiro quando habilitado. Vínculo de clientes a fazendas, finalidade do rebanho e exclusão de clientes sem atendimentos estão disponíveis no app. Exportação do relatório e insumos seguem no backlog.
+
+### Implementação restante conforme as regras do web
+
+A sequência abaixo prioriza consultas com contrato disponível, depois escritas com efeitos sobre rebanho, estoque ou Financeiro. Para abrir cada incremento, confirmar o endpoint, a autorização e o efeito no servidor. Usar os mesmos serviços de negócio do web e validar o fluxo com dados sintéticos antes da homologação em aparelho.
+
+| Ordem | Item | Regra existente e aceite do mobile |
+| --- | --- | --- |
+| Entregue | **VT01 · Rebanho e relatório veterinário** | Consultar rebanho e histórico em `/veterinary/herd/` e `/veterinary/herd/{id}/`, somente leitura. Admin e gerente consultam as espécies da organização, e veterinário consulta as liberadas em `allowed_livestock`. Preservar paginação, filtro e acesso ao detalhe. Em `/veterinary/report/`, aplicar os filtros existentes de cliente, data, procedimento, resultado, touro, categoria e responsável, com os modos do servidor. [Rebanho](../../backend/apps/veterinary/herd.py) · [Rotas](../../backend/apps/veterinary/views.py) |
+| Entregue | **S03/P11.09 · Central de vendas de suínos** | Reusar `/livestock/batches/sales/` para consulta gerencial. A consulta combina eventos de venda e títulos legados pela referência da transação, preserva peso e preço desconhecidos e retorna até 100 registros. Manter venda parcial/integral pela ficha já implementada. Conferir permissão financeira no acesso direto e o histórico após a gravação. [Consulta de vendas](../../backend/apps/livestock/views.py) |
+| Entregue | **VT01 · Vínculo e exclusão de clientes** | Separar o nome de fazenda em texto do vínculo a uma fazenda da organização. Respeitar finalidade do rebanho (`unknown`, `beef`, `dairy`, `dual`) e o comportamento do servidor ao sincronizar atendimentos. A exclusão exige confirmação e é bloqueada pelo servidor quando o cliente tem atendimentos. Testar também edição concorrente e tentativa de vínculo a outra organização. [Contrato de cliente](../../backend/apps/veterinary/serializers.py) · [Exclusão](../../backend/apps/veterinary/services.py) |
+| Entregue | **S02/P11.07 · Desmame parcial** | A quantidade deve ser positiva e menor que o saldo para a operação permanecer parcial. O serviço reduz a maternidade, cria lote de creche ligado à origem e mantém a matriz lactante. As consultas preservam a leitegada enquanto o lote de maternidade estiver ativo com saldo. Dois parciais e o desmame total são cobertos por teste de integração no Web e no Mobile. [Serviço de desmame](../../backend/apps/livestock/services.py) · [Consultas de maternidade](../../backend/apps/livestock/views.py) |
+| 1 | **S03/P11.09 · Descarte e mão de obra** | Conferir o contrato de descarte individual e preservar os efeitos existentes do descarte. O encerramento de saldo já está disponível na ficha mobile com revisão, histórico e recibo. A mão de obra segue o web e registra uma despesa paga, com categoria financeira, data, setor, modalidade e referência `LABOR-SWINE-`. Liberar escrita após provar autorização e reconciliação por referência. [Encerramento de saldo](../../backend/apps/livestock/services.py) · [Descarte web](../../frontend/src/services/livestockService.ts) · [Mão de obra web](../../frontend/src/services/swineLaborService.ts) |
+| 2 | **VT01/P14 · Insumos e anexos** | Selecionar lotes elegíveis de `input-lots/` e registrar o consumo junto ao atendimento, com quantidade, unidade, saldo e vínculo ao movimento. Conferir no servidor as regras de validade, categoria e disponibilidade no momento da gravação. Vincular o anexo ao animal e, opcionalmente, ao atendimento do mesmo animal. O web aceita JPG, PNG, WEBP e PDF de até 10 MB, com leitura autenticada. Testar isolamento e falha após envio. [Consumo](../../backend/apps/veterinary/integrations.py) · [Anexos](../../backend/apps/veterinary/views.py) |
+
+**Expansão por demanda:** plantações, estruturas, financeiro, gestão e suporte seguem no [inventário](TELAS-PENDENTES.md). Começar por um fluxo web existente de consulta e ação autorizada. P08/P14–P16 cobrem recursos próprios do aparelho, leitura offline, rascunhos, push e eventual sincronização. Cada escrita offline depende de contrato de repetição e reconciliação demonstrado para a operação.
 
 Pendência conhecida fora do mobile: `apps.livestock.tests.test_cattle.CattleWorkspaceTests.test_overview_filters_remain_tenant_scoped` falha também em `origin/main` (1 != 0).
 
-Ao final: homologar em Android/iOS o ajuste da clínica, VT01, suínos P11-A/B/C e parto, as molduras responsivas (celular pequeno, grande e tablet), P07.17-A/B com API sintética e a Agenda.
+Ao final de toda a implementação prevista: homologar em Android/iOS o ajuste da clínica, VT01, suínos P11-A/B/C, parto, desmame, perda gestacional, transferências, mortalidade, venda e os complementos incluídos no recorte, as molduras responsivas (celular pequeno, grande e tablet), P07.17-A/B com API sintética e a Agenda.
 
 Não executar escrita contra dados operacionais sem autorização e ambiente descartável. A homologação visual/nativa da Agenda continua pendente, sem bloquear os próximos recortes. Completar as decisões de campo de P00 sem recriar projeto, sessão ou módulos existentes. O [guia de design](../DESIGN.md) e a [experiência revisada](EXPERIENCIA.md) orientam os percursos; o mockup antigo é histórico.

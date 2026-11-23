@@ -1,3 +1,4 @@
+import { vetBillingSchema, vetSettlementTotal, veterinaryMonthSchema } from '../src/features/veterinary/contracts';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {create,type AxiosAdapter} from 'axios';
@@ -106,4 +107,21 @@ test('history drops values and describes each procedure',async()=>{
   const protocol=historyLines(veterinaryMessages['en'],vetHistorySchema.parse({...raw,result:'open',conduct:'iatf_protocol',management_days:10,protocol_start:'2026-11-20',bull:'',coverage_method:'',calving_date:null,notes:'',responsible:''}),day=>day);
   assert.deepEqual([protocol.result,...protocol.lines],['Open','IATF protocol','10-day IATF protocol · start 2026-11-20']);
   for(const language of ['en','es','pt-PT'] as const)assert.deepEqual(Object.keys(veterinaryMessages[language].animals).sort(),Object.keys(veterinaryMessages['pt-BR'].animals).sort());
+});
+
+
+test('billing preserves decimal amounts and rejects invalid periods', () => {
+  const result = { month: '2026-11', total: '120.50', received: '0.00', receivable: '120.50', clients: [], detail: null };
+  assert.deepEqual(vetBillingSchema.parse(result), result);
+  assert.equal(vetBillingSchema.safeParse({ ...result, total: 120.5 }).success, false);
+  assert.equal(veterinaryMonthSchema.safeParse('2026-13').success, false);
+});
+
+
+test('reviewed settlement total sums exact cents', () => {
+  const review = [
+    { id: 'eed3782c-6b32-45f0-81c0-16095afb43ac', value: '0.10', version: '2026-11-23T12:00:00Z' },
+    { id: 'b11f9d84-d528-4fef-a5a4-fc3e28360de0', value: '0.20', version: '2026-11-23T12:00:00Z' },
+  ];
+  assert.equal(vetSettlementTotal(review), '0.30');
 });

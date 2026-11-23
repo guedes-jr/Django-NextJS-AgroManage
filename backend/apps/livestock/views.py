@@ -191,8 +191,8 @@ class SwinePhaseMobileDetailView(BasePhaseView):
             target_kind = "pregnancy"
         elif phase == "maternidade":
             target = get_object_or_404(
-                Birth.objects.select_related("female__farm", "litter"),
-                pk=pk, female__farm__organization=organization, female__species__code="suinos", litter__weaning_date__isnull=True,
+                Birth.objects.select_related("female__farm", "litter").filter(maternity_open()),
+                pk=pk, female__farm__organization=organization, female__species__code="suinos",
             )
             target_kind = "birth"
         else:
@@ -437,6 +437,13 @@ class GestacoesView(BasePhaseView):
         })
 
 
+def maternity_open():
+    return Q(litter__weaning_date__isnull=True) | Q(
+        female__species__code="suinos", batch__phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
+        batch__status=AnimalBatch.Status.ACTIVE, batch__quantity__gt=0,
+    )
+
+
 class MaternidadeView(BasePhaseView):
     def get(self, request):
         filters, species = self.get_species_filter(request)
@@ -446,10 +453,10 @@ class MaternidadeView(BasePhaseView):
         base_qs = Birth.objects.filter(
             female__farm__organization=request.user.organization,
             female__species__code=species
-        ).select_related('female', 'litter').order_by('-birth_date')
+        ).select_related('female', 'litter', 'batch').order_by('-birth_date')
 
         # Considerar em lactação: todos os partos que não possuem desmame concluído
-        lactating_qs = base_qs.exclude(litter__weaning_date__isnull=False)
+        lactating_qs = base_qs.filter(maternity_open())
 
         now = timezone.now().date()
         start_of_month = now.replace(day=1)
@@ -498,15 +505,8 @@ class MaternidadeView(BasePhaseView):
             ).isoformat() if b.birth_date else None
             
             vivos_calculado = b.live_born - b.mortality
-            if hasattr(b, 'litter') and b.litter.weaning_date:
-                status = "Desmamado"
-                vivos_atual = b.litter.weaned_quantity or max(vivos_calculado, 0)
-            elif idade is not None and idade >= b.expected_weaning_days:
-                status = "Pronto p/ Desmame"
-                vivos_atual = max(vivos_calculado, 0)
-            else:
-                status = "Lactação"
-                vivos_atual = max(vivos_calculado, 0)
+            vivos_atual = b.batch.quantity if species == "suinos" and b.batch_id else max(vivos_calculado, 0)
+            status = "Pronto p/ Desmame" if idade is not None and idade >= b.expected_weaning_days else "Lactação"
 
             rows.append({
                 "id": b.id,
@@ -846,7 +846,7 @@ def build_reproductive_cycles(animal):
         # Verificar se há gestação associada
         if hasattr(m, 'pregnancy'):
             p = m.pregnancy
-            cycle["pregnancy_confirmed"] = p.status != 'failed'
+            cycle["pregnancy_confirmed"] = p.status not in ('failed', Pregnancy.Status.LOST)
             cycle["pregnancy_status"] = p.status
             if p.expected_birth_date:
                 cycle["expected_birth_date"] = p.expected_birth_date.isoformat()
@@ -1161,7 +1161,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             lote__in=self.get_queryset().filter(species__code='suinos'),
             tipo_evento='Venda de Animais',
         ).order_by('-data_evento', '-created_at')[:100]
-        rows = [dict(event.metadata, id=str(event.pk), date=str(event.data_evento)) for event in events]
+        rows = [dict({key: value for key, value in event.metadata.items() if key != 'mobile_sale'}, id=str(event.pk), date=str(event.data_evento)) for event in events]
         # Keep sales recorded before the detailed sale workflow visible.
         from apps.finance.models import Transaction
         from django.db.models.fields.json import KeyTextTransform
@@ -1183,8 +1183,21 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         } for item in legacy)
         return Response(sorted(rows, key=lambda row: row['date'], reverse=True)[:100])
 
+    @action(detail=True, methods=['get'], url_path='mobile-sale')
+    def mobile_sale(self, request, pk=None):
+        from . import mobile_swine_reproduction
+        return Response(mobile_swine_reproduction.options(request.user, pk, request.query_params, "sale"))
+
     @action(detail=True, methods=['post'], url_path='register-sale')
     def register_sale(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_swine_reproduction
+            values = mobile_swine_reproduction.SaleInput(data=request.data)
+            values.is_valid(raise_exception=True)
+            receipt, created = mobile_swine_reproduction.record(
+                request.user, pk, request.query_params, "sale", values.validated_data,
+            )
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         from .serializers import BatchSaleSerializer
         from .services import register_batch_sale
         batch = self.get_object()
@@ -1192,9 +1205,22 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         return Response(register_batch_sale(batch, serializer.validated_data), status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['get'], url_path='mobile-close')
+    def mobile_close(self, request, pk=None):
+        from . import mobile_swine_reproduction
+        return Response(mobile_swine_reproduction.options(request.user, pk, request.query_params, "close"))
+
     @action(detail=True, methods=['post'], url_path='close-balance')
     def close_balance(self, request, pk=None):
         """Close the leftover balance of a lot whose animals were all sold or written off."""
+        if request.query_params.get("view") == "mobile":
+            from . import mobile_swine_reproduction
+            values = mobile_swine_reproduction.CloseInput(data=request.data)
+            values.is_valid(raise_exception=True)
+            receipt, created = mobile_swine_reproduction.record(
+                request.user, pk, request.query_params, "close", values.validated_data,
+            )
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         from .services import close_batch_balance
         batch = self.get_object()
         try:
@@ -1436,9 +1462,22 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=True, methods=['get'], url_path='mobile-mortality')
+    def mobile_mortality(self, request, pk=None):
+        from . import mobile_swine_reproduction
+        return Response(mobile_swine_reproduction.options(request.user, pk, request.query_params, "mortality"))
+
     @action(detail=True, methods=['post'], url_path='registrar-mortalidade')
     def registrar_mortalidade(self, request, pk=None):
         """Registra mortes em um lote e baixa a quantidade disponível."""
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_swine_reproduction
+            values = mobile_swine_reproduction.MortalityInput(data=request.data)
+            values.is_valid(raise_exception=True)
+            receipt, created = mobile_swine_reproduction.record(
+                request.user, pk, request.query_params, "mortality", values.validated_data,
+            )
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         try:
             quantidade = int(request.data.get('quantidade', 0))
         except (TypeError, ValueError):
@@ -1476,34 +1515,10 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            quantidade_anterior = batch.quantity
-            batch.quantity -= quantidade
-            update_fields = ['quantity', 'updated_at']
-            if batch.quantity == 0:
-                batch.status = AnimalBatch.Status.DEAD
-                batch.exit_date = data_evento
-                update_fields.extend(['status', 'exit_date'])
-            batch.save(update_fields=update_fields)
-
+            from .services import record_batch_mortality
             causa = str(request.data.get('causa') or 'Não informada')
             observacao = str(request.data.get('observacao') or '').strip()
-            HistoricoEvento.objects.create(
-                farm=batch.farm,
-                lote=batch,
-                tipo_evento='Mortalidade de Lote',
-                descricao=(
-                    f'{quantidade} morte(s) registrada(s) no lote {batch.batch_code}. '
-                    f'Causa: {causa}.'
-                ),
-                data_evento=data_evento,
-                metadata={
-                    'quantidade_mortes': quantidade,
-                    'quantidade_anterior': quantidade_anterior,
-                    'quantidade_atual': batch.quantity,
-                    'causa': causa,
-                    'observacao': observacao,
-                },
-            )
+            record_batch_mortality(batch, quantidade, data_evento, causa, observacao)
 
         return Response({
             'message': translate_message('Mortalidade registrada com sucesso.'),
@@ -1514,6 +1529,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
     def history(self, request, pk=None):
         """Retorna o histórico completo do lote, incluindo fases, consumo de ração e pesagens reais."""
         batch = self.get_object()
+        mobile_operator = request.query_params.get('view') == 'mobile' and request.user.role == 'operator'
 
         def get_batch_history(b):
             history_list = []
@@ -1546,7 +1562,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     entry_weight = final_sale['entry_weight_kg']
                     entry_quantity = final_sale['entry_quantity']
                 history_list.append({
-                    'sale_summary': final_sale,
+                    'sale_summary': None if mobile_operator else final_sale,
                     'type': 'phase',
                     'batch_id': str(b.id),
                     'batch_code': b.batch_code,
@@ -1597,7 +1613,7 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     'batch_id': str(b.id),
                     'title': consumption.item_estoque.nome,
                     'total_kg': total_kg,
-                    'cost': float(consumption.custo_total),
+                    'cost': None if mobile_operator else float(consumption.custo_total),
                     'avg_per_animal': round(total_kg / qty, 3) if qty else None,
                     'date': consumption.data_inicio.isoformat() if consumption.data_inicio else None,
                     'entry_date': consumption.data_inicio.isoformat() if consumption.data_inicio else None,
@@ -1618,7 +1634,17 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                 })
 
             for event in b.historicos.filter(tipo_evento='Venda de Animais').order_by('data_evento'):
-                history_list.append(dict(event.metadata, type='sale', batch_id=str(b.id), date=str(event.data_evento)))
+                details = {key: value for key, value in event.metadata.items() if key != 'mobile_sale'}
+                if mobile_operator:
+                    details = {key: details[key] for key in ('quantity', 'weight_kg', 'mode') if key in details}
+                history_list.append(dict(details, type='sale', batch_id=str(b.id), date=str(event.data_evento)))
+
+            for event in b.historicos.filter(tipo_evento="Encerramento de Saldo").order_by("data_evento"):
+                history_list.append({
+                    "type": "balance_close", "batch_id": str(b.pk),
+                    "date": str(event.data_evento), "entry_date": str(event.data_evento),
+                    "quantity": event.metadata.get("quantity"), "reason": event.metadata.get("reason"),
+                })
 
             # 6. Mortalidades registradas diretamente no lote.
             # A ficha técnica espera eventos `death` para preencher a seção de
@@ -1718,7 +1744,13 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
         return Response(full_history)
 
+    @action(detail=True, methods=['get'], url_path='mobile-transfer')
+    def mobile_transfer(self, request, pk=None):
+        from . import mobile_swine_reproduction
+        return Response(mobile_swine_reproduction.options(request.user, pk, request.query_params, "transfer"))
+
     @action(detail=True, methods=['post'], url_path='change-phase')
+    @transaction.atomic
     def change_phase(self, request, pk=None):
         """
         Transfere o lote para uma nova fase produtiva, consolidando os dados
@@ -1733,7 +1765,15 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
             "notes": "Texto opcional"
         }
         """
-        batch = self.get_object()
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_swine_reproduction
+            values = mobile_swine_reproduction.TransferInput(data=request.data)
+            values.is_valid(raise_exception=True)
+            receipt, created = mobile_swine_reproduction.record(
+                request.user, pk, request.query_params, "transfer", values.validated_data,
+            )
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        batch = AnimalBatch.objects.select_for_update().get(pk=self.get_object().pk)
         old_phase = batch.phase
         new_phase = request.data.get('new_phase')
         exit_weight_kg = request.data.get('exit_weight_kg')
@@ -1765,18 +1805,16 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         else:
             exit_date = timezone.now().date()
 
-        from django.db import transaction
         from .services import PHASE_LABELS, transfer_batch_phase
 
-        with transaction.atomic():
-            transfer_batch_phase(
-                batch,
-                new_phase,
-                exit_date,
-                exit_quantity=int(exit_quantity) if exit_quantity is not None else None,
-                exit_weight_kg=exit_weight_kg,
-                notes=notes,
-            )
+        transfer_batch_phase(
+            batch,
+            new_phase,
+            exit_date,
+            exit_quantity=int(exit_quantity) if exit_quantity is not None else None,
+            exit_weight_kg=exit_weight_kg,
+            notes=notes,
+        )
 
         old_label = PHASE_LABELS.get(old_phase, old_phase or 'N/A')
         new_label = PHASE_LABELS.get(new_phase, new_phase)
@@ -2391,9 +2429,27 @@ class PregnancyViewSet(viewsets.ModelViewSet):
         receipt, created = mobile_swine_birth.record(request.user, pk, request.query_params, values.validated_data)
         return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
+    @action(detail=True, methods=['get'], url_path='mobile-loss')
+    def mobile_loss(self, request, pk=None):
+        from . import mobile_swine_reproduction
+        return Response(mobile_swine_reproduction.options(request.user, pk, request.query_params, "loss"))
+
     @action(detail=True, methods=['post'], url_path='registrar-perda')
+    @transaction.atomic
     def registrar_perda(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_swine_reproduction
+            values = mobile_swine_reproduction.LossInput(data=request.data)
+            values.is_valid(raise_exception=True)
+            receipt, created = mobile_swine_reproduction.record(
+                request.user, pk, request.query_params, "loss", values.validated_data,
+            )
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         pregnancy = self.get_object()
+        if pregnancy.female.species.code == 'suinos':
+            pregnancy = Pregnancy.objects.select_for_update().get(pk=pregnancy.pk)
+            if pregnancy.status != Pregnancy.Status.ONGOING:
+                return Response({"detail": "A gestação já foi encerrada."}, status=status.HTTP_409_CONFLICT)
         data = request.data.get('data', timezone.now().date())
         tipo_perda = request.data.get('tipo_perda', 'ABORTO')
         observacao = request.data.get('observacao', '')
@@ -2457,8 +2513,21 @@ class BirthViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=['get'], url_path='mobile-weaning')
+    def mobile_weaning(self, request, pk=None):
+        from . import mobile_swine_reproduction
+        return Response(mobile_swine_reproduction.options(request.user, pk, request.query_params, "weaning"))
+
     @action(detail=True, methods=['post'], url_path='desmamar')
     def desmamar(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_swine_reproduction
+            values = mobile_swine_reproduction.LitterWeaningInput(data=request.data)
+            values.is_valid(raise_exception=True)
+            receipt, created = mobile_swine_reproduction.record(
+                request.user, pk, request.query_params, "weaning", values.validated_data,
+            )
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         birth = self.get_object()
         try:
             weaning_date = datetime.date.fromisoformat(request.data['weaning_date'])
@@ -2572,7 +2641,7 @@ class BirthViewSet(viewsets.ModelViewSet):
             destino_queryset = self.get_queryset().filter(
                 female__farm=birth.female.farm,
                 female__status=AnimalBatch.Status.ACTIVE,
-            ).exclude(litter__weaning_date__isnull=False).order_by('-birth_date')
+            ).filter(maternity_open()).order_by('-birth_date')
             if destino_birth_id:
                 destino_birth = destino_queryset.filter(pk=destino_birth_id).first()
             else:

@@ -8,6 +8,9 @@ import {parseApiUrl} from '../../config/environment';
 import {canUseVeterinary, curralPresets, curralRows, curralSummary, daysBetween, type CurralPreset, type VetAnimal, type VetDeadline} from './contracts';
 import {fill, veterinaryMessages, type VeterinaryCopy} from './messages';
 
+import { vetConsultationCopy } from './VeterinaryConsultationScreens';
+import { accountsCopy } from './VeterinaryAccountsScreens';
+
 const TONE:Record<VetDeadline,StatusTone>={late:'danger',today:'warning',week:'info',later:'neutral',nodate:'neutral'};
 
 async function openWeb(path:string){
@@ -67,7 +70,14 @@ export function VeterinaryCurralScreen(){
     </View>
     <AgendaButton variant="primary" label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:client?{client}:{}})}/>
     <AgendaButton label={t.animals.start} onPress={()=>router.push('/veterinary/animals')}/>
-    <Text style={s.muted}>{t.readOnlyHint}</Text>
+    <View style={s.row}>
+      <AgendaButton label={accountsCopy[language].clients} onPress={() => router.push('/veterinary/clients')}/>
+      <AgendaButton label={accountsCopy[language].billing} onPress={() => router.push('/veterinary/billing')}/>
+    </View>
+    <View style={s.row}>
+      <AgendaButton label={vetConsultationCopy[language].herd} onPress={() => router.push('/veterinary/herd')}/>
+      <AgendaButton label={vetConsultationCopy[language].report} onPress={() => router.push('/veterinary/report')}/>
+    </View>
     <AgendaButton label={t.web} onPress={()=>void openWeb('/home/veterinario?aba=al').then(()=>setFailedLink(false)).catch(()=>setFailedLink(true))}/>
     {failedLink&&<Text style={s.error}>{t.failedLink}</Text>}
     {animals.isPending&&<Busy label={t.loading}/>}

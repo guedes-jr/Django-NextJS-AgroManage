@@ -104,9 +104,34 @@ def wean_birth(
     birth = birth.__class__.objects.select_for_update().get(pk=birth.pk)
     maternity_batch = ensure_birth_batch(birth)
     maternity_batch = AnimalBatch.objects.select_for_update().get(pk=maternity_batch.pk)
+    if (
+        maternity_batch.species.code == "suinos"
+        and maternity_batch.phase != AnimalBatch.Phase.GESTACAO_MATERNIDADE
+    ):
+        raise ValueError("A leitegada já saiu da maternidade.")
     available = maternity_batch.quantity
     if weaned_quantity < 1 or weaned_quantity > available:
         raise ValueError(f"Quantidade desmamada deve estar entre 1 e {available}.")
+
+    is_partial = weaning_type == "parcial" and weaned_quantity < available
+    if maternity_batch.species.code == "suinos":
+        from django.utils import timezone
+        last_weaning = Litter.objects.filter(birth=birth).values_list("weaning_date", flat=True).first()
+        if not max(birth.birth_date, last_weaning or birth.birth_date) <= weaning_date <= timezone.localdate():
+            raise ValueError("Use uma data entre o último desmame (ou parto) e hoje.")
+        if weaning_type == "parcial" and not is_partial:
+            raise ValueError("O desmame parcial deve deixar saldo na maternidade.")
+    if is_partial:
+        base_code = f"CRECHE-{maternity_batch.batch_code}"
+        code = (batch_code or base_code)[:50]
+        lots = AnimalBatch.objects.filter(farm_id=maternity_batch.farm_id)
+        if batch_code and lots.filter(batch_code=code).exists():
+            raise ValueError("Já existe um lote com esse código nesta fazenda.")
+        suffix = 1
+        while lots.filter(batch_code=code).exists():
+            suffix += 1
+            ending = f"-{suffix}"
+            code = base_code[:50 - len(ending)] + ending
 
     notice_date = None
     if next_mating_notice_days:
@@ -123,11 +148,9 @@ def wean_birth(
         },
     )
 
-    is_partial = weaning_type == "parcial" and weaned_quantity < available
     if is_partial:
         maternity_batch.quantity = available - weaned_quantity
         maternity_batch.save(update_fields=["quantity"])
-        code = (batch_code or f"CRECHE-{maternity_batch.batch_code}")[:50]
         nursery = AnimalBatch.objects.create(
             farm=maternity_batch.farm,
             species=maternity_batch.species,
@@ -332,6 +355,26 @@ def finalize_batch_current_phase(batch: AnimalBatch, exit_date: Optional[date] =
         exit_date or timezone.now().date(),
         exit_quantity=batch.quantity,
         exit_weight_kg=batch.avg_weight_kg,
+    )
+
+
+def record_batch_mortality(batch, quantity, event_date, cause, notes, audit=None):
+    """Record mortality on a lot already locked by the caller."""
+    previous = batch.quantity
+    batch.quantity -= quantity
+    fields = ["quantity", "updated_at"]
+    if batch.quantity == 0:
+        batch.status = AnimalBatch.Status.DEAD
+        batch.exit_date = event_date
+        fields.extend(("status", "exit_date"))
+    batch.save(update_fields=fields)
+    HistoricoEvento.objects.create(
+        farm=batch.farm, lote=batch, tipo_evento="Mortalidade de Lote",
+        descricao=f"{quantity} morte(s) registrada(s) no lote {batch.batch_code}. Causa: {cause}.",
+        data_evento=event_date, metadata={
+            "quantidade_mortes": quantity, "quantidade_anterior": previous, "quantidade_atual": batch.quantity,
+            "causa": cause, "observacao": notes, **(audit or {}),
+        },
     )
 
 

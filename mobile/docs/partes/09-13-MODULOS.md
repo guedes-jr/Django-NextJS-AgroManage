@@ -73,7 +73,7 @@ Rota `/inventory/launch`, acessível por Lançar estoque no histórico e por aç
 
 **Validação:** 119 testes mobile, TypeScript/ESLint; 52 testes backend direcionados de estoque/ledger/tenant/projeções e compra financeira legada, incluindo prévia sem escrita, entrada sem financeiro, saída exata/insuficiente, compra com um único título pendente, ausência de pagamento, tokens expirados/adulterados ou de outra organização, campos indevidos, acesso revogado/troca obrigatória de senha, saldo/unidade alterados, limites decimais e rollback após falha no financeiro. Navegador com API sintética em 320/390/820 px: seleção de produto, entrada em novo lote, saldo insuficiente, revisão desatualizada/refeita, fazenda paginada e fornecedor explícitos, valor e efeito pendentes da compra e resposta 503 após gravação sem permitir novo envio. Bundles web/Android/iOS gerados. Nenhuma movimentação de estoque ou financeiro no banco real; homologação com dados reais e aparelhos continua no aceite final.
 
-**Estado:** E03 já inclui consulta/detalhe, contagem física, entrada sem compra, saída e compra recebida pendente. Correções/exclusões de origem, vendas/perdas/vencimentos especiais, transferências, pagamento/estorno e demais rotinas financeiras continuam no web. Campos técnicos completos e mídia dos cadastros permanecem fora do recorte nativo. Próximo bloco da Fase 3: fórmulas e produção de ração, depois tratos e comunicação. A fase não está concluída.
+**Estado:** E03 já inclui consulta/detalhe, contagem física, entrada sem compra, saída e compra recebida pendente. Correções/exclusões de origem, vendas/perdas/vencimentos especiais, pagamento/estorno e demais rotinas financeiras continuam no web. Campos técnicos completos e mídia dos cadastros permanecem fora do recorte nativo. Próximo bloco da Fase 3: fórmulas e produção de ração, depois tratos e comunicação. A fase não está concluída.
 
 ### Fórmulas e produção de ração — 7 de novembro de 2026
 
@@ -162,7 +162,7 @@ Executar em ambiente de homologação e registrar aparelho/SO/build, perfil, res
 - [x] P09.12 — Criar consulta paginada com busca, unidade, saldo e localização permitida. Preço e custo ficam condicionados ao acesso.
 - [x] P09.13 — Detalhe de item com lotes/validade e histórico sob demanda; não assumir que estoque de fazendas diferentes é intercambiável.
 - [x] P09.14 — Se inventário físico for incluído, distinguir contagem de ajuste efetivo. Aprovação, motivo, concorrência e trilha de auditoria devem seguir o backend.
-- [ ] P09.15 — Entradas, ajustes e transferências ficam online e em incremento separado. Não incluir edição de saldo como campo direto da ficha.
+- [ ] P09.15 — Entradas, saídas com destino e ajustes por contagem física implementados online. O web registra destino em texto na saída e não mantém uma contrapartida de transferência em outro saldo. O fluxo mobile solicita lote explícito e grava o destino no histórico. Aceite nativo pendente.
 
 ### Critérios de aceite e testes
 
@@ -328,8 +328,44 @@ pregnancies/{id}/record-birth/?view=mobile` revalida versões sob bloqueio,
 encerra a gestação, promove marrã a matriz, incrementa a ordem, deixa a fêmea
 lactante, cria o lote de maternidade e registra o histórico. A mesma chave
 repete o recibo após resultado incerto; outro comando com a mesma chave
-retorna conflito. O desmame previsto é exibido como estimativa. P11.07 segue
-parcial: desmame e perda gestacional ainda não têm escrita nativa.
+retorna conflito. O desmame previsto é exibido como estimativa.
+
+**Incrementos P11.07/P11.08 — perda, desmame e transferência:** a ficha da
+gestação registra aborto, retorno ao cio ou reabsorção. A ficha de maternidade
+registra desmame total com quantidade conferida e peso médio opcional. O saldo
+da leitegada segue para a creche, e a matriz fica aguardando cobertura. A
+transferência integral de lote ativo avança de creche a crescimento ou de
+crescimento a engorda, para administradores e gerentes. Os três fluxos revisam
+os dados, revalidam o contexto sob bloqueio e retornam o recibo original no
+reenvio do mesmo comando. Usam `species=suinos`, consultas `mobile-loss`,
+`mobile-weaning` e `mobile-transfer` e escritas `registrar-perda`, `desmamar`
+e `change-phase` com `view=mobile`.
+
+**Desmame parcial:** Web e Mobile usam o mesmo serviço. O parcial exige
+quantidade positiva inferior ao saldo, cria um lote de creche com vínculo de
+origem e mantém a matriz lactante. O próximo desmame pode usar a mesma data
+ou uma data posterior. As duas listas de maternidade exibem o saldo do lote
+até o desmame total. O Mobile exibe o saldo remanescente no recibo e usa a
+mesma chave para conferir o resultado de um envio incerto.
+
+**Incremento P11.09 — mortalidade de lote:** nas fichas de creche, crescimento
+e engorda, o operador autorizado informa quantidade, causa, data e observação.
+A revisão indica o novo saldo e o encerramento por mortalidade quando aplicável.
+`mobile-mortality` consulta o saldo e a versão, e
+`registrar-mortalidade/?view=mobile` bloqueia alterações do contexto e reapresenta
+o recibo do mesmo comando. O lançamento altera a quantidade de animais do lote
+e o histórico.
+
+**Incremento P11.09 — venda de lote suíno:** ficha de lote ativo em creche,
+crescimento e engorda com venda parcial ou integral para administradores e
+gerentes. A revisão mostra comprador, quantidade, saldo resultante, peso
+total, preço/kg, valor e vencimento. A consulta `mobile-sale` fornece o
+contexto e a versão. A escrita `register-sale/?species=suinos&view=mobile`
+confere a versão sob bloqueio do lote, chama o serviço de venda existente e
+reapresenta o recibo original no reenvio. Uma venda parcial reduz o saldo.
+Uma venda integral encerra o lote. Cada venda gera um título a receber
+pendente, sem liquidá-lo. Descarte e mão de obra continuam no backlog.
+
 Homologação Android/iOS adiada para o final, por decisão do usuário.
 
 ### Ordem interna sugerida

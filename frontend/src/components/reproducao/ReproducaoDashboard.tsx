@@ -1393,7 +1393,7 @@ export function ReproducaoDashboard({
               type: "text",
               required: true,
               initialValue: rows.length === 1
-                ? `L-CRECHE-${rows[0].identifier}-${new Date().toLocaleDateString(language).replace(/\//g, '')}`
+                ? `L-CRECHE-${rows[0].identifier}-${rows[0].vivos_atual ?? rows[0].vivos}-${new Date().toLocaleDateString(language).replace(/\//g, '')}`
                 : `L-CRECHE-LOTE-${new Date().toLocaleDateString(language).replace(/\//g, '')}`
             },
             {
