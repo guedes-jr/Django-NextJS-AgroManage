@@ -103,7 +103,10 @@ const statuses: Record<string, string> = { paid: "Pago", pending: "Pendente", ov
     try { await financeService.remove(row.id); reload(); } catch (error) { showToast(financeError(error, language), "error"); }
   }
   async function cancel(row: FinanceTransaction) {
-    if (!window.confirm(`Cancelar o título “${row.description}”? O documento de origem será preservado.`)) return;
+    const message = row.reference.startsWith("PURCHASE-BATCH-")
+      ? t("workspace.cancelAnimalPurchaseConfirm", { description: row.description })
+      : `Cancelar o título “${row.description}”? O documento de origem será preservado.`;
+    if (!window.confirm(message)) return;
     try { await financeService.update(row.id, { status: "cancelled" }); reload(); } catch (error) { showToast(financeError(error, language), "error"); }
   }
   function source(row: FinanceTransaction) {

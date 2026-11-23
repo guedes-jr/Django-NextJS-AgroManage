@@ -59,6 +59,7 @@ export function HomeScreen({ session }: { session: Session }) {
               {loading ? <View style={s.state}><ActivityIndicator color={colors.primary}/><Text style={s.subtitle}>{t.loading}</Text></View> : failed ? <View style={s.state}><Text accessibilityRole="alert" style={ui.error}>{t.error}</Text>{button(t.retry,refresh)}</View> : data && <>
             <View style={s.metrics}>{metric(t.costs,money.format(data.segments.crops.cost+data.segments.livestock.cost),'wallet')}{metric(t.expenses,money.format(data.kpis.month_expense),'wallet')}{metric(t.revenue,money.format(data.kpis.month_revenue),'trend')}{metric(t.balance,money.format(data.kpis.month_revenue-data.kpis.month_expense),'trend',t.balanceHint)}</View>
           </>}</View>;
+            case 'veterinary': return <View key={section} style={s.card}>{title(t.veterinary)}<Text style={s.subtitle}>{t.veterinaryHint}</Text>{button(t.veterinaryOpen,() => router.push('/veterinary'),'leaf')}</View>;
             case 'dairy': return <DairyHomePanel key={section}/>;
             case 'agenda': return <HomePriorities key={section}/>;
             case 'financeDetail': return !loading && !failed && data && <View key={section} style={{ gap: 12 }}>

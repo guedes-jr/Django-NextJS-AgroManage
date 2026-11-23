@@ -41,7 +41,9 @@ import {reproductionQuerySchema,reproductionPageSchema,reproductionDetailSchema,
 import {medicationOptionsSchema,medicationLotsSchema,medicationInputSchema,medicationReviewSchema,validateMedicationReview,type MedicationInput,type MedicationReview} from '../features/clinic/medicationContracts';
 import {healthOptionsSchema,healthInputSchema,type HealthInput} from '../features/clinic/healthContracts';
 import {vaccinationQuerySchema,vaccinationTargetPage,vaccinePage,vaccinationOptionsSchema,vaccinationInputSchema,vaccinationReviewSchema,validateVaccinationReview,type VaccinationQuery,type VaccinationInput,type VaccinationReview} from '../features/clinic/vaccinationContracts';
-import {clinicQuerySchema,clinicPageSchema,clinicDetailSchema,clinicAnimalPageSchema,clinicOptionsSchema,clinicPayload,matchesClinic,type ClinicQuery,type ClinicInput} from '../features/clinic/contracts';
+import {clinicQuerySchema,clinicPageSchema,clinicDetailSchema,clinicAnimalPageSchema,clinicOptionsSchema,matchesClinic,type ClinicQuery} from '../features/clinic/contracts';
+import {vetAnimalListSchema,vetClientListSchema,vetHistoryListSchema,vetWorkspaceSchema} from '../features/veterinary/contracts';
+import {vetLookupSchema,vetRegisterResultSchema} from '../features/veterinary/launchContracts';
 import {notificationSchema,notificationPageSchema,notificationQuerySchema,preferencesSchema,preferencesPatch,type NotificationQuery,type PreferenceValues,type Preferences} from '../features/notifications/contracts';
 import {feedingQuerySchema,feedingBatchPage,feedingProductPage,feedingFormulaPage,deliveryPage,feedingPayload,feedingReceiptSchema,type FeedingQuery,type FeedingCommand} from '../features/feeding/contracts';
 import {formulaSchema,formulaPageSchema,productionSchema as feedProductionSchema,productionPageSchema,formulaPayload,productionPayload,previewSchema,type FormulaInput,type Formula,type ProductionInput} from '../features/feed/contracts';
@@ -168,11 +170,30 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     async medicationLots(tokens:Tokens,language:Language,page:number,search:string,signal?:AbortSignal){z.number().int().min(1).parse(page);z.string().max(100).parse(search);return medicationLotsSchema.parse((await http.get('livestock/cattle/managements/mobile-medication-lots/',{...options(language,tokens.access),params:{page,page_size:20,search},signal})).data);},
     async previewMedication(tokens:Tokens,language:Language,input:MedicationInput){const command=medicationInputSchema.parse(input);const response=await http.post('livestock/cattle/managements/mobile-medication-preview/',command,options(language,tokens.access));return validateMedicationReview(medicationReviewSchema.parse(response.data),command);},
     async confirmMedication(tokens:Tokens,language:Language,review:MedicationReview){let response;try{response=await http.post('livestock/cattle/managements/mobile-medication-confirm/',{preview_token:review.preview_token},options(language,tokens.access));}catch(error){if(isAxiosError(error)&&(!error.response||error.response.status===408||error.response.status>=500))throw new MedicationSaveUnconfirmed();throw error;}const result=z.object({id:z.uuid(),management:z.uuid()}).strict().safeParse(response.data);if(!result.success)throw new MedicationSaveUnconfirmed();return result.data;},
+    async vetWorkspace(tokens:Tokens,language:Language,signal?:AbortSignal){return vetWorkspaceSchema.parse((await http.get('veterinary/workspace/',{...options(language,tokens.access),signal})).data);},
+    async vetAnimals(tokens:Tokens,language:Language,signal?:AbortSignal){return vetAnimalListSchema.parse((await http.get('veterinary/animals/',{...options(language,tokens.access),signal})).data);},
+    async vetLookup(tokens:Tokens,language:Language,client:string,q:string,signal?:AbortSignal){return vetLookupSchema.parse((await http.get('veterinary/animals/lookup/',{...options(language,tokens.access),params:{client:z.uuid().parse(client),q:z.string().trim().min(1).max(60).parse(q)},signal})).data);},
+    async vetRegister(tokens:Tokens,language:Language,payload:Record<string,unknown>){
+      let response;
+      try{response=await http.post('veterinary/procedures/',payload,options(language,tokens.access));}
+      catch(error){
+        if(isAxiosError(error)&&error.response&&error.response.status>=400&&error.response.status<500){
+          if(error.response.status===401)throw new AuthFailure('expired');
+          throw new VetSaveRejected(firstApiMessage(error.response.data)??'');
+        }
+        // No answer, timeout or server error: the procedure may have been saved.
+        throw new VetSaveUnconfirmed();
+      }
+      const result=vetRegisterResultSchema.safeParse(response.data);
+      if(!result.success)throw new VetSaveUnconfirmed();
+      return result.data;
+    },
+    async vetHistory(tokens:Tokens,language:Language,animal:string,signal?:AbortSignal){return vetHistoryListSchema.parse((await http.get(`veterinary/animals/${z.uuid().parse(animal)}/history/`,{...options(language,tokens.access),signal})).data);},
+    async vetClients(tokens:Tokens,language:Language,signal?:AbortSignal){return vetClientListSchema.parse((await http.get('veterinary/clients/',{...options(language,tokens.access),signal})).data);},
     async clinicOptions(tokens:Tokens,language:Language,signal?:AbortSignal){return clinicOptionsSchema.parse((await http.get('livestock/clinical/records/mobile-options/',{...options(language,tokens.access),signal})).data);},
     async clinicPage(tokens:Tokens,language:Language,query:ClinicQuery,signal?:AbortSignal){const q=clinicQuerySchema.parse(query);const data=clinicPageSchema.parse((await http.get('livestock/clinical/records/mobile/',{...options(language,tokens.access),params:{...q,species:q.species||undefined,start:q.start||undefined,end:q.end||undefined,page_size:20},signal})).data);if(data.results.some(row=>!matchesClinic(row,q)))throw Error('clinic scope');return data;},
     async clinicDetail(tokens:Tokens,language:Language,id:string,query:ClinicQuery,signal?:AbortSignal){const q=clinicQuerySchema.parse(query);z.uuid().parse(id);const row=clinicDetailSchema.parse((await http.get(`livestock/clinical/records/${id}/mobile/`,{...options(language,tokens.access),params:{kind:q.kind,farm:q.farm,animal:q.animal,batch:q.batch,species:q.species||undefined},signal})).data);if(row.id!==id||!matchesClinic(row,q))throw Error('clinic scope');return row;},
     async clinicAnimals(tokens:Tokens,language:Language,query:ClinicQuery,signal?:AbortSignal){const q=clinicQuerySchema.parse(query);const data=clinicAnimalPageSchema.parse((await http.get('livestock/clinical/records/mobile-animals/',{...options(language,tokens.access),params:{page:q.page,page_size:20,farm:q.farm,animal:q.animal,species:q.species||undefined,search:q.search},signal})).data);if(data.results.some(row=>q.farm&&row.farm!==q.farm||q.animal&&row.id!==q.animal||q.species&&row.species!==q.species))throw Error('clinic animal scope');return data;},
-    async createClinicRecord(tokens:Tokens,language:Language,input:ClinicInput){let response;try{response=await http.post('livestock/clinical/records/',clinicPayload(input),{...options(language,tokens.access),params:{view:'mobile'}});}catch(error){if(isAxiosError(error)&&(!error.response||error.response.status>=500))throw new ClinicSaveUnconfirmed();throw error;}const result=z.object({id:z.uuid()}).safeParse(response.data);if(!result.success)throw new ClinicSaveUnconfirmed();return result.data;},
     async notifications(tokens:Tokens,language:Language,query:NotificationQuery,signal?:AbortSignal){const q=notificationQuerySchema.parse(query);return notificationPageSchema.parse((await http.get('notifications/',{...options(language,tokens.access),params:{...q,status:q.status==='all'?undefined:q.status,category:q.category||undefined,page_size:20},signal})).data);},
     async notification(tokens:Tokens,language:Language,id:string,archived:boolean,signal?:AbortSignal){const row=notificationSchema.parse((await http.get(`notifications/${z.uuid().parse(id)}/`,{...options(language,tokens.access),params:{archived},signal})).data);if(row.id!==id||row.is_archived!==archived)throw Error('notification scope');return row;},
     async notificationCount(tokens:Tokens,language:Language,signal?:AbortSignal){return z.object({unread_count:z.number().int().nonnegative()}).parse((await http.get('notifications/unread-count/',{...options(language,tokens.access),signal})).data);},
@@ -546,12 +567,24 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
   };
 }
 export type AuthApi = ReturnType<typeof createAuthApi>;
+/** The vet procedure may have been saved (timeout, 5xx or unreadable answer): check before repeating. */
+export class VetSaveUnconfirmed extends Error {}
+/** The server refused the procedure (validation); ``message`` is the server text when available. */
+export class VetSaveRejected extends Error {}
+/** First readable text of an error body: project envelope {error:{detail,message}} or DRF {detail}/{field:[msg]}. */
+export function firstApiMessage(value:unknown,depth=0):string|undefined{
+  if(typeof value==='string')return value.trim().slice(0,400)||undefined;
+  if(depth>4||!value||typeof value!=='object')return undefined;
+  const record=value as Record<string,unknown>;
+  const ordered=record.error&&typeof record.error==='object'?[(record.error as Record<string,unknown>).detail,(record.error as Record<string,unknown>).message]:Object.values(record);
+  for(const item of Array.isArray(value)?value:ordered){const found=firstApiMessage(item,depth+1);if(found)return found;}
+  return undefined;
+}
 
 export class FeedingSaveUnconfirmed extends Error {}
 
 export class NotificationSaveUnconfirmed extends Error {}
 
-export class ClinicSaveUnconfirmed extends Error {}
 
 export class VaccinationSaveUnconfirmed extends Error {}
 

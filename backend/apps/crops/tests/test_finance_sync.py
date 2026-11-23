@@ -45,7 +45,8 @@ class CropFinanceSyncTestCase(APITestCase):
 
     def test_equipment_counts_everywhere(self):
         application_id = self._apply()
-        self.assertEqual(self._mirror(application_id).amount, Decimal("180"))
+        # The fungicide came from a purchased lot (LOTE-…): only the equipment is a new expense.
+        self.assertEqual(self._mirror(application_id).amount, Decimal("80"))
         self.cycle.refresh_from_db()
         self.assertEqual(self.cycle.investment_total, Decimal("180"))
         crops = self.client.get(reverse("dashboard-summary")).data["segments"]["crops"]
@@ -54,12 +55,32 @@ class CropFinanceSyncTestCase(APITestCase):
         self.assertEqual(Decimal(dashboard["investment_total"]), Decimal("180"))
         self.assertEqual(Decimal(dashboard["real_profit"]), Decimal("-180"))
 
+    def test_stock_input_is_not_counted_twice_in_expenses(self):
+        purchase = Transaction.objects.get(reference__startswith="LOTE-")
+        self.assertEqual(purchase.amount, Decimal("5000"))
+        self._apply()
+        kpis = self.client.get(reverse("dashboard-summary")).data["kpis"]
+        # Stock purchase (5000) + pulverizador (80); the 100 of fungicide used is inside the 5000.
+        self.assertEqual(Decimal(str(kpis["month_expense"])), Decimal("5080"))
+
+    def test_input_without_purchase_stays_in_finance(self):
+        Transaction.objects.filter(reference__startswith="LOTE-").update(status="cancelled")
+        application_id = self._apply()
+        self.assertEqual(self._mirror(application_id).amount, Decimal("180"))
+
+    def test_resync_removes_double_counted_input(self):
+        application_id = self._apply()
+        Transaction.objects.filter(reference=f"PESTICIDE-{application_id}").update(amount=Decimal("180"))
+        self.assertEqual(resync_organization(self.org)["updated"], 1)
+        self.assertEqual(self._mirror(application_id).amount, Decimal("80"))
+
     def test_edit_and_delete_keep_finance_aligned(self):
         application_id = self._apply()
         response = self.client.patch(reverse("crops-pesticides-detail", args=[application_id]),
                                      {"total_price": "300"}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(self._mirror(application_id).amount, Decimal("380"))
+        # Operation cost is 380 on the crop screens; the input part is the stock purchase.
+        self.assertEqual(self._mirror(application_id).amount, Decimal("80"))
         self.assertEqual(self.client.delete(reverse("crops-pesticides-detail", args=[application_id])).status_code, 204)
         self.assertFalse(Transaction.objects.filter(reference=f"PESTICIDE-{application_id}").exists())
 
@@ -115,7 +136,7 @@ class CropSegmentFeatureTests(CropFinanceSyncTestCase):
         self.assertTrue(resync_organization(self.org)["disabled"])
         # Turning it back on mirrors what was saved meanwhile; the card does not double count.
         self._turn(finance=True)
-        self.assertEqual(self._mirror(application_id).amount, Decimal("180"))
+        self.assertEqual(self._mirror(application_id).amount, Decimal("80"))
         crops = self.client.get(reverse("dashboard-summary")).data["segments"]["crops"]
         self.assertEqual(Decimal(str(crops["revenue"])), Decimal("600"))
 

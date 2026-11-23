@@ -11,6 +11,9 @@ const make = (access: Partial<User['access']>): User => userSchema.parse({
 
 test('home grows with the role', () => {
   assert.deepEqual(homeSections(make({ role: 'feeder' })), ['actions', 'modules']);
+  // Veterinarian: only the Área do veterinário bridge and the personal modules.
+  assert.deepEqual(homeSections(make({ role: 'veterinarian', veterinary: true })), ['veterinary', 'modules']);
+  assert.deepEqual(homeSections(make({ role: 'manager', can_view_financial: true, livestock_species: null, veterinary: true })), ['veterinary', 'finance', 'dairy', 'agenda', 'financeDetail']);
   assert.deepEqual(homeSections(make({})), ['actions', 'dairy', 'agenda', 'modules']);
   assert.deepEqual(homeSections(make({ role: 'manager', can_view_financial: true, livestock_species: null })), ['finance', 'dairy', 'agenda', 'financeDetail']);
   assert.deepEqual(homeSections(make({ role: 'admin', can_view_financial: true, can_manage_users: true, livestock_species: null })), ['finance', 'dairy', 'agenda', 'financeDetail', 'admin']);

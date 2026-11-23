@@ -470,3 +470,28 @@ def batch_financial_details(batch):
         cost_per_kg=str(total / weight) if weight else None,
         missing_cost_count=sum(item['amount'] is None for item in entries),
         reproduction_allocation_pending=str(batch.pk) in sire_allocation['pending_batches'])
+
+
+@transaction.atomic
+def write_off_cancelled_purchase(batch: AnimalBatch) -> bool:
+    """Undo a purchase whose payable was cancelled in Finance.
+
+    The animals never entered the herd: the lot and its individual animals
+    (matrizes, marrãs, cachaços, bovinos…) leave the dashboards and the
+    reproductive phase. Nothing is deleted, so any history recorded meanwhile
+    and the cancelled title keep their link. Only lots still active change;
+    sold, dead or finished lots already left the herd.
+    """
+    batch = AnimalBatch.objects.select_for_update().filter(pk=batch.pk, status=AnimalBatch.Status.ACTIVE).first()
+    if batch is None:
+        return False
+    batch.status = AnimalBatch.Status.FINISHED
+    fields = ["status", "updated_at"]
+    if not batch.exit_date:
+        batch.exit_date = max(timezone.localdate(), batch.entry_date) if batch.entry_date else timezone.localdate()
+        fields.append("exit_date")
+    batch.save(update_fields=fields)
+    Animal.objects.filter(batch=batch, status=AnimalBatch.Status.ACTIVE).update(
+        status=AnimalBatch.Status.FINISHED, reproductive_status="", updated_at=timezone.now(),
+    )
+    return True

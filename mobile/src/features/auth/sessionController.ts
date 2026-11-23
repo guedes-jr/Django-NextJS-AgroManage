@@ -40,7 +40,8 @@ import type {ReproductionQuery} from '../cattle/reproductionContracts';
 import {canApplyMedication,medicationInputSchema,medicationKey,medicationReviewSchema,validateMedicationReview,type MedicationInput,type MedicationReview} from '../clinic/medicationContracts';
 import {healthInputSchema,type HealthInput} from '../clinic/healthContracts';
 import {vaccinationInputSchema,vaccinationKey,vaccinationReviewSchema,validateVaccinationReview,type VaccinationQuery,type VaccinationInput,type VaccinationReview} from '../clinic/vaccinationContracts';
-import {canReadClinic,canWriteClinic,clinicInputSchema,type ClinicQuery,type ClinicInput} from '../clinic/contracts';
+import {canReadClinic,canWriteClinic,type ClinicQuery} from '../clinic/contracts';
+import {canUseVeterinary} from '../veterinary/contracts';
 import {canReadNotifications,preferenceFields,preferencesPatch,type NotificationQuery,type PreferenceValues,type Preferences} from '../notifications/contracts';
 import {canReadDailyFeeding,canWriteDailyFeeding,feedingCommandSchema,feedingBatchPage,type FeedingQuery,type FeedingCommand} from '../feeding/contracts';
 import {formulaInputSchema,productionInputSchema,sameProduction,type FormulaInput,type Formula,type ProductionInput,type FeedPreview} from '../feed/contracts';
@@ -257,15 +258,24 @@ export class SessionController {
     if(!canApplyMedication(user))throw new AuthFailure('unsupported');const value=medicationReviewSchema.parse(review);validateMedicationReview(value,input);const held=this.medicationReview;
     if(!held||held.epoch!==this.epoch||held.token!==value.preview_token||held.key!==medicationKey(input))throw new AuthFailure('unsupported');current();this.medicationReview=undefined;return this.api.confirmMedication(tokens,this.language,value);
   });}
-  private clinicSaving=false;
-  async createClinicRecord(input:ClinicInput){if(this.clinicSaving||this.state.status!=='signedIn'||!canWriteClinic(this.state.session.user))throw new AuthFailure('unsupported');this.clinicSaving=true;
-    try{return await this.clinicRead(async tokens=>{const epoch=this.epoch;const current=()=>{if(this.state.status!=='signedIn'||this.epoch!==epoch)throw new AuthFailure('expired');};
-      const value=clinicInputSchema.parse(input);const user=await this.api.user(tokens,this.language);current();if(!canWriteClinic(user))throw new AuthFailure('unsupported');
-      const org=await this.api.organization(tokens,this.language);current();if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id||org.id!==this.state.session.organization.id){await this.signOut();throw new AuthFailure('expired');}
-      const choices=await this.api.clinicOptions(tokens,this.language);current();if(value.record_date>choices.today||!choices.record_types.some(r=>r.value===value.record_type)||!choices.severities.some(r=>r.value===value.severity)||!choices.outcomes.some(r=>r.value===value.outcome))throw new AuthFailure('unsupported');
-      const animals=await this.api.clinicAnimals(tokens,this.language,{kind:'clinical',page:1,search:'',species:'',start:'',end:'',animal:value.animal,farm:value.expected_farm});current();const animal=animals.results.find(r=>r.id===value.animal&&r.farm===value.expected_farm);if(!animal||user.access.role==='operator'&&!user.access.livestock_species?.includes(animal.species))throw new AuthFailure('unsupported');
-      current();return this.api.createClinicRecord(tokens,this.language,value);
-    });}finally{this.clinicSaving=false;}
+  private veterinaryRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canUseVeterinary(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(read);
+  }
+  vetWorkspace(signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetWorkspace(tokens,this.language,signal));}
+  vetAnimals(signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetAnimals(tokens,this.language,signal));}
+  vetClients(signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetClients(tokens,this.language,signal));}
+  vetHistory(animal:string,signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetHistory(tokens,this.language,animal,signal));}
+  vetLookup(client:string,q:string,signal?:AbortSignal){return this.veterinaryRead(tokens=>this.api.vetLookup(tokens,this.language,client,q,signal));}
+  private vetSaving=false;
+  /** One procedure at a time; access is revalidated with the server just before sending. */
+  async vetRegister(payload:Record<string,unknown>){
+    if(this.vetSaving)throw new AuthFailure('unsupported');this.vetSaving=true;
+    try{return await this.veterinaryRead(async tokens=>{
+      const epoch=this.epoch;const current=()=>{if(this.state.status!=='signedIn'||this.epoch!==epoch)throw new AuthFailure('expired');};
+      const user=await this.api.user(tokens,this.language);current();
+      if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id||!canUseVeterinary(user))throw new AuthFailure('unsupported');
+      return this.api.vetRegister(tokens,this.language,payload);
+    });}finally{this.vetSaving=false;}
   }
   private notificationRead<T>(read:(tokens:Tokens)=>Promise<T>){
     if(this.state.status!=='signedIn'||!canReadNotifications(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(read);

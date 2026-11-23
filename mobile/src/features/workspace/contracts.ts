@@ -3,7 +3,7 @@ import type { User } from '../auth/contracts';
 export const searchKinds=['animal','batch','crop','inventory','structure'] as const;
 export type SearchKind=typeof searchKinds[number];
 export function canSearch(user:User,kind:SearchKind) {
-  if(user.force_password_change||user.is_platform_staff||user.affiliate_portal_only||user.access.role==='feeder')return false;
+  if(user.force_password_change||user.is_platform_staff||user.affiliate_portal_only||user.access.role==='feeder'||user.access.role==='veterinarian')return false;
   if(user.access.role!=='operator')return true;
   if(kind==='crop')return user.access.can_operate_crops;
   if(kind==='animal'||kind==='batch')return !!user.access.livestock_species?.length;

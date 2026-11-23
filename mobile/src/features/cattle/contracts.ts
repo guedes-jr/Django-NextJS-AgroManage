@@ -15,7 +15,7 @@ export type CattleBatch=z.infer<typeof batchSchema>;
 export const animalPageSchema=z.object({count:z.number().int().nonnegative(),results:z.array(animalSchema),next:z.string().nullable(),previous:z.string().nullable()});
 export const batchPageSchema=z.object({count:z.number().int().nonnegative(),results:z.array(batchSchema),next:z.string().nullable(),previous:z.string().nullable()});
 export const historyPageSchema=z.object({count:z.number().int().nonnegative(),results:z.array(historySchema),next:z.string().nullable(),previous:z.string().nullable()});
-export function canReadCattle(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&user.access.role!=='feeder'&&(user.access.role!=='operator'||!!user.access.livestock_species?.includes('bovinos'));}
+export function canReadCattle(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&user.access.role!=='feeder'&&user.access.role!=='veterinarian'&&(user.access.role!=='operator'||!!user.access.livestock_species?.includes('bovinos'));}
 export function matchesProduction(actual:string,selected:Production){return actual===selected||actual==='dual';}
 
 export function ensureCattleScope<T extends CattleAnimal|CattleBatch>(record:T,production:Production,farm?:string):T {

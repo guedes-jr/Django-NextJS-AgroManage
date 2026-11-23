@@ -14,6 +14,8 @@ test('mobile navigation preserves species, financial and feeder restrictions', (
     assert.equal(canOpenModule({...access,role:'feeder'},key),['feeding','profile','notifications','support'].includes(key));
   }
   assert.equal(canOpenModule({...access,role:'feeder',livestock_species:[]},'feeding'),false);
+  // The veterinarian works only in the Área do veterinário: personal pages only in the app.
+  for (const key of Object.keys(modulePaths) as (keyof typeof modulePaths)[]) assert.equal(canOpenModule({...access,role:'veterinarian'},key),['profile','notifications','support'].includes(key));
 });
 test('all home languages have complete catalogs and canonical cattle routes', () => {
   for (const catalog of Object.values(homeMessages)) assert.deepEqual(Object.keys(catalog).sort(),Object.keys(homeMessages['pt-BR']).sort());
@@ -29,7 +31,7 @@ test('shared navigation keeps native routes distinct from unavailable web module
     assert.deepEqual(nativeDestination(production),{pathname:'/cattle/[production]',params:{production}});
     assert.deepEqual(nativeDestination(production,true),{pathname:'/cattle/[production]/form',params:{production,mode:'create'}});
   }
-  assert.deepEqual(nativeDestination('clinic'),{pathname:'/clinic'});assert.deepEqual(nativeDestination('clinic',true),{pathname:'/clinic/form'});
+  assert.deepEqual(nativeDestination('clinic'),{pathname:'/clinic'});assert.deepEqual(nativeDestination('clinic',true),{pathname:'/clinic/health-form'});
   assert.deepEqual(nativeDestination('notifications'),{pathname:'/notifications'});assert.equal(nativeDestination('notifications',true),null);
   assert.deepEqual(nativeDestination('feeding'),{pathname:'/feeding'});assert.deepEqual(nativeDestination('feeding',true),{pathname:'/feeding'});
   assert.deepEqual(nativeDestination('profile'),{pathname:'/profile'});

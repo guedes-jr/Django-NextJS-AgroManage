@@ -6,7 +6,7 @@ export function nativeDestination(key:ModuleKey,create=false){
  if(key==='agenda')return create?{pathname:'/agenda/task-form' as const}:{pathname:'/agenda' as const};
  if(key==='beef'||key==='dairy')return create?{pathname:'/cattle/[production]/form' as const,params:{production:key,mode:'create'}}:{pathname:'/cattle/[production]' as const,params:{production:key}};
  if(key==='swine'&&!create)return {pathname:'/swine' as const};
- if(key==='clinic')return create?{pathname:'/clinic/form' as const}:{pathname:'/clinic' as const};
+ if(key==='clinic')return create?{pathname:'/clinic/health-form' as const}:{pathname:'/clinic' as const};
  if(key==='notifications'&&!create)return {pathname:'/notifications' as const};
  if(key==='feeding')return {pathname:'/feeding' as const};
  if(key==='inventory')return create?{pathname:'/inventory/form' as const,params:{kind:'items'}}:{pathname:'/inventory' as const};

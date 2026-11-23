@@ -43,7 +43,7 @@ const pt: Copy = {
   actions: {
     milk: { label: 'Lançar leite', description: 'Produção por animal ou total' },
     feeding: { label: 'Registrar trato', description: 'Fornecimento do dia por lote' },
-    clinic: { label: 'Nova ocorrência', description: 'Tratamento, vacina ou medicação' },
+    clinic: { label: 'Exame ou tratamento', description: 'Registro de sanidade do animal' },
     task: { label: 'Nova atividade', description: 'Tarefa ou lembrete na agenda' },
     dairyAnimal: { label: 'Novo animal leiteiro', description: 'Cadastro na pecuária leiteira' },
     beefAnimal: { label: 'Novo animal de corte', description: 'Cadastro no gado de corte' },
@@ -59,7 +59,7 @@ const en: Copy = {
   actions: {
     milk: { label: 'Record milk', description: 'Per animal or farm total' },
     feeding: { label: 'Record feeding', description: 'Today’s delivery per batch' },
-    clinic: { label: 'New health event', description: 'Treatment, vaccine or medication' },
+    clinic: { label: 'Exam or treatment', description: 'Animal health record' },
     task: { label: 'New activity', description: 'Task or reminder in the calendar' },
     dairyAnimal: { label: 'New dairy animal', description: 'Dairy herd registration' },
     beefAnimal: { label: 'New beef animal', description: 'Beef herd registration' },
@@ -75,7 +75,7 @@ const es: Copy = {
   actions: {
     milk: { label: 'Registrar leche', description: 'Por animal o total de la finca' },
     feeding: { label: 'Registrar alimentación', description: 'Suministro del día por lote' },
-    clinic: { label: 'Nueva ocurrencia', description: 'Tratamiento, vacuna o medicación' },
+    clinic: { label: 'Examen o tratamiento', description: 'Registro sanitario del animal' },
     task: { label: 'Nueva actividad', description: 'Tarea o recordatorio en la agenda' },
     dairyAnimal: { label: 'Nuevo animal lechero', description: 'Registro en ganadería lechera' },
     beefAnimal: { label: 'Nuevo animal de carne', description: 'Registro en ganado de carne' },

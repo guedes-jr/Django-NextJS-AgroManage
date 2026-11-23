@@ -3,7 +3,8 @@ Keeps the finance mirror of crop operations aligned with the operation records.
 
 Every crop operation (planting, fertilization, fertigation, pesticides, irrigation,
 mechanized services and labor) has one expense transaction in Finance identified
-by ``<PREFIX>-<operation id>``. The operation record is the source of truth: its
+by ``<PREFIX>-<operation id>``, except for the input taken from a purchased stock
+lot: that purchase (``LOTE-<lot>``) is already the expense. The operation record is the source of truth: its
 cost is computed here once, and the mirror is created, updated or removed with it.
 """
 from dataclasses import dataclass
@@ -58,6 +59,36 @@ def operation_cost(instance) -> Decimal:
     return spec.cost(instance).quantize(Decimal("0.01")) if spec else ZERO
 
 
+# Operations whose input comes from a stock lot (``item``/``lot``) and is priced
+# in ``total_price``. Pesticide equipment is not stock and stays in the mirror.
+STOCK_INPUT_MODELS = {"Planting", "Fertilization", "Fertigation", "PesticideApplication"}
+
+
+def stock_paid_cost(instance) -> Decimal:
+    """Part of the operation cost already recorded in Finance by the stock purchase.
+
+    The input was taken from a stock lot whose purchase generated ``LOTE-<lot>``.
+    That purchase is the expense; consuming it is a crop cost (shown on the crop
+    screens from the record) but not a new expense, as with livestock feed.
+    """
+    from apps.finance.models import Transaction
+
+    spec = spec_for(instance)
+    lot_id = getattr(instance, "lot_id", None)
+    if spec is None or spec.model_name not in STOCK_INPUT_MODELS or not lot_id:
+        return ZERO
+    organization = instance.plantation.organization
+    purchased = Transaction.objects.filter(organization=organization, reference=f"LOTE-{lot_id}").exclude(
+        status=Transaction.Status.CANCELLED
+    ).exists()
+    return _decimal(instance.total_price).quantize(Decimal("0.01")) if purchased else ZERO
+
+
+def mirror_cost(instance) -> Decimal:
+    """Amount of the operation's finance mirror: its cost minus what the stock purchase already recorded."""
+    return max(operation_cost(instance) - stock_paid_cost(instance), ZERO)
+
+
 def _description(spec: OperationSpec, instance) -> str:
     detail = getattr(instance, "item", None) or getattr(instance, "worker", None)
     if spec.model_name == "LandPreparation":
@@ -77,6 +108,9 @@ def finance_enabled(organization) -> bool:
 def sync_operation_transaction(instance, user=None) -> str:
     """Create, update or remove the finance mirror of one operation.
 
+    The mirror carries only what is not already in Finance through the stock
+    purchase of its input (see ``mirror_cost``); the operation cost itself is unchanged.
+
     Returns what happened: "created", "updated", "unchanged", "removed" or "skipped".
     Mirrors cancelled by the user in Finance are left untouched.
     """
@@ -93,7 +127,7 @@ def sync_operation_transaction(instance, user=None) -> str:
     reference = spec.reference(instance)
     existing = Transaction.objects.filter(organization=organization, reference=reference).order_by("created_at")
     current = existing.first()
-    cost = operation_cost(instance)
+    cost = mirror_cost(instance)
 
     if cost <= 0:
         if current and current.status != Transaction.Status.CANCELLED:

@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
@@ -127,6 +128,22 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
                 animal_batch=instance,
                 species=instance.species,
             )
+
+
+@receiver(post_save, sender=Transaction)
+def undo_cancelled_animal_purchase(sender, instance, **kwargs):
+    """Cancelling the "Compra de Animais" payable undoes the purchase in the herd."""
+    if instance.status != Transaction.Status.CANCELLED or not (instance.reference or "").startswith("PURCHASE-BATCH-"):
+        return
+    from apps.livestock.services import write_off_cancelled_purchase
+
+    batch_id = instance.animal_batch_id or instance.reference[len("PURCHASE-BATCH-"):]
+    try:
+        batch = AnimalBatch.objects.filter(pk=batch_id, farm__organization_id=instance.organization_id).first()
+    except (ValueError, DjangoValidationError):
+        return
+    if batch is not None:
+        write_off_cancelled_purchase(batch)
 
 
 @receiver(post_delete, sender=Transaction)

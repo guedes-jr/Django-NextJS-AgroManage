@@ -625,10 +625,15 @@ export default function RelatorioPlantacaoPage() {
           y += 6;
           return;
         }
+        // Same values as each row's "Valor" column: the section total is their sum.
+        const moduleTotal = moduleEvents.reduce((sum, event) => sum + (event.amount || 0), 0);
         autoTable(doc, {
           startY: y,
           theme: "striped",
           head: [["Data", "Registro", "Descrição", "Detalhes", "Valor"]],
+          foot: [[{ content: `Total — ${getModuleLabels(type, t).label} (${moduleEvents.length} ${moduleEvents.length === 1 ? "lançamento" : "lançamentos"})`, colSpan: 4 }, { content: formatAmount(moduleTotal, language), styles: { halign: "right" } }]],
+          showFoot: "lastPage",
+          footStyles: { fillColor: lightGreen, textColor: dark, fontStyle: "bold", fontSize: 8 },
           body: moduleEvents.map((event) => [
             formatDate(event.date, language),
             event.title,

@@ -645,6 +645,9 @@ class LivestockReportService:
                     "name": batch.name,
                     "category": batch.category,
                     "origin": batch.origin,
+                    "purchase_value": float(batch.purchase_value)
+                    if batch.purchase_value is not None
+                    else None,
                     "quantity": batch.quantity,
                     "status": batch.status,
                     "status_display": batch.get_status_display(),

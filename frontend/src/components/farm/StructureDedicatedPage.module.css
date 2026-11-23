@@ -211,6 +211,7 @@
 .addItemRow td:nth-child(2) { width: 110px; }
 .addItemRow td:nth-child(3) { width: 110px; }
 .addItemRow td:nth-child(4) { width: 130px; }
+.addItemRow td:nth-child(5) { width: 130px; }
 .addItemActions { display: flex; gap: 8px; }
 .confirmItemBtn, .cancelItemBtn, .removeItemBtn {
   display: grid; place-items: center;

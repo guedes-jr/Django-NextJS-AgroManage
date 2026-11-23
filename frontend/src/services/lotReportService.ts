@@ -22,7 +22,7 @@ export type LotReportItem = Partial<Record<LotCostKey, string | null>> & {
   id: string; batch_code: string; name?: string; quantity: number; category?: string;
   breed?: string; farm: string; entry_date?: string; exit_date?: string | null; status: string; status_display?: string;
   avg_weight?: number; species_code: string; phase?: string; production_type?: string;
-  matrices?: string[]; missing_cost_count?: number;
+  matrices?: string[]; missing_cost_count?: number; origin?: string; purchase_value?: number | null;
   /** Original lot size (entry), kept after sales. */ total_quantity?: number;
   /** Animals still in the lot: 0 once it is closed. */ current_quantity?: number; cost_quantity?: number | null; reproduction_allocation_pending?: boolean;
 };

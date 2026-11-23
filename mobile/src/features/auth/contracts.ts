@@ -26,12 +26,17 @@ export const userSchema = z.object({
   id: z.string().min(1), email: z.string(), full_name: z.string(),
   force_password_change: z.boolean(), is_platform_staff: z.boolean(), affiliate_portal_only: z.boolean(),
   access: z.object({
-    role: z.enum(['admin', 'manager', 'operator', 'feeder']),
+    role: z.enum(['admin', 'manager', 'operator', 'feeder', 'veterinarian']),
     can_manage_users: z.boolean(), can_view_financial: z.boolean(), can_operate_crops: z.boolean(),
     livestock_species: z.array(z.string()).nullable(), read_only: z.boolean(),
+    // Área do veterinário contracted and allowed for this role; segment options (Configurações).
+    veterinary: z.boolean().optional(),
+    segment_features: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
   }),
 });
 export type User = z.infer<typeof userSchema>;
+/** The veterinarian works only in the Área do veterinário: no operational module of the farm. */
+export const isVeterinarian = (user: Pick<User, 'access'>) => user.access.role === 'veterinarian';
 export const organizationSchema = z.object({ id: z.string().min(1), name: z.string(), language: z.enum(languages) });
 export type Organization = z.infer<typeof organizationSchema>;
 export type Session = { user: User; organization: Organization };

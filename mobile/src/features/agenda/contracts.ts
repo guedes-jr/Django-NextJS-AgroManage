@@ -26,7 +26,7 @@ export const taskSchema = z.object({
   assigned_to:z.uuid().nullable(),created_by:z.uuid().nullable(),
   assigned_to_name:z.string().nullish(), created_by_name:z.string().nullish(),
 });
-export function canReadAgenda(user: User) { return !user.force_password_change && !user.is_platform_staff && !user.affiliate_portal_only && user.access.role !== 'feeder'; }
+export function canReadAgenda(user: User) { return !user.force_password_change && !user.is_platform_staff && !user.affiliate_portal_only && user.access.role !== 'feeder' && user.access.role !== 'veterinarian'; }
 export function calendarDay(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }

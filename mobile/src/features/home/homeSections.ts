@@ -4,7 +4,7 @@ import { canReadCattle } from '../cattle/contracts';
 import { quickActions } from '../workspace/quickActions';
 import { canLoadFinancialHome, canOpenModule } from './contracts';
 
-export type HomeSection = 'actions' | 'finance' | 'dairy' | 'agenda' | 'financeDetail' | 'admin' | 'modules';
+export type HomeSection = 'actions' | 'veterinary' | 'finance' | 'dairy' | 'agenda' | 'financeDetail' | 'admin' | 'modules';
 
 // The Home grows with the role: each section appears only when the profile can load its data,
 // using the same gates as the screens and endpoints behind it.
@@ -17,6 +17,8 @@ export function homeSections(user: User): HomeSection[] {
   const financial = canLoadFinancialHome(access);
   const sections: HomeSection[] = [];
   if (!financial && quickActions(user).some(action => action.destination)) sections.push('actions');
+  // Área do veterinário (contracted segment): web bridge until the native area (VT01) ships.
+  if (access.veterinary) sections.push('veterinary');
   if (financial) sections.push('finance');
   if (canOpenModule(access, 'dairy') && canReadCattle(user)) sections.push('dairy');
   if (canReadAgenda(user)) sections.push('agenda');

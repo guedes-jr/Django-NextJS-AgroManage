@@ -11,7 +11,7 @@ import {workspaceMessages} from '../workspace/messages';
 import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {HealthSaveUnconfirmed} from '../../services/authApi';
 import {canWriteClinic,type ClinicAnimal} from './contracts';
-import {AnimalPicker} from './ClinicFormScreen';
+import {AnimalPicker} from './AnimalPicker';
 import {clinicMessages} from './messages';
 import {healthMessages} from './healthMessages';
 import {healthInputSchema,type HealthInput,type HealthOptions} from './healthContracts';

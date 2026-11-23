@@ -31,6 +31,18 @@ export interface StructureDedicatedPageProps {
   defaultName: string;
 }
 
+/** Line total (quantity × unit price), rounded to cents. */
+function lineTotal(quantity: string | number, unit: string | number): number {
+  const total = (Number(quantity) || 0) * (Number(unit) || 0);
+  return Math.round(total * 100) / 100;
+}
+
+/** Unit price derived from the stored line total. */
+function unitPrice(item: FarmStructureItem): number {
+  const quantity = Number(item.quantity);
+  return quantity > 0 ? Number(item.value) / quantity : Number(item.value);
+}
+
 const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "" };
 const structureTotal = (asset: FarmStructure) => Number(asset.current_value) * asset.quantity + Number(asset.items_value || 0);
 
@@ -254,7 +266,8 @@ export function StructureDedicatedPage({
         ...structureItem,
         name: structureItem.name.trim(),
         quantity: structureItem.quantity || "1",
-        value: structureItem.value || "0",
+        // The form collects the unit price; the item stores the line total.
+        value: lineTotal(structureItem.quantity || "1", structureItem.value).toFixed(2),
         structure: selected.id,
       });
       setStructureItem({ ...emptyItem, structure: selected.id });
@@ -537,7 +550,8 @@ export function StructureDedicatedPage({
                         <th>{t("structure.dedicated.itemService")}</th>
                         <th>{t("structure.dedicated.quantity")}</th>
                         <th>{t("structure.dedicated.unit")}</th>
-                        <th>{t("structure.dedicated.valueBrl")}</th>
+                        <th>{t("structure.dedicated.unitValue")}</th>
+                        <th>{t("structure.dedicated.lineTotal")}</th>
                         <th aria-label={t("structure.home.tableActions")} />
                       </tr>
                     </thead>
@@ -579,7 +593,7 @@ export function StructureDedicatedPage({
                           </td>
                           <td>
                             <input
-                              aria-label={t("structure.dedicated.valueBrl")}
+                              aria-label={t("structure.dedicated.unitValue")}
                               type="number" min="0" step="0.01" inputMode="decimal"
                               placeholder="0,00"
                               value={structureItem.value}
@@ -587,6 +601,7 @@ export function StructureDedicatedPage({
                               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addMaterial(); } }}
                             />
                           </td>
+                          <td className={styles.num} aria-live="polite">{formatMoney(lineTotal(structureItem.quantity || "1", structureItem.value))}</td>
                           <td>
                             <div className={styles.addItemActions}>
                               <button type="button" className={styles.confirmItemBtn} onClick={() => void addMaterial()} disabled={addingItem} aria-label={t("structure.dedicated.confirmItem")} title={t("structure.dedicated.confirmItem")}>
@@ -600,13 +615,14 @@ export function StructureDedicatedPage({
                         </tr>
                       )}
                       {selected.items.length === 0 && !showAddItem && (
-                        <tr><td colSpan={5} className={styles.itemsEmpty}>{t("structure.dedicated.noItems")}</td></tr>
+                        <tr><td colSpan={6} className={styles.itemsEmpty}>{t("structure.dedicated.noItems")}</td></tr>
                       )}
                       {selected.items.map((item) => (
                         <tr key={item.id}>
                           <td className={styles.itemName}>{item.name}</td>
                           <td className={styles.num}>{Number(item.quantity).toLocaleString(language)}</td>
                           <td>{item.unit}</td>
+                          <td className={styles.num}>{unitPrice(item).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className={styles.num}>{Number(item.value).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td>
                             {canDelete && (
@@ -621,7 +637,7 @@ export function StructureDedicatedPage({
                     {selected.items.length > 0 && (
                       <tfoot>
                         <tr>
-                          <td colSpan={3}>{t("structure.dedicated.costsTotal")}</td>
+                          <td colSpan={4}>{t("structure.dedicated.costsTotal")}</td>
                           <td className={styles.num}>{formatMoney(selected.items_value)}</td>
                           <td />
                         </tr>
@@ -657,26 +673,27 @@ export function StructureDedicatedPage({
                   <th>{t("structure.dedicated.linkedTo")}</th>
                   <th>{t("structure.dedicated.area")}</th>
                   <th>{t("structure.dedicated.quantity")}</th>
+                  <th>{t("structure.dedicated.unitValueShort")}</th>
                   <th>{t("structure.dedicated.totalValue")}</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {loading
-                  ? <tr><td colSpan={7} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
+                  ? <tr><td colSpan={8} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
                   : filteredReportRows.length
                     ? filteredReportRows.map((row) =>
                         row.kind === "structure"
                           ? <StructureReportRow key={row.key} asset={row.asset} categoryLabel={categoryLabel} canDelete={canDelete} onEdit={openCosts} onRemove={removeStructure} language={language} t={t} />
                           : <MaterialReportRow key={row.key} asset={row.asset} item={row.item!} canDelete={canDelete} onRemove={removeMaterial} language={language} t={t} />
                       )
-                    : <tr><td colSpan={7} className="text-center text-muted py-5">{t("structure.dedicated.noRecords")}</td></tr>
+                    : <tr><td colSpan={8} className="text-center text-muted py-5">{t("structure.dedicated.noRecords")}</td></tr>
                 }
               </tbody>
               {!loading && structures.length > 0 && (
                 <tfoot>
                   <tr className={styles.reportTotal}>
-                    <td colSpan={5}>{t("structure.dedicated.reportTotal")}</td>
+                    <td colSpan={6}>{t("structure.dedicated.reportTotal")}</td>
                     <td>{formatMoney(structures.reduce((sum, asset) => sum + structureTotal(asset), 0))}</td>
                     <td />
                   </tr>
@@ -704,6 +721,7 @@ function StructureReportRow({ asset, categoryLabel, canDelete, onEdit, onRemove,
       <td>{t("structure.dedicated.mainStructure")}</td>
       <td>{asset.built_area_m2 ? `${asset.built_area_m2} m²` : "—"}</td>
       <td>{asset.quantity}</td>
+      <td style={{ fontVariantNumeric: "tabular-nums" }}>{(structureTotal(asset) / (Number(asset.quantity) > 0 ? Number(asset.quantity) : 1)).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-success fw-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>{structureTotal(asset).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
         <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(asset)} title={t("structure.dedicated.costsTitle")} aria-label={`${t("structure.dedicated.costsTitle")}: ${asset.name}`}><Pencil size={14} /></button>
@@ -724,6 +742,7 @@ function MaterialReportRow({ asset, item, canDelete, onRemove, language, t }: {
       <td>{asset.name}</td>
       <td>—</td>
       <td>{Number(item.quantity).toLocaleString(language)} {item.unit}</td>
+      <td style={{ fontVariantNumeric: "tabular-nums" }}>{unitPrice(item).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td style={{ fontVariantNumeric: "tabular-nums" }}>{Number(item.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
         {canDelete && (
