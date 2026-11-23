@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.utils.translation import gettext as translate_message
 from common.operator_access import operator_scoped
 from common.permissions import OrganizationRolePermission
@@ -5,6 +6,8 @@ from common.permissions import OrganizationRolePermission
 ViewSets for the crops app.
 """
 from django.db import transaction
+from django.db.models import F, Q, Sum
+from django.db.models.deletion import ProtectedError
 from rest_framework import viewsets, permissions, serializers, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -58,7 +61,7 @@ from .services import (
     create_fertigation, create_pesticide_application,
     create_irrigation, create_land_preparation,
     create_labor_record, create_harvest,
-    update_harvest, delete_harvest,
+    update_harvest, delete_harvest, is_packaging_item, packaging_items,
     create_crop_sale, update_crop_sale, delete_crop_sale,
     update_crop_operation, delete_crop_operation,
 )
@@ -154,6 +157,18 @@ class PlantingCycleViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         update_plantation(serializer, self.request)
 
+    def perform_destroy(self, instance):
+        try:
+            super().perform_destroy(instance)
+        except ProtectedError as exc:
+            from apps.inventory.models import MovimentacaoEstoque
+
+            if any(isinstance(obj, MovimentacaoEstoque) and obj.harvest_id for obj in exc.protected_objects):
+                raise serializers.ValidationError(
+                    translate_message("Exclua as colheitas com embalagens vinculadas antes de excluir a plantação.")
+                ) from exc
+            raise
+
     @action(detail=True, methods=["get"], url_path="dashboard")
     def dashboard(self, request, pk=None):
         plantation = self.get_object()
@@ -188,7 +203,7 @@ class SectorStructureItemViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class HarvestViewSet(viewsets.ModelViewSet):
-    queryset = Harvest.objects.select_related("planting_cycle", "buyer", "created_by").all()
+    queryset = Harvest.objects.select_related("planting_cycle", "buyer", "created_by", "package_item").all()
     serializer_class = HarvestSerializer
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
@@ -210,6 +225,21 @@ class HarvestViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(harvest_type=harvest_type)
             return qs.order_by("-harvest_date", "-created_at")
         return qs.none()
+
+    @action(detail=False, methods=["get"], url_path="packaging-items")
+    def available_packaging(self, request):
+        positive_stock = Q(lotes__ativo=True, lotes__quantidade_atual__gt=0)
+        items = packaging_items(request.user.organization_id).filter(
+            organization__isnull=False,
+        ).annotate(
+            balance=Sum("lotes__quantidade_atual", filter=positive_stock, default=0),
+            value=Sum(F("lotes__quantidade_atual") * F("lotes__custo_unitario"), filter=positive_stock, default=0),
+        ).order_by("nome", "pk")
+        return Response([
+            {"id": item.pk, "name": item.nome, "available_quantity": item.balance,
+             "package_unit_cost": (item.value / item.balance).quantize(Decimal("0.01")) if item.balance else 0}
+            for item in items if is_packaging_item(item)
+        ])
 
     def perform_create(self, serializer):
         create_harvest(serializer, self.request)

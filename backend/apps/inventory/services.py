@@ -98,7 +98,7 @@ def criar_lote_e_movimentacao(item, batch_fields: dict, request=None) -> None:
 
 def registrar_movimentacao(item, lote=None, tipo: str = TipoMovimentacao.COMPRA,
                             quantidade=0, responsavel=None, observacao: str = "",
-                            destino: str = "", farm=None, cattle_delivery=None) -> None:
+                            destino: str = "", farm=None, cattle_delivery=None, harvest=None) -> None:
     """
     Records a generic stock movement and updates the batch balance.
     """
@@ -123,6 +123,7 @@ def registrar_movimentacao(item, lote=None, tipo: str = TipoMovimentacao.COMPRA,
         destino=destino,
         observacao=observacao,
         cattle_delivery=cattle_delivery,
+        harvest=harvest,
     )
 
     # Update batch balance for out / loss / expiry movements

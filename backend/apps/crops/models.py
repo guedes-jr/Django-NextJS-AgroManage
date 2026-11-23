@@ -746,6 +746,10 @@ class Harvest(BaseModel):
     # Packing of the production (optional).
     packaged = models.BooleanField(default=False)
     package_type = models.CharField(max_length=20, choices=PackageType.choices, blank=True)
+    package_item = models.ForeignKey(
+        "inventory.ItemEstoque", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="packaged_harvests",
+    )
     package_weight_kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     package_count = models.PositiveIntegerField(null=True, blank=True)
     package_unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -797,6 +801,7 @@ class Harvest(BaseModel):
         else:
             self.packaged = False
             self.package_type = ""
+            self.package_item = None
             self.package_weight_kg = None
             self.package_count = None
             self.package_unit_cost = Decimal("0")

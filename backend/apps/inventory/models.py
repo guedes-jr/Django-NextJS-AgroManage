@@ -303,6 +303,10 @@ class MovimentacaoEstoque(BaseModel):
         blank=True,
         related_name="movimentacoes",
     )
+    harvest = models.ForeignKey(
+        "crops.Harvest", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="packaging_movements",
+    )
     cattle_delivery = models.ForeignKey("livestock.CattleFeedDelivery", null=True, blank=True, on_delete=models.PROTECT, related_name="stock_movements")
     tipo = models.CharField(max_length=30, choices=TipoMovimentacao.choices)
     quantidade = models.DecimalField(max_digits=10, decimal_places=2)

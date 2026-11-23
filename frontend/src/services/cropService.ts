@@ -151,6 +151,9 @@ export const cropService = {
     apiClient.delete(`/crops/labor-records/${id}/`),
 
   // ── Harvests ───────────────────────────────────────────
+  listHarvestPackaging: () =>
+    apiClient.get<{ id: string; name: string; available_quantity: number; package_unit_cost?: number }[]>("/crops/harvests/packaging-items/"),
+
   listHarvests: (params?: Record<string, string | number>) =>
     apiClient.get("/crops/harvests/", { params }),
 

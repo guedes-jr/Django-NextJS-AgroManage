@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { isAxiosError } from "axios";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -19,6 +20,7 @@ import {
   Trash2,
   Wheat,
 } from "lucide-react";
+import { useOrganizationAccess } from "@/components/auth/OrganizationAccessContext";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cropService } from "@/services/cropService";
 import { useOrganizationLocale } from "@/lib/locale";
@@ -55,6 +57,8 @@ type Harvest = {
   revenue_amount: string;
   packaged?: boolean;
   package_type?: PackageType | "";
+  package_item?: string | null;
+  package_item_name?: string;
   package_weight_kg?: string | null;
   package_count?: number | null;
   package_unit_cost?: string;
@@ -73,6 +77,8 @@ type HarvestForm = {
   quantity_unit: QuantityUnit;
   packaged: boolean;
   package_type: PackageType;
+  package_item: string;
+  package_item_name: string;
   package_weight_kg: string;
   package_count: string;
   package_unit_cost: string;
@@ -82,7 +88,7 @@ type HarvestForm = {
 };
 
 const UNITS: QuantityUnit[] = ["kg", "box", "truck", "bale", "sack", "bundle"];
-const PACKAGE_TYPES: PackageType[] = ["sack", "box", "big_bag", "crate", "other"];
+type PackagingItem = Awaited<ReturnType<typeof cropService.listHarvestPackaging>>["data"][number];
 
 const emptyForm = (): HarvestForm => ({
   harvest_type: "partial",
@@ -91,6 +97,8 @@ const emptyForm = (): HarvestForm => ({
   quantity_unit: "kg",
   packaged: false,
   package_type: "sack",
+  package_item: "",
+  package_item_name: "",
   package_weight_kg: "",
   package_count: "",
   package_unit_cost: "",
@@ -116,9 +124,11 @@ function sumByUnit(items: Harvest[]) {
 
 export default function ColheitaPage() {
   const { language, t } = useOrganizationLocale();
+  const financial = !!useOrganizationAccess()?.can_view_financial;
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [plantation, setPlantation] = useState<Plantation | null>(null);
+  const [packaging, setPackaging] = useState<PackagingItem[] | null>(null);
   const [harvests, setHarvests] = useState<Harvest[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,10 +147,12 @@ export default function ColheitaPage() {
       cropService.get(id),
       cropService.listHarvests({ planting_cycle: id }),
       cropService.listSales({ planting_cycle: id }).catch(() => ({ data: [] })),
+      cropService.listHarvestPackaging().catch(() => ({ data: null })),
     ])
-      .then(([plantationRes, harvestsRes, salesRes]) => {
+      .then(([plantationRes, harvestsRes, salesRes, packagingRes]) => {
         if (!active) return;
         setPlantation(plantationRes.data);
+        setPackaging(packagingRes.data);
         setHarvests(extractArray<Harvest>(harvestsRes.data));
         setSales(extractArray<Sale>(salesRes.data));
         setError("");
@@ -212,7 +224,7 @@ export default function ColheitaPage() {
     if (!form.harvest_date) return t("plantations.harvest.dateRequired");
     if (quantity <= 0) return t("plantations.harvest.quantityRequired");
     if (form.packaged) {
-      if (!form.package_type) return t("harvestForm.pack.typeRequired");
+      if (!form.package_item && (!editingId || !harvests.some((harvest) => harvest.id === editingId && harvest.packaged && !harvest.package_item))) return t("harvestForm.pack.typeRequired");
       if (packageWeight <= 0) return t("harvestForm.pack.weightRequired");
       if (packageCount <= 0) return t("harvestForm.pack.countRequired");
     }
@@ -222,8 +234,12 @@ export default function ColheitaPage() {
 
   const refresh = async () => {
     if (!id) return;
-    const response = await cropService.listHarvests({ planting_cycle: id });
+    const [response, packagingResponse] = await Promise.all([
+      cropService.listHarvests({ planting_cycle: id }),
+      cropService.listHarvestPackaging().catch(() => ({ data: null })),
+    ]);
     setHarvests(extractArray<Harvest>(response.data));
+    setPackaging(packagingResponse.data);
   };
 
   const handleSubmit = async () => {
@@ -240,12 +256,15 @@ export default function ColheitaPage() {
       quantity,
       quantity_unit: form.quantity_unit,
       packaged: form.packaged,
-      package_type: form.packaged ? form.package_type : "",
+      package_type: form.packaged && !form.package_item ? form.package_type : "",
+      package_item: form.packaged && form.package_item ? form.package_item : null,
       package_weight_kg: form.packaged ? packageWeight : null,
       package_count: form.packaged ? packageCount : null,
-      package_unit_cost: form.packaged ? packageUnitCost : 0,
-      packing_labor_per_package: form.packaged ? laborPerPackage : 0,
-      packing_other_costs: form.packaged ? otherCosts : 0,
+      ...(financial && form.packaged ? {
+        ...(!form.package_item ? { package_unit_cost: packageUnitCost } : {}),
+        packing_labor_per_package: laborPerPackage,
+        packing_other_costs: otherCosts,
+      } : {}),
       notes: form.notes.trim(),
     };
     try {
@@ -259,8 +278,9 @@ export default function ColheitaPage() {
       }
       await refresh();
       resetForm();
-    } catch {
-      setError(t("plantations.harvest.saveFailed"));
+    } catch (cause) {
+      const details = isAxiosError(cause) ? cause.response?.data : undefined;
+      setError(details?.package_item?.[0] || details?.package_count?.[0] || t("plantations.harvest.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -277,6 +297,8 @@ export default function ColheitaPage() {
       quantity_unit: harvest.quantity_unit || "kg",
       packaged: Boolean(harvest.packaged),
       package_type: (harvest.package_type || "sack") as PackageType,
+      package_item: harvest.package_item || "",
+      package_item_name: harvest.package_item_name || "",
       package_weight_kg: harvest.package_weight_kg ? String(harvest.package_weight_kg) : "",
       package_count: harvest.package_count ? String(harvest.package_count) : "",
       package_unit_cost: decimalValue(harvest.package_unit_cost) ? String(harvest.package_unit_cost) : "",
@@ -315,7 +337,7 @@ export default function ColheitaPage() {
 
   const packingLabel = (harvest: Harvest) =>
     harvest.packaged && harvest.package_count
-      ? `${formatInteger(harvest.package_count, language)} × ${t(packageKey(harvest.package_type || "other")).toLowerCase()}`
+      ? `${formatInteger(harvest.package_count, language)} × ${harvest.package_item_name || t(packageKey(harvest.package_type || "other")).toLowerCase()}`
       : t("harvestForm.table.noPacking");
 
   const handleGeneratePdf = () => {
@@ -429,9 +451,24 @@ export default function ColheitaPage() {
             <div className={styles.grid}>
               <label className={styles.field}>
                 <span className={styles.label}>{t("harvestForm.pack.type")}<span className={styles.required}>*</span></span>
-                <select className="form-select" value={form.package_type} onChange={(event) => update({ package_type: event.target.value as PackageType })}>
-                  {PACKAGE_TYPES.map((type) => <option key={type} value={type}>{t(packageKey(type))}</option>)}
+                <select className="form-select" value={form.package_item} onChange={(event) => {
+                  const item = packaging?.find((option) => option.id === event.target.value);
+                  if (item) update({
+                    package_item: item.id, package_item_name: item.name,
+                    package_unit_cost: item.package_unit_cost === undefined ? "" : String(item.package_unit_cost),
+                  });
+                }}>
+                  <option value="" disabled>{editingId && !form.package_item
+                    ? t(packageKey(form.package_type))
+                    : t("harvestForm.pack.stockPlaceholder")}</option>
+                  {form.package_item && !packaging?.some((item) => item.id === form.package_item) && (
+                    <option value={form.package_item}>{form.package_item_name}</option>
+                  )}
+                  {packaging?.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name} · {formatNumber(item.available_quantity, language)} {t("harvestForm.pack.unitShort")}</option>
+                  ))}
                 </select>
+                {!packaging?.length && <span className={styles.hint}>{t(packaging ? "harvestForm.pack.stockEmpty" : "harvestForm.pack.stockFailed")}</span>}
               </label>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="pack-weight">{t("harvestForm.pack.weight")}<span className={styles.required}>*</span></label>
@@ -460,42 +497,46 @@ export default function ColheitaPage() {
                   </span>
                 )}
               </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="pack-cost">{t("harvestForm.pack.unitCost")}<span className={styles.required}>*</span></label>
-                <div className={styles.inputGroup}>
-                  <input id="pack-cost" className="form-control" inputMode="decimal" value={form.package_unit_cost} placeholder="0,00" onChange={(event) => update({ package_unit_cost: event.target.value })} />
-                  <span className={styles.suffix}>{t("harvestForm.pack.perPackage")}</span>
+              {financial && <>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="pack-cost">{t("harvestForm.pack.unitCost")}<span className={styles.required}>*</span></label>
+                  <div className={styles.inputGroup}>
+                    <input id="pack-cost" className="form-control" inputMode="decimal" value={form.package_unit_cost} readOnly={Boolean(form.package_item) || !editingId} placeholder="0,00" onChange={(event) => update({ package_unit_cost: event.target.value })} />
+                    <span className={styles.suffix}>{t("harvestForm.pack.perPackage")}</span>
+                  </div>
                 </div>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="pack-labor">{t("harvestForm.pack.labor")}<span className={styles.required}>*</span></label>
-                <div className={styles.inputGroup}>
-                  <input id="pack-labor" className="form-control" inputMode="decimal" value={form.packing_labor_per_package} placeholder="0,00" onChange={(event) => update({ packing_labor_per_package: event.target.value })} />
-                  <span className={styles.suffix}>{t("harvestForm.pack.perPackage")}</span>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="pack-labor">{t("harvestForm.pack.labor")}<span className={styles.required}>*</span></label>
+                  <div className={styles.inputGroup}>
+                    <input id="pack-labor" className="form-control" inputMode="decimal" value={form.packing_labor_per_package} placeholder="0,00" onChange={(event) => update({ packing_labor_per_package: event.target.value })} />
+                    <span className={styles.suffix}>{t("harvestForm.pack.perPackage")}</span>
+                  </div>
+                  <span className={styles.hint}>{t("harvestForm.pack.laborHint")}</span>
                 </div>
-                <span className={styles.hint}>{t("harvestForm.pack.laborHint")}</span>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="pack-other">{t("harvestForm.pack.other")}</label>
-                <div className={styles.inputGroup}>
-                  <input id="pack-other" className="form-control" inputMode="decimal" value={form.packing_other_costs} placeholder="0,00" onChange={(event) => update({ packing_other_costs: event.target.value })} />
-                  <span className={styles.suffix}>R$</span>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="pack-other">{t("harvestForm.pack.other")}</label>
+                  <div className={styles.inputGroup}>
+                    <input id="pack-other" className="form-control" inputMode="decimal" value={form.packing_other_costs} placeholder="0,00" onChange={(event) => update({ packing_other_costs: event.target.value })} />
+                    <span className={styles.suffix}>R$</span>
+                  </div>
+                  <span className={styles.hint}>{t("harvestForm.pack.otherHint")}</span>
                 </div>
-                <span className={styles.hint}>{t("harvestForm.pack.otherHint")}</span>
-              </div>
+              </>}
             </div>
 
             <div className={styles.costs}>
               <div><span>{t("harvestForm.pack.used")}</span><span>{t("harvestForm.pack.usedValue").replace("{count}", formatInteger(packageCount, language))}</span></div>
-              <div>
-                <span>{t("harvestForm.pack.packages").replace("{count}", formatInteger(packageCount, language)).replace("{price}", formatMoney(packageUnitCost, language))}</span>
-                <span>{formatMoney(packagesCost, language)}</span>
-              </div>
-              <div><span>{t("harvestForm.pack.laborLine")}</span><span>{formatMoney(laborCost, language)}</span></div>
-              <div><span>{t("harvestForm.pack.otherLine")}</span><span>{formatMoney(otherCosts, language)}</span></div>
-              <div className={styles.costTotal}><span>{t("harvestForm.pack.total")}</span><span>{formatMoney(packingCost, language)}</span></div>
-              <div><span>{t("harvestForm.pack.perUnit").replace("{unit}", unitName(form.quantity_unit, 1))}</span><span>{formatMoney(quantity > 0 ? packingCost / quantity : 0, language)}</span></div>
-              <div><span>{t("harvestForm.pack.perPackageLine")}</span><span>{formatMoney(packageCount > 0 ? packingCost / packageCount : 0, language)}</span></div>
+              {financial && <>
+                <div>
+                  <span>{t("harvestForm.pack.packages").replace("{count}", formatInteger(packageCount, language)).replace("{price}", formatMoney(packageUnitCost, language))}</span>
+                  <span>{formatMoney(packagesCost, language)}</span>
+                </div>
+                <div><span>{t("harvestForm.pack.laborLine")}</span><span>{formatMoney(laborCost, language)}</span></div>
+                <div><span>{t("harvestForm.pack.otherLine")}</span><span>{formatMoney(otherCosts, language)}</span></div>
+                <div className={styles.costTotal}><span>{t("harvestForm.pack.total")}</span><span>{formatMoney(packingCost, language)}</span></div>
+                <div><span>{t("harvestForm.pack.perUnit").replace("{unit}", unitName(form.quantity_unit, 1))}</span><span>{formatMoney(quantity > 0 ? packingCost / quantity : 0, language)}</span></div>
+                <div><span>{t("harvestForm.pack.perPackageLine")}</span><span>{formatMoney(packageCount > 0 ? packingCost / packageCount : 0, language)}</span></div>
+              </>}
             </div>
           </>
         )}

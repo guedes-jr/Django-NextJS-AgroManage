@@ -589,6 +589,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         if new_lot:
             serializer.validated_data["lote"] = lots[new_lot.pk]
         serializer.instance = instance
+        if instance.harvest_id:
+            raise exceptions.ValidationError(translate_message("Corrija esta movimentação na colheita vinculada."))
         if instance.cattle_delivery_id:
             raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
         if instance.observacao.startswith(("Produção ", "Estorno de produção ", "Entrada por produção (Lote PROD-")):
@@ -654,6 +656,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         instance = MovimentacaoEstoque.objects.select_for_update().get(pk=instance.pk)
         if instance.lote_id:
             instance.lote = LoteEstoque.objects.select_for_update().get(pk=instance.lote_id)
+        if instance.harvest_id:
+            raise exceptions.ValidationError(translate_message("Corrija esta movimentação na colheita vinculada."))
         if instance.cattle_delivery_id:
             raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
         if instance.observacao.startswith(("Produção ", "Estorno de produção ", "Entrada por produção (Lote PROD-")):

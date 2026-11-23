@@ -451,6 +451,7 @@ class HarvestSerializer(serializers.ModelSerializer):
     destination_display = serializers.CharField(source="get_destination_display", read_only=True)
     harvest_type_display = serializers.CharField(source="get_harvest_type_display", read_only=True)
     planting_cycle_name = serializers.CharField(source="planting_cycle.name", read_only=True)
+    package_item_name = serializers.CharField(source="package_item.nome", read_only=True, default="")
 
     class Meta:
         model = Harvest
@@ -463,7 +464,7 @@ class HarvestSerializer(serializers.ModelSerializer):
             "unit_price", "revenue_amount",
             "quality_grade", "created_by", "created_by_name",
             "quantity", "quantity_unit", "unit_weight_kg",
-            "packaged", "package_type", "package_weight_kg", "package_count",
+            "packaged", "package_type", "package_item", "package_item_name", "package_weight_kg", "package_count",
             "package_unit_cost", "packing_labor_per_package", "packing_other_costs",
             "packing_cost",
             "notes", "created_at", "updated_at",
@@ -519,7 +520,7 @@ class HarvestSerializer(serializers.ModelSerializer):
             # The unit chosen at harvest is kept; there is no kg equivalent.
             attrs["yield_kg"] = None
         if current("packaged", False):
-            if not current("package_type"):
+            if not current("package_type") and not current("package_item"):
                 raise serializers.ValidationError({"package_type": translate_message("Informe o tipo de embalagem.")})
             weight = current("package_weight_kg")
             if not weight or weight <= 0:
@@ -530,6 +531,8 @@ class HarvestSerializer(serializers.ModelSerializer):
                 value = current(field)
                 if value is not None and value < 0:
                     raise serializers.ValidationError({field: translate_message("O valor não pode ser negativo.")})
+        else:
+            attrs["package_item"] = None
         if destination == Harvest.Destination.SALE:
             if not buyer and not attrs.get("buyer_name", getattr(self.instance, "buyer_name", "")):
                 raise serializers.ValidationError({"buyer": translate_message("Informe o comprador para vendas.")})

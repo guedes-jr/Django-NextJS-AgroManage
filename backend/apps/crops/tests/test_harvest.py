@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from apps.crops.models import Field, Harvest, HarvestBuyer, PlantingCycle
 from apps.farms.models import Farm
 from apps.finance.models import FinancialCategory, Transaction
+from apps.inventory.models import ItemEstoque, LoteEstoque
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -73,6 +74,44 @@ class HarvestAPITestCase(APITestCase):
             organization=self.other_org,
             name="Other Buyer",
         )
+
+    def test_stock_packaging_lists_scoped_items_and_restores_all_lots_on_delete(self):
+        packaging = ItemEstoque.objects.create(
+            organization=self.org, nome="Sacaria", categoria="outro", unidade_medida="unidade",
+        )
+        outside = ItemEstoque.objects.create(
+            organization=self.other_org, nome="Outro saco", categoria="material", unidade_medida="saco",
+        )
+        ItemEstoque.objects.create(
+            organization=self.org, nome="Sementes", categoria="semente", unidade_medida="unidade",
+        )
+        for quantity, cost in [(3, Decimal("2.00")), (7, Decimal("4.00"))]:
+            LoteEstoque.objects.create(
+                item=packaging, numero_lote=f"SAC-{quantity}", quantidade_inicial=quantity, quantidade_atual=quantity,
+                custo_unitario=cost, data_entrada=date.today(), data_validade=date.today() + timedelta(days=quantity),
+            )
+        options = self.client.get(reverse("crops-harvests-available-packaging"))
+        self.assertEqual(options.status_code, 200, options.data)
+        self.assertEqual([row["id"] for row in options.json()], [str(packaging.pk)])
+        self.assertEqual(Decimal(options.data[0]["package_unit_cost"]), Decimal("3.40"))
+
+        payload = {
+            "planting_cycle": str(self.plantation.pk), "harvest_date": date.today().isoformat(),
+            "quantity": 60, "destination": "stock", "packaged": True,
+            "package_weight_kg": 10, "package_count": 6,
+        }
+        url = reverse("crops-harvests-list")
+        outside_response = self.client.post(url, {**payload, "package_item": str(outside.pk)}, format="json")
+        self.assertEqual(outside_response.status_code, 400, outside_response.data)
+        saved = self.client.post(url, {**payload, "package_item": str(packaging.pk)}, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(saved.data["package_type"], "sack")
+        harvest = Harvest.objects.get(pk=saved.data["id"])
+        self.assertEqual(harvest.packaging_movements.count(), 2)
+        self.assertEqual(packaging.estoque_atual, Decimal("4"))
+        deleted = self.client.delete(reverse("crops-harvests-detail", args=[harvest.pk]))
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(packaging.estoque_atual, Decimal("10"))
 
     def test_create_harvest_buyer_assigns_user_organization(self):
         response = self.client.post(

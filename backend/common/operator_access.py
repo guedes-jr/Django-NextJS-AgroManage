@@ -254,6 +254,7 @@ def sensitive_key(key):
         "prices",
         "roi",
         "unit_value",
+        "packing_labor_per_package",
         "kwh_value",
         "total_amount",
         "total_expenses",

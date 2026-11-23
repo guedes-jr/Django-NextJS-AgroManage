@@ -35,6 +35,16 @@ class CropDashboardCostTestCase(APITestCase):
                                    quantidade_atual=Decimal("100"), custo_unitario=Decimal(cost), data_entrada=date.today())
         return item
 
+    def _packaging(self, quantity, cost):
+        item = ItemEstoque.objects.create(
+            organization=self.org, nome="Sacaria", categoria="material", unidade_medida="unidade",
+        )
+        LoteEstoque.objects.create(
+            item=item, quantidade_inicial=quantity, quantidade_atual=quantity,
+            custo_unitario=Decimal(cost), data_entrada=date.today(),
+        )
+        return item
+
     def test_harvest_land_preparation_is_accepted(self):
         response = self.client.post(reverse("crops-land-preparations-list"), {
             "plantation": str(self.plantation.id), "date": date.today().isoformat(),
@@ -77,11 +87,13 @@ class CropDashboardCostTestCase(APITestCase):
 
 class HarvestPackingAndSalesTestCase(CropDashboardCostTestCase):
     def test_harvest_in_boxes_with_packing_creates_expense(self):
+        packaging = self._packaging(1200, "1.40")
         response = self.client.post(reverse("crops-harvests-list"), {
             "planting_cycle": str(self.plantation.id), "harvest_type": "partial",
             "harvest_date": date.today().isoformat(), "quantity": "1000", "quantity_unit": "box",
             "unit_weight_kg": "30", "destination": "stock", "packaged": True, "package_type": "sack",
-            "package_weight_kg": "30", "package_count": 1000, "package_unit_cost": "1.40",
+            "package_weight_kg": "30", "package_count": 1000, "package_item": str(packaging.pk),
+            "package_unit_cost": "999.00",
             "packing_labor_per_package": "1.00", "packing_other_costs": "400",
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
@@ -90,10 +102,19 @@ class HarvestPackingAndSalesTestCase(CropDashboardCostTestCase):
         crops = self.client.get(reverse("dashboard-summary")).data["segments"]["crops"]
         self.assertEqual(crops["cost_breakdown"], [{"name": "Embalagem", "value": 2800.0}])
 
+        self.assertEqual(packaging.estoque_atual, Decimal("200"))
         harvest_id = response.data["id"]
+        detail_url = reverse("crops-harvests-detail", args=[harvest_id])
+        rejected = self.client.patch(detail_url, {"package_count": 1201}, format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertEqual(packaging.estoque_atual, Decimal("200"))
+        changed = self.client.patch(detail_url, {"package_count": 1100}, format="json")
+        self.assertEqual(changed.status_code, 200, changed.data)
+        self.assertEqual(packaging.estoque_atual, Decimal("100"))
         self.client.patch(reverse("crops-harvests-detail", args=[harvest_id]), {"packaged": False}, format="json")
         from apps.finance.models import Transaction
         self.assertFalse(Transaction.objects.filter(reference=f"HARVEST-PACK-{harvest_id}").exists())
+        self.assertEqual(packaging.estoque_atual, Decimal("1200"))
 
     def test_harvest_keeps_the_unit_chosen(self):
         response = self.client.post(reverse("crops-harvests-list"), {
@@ -187,10 +208,11 @@ class SaleAvailabilityTestCase(CropDashboardCostTestCase):
 
     def test_sacks_sold_are_taken_from_the_packed_harvest_in_kg(self):
         # Production case: 35.000 kg packed in 30 kg sacks, sold by the sack.
+        packaging = self._packaging(1200, "1.40")
         response = self.client.post(reverse("crops-harvests-list"), {
             "planting_cycle": str(self.plantation.id), "harvest_date": date.today().isoformat(),
             "quantity": "35000", "quantity_unit": "kg", "destination": "stock",
-            "packaged": True, "package_type": "sack", "package_weight_kg": "30", "package_count": 1167,
+            "packaged": True, "package_item": str(packaging.pk), "package_weight_kg": "30", "package_count": 1167,
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         self._sell("300", "sack")

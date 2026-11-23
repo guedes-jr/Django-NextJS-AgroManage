@@ -3743,12 +3743,21 @@ Errors use the standard envelope; writes are audited via `record_client_action`.
 
 `/api/v1/crops/harvests/` accepts `quantity` + `quantity_unit` (`kg|box|truck`) and
 `unit_weight_kg` (required when the unit is not kg); `yield_kg` is derived and the
-legacy `yield_kg`-only payload still works. Optional packing: `packaged`,
-`package_type` (`sack|box|big_bag|crate|other`), `package_weight_kg`,
-`package_count`, `package_unit_cost`, `packing_labor_per_package`,
-`packing_other_costs`; read-only `packing_cost` = count × (unit cost + labor) +
-other. It is mirrored as an "Embalagem" expense (`HARVEST-PACK-<id>`) created,
-updated and removed with the harvest, and counts in `investment_total`.
+legacy `yield_kg`-only payload still works. New packed harvests send
+`packaged`, `package_item`, `package_weight_kg`, `package_count`,
+`packing_labor_per_package` and `packing_other_costs`. The
+`/api/v1/crops/harvests/packaging-items/` endpoint lists eligible active
+Other materials from the organization with their available quantities and,
+for financial users, unit costs. The server records the weighted average unit
+cost on selection and deducts the quantity across stock lots. Changing the
+packaging or quantity replaces the allocations in the same transaction.
+Disabling packing or deleting the harvest restores the quantities.
+
+`packing_cost` is count × (unit cost + labor) + other costs and counts in
+`investment_total`. For stock-linked packaging, the linked financial expense
+(`HARVEST-PACK-<id>`) covers labor and other costs because the purchase already
+accounts for the material. Legacy packed harvests retain their original cost and
+packaging type until a stock item is selected.
 
 `/api/v1/crops/sales/` (CRUD, organization-scoped; filters `planting_cycle`,
 `date_from`, `date_to`): `planting_cycle`, optional `buyer`, `sale_date`,
