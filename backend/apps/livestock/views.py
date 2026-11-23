@@ -1128,7 +1128,7 @@ def remove_batch_animals(batch):
 @operator_scoped
 class AnimalBatchViewSet(viewsets.ModelViewSet):
     search_fields = ['batch_code', 'name']
-    action_operations = {"merge_batches": "edit"}
+    action_operations = {"merge_batches": "edit", "close_balance": "edit"}
     permission_classes = [OrganizationRolePermission]
     write_roles = {"admin", "manager", "operator"}
     serializer_class = AnimalBatchSerializer
@@ -1184,6 +1184,18 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
         serializer = BatchSaleSerializer(data=request.data, context={'batch': batch})
         serializer.is_valid(raise_exception=True)
         return Response(register_batch_sale(batch, serializer.validated_data), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='close-balance')
+    def close_balance(self, request, pk=None):
+        """Close the leftover balance of a lot whose animals were all sold or written off."""
+        from .services import close_batch_balance
+        batch = self.get_object()
+        try:
+            closing_date = datetime.date.fromisoformat(request.data.get('date') or '')
+        except (TypeError, ValueError):
+            return Response({'date': translate_message('Informe uma data válida.')}, status=status.HTTP_400_BAD_REQUEST)
+        reason = str(request.data.get('reason') or '')[:300]
+        return Response(close_batch_balance(batch, closing_date, reason), status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='register-weight')
     @transaction.atomic

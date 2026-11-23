@@ -60,16 +60,18 @@ export function lotReportTotals(items: LotReportItem[]): Record<LotCostKey, numb
 }
 /** Animals still in the lot (a closed lot keeps its last quantity on the model). */
 export const lotCurrentQuantity = (item: LotReportItem) => item.current_quantity ?? (item.status === "active" ? item.quantity : 0);
+/** Original lot size (animals that entered it), unchanged by sales and deaths. */
+export const lotTotalQuantity = (item: LotReportItem) => item.total_quantity ?? item.cost_quantity ?? item.quantity;
 /**
- * Animals that went through production lots in the period: still in an active lot,
- * or left a closed lot (sale/finish) within it. Breeding stock is not a produced animal.
+ * Animals that went through production lots in the period: lots still active, or closed
+ * (sale/finish) within it. Each lot counts its original size, so cost per animal is
+ * spread over every animal that entered the lot. Breeding stock is not a produced animal.
  */
 export function animalsInPeriod(items: LotReportItem[], from: string, to: string) {
   return items.filter(isProductionLot).reduce((sum, item) => {
     if (item.entry_date && item.entry_date > to) return sum;
-    if (item.status === "active") return sum + lotCurrentQuantity(item);
-    if (!item.exit_date || item.exit_date < from || item.exit_date > to) return sum;
-    return sum + (item.cost_quantity ?? item.total_quantity ?? item.quantity);
+    if (item.status !== "active" && (!item.exit_date || item.exit_date < from || item.exit_date > to)) return sum;
+    return sum + lotTotalQuantity(item);
   }, 0);
 }
 export const lotReportHeaders = ["Lote", "Tipo de Produção", "Matrizes", "Total do Lote", "Animais Atuais", "Status do Lote", ...lotCostColumns.map(column => column.label)];

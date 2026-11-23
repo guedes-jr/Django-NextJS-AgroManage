@@ -192,3 +192,33 @@ class BatchSalesTests(APITestCase):
         self.assertEqual(response.data['missing_cost_count'], 1)
         self.assertEqual(len(response.data['entries']), 2)
         self.assertEqual(Decimal(response.data['cost_per_animal']), Decimal('0.1'))
+
+
+class BackdatedSaleTests(APITestCase):
+    """A lot moved to engorda today still accepts sales dated since it really began."""
+
+    def setUp(self):
+        BatchSalesTests.setUp(self)
+        from apps.livestock.services import transfer_batch_phase
+        BatchPhaseHistory.objects.create(batch=self.batch, phase='crescimento', quantity=120, entry_date=date(2026, 1, 1))
+        self.batch.phase = 'crescimento'
+        self.batch.save(update_fields=['phase'])
+        transfer_batch_phase(self.batch, 'engorda', date(2026, 11, 20))
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.entry_date, date(2026, 11, 20))
+
+    def test_sale_before_phase_transfer_is_accepted(self):
+        response = self.client.post(self.url, {**self.data, 'date': '2026-10-01'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        event = HistoricoEvento.objects.get(lote=self.batch, tipo_evento='Venda de Animais')
+        self.assertEqual(event.data_evento, date(2026, 10, 1))
+
+    def test_sale_before_the_lot_began_is_rejected(self):
+        response = self.client.post(self.url, {**self.data, 'date': '2025-12-31'}, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_backdated_whole_sale_closes_the_lot(self):
+        response = self.client.post(self.url, {**self.data, 'mode': 'whole', 'weight_kg': '12000', 'date': '2026-10-01'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.batch.refresh_from_db()
+        self.assertEqual((self.batch.status, self.batch.exit_date), ('sold', date(2026, 10, 1)))

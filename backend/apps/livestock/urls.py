@@ -1,3 +1,4 @@
+from .semen_collection_api import ReprodutoresView, SemenCollectionViewSet
 from .cattle_improvement_api import CattleOperationsView, CattleOperationMobileDetailView, CattleOccurrenceMobileResolutionView
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
@@ -33,6 +34,7 @@ router.register(r'births', BirthViewSet, basename='birth')
 router.register(r'litters', LitterViewSet, basename='litter')
 router.register(r'incubations', IncubationViewSet, basename='incubation')
 router.register(r'vaccinations', VaccinationRecordViewSet, basename='vaccination')
+router.register(r'semen-collections', SemenCollectionViewSet, basename='semen-collection')
 router.register(r'weights', WeightRecordViewSet, basename='weight')
 router.register(r'clinical/records', ClinicalRecordViewSet, basename='clinicalrecord')
 router.register(r'health/records', HealthRecordViewSet, basename='healthrecord')
@@ -74,6 +76,7 @@ urlpatterns = [
     path('creches/', CrecheView.as_view(), name='creches'),
     path('crescimentos/', CrescimentoView.as_view(), name='crescimentos'),
     path('engordas/', EngordaView.as_view(), name='engordas'),
+    path('reprodutores/', ReprodutoresView.as_view(), name='reprodutores'),
     path('swine/phases/<str:phase>/<uuid:pk>/mobile/', SwinePhaseMobileDetailView.as_view(), name='swine-phase-mobile-detail'),
     
     # Manual re_path to allow optional trailing slashes for the main actions

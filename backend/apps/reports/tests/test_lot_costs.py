@@ -290,6 +290,18 @@ class LotCostsTest(APITestCase):
         self.assertIsNone(row["margin"])
         self.assertEqual(row["missing_cost_count"], 1)
 
+    def test_cost_per_animal_uses_total_lot_size(self):
+        # 10 animals entered, 4 died: the lot cost is still spread over the 10.
+        lot = self.new_batch("L020", quantity=10)
+        HistoricoEvento.objects.create(farm=self.farm, lote=lot, tipo_evento="Entrada de Lote", descricao="Entrada",
+                                       data_evento=self.start, metadata={"quantidade": 10})
+        self.transaction("Mão de Obra", 200, lot)
+        lot.quantity = 6
+        lot.save()
+        row = self.report()[str(lot.pk)]
+        self.assertEqual(row["total_quantity"], 10)
+        self.assertEqual(Decimal(row["cost_per_animal"]), 20)
+
     def test_sold_batch_uses_recorded_sale_quantity_for_per_animal_cost(self):
         self.batch.quantity = 0
         self.batch.status = "sold"

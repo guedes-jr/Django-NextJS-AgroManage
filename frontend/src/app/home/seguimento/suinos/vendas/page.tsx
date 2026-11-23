@@ -89,6 +89,21 @@ export default function SalesPage() {
   const amount = Math.round(weight * price * 100) / 100;
   const valid = !!chosen && Number.isInteger(quantity) && quantity > 0 && quantity <= chosen.quantity && weight > 0 && price > 0 && Number.isFinite(amount);
   const update = (key: keyof typeof form, value: string) => setForm(current => ({ ...current, [key]: value }));
+  // A partial sale that sells everything that really exists closes the lot; the leftover stops receiving shared costs (labor).
+  const [closeBatch, setCloseBatch] = useState(false);
+  const leftover = chosen && form.mode === "partial" && quantity > 0 ? chosen.quantity - quantity : 0;
+  const closeBalance = async () => {
+    if (!chosen || saving) return;
+    if (!window.confirm(t("livestock.sale.closeBalanceConfirm", { batch: chosen.batch_code, count: chosen.quantity, date: new Date(`${form.date}T00:00:00`).toLocaleDateString(language) }))) return;
+    setSaving(true); setError(""); setMessage("");
+    try {
+      await apiClient.post(`/livestock/batches/${chosen.id}/close-balance/`, { date: form.date, reason: form.notes });
+      setMessage(t("livestock.sale.balanceClosed", { batch: chosen.batch_code })); setForm(initialForm()); setCloseBatch(false);
+      try { await load(); } catch { setError(t("livestock.sale.refreshFailed")); }
+    } catch (error) {
+      setError(saleErrorMessage(error) === "Não foi possível registrar a venda. Tente novamente." ? t("livestock.sale.closeBalanceFailed") : saleErrorMessage(error));
+    } finally { setSaving(false); }
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!valid || saving) return;
@@ -97,8 +112,9 @@ export default function SalesPage() {
       await apiClient.post(`/livestock/batches/${chosen!.id}/register-sale/`, {
         mode: form.mode, quantity, weight_kg: form.weight, price_per_kg: form.price,
         date: form.date, buyer: form.buyer, responsible: form.responsible, notes: form.notes,
+        close_batch: leftover > 0 && closeBatch,
       });
-      setMessage(t("livestock.sale.registered")); setForm(initialForm());
+      setMessage(t("livestock.sale.registered")); setForm(initialForm()); setCloseBatch(false);
       try { await load(); } catch { setError(t("livestock.sale.refreshFailed")); }
     } catch (error) {
       setError(saleErrorMessage(error) === "Não foi possível registrar a venda. Tente novamente." ? t("livestock.sale.registerFailed") : saleErrorMessage(error));
@@ -125,7 +141,9 @@ export default function SalesPage() {
             <div className={styles.field}><label htmlFor="date">{t("livestock.sale.saleDate")}</label><input id="date" type="date" required value={form.date} onChange={e => update("date", e.target.value)} /></div>
             <div className={styles.field}><label htmlFor="responsible">{t("livestock.sale.responsibleForSale")}</label><input id="responsible" maxLength={200} value={form.responsible} onChange={e => update("responsible", e.target.value)} placeholder={t("livestock.sale.responsiblePlaceholder")} /></div>
             <div className={styles.field}><label htmlFor="notes">{t("livestock.sale.optionalNotes")}</label><input id="notes" value={form.notes} onChange={e => update("notes", e.target.value)} placeholder={t("livestock.sale.notesPlaceholder")} /></div>
-            <div className={`${saleStyles.actions} ${styles.wide}`}><button type="button" className={saleStyles.clear} onClick={() => { setForm(initialForm()); setError(""); setMessage(""); }}><Trash2 size={18} />{t("livestock.sale.clear")}</button><button className={styles.submit} disabled={!valid || saving}>{saving ? <LoaderCircle size={18} /> : <BadgeDollarSign size={18} />}{saving ? t("livestock.sale.registering") : t("livestock.sale.register")}</button></div>
+            {leftover > 0 && <label className={`${saleStyles.closeOption} ${styles.wide}`}><input type="checkbox" checked={closeBatch} onChange={e => setCloseBatch(e.target.checked)} /><span><strong>{t("livestock.sale.closesBatch")}</strong><small>{t("livestock.sale.closesBatchHint", { count: leftover })}</small></span></label>}
+            {chosen && <div className={`${saleStyles.closeBalance} ${styles.wide}`}><span>{t("livestock.sale.closeBalanceHint")}</span><button type="button" className={saleStyles.clear} onClick={() => void closeBalance()}>{t("livestock.sale.closeBalance")}</button></div>}
+            <div className={`${saleStyles.actions} ${styles.wide}`}><button type="button" className={saleStyles.clear} onClick={() => { setForm(initialForm()); setCloseBatch(false); setError(""); setMessage(""); }}><Trash2 size={18} />{t("livestock.sale.clear")}</button><button className={styles.submit} disabled={!valid || saving}>{saving ? <LoaderCircle size={18} /> : <BadgeDollarSign size={18} />}{saving ? t("livestock.sale.registering") : t("livestock.sale.register")}</button></div>
           </div>
         </fieldset>
       </form>

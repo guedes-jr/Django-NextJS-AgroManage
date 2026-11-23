@@ -1209,3 +1209,48 @@ class MilkTankQuality(BaseModel):
     class Meta(BaseModel.Meta):
         ordering = ["-date", "-created_at", "-id"]
         constraints = [models.UniqueConstraint(fields=["tank", "request_key"], name="unique_milk_tank_quality_request"), models.CheckConstraint(condition=models.Q(fat_percent__isnull=True) | models.Q(fat_percent__gte=0, fat_percent__lte=100), name="valid_milk_tank_fat"), models.CheckConstraint(condition=models.Q(protein_percent__isnull=True) | models.Q(protein_percent__gte=0, protein_percent__lte=100), name="valid_milk_tank_protein")]
+
+
+class SemenCollection(BaseModel):
+    """Semen collected from a breeding male; the doses produced enter the stock as semen.
+
+    Diluent components are taken from stock (their cost becomes the dose cost) and
+    the produced doses become a lot of the reproducer's semen item, used by matings.
+    """
+
+    farm = models.ForeignKey("farms.Farm", on_delete=models.CASCADE, related_name="semen_collections")
+    animal = models.ForeignKey(Animal, on_delete=models.PROTECT, related_name="semen_collections")
+    collection_date = models.DateField()
+    volume_ml = models.DecimalField(max_digits=10, decimal_places=2)
+    diluted = models.BooleanField(default=True)
+    doses_produced = models.PositiveIntegerField()
+    responsible = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="semen_collections",
+    )
+    responsible_name = models.CharField(max_length=200, blank=True, help_text="Nome do responsável no momento da coleta")
+    notes = models.TextField(blank=True)
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stock_lot = models.ForeignKey(
+        "inventory.LoteEstoque", on_delete=models.SET_NULL, null=True, blank=True, related_name="semen_collections",
+    )
+
+    class Meta(BaseModel.Meta):
+        ordering = ["-collection_date", "-created_at"]
+        constraints = [models.CheckConstraint(condition=models.Q(volume_ml__gt=0), name="semen_collection_volume_positive")]
+
+    def __str__(self) -> str:
+        return f"{self.animal.identifier} — {self.collection_date}"
+
+
+class SemenCollectionComponent(BaseModel):
+    """One diluent component taken from stock for a semen collection."""
+
+    collection = models.ForeignKey(SemenCollection, on_delete=models.CASCADE, related_name="components")
+    item = models.ForeignKey("inventory.ItemEstoque", on_delete=models.PROTECT, related_name="semen_collection_components")
+    quantity = models.DecimalField(max_digits=12, decimal_places=3)
+    unit = models.CharField(max_length=20)
+    stock_quantity = models.DecimalField(max_digits=12, decimal_places=3, help_text="Quantidade na unidade do estoque")
+    cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta(BaseModel.Meta):
+        ordering = ["created_at"]

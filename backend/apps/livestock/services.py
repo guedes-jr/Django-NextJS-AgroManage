@@ -212,6 +212,21 @@ def consolidate_batch_phase_exit(
     return phase_record
 
 
+def batch_start_date(batch: AnimalBatch) -> date:
+    """Day the lot really began: its earliest phase or entry record.
+
+    ``entry_date`` is moved to the transfer day whenever the lot changes phase
+    (weaning, creche → crescimento → engorda), so it is not when the animals
+    entered the lot. Sales and other back-dated records are checked against this.
+    """
+    candidates = [batch.entry_date] if batch.entry_date else []
+    first_phase = batch.phase_histories.order_by("entry_date").values_list("entry_date", flat=True).first()
+    first_entry = HistoricoEvento.objects.filter(lote=batch, tipo_evento="Entrada de Lote").order_by("data_evento") \
+        .values_list("data_evento", flat=True).first()
+    candidates += [value for value in (first_phase, first_entry) if value]
+    return min(candidates) if candidates else batch.entry_date
+
+
 def open_batch_phase(
     batch: AnimalBatch,
     phase: str,
@@ -416,6 +431,10 @@ def register_batch_sale(batch, data):
         farm=batch.farm, lote=batch, tipo_evento='Venda de Animais',
         descricao=revenue.description, data_evento=data['date'], metadata=metadata,
     )
+    if not closes_batch and data.get('close_batch'):
+        # "Esta venda encerra o lote": what is left on the system does not exist anymore.
+        closing = close_batch_balance(batch, data['date'], translate_message('Saldo encerrado na venda.'))
+        metadata['closed_quantity'] = closing['closed_quantity']
     return metadata
 
 
@@ -464,9 +483,13 @@ def batch_financial_details(batch):
     summary = batch_sale_summary(batch)
     quantity = summary['quantity'] if summary else batch.quantity
     weight = Decimal(summary['total_weight_kg']) if summary else (batch.avg_weight_kg * quantity if batch.avg_weight_kg else None)
+    # Same rule as the lot report: cost per animal over the total lot size (entry quantity).
+    from apps.reports.lot_costs import enrich_lot_costs
+    lot_row = enrich_lot_costs(batch.farm.organization, [{'id': str(batch.pk)}])[0]
+    lot_size = lot_row.get('total_quantity') or quantity
     return dict(batch_code=batch.batch_code, entries=sorted(entries, key=lambda item: item['date'], reverse=True),
         totals={key: str(value) for key, value in totals.items()}, total=str(total),
-        cost_per_animal=str(total / quantity) if quantity else None,
+        cost_per_animal=str(total / lot_size) if lot_size else None,
         cost_per_kg=str(total / weight) if weight else None,
         missing_cost_count=sum(item['amount'] is None for item in entries),
         reproduction_allocation_pending=str(batch.pk) in sire_allocation['pending_batches'])
@@ -495,3 +518,44 @@ def write_off_cancelled_purchase(batch: AnimalBatch) -> bool:
         status=AnimalBatch.Status.FINISHED, reproductive_status="", updated_at=timezone.now(),
     )
     return True
+
+
+@transaction.atomic
+def close_batch_balance(batch: AnimalBatch, closing_date: date, reason: str = "") -> dict:
+    """Close a production lot whose remaining balance no longer exists.
+
+    Used when every animal was already sold (or the balance was wrong, e.g.
+    deaths never recorded) but the lot is still active with animals on it.
+    An active lot keeps receiving the shared costs (general labor) of every
+    day it has animals, so the leftover must be closed on the real date.
+
+    The leftover is not a sale nor a death: it is recorded as a balance
+    adjustment in the history. The lot becomes "sold" when it had sales,
+    otherwise "finished".
+    """
+    from rest_framework.exceptions import ValidationError
+
+    batch = AnimalBatch.objects.select_for_update().get(pk=batch.pk)
+    if batch.status != AnimalBatch.Status.ACTIVE or batch.quantity < 1:
+        raise ValidationError({"batch": translate_message("Selecione um lote ativo com saldo de animais.")})
+    if closing_date > timezone.localdate():
+        raise ValidationError({"date": translate_message("A data de encerramento não pode ser futura.")})
+    if closing_date < batch_start_date(batch):
+        raise ValidationError({"date": translate_message("O encerramento não pode ocorrer antes da entrada do lote.")})
+    last_sale = HistoricoEvento.objects.filter(lote=batch, tipo_evento="Venda de Animais").order_by("-data_evento") \
+        .values_list("data_evento", flat=True).first()
+    if last_sale and closing_date < last_sale:
+        raise ValidationError({"date": translate_message("O encerramento não pode ser anterior à última venda do lote.")})
+
+    leftover = batch.quantity
+    finalize_batch_current_phase(batch, closing_date)
+    batch.status = AnimalBatch.Status.SOLD if last_sale else AnimalBatch.Status.FINISHED
+    batch.exit_date = closing_date
+    batch.quantity = 0
+    batch.save(update_fields=["status", "exit_date", "quantity", "updated_at"])
+    HistoricoEvento.objects.create(
+        farm=batch.farm, lote=batch, tipo_evento="Encerramento de Saldo", data_evento=closing_date,
+        descricao=f"Lote encerrado: {leftover} animal(is) de saldo baixado(s) sem venda.",
+        metadata={"quantity": leftover, "reason": reason, "status": batch.status},
+    )
+    return {"batch": str(batch.pk), "status": batch.status, "exit_date": closing_date.isoformat(), "closed_quantity": leftover}

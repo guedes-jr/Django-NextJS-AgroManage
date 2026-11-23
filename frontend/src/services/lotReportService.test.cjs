@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const exportsObject = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(`${__dirname}/lotReportService.ts`, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: exportsObject, require: () => ({}) });
-const { isProductionLot, lotReportTotals, lotReportHeaders, lotReportExportRow } = exportsObject;
+const { isProductionLot, lotReportTotals, lotReportHeaders, lotReportExportRow, animalsInPeriod } = exportsObject;
 test('footer uses weighted cost and margin rather than adding row ratios', () => {
   const totals = lotReportTotals([
     { quantity: 10, total_cost: '100', cost_per_animal: '10', sales: '200', profit: '100', margin: '50', nursery: '30' },
@@ -51,4 +51,14 @@ test('excluding matrices applies to exported rows and report totals', () => {
   assert.equal(lots.length, 1);
   assert.equal(lotReportExportRow(lots[0])[0], 'L001');
   assert.equal(lotReportTotals(lots).total_cost, 100);
+});
+
+test('overview cost per animal counts the original lot size, not the animals left', () => {
+  const items = [
+    { category: 'Leitão', status: 'active', quantity: 6, current_quantity: 6, total_quantity: 10, entry_date: '2026-01-01' },
+    { category: 'Leitão', status: 'sold', quantity: 0, current_quantity: 0, total_quantity: 20, entry_date: '2026-01-01', exit_date: '2026-03-10' },
+    { category: 'Leitão', status: 'sold', quantity: 0, total_quantity: 50, entry_date: '2025-01-01', exit_date: '2025-06-01' },
+    { category: 'Matriz', status: 'active', quantity: 5, total_quantity: 5, entry_date: '2026-01-01' },
+  ];
+  assert.equal(animalsInPeriod(items, '2026-03-01', '2026-03-31'), 30);
 });

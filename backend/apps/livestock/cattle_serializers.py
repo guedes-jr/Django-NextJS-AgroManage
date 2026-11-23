@@ -1154,7 +1154,8 @@ class CattleSaleInput(serializers.Serializer):
     def validate(self, attrs):
         if attrs["mode"] == "partial" and "quantity" not in attrs:
             raise serializers.ValidationError({"quantity": "Informe a quantidade vendida."})
-        if attrs["date"] < self.context["batch"].entry_date:
+        from .services import batch_start_date
+        if attrs["date"] < batch_start_date(self.context["batch"]):
             raise serializers.ValidationError({"date": "A venda não pode anteceder a entrada."})
         if attrs["pricing_basis"] == "carcass_arroba":
             if not attrs.get("price_per_arroba") or not (attrs.get("carcass_weight_kg") or attrs.get("yield_percent")):

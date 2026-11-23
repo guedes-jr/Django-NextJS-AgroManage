@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Loader2, Eye, Baby, HeartHandshake, House, PiggyBank, ScanLine, TrendingUp, Weight } from "lucide-react";
+import { Plus, Loader2, Eye, Baby, Dna, HeartHandshake, House, PiggyBank, ScanLine, TrendingUp, Weight } from "lucide-react";
 import { ReproducaoDashboard, ReproducaoConfig } from "@/components/reproducao/ReproducaoDashboard";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganizationLocale } from "@/lib/locale";
@@ -15,6 +15,7 @@ import {
   getCreches,
   getCrescimentos,
   getEngordas,
+  getReprodutores,
   createAnimal,
   createMating,
   updateAnimal,
@@ -26,12 +27,12 @@ import {
   mergeBatches,
 } from "@/services/livestockService";
 
-type TabId = "dashboard" | "marras" | "matrizes" | "gestacao" | "maternidade" | "creche" | "crescimento" | "engorda";
+type TabId = "dashboard" | "marras" | "matrizes" | "gestacao" | "maternidade" | "creche" | "crescimento" | "engorda" | "reprodutores";
 
 const CACHE_TTL_MS = 30_000;
 const POLL_INTERVAL_MS = 60_000;
 
-const ALL_TABS: TabId[] = ["dashboard", "marras", "matrizes", "gestacao", "maternidade", "creche", "crescimento", "engorda"];
+const ALL_TABS: TabId[] = ["dashboard", "marras", "matrizes", "gestacao", "maternidade", "creche", "crescimento", "engorda", "reprodutores"];
 
 const TAB_FETCH_MAP: Record<TabId, () => Promise<any>> = {
   dashboard: () => getReproductionDashboard('suinos'),
@@ -42,6 +43,7 @@ const TAB_FETCH_MAP: Record<TabId, () => Promise<any>> = {
   creche: () => getCreches('suinos'),
   crescimento: () => getCrescimentos('suinos'),
   engorda: () => getEngordas('suinos'),
+  reprodutores: () => getReprodutores('suinos'),
 };
 
 function ReproducaoPageContent() {
@@ -151,6 +153,7 @@ function ReproducaoPageContent() {
     creche: tabLoading.creche ?? true,
     crescimento: tabLoading.crescimento ?? true,
     engorda: tabLoading.engorda ?? true,
+    reprodutores: tabLoading.reprodutores ?? true,
   };
 
   const m = tab.marras?.kpis || {};
@@ -160,6 +163,7 @@ function ReproducaoPageContent() {
   const cr = tab.creche?.kpis || {};
   const cresc = tab.crescimento?.kpis || {};
   const eng = tab.engorda?.kpis || {};
+  const rep = tab.reprodutores?.kpis || {};
   const formatDateCell = useCallback((value: unknown) => {
     if (!value) return "—";
     const raw = String(value);
@@ -189,6 +193,7 @@ function ReproducaoPageContent() {
       { id: "creche", icon: <House />, label: t("swineReproduction.nursery"), count: tab.creche?.rows?.length ?? 0, color: "#f1fbf5", borderColor: "#bbf7d0", accent: "#249253", summary: `${cr.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
       { id: "crescimento", icon: <TrendingUp />, label: t("swineReproduction.growth"), count: tab.crescimento?.rows?.length ?? 0, color: "#fffbef", borderColor: "#fde68a", accent: "#d59a16", summary: `${cresc.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
       { id: "engorda", icon: <Weight />, label: t("swineReproduction.fattening"), count: tab.engorda?.rows?.length ?? 0, color: "#effafa", borderColor: "#99f6e4", accent: "#168f86", summary: `${eng.animais_alojados ?? 0} ${t("swineReproduction.housedAnimals")}` },
+      { id: "reprodutores", icon: <Dna />, label: t("swineReproduction.reproducers"), count: tab.reprodutores?.rows?.length ?? 0, color: "#f4f4ff", borderColor: "#c7d2fe", accent: "#5a5fd8", summary: t("swineReproduction.dosesInStockSummary", { count: rep.doses_estoque ?? 0 }) },
     ],
     alerts: tab.dashboard?.alerts?.length > 0 ? tab.dashboard.alerts : [],
     activities: [],
@@ -270,6 +275,7 @@ function ReproducaoPageContent() {
             variant: "primary", 
             type: "mating_marra"
           },
+          { label: t("swineReproduction.registerVaccine"), icon: "💉", variant: "secondary", type: "vaccine" },
           { label: t("swineReproduction.discard"), icon: "🚫", variant: "danger", type: "discard" },
         ],
         primaryActionLabel: t("swineReproduction.registerCoverage"),
@@ -302,6 +308,7 @@ function ReproducaoPageContent() {
         tabActions: [
           { label: t("swineReproduction.registerCoverage"), icon: "🤰", color: "oklch(0.55 0.16 230)", desc: t("swineReproduction.newCoverage"), type: 'primary' },
           { label: t("swineReproduction.pregnancyDiagnosis"), icon: "🔬", color: "oklch(0.55 0.16 145)", desc: t("swineReproduction.confirmPregnancy"), type: 'diagnosis' },
+          { label: t("swineReproduction.registerVaccine"), icon: "💉", color: "oklch(0.6 0.22 27)", desc: t("swineReproduction.vaccination"), type: 'vaccine' },
           { label: `${t("swineReproduction.discard")} ${t("swineReproduction.matrix")}`, icon: "🚫", color: "oklch(0.6 0.22 27)", desc: t("swineReproduction.removeFromHerd"), type: 'discard' },
           { label: t("swineReproduction.history"), icon: "📋", color: "oklch(0.78 0.15 85)", desc: t("swineReproduction.viewHistory"), type: 'history' },
         ],
@@ -575,6 +582,7 @@ function ReproducaoPageContent() {
         rowKey: "lote",
         batchActions: [
           { label: t("swineReproduction.registerSale"), icon: "💰", variant: "primary", onClick: () => router.push("/home/seguimento/suinos/vendas") },
+          { label: t("swineReproduction.registerVaccine"), icon: "💉", variant: "secondary", type: "vaccine" },
         ],
         kpis: [
           { label: t("swineReproduction.totalBatches"), value: eng.total ?? 0, icon: "📦", color: "oklch(0.94 0.04 230)", trend: "neutral" },
@@ -586,6 +594,7 @@ function ReproducaoPageContent() {
         ],
         tabActions: [
           { label: t("swineReproduction.registerSale"), icon: "💰", color: "oklch(0.55 0.16 145)", desc: t("swineReproduction.goToAnimalSales"), type: 'sale_redirect' },
+          { label: t("swineReproduction.registerVaccine"), icon: "💉", color: "oklch(0.6 0.22 27)", desc: t("swineReproduction.vaccination"), type: 'vaccine' },
           { label: t("swineReproduction.registerMortality"), icon: "⚠️", color: "oklch(0.58 0.2 25)", desc: t("swineReproduction.writeOffBatch"), type: 'batch_mortality' },
           { label: t("swineReproduction.financialSummary"), icon: "📊", color: "oklch(0.78 0.15 85)", desc: t("swineReproduction.viewBatchReports"), onClick: () => router.push("/home/relatorios/rebanho?tab=batches") },
         ],
@@ -614,11 +623,59 @@ function ReproducaoPageContent() {
           "Em engorda": { label: t("swineReproduction.inFattening"), variant: "blue" },
         },
       } as any,
+      {
+        id: "reprodutores",
+        icon: "🧬",
+        label: t("swineReproduction.reproducers"),
+        count: tab.reprodutores?.rows?.length,
+        selectable: true,
+        rowKey: "id",
+        responsibles: (tab.reprodutores?.responsibles || []).map((user: { id: string; name: string }) => ({ id: user.id, label: user.name })),
+        batchActions: [
+          { label: t("swineReproduction.semenCollection"), icon: "🧪", variant: "primary", type: "semen_collection" },
+          { label: t("swineReproduction.registerWeight"), icon: "⚖️", variant: "secondary", type: "weight" },
+          { label: t("swineReproduction.registerVaccine"), icon: "💉", variant: "secondary", type: "vaccine" },
+        ],
+        kpis: [
+          { label: t("swineReproduction.activeReproducers"), value: rep.total ?? 0, icon: "🐗", color: "oklch(0.94 0.04 270)", trend: "neutral" },
+          { label: t("swineReproduction.collectionsMonth"), value: rep.coletas_mes ?? 0, icon: "🧪", color: "oklch(0.95 0.04 185)", trend: "up" },
+          { label: t("swineReproduction.dosesMonth"), value: rep.doses_mes ?? 0, icon: "💧", color: "oklch(0.94 0.04 230)", trend: "up" },
+          { label: t("swineReproduction.dosesInStock"), value: rep.doses_estoque ?? 0, icon: "📦", color: "oklch(0.97 0.04 80)", trend: "neutral" },
+        ],
+        tabActions: [
+          { label: t("swineReproduction.registerWeight"), icon: "⚖️", color: "oklch(0.55 0.16 230)", desc: t("swineReproduction.updateWeight"), type: 'weight' },
+          { label: t("swineReproduction.registerVaccine"), icon: "💉", color: "oklch(0.6 0.22 27)", desc: t("swineReproduction.vaccination"), type: 'vaccine' },
+          { label: t("swineReproduction.semenCollection"), icon: "🧪", color: "oklch(0.55 0.16 270)", desc: t("swineReproduction.semenCollectionDesc"), type: 'semen_collection' },
+        ],
+        tabAlerts: tab.reprodutores?.alerts || [],
+        tabAiSuggestions: tab.reprodutores?.aiSuggestions || [],
+        columns: [
+          { key: "identifier", label: t("swineReproduction.earTag"), render: (v: unknown) => <span className="repro-table-id">{String(v)}</span> },
+          { key: "peso", label: t("swineReproduction.lastWeight"), render: (v: unknown, row: Record<string, unknown>) => v != null ? `${Number(v).toLocaleString(language, { maximumFractionDigits: 2 })} kg${row.ultima_pesagem ? ` · ${formatDateCell(row.ultima_pesagem)}` : ""}` : "—" },
+          { key: "ultima_vacina", label: t("swineReproduction.lastVaccine"), render: (v: unknown, row: Record<string, unknown>) => v ? `${String(row.vacina || "—")} · ${formatDateCell(v)}` : "—" },
+          { key: "ultima_coleta", label: t("swineReproduction.lastCollection"), render: formatDateCell },
+          { key: "coletas", label: t("swineReproduction.collections") },
+          { key: "doses_estoque", label: t("swineReproduction.dosesInStock"), render: (v: unknown) => Number(v || 0).toLocaleString(language) },
+        ],
+        actions: [
+          {
+            label: t("swineReproduction.technicalSheet"),
+            icon: <Eye size={16} />,
+            variant: "secondary",
+            type: 'technical_sheet',
+          } as unknown as { label: string; icon: React.ReactNode; variant: "secondary"; onClick: () => void }
+        ],
+        rows: tab.reprodutores?.rows || [],
+        statusKey: "status",
+        statusMap: {
+          "ativo": { label: t("swineReproduction.activeStatus"), variant: "green" },
+        },
+      },
     ],
-  }), [tab, d, m, mat, g, matn, cr, cresc, eng, tabLoadingStates, reproducers, activeTab, showToast, refetchTabs, router, setActiveTab, formatDateCell, t, language]);
+  }), [tab, d, m, mat, g, matn, cr, cresc, eng, rep, tabLoadingStates, reproducers, activeTab, showToast, refetchTabs, router, setActiveTab, formatDateCell, t, language]);
 
   const handleSuccess = () => {
-    refetchTabs(["dashboard", "marras", "matrizes", "gestacao", "maternidade", "creche", "crescimento", "engorda"], false, true);
+    refetchTabs(["dashboard", "marras", "matrizes", "gestacao", "maternidade", "creche", "crescimento", "engorda", "reprodutores"], false, true);
   };
 
   return (

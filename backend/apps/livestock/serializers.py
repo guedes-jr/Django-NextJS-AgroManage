@@ -945,10 +945,12 @@ class BatchSaleSerializer(serializers.Serializer):
     buyer = serializers.CharField(max_length=200)
     responsible = serializers.CharField(max_length=200, required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+    close_batch = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs):
         if attrs['mode'] == 'partial' and 'quantity' not in attrs:
             raise serializers.ValidationError({'quantity': translate_message('Informe a quantidade de animais.')})
-        if attrs['date'] < self.context['batch'].entry_date:
+        from .services import batch_start_date
+        if attrs['date'] < batch_start_date(self.context['batch']):
             raise serializers.ValidationError({'date': translate_message('A venda não pode ocorrer antes da entrada do lote.')})
         return attrs

@@ -407,9 +407,6 @@ def enrich_lot_costs(organization, rows):
             }.get(next(iter(origins), ""), "—")
         )
         total, sale = totals[batch_id], sales[batch_id]
-        cost_quantity = (
-            sale_quantities.get(batch_id) if batch.status == "sold" else batch.quantity
-        )
         # A closed lot keeps its last quantity on the model; nobody is left in it.
         current_quantity = batch.quantity if batch.status == "active" else 0
         # Original lot size: entry record, else first phase entry, else what is left + what left it.
@@ -417,7 +414,11 @@ def enrich_lot_costs(organization, rows):
         if total_quantity is None and histories[batch_id]:
             total_quantity = histories[batch_id][0].quantity
         if total_quantity is None:
-            total_quantity = current_quantity + sold_quantities[batch_id] + death_quantities[batch_id]
+            # The closing sale records every animal sold; partial sales may be part of it.
+            sold = max(sold_quantities[batch_id], int(sale_quantities.get(batch_id) or 0))
+            total_quantity = current_quantity + sold + death_quantities[batch_id]
+        # Cost per animal = lot total cost / total lot size (entry quantity), not the animals left or sold.
+        cost_quantity = int(total_quantity) or None
         row.update(
             reproduction_allocation_pending=batch_id
             in sire_allocation["pending_batches"],

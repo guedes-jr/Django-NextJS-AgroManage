@@ -18,6 +18,7 @@ import {
   QuickAction,
 } from "./ReproducaoTabContent";
 import { ReproducaoModal, ModalField } from "./ReproducaoModal";
+import { SemenCollectionModal } from "./SemenCollectionModal";
 import { apiClient } from "@/services/api";
 import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
 import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
@@ -62,11 +63,13 @@ export interface TabConfig {
     icon: string;
     color: string;
     desc: string;
-    type?: 'primary' | 'weight' | 'vaccine' | 'postpartum_vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet' | 'batch_mortality' | 'sale_redirect';
+    type?: 'primary' | 'weight' | 'vaccine' | 'postpartum_vaccine' | 'diagnosis' | 'birth' | 'wean' | 'transfer' | 'discard' | 'promote' | 'mating_marra' | 'transfer_crescimento' | 'transfer_engorda' | 'technical_sheet' | 'batch_mortality' | 'sale_redirect' | 'semen_collection';
     onClick?: () => void;
   }[];
   tabAlerts?: AlertItem[];
   tabAiSuggestions?: AiSuggestion[];
+  /** Users who can be chosen as responsible (Reprodutores › Coleta de sêmen). */
+  responsibles?: { id: string; label: string }[];
   selectable?: boolean;
   rowKey?: string;
   batchActions?: BatchAction<TableRow>[];
@@ -325,6 +328,7 @@ export function ReproducaoDashboard({
   useEffect(() => {
     setSelectedRows([]);
   }, [activeTab]);
+  const [semenModal, setSemenModal] = useState<{ open: boolean; animal?: string }>({ open: false });
   const [actionModal, setActionModal] = useState<{
     open: boolean;
     title: string;
@@ -594,7 +598,12 @@ export function ReproducaoDashboard({
         });
         break;
       }
-      case 'weight':
+      case 'weight': {
+        // With nothing selected, every animal/lot of the tab is offered.
+        const weightOptions = rows.length > 0 ? animalOptions : (currentTab?.rows || []).map((r: Record<string, unknown>) => ({
+          value: String(r.animal_id || r.id || r.pk || ""),
+          label: String(r.identifier || r.lote || r.batch_code || r.name || t("reproduction.noIdentifier")),
+        })).filter((o: { value: string }) => o.value);
         setActionModal({
           open: true,
           title: t("reproduction.weightTitle"),
@@ -603,8 +612,9 @@ export function ReproducaoDashboard({
             {
               name: "id",
               label: t("reproduction.animalOrBatch"),
-              type: animalOptions.length > 0 ? "select" : "text",
-              options: animalOptions,
+              type: weightOptions.length > 0 ? "select" : "text",
+              options: weightOptions,
+              initialValue: rows.length === 1 ? weightOptions[0]?.value : undefined,
               placeholder: t("reproduction.earTagOrBatch"),
               required: true
             },
@@ -624,6 +634,10 @@ export function ReproducaoDashboard({
           }
         });
         break;
+      }
+      case 'semen_collection':
+        setSemenModal({ open: true, animal: rows.length === 1 ? String(rows[0].id) : undefined });
+        break;
       case 'vaccine': {
         const isBatchVaccination = ["creche", "crescimento", "engorda"].includes(currentTab?.id || "");
         const vaccineOpts = (vaccineItems || []).map(v => ({
@@ -633,11 +647,11 @@ export function ReproducaoDashboard({
             unit: v.unidade_display || v.unidade_medida || "un",
           })})` : ''}`,
         }));
-        const targetRows = isBatchVaccination
-          ? (rows.length > 0 ? rows : (currentTab?.rows || []))
-          : rows;
+        // Selected rows first; with nothing selected, every animal/lot of the tab is offered.
+        const targetRows = rows.length > 0 ? rows : (currentTab?.rows || []);
         const targetOptions = targetRows.map((row: any) => ({
-          value: String(row.id || row.pk || ""),
+          // Individual tabs may list another record per row (e.g. a gestation): vaccinate its animal.
+          value: String((isBatchVaccination ? row.id : row.animal_id || row.id) || row.pk || ""),
           label: String(row.lote || row.batch_code || row.identifier || row.name || t("reproduction.batch")),
         })).filter((option: { value: string }) => option.value);
         setActionModal({
@@ -2191,6 +2205,24 @@ export function ReproducaoDashboard({
         confirmLabel={t("reproduction.confirm")}
         onConfirm={actionModal.onConfirm}
       />
+
+      {/* ─── Reprodutores › Coleta de sêmen ─── */}
+      {semenModal.open && (() => {
+        const reproducersTab = config.tabs.find(tab => tab.id === "reprodutores");
+        return (
+          <SemenCollectionModal
+            initialAnimal={semenModal.animal}
+            reproducers={(reproducersTab?.rows || []).map((row: Record<string, unknown>) => ({ id: String(row.id), label: String(row.identifier) }))}
+            responsibles={reproducersTab?.responsibles || []}
+            onClose={() => setSemenModal({ open: false })}
+            onSaved={(doses) => {
+              setSemenModal({ open: false });
+              showToast(t("semen.saved", { count: doses }), "success");
+              onSuccess?.();
+            }}
+          />
+        );
+      })()}
 
       {/* ─── No Reproducers Warning Modal ─── */}
       {noReproducersWarningOpen && (

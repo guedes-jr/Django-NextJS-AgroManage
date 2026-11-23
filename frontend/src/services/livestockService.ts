@@ -149,6 +149,21 @@ export const registerBatchWeight = async (batchId: number | string, data: { weig
   return response.data;
 };
 
+export const getReprodutores = async (species = "suinos") => {
+  const response = await apiClient.get(`/livestock/reprodutores/?species=${species}`);
+  return response.data;
+};
+
+export type SemenCollectionPayload = {
+  animal: string; collection_date: string; volume_ml: string; responsible: string; diluted: boolean;
+  doses_produced: number; notes?: string; components: { item: string; quantity: string; unit: string }[];
+};
+
+export const registerSemenCollection = async (data: SemenCollectionPayload) => {
+  const response = await apiClient.post("/livestock/semen-collections/", data);
+  return response.data;
+};
+
 export const registerVaccination = async (animalId: number | string, data: { vaccine_name?: string; vaccine_item_id?: string; application_date?: string; dose_type?: string; dosage_ml?: number; notes?: string }) => {
   const response = await apiClient.post(`/livestock/animals/${animalId}/register-vaccination/`, data);
   return response.data;
