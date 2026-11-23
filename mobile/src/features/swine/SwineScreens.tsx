@@ -10,8 +10,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { AgendaButton, Busy, styles as s } from '../agenda/ui';
 import { HomeIcon, type HomeIconName } from '../home/HomeIcon';
 import { WorkspaceShell } from '../workspace/WorkspaceShell';
-import { SwineBatchWeightUnconfirmed, SwineDiagnosisContextChanged, SwineDiagnosisUnconfirmed, SwineMatingUnconfirmed } from '../../services/authApi';
-import { canReadSwine, canWriteSwine, matchesSwineDiagnosis, swineBatchWeightCommandSchema, swineDiagnosisInputSchema, swineMatingCommandSchema, swinePhaseSchema, swinePhases, type SwineAnimalDetail, type SwineBatchHistoryEvent, type SwineBatchWeightCommand, type SwineBatchWeightReceipt, type SwineDiagnosisInput, type SwineDiagnosisReceipt, type SwineMatingCommand, type SwineMatingReceipt, type SwinePhase, type SwinePhaseRow, type SwineRecordDetail } from './contracts';
+import { SwineBatchWeightUnconfirmed, SwineBirthContextChanged, SwineBirthUnconfirmed, SwineDiagnosisContextChanged, SwineDiagnosisUnconfirmed, SwineMatingUnconfirmed } from '../../services/authApi';
+import { canReadSwine, canWriteSwine, matchesSwineBirth, matchesSwineDiagnosis, swineBirthInputSchema, swineBatchWeightCommandSchema, swineDiagnosisInputSchema, swineMatingCommandSchema, swinePhaseSchema, swinePhases, type SwineAnimalDetail, type SwineBatchHistoryEvent, type SwineBatchWeightCommand, type SwineBatchWeightReceipt, type SwineBirthInput, type SwineBirthReceipt, type SwineDiagnosisInput, type SwineDiagnosisReceipt, type SwineMatingCommand, type SwineMatingReceipt, type SwinePhase, type SwinePhaseRow, type SwineRecordDetail } from './contracts';
 import { swineMessages, swineStatusLabel } from './messages';
 import { workspaceMessages } from '../workspace/messages';
 
@@ -712,6 +712,170 @@ function SwineBatchWeighing({ detail, copy, language }: { detail: Extract<SwineR
   </View>;
 }
 
+function swineBirthError(error: unknown, copy: (typeof swineMessages)[keyof typeof swineMessages]) {
+  if (error instanceof SwineBirthUnconfirmed) return copy.birthUnconfirmed;
+  if (error instanceof SwineBirthContextChanged) return copy.birthChanged;
+  if (isAxiosError(error)) {
+    const status = error.response?.status;
+    if ([401, 403, 404].includes(status ?? 0)) return copy.denied;
+    if (status === 409) return copy.birthChanged;
+    const collect = (value: unknown): string[] => typeof value === 'string'
+      ? [value]
+      : Array.isArray(value) ? value.flatMap(collect) : value && typeof value === 'object' ? Object.values(value).flatMap(collect) : [];
+    const messages = collect(error.response?.data);
+    if (messages.length) return messages.join(' ');
+  }
+  return copy.birthError;
+}
+
+function SwineBirth({ detail, copy, language }: { detail: Extract<SwineRecordDetail, { kind: 'pregnancy' }>; copy: (typeof swineMessages)[keyof typeof swineMessages]; language: string }) {
+  const { state, controller } = useAuth();
+  const queryClient = useQueryClient();
+  const [birthDate, setBirthDate] = useState('');
+  const [liveBorn, setLiveBorn] = useState('');
+  const [stillborn, setStillborn] = useState('0');
+  const [mummified, setMummified] = useState('0');
+  const [weight, setWeight] = useState('');
+  const [weaningDays, setWeaningDays] = useState('');
+  const [notes, setNotes] = useState('');
+  const [review, setReview] = useState<SwineBirthInput | null>(null);
+  const [receipt, setReceipt] = useState<SwineBirthReceipt | null>(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [stale, setStale] = useState(false);
+  const savingLock = useRef(false);
+  const allowed = state.status === 'signedIn' && canWriteSwine(state.session.user);
+  const sessionKey = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : 'signed-out';
+  const pregnancyId = String(detail.data.id);
+  const ongoing = detail.data.status === 'ongoing' && detail.animal.status === 'active' && detail.animal.reproductive_status === 'gestante';
+  const query = useQuery({
+    queryKey: ['swine-birth-options', sessionKey, pregnancyId],
+    enabled: allowed && ongoing,
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: ({ signal }) => controller.swineBirthOptions(pregnancyId, signal),
+  });
+  const card = [s.card, { width: '100%' as const, maxWidth: 880, alignSelf: 'center' as const }];
+
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['swine-record-detail', sessionKey, detail.phase, pregnancyId] }),
+    ...(['gestacao', 'maternidade', 'marras', 'matrizes'] as const).flatMap(changedPhase => [
+      queryClient.invalidateQueries({ queryKey: ['swine-phase-page', sessionKey, changedPhase] }),
+      queryClient.invalidateQueries({ queryKey: ['swine-phase-summary', sessionKey, changedPhase] }),
+    ]),
+  ]);
+
+  if (!allowed) return null;
+  if (receipt) return <View style={card}>
+    <Text accessibilityRole="header" style={s.title}>{copy.birthSaved}</Text>
+    <Text style={s.body}>{copy.birthOrder}: {formatNumber(receipt.birth_order, language, 0)}</Text>
+    <Text style={s.body}>{copy.bornAlive}: {formatNumber(receipt.live_born, language, 0)} · {copy.stillborn}: {formatNumber(receipt.stillborn, language, 0)} · {copy.mummified}: {formatNumber(receipt.mummified, language, 0)}</Text>
+    <Text style={s.body}>{copy.expectedWeaningDate}: {formatDate(receipt.expected_weaning_date, language)}</Text>
+  </View>;
+  if (!ongoing && !unconfirmed && !stale) return null;
+  if (stale) return <View style={card}>
+    <Text accessibilityRole="alert" style={s.error}>{error || copy.birthChanged}</Text>
+    <AgendaButton label={copy.birthCheckHistory} onPress={() => void refresh()}/>
+  </View>;
+  if (query.isPending && !unconfirmed) return <View style={card}><Busy label={copy.loading}/></View>;
+  if (query.isError && !unconfirmed) return <View style={card}>
+    <Text accessibilityRole="alert" style={s.error}>{isAccessDenied(query.error) ? copy.denied : copy.birthUnavailable}</Text>
+    <AgendaButton label={copy.retry} onPress={() => void query.refetch()}/>
+  </View>;
+  const options = query.data;
+  if (!options && !review) return <View style={card}><Text accessibilityRole="alert" style={s.error}>{copy.birthUnavailable}</Text></View>;
+
+  const count = (value: string) => /^\d{1,2}$/.test(value.trim()) ? Number(value.trim()) : Number.NaN;
+  const makeReview = () => {
+    if (!options) return;
+    const command = swineBirthInputSchema.safeParse({
+      request_key: randomUUID(),
+      expected_farm: options.animal.farm,
+      expected_pregnancy: options.pregnancy.id,
+      animal_version: options.animal.version,
+      pregnancy_version: options.pregnancy.version,
+      birth_date: birthDate || options.today,
+      live_born: count(liveBorn),
+      stillborn: count(stillborn),
+      mummified: count(mummified),
+      avg_weight_kg: weight.trim() ? weight : null,
+      expected_weaning_days: weaningDays.trim() ? count(weaningDays) : options.default_weaning_days,
+      notes,
+    });
+    if (!command.success || !matchesSwineBirth(options, command.data)) {
+      setError(copy.birthInvalid);
+      return;
+    }
+    setError('');
+    setReview(command.data);
+  };
+  const submit = async () => {
+    if (!review || savingLock.current) return;
+    savingLock.current = true;
+    setSaving(true);
+    setError('');
+    try {
+      const saved = await controller.recordSwineBirth(pregnancyId, review);
+      setReceipt(saved);
+      setReview(null);
+      setUnconfirmed(false);
+      await refresh();
+    } catch (caught) {
+      setError(swineBirthError(caught, copy));
+      if (caught instanceof SwineBirthUnconfirmed) setUnconfirmed(true);
+      else if (caught instanceof SwineBirthContextChanged || isAxiosError(caught) && caught.response?.status === 409) setStale(true);
+    } finally {
+      savingLock.current = false;
+      setSaving(false);
+    }
+  };
+  const expectedWeaning = (day: string, days: number) => {
+    const date = new Date(`${day}T12:00:00`);
+    date.setDate(date.getDate() + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+  const field = (label: string, value: string, onChange: (value: string) => void, props: Partial<React.ComponentProps<typeof TextInput>> = {}) => <>
+    <Text style={s.label}>{label}</Text>
+    <TextInput accessibilityLabel={label} style={s.input} value={value} onChangeText={onChange} {...props}/>
+  </>;
+
+  return <View style={card}>
+    <Text accessibilityRole="header" style={s.title}>{copy.birthTitle}</Text>
+    {review ? <>
+      <Text style={s.muted}>{copy.birthReviewHint}</Text>
+      <Text style={s.body}>{copy.birthDate}: {formatDate(review.birth_date, language)}</Text>
+      {options ? <Text style={s.body}>{copy.birthOrder}: {formatNumber(options.birth_order, language, 0)}</Text> : null}
+      <Text style={s.body}>{copy.totalBornLabel}: {formatNumber(review.live_born + review.stillborn + review.mummified, language, 0)}</Text>
+      <Text style={s.body}>{copy.bornAlive}: {formatNumber(review.live_born, language, 0)} · {copy.stillborn}: {formatNumber(review.stillborn, language, 0)} · {copy.mummified}: {formatNumber(review.mummified, language, 0)}</Text>
+      {review.avg_weight_kg ? <Text style={s.body}>{copy.avgBirthWeight}: {formatWeight(Number(review.avg_weight_kg), language)}</Text> : null}
+      <Text style={s.body}>{copy.expectedWeaningDate}: {formatDate(expectedWeaning(review.birth_date, review.expected_weaning_days), language)}</Text>
+      {review.notes ? <Text style={s.body}>{copy.notes}: {review.notes}</Text> : null}
+      {error ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}
+      <View style={s.row}>
+        <AgendaButton label={saving ? copy.loading : unconfirmed ? copy.retry : copy.confirmBirth} disabled={saving} onPress={() => void submit()}/>
+        {!unconfirmed && <AgendaButton label={copy.editBirth} disabled={saving} onPress={() => {
+          setReview(null);
+          setError('');
+        }}/>}
+      </View>
+    </> : options ? <>
+      <Text style={s.muted}>{copy.birthHint}</Text>
+      <Text style={s.body}>{copy.startDate}: {formatDate(options.pregnancy.start_date, language)}{options.pregnancy.expected_birth_date ? ` · ${copy.expectedBirth}: ${formatDate(options.pregnancy.expected_birth_date, language)}` : ''}</Text>
+      <Text style={s.body}>{copy.birthOrder}: {formatNumber(options.birth_order, language, 0)}</Text>
+      {field(copy.birthDate, birthDate || options.today, setBirthDate, { keyboardType: 'numbers-and-punctuation', placeholder: 'YYYY-MM-DD', maxLength: 10 })}
+      {field(copy.bornAlive, liveBorn, setLiveBorn, { keyboardType: 'number-pad', maxLength: 2 })}
+      {field(copy.stillborn, stillborn, setStillborn, { keyboardType: 'number-pad', maxLength: 2 })}
+      {field(copy.mummified, mummified, setMummified, { keyboardType: 'number-pad', maxLength: 2 })}
+      {field(copy.avgBirthWeight, weight, setWeight, { keyboardType: 'decimal-pad', placeholder: copy.birthWeightHint, maxLength: 5 })}
+      {field(copy.expectedWeaningDays, weaningDays || String(options.default_weaning_days), setWeaningDays, { keyboardType: 'number-pad', maxLength: 2 })}
+      {field(copy.notes, notes, setNotes, { multiline: true, maxLength: 1000 })}
+      {error ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}
+      <AgendaButton label={copy.reviewBirth} onPress={makeReview}/>
+    </> : null}
+  </View>;
+}
+
 function SwineDetailContent({ detail, copy, language }: { detail: SwineRecordDetail; copy: (typeof swineMessages)[keyof typeof swineMessages]; language: string }) {
   if (detail.kind === 'animal') {
     return <>
@@ -731,6 +895,7 @@ function SwineDetailContent({ detail, copy, language }: { detail: SwineRecordDet
         [copy.notes, detail.data.notes ?? null],
       ]}/>
       <SwineReproductiveHistory animal={detail.animal} copy={copy} language={language}/>
+      <SwineBirth detail={detail} copy={copy} language={language}/>
     </>;
   }
   if (detail.kind === 'birth') {

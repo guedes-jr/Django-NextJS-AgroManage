@@ -21,13 +21,6 @@ export const swinePhaseQuerySchema = z.object({
   page_size: z.number().int().min(1).max(100),
 });
 export type SwinePhaseQuery = z.infer<typeof swinePhaseQuerySchema>;
-export const swinePhaseDetailSchema = z.object({
-  id: z.uuid(), phase: swinePhaseSchema, kind: z.enum(['animal', 'batch', 'pregnancy', 'birth']), identifier: z.string(), status: z.string(),
-  farm: z.object({ id: z.uuid(), name: z.string() }),
-  dates: z.object({ birth: z.string().nullable(), entry: z.string().nullable(), phase_start: z.string().nullable(), forecast: z.string().nullable() }),
-  events: z.array(z.object({ type: z.string(), date: z.string(), title: z.string(), subtitle: z.string() })).max(5),
-});
-export type SwinePhaseDetail = z.infer<typeof swinePhaseDetailSchema>;
 
 const recordId = z.union([z.string().min(1), z.number().int()]);
 type RecordId = z.infer<typeof recordId>;
@@ -185,6 +178,78 @@ export function matchesSwineDiagnosis(options: SwineDiagnosisOptions, input: Swi
     && options.allowed_results.includes(input.result)
     && options.mating.date <= input.diagnosis_date
     && input.diagnosis_date <= options.today;
+}
+
+const pigletCount = z.number().int().min(0).max(40);
+export const swineBirthOptionsSchema = z.object({
+  today: z.iso.date(),
+  timezone: z.string().min(1),
+  animal: z.object({
+    id: z.uuid(),
+    identifier: z.string(),
+    category: z.string().nullable(),
+    farm: z.uuid(),
+    farm_name: z.string(),
+    version: z.iso.datetime({ offset: true }),
+  }).strict(),
+  pregnancy: z.object({
+    id: z.uuid(),
+    start_date: z.iso.date(),
+    expected_birth_date: z.iso.date().nullable(),
+    version: z.iso.datetime({ offset: true }),
+  }).strict(),
+  birth_order: z.number().int().positive(),
+  default_weaning_days: z.number().int().min(1).max(90),
+  max_piglets: z.number().int().positive(),
+}).strict();
+export type SwineBirthOptions = z.infer<typeof swineBirthOptionsSchema>;
+
+const swineBirthWeight = z.string().trim().regex(/^\d{1,2}(?:[.,]\d{1,2})?$/)
+  .transform(value => Number(value.replace(',', '.')).toFixed(2))
+  .refine(value => Number(value) > 0 && Number(value) <= 10);
+export const swineBirthInputSchema = z.object({
+  request_key: z.uuid(),
+  expected_farm: z.uuid(),
+  expected_pregnancy: z.uuid(),
+  animal_version: z.iso.datetime({ offset: true }),
+  pregnancy_version: z.iso.datetime({ offset: true }),
+  birth_date: z.iso.date(),
+  live_born: pigletCount,
+  stillborn: pigletCount,
+  mummified: pigletCount,
+  avg_weight_kg: swineBirthWeight.nullable(),
+  expected_weaning_days: z.number().int().min(1).max(90),
+  notes: z.string().trim().max(1000),
+}).strict().refine(value => {
+  const total = value.live_born + value.stillborn + value.mummified;
+  return total >= 1 && total <= 40;
+}, { path: ['live_born'] });
+export type SwineBirthInput = z.infer<typeof swineBirthInputSchema>;
+
+export const swineBirthReceiptSchema = z.object({
+  id: z.uuid(),
+  pregnancy: z.uuid(),
+  animal: z.uuid(),
+  request_key: z.uuid(),
+  birth_date: z.iso.date(),
+  birth_order: z.number().int().positive(),
+  live_born: pigletCount,
+  stillborn: pigletCount,
+  mummified: pigletCount,
+  batch: z.uuid().nullable(),
+  expected_weaning_date: z.iso.date(),
+  status: z.string().min(1),
+}).strict();
+export type SwineBirthReceipt = z.infer<typeof swineBirthReceiptSchema>;
+
+export function matchesSwineBirth(options: SwineBirthOptions, input: SwineBirthInput) {
+  return options.animal.farm === input.expected_farm
+    && options.pregnancy.id === input.expected_pregnancy
+    && options.animal.version === input.animal_version
+    && options.pregnancy.version === input.pregnancy_version
+    && options.pregnancy.start_date <= input.birth_date
+    && input.birth_date <= options.today
+    && input.live_born + input.stillborn + input.mummified <= options.max_piglets;
 }
 
 const pageFields = z.object({

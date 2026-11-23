@@ -36,5 +36,6 @@ test('shared navigation keeps native routes distinct from unavailable web module
   assert.deepEqual(nativeDestination('feeding'),{pathname:'/feeding'});assert.deepEqual(nativeDestination('feeding',true),{pathname:'/feeding'});
   assert.deepEqual(nativeDestination('profile'),{pathname:'/profile'});
   assert.equal(nativeDestination('profile',true),null);assert.deepEqual(nativeDestination('inventory'),{pathname:'/inventory'});assert.deepEqual(nativeDestination('inventory',true),{pathname:'/inventory/form',params:{kind:'items'}});
-  for(const key of moduleKeys.filter(key=>!['agenda','beef','dairy','profile','inventory','feeding','notifications','clinic'].includes(key)))assert.equal(nativeDestination(key),null);
+  assert.deepEqual(nativeDestination('swine'),{pathname:'/swine'});assert.equal(nativeDestination('swine',true),null);
+  for(const key of moduleKeys.filter(key=>!['agenda','beef','dairy','profile','inventory','feeding','notifications','clinic','swine'].includes(key)))assert.equal(nativeDestination(key),null);
 });

@@ -114,6 +114,24 @@ type Copy = {
   diagnosisChanged: string;
   diagnosisUnavailable: string;
   diagnosisCheckHistory: string;
+  birthTitle: string;
+  birthHint: string;
+  birthOrder: string;
+  birthCounts: string;
+  reviewBirth: string;
+  birthReviewHint: string;
+  confirmBirth: string;
+  editBirth: string;
+  birthSaved: string;
+  birthInvalid: string;
+  birthUnavailable: string;
+  birthUnconfirmed: string;
+  birthChanged: string;
+  birthError: string;
+  birthCheckHistory: string;
+  expectedWeaningDate: string;
+  birthWeightHint: string;
+  totalBornLabel: string;
   diagnosisLimited: string;
   bornAlive: string;
   currentAlive: string;
@@ -245,6 +263,24 @@ const pt: Copy = {
   diagnosisChanged: 'A matriz ou a cobertura mudou desde a abertura desta tela. Confira o histórico e reabra a ficha.',
   diagnosisUnavailable: 'Não há cobertura pendente elegível para diagnóstico nesta ficha.',
   diagnosisCheckHistory: 'Conferir histórico reprodutivo',
+  birthTitle: 'Registrar parto',
+  birthHint: 'Informe o que foi contado no parto. A gestação é encerrada, a fêmea passa a lactante e a leitegada vira lote de maternidade.',
+  birthOrder: 'Ordem do parto',
+  birthCounts: 'Leitões',
+  reviewBirth: 'Revisar parto',
+  birthReviewHint: 'Confira os números antes de gravar; o servidor confirma o resultado.',
+  confirmBirth: 'Confirmar parto',
+  editBirth: 'Editar parto',
+  birthSaved: 'Parto registrado',
+  birthInvalid: 'Revise a data (entre o início da gestação e hoje) e as contagens: ao menos 1 e no máximo 40 leitões.',
+  birthUnavailable: 'Não foi possível carregar os dados para o parto.',
+  birthUnconfirmed: 'Não foi possível confirmar se o parto foi gravado. Tente novamente com os mesmos dados ou confira o histórico.',
+  birthChanged: 'A gestação ou a matriz mudou. Atualize a ficha antes de registrar o parto.',
+  birthError: 'Não foi possível registrar o parto.',
+  birthCheckHistory: 'Atualizar ficha',
+  expectedWeaningDate: 'Desmame previsto (estimativa)',
+  birthWeightHint: 'Opcional, em kg (ex.: 1,45)',
+  totalBornLabel: 'Total de nascidos',
   diagnosisLimited: 'A previsão da cobertura não é válida para confirmar gestação. Somente o resultado negativo está disponível; confira o cadastro no web.',
   bornAlive: 'Nascidos vivos',
   currentAlive: 'Vivos atualmente',
@@ -404,6 +440,24 @@ const en: Copy = {
   diagnosisChanged: 'The female or mating changed after this page was opened. Check history and reopen the record.',
   diagnosisUnavailable: 'No eligible pending mating is available for diagnosis on this record.',
   diagnosisCheckHistory: 'Check reproductive history',
+  birthTitle: 'Record farrowing',
+  birthHint: 'Enter what was counted at farrowing. The pregnancy is closed, the sow becomes lactating and the litter becomes a maternity batch.',
+  birthOrder: 'Parity',
+  birthCounts: 'Piglets',
+  reviewBirth: 'Review farrowing',
+  birthReviewHint: 'Check the numbers before saving; the server confirms the result.',
+  confirmBirth: 'Confirm farrowing',
+  editBirth: 'Edit farrowing',
+  birthSaved: 'Farrowing recorded',
+  birthInvalid: 'Check the date (between pregnancy start and today) and counts: at least 1 and at most 40 piglets.',
+  birthUnavailable: 'Could not load farrowing data.',
+  birthUnconfirmed: 'Could not confirm whether the farrowing was saved. Retry with the same data or check the history.',
+  birthChanged: 'The pregnancy or the sow changed. Refresh the record before recording the farrowing.',
+  birthError: 'Could not record the farrowing.',
+  birthCheckHistory: 'Refresh record',
+  expectedWeaningDate: 'Expected weaning (estimate)',
+  birthWeightHint: 'Optional, in kg (e.g. 1.45)',
+  totalBornLabel: 'Total born',
   diagnosisLimited: 'The mating forecast is not valid for confirming pregnancy. Only a negative result is available; check the record on the web.',
   bornAlive: 'Live-born',
   currentAlive: 'Currently alive',
@@ -563,6 +617,24 @@ const es: Copy = {
   diagnosisChanged: 'La hembra o la cubrición cambió desde que se abrió esta ficha. Consulta el historial y vuelve a abrir el registro.',
   diagnosisUnavailable: 'No hay una cubrición pendiente elegible para diagnóstico en esta ficha.',
   diagnosisCheckHistory: 'Consultar historial reproductivo',
+  birthTitle: 'Registrar parto',
+  birthHint: 'Indique lo contado en el parto. La gestación se cierra, la cerda pasa a lactante y la camada se convierte en lote de maternidad.',
+  birthOrder: 'Orden del parto',
+  birthCounts: 'Lechones',
+  reviewBirth: 'Revisar parto',
+  birthReviewHint: 'Compruebe los números antes de guardar; el servidor confirma el resultado.',
+  confirmBirth: 'Confirmar parto',
+  editBirth: 'Editar parto',
+  birthSaved: 'Parto registrado',
+  birthInvalid: 'Revise la fecha (entre el inicio de la gestación y hoy) y los conteos: al menos 1 y como máximo 40 lechones.',
+  birthUnavailable: 'No fue posible cargar los datos del parto.',
+  birthUnconfirmed: 'No fue posible confirmar si el parto se guardó. Reintente con los mismos datos o consulte el historial.',
+  birthChanged: 'La gestación o la cerda cambió. Actualice la ficha antes de registrar el parto.',
+  birthError: 'No fue posible registrar el parto.',
+  birthCheckHistory: 'Actualizar ficha',
+  expectedWeaningDate: 'Destete previsto (estimación)',
+  birthWeightHint: 'Opcional, en kg (ej.: 1,45)',
+  totalBornLabel: 'Total de nacidos',
   diagnosisLimited: 'La previsión de la cubrición no es válida para confirmar la gestación. Solo está disponible el resultado negativo; revisa el registro en la web.',
   bornAlive: 'Nacidos vivos',
   currentAlive: 'Vivos actualmente',

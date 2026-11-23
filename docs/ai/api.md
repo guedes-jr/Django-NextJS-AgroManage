@@ -361,13 +361,39 @@ mobile screen blocks resubmission after an uncertain response and directs the
 user to refresh history; calls without `view=mobile` retain the existing web
 behavior.
 
+`GET livestock/pregnancies/{id}/mobile-birth/?species=suinos` returns the
+ongoing swine pregnancy (start/expected farrowing dates and version), the
+gestating gilt/sow (farm, category and version), the next `birth_order`,
+`default_weaning_days` and `max_piglets` (40), plus server-local
+`today`/`timezone`. Completed pregnancies, an existing birth or a female that is
+not active and gestating return 409.
+
+`POST livestock/pregnancies/{id}/record-birth/?species=suinos&view=mobile`
+accepts only `request_key`, `expected_farm`, `expected_pregnancy`,
+`animal_version`, `pregnancy_version`, `birth_date`, `live_born`, `stillborn`,
+`mummified`, optional `avg_weight_kg` (0.01–10), `expected_weaning_days`
+(1–90) and `notes`. At least one and at most 40 piglets in total; the date must
+be between pregnancy start and today. Under row locks the server rechecks the
+versions, creates the birth (closing the pregnancy, promoting a gilt to sow,
+incrementing parity and setting the female lactating), materializes the litter
+as a maternity batch and adds an authored `Parto` history event. It returns
+`{id, pregnancy, animal, request_key, birth_date, birth_order, live_born,
+stillborn, mummified, batch, expected_weaning_date, status}` with 201, or 200
+for a retry with the same `request_key` and command; the same key with another
+command returns 409. The route only exists with `view=mobile`; the web keeps
+creating births through `POST livestock/births/`.
+
 `GET livestock/swine/phases/<phase>/<uuid:pk>/mobile/?view=mobile` is the
 read-only detail projection for rows with UUID IDs from those lists. It verifies
 organization, species and current phase before returning identifier, phase,
 farm identity/name, status, known dates and up to five operational-history
 events. It omits financial values and is not available for synthetic pending
 diagnosis rows (`cob_<animal-id>`), which remain list-only until their specific
-detail contract exists.
+detail contract exists. The mobile app does not consume this projection: its
+full record screen composes `livestock/animals/{id}/`, `pregnancies/{id}/`,
+`births/{id}/` and `batches/{id}/` (all with `species=suinos`) plus the paginated
+batch history, because it needs reproductive history and write context that
+this summary does not carry.
 
 ## Tenant roles and operator scope
 

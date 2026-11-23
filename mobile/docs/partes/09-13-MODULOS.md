@@ -314,11 +314,23 @@ implementados. Testes automatizados permanecem adiados.
 (cartões compactos e resumo em modal com os dados da lista); o resumo oferece
 "Ver ficha completa", que abre a ficha P11-B/C por `swineRecordDetail`. O
 remoto também expõe `swinePhaseDetail` (`swine/phases/<fase>/<id>/mobile/`,
-até cinco eventos), ainda sem consumidor na tela; antes de novas fichas,
-escolher um único contrato de detalhe. Pendências desta parte: testes de
-contrato no app e testes de backend com `species=suinos` para pesagem,
-cobertura e diagnóstico (os existentes cobrem bovinos de leite), além da
-homologação Android/iOS.
+até cinco eventos); o app adotou somente `swineRecordDetail` e o wrapper sem
+uso foi removido, mantendo o endpoint no backend. Testes de contrato no app e
+`backend/apps/livestock/tests/test_mobile_swine_writes.py` cobrem pesagem,
+cobertura, diagnóstico e parto com `species=suinos`.
+
+**Incremento P11.07 — parto suíno (23/11/2026):** a ficha de gestação em
+andamento oferece registro online do parto: data, nascidos vivos, natimortos,
+mumificados, peso médio opcional, dias previstos até o desmame e observações,
+com revisão antes da gravação. `GET pregnancies/{id}/mobile-birth/` entrega
+gestação, matriz, versões, ordem do parto e limites; `POST
+pregnancies/{id}/record-birth/?view=mobile` revalida versões sob bloqueio,
+encerra a gestação, promove marrã a matriz, incrementa a ordem, deixa a fêmea
+lactante, cria o lote de maternidade e registra o histórico. A mesma chave
+repete o recibo após resultado incerto; outro comando com a mesma chave
+retorna conflito. O desmame previsto é exibido como estimativa. P11.07 segue
+parcial: desmame e perda gestacional ainda não têm escrita nativa.
+Homologação Android/iOS adiada para o final, por decisão do usuário.
 
 ### Ordem interna sugerida
 

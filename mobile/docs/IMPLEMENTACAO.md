@@ -189,7 +189,7 @@ O passo 4 não precisa esperar todos os módulos nem persistência offline. P17 
 6. P07.17-A/B implementados: histórico paginado e formulário multi-grupo com seleção paginada de animais/rações, revisão explícita, estimativas identificadas, escrita online, recibo idempotente e cancelamento justificável. Acesso permanece restrito a admin/gestor; feeder/tratador e operador continuam no trato diário existente. Nenhum envio operacional real foi feito; a homologação visual/nativa ainda é necessária.
 7. Por solicitação do usuário (15/11/2026), P11-A/B/C avançaram antes da rodada final de testes: hub, listas paginadas, fichas, histórico de lotes, pesagem média online, cobertura e diagnóstico de gestação vinculados à cobertura pendente. Previsões do servidor são identificadas como estimativas; pesagem não muda a fase. Escritas de pesagem/cobertura são repetíveis pela mesma chave após resultado incerto; diagnóstico bloqueia novo envio incerto e pede conferência do histórico. Typecheck, lint e sintaxe Python aprovados. Testes automatizados, revisão visual e homologação Android/iOS ficam para depois da conclusão das telas; parto, transferências e demais ações suínas continuam pendentes.
 8. Por solicitação do usuário (15/11/2026), o corpo das telas passou a usar molduras compartilhadas responsivas: até 1600 px para operação/consulta e até 880 px para formulários dedicados (`WorkspaceFormShell`/`AgendaFormShell`), mantendo cabeçalho e menu. A Home organiza cartões operacionais em colunas a partir de 900 px; no mobile eles continuam em coluna. TypeScript, ESLint e exportação web passaram; a conferência visual/nativa ainda está pendente.
-9. **Sincronização com o remoto (23/11/2026):** os itens 7 e 8 foram reaplicados sobre a versão remota, que prevalece onde já havia implementação: tokens de tema, cartões compactos de suínos com resumo em modal, ajuste da clínica e VT01. A ficha suína completa passou a ser aberta pelo botão "Ver ficha completa" do resumo e usa `swineRecordDetail`; o remoto mantém `swinePhaseDetail` (endpoint `swine/phases/<fase>/<id>/mobile/`), ainda sem consumidor na tela. TypeScript e ESLint aprovados; testes do mobile 557/558, com falha conhecida em `tests/home.test.ts`, que ainda espera suínos sem destino nativo (já desatualizado no remoto). Backend: `manage.py check` aprovado; testes não executados por falta de permissão para criar o banco de teste local.
+9. **Sincronização com o remoto (23/11/2026):** os itens 7 e 8 foram reaplicados sobre a versão remota, que prevalece onde já havia implementação: tokens de tema, cartões compactos de suínos com resumo em modal, ajuste da clínica e VT01. A ficha suína completa passou a ser aberta pelo botão "Ver ficha completa" do resumo e usa `swineRecordDetail`; o remoto mantém `swinePhaseDetail` (endpoint `swine/phases/<fase>/<id>/mobile/`), ainda sem consumidor na tela. Após os ajustes do mesmo dia: TypeScript e ESLint aprovados, testes do mobile 565/565 e backend `apps.livestock` 575 testes em SQLite com uma falha preexistente de bovinos (ver próxima ação).
 
 ### Dependências do incremento, sem reiniciar a fundação
 
@@ -317,12 +317,20 @@ Os marcos abaixo ainda não estão concluídos. O primeiro recorte de P01–P04 
 
 ## Próxima ação recomendada
 
-Em ordem, sem iniciar novos domínios antes dos dois primeiros itens:
+Por decisão do usuário (23/11/2026), validações e homologações em aparelho ficam para o final; a implementação das tarefas pendentes segue antes.
 
-1. **Restaurar a suíte verde:** atualizar `tests/home.test.ts` para tratar suínos como destino nativo, conforme `navigation.ts`.
-2. **Cobrir as escritas suínas (P11-C):** testes de contrato no app (parse de ficha/histórico, comandos, recibos, resultado incerto e contexto alterado) e testes de backend para pesagem de lote, cobertura e diagnóstico com `species=suinos`; os testes existentes de cobertura/diagnóstico mobile cobrem apenas bovinos de leite. Executar em banco de teste com permissão de criação.
-3. **Convergir o detalhe suíno:** escolher um único contrato de ficha (`swinePhaseDetail` do servidor ou a composição `swineRecordDetail`) e remover o outro, evitando duas fontes para a mesma tela.
-4. **Homologar em Android/iOS** o ajuste da clínica, VT01 (recortes 1–3), suínos P11-A/B/C e as molduras responsivas em celular pequeno, grande e tablet; em seguida, VT01 clientes e cobrança.
-5. Homologar P07.17-A/B com API sintética em larguras móveis e em aparelho, cobrindo seleção entre páginas, revisão, resultado incerto/reconciliação com o mesmo comando e cancelamento auditável sem afetar estoque real.
+Concluído em 23/11/2026: suíte do mobile verde (`home.test.ts` atualizado); testes de contrato das escritas suínas no app e testes de backend com `species=suinos` (`test_mobile_swine_writes.py`, em SQLite via `config.settings.test`); detalhe suíno convergido em `swineRecordDetail` (wrapper `swinePhaseDetail` removido do app; o endpoint remoto permanece no backend, documentado e sem consumidor mobile); **parto suíno online (P11.07)** na ficha da gestação.
+
+Próximos incrementos de implementação, em ordem:
+
+1. **P11.07 — completar a sequência reprodutiva:** desmame da leitegada (maternidade → creche) e perda gestacional, com o mesmo padrão de opções/versões/chave idempotente.
+2. **P11.08 — transferência de fase de lotes** (creche → crescimento → engorda) com origem, destino, quantidade e efeito confirmados pelo servidor.
+3. **P11.09 — mortalidade e venda de lotes suínos**, explicitando efeitos financeiros/estoque existentes.
+4. **P09.15 — entradas, ajustes e transferências de estoque** online e em incremento separado.
+5. **VT01 — clientes e cobrança** da Área do veterinário.
+
+Pendência conhecida fora do mobile: `apps.livestock.tests.test_cattle.CattleWorkspaceTests.test_overview_filters_remain_tenant_scoped` falha também em `origin/main` (1 != 0).
+
+Ao final: homologar em Android/iOS o ajuste da clínica, VT01, suínos P11-A/B/C e parto, as molduras responsivas (celular pequeno, grande e tablet), P07.17-A/B com API sintética e a Agenda.
 
 Não executar escrita contra dados operacionais sem autorização e ambiente descartável. A homologação visual/nativa da Agenda continua pendente, sem bloquear os próximos recortes. Completar as decisões de campo de P00 sem recriar projeto, sessão ou módulos existentes. O [guia de design](../DESIGN.md) e a [experiência revisada](EXPERIENCIA.md) orientam os percursos; o mockup antigo é histórico.

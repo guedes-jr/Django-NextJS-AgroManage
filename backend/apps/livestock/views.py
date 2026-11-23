@@ -2376,6 +2376,21 @@ class PregnancyViewSet(viewsets.ModelViewSet):
             return queryset
         return Pregnancy.objects.none()
 
+    @action(detail=True, methods=['get'], url_path='mobile-birth')
+    def mobile_birth(self, request, pk=None):
+        from . import mobile_swine_birth
+        return Response(mobile_swine_birth.context(request.user, pk, request.query_params)[2])
+
+    @action(detail=True, methods=['post'], url_path='record-birth')
+    def record_birth(self, request, pk=None):
+        if request.query_params.get('view') != 'mobile':
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        from . import mobile_swine_birth
+        values = mobile_swine_birth.Input(data=request.data)
+        values.is_valid(raise_exception=True)
+        receipt, created = mobile_swine_birth.record(request.user, pk, request.query_params, values.validated_data)
+        return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], url_path='registrar-perda')
     def registrar_perda(self, request, pk=None):
         pregnancy = self.get_object()

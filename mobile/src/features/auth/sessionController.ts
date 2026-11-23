@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import {canWriteTankRecord,tankWriteCommandSchema,type TankWriteCommand} from '../milk/tankWriteContracts';
 import {canManageTank,tankCommandSchema,type TankCommand} from '../milk/tankFormContracts';
 import type {TankQualityQuery} from '../milk/tankQualityContracts';
@@ -54,12 +55,12 @@ import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,t
 import { canReadDairyFeeding,canWriteDairyFeeding,dairyFeedingCatalogQuerySchema,dairyFeedingCancellationSchema,dairyFeedingCommandSchema,type DairyFeedingCatalogQuery,type DairyFeedingWrite } from '../milk/dairyFeedingContracts';
 import { organizationDay } from '../workspace/contracts';
 import { canOpenModule, canLoadFinancialHome } from '../home/contracts';
-import { canWriteSwine, matchesSwineDiagnosis, swineBatchWeightCommandSchema, swineDiagnosisInputSchema, swineMatingCommandSchema, type SwineBatchWeightCommand, type SwineDiagnosisInput, type SwineMatingCommand, type SwinePhase } from '../swine/contracts';
+import { canWriteSwine, matchesSwineBirth, matchesSwineDiagnosis, swineBirthInputSchema, swineBatchWeightCommandSchema, swineDiagnosisInputSchema, swineMatingCommandSchema, type SwineBatchWeightCommand, type SwineBirthInput, type SwineDiagnosisInput, type SwineMatingCommand, type SwinePhase } from '../swine/contracts';
 import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalInputSchema, weightInputSchema, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../cattle/contracts';
 import { canSearch, type SearchQuery } from '../workspace/contracts';
 import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
-import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, SwineDiagnosisContextChanged, type AuthApi } from '../../services/authApi';
+import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, SwineDiagnosisContextChanged, SwineBirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
 
 export interface TokenVault {
@@ -345,9 +346,6 @@ export class SessionController {
   swinePhasePage(phase:SwinePhase,page:number,pageSize:number,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swinePhasePage(tokens,this.language,{phase,page,page_size:pageSize},signal));
   }
-  swinePhaseDetail(phase:SwinePhase,id:string,signal?:AbortSignal){
-    return this.swineRead(tokens=>this.api.swinePhaseDetail(tokens,this.language,phase,id,signal));
-  }
   swineRecordDetail(phase:SwinePhase,id:string,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swineRecordDetail(tokens,this.language,phase,id,signal));
   }
@@ -386,6 +384,30 @@ export class SessionController {
       current();
       return this.api.registerSwineMating(tokens,this.language,id,command);
     });}finally{this.swineMatingSaving=false;}
+  }
+  swineBirthOptions(id:string,signal?:AbortSignal){
+    return this.swineRead(tokens=>this.api.swineBirthOptions(tokens,this.language,id,signal));
+  }
+  private swineBirthSaving=false;
+  async recordSwineBirth(id:string,input:SwineBirthInput){
+    if(this.swineBirthSaving||this.state.status!=='signedIn'||!canWriteSwine(this.state.session.user))throw new AuthFailure('unsupported');
+    this.swineBirthSaving=true;
+    try{return await this.swineRead(async tokens=>{
+      const epoch=this.epoch,current=()=>{if(this.state.status!=='signedIn'||this.epoch!==epoch)throw new AuthFailure('expired');};
+      const command=swineBirthInputSchema.parse(input);
+      const user=await this.api.user(tokens,this.language);current();
+      if(!canWriteSwine(user))throw new AuthFailure('unsupported');
+      const org=await this.api.organization(tokens,this.language);current();
+      if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id||org.id!==this.state.session.organization.id){await this.signOut();throw new AuthFailure('expired');}
+      // A retry after an uncertain response may find the pregnancy already closed (409);
+      // the server then decides by request_key: same command returns the receipt, otherwise 409.
+      let options:Awaited<ReturnType<AuthApi['swineBirthOptions']>>|null=null;
+      try{options=await this.api.swineBirthOptions(tokens,this.language,id);}catch(error){if(!(isAxiosError(error)&&error.response?.status===409))throw error;}
+      current();
+      if(options&&!matchesSwineBirth(options,command))throw new SwineBirthContextChanged();
+      current();
+      return this.api.recordSwineBirth(tokens,this.language,id,command);
+    });}finally{this.swineBirthSaving=false;}
   }
   private swineDiagnosisSaving=false;
   async recordSwineDiagnosis(id:string,input:SwineDiagnosisInput){
