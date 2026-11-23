@@ -310,6 +310,16 @@ incerta, bloqueia novo envio e direciona à conferência do histórico. P11.07
 continua parcial: parto e demais transições reprodutivas ainda não foram
 implementados. Testes automatizados permanecem adiados.
 
+**Sincronização com o remoto (23/11/2026):** a lista segue a versão remota
+(cartões compactos e resumo em modal com os dados da lista); o resumo oferece
+"Ver ficha completa", que abre a ficha P11-B/C por `swineRecordDetail`. O
+remoto também expõe `swinePhaseDetail` (`swine/phases/<fase>/<id>/mobile/`,
+até cinco eventos), ainda sem consumidor na tela; antes de novas fichas,
+escolher um único contrato de detalhe. Pendências desta parte: testes de
+contrato no app e testes de backend com `species=suinos` para pesagem,
+cobertura e diagnóstico (os existentes cobrem bovinos de leite), além da
+homologação Android/iOS.
+
 ### Ordem interna sugerida
 
 1. Consulta de lotes/animais por fase e ficha resumida.

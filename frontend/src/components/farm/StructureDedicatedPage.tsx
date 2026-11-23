@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, MapPin, Pencil, Plus, RulerIcon, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, MapPin, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
 import { apiClient } from "@/services/api";
 import { farmStructureService, type FarmStructureItemPayload, type FarmStructurePayload } from "@/services/farmStructureService";
@@ -44,7 +44,8 @@ function unitPrice(item: FarmStructureItem): number {
 }
 
 const emptyItem: FarmStructureItemPayload = { structure: "", name: "", quantity: "1", unit: "un", value: "" };
-const structureTotal = (asset: FarmStructure) => Number(asset.current_value) * asset.quantity + Number(asset.items_value || 0);
+// Paid/current values are no longer entered in the form; the structure cost is what was recorded in items and services.
+const structureTotal = (asset: FarmStructure) => Number(asset.items_value || 0);
 
 const apiMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error) || !error.response?.data) return fallback;
@@ -409,21 +410,33 @@ export function StructureDedicatedPage({
                 </select>
               </div>
               <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.paid")}</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.builtArea")}</label>
                 <input
-                  required type="number" min="0" step="0.01"
+                  type="number" min="0" step="0.01"
                   className="form-control"
-                  value={form.acquisition_value}
-                  onChange={(e) => setForm({ ...form, acquisition_value: e.target.value })}
+                  placeholder="Ex.: 500,00"
+                  value={form.built_area_m2 || ""}
+                  onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })}
                 />
               </div>
               <div className="col-md-4 col-6">
-                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.current")}</label>
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.length")}</label>
                 <input
-                  required type="number" min="0" step="0.01"
+                  type="number" min="0" step="0.01"
                   className="form-control"
-                  value={form.current_value}
-                  onChange={(e) => setForm({ ...form, current_value: e.target.value })}
+                  placeholder="Ex.: 250,00"
+                  value={form.length_m || ""}
+                  onChange={(e) => setForm({ ...form, length_m: e.target.value || null })}
+                />
+              </div>
+              <div className="col-md-4 col-6">
+                <label className="form-label fw-semibold small mb-1">{t("structure.dedicated.width")}</label>
+                <input
+                  type="number" min="0" step="0.01"
+                  className="form-control"
+                  placeholder="Ex.: 200,00"
+                  value={form.width_m || ""}
+                  onChange={(e) => setForm({ ...form, width_m: e.target.value || null })}
                 />
               </div>
               <div className="col-md-12">
@@ -466,44 +479,6 @@ export function StructureDedicatedPage({
                       readOnly
                     />
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Dimensions */}
-            <div className={styles.dimSection}>
-              <div className={styles.dimTitle}>
-                <span className={styles.dimNum}>2</span>
-                <RulerIcon size={14} />
-                {t("structure.dedicated.dimensions")}
-              </div>
-              <div className={styles.dimGrid}>
-                <div className={styles.dimField}>
-                  <label>{t("structure.dedicated.builtArea")}</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    placeholder="Ex.: 500,00"
-                    value={form.built_area_m2 || ""}
-                    onChange={(e) => setForm({ ...form, built_area_m2: e.target.value || null })}
-                  />
-                </div>
-                <div className={styles.dimField}>
-                  <label>{t("structure.dedicated.length")}</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    placeholder="Ex.: 250,00"
-                    value={form.length_m || ""}
-                    onChange={(e) => setForm({ ...form, length_m: e.target.value || null })}
-                  />
-                </div>
-                <div className={styles.dimField}>
-                  <label>{t("structure.dedicated.width")}</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    placeholder="Ex.: 200,00"
-                    value={form.width_m || ""}
-                    onChange={(e) => setForm({ ...form, width_m: e.target.value || null })}
-                  />
                 </div>
               </div>
             </div>

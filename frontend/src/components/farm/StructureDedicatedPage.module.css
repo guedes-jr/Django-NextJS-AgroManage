@@ -269,45 +269,6 @@
 .locationBody { padding: 14px 16px; }
 .locationSubtitle { font-size: .78rem; color: #666; margin: 0 0 10px; }
 
-/* ─── Dimensions section ─────────────────────────────────────────────────── */
-.dimSection { border-top: 1px solid #eef2ee; padding-top: 20px; }
-.dimTitle {
-  display: flex; align-items: center; gap: 8px;
-  font-size: .72rem; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .08em; color: #087333;
-  margin-bottom: 14px;
-}
-.dimNum {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: #087333;
-  color: #fff;
-  font-size: .72rem;
-  font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-}
-.dimGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 700px) { .dimGrid { grid-template-columns: 1fr; } }
-
-.dimField label {
-  display: block;
-  font-size: .72rem;
-  font-weight: 600;
-  color: #555;
-  margin-bottom: 5px;
-}
-.dimField input {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid #cdd8cc;
-  border-radius: 8px;
-  font-size: .88rem;
-  color: #333;
-  background: #fff;
-  transition: border-color .15s;
-}
-.dimField input:focus { outline: none; border-color: #087333; }
-
 /* ─── Report Section ─────────────────────────────────────────────────────── */
 .reportPanel {
   background: #fff;

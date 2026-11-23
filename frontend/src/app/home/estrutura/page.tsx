@@ -197,8 +197,7 @@ function FarmStructureContent() {
 
         <section className="mb-4"><h2 className={styles.sectionTitle}>{t("structure.home.summaryHeading")}</h2><div className={styles.summaryGrid}>
           <SummaryCard icon={ClipboardList} label={t("structure.home.totalItems")} value={(summary?.total_items || 0).toLocaleString(language)} detail={t("structure.home.recordsCount", { count: (summary?.total_records || 0).toLocaleString(language) })} />
-          <SummaryCard icon={Calculator} label={t("structure.home.totalPaid")} value={formatMoney(summary?.acquisition_value || 0)} detail={t("structure.home.acquisitionValue")} />
-          <SummaryCard icon={Warehouse} label={t("structure.home.netCurrentValue")} value={formatMoney(summary?.current_value || 0)} detail={t("structure.home.currentStructure")} />
+          <SummaryCard icon={Calculator} label={t("structure.home.itemsCost")} value={formatMoney(summary?.structure_items_value || 0)} detail={t("structure.home.itemsCostDetail")} />
         </div></section>
 
         <section className={styles.categorySection}>
@@ -243,15 +242,15 @@ function FarmStructureContent() {
           </div>
           <div className={styles.tableCard}>
             <div className="table-responsive"><table className="table align-middle mb-0">
-              <thead><tr><th>{t("structure.home.type")}</th><th>{t("structure.home.structureItem")}</th><th>{t("structure.home.linkedTo")}</th><th>{t("structure.home.areaUnit")}</th><th>{t("structure.home.quantity")}</th><th>{t("structure.home.paid")}</th><th>{t("structure.home.current")}</th><th className="text-end">{t("structure.home.tableActions")}</th></tr></thead>
+              <thead><tr><th>{t("structure.home.type")}</th><th>{t("structure.home.structureItem")}</th><th>{t("structure.home.linkedTo")}</th><th>{t("structure.home.areaUnit")}</th><th>{t("structure.home.quantity")}</th><th>{t("structure.home.cost")}</th><th className="text-end">{t("structure.home.tableActions")}</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={8} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
+                {loading ? <tr><td colSpan={7} className="text-center py-5"><span className="spinner-border spinner-border-sm text-success" /></td></tr>
                   : filteredReportRows.length ? filteredReportRows.map((row) => row.kind === "structure"
                     ? <StructureReportRow key={row.key} structure={row.structure} categoryLabel={t(categoryLabelKeys[row.structure.category] as Parameters<typeof t>[0])} canDelete={canDelete} onEdit={openEdit} onRemove={remove} language={language} t={t} />
                     : <MaterialReportRow key={row.key} structure={row.structure} material={row.material!} canDelete={canDelete} onRemoved={() => loadStructures(farmId)} language={language} t={t} />
-                  ) : <tr><td colSpan={8} className="text-center text-muted py-5">{t("structure.home.emptyReport")}</td></tr>}
+                  ) : <tr><td colSpan={7} className="text-center text-muted py-5">{t("structure.home.emptyReport")}</td></tr>}
               </tbody>
-              {!!items.length && <tfoot><tr className={styles.reportTotal}><td colSpan={4}>{t("structure.home.farmTotal")}</td><td>{t("structure.home.recordsCount", { count: reportRows.length.toLocaleString(language) })}</td><td>{Number(summary?.acquisition_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td><td>{Number(summary?.current_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td><td /></tr></tfoot>}
+              {!!items.length && <tfoot><tr className={styles.reportTotal}><td colSpan={4}>{t("structure.home.farmTotal")}</td><td>{t("structure.home.recordsCount", { count: reportRows.length.toLocaleString(language) })}</td><td>{Number(summary?.structure_items_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td><td /></tr></tfoot>}
             </table></div>
           </div>
         </section>
@@ -292,8 +291,7 @@ function StructureReportRow({ structure, categoryLabel, canDelete, onEdit, onRem
       <td>{t("structure.home.structure")}</td>
       <td>{structure.built_area_m2 ? `${structure.built_area_m2} m²` : "—"}</td>
       <td>{structure.quantity}</td>
-      <td>{(Number(structure.acquisition_value) * structure.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
-      <td className="text-success fw-semibold">{(Number(structure.current_value) * structure.quantity).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
+      <td className="text-success fw-semibold">{Number(structure.items_value || 0).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
       <td className="text-end">
         <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => onEdit(structure)} title={t("structure.home.edit")}><Pencil size={15} /></button>
         {canDelete && <button className="btn btn-sm btn-outline-danger" onClick={() => void onRemove(structure)} title={t("structure.home.delete")}><Trash2 size={15} /></button>}
@@ -318,7 +316,6 @@ function MaterialReportRow({ structure, material, canDelete, onRemoved, language
       <td>—</td>
       <td>{material.quantity} {material.unit}</td>
       <td>{Number(material.value).toLocaleString(language, { style: "currency", currency: "BRL" })}</td>
-      <td>—</td>
       <td className="text-end">
         {canDelete && <button className="btn btn-sm text-danger" onClick={() => void farmStructureService.removeItem(material.id).then(onRemoved)} title={t("structure.home.removeItem")}><Trash2 size={15} /></button>}
       </td>

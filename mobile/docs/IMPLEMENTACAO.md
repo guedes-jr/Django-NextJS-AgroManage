@@ -2,6 +2,8 @@
 
 Plano original de 6 de novembro de 2026, revisado para orientar a evolução do app existente. O próximo trabalho é **consolidar, integrar e homologar**, aproveitando os recortes entregues. A Agenda atualizada é a base conceitual: contexto, dados legíveis e caminhos simples para realizar as operações, conforme o [guia de design](../DESIGN.md).
 
+Última revisão: 23/11/2026, após sincronizar as alterações locais com `origin/main` (clínica removida do web, Área do veterinário, suínos P11-A/B/C e molduras responsivas).
+
 ## Situação de partida
 
 | Área | Evidência atual | O que ainda exige trabalho |
@@ -12,7 +14,8 @@ Plano original de 6 de novembro de 2026, revisado para orientar a evolução do 
 | Estoque, alimentação e clínica | Recortes nativos de consulta/escrita, revisão e efeitos; trato próprio do feeder | Homologação das jornadas, recuperação de erros e expansões documentadas |
 | Clínica após a remoção no web (21/11/2026) | Ajuste aplicado em 22/11/2026: só exames/tratamentos e vacinas; ocorrência e alertas removidos; cargo Veterinário reconhecido, sem módulos operacionais, com ponte web para a Área | Homologar em Android/iOS. VT01 recortes 1 (Alertas e lista de curral), 2 (Lançar atendimento, online) e 3 (Animais e histórico) implementados; próximo: clientes e cobrança |
 | Comunicação e perfil | Inbox, detalhe, leitura/arquivamento, preferências e perfil mínimo | Push nativo, complementos de perfil e gestão |
-| Demais domínios | O menu contém destinos que ainda usam alternativa web | Suínos, plantações, gestão, suporte e IA nativos dependem de recortes específicos |
+| Suínos | Hub, listas por fase com resumo por toque, ficha completa com histórico, pesagem média de lote, cobertura e diagnóstico online (P11-A/B/C) | Testes automatizados das escritas, convergência dos dois contratos de detalhe, parto/transferências/vendas e homologação nativa |
+| Demais domínios | O menu contém destinos que ainda usam alternativa web | Plantações, estruturas, gestão, suporte e IA nativos dependem de recortes específicos |
 | Persistência e aparelho | SecureStore e seleção de CSV por DocumentPicker/FileSystem | Sem SQLite/outbox/push declarados na configuração atual; câmera, anexos e demais recursos exigem consumidores reais |
 
 Fontes consultadas: `app/`, `src/features/workspace/navigation.ts`, Agenda, contratos de leite e `package.json`. O inventário detalha a cobertura; cada integração deve confirmar seu endpoint e seus estados no código. Um módulo presente no menu não comprova fluxo nativo completo, e testes históricos não comprovam homologação em aparelhos.
@@ -185,7 +188,8 @@ O passo 4 não precisa esperar todos os módulos nem persistência offline. P17 
 5. P04.15 recebeu revisão de textos/contagens/estados vazios e datas acessíveis da Agenda nos quatro idiomas, com 24 testes direcionados, TypeScript e ESLint aprovados. Conferência visual/leitor de tela permanece pendente. Demonstrar a jornada em Android/iOS e registrar limitações (P04.14/P17). Código e prévia web são etapas de validação, não homologação nativa.
 6. P07.17-A/B implementados: histórico paginado e formulário multi-grupo com seleção paginada de animais/rações, revisão explícita, estimativas identificadas, escrita online, recibo idempotente e cancelamento justificável. Acesso permanece restrito a admin/gestor; feeder/tratador e operador continuam no trato diário existente. Nenhum envio operacional real foi feito; a homologação visual/nativa ainda é necessária.
 7. Por solicitação do usuário (15/11/2026), P11-A/B/C avançaram antes da rodada final de testes: hub, listas paginadas, fichas, histórico de lotes, pesagem média online, cobertura e diagnóstico de gestação vinculados à cobertura pendente. Previsões do servidor são identificadas como estimativas; pesagem não muda a fase. Escritas de pesagem/cobertura são repetíveis pela mesma chave após resultado incerto; diagnóstico bloqueia novo envio incerto e pede conferência do histórico. Typecheck, lint e sintaxe Python aprovados. Testes automatizados, revisão visual e homologação Android/iOS ficam para depois da conclusão das telas; parto, transferências e demais ações suínas continuam pendentes.
-8. Por solicitação do usuário (15/11/2026), o corpo das telas passou a usar molduras compartilhadas responsivas: até 1600 px para operação/consulta e até 880 px para formulários dedicados, mantendo cabeçalho e menu. A Home organiza cartões operacionais em colunas a partir de 900 px; no mobile eles continuam em coluna. TypeScript, ESLint e exportação web passaram; testes automatizados permanecem adiados, e a conferência visual/nativa ainda está pendente.
+8. Por solicitação do usuário (15/11/2026), o corpo das telas passou a usar molduras compartilhadas responsivas: até 1600 px para operação/consulta e até 880 px para formulários dedicados (`WorkspaceFormShell`/`AgendaFormShell`), mantendo cabeçalho e menu. A Home organiza cartões operacionais em colunas a partir de 900 px; no mobile eles continuam em coluna. TypeScript, ESLint e exportação web passaram; a conferência visual/nativa ainda está pendente.
+9. **Sincronização com o remoto (23/11/2026):** os itens 7 e 8 foram reaplicados sobre a versão remota, que prevalece onde já havia implementação: tokens de tema, cartões compactos de suínos com resumo em modal, ajuste da clínica e VT01. A ficha suína completa passou a ser aberta pelo botão "Ver ficha completa" do resumo e usa `swineRecordDetail`; o remoto mantém `swinePhaseDetail` (endpoint `swine/phases/<fase>/<id>/mobile/`), ainda sem consumidor na tela. TypeScript e ESLint aprovados; testes do mobile 557/558, com falha conhecida em `tests/home.test.ts`, que ainda espera suínos sem destino nativo (já desatualizado no remoto). Backend: `manage.py check` aprovado; testes não executados por falta de permissão para criar o banco de teste local.
 
 ### Dependências do incremento, sem reiniciar a fundação
 
@@ -313,4 +317,12 @@ Os marcos abaixo ainda não estão concluídos. O primeiro recorte de P01–P04 
 
 ## Próxima ação recomendada
 
-Homologar P07.17-A/B com API sintética em larguras móveis e em aparelho, cobrindo seleção entre páginas, revisão, resultado incerto/reconciliação com o mesmo comando e cancelamento auditável sem afetar estoque real. Não executar escrita contra dados operacionais sem autorização e ambiente descartável. A homologação visual/nativa da Agenda continua pendente, sem bloquear os próximos recortes. Completar as decisões de campo de P00 sem recriar projeto, sessão ou módulos existentes. O [guia de design](../DESIGN.md) e a [experiência revisada](EXPERIENCIA.md) orientam os percursos; o mockup antigo é histórico.
+Em ordem, sem iniciar novos domínios antes dos dois primeiros itens:
+
+1. **Restaurar a suíte verde:** atualizar `tests/home.test.ts` para tratar suínos como destino nativo, conforme `navigation.ts`.
+2. **Cobrir as escritas suínas (P11-C):** testes de contrato no app (parse de ficha/histórico, comandos, recibos, resultado incerto e contexto alterado) e testes de backend para pesagem de lote, cobertura e diagnóstico com `species=suinos`; os testes existentes de cobertura/diagnóstico mobile cobrem apenas bovinos de leite. Executar em banco de teste com permissão de criação.
+3. **Convergir o detalhe suíno:** escolher um único contrato de ficha (`swinePhaseDetail` do servidor ou a composição `swineRecordDetail`) e remover o outro, evitando duas fontes para a mesma tela.
+4. **Homologar em Android/iOS** o ajuste da clínica, VT01 (recortes 1–3), suínos P11-A/B/C e as molduras responsivas em celular pequeno, grande e tablet; em seguida, VT01 clientes e cobrança.
+5. Homologar P07.17-A/B com API sintética em larguras móveis e em aparelho, cobrindo seleção entre páginas, revisão, resultado incerto/reconciliação com o mesmo comando e cancelamento auditável sem afetar estoque real.
+
+Não executar escrita contra dados operacionais sem autorização e ambiente descartável. A homologação visual/nativa da Agenda continua pendente, sem bloquear os próximos recortes. Completar as decisões de campo de P00 sem recriar projeto, sessão ou módulos existentes. O [guia de design](../DESIGN.md) e a [experiência revisada](EXPERIENCIA.md) orientam os percursos; o mockup antigo é histórico.

@@ -156,6 +156,7 @@ export interface FarmStructureSummary {
   acquisition_value: string;
   current_value: string;
   depreciation_value: string;
+  structure_items_value: string;
   categories: FarmStructureSummaryCategory[];
 }
 
