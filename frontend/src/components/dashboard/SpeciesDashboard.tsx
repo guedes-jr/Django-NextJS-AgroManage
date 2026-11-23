@@ -9,6 +9,7 @@ import { cowHead, pigHead } from "@lucide/lab";
 import { motion, AnimatePresence } from "framer-motion";
 import { AnimalTechnicalSheetModal } from "@/components/animal/AnimalTechnicalSheetModal";
 import { BatchTechnicalSheetModal } from "@/components/animal/BatchTechnicalSheetModal";
+import { isAxiosError } from "axios";
 import { apiClient } from "@/services/api";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganizationLocale } from "@/lib/locale";
@@ -199,7 +200,8 @@ export function SpeciesDashboard({ species }: SpeciesDashboardProps) {
       await fetchAnimals();
     } catch (err) {
       console.error("Error deleting animal:", err);
-      showToast(t("livestock.registration.deleteFailed"), "error");
+      const detail = isAxiosError<{ detail?: string }>(err) ? err.response?.data?.detail : undefined;
+      showToast(typeof detail === "string" ? detail : t("livestock.registration.deleteFailed"), "error");
     }
   };
 

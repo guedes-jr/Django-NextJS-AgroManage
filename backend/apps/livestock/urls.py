@@ -22,6 +22,8 @@ from .milk_tank_api import MilkTankViewSet, MilkTankMovementViewSet, MilkTankQua
 from .dairy_worksheet_api import DairyWorksheetView, DairyWorksheetReceiptView
 from .dairy_feeding_api import DairyFeedingView, DairyFeedingCancellationView
 
+from .semen_sales import SemenSalesView
+
 router = DefaultRouter()
 router.register(r"cattle/milk-tanks", MilkTankViewSet, basename="milk-tank")
 router.register(r"cattle/milk-tank-movements", MilkTankMovementViewSet, basename="milk-tank-movement")
@@ -76,6 +78,7 @@ urlpatterns = [
     path('creches/', CrecheView.as_view(), name='creches'),
     path('crescimentos/', CrescimentoView.as_view(), name='crescimentos'),
     path('engordas/', EngordaView.as_view(), name='engordas'),
+    path('semen-sales/', SemenSalesView.as_view(), name='semen-sales'),
     path('reprodutores/', ReprodutoresView.as_view(), name='reprodutores'),
     path('swine/phases/<str:phase>/<uuid:pk>/mobile/', SwinePhaseMobileDetailView.as_view(), name='swine-phase-mobile-detail'),
     

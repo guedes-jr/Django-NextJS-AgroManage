@@ -154,6 +154,22 @@ export const getReprodutores = async (species = "suinos") => {
   return response.data;
 };
 
+export type SemenComponentStockItem = {
+  id: string;
+  nome: string;
+  unidade_medida?: string;
+  unidade_display?: string;
+  estoque_atual?: number | string;
+};
+
+export const listSemenComponentStock = async (signal?: AbortSignal) => {
+  const { data } = await apiClient.get<SemenComponentStockItem[]>("/inventory/items/all_items/", {
+    params: { categoria: "semen" },
+    signal,
+  });
+  return data;
+};
+
 export type SemenCollectionPayload = {
   animal: string; collection_date: string; volume_ml: string; responsible: string; diluted: boolean;
   doses_produced: number; notes?: string; components: { item: string; quantity: string; unit: string }[];
@@ -314,3 +330,21 @@ export const changeBatchPhase = async (
   );
   return response.data;
 };
+
+
+export type SemenSaleCommand = {
+  request_key: string; collection: string; expected_balance: number; quantity: number;
+  price: string; buyer: string; date: string; due_date: string;
+};
+type SemenSaleReceipt = {
+  reference: string; lot: string; buyer: string; amount: string; date: string; quantity: number; remaining: number;
+};
+export type SemenSaleBook = {
+  today: string;
+  lots: { collection: string; lot: string; breeder: string; farm: string; balance: number; date: string }[];
+  sales: SemenSaleReceipt[];
+};
+export const listSemenSales = async (signal?: AbortSignal) =>
+  (await apiClient.get<SemenSaleBook>("/livestock/semen-sales/", { signal })).data;
+export const sellSemenDoses = async (command: SemenSaleCommand) =>
+  (await apiClient.post<SemenSaleReceipt>("/livestock/semen-sales/", command)).data;

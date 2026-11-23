@@ -6,6 +6,7 @@ from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
 from decimal import Decimal
+from uuid import UUID
 
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.db.models.functions import Coalesce, TruncMonth
@@ -280,6 +281,28 @@ def _production_lot_references(organization):
             numero_lote__startswith="PROD-",
         ).values_list("id", flat=True)
     )
+
+
+def _orphaned_open_animal_purchases(organization):
+    """Ignore an unpaid purchase title left by the old batch deletion flow."""
+    prefix = "PURCHASE-BATCH-"
+    candidates = Transaction.objects.filter(
+        organization=organization, reference__startswith=prefix, animal_batch__isnull=True,
+        status__in=(Transaction.Status.PENDING, Transaction.Status.OVERDUE), payment_events__isnull=True,
+        category__category_type=FinancialCategory.CategoryType.EXPENSE,
+    ).values_list("id", "reference")
+    references = {}
+    for pk, reference in candidates:
+        try:
+            references[pk] = UUID(reference.removeprefix(prefix))
+        except ValueError:
+            continue
+    if not references:
+        return []
+    existing = set(AnimalBatch.objects.filter(
+        farm__organization=organization, pk__in=references.values(),
+    ).values_list("pk", flat=True))
+    return [pk for pk, batch_id in references.items() if batch_id not in existing]
 
 
 def _inventory_purchase_references(organization):
@@ -578,6 +601,7 @@ def dashboard_summary(request):
     transactions_qs = (
         Transaction.objects.filter(organization=org)
         .exclude(reference__in=production_lot_references)
+        .exclude(pk__in=_orphaned_open_animal_purchases(org))
         .exclude(status=Transaction.Status.CANCELLED)
         .annotate(effective_date=Coalesce("payment_date", "due_date"))
     )

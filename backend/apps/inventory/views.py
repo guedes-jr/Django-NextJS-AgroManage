@@ -591,6 +591,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         serializer.instance = instance
         if instance.cattle_delivery_id:
             raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
+        if instance.tipo == TipoMovimentacao.VENDA and instance.observacao.startswith("SALE-SEMEN-"):
+            raise exceptions.ValidationError(translate_message("Esta movimentação está vinculada a uma venda de doses de sêmen."))
         from .services import movement_has_financial_origin
         if movement_has_financial_origin(instance):
             raise exceptions.ValidationError(translate_message("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste."))
@@ -652,6 +654,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             instance.lote = LoteEstoque.objects.select_for_update().get(pk=instance.lote_id)
         if instance.cattle_delivery_id:
             raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
+        if instance.tipo == TipoMovimentacao.VENDA and instance.observacao.startswith("SALE-SEMEN-"):
+            raise exceptions.ValidationError(translate_message("Esta movimentação está vinculada a uma venda de doses de sêmen."))
         from .services import movement_has_financial_origin
         if movement_has_financial_origin(instance):
             raise exceptions.ValidationError(translate_message("Esta compra possui título financeiro. Preserve a entrada e corrija o estoque por lançamento de ajuste."))

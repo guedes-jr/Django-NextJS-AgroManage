@@ -61,3 +61,30 @@ class CancelledAnimalPurchaseTests(APITestCase):
         self.assertEqual(AnimalBatch.objects.get(pk=other_id).status, "sold")
         self.assertEqual(AnimalBatch.objects.get(pk=batch_id).status, "active")
         self.assertEqual(self._dashboard()["total_animals"], 1)
+
+    def test_removing_purchase_from_animal_registration_cancels_its_title(self):
+        batch_id = self._buy()
+        self.assertEqual(self._dashboard()["month_expense"], 3000.0)
+        response = self.client.delete(f"/api/v1/livestock/batches/{batch_id}/")
+        self.assertEqual(response.status_code, 204, response.data)
+        title = Transaction.objects.get(reference=f"PURCHASE-BATCH-{batch_id}")
+        self.assertEqual(title.status, "cancelled")
+        self.assertEqual(self._dashboard()["month_expense"], 0.0)
+
+    def test_dashboard_excludes_legacy_orphan_but_preserves_valid_unlinked_title(self):
+        deleted = self._buy()
+        AnimalBatch.objects.filter(pk=deleted).delete()
+        active = self._buy("M-11")
+        Transaction.objects.filter(reference=f"PURCHASE-BATCH-{active}").update(animal_batch=None)
+        response = self.client.get("/api/v1/reports/dashboard/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["kpis"]["month_expense"], 3000.0)
+        self.assertEqual(Transaction.objects.get(reference=f"PURCHASE-BATCH-{deleted}").status, "pending")
+
+    def test_removing_paid_purchase_requires_reversal_first(self):
+        batch_id = self._buy()
+        Transaction.objects.filter(reference=f"PURCHASE-BATCH-{batch_id}").update(status="paid")
+        response = self.client.delete(f"/api/v1/livestock/batches/{batch_id}/")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertTrue(AnimalBatch.objects.filter(pk=batch_id).exists())
+        self.assertEqual(self._dashboard()["month_expense"], 3000.0)

@@ -1,3 +1,4 @@
+import type { SemenSaleCommand } from '../swine/semenSales';
 import { canReadSwineSales } from '../swine/sales';
 import type { HerdQuery, ReportQuery } from '../veterinary/consultation';
 import type { VetClientCommand, VetSettlementCommand } from '../veterinary/contracts';
@@ -373,6 +374,18 @@ export class SessionController {
   }
   swinePhasePage(phase:SwinePhase,page:number,pageSize:number,signal?:AbortSignal){
     return this.swineRead(tokens=>this.api.swinePhasePage(tokens,this.language,{phase,page,page_size:pageSize},signal));
+  }
+  semenSales(signal?: AbortSignal) {
+    if (this.state.status !== 'signedIn' || !canReadSwineSales(this.state.session.user)) {
+      return Promise.reject(new AuthFailure('unsupported'));
+    }
+    return this.swineRead(tokens => this.api.semenSales(tokens, this.language, signal));
+  }
+  sellSemenDoses(command: SemenSaleCommand) {
+    if (this.state.status !== 'signedIn' || !canReadSwineSales(this.state.session.user)) {
+      return Promise.reject(new AuthFailure('unsupported'));
+    }
+    return this.swineRead(tokens => this.api.sellSemenDoses(tokens, this.language, command));
   }
   swineSales(signal?: AbortSignal) {
     if (this.state.status !== 'signedIn' || !canReadSwineSales(this.state.session.user)) {

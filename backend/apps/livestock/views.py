@@ -1147,8 +1147,25 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
+        from apps.finance.models import Transaction
+
+        purchases = Transaction.objects.select_for_update().filter(
+            organization_id=self.request.user.organization_id,
+            reference=f"PURCHASE-BATCH-{instance.pk}",
+        )
+        titles = list(purchases)
+        instance = AnimalBatch.objects.select_for_update().get(pk=instance.pk)
         if instance.status == AnimalBatch.Status.SOLD or instance.historicos.filter(tipo_evento='Venda de Animais').exists():
             raise serializers.ValidationError({'detail': translate_message('Lotes com vendas devem permanecer disponíveis no relatório geral.')})
+        if any(title.status == Transaction.Status.PAID or title.payment_events.filter(
+            kind="payment", reversal__isnull=True,
+        ).exists() for title in titles):
+            raise serializers.ValidationError({"detail": translate_message(
+                "Estorne a baixa do título da compra no Financeiro antes de excluir o cadastro."
+            )})
+        purchases.exclude(status=Transaction.Status.CANCELLED).update(
+            status=Transaction.Status.CANCELLED, updated_at=timezone.now(),
+        )
         # Reproductive lots create one Animal per head (matrizes, marrãs, cachaços…). Their
         # FK to the lot is SET_NULL, so without this they stayed active in the dashboard and
         # in the reproductive phase after the registration was deleted.

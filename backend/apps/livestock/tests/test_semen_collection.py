@@ -95,3 +95,43 @@ class SemenCollectionTests(APITestCase):
         self.assertEqual((boar["coberturas"], boar["prenhezes"], boar["partos"], boar["nascidos_vivos"], boar["doses_produzidas"]), (2, 1, 1, 12, 10))
         self.assertEqual(Decimal(boar["custo_coletas"]), Decimal("21.00"))
         self.assertEqual(rows["C-02"]["status"], "dead")
+
+    def test_sale_uses_collection_lot_and_creates_one_pending_receivable(self):
+        from uuid import uuid4
+
+        from apps.inventory.models import MovimentacaoEstoque
+
+        collection = self.post(diluted=False, components=[])
+        self.assertEqual(collection.status_code, 201, collection.data)
+        lot = LoteEstoque.objects.get(pk=collection.data["stock_lot"])
+        url = "/api/v1/livestock/semen-sales/"
+        self.assertEqual([row["collection"] for row in self.client.get(url).data["lots"]], [str(collection.data["id"])])
+        command = {
+            "request_key": str(uuid4()), "collection": str(collection.data["id"]), "expected_balance": 10,
+            "quantity": 4, "price": "20.50", "buyer": "Comprador",
+            "date": date.today().isoformat(), "due_date": date.today().isoformat(),
+        }
+        sold = self.client.post(url, command, format="json")
+        self.assertEqual(sold.status_code, 201, sold.data)
+        self.assertEqual((sold.data["amount"], sold.data["remaining"]), ("82.00", 6))
+        replay = self.client.post(url, command, format="json")
+        self.assertEqual((replay.status_code, replay.data), (200, sold.data))
+        self.assertEqual(self.client.post(url, command | {"request_key": str(uuid4())}, format="json").status_code, 409)
+        self.assertEqual(self.client.post(url, command | {"buyer": "Outro"}, format="json").status_code, 409)
+        lot.refresh_from_db()
+        self.assertEqual(lot.quantidade_atual, 6)
+        movement = MovimentacaoEstoque.objects.get(lote=lot, tipo="venda")
+        self.assertEqual(movement.quantidade, 4)
+        self.assertEqual(self.client.delete(f"/api/v1/inventory/movimentacoes/{movement.pk}/").status_code, 400)
+        title = Transaction.objects.get(reference=sold.data["reference"])
+        self.assertEqual((title.amount, title.status, title.segmento), (Decimal("82.00"), "pending", "suinos"))
+        reject = self.client.patch(f"/api/v1/finance/transactions/{title.pk}/", {"notes": "Outro"}, format="json")
+        self.assertEqual(reject.status_code, 400, reject.data)
+        self.assertEqual(self.client.post(url, command, format="json").data, sold.data)
+
+        outsider = Organization.objects.create(name="Outra granja", slug="semen-outsider")
+        manager = get_user_model().objects.create_user(email="semen-other@example.invalid", password="Password-8472",
+                                                        role="manager", organization=outsider)
+        self.client.force_authenticate(manager)
+        self.assertEqual(self.client.get(url).data["lots"], [])
+        self.assertEqual(self.client.post(url, command, format="json").status_code, 404)

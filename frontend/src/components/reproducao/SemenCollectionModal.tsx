@@ -2,12 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Info, Loader2, Plus, Trash2, X } from "lucide-react";
-import apiClient from "@/services/api";
-import { registerSemenCollection } from "@/services/livestockService";
+import { listSemenComponentStock, registerSemenCollection, type SemenComponentStockItem } from "@/services/livestockService";
 import { useOrganizationLocale } from "@/lib/locale";
 
 type Option = { id: string; label: string };
-type StockItem = { id: string; nome: string; categoria?: string; unidade_medida?: string; unidade_display?: string; estoque_atual?: number | string };
 type Component = { item: string; quantity: string; unit: string };
 
 const UNITS = ["ml", "l", "g", "kg", "unidade", "dose"] as const;
@@ -37,7 +35,8 @@ export function SemenCollectionModal({ onClose, onSaved, reproducers, responsibl
   reproducers: Option[]; responsibles: Option[]; initialAnimal?: string;
 }) {
   const { language, t } = useOrganizationLocale();
-  const [items, setItems] = useState<StockItem[]>([]);
+  const [items, setItems] = useState<SemenComponentStockItem[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
   const [itemsError, setItemsError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -45,11 +44,12 @@ export function SemenCollectionModal({ onClose, onSaved, reproducers, responsibl
   const [components, setComponents] = useState<Component[]>([emptyComponent()]);
 
   useEffect(() => {
-    let active = true;
-    apiClient.get<StockItem[]>("/inventory/items/all_items/", { params: { segmento: "suinos" } })
-      .then(({ data }) => { if (active) { setItems((data || []).filter(item => item.categoria !== "semen")); setItemsError(""); } })
-      .catch(() => { if (active) setItemsError(t("semen.loadFailed")); });
-    return () => { active = false; };
+    const controller = new AbortController();
+    listSemenComponentStock(controller.signal)
+      .then(data => { if (!controller.signal.aborted) { setItems(data); setItemsError(""); } })
+      .catch(() => { if (!controller.signal.aborted) setItemsError(t("semen.loadFailed")); })
+      .finally(() => { if (!controller.signal.aborted) setItemsLoading(false); });
+    return () => controller.abort();
   }, [t]);
 
   const number = new Intl.NumberFormat(language, { maximumFractionDigits: 3 });
@@ -58,7 +58,7 @@ export function SemenCollectionModal({ onClose, onSaved, reproducers, responsibl
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (saving) return;
+    if (saving || (form.diluted && (itemsLoading || !items.length))) return;
     setSaving(true); setError("");
     try {
       await registerSemenCollection({
@@ -129,13 +129,14 @@ export function SemenCollectionModal({ onClose, onSaved, reproducers, responsibl
                     </span>
                     <button type="button" className="repro-btn-primary repro-semen-add" disabled={saving} onClick={() => setComponents(rows => [...rows, emptyComponent()])}><Plus size={16} />{t("semen.add")}</button>
                   </div>
+                  {!itemsLoading && !itemsError && !items.length && <small role="status" className="repro-field-hint">{t("semen.noStockComponents")}</small>}
                   {itemsError && <div role="alert" className="alert alert-danger mb-0">{itemsError}</div>}
                   <div className="repro-inventory-list">
                     {components.map((row, index) => {
                       const stock = items.find(item => item.id === row.item);
                       return (
                         <div className="repro-inventory-row repro-inventory-row--unit" key={index}>
-                          <select required disabled={saving} value={row.item} aria-label={`${t("semen.component")} ${index + 1}`}
+                          <select required disabled={saving || itemsLoading} value={row.item} aria-label={`${t("semen.component")} ${index + 1}`}
                             onChange={e => { const item = items.find(x => x.id === e.target.value); changeComponent(index, { item: e.target.value, unit: (item?.unidade_medida && UNITS.includes(item.unidade_medida as typeof UNITS[number])) ? item.unidade_medida : row.unit }); }}>
                             <option value="">{t("reproduction.select")}</option>
                             {items.map(item => <option key={item.id} value={item.id}>{item.nome}</option>)}
@@ -163,7 +164,7 @@ export function SemenCollectionModal({ onClose, onSaved, reproducers, responsibl
           </div>
           <div className="repro-modal-footer">
             <button type="button" className="repro-btn-secondary" onClick={onClose} disabled={saving}>{t("reproduction.cancel")}</button>
-            <button type="submit" className="repro-btn-primary" disabled={saving || !reproducers.length}>
+            <button type="submit" className="repro-btn-primary" disabled={saving || !reproducers.length || (form.diluted && (itemsLoading || !items.length))}>
               {saving && <Loader2 size={16} className="spinner" />}{saving ? t("reproduction.saving") : t("reproduction.confirm")}
             </button>
           </div>

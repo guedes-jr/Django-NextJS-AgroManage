@@ -1,3 +1,4 @@
+import { semenSaleAmount, semenSaleBook, semenSaleCommand, semenSaleReceipt, type SemenSaleCommand } from '../features/swine/semenSales';
 import { swineSales } from '../features/swine/sales';
 import { herdHistory, herdPage, herdQuery, reportQuery, reportResponse, type HerdQuery, type ReportQuery } from '../features/veterinary/consultation';
 import { swineSaleAmount, swineTransitionInput, swineTransitionOptions, swineTransitionReceipt, swineTransitions, type SwineTransitionInput, type SwineTransitionKind } from '../features/swine/transitions';
@@ -475,6 +476,20 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       const result=parseSwinePhasePage(value.phase,data);
       if(result.page!==value.page||result.page_size!==value.page_size||result.next!==(result.page*result.page_size<result.count)||result.previous!==(result.page>1))throw new Error('invalid swine pagination');
       return result;
+    },
+    async semenSales(tokens: Tokens, language: Language, signal?: AbortSignal) {
+      return semenSaleBook.parse((await http.get('livestock/semen-sales/', {
+        ...options(language, tokens.access), signal,
+      })).data);
+    },
+    async sellSemenDoses(tokens: Tokens, language: Language, input: SemenSaleCommand) {
+      const command = semenSaleCommand.parse(input);
+      const receipt = semenSaleReceipt.parse((await http.post('livestock/semen-sales/', command, options(language, tokens.access))).data);
+      if (receipt.reference !== `SALE-SEMEN-${command.request_key}` || receipt.collection !== command.collection ||
+          receipt.quantity !== command.quantity || receipt.amount !== semenSaleAmount(command.quantity, command.price)) {
+        throw new Error('semen sale receipt');
+      }
+      return receipt;
     },
     async swineSales(tokens: Tokens, language: Language, signal?: AbortSignal) {
       return swineSales.parse((await http.get('livestock/batches/sales/', {

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { SemenSalesPanel, semenCopy } from './SemenSalesPanel';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { FlatList, Text, View } from 'react-native';
@@ -9,21 +11,28 @@ import { WorkspaceShell } from '../workspace/WorkspaceShell';
 import { swineMessages } from './messages';
 import { canReadSwineSales } from './sales';
 
-export const salesTitle = { 'pt-BR': 'Vendas de suínos', 'pt-PT': 'Vendas de suínos', en: 'Swine sales', es: 'Ventas de cerdos' };
+export const salesTitle = { 'pt-BR': 'Vendas de Animais / Sêmen', 'pt-PT': 'Vendas de Animais / Sémen', en: 'Animal / Semen Sales', es: 'Ventas de Animales / Semen' };
 
 export function SwineSalesScreen() {
   const { state, controller, language } = useAuth();
   const router = useRouter();
+  const [showSemen, setShowSemen] = useState(false);
   const copy = swineMessages[language];
   const workspace = workspaceMessages[language];
   const allowed = state.status === 'signedIn' && canReadSwineSales(state.session.user);
   const session = state.status === 'signedIn' ? `${state.session.organization.id}:${state.session.user.id}` : '';
   const query = useQuery({
-    queryKey: ['swine-sales', session], enabled: allowed, retry: false,
+    queryKey: ['swine-sales', session], enabled: allowed && !showSemen, retry: false,
     queryFn: ({ signal }) => controller.swineSales(signal),
   });
   return <WorkspaceShell active="swine" title={salesTitle[language]}>
-    {!allowed ? <Text style={s.error}>{workspace.noAccess}</Text> : <FlatList
+    {!allowed ? <Text style={s.error}>{workspace.noAccess}</Text> : <>
+      <View style={[s.content, s.row]}>
+        <AgendaButton label={semenCopy[language].animals} selected={!showSemen} onPress={() => setShowSemen(false)}/>
+        <AgendaButton label={semenCopy[language].doses} selected={showSemen} onPress={() => setShowSemen(true)}/>
+      </View>
+      <SemenSalesPanel active={showSemen}/>
+      {!showSemen ? <FlatList
       contentContainerStyle={s.content}
       data={query.isError ? [] : query.data ?? []}
       keyExtractor={row => row.id}
@@ -31,6 +40,7 @@ export function SwineSalesScreen() {
       onRefresh={() => void query.refetch()}
       ListHeaderComponent={<View style={{ gap: 8 }}>
         <AgendaButton label={workspace.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/swine')}/>
+        <AgendaButton label={copy.phase.engorda} onPress={() => router.push({ pathname: '/swine/[phase]', params: { phase: 'engorda' } })}/>
         {query.isPending ? <Busy label={workspace.loading}/> : null}
         {query.isError ? <><Text accessibilityRole="alert" style={s.error}>{copy.error}</Text><AgendaButton label={copy.retry} onPress={() => void query.refetch()}/></> : null}
       </View>}
@@ -41,6 +51,6 @@ export function SwineSalesScreen() {
         <Text style={s.body}>{copy.buyer}: {item.buyer}</Text>
         {item.weight_kg != null ? <Text style={s.body}>{copy.weight}: {item.weight_kg} kg</Text> : null}
       </View>}
-    />}
+    /> : null}</>}
   </WorkspaceShell>;
 }

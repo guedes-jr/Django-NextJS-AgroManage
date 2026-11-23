@@ -124,6 +124,13 @@ class TransactionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"bank_account": translate_message("A conta bancária não pertence à sua organização.")})
         if animal_batch and animal_batch.farm.organization_id != organization.id:
             raise serializers.ValidationError({"animal_batch": translate_message("O lote não pertence à sua organização.")})
+        sale_reference = "SALE-SEMEN-"
+        if self.instance and self.instance.reference.startswith(sale_reference):
+            protected = {"reference", "notes", "amount", "category", "farm", "species", "segmento", "animal_batch", "planting_cycle"}
+            if any(key in attrs and attrs[key] != getattr(self.instance, key) for key in protected):
+                raise serializers.ValidationError({"reference": translate_message("Preserve os dados do título vinculado à venda de doses de sêmen.")})
+        elif attrs.get("reference", "").startswith(sale_reference):
+            raise serializers.ValidationError({"reference": translate_message("Essa referência é reservada às vendas de doses de sêmen.")})
         if self.instance and self.instance.payment_events.exists():
             protected = {"amount", "category", "bank_account", "status", "payment_date", "payment_method", "farm", "animal_batch", "species", "planting_cycle"}
             changed = [key for key in protected if key in attrs and attrs[key] != getattr(self.instance, key)]

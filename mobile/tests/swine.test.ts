@@ -1,3 +1,4 @@
+import { semenSaleAmount, semenSaleCommand } from '../src/features/swine/semenSales';
 import { swineSales } from '../src/features/swine/sales';
 import { swineSaleAmount, swineTransitionInput, swineTransitionOptions } from '../src/features/swine/transitions';
 import assert from 'node:assert/strict';
@@ -162,4 +163,15 @@ test('sales history retains unknown legacy prices and weight', () => {
   const row = { id: 'ee78b0af-ed06-474e-862f-0c6e557a0ebe', date: '2026-11-23', batch_code: 'L-1',
     quantity: 2, amount: '350.25', buyer: 'Comprador', price_per_kg: null, weight_kg: null };
   assert.deepEqual(swineSales.parse([row]), [row]);
+});
+
+test('semen sales validate stock, dates and exact decimal totals', () => {
+  const data = {
+    request_key: 'ee78b0af-ed06-474e-862f-0c6e557a0ebe', collection: '9c102c1d-9c6e-4a37-aa16-4a3a874a6149',
+    expected_balance: 10, quantity: 4, price: '20,50', buyer: 'Comprador', date: '2026-11-23', due_date: '2026-11-30',
+  };
+  const sale = semenSaleCommand.parse(data);
+  assert.equal(semenSaleAmount(sale.quantity, sale.price), '82.00');
+  assert.equal(semenSaleCommand.safeParse({ ...data, quantity: 11 }).success, false);
+  assert.equal(semenSaleCommand.safeParse({ ...data, due_date: '2026-11-22' }).success, false);
 });

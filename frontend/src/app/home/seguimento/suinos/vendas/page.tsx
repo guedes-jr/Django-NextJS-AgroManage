@@ -7,6 +7,7 @@ import apiClient from "@/services/api";
 import { useOrganizationLocale } from "@/lib/locale";
 import styles from "../operations.module.css";
 import saleStyles from "./sales.module.css";
+import { SemenSales } from "./SemenSales";
 
 type Batch = { id: string; batch_code: string; quantity: number; status: string; species_code: string };
 type Sale = { id: string; date: string; batch_code: string; quantity: number; weight_kg: string; price_per_kg: string; amount: string; buyer: string; responsible: string };
@@ -33,6 +34,20 @@ const fetchSales = () => Promise.allSettled([
 ]);
 
 export default function SalesPage() {
+  const { t } = useOrganizationLocale();
+  const [mode, setMode] = useState<"animals" | "semen">("animals");
+  const [semenOpened, setSemenOpened] = useState(false);
+  return <>
+    <div className="d-flex flex-wrap gap-2 mb-3" aria-label={t("swine.home.module.sales")}>
+      <button type="button" className={`btn btn-sm ${mode === "animals" ? "btn-success" : "btn-outline-secondary"}`} aria-pressed={mode === "animals"} onClick={() => setMode("animals")}>{t("semenSale.sellAnimals")}</button>
+      <button type="button" className={`btn btn-sm ${mode === "semen" ? "btn-success" : "btn-outline-secondary"}`} aria-pressed={mode === "semen"} onClick={() => { setSemenOpened(true); setMode("semen"); }}>{t("semenSale.sellDoses")}</button>
+    </div>
+    <div hidden={mode !== "animals"}><AnimalSalesPage /></div>
+    {semenOpened ? <div hidden={mode !== "semen"}><SemenSales /></div> : null}
+  </>;
+}
+
+function AnimalSalesPage() {
   const { language, t } = useOrganizationLocale();
   const money = new Intl.NumberFormat(language, { style: "currency", currency: "BRL" });
   const number = new Intl.NumberFormat(language);
