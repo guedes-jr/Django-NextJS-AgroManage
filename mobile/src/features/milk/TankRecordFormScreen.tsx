@@ -9,7 +9,7 @@ import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
 import {organizationDay} from '../workspace/contracts';
 import {workspaceMessages} from '../workspace/messages';
-import {WorkspaceShell} from '../workspace/WorkspaceShell';
+import {WorkspaceFormShell as WorkspaceShell} from '../workspace/WorkspaceShell';
 import {AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {TankRecordUnconfirmed} from '../../services/authApi';
 import {tankCommand,canWriteTankRecord,type TankDraft,type TankWriteCommand} from './tankWriteContracts';

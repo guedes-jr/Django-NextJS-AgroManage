@@ -7,7 +7,7 @@ import {randomUUID} from 'expo-crypto';
 import {isAxiosError} from 'axios';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {workspaceMessages} from '../workspace/messages';
 import {ProtocolStartChanged,ProtocolStartUnconfirmed} from '../../services/authApi';
 import {productionSchema} from './contracts';

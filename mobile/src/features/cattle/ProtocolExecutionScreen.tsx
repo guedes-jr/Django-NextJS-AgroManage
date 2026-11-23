@@ -4,7 +4,7 @@ import {useLocalSearchParams,usePreventRemove,useRouter} from 'expo-router';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {isAxiosError} from 'axios';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {workspaceMessages} from '../workspace/messages';
 import {canStartProtocol} from './protocolStartContracts';
 import {ProtocolExecutionChanged,ProtocolExecutionUnconfirmed} from '../../services/authApi';

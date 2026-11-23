@@ -19,7 +19,13 @@ import {ActionTile,styles as ui} from '../agenda/ui';
 import {balanceNavSlots,moduleKeys,nativeDestination,type NavSlot} from './navigation';
 import {canSearch,searchKinds} from './contracts';
 type Open=(key:ModuleKey)=>void;
-export function WorkspaceShell({active,title,children,onBack}:{active:'home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void}){
+type WorkspaceShellProps={active:'home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void;layout?:'wide'|'form'};
+const shellStyles=StyleSheet.create({
+ bodyBackdrop:{flex:1,width:'100%',backgroundColor:colors.background},
+ pageBody:{flex:1,minWidth:0,width:'100%',maxWidth:1600,alignSelf:'center',backgroundColor:colors.background},
+ formBody:{flex:1,minWidth:0,width:'100%',maxWidth:880,alignSelf:'center',backgroundColor:colors.background},
+});
+export function WorkspaceShell({active,title,children,onBack,layout='wide'}:WorkspaceShellProps){
  const {state,language,controller}=useAuth();const router=useRouter();const {width}=useWindowDimensions();const t=homeMessages[language];
  const unread=useQuery({queryKey:['notifications-count'],enabled:state.status==='signedIn'&&canReadNotifications(state.session.user),queryFn:({signal})=>controller.notificationCount(signal),staleTime:30000});
  const [panel,setPanel]=useState<'modules'|'create'|ModuleKey|null>(null);const [query,setQuery]=useState('');const [linkFailed,setLinkFailed]=useState(false);const [keyboard,setKeyboard]=useState(false);
@@ -67,7 +73,7 @@ export function WorkspaceShell({active,title,children,onBack}:{active:'home'|'ag
           <Path d="M0 85C140 6 230 28 390 75S615 60 780 32V100H0Z" fill={colors.background}/>
         </Svg>
       </View>
-<View style={{flex:1,backgroundColor:colors.background}}>{typeof children==='function'?children(open):children}</View>
+<View style={shellStyles.bodyBackdrop}><View style={layout==='form'?shellStyles.formBody:shellStyles.pageBody}>{typeof children==='function'?children(open):children}</View></View>
 {!keyboard&&<><View pointerEvents="box-none" style={s.navBackdrop}>
     <View testID="home-navigation" accessibilityRole="tablist" style={s.nav}>
       <View pointerEvents="none" style={[StyleSheet.absoluteFill,s.navFill]}>
@@ -92,4 +98,7 @@ export function WorkspaceShell({active,title,children,onBack}:{active:'home'|'ag
      </ScrollView></View>}
     </SafeAreaView></Modal>
 </SafeAreaView>;
+}
+export function WorkspaceFormShell(props:Omit<WorkspaceShellProps,'layout'>){
+ return <WorkspaceShell {...props} layout="form"/>;
 }

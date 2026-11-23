@@ -296,6 +296,70 @@ retaining the existing `rows`, `kpis`, alerts and suggestions. Without
 organization-scoped by the existing livestock permission rules; these resources
 do not currently support a farm filter, so mobile must identify the list as
 organization-wide rather than applying a selected-farm label.
+Mobile phase rows include `previsao_estimada` where a date is calculated by the
+server. In finishing, a stored `exit_date` is reported as a recorded date rather
+than a calculated estimate. The flag is descriptive only and does not advance
+or change an animal or batch phase.
+
+Mobile detail reads reuse `GET livestock/animals/{id}/`,
+`pregnancies/{id}/`, `births/{id}/` and `batches/{id}/` with
+`species=suinos`. The optional species filter is applied server-side to these
+detail querysets; pregnancy and birth are scoped through their female animal.
+Requests without `species` retain their existing behavior. Animal and batch
+details include the farm name, but do not add farm-scoped filtering.
+
+`GET livestock/batches/{id}/history/` accepts the same mobile `species=suinos`
+scope. With `view=mobile`, it returns a page envelope (`count`, `page`,
+`page_size`, `next`, `previous`, `results`) over the existing phase, feed,
+weight, sale, mortality and vaccination history. Without `view=mobile`, the
+legacy full-array response and ordering are preserved.
+
+`POST livestock/batches/{id}/register-weight/?species=suinos&view=mobile`
+accepts a strict command with `request_key` (UUID), current `phase` (`creche`,
+`crescimento` or `engorda`), positive `weight_kg` (up to three decimal places),
+`weighing_date` (ISO date) and optional `notes`. The server requires an active
+swine batch with remaining animals and a matching current phase; the date cannot
+be in the future or before the batch's current-phase entry date. It writes the
+weight record and history event atomically and returns `{id, batch_id, phase,
+request_key, weight_kg, weighing_date}`. A first write returns 201; a replay
+with the same key and identical command returns the existing receipt with 200.
+Reusing a key with different values, or a stale batch/phase, returns 409. The
+mobile client must reuse the exact command and key when the result of a network
+request is uncertain. Calls without `view=mobile` retain the legacy behavior.
+
+`POST livestock/animals/{id}/register-mating/?species=suinos&view=mobile`
+accepts `request_key` (UUID), `expected_status` (`vazia`, `pronta` or
+`aguardando_cobertura`), `mating_date`, `mating_type` (`natural`, `ai` or
+`iatf`), and optional `sire_info`/`notes`. It accepts only active female swine
+in the gilt or sow categories whose current reproductive status matches the
+expected eligible status and who
+have no pending diagnosis or ongoing pregnancy. The date cannot be future or
+earlier than the animal's birth or farm-entry date. The transaction creates the
+mating and history event, changes the animal to `coberta`, and calculates the
+114-day expected farrowing date. Replaying the same key and command returns the
+existing receipt (200); changed data or reproductive context returns 409. The
+mobile client must reuse the same command after an uncertain result. Calls
+without `view=mobile` retain the existing web behavior.
+
+`GET livestock/animals/{id}/mobile-diagnosis/?species=suinos` returns the
+current eligible animal, the uniquely pending mating, their version timestamps,
+server-local `today`/`timezone`, expected farrowing date and allowed results.
+Only active female gilt/sow records with a pending diagnosis are eligible.
+Ambiguous matings on the same date, an existing ongoing pregnancy, or an
+existing pregnancy for that mating return 409.
+
+`POST livestock/animals/{id}/diagnose-pregnancy/?species=suinos&view=mobile`
+accepts only `expected_farm`, `expected_mating`, `animal_version`,
+`mating_version`, `diagnosis_date` and `result` (`positive` or `negative`).
+The server rechecks the linked mating and versions under row locks; the date
+must be between mating and today. Positive is allowed only with a valid
+expected farrowing date. Positive confirms the mating, updates the animal to
+gestating and creates its pregnancy; negative marks the mating failed and
+restores the saved previous reproductive status. Both outcomes add an authored
+history event atomically and return `{animal, mating, result, status}`. The
+mobile screen blocks resubmission after an uncertain response and directs the
+user to refresh history; calls without `view=mobile` retain the existing web
+behavior.
 
 `GET livestock/swine/phases/<phase>/<uuid:pk>/mobile/?view=mobile` is the
 read-only detail projection for rows with UUID IDs from those lists. It verifies

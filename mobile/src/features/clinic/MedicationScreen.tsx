@@ -8,7 +8,7 @@ import {isAxiosError} from 'axios';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {MedicationSaveUnconfirmed} from '../../services/authApi';
 import type {ClinicAnimal} from './contracts';
 import {AnimalPicker} from './AnimalPicker';

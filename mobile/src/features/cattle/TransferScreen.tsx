@@ -8,7 +8,7 @@ import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
 import {organizationDay} from '../workspace/contracts';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {AuthFailure} from '../../services/authApi';
 import {productionSchema,type CattleBatch,type Production} from './contracts';
 import {canTransfer,transferInput,transferPreviewSchema,matchesPreview,type TransferInput,type TransferPreview} from './batchContracts';

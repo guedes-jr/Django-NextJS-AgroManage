@@ -13,7 +13,7 @@ export const homeStyles = StyleSheet.create({
   // 36 visual circle; the Pressable adds hitSlop to reach the 44 touch target.
   avatar:{width:36,minHeight:36,height:36,borderRadius:18,backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'},avatarText:{fontSize:13,fontWeight:'700',color:colors.forest},
   wave:{position:'absolute',bottom:-1,left:0},
-  content:{width:'100%',maxWidth:720,alignSelf:'center',paddingHorizontal:space.lg,gap:space.md},
+  content:{width:'100%',maxWidth:1600,alignSelf:'center',paddingHorizontal:space.lg,gap:space.md},
   search:{flexDirection:'row',gap:10,alignItems:'center',minHeight:touchTarget,padding:10,backgroundColor:colors.track,borderWidth:1,borderColor:colors.borderSoft,borderRadius:radius.md},searchText:{fontSize:15,color:colors.muted,flex:1},
   intro:{gap:3,paddingVertical:2},greeting:{fontSize:18,fontWeight:'700',letterSpacing:-0.2,color:colors.forest},green:{color:colors.primary,fontWeight:'700'},subtitle:{fontSize:14,lineHeight:21,color:colors.muted},organization:{fontSize:12,color:colors.muted},
   period:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:6},periodText:{flex:1,textAlign:'center',fontSize:14,fontWeight:'700',color:colors.forest},

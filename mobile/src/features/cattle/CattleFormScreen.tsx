@@ -10,7 +10,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { organizationDay } from '../workspace/contracts';
 import { workspaceMessages } from '../workspace/messages';
-import { AgendaShell, AgendaButton, Busy, styles as s } from '../agenda/ui';
+import { AgendaFormShell as AgendaShell, AgendaButton, Busy, styles as s } from '../agenda/ui';
 import { AuthFailure } from '../../services/authApi';
 import { cattleFormMessages } from './formMessages';
 import { cattleMessages, cattleLabel } from './messages';

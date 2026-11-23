@@ -8,7 +8,7 @@ import {isAxiosError} from 'axios';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {InventorySaveUnconfirmed} from '../../services/authApi';
 import {canWriteInventory,type InventoryItem,type InventoryLot} from './contracts';
 import {stockCountSchema,hundredths,type StockCountInput} from './movementContracts';

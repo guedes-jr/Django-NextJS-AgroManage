@@ -7,7 +7,7 @@ import {zodResolver} from '@hookform/resolvers/zod';
 import {isAxiosError} from 'axios';
 import {useAuth} from '../auth/AuthProvider';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {NotificationSaveUnconfirmed} from '../../services/authApi';
 import {canReadNotifications,preferenceFields,preferenceValuesSchema,type Preferences,type PreferenceValues} from './contracts';
 import {notificationMessages} from './messages';

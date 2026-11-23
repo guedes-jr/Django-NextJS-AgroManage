@@ -5,7 +5,7 @@ import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {isAxiosError} from 'axios';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {workspaceMessages} from '../workspace/messages';
 import {WeighingReviewChanged,WeighingConfirmationUnconfirmed} from '../../services/authApi';
 import {productionSchema} from './contracts';

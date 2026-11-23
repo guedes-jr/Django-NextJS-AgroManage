@@ -70,6 +70,7 @@ yarn-error.log*
 
 # ─── Environment files ────────────────────────────────────────────────────────
 .env
+.envrc
 .env.*
 !.env.example
 frontend/.env.local

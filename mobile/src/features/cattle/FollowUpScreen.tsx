@@ -6,7 +6,7 @@ import {Controller,useForm,useWatch} from 'react-hook-form';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {workspaceMessages} from '../workspace/messages';
 import {FollowUpUnconfirmed} from '../../services/authApi';
 import {productionSchema} from './contracts';

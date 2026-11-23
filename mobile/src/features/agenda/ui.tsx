@@ -3,8 +3,11 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, t
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { colors, radius, space, touchTarget, type } from '../../theme/tokens';
-export function AgendaShell({title,backLabel,onBack,children}:PropsWithChildren<{title:string;backLabel:string;onBack:()=>void}>) {
-  return <SafeAreaView style={styles.safe}><StatusBar style="dark"/><View style={styles.header}><AgendaButton label={`‹ ${backLabel}`} onPress={onBack}/><Text accessibilityRole="header" style={styles.heading}>{title}</Text></View>{children}</SafeAreaView>;
+export function AgendaShell({title,backLabel,onBack,children,layout='wide'}:PropsWithChildren<{title:string;backLabel:string;onBack:()=>void;layout?:'wide'|'form'}>) {
+  return <SafeAreaView style={styles.safe}><StatusBar style="dark"/><View style={styles.header}><AgendaButton label={`‹ ${backLabel}`} onPress={onBack}/><Text accessibilityRole="header" style={styles.heading}>{title}</Text></View><View style={layout==='form'?styles.formFrame:styles.contentFrame}>{children}</View></SafeAreaView>;
+}
+export function AgendaFormShell(props:PropsWithChildren<{title:string;backLabel:string;onBack:()=>void;layout?:'form'}>) {
+  return <AgendaShell {...props} layout="form"/>;
 }
 // `primary` is reserved for the one main action of a screen (save/confirm/send): full width and prominent.
 export function AgendaButton({label,onPress,selected=false,disabled=false,busy=false,variant='secondary',accessibilityLabel,style}:{label:string;onPress:()=>void;selected?:boolean;disabled?:boolean;busy?:boolean;variant?:'primary'|'secondary';accessibilityLabel?:string;style?:StyleProp<ViewStyle>}) {
@@ -38,7 +41,9 @@ export const styles=StyleSheet.create({
  safe:{flex:1,backgroundColor:colors.background},
  header:{flexDirection:'row',alignItems:'center',gap:space.md,paddingHorizontal:space.md,paddingVertical:space.sm,borderBottomWidth:1,borderColor:colors.borderSoft},
  heading:{...type.screenTitle,flex:1},
- content:{width:'100%',maxWidth:720,alignSelf:'center',padding:space.lg,gap:space.md,paddingBottom:space.xxl},
+ contentFrame:{width:'100%',maxWidth:1600,alignSelf:'center',flex:1,minWidth:0},
+ formFrame:{width:'100%',maxWidth:880,alignSelf:'center',flex:1,minWidth:0},
+ content:{width:'100%',maxWidth:1600,alignSelf:'center',padding:space.lg,gap:space.md,paddingBottom:space.xxl},
  row:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:space.sm},
  button:{minHeight:touchTarget,minWidth:touchTarget,justifyContent:'center',alignItems:'center',paddingHorizontal:space.md,paddingVertical:space.sm,borderRadius:radius.md,backgroundColor:colors.softStrong},
  buttonText:{fontSize:14,fontWeight:'600',color:colors.primary},

@@ -8,7 +8,7 @@ import {randomUUID} from 'expo-crypto';
 import {isAxiosError} from 'axios';
 import {useAuth} from '../auth/AuthProvider';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import type {Production} from '../cattle/contracts';
 import {FeedingSaveUnconfirmed} from '../../services/authApi';
 import {canWriteDailyFeeding,feedingBatchPage,feedingDraftSchema,feedingCommand,type FeedingBatch,type FeedingCommand,type FeedingDraft,type FeedingProduct,type FeedingFormula} from './contracts';

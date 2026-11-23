@@ -9,7 +9,7 @@ import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
 import {workspaceMessages} from '../workspace/messages';
 import {ownerSegments,segmentCopy} from '../inventory/segments';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {canWriteInventory} from '../inventory/contracts';
 import {LaunchPicker} from '../inventory/LaunchPicker';
 import {InventorySaveUnconfirmed} from '../../services/authApi';

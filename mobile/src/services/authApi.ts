@@ -1,5 +1,5 @@
 import { dairyOverviewSchema } from '../features/cattle/dairyOverviewContracts';
-import { parseSwinePhasePage, swinePhaseDetailSchema, swinePhaseQuerySchema, type SwinePhaseQuery, type SwinePhase } from '../features/swine/contracts';
+import { parseSwineBatchHistoryPage, parseSwinePhasePage, parseSwineRecordDetail, swineBatchWeightCommandSchema, swineBatchWeightReceiptSchema, swineBirthDetailSchema, swineDiagnosisInputSchema, swineDiagnosisOptionsSchema, swineDiagnosisReceiptSchema, swineMatingCommandSchema, swineMatingReceiptSchema, swinePhaseDetailSchema, swinePhaseQuerySchema, swinePregnancyDetailSchema, type SwineBatchHistoryPage, type SwineBatchWeightCommand, type SwineBatchWeightReceipt, type SwineDiagnosisInput, type SwineDiagnosisOptions, type SwineDiagnosisReceipt, type SwineMatingCommand, type SwineMatingReceipt, type SwinePhase, type SwinePhaseQuery, type SwineRecordDetail } from '../features/swine/contracts';
 import {tankWriteCommandSchema,validateTankReceipt,type TankWriteCommand} from '../features/milk/tankWriteContracts';
 import {tankFormOptionsSchema,tankFormRecordSchema,tankCommandSchema,tankFormPayload,type TankCommand} from '../features/milk/tankFormContracts';
 import {tankQualityQuerySchema,tankQualitySchema,tankQualityPageSchema,ensureTankQualityScope,type TankQualityQuery} from '../features/milk/tankQualityContracts';
@@ -82,6 +82,10 @@ export class SanitarySaveUnconfirmed extends Error {}
 export class CastrationSaveUnconfirmed extends Error {}
 export class WeighingCancellationUnconfirmed extends Error {}
 export class WeighingSaveUnconfirmed extends Error {}
+export class SwineBatchWeightUnconfirmed extends Error {}
+export class SwineMatingUnconfirmed extends Error {}
+export class SwineDiagnosisUnconfirmed extends Error {}
+export class SwineDiagnosisContextChanged extends Error {}
 export class WeighingContextChanged extends Error {}
 export class TankSaveUnconfirmed extends Error {}
 export class TankContextChanged extends Error {}
@@ -417,6 +421,104 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       const value=swinePhaseDetailSchema.parse((await http.get(`livestock/swine/phases/${phase}/${z.uuid().parse(id)}/mobile/`,{...options(language,tokens.access),params:{view:'mobile'},signal})).data);
       if(value.phase!==phase||value.id!==id)throw Error('invalid swine detail');
       return value;
+    },
+    async swineRecordDetail(tokens:Tokens,language:Language,phase:SwinePhase,id:string,signal?:AbortSignal):Promise<SwineRecordDetail>{
+      const key=z.string().trim().min(1).max(100).parse(id);
+      const config={...options(language,tokens.access),params:{species:'suinos'},signal};
+      const animalData=async(animalId:string)=>(
+        await http.get(`livestock/animals/${encodeURIComponent(z.string().trim().min(1).max(100).parse(animalId))}/`,config)
+      ).data;
+      let data:unknown;
+      let relatedAnimal:unknown;
+      if(phase==='marras'||phase==='matrizes'){
+        data=(await http.get(`livestock/animals/${encodeURIComponent(key)}/`,config)).data;
+      }else if(phase==='gestacao'&&key.startsWith('cob_')){
+        data=await animalData(key.slice(4));
+      }else if(phase==='gestacao'){
+        data=(await http.get(`livestock/pregnancies/${encodeURIComponent(key)}/`,{...options(language,tokens.access),params:{species:'suinos'},signal})).data;
+        const pregnancy=swinePregnancyDetailSchema.parse(data);
+        relatedAnimal=await animalData(String(pregnancy.female));
+      }else if(phase==='maternidade'){
+        data=(await http.get(`livestock/births/${encodeURIComponent(key)}/`,{...options(language,tokens.access),params:{species:'suinos'},signal})).data;
+        const birth=swineBirthDetailSchema.parse(data);
+        relatedAnimal=await animalData(String(birth.female));
+      }else{
+        data=(await http.get(`livestock/batches/${encodeURIComponent(key)}/`,config)).data;
+      }
+      return parseSwineRecordDetail(phase,key,data,relatedAnimal);
+    },
+    async swineBatchHistory(tokens:Tokens,language:Language,id:string,page:number,pageSize:number,signal?:AbortSignal):Promise<SwineBatchHistoryPage>{
+      const key=z.string().trim().min(1).max(100).parse(id);
+      const currentPage=z.number().int().min(1).max(100000).parse(page);
+      const size=z.number().int().min(1).max(100).parse(pageSize);
+      const data=(await http.get(`livestock/batches/${encodeURIComponent(key)}/history/`,{
+        ...options(language,tokens.access),
+        params:{species:'suinos',view:'mobile',page:currentPage,page_size:size},
+        signal,
+      })).data;
+      return parseSwineBatchHistoryPage(data,currentPage,size);
+    },
+    async registerSwineBatchWeight(tokens:Tokens,language:Language,id:string,input:SwineBatchWeightCommand):Promise<SwineBatchWeightReceipt>{
+      const batchId=z.uuid().parse(id);
+      const command=swineBatchWeightCommandSchema.parse(input);
+      let response;
+      try{
+        response=await http.post(`livestock/batches/${batchId}/register-weight/`,command,{
+          ...options(language,tokens.access),
+          params:{species:'suinos',view:'mobile'},
+        });
+      }catch(error){
+        if(isAxiosError(error)&&(!error.response||error.response.status===408||error.response.status>=500))throw new SwineBatchWeightUnconfirmed();
+        throw error;
+      }
+      const result=swineBatchWeightReceiptSchema.safeParse(response.data);
+      if(!result.success||result.data.batch_id!==batchId||result.data.phase!==command.phase||result.data.request_key!==command.request_key||result.data.weight_kg!==command.weight_kg||result.data.weighing_date!==command.weighing_date)throw new SwineBatchWeightUnconfirmed();
+      return result.data;
+    },
+    async registerSwineMating(tokens:Tokens,language:Language,id:string,input:SwineMatingCommand):Promise<SwineMatingReceipt>{
+      const femaleId=z.uuid().parse(id);
+      const command=swineMatingCommandSchema.parse(input);
+      let response;
+      try{
+        response=await http.post(`livestock/animals/${femaleId}/register-mating/`,command,{
+          ...options(language,tokens.access),
+          params:{species:'suinos',view:'mobile'},
+        });
+      }catch(error){
+        if(isAxiosError(error)&&(!error.response||error.response.status===408||error.response.status>=500))throw new SwineMatingUnconfirmed();
+        throw error;
+      }
+      const result=swineMatingReceiptSchema.safeParse(response.data);
+      if(!result.success||result.data.female_id!==femaleId||result.data.request_key!==command.request_key||result.data.mating_date!==command.mating_date||result.data.mating_type!==command.mating_type||result.data.sire_info!==command.sire_info)throw new SwineMatingUnconfirmed();
+      return result.data;
+    },
+    async swineDiagnosisOptions(tokens:Tokens,language:Language,id:string,signal?:AbortSignal):Promise<SwineDiagnosisOptions>{
+      const animalId=z.uuid().parse(id);
+      const data=swineDiagnosisOptionsSchema.parse((await http.get(`livestock/animals/${animalId}/mobile-diagnosis/`,{
+        ...options(language,tokens.access),
+        params:{species:'suinos'},
+        signal,
+      })).data);
+      if(data.animal.id!==animalId)throw new Error('swine diagnosis identity');
+      return data;
+    },
+    async saveSwineDiagnosis(tokens:Tokens,language:Language,id:string,input:SwineDiagnosisInput):Promise<SwineDiagnosisReceipt>{
+      const animalId=z.uuid().parse(id);
+      const command=swineDiagnosisInputSchema.parse(input);
+      let response;
+      try{
+        response=await http.post(`livestock/animals/${animalId}/diagnose-pregnancy/`,command,{
+          ...options(language,tokens.access),
+          params:{species:'suinos',view:'mobile'},
+        });
+      }catch(error){
+        if(isAxiosError(error)&&(!error.response||error.response.status===408||error.response.status>=500))throw new SwineDiagnosisUnconfirmed();
+        if(isAxiosError(error)&&error.response?.status===409)throw new SwineDiagnosisContextChanged();
+        throw error;
+      }
+      const result=swineDiagnosisReceiptSchema.safeParse(response.data);
+      if(!result.success||result.data.animal!==animalId||result.data.mating!==command.expected_mating||result.data.result!==command.result||command.result==='positive'&&result.data.status!=='gestante'||command.result==='negative'&&result.data.status==='gestante')throw new SwineDiagnosisUnconfirmed();
+      return result.data;
     },
     async saveCattleBatch(tokens:Tokens,language:Language,values:BatchInput,production:Production,farm:string,id?:string){
       const config={...options(language,tokens.access),params:{production:productionSchema.parse(production),...(id?{farm:z.uuid().parse(farm)}:{})}};

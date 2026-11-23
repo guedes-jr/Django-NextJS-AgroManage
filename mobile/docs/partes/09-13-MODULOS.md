@@ -245,12 +245,70 @@ somente leitura e agregados por organização porque os endpoints atuais não
 aceitam filtro por fazenda. Os endpoints só acrescentam metadados de página com
 `view=mobile`, preservando a resposta legada da web. Typecheck e lint passaram;
 testes automatizados e homologação visual/nativa ficam para a rodada final após
-a conclusão das telas. Fichas, eventos, escritas e transferências permanecem
-pendentes. A revisão de apresentação posterior substituiu os cartões textuais
+a conclusão das telas. A revisão de apresentação posterior substituiu os cartões textuais
 por cartões compactos por fase, com ícones e uma ficha resumida por toque usando
 somente os dados da lista já autorizada. A auditoria P11.01 confirmou que estes
 recursos não expõem ficha individual, fazenda ou eventos por `view=mobile`; por
 isso a ficha não inventa esses campos e continua sendo consulta parcial.
+A ficha completa, com fazenda, histórico e escritas, foi adicionada nos
+incrementos P11-B/C abaixo; cadastro/edição e transferências permanecem pendentes.
+
+**Incremento P11-B — fichas somente leitura (15/11/2026):** adicionadas fichas
+de animais, gestações, partos e lotes; exibem a fazenda e as datas disponíveis,
+com histórico reprodutivo do servidor nas fichas de fêmeas e histórico paginado
+de fases, ração, pesagens, vendas, mortalidade e vacinação em lotes. Nascimento
+e entrada permanecem campos distintos; idade e previsões não são recalculadas
+no cliente. Previsões do servidor são identificadas como estimadas; em engorda,
+uma data de saída já informada é identificada separadamente. Atingir uma data
+prevista não muda a fase. As listas não filtram por fazenda conforme o contrato
+atual. Typecheck e lint passaram; testes automatizados e homologação nativa
+continuam adiados para a rodada final.
+
+**Auditoria P11.01 — produtividade e mão de obra:** o mobile já consulta fases,
+fichas e histórico por `authApi.ts`, mas ainda não integra produtividade nem
+mão de obra. A produtividade existente (`frontend/src/services/swineProductivityService.ts`,
+`backend/apps/reports/productivity.py`) calcula métricas de lote para creche,
+crescimento e engorda; maternidade/reprodução não têm métricas de fase
+equivalentes, aparecendo na distribuição de animais e em um indicador separado
+de mortalidade por esmagamento. O formulário web de mão de obra grava uma
+despesa financeira genérica e guarda os detalhes em `notes`, sem vínculo
+obrigatório com fazenda ou lote; não deve ser copiado para o mobile como
+operação de lote sem definir esse vínculo e as permissões.
+
+**Incremento P11-C — pesagem de lotes:** a ficha de lote ativo em creche,
+crescimento ou engorda oferece entrada online do peso médio em kg, data e
+observações com revisão antes da gravação. A escrita usa a ação existente com
+`view=mobile`, comando estrito, fase esperada e chave idempotente; o backend
+revalida permissão, espécie, situação, saldo, fase e intervalo de datas sob
+transação, preservando a chamada legada sem o parâmetro. Se a resposta ficar
+incerta, a tela mantém o mesmo comando e permite somente repetir com a mesma
+chave; após confirmação, ficha, lista e histórico são invalidados. Não há fila
+offline ou persistência do envio após encerrar a tela. Typecheck, lint e sintaxe
+Python aprovados; testes automatizados e homologação visual/nativa ficam para a
+rodada final, conforme solicitado.
+
+**Incremento seguinte — cobertura reprodutiva suína:** fichas de marrãs e
+matrizes ativas com situação vazia, pronta ou aguardando cobertura podem
+registrar cobertura natural, inseminação artificial ou IATF após revisão.
+Backend revalida o estado esperado, vínculos e sequência de prenhez/diagnóstico
+sob bloqueio da matriz, calcula a previsão de 114 dias e registra autoria e
+histórico atomicamente. Chave de requisição protege retry idêntico após
+resultado incerto; edição do comando após resultado incerto não é oferecida.
+Não agenda vacina, não escolhe reprodutor por vínculo e não diagnostica
+prenhez. P11.07 permanece parcial até as demais transições reprodutivas serem
+implementadas. Testes automatizados continuam adiados.
+
+**Diagnóstico reprodutivo suíno:** fichas de marrãs e matrizes com cobertura
+pendente oferecem registro online do resultado informado pelo responsável.
+Opções e gravação vinculam matriz, fazenda, cobertura e versões atuais; o
+servidor valida a data e bloqueia cobertura ambígua, prenhez duplicada e
+sequência desatualizada. Resultado positivo confirma a prenhez e cria o registro
+de gestação; negativo restaura a fase anterior e marca a cobertura como falha.
+Ambos registram autoria e histórico atomicamente. Uma previsão inválida permite
+somente resultado negativo. O app não realiza diagnóstico e, após resposta
+incerta, bloqueia novo envio e direciona à conferência do histórico. P11.07
+continua parcial: parto e demais transições reprodutivas ainda não foram
+implementados. Testes automatizados permanecem adiados.
 
 ### Ordem interna sugerida
 
@@ -264,10 +322,10 @@ isso a ficha não inventa esses campos e continua sendo consulta parcial.
 
 - [x] P11.01 — Mapeados `livestockService.ts` e os recursos de fase existentes: o recorte mobile atual entrega somente linhas e contagem organizacionais, sem detalhe individual/fazenda/eventos. Produtividade e mão de obra exigem contratos próprios antes de entrar na ficha.
 - [x] P11.02 — Criar hub de fases com contagens confiáveis e lista paginada; contagens ausentes não devem ser inventadas localmente.
-- [ ] P11.03 — Detalhe com identificação, fase, fazenda, datas e eventos necessários para decidir a próxima ação. Respeitar diferenças entre animal individual e lote.
-- [ ] P11.04 — Preservar distinção entre data de nascimento, chegada e início da fase. Idade desconhecida permanece desconhecida; não substituir nascimento por entrada.
-- [ ] P11.05 — Mostrar previsões calculadas pelo servidor e indicar natureza estimada. Estar na data prevista não muda automaticamente a fase no cliente.
-- [ ] P11.06 — Selecionar e implementar a primeira escrita online com validação de contagem, peso/unidade, datas e situação. Não reutilizar regras de bovinos sem verificar.
+- [x] P11.03 — Detalhe com identificação, fase, fazenda, datas e eventos necessários para decidir a próxima ação. Respeitar diferenças entre animal individual e lote.
+- [x] P11.04 — Preservar distinção entre data de nascimento, chegada e início da fase. Idade desconhecida permanece desconhecida; não substituir nascimento por entrada.
+- [x] P11.05 — Mostrar previsões calculadas pelo servidor e indicar natureza estimada. Estar na data prevista não muda automaticamente a fase no cliente.
+- [x] P11.06 — Selecionar e implementar a primeira escrita online com validação de peso/unidade, datas e situação. Não reutilizar regras de bovinos sem verificar.
 - [ ] P11.07 — Para reprodução, validar vínculos e sequência dos eventos permitidos. Não inferir que alertas existentes concedem permissão de gravação.
 - [ ] P11.08 — Transferência deve confirmar origem, destino, quantidade e efeito sobre as fases; servidor executa atomicamente e informa resultado. Transferência não é simples alteração de rótulo.
 - [ ] P11.09 — Mortalidade, descarte, venda e mão de obra ficam em entregas específicas, com impactos de estoque/financeiro explicitados quando existentes.

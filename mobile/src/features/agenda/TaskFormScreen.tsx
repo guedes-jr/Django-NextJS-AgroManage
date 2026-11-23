@@ -13,7 +13,7 @@ import { AuthFailure } from '../../services/authApi';
 import { taskInputSchema, taskWriteAccess, taskStatuses, taskPriorities, daySchema, type AgendaTask, type taskOptionsSchema, type TaskInput } from './contracts';
 import { agendaLabel, agendaMessages } from './messages';
 import { taskFormMessages } from './formMessages';
-import { AgendaButton, AgendaShell, Busy, styles as s } from './ui';
+import { AgendaButton, AgendaFormShell as AgendaShell, Busy, styles as s } from './ui';
 type Options=z.infer<typeof taskOptionsSchema>;
 export function TaskFormScreen() {
   const {taskId,date}=useLocalSearchParams<{taskId?:string;date?:string}>();
@@ -71,7 +71,7 @@ function TaskEditor({task,options,access,initialDate,onBack}:{task?:AgendaTask;o
   };
   const input=(name:'title'|'description'|'due_date'|'start_time'|'end_time'|'location',label:string,multiline=false)=><View key={name} style={{gap:6}}><Text style={s.label}>{label}</Text><Controller control={control} name={name} render={({field})=><TextInput accessibilityLabel={label} value={field.value??''} onChangeText={value=>field.onChange((name==='start_time'||name==='end_time')&&!value?null:value)} onBlur={field.onBlur} ref={field.ref} editable={!isSubmitting&&!uncertain&&!contextChanged&&!saved} multiline={multiline} autoCapitalize={['due_date','start_time','end_time'].includes(name)?'none':'sentences'} style={[s.input,multiline&&{minHeight:90,textAlignVertical:'top',paddingVertical:12},errors[name]&&{borderColor:'#9A3028'}]}/>} /></View>;
   const choices=<K extends 'status'|'priority'|'event_kind'>(name:K,label:string,values:readonly TaskInput[K][],labels:(v:TaskInput[K])=>string)=><View key={name} style={{gap:6}}><Text style={s.label}>{label}</Text><Controller control={control} name={name} render={({field})=><View style={s.row}>{values.map(value=><AgendaButton key={value} label={labels(value)} selected={field.value===value} disabled={isSubmitting||uncertain||contextChanged||saved} onPress={()=>field.onChange(value)}/>)}</View>}/></View>;
-  return <AgendaShell title={task?f.edit:f.create} backLabel={t.back} onBack={()=>{if(!isSubmitting)onBack();}}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
+  return <AgendaShell title={task?f.edit:f.create} backLabel={t.back} onBack={()=>{if(!isSubmitting)onBack();}} layout="form"><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
     <Text style={s.muted}>{f.timeHint} {options.timezone}</Text>
     {access==='status'?<Text style={s.body}>{f.restricted}</Text>:<>{!task&&<><Text style={s.muted}>{f.self}</Text>{creationFarm&&<Text style={s.badge}>{workspaceMessages[language].farms}: {creationFarm.name}</Text>}</>}{input('title',f.title)}{input('description',t.description,true)}{choices('event_kind',f.kind,['task','event','appointment'],value=>f[value])}{input('due_date',f.date)}{input('start_time',f.start)}{input('end_time',f.end)}{input('location',t.location)}{choices('priority',t.priority,taskPriorities,value=>agendaLabel(t,value))}</>}
     {choices('status',t.status,taskStatuses,value=>agendaLabel(t,value))}

@@ -11,7 +11,7 @@ import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { workspaceMessages } from '../workspace/messages';
 import { organizationDay } from '../workspace/contracts';
 import { canCreateCattle } from '../cattle/contracts';
-import { AgendaShell,AgendaButton,Busy,FormField,styles as s } from '../agenda/ui';
+import { AgendaFormShell as AgendaShell,AgendaButton,Busy,FormField,styles as s } from '../agenda/ui';
 import { AuthFailure,MilkPeriodReadOnly } from '../../services/authApi';
 import { milkCommandSchema,milkValuesSchema,isPeriodMilkTotal,type MilkCommand,type MilkValues } from './contracts';
 import { milkMessages } from './messages';

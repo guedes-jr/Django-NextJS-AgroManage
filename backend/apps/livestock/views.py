@@ -278,6 +278,7 @@ class MarrasView(BasePhaseView):
                 "cio3_data": cio3.heat_date.isoformat() if cio3 else None,
                 "cio3_previsto": cio3.is_predicted if cio3 else None,
                 "previsao_cobertura": cio3.heat_date.isoformat() if cio3 else None,
+                **({"previsao_estimada": bool(cio3 and cio3.is_predicted)} if request.query_params.get('view') == 'mobile' else {}),
             })
 
         return Response({
@@ -386,6 +387,7 @@ class GestacoesView(BasePhaseView):
                     "previsao": (ultima_cob.mating_date + datetime.timedelta(days=21)).isoformat(),
                     "dias_faltantes": f"{dias_faltantes} dias" if dias_faltantes > 0 else "Pronto!",
                     "status": "Confirmar Prenhez",
+                    **({"previsao_estimada": True} if request.query_params.get('view') == 'mobile' else {}),
                 })
 
         # Process Gestantes
@@ -402,6 +404,7 @@ class GestacoesView(BasePhaseView):
                 "previsao": p.expected_birth_date.isoformat() if p.expected_birth_date else None,
                 "dias_faltantes": f"{dias_para_parto}d p/ Parto" if dias_para_parto is not None and dias_para_parto >= 0 else "Parto Hoje!",
                 "status": "Parto próximo" if (p.expected_birth_date and (p.expected_birth_date - now).days <= 7) else "Gestante",
+                **({"previsao_estimada": bool(p.expected_birth_date)} if request.query_params.get('view') == 'mobile' else {}),
             })
 
         # Totals
@@ -519,6 +522,7 @@ class MaternidadeView(BasePhaseView):
                 "previsao_desmame": previsao_desmame,
                 "dias_para_desmame": b.expected_weaning_days,
                 "vivos_atual": vivos_atual,
+                **({"previsao_estimada": bool(previsao_desmame)} if request.query_params.get('view') == 'mobile' else {}),
             })
 
         return Response({
@@ -606,6 +610,7 @@ class CrecheView(BasePhaseView):
                 "prev_crescimento": growth_dates[b.id].isoformat() if b.id in growth_dates else None,
                 "idade": max(0, (today - b.resolved_birth_date).days) if b.resolved_birth_date else None,
                 "status": "ready_for_growth" if b.id in growth_dates and growth_dates[b.id] <= today else b.status,
+                **({"previsao_estimada": b.id in growth_dates} if request.query_params.get('view') == 'mobile' else {}),
             })
 
         return Response({
@@ -676,6 +681,7 @@ class CrescimentoView(BasePhaseView):
                 "idade": max(0, (now - b.resolved_birth_date).days) if b.resolved_birth_date else None,
                 "previsao": (now + datetime.timedelta(days=dias_restantes)).isoformat() if dias_restantes is not None else None,
                 "status": "Pronto p/ engorda" if peso and peso >= 60 else "Em crescimento",
+                **({"previsao_estimada": dias_restantes is not None} if request.query_params.get('view') == 'mobile' else {}),
             })
 
         return Response({
@@ -763,6 +769,7 @@ class EngordaView(BasePhaseView):
                 "idade": max(0, (now - b.resolved_birth_date).days) if b.resolved_birth_date else None,
                 "previsao": b.exit_date.isoformat() if b.exit_date else ((now + datetime.timedelta(days=dias_restantes)).isoformat() if dias_restantes is not None else None),
                 "status": "Pronto para venda" if pronto else "Em engorda",
+                **({"previsao_estimada": not b.exit_date and dias_restantes is not None} if request.query_params.get('view') == 'mobile' else {}),
             })
 
         return Response({
@@ -1200,6 +1207,22 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='register-weight')
     @transaction.atomic
     def register_weight(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from rest_framework.exceptions import NotFound
+            from .mobile_batch_weight import SwineBatchWeightSerializer, register_swine_batch_weight
+
+            serializer = SwineBatchWeightSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            scoped_batch = self.get_object()
+            batch = self.filter_queryset(self.get_queryset()).select_related(
+                'farm', 'species',
+            ).select_for_update(of=('self',)).filter(pk=scoped_batch.pk).first()
+            if batch is None:
+                raise NotFound()
+            self.check_object_permissions(request, batch)
+            receipt, created = register_swine_batch_weight(request.user, batch, serializer.validated_data)
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
         batch = self.get_object()
         try:
             weight = Decimal(str(request.data.get('weight_kg')))
@@ -1246,6 +1269,9 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
                     category=AnimalBatch.Category.LEITAO,
                     origin=AnimalBatch.Origin.BORN,
                 )
+            species = self.request.query_params.get('species')
+            if species:
+                queryset = queryset.filter(species__code=species)
             return queryset
         return AnimalBatch.objects.none()
 
@@ -1662,7 +1688,32 @@ class AnimalBatchViewSet(viewsets.ModelViewSet):
 
         full_history = get_batch_history(batch)
 
-        # Ordenar cronologicamente
+        if request.query_params.get('view') == 'mobile':
+            full_history.sort(key=lambda row: (
+                row.get('entry_date') or row.get('date') or '0000-00-00',
+                row.get('type') or '',
+                row.get('batch_id') or '',
+                row.get('title') or row.get('name') or '',
+            ))
+            try:
+                page = int(request.query_params.get('page', 1))
+                page_size = int(request.query_params.get('page_size', 20))
+            except (TypeError, ValueError):
+                page, page_size = 1, 20
+            page = max(page, 1)
+            page_size = min(max(page_size, 1), 100)
+            count = len(full_history)
+            start = (page - 1) * page_size
+            return Response({
+                'count': count,
+                'page': page,
+                'page_size': page_size,
+                'next': start + page_size < count,
+                'previous': page > 1,
+                'results': full_history[start:start + page_size],
+            })
+
+        # Preserve the legacy ordering and response shape.
         full_history.sort(key=lambda x: x.get('entry_date') or '0000-00-00')
 
         return Response(full_history)
@@ -1916,6 +1967,11 @@ class AnimalViewSet(viewsets.ModelViewSet):
             return animal
         return super().get_object()
 
+    @action(detail=True, methods=['get'], url_path='mobile-diagnosis')
+    def mobile_diagnosis(self, request, pk=None):
+        from . import mobile_swine_diagnosis
+        return Response(mobile_swine_diagnosis.context(request.user, pk, request.query_params)[2])
+
     @action(detail=False, methods=['get'], url_path='reproducers')
     def reproducers(self, request):
         """Lista reprodutores (machos ativos) da espécie para seleção em coberturas."""
@@ -1941,6 +1997,23 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='register-mating')
     def register_mating(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from rest_framework.exceptions import NotFound
+            from .mobile_swine_mating import SwineMatingSerializer, register_swine_mating
+
+            serializer = SwineMatingSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            with transaction.atomic():
+                scoped_animal = self.get_object()
+                animal = self.filter_queryset(self.get_queryset()).select_related(
+                    'farm', 'species',
+                ).select_for_update(of=('self',)).filter(pk=scoped_animal.pk).first()
+                if animal is None:
+                    raise NotFound()
+                self.check_object_permissions(request, animal)
+                receipt, created = register_swine_mating(request.user, animal, serializer.validated_data)
+            return Response(receipt, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
         animal = self.get_object()
         serializer = MatingSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -2092,6 +2165,12 @@ class AnimalViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='diagnose-pregnancy')
     def diagnose_pregnancy(self, request, pk=None):
+        if request.query_params.get('view') == 'mobile':
+            from . import mobile_swine_diagnosis
+            values = mobile_swine_diagnosis.Input(data=request.data)
+            values.is_valid(raise_exception=True)
+            return Response(mobile_swine_diagnosis.record(request.user, pk, request.query_params, values.validated_data))
+
         animal = self.get_object()
         result = request.data.get('result')  # 'positive' or 'negative'
         date = request.data.get('diagnosis_date', timezone.now().date())
@@ -2290,7 +2369,11 @@ class PregnancyViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
-            return Pregnancy.objects.filter(female__farm__organization=user.organization)
+            queryset = Pregnancy.objects.filter(female__farm__organization=user.organization)
+            species = self.request.query_params.get('species')
+            if species:
+                queryset = queryset.filter(female__species__code=species)
+            return queryset
         return Pregnancy.objects.none()
 
     @action(detail=True, methods=['post'], url_path='registrar-perda')
@@ -2330,7 +2413,11 @@ class BirthViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'organization'):
-            return Birth.objects.filter(female__farm__organization=user.organization)
+            queryset = Birth.objects.filter(female__farm__organization=user.organization)
+            species = self.request.query_params.get('species')
+            if species:
+                queryset = queryset.filter(female__species__code=species)
+            return queryset
         return Birth.objects.none()
 
     def perform_create(self, serializer):
