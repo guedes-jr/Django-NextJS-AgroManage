@@ -147,6 +147,66 @@ def semen_costs(organization, batch_ids):
     return costs
 
 
+def labor_quantity_on(batch, day, histories, first_entry, closed_balance, sales, deaths):
+    dates = [value for value in (
+        batch.entry_date, first_entry, histories[0].entry_date if histories else None,
+    ) if value]
+    if dates and day < min(dates):
+        return 0
+    if batch.status != AnimalBatch.Status.ACTIVE and (not batch.exit_date or day >= batch.exit_date):
+        return 0
+    if batch.status == AnimalBatch.Status.ACTIVE:
+        current = batch.quantity
+    elif closed_balance is not None:
+        current = closed_balance
+    elif batch.status == AnimalBatch.Status.SOLD and sales:
+        current = 0
+    else:
+        current = batch.quantity
+    return current + sum(quantity for event_day, quantity in (*sales, *deaths) if event_day > day)
+
+
+def has_swine_labor_population(organization, day, *, farm=None, batch=None):
+    phases = {AnimalBatch.Phase.CRECHE, AnimalBatch.Phase.CRESCIMENTO, AnimalBatch.Phase.ENGORDA}
+    lots = AnimalBatch.objects.filter(
+        farm__organization=organization, species__code="suinos",
+    ).exclude(category__in=BREEDING_CATEGORIES).prefetch_related("phase_histories")
+    if farm:
+        lots = lots.filter(farm=farm)
+    if batch:
+        lots = lots.filter(pk=batch.pk)
+    lots = list(lots)
+    timelines = defaultdict(list)
+    for event in HistoricoEvento.objects.filter(
+        farm__organization=organization, lote_id__in=[lot.pk for lot in lots],
+        tipo_evento__in=["Entrada de Lote", "Encerramento de Saldo", "Venda de Animais", "Mortalidade de Lote"],
+    ).order_by("data_evento", "created_at"):
+        timelines[event.lote_id].append(event)
+
+    for lot in lots:
+        histories = sorted(lot.phase_histories.all(), key=lambda row: row.entry_date)
+        current = next((row for row in reversed(histories) if row.entry_date <= day
+                        and (row.exit_date is None or day < row.exit_date)), None)
+        phase = current.phase if current else lot.phase if lot.entry_date and day >= lot.entry_date else None
+        if phase not in phases:
+            continue
+        first_entry = closed_balance = None
+        sales, deaths = [], []
+        for event in timelines[lot.pk]:
+            metadata = event.metadata or {}
+            if event.tipo_evento == "Entrada de Lote":
+                first_entry = first_entry or event.data_evento
+            elif event.tipo_evento == "Encerramento de Saldo":
+                closed_balance = int(metadata.get("quantity") or 0)
+            elif event.tipo_evento == "Venda de Animais":
+                sales.append((event.data_evento, int(metadata.get("quantity") or 0)))
+            else:
+                deaths.append((event.data_evento, int(metadata.get("quantidade_mortes") or 0)))
+        if labor_quantity_on(lot, day, histories, first_entry, closed_balance, sales, deaths) > 0:
+            return True
+    return False
+
+
 def enrich_lot_costs(organization, rows):
     if not rows:
         return rows
@@ -155,7 +215,7 @@ def enrich_lot_costs(organization, rows):
         str(batch.pk): batch
         for batch in AnimalBatch.objects.filter(
             farm__organization=organization
-        ).select_related("mother__farm")
+        ).select_related("mother__farm", "species")
     }
     sources = defaultdict(list)
     through = AnimalBatch.source_batches.through
@@ -171,7 +231,7 @@ def enrich_lot_costs(organization, rows):
         mothers[str(batch_id)].add(name)
     histories = defaultdict(list)
     for history in BatchPhaseHistory.objects.filter(
-        batch_id__in=ids, batch__farm__organization=organization
+        batch_id__in=batches, batch__farm__organization=organization
     ).order_by("entry_date"):
         histories[str(history.batch_id)].append(history)
     costs = {key: {name: None for name in COST_KEYS} for key in ids}
@@ -235,7 +295,7 @@ def enrich_lot_costs(organization, rows):
     references = {f"PURCHASE-BATCH-{key}": key for key in ids}
     references.update({f"SALE-BATCH-{key}": key for key in ids})
     recorded_purchases = set()
-    general_labor = []  # (date, amount) of labor not linked to a lot
+    general_labor = []  # labor not linked to a lot, with its production scope
     for tx in (
         Transaction.objects.filter(organization=organization)
         .filter(
@@ -267,10 +327,14 @@ def enrich_lot_costs(organization, rows):
             closed is not None and closed.status != "active"
             and closed.exit_date is not None and tx.due_date >= closed.exit_date
         )
-        if is_labor and (tx.animal_batch_id is None or linked_after_close):
+        if is_labor and tx.planting_cycle_id is None and (tx.animal_batch_id is None or linked_after_close):
             # A closed lot keeps its historic costs frozen: labor dated after its
             # closing goes to the lots still available on that date.
-            general_labor.append((tx.due_date, tx.amount))
+            general_labor.append((
+                tx.due_date, tx.amount, tx.farm_id,
+                tx.species_id or (closed.species_id if closed else None),
+                tx.reference.startswith("LABOR-SWINE-"),
+            ))
             continue
         if batch_id is None:
             continue
@@ -294,16 +358,20 @@ def enrich_lot_costs(organization, rows):
     sale_quantities = {}
     entry_quantities, sold_quantities, death_quantities = {}, defaultdict(int), defaultdict(int)
     sale_events, death_events = defaultdict(list), defaultdict(list)
+    first_entries, closed_balances = {}, {}
     for event in HistoricoEvento.objects.filter(
         farm__organization=organization,
-        lote_id__in=ids,
-        tipo_evento__in=["Fechamento de Venda do Lote", "Entrada de Lote", "Venda de Animais", "Mortalidade de Lote"],
+        lote_id__in=batches,
+        tipo_evento__in=["Fechamento de Venda do Lote", "Entrada de Lote", "Venda de Animais", "Mortalidade de Lote", "Encerramento de Saldo"],
     ).order_by("data_evento", "created_at"):
         lot_id, metadata = str(event.lote_id), event.metadata or {}
         if event.tipo_evento == "Fechamento de Venda do Lote":
             sale_quantities[lot_id] = metadata.get("quantity")
         elif event.tipo_evento == "Entrada de Lote":
             entry_quantities.setdefault(lot_id, metadata.get("quantidade"))
+            first_entries.setdefault(lot_id, event.data_evento)
+        elif event.tipo_evento == "Encerramento de Saldo":
+            closed_balances[lot_id] = int(metadata.get("quantity") or 0)
         elif event.tipo_evento == "Venda de Animais":
             sold_quantities[lot_id] += int(metadata.get("quantity") or 0)
             sale_events[lot_id].append((event.data_evento, int(metadata.get("quantity") or 0)))
@@ -312,38 +380,31 @@ def enrich_lot_costs(organization, rows):
             death_events[lot_id].append((event.data_evento, int(metadata.get("quantidade_mortes") or 0)))
 
     def quantity_on(batch_id, day):
-        """Animals in the lot on ``day``, rebuilt backwards from today.
-
-        A closed lot has nobody left; sales and deaths after ``day`` were still
-        in the lot then. A lot that had not entered yet, or was closed on or
-        before ``day``, had no animals. Transfers out are not rebuilt.
-        """
-        batch = batches[batch_id]
-        if batch.entry_date and day < batch.entry_date:
-            return 0
-        if batch.status != "active":
-            # Without an exit date the closing cannot be placed in time.
-            if not batch.exit_date or day >= batch.exit_date:
-                return 0
-        if batch.status == "active":
-            current = batch.quantity
-        elif batch.status == "sold" and sale_events[batch_id]:
-            current = 0  # the closing sale event (after ``day``) holds the animals
-        else:
-            current = batch.quantity  # legacy sale or other closing: last known size
-        later = sum(q for event_day, q in sale_events[batch_id] if event_day > day)
-        later += sum(q for event_day, q in death_events[batch_id] if event_day > day)
-        return current + later
+        return labor_quantity_on(
+            batches[batch_id], day, histories[batch_id], first_entries.get(batch_id),
+            closed_balances.get(batch_id), sale_events[batch_id], death_events[batch_id],
+        )
 
     # General labor (not linked to a lot) is shared on its own date among the
     # production lots that had animals then. Sold lots keep what they received
     # while active and receive nothing after closing; later entries go only to
     # the lots still available.
-    production_ids = [
-        batch_id for batch_id in ids if batches[batch_id].category not in BREEDING_CATEGORIES
-    ]
-    for day, labor_amount in general_labor:
-        weights = [(batch_id, quantity_on(batch_id, day)) for batch_id in production_ids]
+    production_ids = sorted(
+        batch_id for batch_id, batch in batches.items()
+        if batch.category not in BREEDING_CATEGORIES
+        and not (
+            batch.phase == AnimalBatch.Phase.GESTACAO_MATERNIDADE
+            and batch.category == AnimalBatch.Category.LEITAO
+            and batch.origin == AnimalBatch.Origin.BORN
+        )
+    )
+    for day, labor_amount, farm_id, species_id, swine_only in general_labor:
+        weights = [
+            (batch_id, quantity_on(batch_id, day)) for batch_id in production_ids
+            if (not farm_id or batches[batch_id].farm_id == farm_id)
+            and (not species_id or batches[batch_id].species_id == species_id)
+            and (not swine_only or batches[batch_id].species.code == "suinos")
+        ]
         weights = [(batch_id, quantity) for batch_id, quantity in weights if quantity > 0]
         total_quantity = sum(quantity for _, quantity in weights)
         if not total_quantity:
@@ -354,7 +415,8 @@ def enrich_lot_costs(organization, rows):
             if index == len(weights) - 1:
                 amount = labor_amount - distributed
             distributed += amount
-            add(batch_id, amount, "labor")
+            if batch_id in costs:
+                add(batch_id, amount, "labor")
 
     from .sire_costs import allocate_sire_costs
 

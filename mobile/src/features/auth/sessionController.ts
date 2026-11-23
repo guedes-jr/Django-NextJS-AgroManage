@@ -342,6 +342,12 @@ export class SessionController {
     });}finally{this.feedingSaving=false;}
   }
   feedPage(kind:'formulas'|'producoes',page:number,search='',signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.feedPage(tokens,this.language,kind,page,search,signal));}
+  correctFeedProduction(id: string, edit?: { formula: string; date: string; quantidade_teorica: string; quantidade_real: string }) {
+    return this.inventoryMutation(async (tokens, current) => {
+      current();
+      return this.api.correctFeedProduction(tokens, this.language, id, edit);
+    });
+  }
   feedDetail(kind:'formulas'|'producoes',id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.feedDetail(tokens,this.language,kind,id,signal));}
   saveFeedFormula(input:FormulaInput,record?:Formula){return this.inventoryMutation(async(tokens,current)=>{
     const values=formulaInputSchema.parse(input);const choices=await this.api.inventoryFormChoices(tokens,this.language);current();

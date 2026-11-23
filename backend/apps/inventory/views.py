@@ -591,6 +591,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
         serializer.instance = instance
         if instance.cattle_delivery_id:
             raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
+        if instance.observacao.startswith(("Produção ", "Estorno de produção ", "Entrada por produção (Lote PROD-")):
+            raise exceptions.ValidationError(translate_message("Use as ações da produção de ração para corrigir essa movimentação."))
         if instance.tipo == TipoMovimentacao.VENDA and instance.observacao.startswith("SALE-SEMEN-"):
             raise exceptions.ValidationError(translate_message("Esta movimentação está vinculada a uma venda de doses de sêmen."))
         from .services import movement_has_financial_origin
@@ -654,6 +656,8 @@ class MovimentacaoEstoqueViewSet(viewsets.ModelViewSet):
             instance.lote = LoteEstoque.objects.select_for_update().get(pk=instance.lote_id)
         if instance.cattle_delivery_id:
             raise exceptions.ValidationError(translate_message("Este lançamento pertence a um fornecimento bovino e preserva seu histórico. Corrija o saldo por ajuste de inventário."))
+        if instance.observacao.startswith(("Produção ", "Estorno de produção ", "Entrada por produção (Lote PROD-")):
+            raise exceptions.ValidationError(translate_message("Use as ações da produção de ração para corrigir essa movimentação."))
         if instance.tipo == TipoMovimentacao.VENDA and instance.observacao.startswith("SALE-SEMEN-"):
             raise exceptions.ValidationError(translate_message("Esta movimentação está vinculada a uma venda de doses de sêmen."))
         from .services import movement_has_financial_origin
@@ -996,6 +1000,24 @@ class FormulaRacaoViewSet(viewsets.ModelViewSet):
 
 @operator_scoped
 class ProducaoRacaoViewSet(viewsets.ModelViewSet):
+    @action(detail=True, methods=["post"], url_path="correct")
+    def correct_production(self, request, pk=None):
+        from . import feed_corrections
+        values = feed_corrections.EditInput(data=request.data)
+        values.is_valid(raise_exception=True)
+        return Response(self.get_serializer(feed_corrections.correct(request.user, self.get_object().pk, values.validated_data)).data)
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel_production(self, request, pk=None):
+        from . import feed_corrections
+        return Response(self.get_serializer(feed_corrections.correct(request.user, self.get_object().pk)).data)
+
+    def perform_update(self, serializer):
+        raise serializers.ValidationError({"detail": "Use a ação de correção da produção."})
+
+    def perform_destroy(self, instance):
+        raise serializers.ValidationError({"detail": "Use a ação de cancelamento da produção."})
+
     @action(detail=False, methods=["get"], url_path="mobile")
     def mobile(self, request):
         from . import mobile_feed as feed
@@ -1056,6 +1078,13 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
         if not organization:
             return Response({"error": translate_message("Usuário sem organização.")}, status=400)
             
+        from django.utils import timezone
+        from .feed_corrections import set_production_date
+        production_date = serializers.DateField(required=False).run_validation(
+            request.data["data_producao"]
+        ) if "data_producao" in request.data else None
+        if production_date and production_date > timezone.localdate():
+            raise serializers.ValidationError({"data_producao": "A data da produção não pode ser futura."})
         formula_id = request.data.get("formula_id")
         try:
             quantidade_teorica = Decimal(str(request.data.get("quantidade_teorica", 0)))
@@ -1071,6 +1100,8 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
         except FormulaRacao.DoesNotExist:
             return Response({"error": translate_message("Fórmula não encontrada.")}, status=404)
             
+        from uuid import uuid4
+        production_id = uuid4()
         custo_total_producao = Decimal("0")
         movimentacoes_para_criar = []
         lotes_para_atualizar = []
@@ -1107,6 +1138,13 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                 formula.item_final.segmento = formula.segmento
                 formula.item_final.save(update_fields=["segmento", "updated_at"])
 
+            ingredient_ids = list(formula.ingredientes.values_list("item_id", flat=True))
+            list(ItemEstoque.objects.select_for_update().filter(
+                pk__in=[*ingredient_ids, formula.item_final_id],
+            ).order_by("pk"))
+            list(LoteEstoque.objects.select_for_update().filter(
+                item_id__in=ingredient_ids,
+            ).order_by("data_entrada", "id"))
             for ingrediente in formula.ingredientes.all():
                 qtde_necessaria = (quantidade_teorica * ingrediente.percentual) / Decimal("100")
                 item = ingrediente.item
@@ -1142,7 +1180,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                             quantidade=qtde_deste_lote,
                             responsavel=request.user,
                             destino="Produção de ração",
-                            observacao=f"Consumo para produção de {formula.nome}"
+                            observacao=f"Produção {production_id}: {formula.nome}"
                         )
                     )
                     
@@ -1153,7 +1191,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
             
             # Registrar a Produção
             producao = ProducaoRacao.objects.create(
-                organization=organization,
+                id=production_id, organization=organization,
                 formula=formula,
                 quantidade_teorica=quantidade_teorica,
                 quantidade_real=quantidade_real,
@@ -1162,9 +1200,11 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                 status="concluida"
             )
             
+            if production_date:
+                set_production_date(producao, production_date)
+
             # Se a fórmula gera um novo item, dar entrada no estoque
             if formula.item_final and quantidade_real > 0:
-                from django.utils import timezone
                 custo_unitario_final = custo_total_producao / quantidade_real
                 novo_lote = LoteEstoque(
                     item=formula.item_final,
@@ -1183,7 +1223,7 @@ class ProducaoRacaoViewSet(viewsets.ModelViewSet):
                     tipo=TipoMovimentacao.ENTRADA,
                     quantidade=quantidade_real,
                     responsavel=request.user,
-                    observacao=f"Entrada por produção (Lote PROD-{producao.id})"
+                    observacao=f"Produção {producao.pk}: {formula.nome}"
                 )
                 
         return Response({

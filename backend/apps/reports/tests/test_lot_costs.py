@@ -199,6 +199,32 @@ class LotCostsTest(APITestCase):
             Decimal("100.00"),
         )
 
+    def test_labor_before_phase_transfer_keeps_its_share_in_full_and_filtered_reports(self):
+        from apps.livestock.services import transfer_batch_phase
+
+        self.batch.phase = "creche"
+        self.batch.save(update_fields=["phase"])
+        other = self.new_batch("L002", quantity=30)
+        self.transaction("Mão de Obra - Suinocultura", Decimal("100.00"), reference="LABOR-SWINE-TRANSFER")
+        transfer_batch_phase(self.batch, "crescimento", self.start + timedelta(days=10))
+        rows = self.report()
+        self.assertEqual(Decimal(rows[str(self.batch.pk)]["labor"]), Decimal("25.00"))
+        self.assertEqual(Decimal(rows[str(other.pk)]["labor"]), Decimal("75.00"))
+
+        response = self.client.get(reverse("livestock-inventory-report"), {
+            "species": "suinos", "include_costs": "true", "search": self.batch.batch_code,
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(response.data["items"]), 1)
+        self.assertEqual(Decimal(response.data["items"][0]["labor"]), Decimal("25.00"))
+
+    def test_labor_before_balance_closing_is_retained(self):
+        from apps.livestock.services import close_batch_balance
+
+        self.transaction("Mão de Obra - Suinocultura", Decimal("100.00"), reference="LABOR-SWINE-BEFORE-CLOSE")
+        close_batch_balance(self.batch, self.start + timedelta(days=1))
+        self.assertEqual(Decimal(self.report()[str(self.batch.pk)]["labor"]), Decimal("100.00"))
+
     def test_sold_lot_keeps_labor_and_later_labor_goes_to_available_lots(self):
         other = self.new_batch("L002", quantity=30)
         self.transaction("Mão de Obra - Suinocultura", Decimal("100.00"), reference="LABOR-SWINE-1")
@@ -327,3 +353,59 @@ class LotCostsTest(APITestCase):
                 self.org, [{"id": str(batch.pk)} for batch in [self.batch, *others]]
             )
         self.assertEqual(len(queries), initial)
+
+    def test_swine_labor_requires_production_animals_on_the_launch_date(self):
+        from apps.livestock.services import close_batch_balance, transfer_batch_phase
+
+        category = FinancialCategory.objects.create(
+            organization=self.org, name="Mão de Obra - Suinocultura", category_type="expense",
+        )
+        url = "/api/v1/finance/transactions/"
+
+        def post(day, label):
+            return self.client.post(url, {
+                "category": str(category.pk), "description": "Mão de obra", "amount": "100.00",
+                "due_date": day.isoformat(), "payment_date": day.isoformat(), "status": "paid",
+                "reference": f"LABOR-SWINE-{label}",
+            }, format="json")
+
+        self.new_batch("Matriz", phase="reproducao", category="Matriz", entry_date=self.start - timedelta(days=2))
+        self.assertEqual(post(self.start - timedelta(days=1), "before").status_code, 400)
+        transfer_batch_phase(self.batch, "crescimento", self.start + timedelta(days=2))
+        close_batch_balance(self.batch, self.start + timedelta(days=4))
+        recorded = post(self.start + timedelta(days=1), "historical")
+        self.assertEqual(recorded.status_code, 201, recorded.data)
+        rejected = post(self.start + timedelta(days=4), "closed")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("due_date", rejected.data["error"]["detail"])
+        self.assertEqual(Transaction.objects.filter(reference__startswith="LABOR-SWINE-").count(), 1)
+
+    def test_edit_and_cancel_swine_labor_preserve_history_and_update_lot_costs(self):
+        from uuid import uuid4
+
+        from apps.finance.models import PaymentEvent
+
+        original = self.transaction("Mão de Obra - Suinocultura", 100, reference="LABOR-SWINE-CORRECT")
+        url = f"/api/v1/finance/transactions/{original.pk}/swine-labor-edit/"
+        payload = {
+            "request_key": str(uuid4()), "date": self.start.isoformat(),
+            "sector": "Engorda", "worker": "Equipe", "activity": "Limpeza",
+            "type": "daily", "people": 2, "quantity": "1.00", "rate": "75.00", "observations": "",
+        }
+        invalid = self.client.post(url, payload | {"date": (self.start - timedelta(days=1)).isoformat()}, format="json")
+        self.assertEqual(invalid.status_code, 400, invalid.data)
+        original.refresh_from_db()
+        self.assertEqual(original.status, "paid")
+        updated = self.client.post(url, payload, format="json")
+        self.assertEqual(updated.status_code, 200, updated.data)
+        original.refresh_from_db()
+        self.assertEqual(original.status, "cancelled")
+        self.assertEqual(PaymentEvent.objects.filter(transaction=original, kind="reversal").count(), 1)
+        self.assertEqual(self.client.post(url, payload, format="json").data["id"], updated.data["id"])
+        self.assertEqual(Decimal(self.report()[str(self.batch.pk)]["labor"]), Decimal("150.00"))
+
+        cancel = f"/api/v1/finance/transactions/{updated.data['id']}/swine-labor-cancel/"
+        self.assertEqual(self.client.post(cancel, {}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(cancel, {}, format="json").status_code, 200)
+        self.assertIsNone(self.report()[str(self.batch.pk)]["labor"])
+        self.assertEqual(PaymentEvent.objects.filter(transaction_id=updated.data["id"], kind="reversal").count(), 1)

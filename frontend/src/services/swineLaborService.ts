@@ -52,7 +52,10 @@ export function laborSaveError(error: unknown): string {
   const response = error.response as { status?: number; data?: unknown } | undefined;
   if (response?.status === 403) return "Seu usuário não tem permissão para registrar esta despesa ou criar a categoria financeira. Solicite ao administrador.";
   if (response?.status === 400 && typeof response.data === "object" && response.data !== null) {
-    const messages = Object.entries(response.data).flatMap(([key, value]) => {
+    const body = response.data as { error?: { detail?: unknown } };
+    const detail = body.error?.detail;
+    const fields = detail && typeof detail === "object" && !Array.isArray(detail) ? detail : response.data;
+    const messages = Object.entries(fields).flatMap(([key, value]) => {
       const label = ({ amount: "Valor", description: "Atividade / funcionário", due_date: "Data", payment_date: "Data", category: "Categoria" } as Record<string, string>)[key];
       if (!label && key !== "detail" && key !== "non_field_errors") return [];
       const text = Array.isArray(value) ? value.filter(item => typeof item === "string").join(" ") : typeof value === "string" ? value : "";
@@ -75,4 +78,20 @@ export async function createSwineLabor(date: string, labor: LaborDetails) {
     amount: amount.toFixed(2), due_date: date, payment_date: date, status: "paid",
     reference: createLaborReference(), notes: JSON.stringify({ version: 1, labor }),
   });
+}
+
+export async function editSwineLabor(id: string, key: string, date: string, labor: LaborDetails) {
+  await apiClient.post(`/finance/transactions/${encodeURIComponent(id)}/swine-labor-edit/`, {
+    request_key: key, date, ...labor,
+  });
+}
+
+export async function cancelSwineLabor(id: string) {
+  await apiClient.post(`/finance/transactions/${encodeURIComponent(id)}/swine-labor-cancel/`);
+}
+
+export function swineLaborEditKey() {
+  const hex = createLaborReference().slice("LABOR-SWINE-".length).replaceAll("-", "");
+  if (!/^[0-9a-f]{32}$/i.test(hex)) return crypto.randomUUID();
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join("-");
 }

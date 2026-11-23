@@ -52,3 +52,24 @@ test('save failures expose relevant API validation and permission messages', () 
   assert.match(laborSaveError({ response: { status: 403 } }), /permissão/);
   assert.match(laborSaveError(new Error('network')), /Tente novamente/);
 });
+
+test('shows the date validation from the API error envelope', () => {
+  const { laborSaveError } = service();
+  const error = { response: { status: 400, data: { error: { detail: { due_date: ['Sem animais na data.'] } } } } };
+  assert.equal(laborSaveError(error), 'Data: Sem animais na data.');
+});
+
+test('edit and cancel use the dedicated labor actions', async () => {
+  const calls = [];
+  const { editSwineLabor, cancelSwineLabor } = service({
+    post: async (url, body) => { calls.push({ url, body }); },
+  });
+  const labor = { sector: 'Engorda', activity: 'Limpeza', worker: 'Equipe', people: 2, quantity: 1, rate: 75, type: 'daily', observations: '' };
+  await editSwineLabor('entry', 'request', '2026-11-23', labor);
+  await cancelSwineLabor('entry');
+  assert.deepEqual(calls.map(call => call.url), [
+    '/finance/transactions/entry/swine-labor-edit/',
+    '/finance/transactions/entry/swine-labor-cancel/',
+  ]);
+  assert.equal(calls[0].body.request_key, 'request');
+});

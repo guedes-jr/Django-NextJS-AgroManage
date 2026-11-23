@@ -233,6 +233,10 @@ def confirm(user, token):
         raise Conflict() from error
     if signed['digest'] != digest(snapshot):
         raise Conflict()
+    return write_production(user, snapshot, formula, final, taken)
+
+
+def write_production(user, snapshot, formula, final, taken):
     production = ProducaoRacao.objects.create(organization_id=user.organization_id, formula=formula,
         quantidade_teorica=snapshot['quantidade_teorica'], quantidade_real=snapshot['quantidade_real'],
         custo_total=snapshot['custo_total'], responsavel=user, status='concluida')

@@ -176,3 +176,46 @@ class MobileFeedTests(APITestCase):
         self.assertEqual(result.status_code,500)
         self.formula.refresh_from_db();self.assertEqual(self.formula.nome,'Fórmula')
         self.assertEqual(self.formula.ingredientes.count(),2)
+
+    def test_web_production_can_be_corrected_and_cancelled_with_stock_restored(self):
+        made = self.client.post(self.base + "producoes/produzir/", {
+            "formula_id": str(self.formula.pk), "quantidade_teorica": "10", "quantidade_real": "10",
+            "data_producao": self.today.isoformat(),
+        }, format="json")
+        self.assertEqual(made.status_code, 200, made.data)
+        original_id = made.data["producao_id"]
+        url = self.base + f"producoes/{original_id}/correct/"
+        alternative = FormulaRacao.objects.create(organization=self.org, nome="Alternativa", item_final=self.final)
+        FormulaIngrediente.objects.create(formula=alternative, item=self.b, percentual=100)
+        day = self.today - timedelta(days=1)
+        change = self.values(formula=str(alternative.pk), quantidade_teorica="20", quantidade_real="19", date=day.isoformat())
+        replaced = self.client.post(url, change, format="json")
+        self.assertEqual(replaced.status_code, 200, replaced.data)
+        self.assertEqual(timezone.localtime(ProducaoRacao.objects.get(pk=replaced.data["id"]).data_producao).date(), day)
+        self.assertEqual(ProducaoRacao.objects.get(pk=original_id).status, "cancelada")
+        self.la.refresh_from_db()
+        self.lb.refresh_from_db()
+        self.assertEqual((self.la.quantidade_atual, self.lb.quantidade_atual), (100, 80))
+        cancel_url = self.base + f"producoes/{replaced.data['id']}/cancel/"
+        self.assertEqual(self.client.post(cancel_url, {}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(cancel_url, {}, format="json").status_code, 200)
+        self.lb.refresh_from_db()
+        self.assertEqual(self.lb.quantidade_atual, 100)
+        self.assertFalse(Transaction.objects.exists())
+
+    def test_correction_rolls_back_and_cancellation_rejects_used_output(self):
+        made = self.confirm(self.preview())
+        self.assertEqual(made.status_code, 201, made.data)
+        original_id = made.data["id"]
+        url = self.base + f"producoes/{original_id}/"
+        fail = self.client.post(url + "correct/", self.values(
+            quantidade_teorica="400", date=self.today.isoformat(),
+        ), format="json")
+        self.assertEqual(fail.status_code, 400, fail.data)
+        self.assertEqual(ProducaoRacao.objects.get(pk=original_id).status, "concluida")
+        lot = LoteEstoque.objects.get(pk=made.data["lote"])
+        self.assertEqual(lot.quantidade_atual, Decimal("9.50"))
+        MovimentacaoEstoque.objects.create(item=lot.item, lote=lot, tipo="consumo", quantidade=1)
+        reject = self.client.post(url + "cancel/", {}, format="json")
+        self.assertEqual(reject.status_code, 400, reject.data)
+        self.assertEqual(ProducaoRacao.objects.get(pk=original_id).status, "concluida")

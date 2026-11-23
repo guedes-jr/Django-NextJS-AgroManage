@@ -290,6 +290,10 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       const data=(await http.get(`inventory/${path}/mobile/`,{...options(language,tokens.access),params:{page:number,page_size:20,...(path==='formulas'?{search:z.string().max(100).parse(search)}:{})},signal})).data;
       return path==='formulas'?formulaPageSchema.parse(data):productionPageSchema.parse(data);
     },
+    async correctFeedProduction(tokens: Tokens, language: Language, id: string, edit?: { formula: string; date: string; quantidade_teorica: string; quantidade_real: string }) {
+      const target = z.uuid().parse(id);
+      await http.post(`inventory/producoes/${target}/${edit ? 'correct' : 'cancel'}/`, edit ?? {}, options(language, tokens.access));
+    },
     async feedDetail(tokens:Tokens,language:Language,kind:'formulas'|'producoes',id:string,signal?:AbortSignal){
       const path=z.enum(['formulas','producoes']).parse(kind);z.uuid().parse(id);
       const data=(await http.get(`inventory/${path}/${id}/mobile/`,{...options(language,tokens.access),signal})).data;

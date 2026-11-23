@@ -124,6 +124,13 @@ class TransactionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"bank_account": translate_message("A conta bancária não pertence à sua organização.")})
         if animal_batch and animal_batch.farm.organization_id != organization.id:
             raise serializers.ValidationError({"animal_batch": translate_message("O lote não pertence à sua organização.")})
+        if not self.instance and attrs.get("reference", "").startswith("LABOR-SWINE-"):
+            from apps.reports.lot_costs import has_swine_labor_population
+
+            if not has_swine_labor_population(organization, attrs["due_date"], farm=farm, batch=animal_batch):
+                raise serializers.ValidationError({"due_date": translate_message(
+                    "Nesta data não havia animais em lotes de produção da suinocultura."
+                )})
         sale_reference = "SALE-SEMEN-"
         if self.instance and self.instance.reference.startswith(sale_reference):
             protected = {"reference", "notes", "amount", "category", "farm", "species", "segmento", "animal_batch", "planting_cycle"}

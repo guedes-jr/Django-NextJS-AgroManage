@@ -41,6 +41,7 @@ grazingExitOptions:async()=>{throw Error("not configured");},vetWorkspace:async(
     vetSettle: async () => { throw new Error('not configured'); },
     semenSales: async () => { throw new Error('not configured'); },
     sellSemenDoses: async () => { throw new Error('not configured'); },
+    correctFeedProduction: async () => { throw new Error('not configured'); },
     swineSales: async () => { throw new Error('not configured'); },
     vetHerd: async () => { throw new Error('not configured'); },
     vetHerdHistory: async () => { throw new Error('not configured'); },

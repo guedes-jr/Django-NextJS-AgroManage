@@ -4,6 +4,7 @@ import { useCattleSegment } from "@/components/cattle/CattleSegmentContext";
 import { cattleHref, cattleHome } from "@/services/cattleNavigation";
 
 import Link from "next/link";
+import { isAxiosError } from "axios";
 import { useEffect, useMemo, useState } from "react";
 import { Boxes, CalendarDays, Check, ChevronRight, CircleDollarSign, Factory, PackageOpen, Play, Scale, Settings2 } from "lucide-react";
 import { apiClient } from "@/services/api";
@@ -12,11 +13,13 @@ import styles from "./feed-production.module.css";
 
 type Ingredient={id:number;item:number;item_nome:string;percentual:string;estoque_atual:string;custo_medio:string};
 type Formula={id:number;nome:string;descricao:string;item_final:number|null;item_final_nome:string|null;ativa:boolean;ingredientes:Ingredient[]};
-type Production={id:number;data_producao:string;formula_nome:string;quantidade_teorica:string;quantidade_real:string;custo_total:string;responsavel_nome:string;status:string};
+type Production={id:number;formula:string;data_producao:string;formula_nome:string;quantidade_teorica:string;quantidade_real:string;custo_total:string;responsavel_nome:string;status:string};
 
 export function FeedProductionDashboard({species,showHeader=true}:{species?:string;showHeader?:boolean}={}){
  const {language,t}=useOrganizationLocale();
  const[formulas,setFormulas]=useState<Formula[]>([]),[productions,setProductions]=useState<Production[]>([]),[formulaId,setFormulaId]=useState(""),[quantity,setQuantity]=useState(1000),[date,setDate]=useState(new Date().toISOString().slice(0,10)),[producing,setProducing]=useState(false),[loading,setLoading]=useState(true),[message,setMessage]=useState("");
+ const [editing,setEditing]=useState<Production>();
+ const [correction,setCorrection]=useState({formula:"",date:"",quantidade_teorica:"",quantidade_real:""});
  const money=(value:number)=>value.toLocaleString(language,{style:"currency",currency:"BRL"});
  const number=(value:number,digits=2)=>value.toLocaleString(language,{minimumFractionDigits:digits,maximumFractionDigits:digits});
  const speciesLabel:Record<string,string>={suino:t("inventory.feed.swine"),ave:t("inventory.feed.birds"),bovino:t("inventory.feed.beef")};
@@ -29,13 +32,47 @@ export function FeedProductionDashboard({species,showHeader=true}:{species?:stri
  const formula=useMemo(()=>formulas.find(item=>String(item.id)===formulaId),[formulas,formulaId]);
  const summary=useMemo(()=>{const items=(formula?.ingredientes||[]).map(item=>{const percentage=Number(item.percentual),required=quantity*percentage/100,available=Number(item.estoque_atual),unitCost=Number(item.custo_medio),totalCost=required*unitCost;return{...item,percentage,required,available,unitCost,totalCost,enough:available>=required};});const totalCost=items.reduce((sum,item)=>sum+item.totalCost,0),totalAvailable=items.reduce((sum,item)=>sum+item.available,0);return{items,totalCost,totalAvailable,costKg:quantity>0?totalCost/quantity:0,enough:items.length>0&&items.every(item=>item.enough)};},[formula,quantity]);
  const produce=async()=>{if(!formula||quantity<=0){setMessage(t("inventory.feed.invalidOrder"));return;}if(!summary.enough){setMessage(t("inventory.feed.insufficient"));return;}if(!window.confirm(t("inventory.feed.confirm",{quantity:number(quantity),name:formula.nome})))return;try{setProducing(true);setMessage("");await apiClient.post("/inventory/producoes/produzir/",{formula_id:formula.id,quantidade_teorica:quantity,quantidade_real:quantity,data_producao:date});setMessage(t("inventory.feed.success"));await load();}catch(error:any){setMessage(error?.response?.data?.error||t("inventory.feed.registerFailed"));}finally{setProducing(false);}};
+ function openEdit(row:Production){
+  setEditing(row);
+  setCorrection({formula:String(row.formula),date:row.data_producao.slice(0,10),quantidade_teorica:row.quantidade_teorica,quantidade_real:row.quantidade_real});
+ }
+ async function correct(row:Production, cancel=false){
+  if(producing || (cancel && !window.confirm(t("inventory.feed.cancelProductionConfirm")))) return;
+  setProducing(true);setMessage("");
+  try{
+   await apiClient.post(`/inventory/producoes/${row.id}/${cancel?"cancel":"correct"}/`,cancel?{}:correction);
+   setEditing(undefined);setMessage(t("inventory.feed.success"));await load();
+  }catch(error){
+   const data=isAxiosError(error)?error.response?.data:undefined;
+   const detail=data?.error?.detail??data?.detail??data;
+   const values=typeof detail==="object"&&detail?Object.values(detail).flat():[detail];
+   setMessage(values.find((value):value is string=>typeof value==="string")??t("inventory.feed.registerFailed"));
+  }finally{setProducing(false);}
+ }
  return <div className={styles.page}>
   {showHeader&&<header className={styles.header}><div><nav><Link href={species === "bovino" ? cattleHome(segment || "beef") : species === "ave" ? "/home/seguimento/aves" : species === "suino" ? "/home/seguimento/suinos" : "/home/estoque/resumo"}>{species === "bovino" ? (segment === "dairy" ? t("inventory.feed.dairy") : t("inventory.feed.beef")) : species === "ave" ? t("inventory.feed.birds") : species === "suino" ? t("inventory.feed.swine") : t("inventory.feed.inventory")}</Link><ChevronRight/> <strong>{t("inventory.feed.breadcrumb")}</strong></nav><h1>{t("inventory.feed.title")}</h1><p>{t("inventory.feed.description")}</p></div><Link href={formulaPath} className={styles.manage}><Settings2/>{t("inventory.feed.manageFormulas")}</Link></header>}
   {message&&<div className={message===t("inventory.feed.success")?styles.success:styles.alert}>{message}</div>}
+  {editing&&<form className={styles.card} onSubmit={event=>{event.preventDefault();void correct(editing);}}>
+    <h2>{t("inventory.feed.editProduction")}</h2>
+    <fieldset className={styles.orderForm} disabled={producing}>
+      <label>{t("inventory.feed.choose")}<select value={correction.formula} required onChange={e=>setCorrection({...correction,formula:e.target.value})}>
+        {!formulas.some(row=>String(row.id)===correction.formula)&&<option value={editing.formula}>{editing.formula_nome}</option>}
+        {formulas.map(row=><option key={row.id} value={row.id}>{row.nome}</option>)}
+      </select></label>
+      <label>{t("inventory.feed.productionDate")}<input type="date" required value={correction.date} onChange={e=>setCorrection({...correction,date:e.target.value})}/></label>
+      <label>{t("inventory.feed.requiredQuantity")}<input type="number" min="0.01" step="0.01" required value={correction.quantidade_teorica} onChange={e=>setCorrection({...correction,quantidade_teorica:e.target.value})}/></label>
+      <label>{t("inventory.feed.producedQuantity")}<input type="number" min="0.01" step="0.01" required value={correction.quantidade_real} onChange={e=>setCorrection({...correction,quantidade_real:e.target.value})}/></label>
+      <button type="submit">{t("inventory.feed.saveProduction")}</button>
+      <button type="button" onClick={()=>setEditing(undefined)}>{t("reproduction.cancel")}</button>
+    </fieldset>
+  </form>}
   <div className={styles.layout}><main>
    <section className={styles.card}><SectionTitle number="1" title={t("inventory.feed.orderTitle")} text={t("inventory.feed.orderDescription")}/><div className={styles.orderForm}><label>{t("inventory.feed.choose")}<select disabled={loading} value={formulaId} onChange={event=>setFormulaId(event.target.value)}>{loading?<option>{t("inventory.feed.formulaLoading")}</option>:formulas.length?formulas.map(item=><option key={item.id} value={item.id}>{item.nome}</option>):<option value="">{t("inventory.feed.noFormula")}</option>}</select></label><label>{t("inventory.feed.producedQuantity")}<input type="number" min="1" step="0.01" value={quantity} onChange={event=>setQuantity(Number(event.target.value||0))}/></label><label>{t("inventory.feed.productionDate")}<div className={styles.dateInput}><input type="date" value={date} onChange={event=>setDate(event.target.value)}/><CalendarDays/></div></label><button onClick={produce} disabled={producing||!summary.enough}><Factory/>{producing?t("inventory.feed.producing"):t("inventory.feed.produce")}</button></div></section>
    <section className={styles.card}><SectionTitle number="2" title={t("inventory.feed.checklist")} text={t("inventory.feed.checklistDescription")}/><div className={styles.tableWrap}><table><thead><tr><th>{t("inventory.feed.ingredient")}</th><th>{t("inventory.feed.requiredQuantity")}</th><th>{t("inventory.feed.availableStock")}</th><th>{t("inventory.feed.costKg")}</th><th>{t("inventory.feed.totalCost")}</th><th>{t("inventory.feed.status")}</th></tr></thead><tbody>{summary.items.length?summary.items.map(item=><tr key={item.id}><td><b>{item.item_nome}</b><small>{t("inventory.feed.formulaPercent",{percent:number(item.percentage)})}</small></td><td>{number(item.required)} kg</td><td className={item.enough?styles.available:styles.missing}>{number(item.available)} kg</td><td>{money(item.unitCost)}</td><td>{money(item.totalCost)}</td><td><span data-ok={item.enough}>{item.enough?t("inventory.feed.available"):t("inventory.feed.insufficientStatus")}</span></td></tr>):<tr><td colSpan={6} className={styles.empty}>{t("inventory.feed.selectFormula")}</td></tr>}</tbody></table></div><div className={styles.totals}><Metric icon={Scale} label={t("inventory.feed.requiredTotal")} value={`${number(quantity)} kg`} tone="blue"/><Metric icon={PackageOpen} label={t("inventory.feed.availableTotal")} value={`${number(summary.totalAvailable)} kg`} tone="green"/><Metric icon={CircleDollarSign} label={t("inventory.feed.expectedTotalCost")} value={money(summary.totalCost)} tone="orange"/><Metric icon={Factory} label={t("inventory.feed.averageCost")} value={money(summary.costKg)} tone="purple"/></div></section>
-   <section className={styles.card}><div className={styles.historyTitle}><SectionTitle number="3" title={t("inventory.feed.productions")} text={t("inventory.feed.productionHistory")}/><span>{t("inventory.feed.records",{count:productions.length.toLocaleString(language)})}</span></div><div className={styles.tableWrap}><table><thead><tr><th>{t("inventory.feed.date")}</th><th>{t("inventory.feed.feed")}</th><th>{t("inventory.feed.quantity")}</th><th>{t("inventory.feed.costKg")}</th><th>{t("inventory.feed.totalCost")}</th><th>{t("inventory.feed.user")}</th><th>{t("inventory.feed.status")}</th></tr></thead><tbody>{productions.length?productions.slice(0,12).map(item=>{const produced=Number(item.quantidade_real),cost=Number(item.custo_total);return <tr key={item.id}><td>{new Date(item.data_producao).toLocaleDateString(language)}</td><td><b>{item.formula_nome}</b></td><td>{number(produced)} kg</td><td>{money(produced?cost/produced:0)}</td><td>{money(cost)}</td><td>{item.responsavel_nome||"-"}</td><td><span data-ok={item.status==="concluida"}>{item.status==="concluida"?t("inventory.feed.completed"):item.status}</span></td></tr>}):<tr><td colSpan={7} className={styles.empty}>{t("inventory.feed.noProductions")}</td></tr>}</tbody></table></div></section>
+   <section className={styles.card}><div className={styles.historyTitle}><SectionTitle number="3" title={t("inventory.feed.productions")} text={t("inventory.feed.productionHistory")}/><span>{t("inventory.feed.records",{count:productions.length.toLocaleString(language)})}</span></div><div className={styles.tableWrap}><table><thead><tr><th>{t("inventory.feed.date")}</th><th>{t("inventory.feed.feed")}</th><th>{t("inventory.feed.quantity")}</th><th>{t("inventory.feed.costKg")}</th><th>{t("inventory.feed.totalCost")}</th><th>{t("inventory.feed.user")}</th><th>{t("inventory.feed.status")}</th><th>{t("inventory.feed.actions")}</th></tr></thead><tbody>{productions.length?productions.slice(0,12).map(item=>{const produced=Number(item.quantidade_real),cost=Number(item.custo_total);return <tr key={item.id}><td>{new Date(item.data_producao).toLocaleDateString(language)}</td><td><b>{item.formula_nome}</b></td><td>{number(produced)} kg</td><td>{money(produced?cost/produced:0)}</td><td>{money(cost)}</td><td>{item.responsavel_nome||"-"}</td><td><span data-ok={item.status==="concluida"}>{item.status==="concluida"?t("inventory.feed.completed"):item.status==="cancelada"?t("inventory.feed.cancelledProduction"):item.status}</span></td><td>{item.status==="concluida"&&<div className="d-flex flex-wrap gap-2">
+    <button type="button" className="btn btn-sm btn-outline-secondary" disabled={producing} onClick={()=>openEdit(item)}>{t("inventory.feed.editProduction")}</button>
+    <button type="button" className="btn btn-sm btn-outline-danger" disabled={producing} onClick={()=>void correct(item,true)}>{t("inventory.feed.cancelProduction")}</button>
+   </div>}</td></tr>}):<tr><td colSpan={8} className={styles.empty}>{t("inventory.feed.noProductions")}</td></tr>}</tbody></table></div></section>
   </main><aside>
    <section className={styles.finalCard}><Factory/><div><h2>{t("inventory.feed.finish")}</h2><p>{t("inventory.feed.review")}</p></div><button onClick={produce} disabled={producing||!summary.enough}><Play/>{producing?t("inventory.feed.producing"):t("inventory.feed.produce")}</button>{!summary.enough&&<small>{t("inventory.feed.checkIngredients")}</small>}</section>
    <section className={styles.info}><h2>{t("inventory.feed.information")}</h2><dl><dt>{t("inventory.feed.feed")}</dt><dd>{formula?.nome||t("inventory.feed.noSelection")}</dd><dt>{t("inventory.feed.formulaDescription")}</dt><dd>{formula?.descricao||t("inventory.feed.noDescription")}</dd><dt>{t("inventory.feed.generatedProduct")}</dt><dd>{formula?.item_final_nome||t("inventory.feed.notInformed")}</dd></dl></section>

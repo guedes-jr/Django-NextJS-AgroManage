@@ -92,6 +92,27 @@ class TransactionViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError(translate_message("Este título possui origem operacional. Preserve o vínculo; cancele o título quando aplicável."))
         instance.delete()
 
+    @action(detail=True, methods=["post"], url_path="swine-labor-edit")
+    def swine_labor_edit(self, request, pk=None):
+        from .swine_labor import Correction, correct
+
+        if request.user.role not in ("admin", "manager"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        document = self.get_object()
+        values = Correction(data=request.data)
+        values.is_valid(raise_exception=True)
+        return Response(self.get_serializer(correct(request.user, document.pk, values.validated_data)).data)
+
+    @action(detail=True, methods=["post"], url_path="swine-labor-cancel")
+    def swine_labor_cancel(self, request, pk=None):
+        from .swine_labor import correct
+
+        if request.user.role not in ("admin", "manager"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        return Response(self.get_serializer(correct(request.user, self.get_object().pk)).data)
+
     @action(detail=True, methods=["post"])
     def settle(self, request, pk=None):
         from .services import settle_transaction
