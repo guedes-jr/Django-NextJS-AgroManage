@@ -19,7 +19,7 @@ def reconcile_animal_purchases(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("finance", "0007_reconcile_account_balances"),
+        ("finance", "0009_backfill_segmento"),
     ]
 
     operations = [
