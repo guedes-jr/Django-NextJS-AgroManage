@@ -1,6 +1,5 @@
 import {useId,useRef,useState} from 'react';
-import {Alert,FlatList,KeyboardAvoidingView,Modal,Platform,ScrollView,Text,TextInput,View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {Alert,KeyboardAvoidingView,Platform,ScrollView,Text,TextInput,View} from 'react-native';
 import {useLocalSearchParams,usePreventRemove,useRouter} from 'expo-router';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Controller,useForm} from 'react-hook-form';
@@ -8,7 +7,9 @@ import {zodResolver} from '@hookform/resolvers/zod';
 import {isAxiosError} from 'axios';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {SearchPicker} from '../../components/mobile/SearchPicker';
+import { AgendaButton, Busy, styles as s } from '../agenda/ui';
+import { AgendaFormShell as AgendaShell } from '../workspace/AppShell';
 import {workspaceMessages} from '../workspace/messages';
 import {CattleOccurrenceChanged,CattleOccurrenceUnconfirmed} from '../../services/authApi';
 import {productionSchema} from './contracts';
@@ -33,7 +34,7 @@ function Editor({options}:{options:OccurrenceOptions}){
 }
 type Choice={id:string;label:string;detail:string;member?:OccurrenceMember;target?:OccurrenceTarget};
 function ChoicePicker({options,mode,onClose,onSelect}:{options:OccurrenceOptions;mode:'members'|'animals'|'batches';onClose:()=>void;onSelect:(value:Choice)=>void}){
- const {controller,language}=useAuth(),t=occurrenceMessages[language],w=workspaceMessages[language],c=cattleMessages[language];const [page,setPage]=useState(1),[draft,setDraft]=useState(''),[search,setSearch]=useState('');
- const q=useQuery({queryKey:['occurrence-picker',options.farm.id,options.production,mode,page,search],staleTime:0,gcTime:0,queryFn:async({signal})=>{if(mode==='members'){const value=await controller.cattleOccurrenceMembers(options.farm.id,options.production,page,search,signal);return {...value,results:value.results.map((row):Choice=>({id:row.id,label:row.full_name,detail:'',member:row}))};}const value=await controller.cattleOccurrenceTargets(options.farm.id,options.production,mode,page,search,signal);return {...value,results:value.results.map((row):Choice=>({id:row.id,label:row.identifier,detail:`${cattleLabel(c,row.purpose)} · ${cattleLabel(c,row.status)}`,target:row}))};}});
- return <Modal animationType="slide" onRequestClose={onClose}><SafeAreaView style={{flex:1,backgroundColor:'#F5F7F0'}}><FlatList<Choice> contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" data={q.isError||q.isFetching?[]:q.data?.results??[]} keyExtractor={row=>row.id} ListHeaderComponent={<View style={{gap:12}}><Text style={s.heading}>{mode==='members'?t.chooseMember:t.chooseTarget}</Text><AgendaButton label={w.back} onPress={onClose}/><TextInput accessibilityLabel={t.search} placeholder={t.search} style={s.input} value={draft} onChangeText={setDraft} maxLength={100}/><AgendaButton label={w.find} onPress={()=>{setPage(1);setSearch(draft.trim());}}/>{q.isFetching&&<Busy label={w.loading}/ >}{q.isError&&<><Text style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void q.refetch()}/></>}</View>} renderItem={({item})=><View style={s.card}><Text style={s.heading}>{item.label}</Text>{!!item.detail&&<Text style={s.body}>{item.detail}</Text>}<AgendaButton label={`${t.select}: ${item.label}`} onPress={()=>onSelect(item)}/></View>} ListEmptyComponent={!q.isPending&&!q.isFetching&&!q.isError?<Text style={s.body}>{t.empty}</Text>:undefined} ListFooterComponent={<View style={s.row}><AgendaButton label={w.previous} disabled={q.isFetching||!q.data?.previous} onPress={()=>setPage(value=>value-1)}/><Text style={s.body}>{w.page} {page}</Text><AgendaButton label={w.next} disabled={q.isFetching||!q.data?.next||page>=100000} onPress={()=>setPage(value=>value+1)}/></View>}/></SafeAreaView></Modal>;
+ const {controller,language}=useAuth(),t=occurrenceMessages[language],w=workspaceMessages[language],c=cattleMessages[language];
+ const fetchPage=(async(page:number,search:string,signal:AbortSignal)=>{if(mode==='members'){const value=await controller.cattleOccurrenceMembers(options.farm.id,options.production,page,search,signal);return {...value,results:value.results.map((row):Choice=>({id:row.id,label:row.full_name,detail:'',member:row}))};}const value=await controller.cattleOccurrenceTargets(options.farm.id,options.production,mode,page,search,signal);return {...value,results:value.results.map((row):Choice=>({id:row.id,label:row.identifier,detail:`${cattleLabel(c,row.purpose)} · ${cattleLabel(c,row.status)}`,target:row}))};}) as (page:number,search:string,signal:AbortSignal)=>Promise<{results:any[];next:string|null|boolean}>;
+ return <SearchPicker title={mode==="members"?t.chooseMember:t.chooseTarget} language={language} searchable={true} searchPlaceholder={t.search} emptyLabel={t.empty} errorLabel={w.error} selectLabel={t.select} queryKey={['occurrence-picker',options.farm.id,options.production,mode]} fetchPage={fetchPage} keyExtractor={(item:any)=>item.id} row={(item:any)=>({title:item.label,subtitle:item.detail||undefined})} onSelect={onSelect} onClose={onClose}/>;
 }

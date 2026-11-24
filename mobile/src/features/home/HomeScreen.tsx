@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, useWind
 import { useAuth } from '../auth/AuthProvider';
 import type { Session } from '../auth/contracts';
 import { canLoadFinancialHome, canOpenModule, type Dashboard, type ModuleKey } from './contracts';
+import { canReadTeam } from '../team/contracts';
 import { homeMessages } from './messages';
 import { HomeIcon, type HomeIconName } from './HomeIcon';
 import { useRouter } from 'expo-router';
@@ -72,7 +73,7 @@ export function HomeScreen({ session }: { session: Session }) {
               <View style={[s.card,{width:width>=900?'48%':'100%',flexGrow:1}]}><View style={s.row}><HomeIcon name="box"/>{title(t.inventory)}</View><View style={s.stats}>{[[t.stockValue,money.format(data.kpis.total_inventory_value)],[t.items,number.format(data.kpis.inventory_items)],[t.farms,number.format(data.kpis.farms_count)]].map(([label,value]) => <View style={s.inventoryStat} key={label}><Text style={s.caption}>{label}</Text><Text style={s.statValue}>{value}</Text></View>)}</View></View>
             </View>
           </View>;
-            case 'admin': return <View key={section} style={s.card}>{title(t.admin)}<Text style={s.subtitle}>{t.adminHint}</Text>{button(t.team,() => open('settings'),'group')}{canOpenModule(session.user.access,'structure') && button(t.structure,() => open('structure'),'home')}{canOpenModule(session.user.access,'inventory') && button(t.inventory,() => open('inventory'),'box')}</View>;
+            case 'admin': return <View key={section} style={s.card}>{title(t.admin)}<Text style={s.subtitle}>{t.adminHint}</Text>{button(t.team,() => canReadTeam(session.user)?router.push('/team'):open('settings'),'group')}{canOpenModule(session.user.access,'structure') && button(t.structure,() => open('structure'),'home')}{canOpenModule(session.user.access,'inventory') && button(t.inventory,() => open('inventory'),'box')}</View>;
             case 'modules': return <View key={section}><View style={s.card}>{title(t.modules)}{allowed.filter(key => !['profile','notifications','support'].includes(key)).map(key => <View key={key}>{button(t[key],() => open(key),iconFor(key))}</View>)}</View></View>;
           }
         })}

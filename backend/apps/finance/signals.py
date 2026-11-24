@@ -77,30 +77,37 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
         
         # Cattle operational changes (weights, phase, transfers, mortality) must
         # not rewrite the original payable or its negotiated due date.
-        purchase_exists = instance.species.code == "bovinos" and Transaction.objects.filter(organization=instance.farm.organization, reference=ref_pur).exists()
+        is_cattle = bool(instance.species and instance.species.code == "bovinos")
+        purchase_exists = is_cattle and Transaction.objects.filter(organization=instance.farm.organization, reference=ref_pur).exists()
 
         if not purchase_exists:
+            status = "pending" if is_cattle else "paid"
+            payment_date = None if is_cattle else instance.entry_date
+            defaults = {
+                "description": f"Compra de animais: {instance.batch_code} ({instance.species.name})",
+                "amount": instance.purchase_value,
+                "category": category_pur,
+                "due_date": instance.entry_date,
+                "farm": instance.farm,
+                "animal_batch": instance,
+                "species": instance.species,
+            }
+            if not is_cattle:
+                defaults["payment_date"] = instance.entry_date
+                existing_tx = Transaction.objects.filter(
+                    organization=instance.farm.organization, reference=ref_pur
+                ).first()
+                if not existing_tx or existing_tx.status != Transaction.Status.CANCELLED:
+                    defaults["status"] = "paid"
+
             Transaction.objects.update_or_create(
                 organization=instance.farm.organization,
                 reference=ref_pur,
-                defaults={
-                    "description": f"Compra de animais: {instance.batch_code} ({instance.species.name})",
-                    "amount": instance.purchase_value,
-                    "category": category_pur,
-                    "due_date": instance.entry_date,
-                    "farm": instance.farm,
-                    "animal_batch": instance,
-                    "species": instance.species,
-                },
+                defaults=defaults,
                 create_defaults={
-                    "description": f"Compra de animais: {instance.batch_code} ({instance.species.name})",
-                    "amount": instance.purchase_value,
-                    "category": category_pur,
-                    "due_date": instance.entry_date,
-                    "farm": instance.farm,
-                    "animal_batch": instance,
-                    "species": instance.species,
-                    "status": "pending",
+                    **defaults,
+                    "status": status,
+                    "payment_date": payment_date,
                 },
             )
 

@@ -101,7 +101,7 @@ Medidas em **unidades lógicas do React Native**, sem zoom ou escala global. A r
 
 ### Componentes compartilhados
 
-Reutilizar estes primitivos de [agenda/ui.tsx](src/features/agenda/ui.tsx) antes de criar variações locais:
+Reutilizar estes primitivos de [agenda/ui.tsx](src/features/agenda/ui.tsx) antes de criar variações locais (o `AgendaShell` saiu deste arquivo e agora vem de `workspace/AppShell`):
 
 | Componente | Uso |
 | --- | --- |
@@ -110,6 +110,27 @@ Reutilizar estes primitivos de [agenda/ui.tsx](src/features/agenda/ui.tsx) antes
 | `StatusPill` + `agendaStatusTone` | Situação em texto com ponto e tom semântico (`success`, `warning`, `info`, `danger`, `neutral`). Status desconhecido fica neutro. |
 | `ActionTile` | Atalho de rotina com ícone, verbo e descrição. `compact` na Home; completo no painel de criação. |
 | `styles.viewTabs` / `viewTab` | Controle segmentado para opções curtas e exclusivas (turno, modo, período). |
+
+Para listas e consultas, usar os primitivos nativos de [components/mobile](src/components/mobile/index.tsx) — referência aplicada em [InventoryScreen](src/features/inventory/InventoryScreen.tsx):
+
+| Componente | Uso |
+| --- | --- |
+| `ScreenIntro` + `HeaderAction` | Título, contexto e a ação de criar do contexto, no topo do conteúdo (o shell continua com cabeçalho e barra inferior). |
+| `KpiStrip` | Até 3 indicadores; o indicador pressionável aplica o filtro correspondente. |
+| `Segmented` | Visões exclusivas (Produtos/Alertas/Fornecedores). |
+| `SearchBar` | Busca com ícone, limpar e debounce; sem botão "Buscar" separado. |
+| `FilterChips` + `SelectChip` + `BottomSheet`/`SheetOption` | Filtros frequentes em chips roláveis; catálogos longos em folha inferior. |
+| `ListRow` + `IconTile` | A linha inteira abre o detalhe (sem botão "Ver detalhes" no card); valor/unidade à direita, situação em pílula. |
+| `useInfinitePages` + `RefreshControl` + `ListFooter` | Rolagem infinita e puxar para atualizar no lugar de "Página anterior/Próxima". |
+| `SkeletonList`, `EmptyState`, `ErrorState` | Carregando, vazio e erro com recuperação. |
+| `DetailHeader`, `MetricGrid`, `InfoList` | Ficha: identidade e situação primeiro, números com unidade, depois campos complementares em pares rótulo/valor. |
+| `ActionGroup` + `ActionRow` | Ações e caminhos relacionados na ficha (verbo + ícone + chevron); a ação principal continua em `AgendaButton variant="primary"`. |
+| `DateStepper`, `DayFilter`, `presetOptions` | Navegação de data (‹ dia ›, “voltar para hoje”) e períodos rápidos; não pedir datas digitadas em AAAA-MM-DD. |
+| `PickerModal` | Seleção em catálogos longos (animal, lote, produto, fazenda) em tela cheia, com busca e rolagem contínua. |
+| `Notice` | Avisos de contexto com tom semântico (somente leitura, carência, impacto financeiro). |
+| `Shortcut`, `WebFallback` | Atalhos para telas relacionadas; alternativa web discreta no rodapé, nunca como ação principal. |
+
+**Shell em todas as telas.** Telas secundárias e formulários usam `AgendaShell`/`AgendaFormShell` de [workspace/AppShell](src/features/workspace/AppShell.tsx), que envolvem o `WorkspaceShell`: mesmo cabeçalho de marca (com voltar e título) e mesma barra inferior das áreas principais. A área destacada é derivada da rota; a barra some com o teclado aberto.
 
 Formulários de lançamento: avançar com o teclado entre campos numéricos (`returnKeyType="next"` + `setFocus`), selecionar o valor ao focar campos de quantidade e traduzir códigos de validação em mensagens por campo.
 

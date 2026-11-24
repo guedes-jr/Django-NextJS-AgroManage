@@ -137,6 +137,8 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       setObservacao("");
       setNumeroLote("");
       setReceiptDate(localToday());
+      setPurchaseDueDate(localToday());
+      setPurchasePaymentDate(localToday());
       setDataValidade("");
       setCustoUnitario("");
       setFornecedorId("");
@@ -191,6 +193,32 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
       setError(t("inventory.movements.destinationRequired"));
       return;
     }
+    if (mainType === "in") {
+      if (!receiptDate) {
+        setError("Informe a data de recebimento");
+        return;
+      }
+      if (subType === "compra") {
+        if (!purchaseDueDate) {
+          setError("Informe a data de vencimento da compra");
+          return;
+        }
+        if (paymentStatus === "paid") {
+          if (!custoUnitario || parseDecimalValue(custoUnitario) <= 0) {
+            setError("Informe o custo unitário para registrar uma compra já paga");
+            return;
+          }
+          if (!accountId) {
+            setError("Selecione a conta bancária utilizada para o pagamento");
+            return;
+          }
+          if (!purchasePaymentDate) {
+            setError("Informe a data do pagamento");
+            return;
+          }
+        }
+      }
+    }
     setLoading(true);
     setError("");
 
@@ -199,9 +227,9 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
         item: selectedItem.id,
         tipo: subType,
         quantidade: quantidadeNumber,
-        observacao,
-        farm: farmId || null,
+        observacao: observacao.trim(),
       };
+      if (farmId) payload.farm = farmId;
 
       if (mainType === "out") {
         if (loteId) payload.lote = loteId;
@@ -217,24 +245,58 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
 
       if (subType === "compra") {
         payload.purchase_payment_status = paymentStatus;
-        payload.purchase_due_date = purchaseDueDate;
+        if (purchaseDueDate) payload.purchase_due_date = purchaseDueDate;
         if (paymentStatus === "paid") {
-          payload.purchase_bank_account = accountId;
-          payload.purchase_payment_date = purchasePaymentDate;
+          if (accountId) payload.purchase_bank_account = accountId;
+          if (purchasePaymentDate) payload.purchase_payment_date = purchasePaymentDate;
           payload.purchase_payment_method = purchasePaymentMethod;
         }
       }
       await apiClient.post("/inventory/movimentacoes/", payload);
       onClose();
     } catch (err: unknown) {
-      const errorData: unknown = isAxiosError(err) ? err.response?.data : null;
-      const describe = (value: unknown): string => {
-        if (typeof value === "string") return value;
-        if (Array.isArray(value)) return value.map(describe).filter(Boolean).join(" ");
-        if (value && typeof value === "object") return Object.values(value).map(describe).filter(Boolean).join(" ");
-        return "";
-      };
-      setError(describe(errorData) || t("inventory.movements.saveFailed"));
+      if (isAxiosError(err)) {
+        const errorData = err.response?.data as any;
+        let errorMessage = "";
+        const detail = errorData?.error?.detail || errorData?.detail;
+        if (detail) {
+          if (typeof detail === "string") {
+            errorMessage = detail;
+          } else if (Array.isArray(detail)) {
+            errorMessage = detail.join(" ");
+          } else if (typeof detail === "object") {
+            const fieldLabels: Record<string, string> = {
+              purchase_bank_account: "Conta de pagamento",
+              purchase_payment_date: "Data do pagamento",
+              purchase_due_date: "Data de vencimento",
+              purchase_payment_status: "Condição de pagamento",
+              data_entrada: "Data de recebimento",
+              custo_unitario: "Custo unitário",
+              fornecedor: "Fornecedor",
+              quantidade: "Quantidade",
+              item: "Produto",
+              lote: "Lote",
+              destino: "Destino",
+              farm: "Fazenda",
+            };
+            errorMessage = Object.entries(detail)
+              .map(([key, val]) => {
+                const label = fieldLabels[key] || key;
+                const text = Array.isArray(val) ? val.join(" ") : String(val);
+                return `${label}: ${text}`;
+              })
+              .join("; ");
+          }
+        }
+        if (!errorMessage && errorData?.error?.message) {
+          errorMessage = errorData.error.message;
+        } else if (!errorMessage && typeof errorData === "string") {
+          errorMessage = errorData;
+        }
+        setError(errorMessage || t("inventory.movements.saveFailed"));
+      } else {
+        setError(t("inventory.movements.saveFailed"));
+      }
     } finally {
       setLoading(false);
     }
@@ -462,7 +524,12 @@ export function QuickMovementModal({ isOpen, onClose, item: initialItem, type: i
                 {paymentStatus === "paid" && <>
                   <label className={`col-12 ${labelStyle}`}>{t("inventory.movements.paymentMethod")}<select style={inputStyle} value={purchasePaymentMethod} onChange={e => setPurchasePaymentMethod(e.target.value)}><option value="pix">PIX</option><option value="boleto">{t("inventory.movements.paymentBoleto")}</option><option value="transfer">{t("inventory.movements.paymentTransfer")}</option><option value="cash">{t("inventory.movements.paymentCash")}</option><option value="credit_card">{t("inventory.movements.paymentCreditCard")}</option></select></label>
                   <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.paymentAccount")}<select style={inputStyle} required value={accountId} onChange={e => setAccountId(e.target.value)}><option value="">{t("inventory.movements.select")}</option>{accounts.filter(account => account.is_active).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                  <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.paymentDate")}<input style={inputStyle} type="date" required max={new Date().toLocaleDateString("en-CA")} value={purchasePaymentDate} onChange={e => setPurchasePaymentDate(e.target.value)} /></label>
+                  <label className={`col-12 col-md-6 ${labelStyle}`}>{t("inventory.movements.paymentDate")}<input style={inputStyle} type="date" required max={localToday()} value={purchasePaymentDate} onChange={e => setPurchasePaymentDate(e.target.value)} /></label>
+                  {accounts.filter(account => account.is_active).length === 0 && (
+                    <div className="col-12 text-warning small">
+                      Nenhuma conta bancária ativa cadastrada. Cadastre uma conta no Financeiro ou selecione &quot;A pagar&quot;.
+                    </div>
+                  )}
                 </>}
                 <p className="small text-muted mb-0">{t("inventory.movements.paymentHelp")}</p>
               </div>}

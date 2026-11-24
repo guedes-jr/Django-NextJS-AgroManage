@@ -51,7 +51,7 @@ class OrganizationDossierTests(APITestCase):
         response = self.client.get(reverse("platform-organization-detail", args=[self.organization.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["can_manage"])
-        self.assertEqual(set(response.data["available_sections"]), {"summary", "consumption", "adoption", "operation", "tickets", "exports", "recovery", *SECTIONS})
+        self.assertEqual(set(response.data["available_sections"]), {"summary", "segments", "consumption", "adoption", "operation", "tickets", "exports", "recovery", *SECTIONS})
         self.assertEqual(response.data["responsible"]["id"], str(self.owner.pk))
         for field in ("payments", "invoices", "users", "history", "contacts", "addresses"):
             self.assertNotIn(field, response.data)

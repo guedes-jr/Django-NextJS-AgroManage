@@ -1,6 +1,6 @@
 import type {ModuleKey} from '../home/contracts';
 import type {HomeIconName} from '../home/HomeIcon';
-export const moduleKeys:ModuleKey[]=['agenda','crops','swine','beef','dairy','feeding','clinic','inventory','finance','structure','assistant','settings','profile','notifications','support'];
+export const moduleKeys:ModuleKey[]=['agenda','crops','swine','beef','dairy','feeding','clinic','inventory','finance','structure','assistant','reports','settings','profile','notifications','support'];
 export const iconFor=(key:ModuleKey):HomeIconName=>key==='agenda'?'agenda':key==='finance'?'wallet':key==='inventory'?'box':key==='notifications'?'bell':'leaf';
 export function nativeDestination(key:ModuleKey,create=false){
  if(key==='agenda')return create?{pathname:'/agenda/task-form' as const}:{pathname:'/agenda' as const};
@@ -11,6 +11,13 @@ export function nativeDestination(key:ModuleKey,create=false){
  if(key==='feeding')return {pathname:'/feeding' as const};
  if(key==='inventory')return create?{pathname:'/inventory/form' as const,params:{kind:'items'}}:{pathname:'/inventory' as const};
  if(key==='profile'&&!create)return {pathname:'/profile' as const};
+ if(key==='crops')return create?{pathname:'/crops' as const,params:{tab:'routines'}}:{pathname:'/crops' as const};
+ if(key==='structure'&&!create)return {pathname:'/structures' as const};
+ if(key==='assistant'&&!create)return {pathname:'/assistant' as const};
+ if(key==='reports'&&!create)return {pathname:'/reports' as const};
+ if(key==='settings'&&!create)return {pathname:'/organization' as const};
+ if(key==='support')return create?{pathname:'/support/new' as const}:{pathname:'/support' as const};
+ if(key==='finance')return create?{pathname:'/finance/form' as const}:{pathname:'/finance' as const};
  return null;
 }
 export type NavSlot='home'|'agenda'|'search'|'finance'|'modules'|'spacer';

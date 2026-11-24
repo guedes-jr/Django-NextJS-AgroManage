@@ -1,7 +1,11 @@
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { isAxiosError } from 'axios';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { Linking, ScrollView, Text, View } from 'react-native';
+import { Linking, RefreshControl, ScrollView, Text } from 'react-native';
+import { colors } from '../../theme/tokens';
+import { HomeIcon } from '../home/HomeIcon';
+import { ActionGroup, ActionRow, DetailHeader, EmptyState, ErrorState, IconTile, InfoList, Notice, SectionLabel, SkeletonList, mobileStyles as ms, mobileUiMessages } from '../../components/mobile';
+import { agendaStatusTone } from './presentation';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { z } from 'zod';
 import { useAuth } from '../auth/AuthProvider';
@@ -11,7 +15,8 @@ import { nativeAgendaOrigin } from './origin';
 import { findAgendaEvent } from './findEvent';
 import { taskFormMessages } from './formMessages';
 import { agendaMessages, agendaLabel } from './messages';
-import { AgendaButton, AgendaShell, Busy, styles as s } from './ui';
+import { AgendaButton } from './ui';
+import { AgendaShell } from '../workspace/AppShell';
 export function AgendaDetailScreen() {
   const {state,controller,language}=useAuth(); const router=useRouter(); const t=agendaMessages[language];
   const params=useLocalSearchParams<{id:string;start:string;end:string;domain:string;page:string;recorded:string;farm?:string}>();
@@ -72,21 +77,23 @@ export function AgendaDetailScreen() {
     if(!site||!source){setLinkFailed(true);return;}
     try{setLinkFailed(false);await Linking.openURL(new URL(source,site).href);}catch{setLinkFailed(true);}
   };
-  const field=(label:string,value:string|undefined|null)=>(value?<View key={label} style={{gap:3}}><Text style={s.label}>{label}</Text><Text style={s.body}>{value}</Text></View>:null);
   const date=task?.due_date??event?.date;
-  return <AgendaShell title={t.detail} backLabel={t.back} onBack={back}><ScrollView contentContainerStyle={s.content}>
-    {!allowed?<Text style={s.error}>{contextChanged?t.contextChanged:t.unavailable}</Text>:busy?<Busy label={t.loading}/>:failed?<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>setReload(v=>v+1)}/></View>:missing?<Text style={s.body}>{t.missing}</Text>:<View style={s.card}>
-      <Text accessibilityRole="header" style={s.heading}>{task?.title??event?.title}</Text>
-      {date&&<Text style={s.body}>{new Intl.DateTimeFormat(language,{dateStyle:'full'}).format(new Date(`${date}T12:00:00`))}</Text>}
-      {event&&<Text style={s.muted}>{event.farm_name}</Text>}
-      {event?.estimated&&<Text style={s.badge}>{t.estimated}</Text>}
-      {field(t.status,agendaLabel(t,task?.status??event?.status??''))}
-      {task&&<>{field(t.description,task.description||t.noDescription)}{field(t.time,[task.start_time?.slice(0,5),task.end_time?.slice(0,5)].filter(Boolean).join(' – '))}{field(t.location,task.location)}{field(t.responsible,task.assigned_to_name)}{field(t.author,task.created_by_name)}{field(t.priority,agendaLabel(t,task.priority))}</>}
-      {task&&state.status==='signedIn'&&taskWriteAccess(state.session.user,task)!=='none'&&<AgendaButton label={taskFormMessages[language].edit} onPress={()=>router.push({pathname:'/agenda/task-form',params:{taskId:task.id}})}/>}
-      {event&&event.domain!=='holidays'&&<Text style={s.body}>{t.source}</Text>}
-      {native&&<><AgendaButton label={t.native} disabled={opening} onPress={()=>void openNative()}/><Text style={s.muted}>{t.nativeHint}</Text></>}
-      {source&&<><AgendaButton label={t.web} onPress={()=>void open()}/><Text style={s.muted}>{t.browserHint}</Text></>}
-      {linkFailed&&<Text accessibilityRole="alert" style={s.error}>{t.failedLink}</Text>}
-    </View>}
+  const status=task?.status??event?.status??'';
+  const canEdit=!!task&&state.status==='signedIn'&&taskWriteAccess(state.session.user,task)!=='none';
+  return <AgendaShell title={t.detail} backLabel={t.back} onBack={back}><ScrollView contentContainerStyle={ms.list} refreshControl={<RefreshControl refreshing={false} onRefresh={()=>setReload(v=>v+1)} tintColor={colors.primary} colors={[colors.primary]}/>}>
+    {!allowed?<EmptyState title={contextChanged?t.contextChanged:t.unavailable}/>:busy?<SkeletonList rows={3}/>:failed?<ErrorState message={t.error} language={language} onRetry={()=>setReload(v=>v+1)}/>:missing?<EmptyState title={t.missing}/>:<>
+      <DetailHeader meta={[date?new Intl.DateTimeFormat(language,{dateStyle:'full'}).format(new Date(`${date}T12:00:00`)):null,event?.farm_name].filter(Boolean).join(' · ')} title={task?.title??event?.title??''} leading={<IconTile tone="brand"><HomeIcon name="agenda" size={22} color={colors.primary}/></IconTile>} status={[{label:agendaLabel(t,status),tone:agendaStatusTone(status)},...(task?.priority?[{label:`${t.priority}: ${agendaLabel(t,task.priority)}`,tone:'neutral' as const}]:[]),...(event?.estimated?[{label:t.estimated,tone:'info' as const}]:[])]}>
+        {task&&<Text style={{fontSize:15,lineHeight:22,color:colors.textSoft}}>{task.description||t.noDescription}</Text>}
+      </DetailHeader>
+      {native&&<AgendaButton variant="primary" label={t.native} busy={opening} disabled={opening} onPress={()=>void openNative()}/>}
+      {task&&<InfoList rows={[[t.time,[task.start_time?.slice(0,5),task.end_time?.slice(0,5)].filter(Boolean).join(' – ')||null],[t.location,task.location||null],[t.responsible,task.assigned_to_name||null],[t.author,task.created_by_name||null]]}/>}
+      {(canEdit||source)&&<><SectionLabel title={mobileUiMessages[language].actions}/><ActionGroup>
+        {canEdit&&task&&<ActionRow label={taskFormMessages[language].edit} icon={<HomeIcon name="agenda" size={20} color={colors.primary}/>} onPress={()=>router.push({pathname:'/agenda/task-form',params:{taskId:task.id}})}/>}
+        {source&&<ActionRow label={`${t.web} ↗`} description={t.browserHint} icon={<HomeIcon name="arrow" size={20} color={colors.primary}/>} onPress={()=>void open()}/>}
+      </ActionGroup></>}
+      {native&&<Notice tone="neutral" text={t.nativeHint}/>}
+      {event&&event.domain!=='holidays'&&<Notice tone="neutral" text={t.source}/>}
+      {linkFailed&&<ErrorState message={t.failedLink} language={language}/>}
+    </>}
   </ScrollView></AgendaShell>;
 }

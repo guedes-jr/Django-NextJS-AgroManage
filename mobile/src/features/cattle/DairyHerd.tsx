@@ -1,46 +1,35 @@
 import {useCallback,useState} from 'react';
-import { colors } from '../../theme/tokens';
-import {FlatList,Pressable,StyleSheet,Text,TextInput,View,useWindowDimensions} from 'react-native';
+import {colors} from '../../theme/tokens';
+import {FlatList,RefreshControl,Text,View} from 'react-native';
 import {useFocusEffect,useRouter} from 'expo-router';
-import {useQuery} from '@tanstack/react-query';
 import {useAuth} from '../auth/AuthProvider';
 import {useWorkspace} from '../workspace/WorkspaceProvider';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaButton,Busy,styles as s} from '../agenda/ui';
 import {canCreateCattle,type CattleAnimal,type CattleBatch,type CattleKind,type CattleQuery} from './contracts';
-import {cattleMessages,cattleLabel} from './messages';
-import {DairyIcon} from './DairyIcon';
+import {cattleMessages} from './messages';
 import {dairyMessages} from './dairyMessages';
+import {CattleRow} from './CattleScreens';
+import {EmptyState,ErrorState,FilterChips,HeaderAction,ListFooter,SearchBar,Segmented,SkeletonList,mobileStyles as ms} from '../../components/mobile';
+import {useInfinitePages} from '../../components/mobile/useInfinitePages';
+type Row=CattleAnimal|CattleBatch;
 export function DairyHerd(){
  const {state,controller,language}=useAuth(),{farm}=useWorkspace(),router=useRouter(),t=dairyMessages[language],c=cattleMessages[language],w=workspaceMessages[language];
- const {width,fontScale}=useWindowDimensions(),wide=width>=600&&fontScale<1.5;
- const batchWeight=t.batchAverageWeight;
- const number=(value:number|string)=>new Intl.NumberFormat(language,{maximumFractionDigits:1}).format(Number(value));
- const [kind,setKind]=useState<CattleKind>('animals'),[filters,setFilters]=useState(false),[draft,setDraft]=useState(''),[search,setSearch]=useState(''),[status,setStatus]=useState<CattleQuery['status']>('active'),[paging,setPaging]=useState({scope:'',page:1});
- const scope=JSON.stringify([farm?.id,kind,search,status]),page=paging.scope===scope?paging.page:1;
- const q=useQuery({queryKey:['cattle','dairy',kind,farm?.id??null,search,status,page],staleTime:0,queryFn:({signal})=>controller.cattleList({production:'dairy',kind,farm:farm?.id,search,status,page},signal)}),{refetch}=q;
+ const [kind,setKind]=useState<CattleKind>('animals'),[search,setSearch]=useState(''),[status,setStatus]=useState<CattleQuery['status']>('active');
+ const list=useInfinitePages<Row>({queryKey:['cattle','dairy','infinite',kind,farm?.id??null,search,status],enabled:true,fetchPage:(page,signal)=>controller.cattleList({production:'dairy',kind,farm:farm?.id,search,status,page},signal)}),{refetch}=list;
  useFocusEffect(useCallback(()=>{void refetch();},[refetch]));
- const data=q.isError?undefined:q.data,writable=state.status==='signedIn'&&canCreateCattle(state.session.user);
- const find=()=>{setSearch(draft.trim());setPaging({scope:'',page:1});setFilters(false);if(draft.trim()===search&&page===1)void refetch();};
- return <FlatList<CattleAnimal|CattleBatch> key={wide?'wide':'narrow'} numColumns={wide?2:1} columnWrapperStyle={wide?{gap:10}:undefined} data={data?.results??[]} keyExtractor={row=>row.id} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
-  ListHeaderComponent={<View style={{gap:12,marginBottom:12}}><View style={h.panel}><View style={h.heading}><View style={h.icon}><DairyIcon name="herd" size={26}/></View><View style={{flex:1,gap:3}}><Text accessibilityRole="header" style={h.title}>{t.herd}</Text><Text style={s.muted}>{c[status]}{search?` · ${search}`:''}</Text></View><View style={h.count}><Text style={h.total}>{data?number(data.count):'—'}</Text><Text style={s.muted}>{c[kind]}</Text></View></View>
-    <View accessibilityRole="tablist" style={h.tabs}>{(['animals','batches'] as const).map(value=><Pressable key={value} accessibilityRole="tab" accessibilityState={{selected:kind===value}} onPress={()=>{setKind(value);setStatus('active');setPaging({scope:'',page:1});}} style={[h.tab,kind===value&&h.selectedTab]}><DairyIcon name={value==='animals'?'cow':'herd'} size={21} color={kind===value?colors.primary:colors.muted}/><Text style={[h.tabText,kind===value&&{color:colors.primary}]}>{c[value]}</Text></Pressable>)}</View>
-    <View style={s.row}>{writable&&<Pressable accessibilityRole="button" accessibilityState={{disabled:q.isFetching||q.isError}} disabled={q.isFetching||q.isError} onPress={()=>router.push(kind==='animals'?{pathname:'/cattle/[production]/form',params:{production:'dairy',mode:'create'}}:{pathname:'/cattle/[production]/batch-form',params:{production:'dairy'}})} style={[h.create,(q.isFetching||q.isError)&&{opacity:0.55}]}><DairyIcon name="plus" color={colors.surface} size={19}/><Text style={h.createText}>{kind==='animals'?t.newAnimal:t.newBatch}</Text></Pressable>}<Pressable accessibilityRole="button" accessibilityLabel={filters?t.closeFilters:t.filters} accessibilityState={{selected:filters||!!search||status!=='active'}} onPress={()=>setFilters(value=>!value)} style={[h.filter,(filters||!!search||status!=='active')&&{backgroundColor:colors.softStrong}]}><DairyIcon name="search" size={20}/>{(wide||!writable)&&<Text style={h.tabText}>{filters?t.closeFilters:t.filters}</Text>}</Pressable></View>
-   </View>
-   {filters&&<View style={s.card}><TextInput accessibilityLabel={c.search} placeholder={t.search} style={s.input} value={draft} maxLength={100} onChangeText={setDraft} returnKeyType="search" onSubmitEditing={find}/><View style={s.row}>{(['active','all','sold',kind==='animals'?'dead':'finished'] as CattleQuery['status'][]).map(value=><AgendaButton key={value} label={c[value]} selected={status===value} onPress={()=>{setStatus(value);setPaging({scope:'',page:1});}}/>)}</View><View style={s.row}><AgendaButton label={c.find} onPress={find}/><AgendaButton label={t.clear} onPress={()=>{setDraft('');setSearch('');setStatus('active');setPaging({scope:'',page:1});setFilters(false);}}/></View></View>}
-   {!!search&&<Text style={s.muted}>{c.search}: {search}</Text>}{status!=='active'&&<Text style={s.badge}>{c[status]}</Text>}
-
-   {q.isPending&&<Busy label={w.loading}/ >}{q.isError&&<><Text accessibilityRole="alert" style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refetch()}/>{page>1&&<AgendaButton label={`${w.page} 1`} onPress={()=>setPaging({scope,page:1})}/>}</>}
-  </View>}
-  renderItem={({item})=>{const animal='identifier' in item,identity=animal?item.identifier:item.batch_code,weight=animal?item.current_weight_kg:item.avg_weight_kg;return <Pressable accessibilityRole="button" accessibilityLabel={`${c.detail}: ${identity}${item.name?` · ${item.name}`:''}. ${cattleLabel(c,item.status)}`} onPress={()=>router.push({pathname:'/cattle/[production]/[id]',params:{production:'dairy',id:item.id,kind,...(farm?{farm:farm.id}:{})}})} style={({pressed})=>[h.record,wide&&{flex:1,maxWidth:'50%'},{opacity:pressed?0.7:1}]}>
-   <View style={h.heading}><View style={[h.icon,{backgroundColor:animal&&item.is_lactating?colors.infoSurface:colors.primarySoft}]}><DairyIcon name={!animal?'herd':item.gender==='M'?'bull':item.category==='Bezerro'||item.category==='Novilha'?'calf':'cow'} color={animal&&item.is_lactating?colors.info:colors.primary} size={27}/></View><View style={{flex:1,minWidth:0,gap:3}}><Text style={h.identity}>{identity}</Text>{!!item.name&&<Text style={s.body}>{item.name}</Text>}</View><DairyIcon name="arrow" size={18}/></View>
-   <View style={s.row}><Text style={[h.badge,item.status!=='active'&&h.inactive]}>{cattleLabel(c,item.status)}</Text>{animal&&item.is_lactating&&<View style={h.milkBadge}><DairyIcon name="lactation" size={17} color={colors.info}/><Text style={h.milkText}>{c.lactating}</Text></View>}</View>
-   <Text style={s.muted}>{item.farm_name}</Text>
-   <View style={h.details}><View style={h.detail}><Text style={s.label}>{c.category}</Text><Text style={s.body}>{cattleLabel(c,item.category)}</Text></View><View style={h.detail}><Text style={s.label}>{animal?c.gender:c.quantity}</Text><Text style={s.body}>{animal?cattleLabel(c,item.gender):number(item.quantity)}</Text></View>{animal&&!!item.reproductive_status&&!(item.is_lactating&&item.reproductive_status==='lactante')&&<View style={h.detail}><Text style={s.label}>{c.reproduction}</Text><Text style={s.body}>{cattleLabel(c,item.reproductive_status)}</Text></View>}{weight!==null&&<View style={h.detail}><Text style={s.label}>{animal?c.weight:batchWeight}</Text><Text style={s.body}>{number(weight)} kg</Text></View>}</View>
-  </Pressable>;}}
-
-  ListEmptyComponent={data&&!data.count?<View style={h.empty}><DairyIcon name={kind==='animals'?'cow':'herd'} size={32}/><Text style={s.body}>{c.empty}</Text></View>:undefined}
-  ListFooterComponent={data&&(data.previous||data.next)?<View style={s.row}><AgendaButton label={w.previous} disabled={!data.previous||q.isFetching} onPress={()=>setPaging({scope,page:Math.max(1,page-1)})}/><Text style={s.body}>{w.page} {page}</Text><AgendaButton label={w.next} disabled={!data.next||q.isFetching} onPress={()=>setPaging({scope,page:page+1})}/></View>:undefined}/ >;
+ const writable=state.status==='signedIn'&&canCreateCattle(state.session.user);
+ const number=(value:number)=>new Intl.NumberFormat(language).format(value);
+ const header=<View style={ms.header}>
+  <View style={{flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1,minWidth:0}}><Text accessibilityRole="header" style={{fontSize:19,fontWeight:'800',color:colors.forest}}>{t.herd}</Text><Text style={{fontSize:13,color:colors.muted}}>{list.count!==undefined?`${number(list.count)} ${c[kind].toLowerCase()} · ${c[status]}`:c[status]}</Text></View>
+   {writable&&<HeaderAction label={kind==='animals'?t.newAnimal:t.newBatch} onPress={()=>router.push(kind==='animals'?{pathname:'/cattle/[production]/form',params:{production:'dairy',mode:'create'}}:{pathname:'/cattle/[production]/batch-form',params:{production:'dairy'}})}/>}</View>
+  <Segmented value={kind} onChange={value=>{setKind(value);setStatus('active');}} options={(['animals','batches'] as const).map(value=>({value,label:c[value]}))}/>
+  <SearchBar value={search} onChange={setSearch} placeholder={t.search} language={language}/>
+  <FilterChips label={c.status} value={status} onChange={setStatus} options={(['active','all','sold',kind==='animals'?'dead':'finished'] as CattleQuery['status'][]).map(value=>({value,label:c[value]}))}/>
+  {list.isError&&!!list.rows.length&&<ErrorState message={c.cachedError} language={language} onRetry={()=>void refetch()}/>}
+ </View>;
+ return <FlatList<Row> data={list.rows} keyExtractor={row=>row.id} contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" ListHeaderComponent={header}
+  refreshControl={<RefreshControl refreshing={list.refreshing} onRefresh={()=>void list.refresh()} tintColor={colors.primary} colors={[colors.primary]}/>} onEndReached={list.loadMore} onEndReachedThreshold={0.4}
+  renderItem={({item})=><CattleRow item={item} onPress={()=>router.push({pathname:'/cattle/[production]/[id]',params:{production:'dairy',id:item.id,kind,...(farm?{farm:farm.id}:{})}})}/>}
+  ListEmptyComponent={list.isPending?<SkeletonList/>:list.isError?<ErrorState message={w.error} language={language} onRetry={()=>void refetch()}/>:<EmptyState title={c.empty}/>}
+  ListFooterComponent={list.rows.length?<ListFooter loading={list.isFetchingNextPage} end={!list.hasNextPage} language={language}/>:undefined}/>;
 }
-
-const h=StyleSheet.create({panel:{padding:12,borderRadius:16,borderWidth:1,borderColor:colors.borderSoft,backgroundColor:colors.surface,gap:12},heading:{flexDirection:'row',alignItems:'center',gap:10},title:{fontSize:19,fontWeight:'800',color:colors.forest},icon:{width:44,height:44,borderRadius:22,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center'},count:{alignItems:'flex-end',maxWidth:'40%'},total:{fontSize:26,fontWeight:'800',color:colors.forest},tabs:{flexDirection:'row',gap:4,padding:3,borderRadius:12,backgroundColor:colors.track},tab:{flex:1,minHeight:44,flexDirection:'row',flexWrap:'wrap',alignItems:'center',justifyContent:'center',gap:7,padding:8,borderRadius:9},selectedTab:{backgroundColor:colors.surface},tabText:{fontSize:14,fontWeight:'600',color:colors.muted,flexShrink:1},create:{minHeight:44,flexDirection:'row',alignItems:'center',gap:7,paddingVertical:10,paddingHorizontal:12,borderRadius:12,backgroundColor:colors.primary},createText:{fontSize:14,fontWeight:'700',color:colors.surface,flexShrink:1},filter:{minHeight:44,minWidth:44,flexDirection:'row',alignItems:'center',gap:7,paddingVertical:10,paddingHorizontal:10,borderRadius:12},record:{padding:12,gap:10,marginBottom:10,borderWidth:1,borderColor:colors.borderSoft,borderRadius:14,backgroundColor:colors.surface},identity:{fontSize:19,fontWeight:'800',color:colors.forest},badge:{paddingHorizontal:8,paddingVertical:4,borderRadius:8,backgroundColor:colors.primarySoft,fontSize:12,fontWeight:'600',color:colors.primary},inactive:{backgroundColor:colors.neutralSurface,color:colors.neutral},milkBadge:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:8,paddingVertical:4,borderRadius:8,backgroundColor:colors.infoSurface,flexShrink:1},milkText:{fontSize:12,fontWeight:'600',color:colors.info,flexShrink:1},details:{flexDirection:'row',flexWrap:'wrap',gap:12,borderTopWidth:1,borderColor:colors.divider,paddingTop:10},detail:{flexBasis:100,flexGrow:1,minWidth:0,gap:2},empty:{padding:24,gap:12,alignItems:'center',backgroundColor:colors.surface,borderRadius:14}});

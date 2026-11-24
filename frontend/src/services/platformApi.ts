@@ -9,8 +9,12 @@ import type {
   PlatformOrganization,
   PlatformOrganizationPage,
   PlatformStaff,
-  PlatformUser,
+  PlatformUserDetail,
+  PlatformUserFormOptions,
   PlatformUserPage,
+  PlatformUserPasswordReset,
+  PlatformUserUpdate,
+  OrganizationSegmentOverview,
   PlatformPlan,
   PlatformPlanPage,
   PlatformSubscriptionPage,
@@ -434,8 +438,23 @@ export const platformService = {
     URL.revokeObjectURL(url);
   },
   async user(id: string) {
-    const { data } = await platformApi.get<PlatformUser>(`platform/users/${id}/`);
+    const { data } = await platformApi.get<PlatformUserDetail>(`platform/users/${id}/`);
     return data;
+  },
+  async userFormOptions() {
+    return (await platformApi.get<PlatformUserFormOptions>("platform/users/form-options/")).data;
+  },
+  async updateUser(id: string, payload: PlatformUserUpdate) {
+    return (await platformApi.patch<PlatformUserDetail>(`platform/users/${id}/`, payload)).data;
+  },
+  async setUserPassword(id: string, payload: PlatformUserPasswordReset) {
+    return (await platformApi.post<PlatformUserDetail>(`platform/users/${id}/set-password/`, payload)).data;
+  },
+  async organizationSegments(id: string) {
+    return (await platformApi.get<OrganizationSegmentOverview>(`platform/organizations/${id}/segments/`)).data;
+  },
+  async changeOrganizationSegment(id: string, payload: { segment_code: string; contracted: boolean; tier?: string | null; final_monthly_price?: string | null; reason?: string }) {
+    return (await platformApi.post<OrganizationSegmentOverview>(`platform/organizations/${id}/segments/`, payload)).data;
   },
   async blockUser(id: string) {
     await platformApi.post(`platform/users/${id}/block/`);

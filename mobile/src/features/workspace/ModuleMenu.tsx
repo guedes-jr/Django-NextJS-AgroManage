@@ -6,7 +6,7 @@ import {homeMessages} from '../home/messages';
 import {HomeIcon,type HomeIconName} from '../home/HomeIcon';
 import {nativeDestination} from './navigation';
 import {moduleMenuMessages,visibleModuleGroups} from './moduleMenuData';
-const icons:Record<ModuleKey,HomeIconName>={dairy:'chart',beef:'leaf',swine:'leaf',crops:'leaf',agenda:'agenda',feeding:'box',clinic:'plus',inventory:'box',finance:'wallet',structure:'home',assistant:'search',settings:'modules',profile:'home',notifications:'bell',support:'modules'};
+const icons:Record<ModuleKey,HomeIconName>={dairy:'chart',beef:'leaf',swine:'leaf',crops:'leaf',agenda:'agenda',feeding:'box',clinic:'plus',inventory:'box',finance:'wallet',structure:'home',assistant:'search',settings:'modules',profile:'home',notifications:'bell',support:'modules',reports:'chart'};
 export function ModuleMenu({allowed,language,active,query,onQuery,onClose,onOpen}:{allowed:ModuleKey[];language:Language;active:string;query:string;onQuery:(value:string)=>void;onClose:()=>void;onOpen:(key:ModuleKey)=>void}){
  const t=homeMessages[language],copy=moduleMenuMessages[language],groups=visibleModuleGroups(allowed,language,query),count=groups.reduce((sum,group)=>sum+group.keys.length,0);
  return <KeyboardAvoidingView style={s.sheet} behavior={Platform.OS==='ios'?'padding':undefined} role="dialog" aria-modal accessibilityViewIsModal accessibilityLabel={t.modules}>

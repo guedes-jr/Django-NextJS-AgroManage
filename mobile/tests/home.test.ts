@@ -37,5 +37,7 @@ test('shared navigation keeps native routes distinct from unavailable web module
   assert.deepEqual(nativeDestination('profile'),{pathname:'/profile'});
   assert.equal(nativeDestination('profile',true),null);assert.deepEqual(nativeDestination('inventory'),{pathname:'/inventory'});assert.deepEqual(nativeDestination('inventory',true),{pathname:'/inventory/form',params:{kind:'items'}});
   assert.deepEqual(nativeDestination('swine'),{pathname:'/swine'});assert.equal(nativeDestination('swine',true),null);
-  for(const key of moduleKeys.filter(key=>!['agenda','beef','dairy','profile','inventory','feeding','notifications','clinic','swine'].includes(key)))assert.equal(nativeDestination(key),null);
+  for(const key of moduleKeys.filter(key=>!['agenda','beef','dairy','profile','inventory','feeding','notifications','clinic','swine','finance','crops','structure','support','assistant','reports','settings'].includes(key)))assert.equal(nativeDestination(key),null);
+  assert.deepEqual(nativeDestination('finance'),{pathname:'/finance'});assert.deepEqual(nativeDestination('finance',true),{pathname:'/finance/form'});
+  assert.deepEqual(nativeDestination('crops'),{pathname:'/crops'});assert.deepEqual(nativeDestination('structure'),{pathname:'/structures'});assert.deepEqual(nativeDestination('support'),{pathname:'/support'});assert.deepEqual(nativeDestination('assistant'),{pathname:'/assistant'});assert.deepEqual(nativeDestination('crops',true),{pathname:'/crops',params:{tab:'routines'}});
 });

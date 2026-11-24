@@ -1,13 +1,14 @@
 import {matingMessages} from './matingMessages';
 import {z} from 'zod';
-import {SafeAreaView} from 'react-native-safe-area-context';
 import {useId,useRef,useState} from 'react';
-import {Alert,FlatList,Modal,KeyboardAvoidingView,Platform,Pressable,ScrollView,Text,TextInput,View} from 'react-native';
+import {Alert,KeyboardAvoidingView,Platform,Pressable,ScrollView,Text,TextInput,View} from 'react-native';
 import {useLocalSearchParams,usePreventRemove,useRouter} from 'expo-router';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {isAxiosError} from 'axios';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaFormShell as AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {SearchPicker} from '../../components/mobile/SearchPicker';
+import { AgendaButton, Busy, styles as s } from '../agenda/ui';
+import { AgendaFormShell as AgendaShell } from '../workspace/AppShell';
 import {workspaceMessages} from '../workspace/messages';
 import {canStartProtocol} from './protocolStartContracts';
 import {ProtocolSemenChanged,ProtocolSemenUnconfirmed} from '../../services/authApi';
@@ -37,8 +38,8 @@ function Editor({options}:{options:ProtocolExecutionOptions}){
 
 type Choice={id:string;label:string;detail:string;mating?:ProtocolMating;lot?:ProtocolSemenLot};
 function Picker({options,date,mode,onClose,onSelect}:{options:ProtocolExecutionOptions;date:string;mode:'matings'|'lots';onClose:()=>void;onSelect:(row:Choice)=>void}){
- const {controller,language}=useAuth(),t=protocolSemenMessages[language],w=workspaceMessages[language],[page,setPage]=useState(1),[draft,setDraft]=useState(''),[search,setSearch]=useState('');
+ const {controller,language}=useAuth(),t=protocolSemenMessages[language],w=workspaceMessages[language];
  const scope={farm:options.farm,production:options.production,step:options.step};
- const q=useQuery({queryKey:['protocol-semen-picker',scope,date,mode,page,search],staleTime:0,gcTime:0,queryFn:async({signal})=>{if(mode==='matings'){const r=await controller.protocolSemenMatings(scope,date,page,signal);return {...r,results:r.results.map((mating):Choice=>({id:mating.id,label:`${matingMessages[language][mating.kind]} · ${mating.date}`,detail:'',mating}))};}const r=await controller.protocolSemenLots(scope,date,page,search,signal);return {...r,results:r.results.map((lot):Choice=>({id:lot.id,label:`${lot.name} · ${lot.number}`,detail:`${t.balance}: ${lot.balance} ${lot.unit}`,lot}))};}});
- return <Modal animationType="slide" onRequestClose={onClose}><SafeAreaView style={{flex:1,backgroundColor:'#F5F7F0'}}><FlatList<Choice> contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" data={q.isError||q.isFetching?[]:q.data?.results??[]} keyExtractor={row=>row.id} ListHeaderComponent={<View style={{gap:12}}><Text style={s.heading}>{mode==='matings'?t.chooseMating:t.chooseLot}</Text><AgendaButton label={w.back} onPress={onClose}/>{mode==='lots'&&<><TextInput accessibilityLabel={t.search} placeholder={t.search} style={s.input} value={draft} onChangeText={setDraft} maxLength={100}/><AgendaButton label={w.find} onPress={()=>{setPage(1);setSearch(draft.trim());}}/></>}{q.isFetching&&<Busy label={w.loading}/ >}{q.isError&&<><Text style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void q.refetch()}/></>}</View>} renderItem={({item})=><View style={s.card}><Text style={s.heading}>{item.label}</Text>{!!item.detail&&<Text style={s.body}>{item.detail}</Text>}<AgendaButton label={`${t.select}: ${item.label}`} onPress={()=>onSelect(item)}/></View>} ListEmptyComponent={!q.isFetching&&!q.isError?<Text style={s.body}>{t.empty}</Text>:undefined} ListFooterComponent={<View style={s.row}><AgendaButton label={w.previous} disabled={q.isFetching||!q.data?.previous} onPress={()=>setPage(value=>value-1)}/><Text style={s.body}>{w.page} {page}</Text><AgendaButton label={w.next} disabled={q.isFetching||!q.data?.next||page>=100000} onPress={()=>setPage(value=>value+1)}/></View>}/></SafeAreaView></Modal>;
+ const fetchPage=(async(page:number,search:string,signal:AbortSignal)=>{if(mode==='matings'){const r=await controller.protocolSemenMatings(scope,date,page,signal);return {...r,results:r.results.map((mating):Choice=>({id:mating.id,label:`${matingMessages[language][mating.kind]} · ${mating.date}`,detail:'',mating}))};}const r=await controller.protocolSemenLots(scope,date,page,search,signal);return {...r,results:r.results.map((lot):Choice=>({id:lot.id,label:`${lot.name} · ${lot.number}`,detail:`${t.balance}: ${lot.balance} ${lot.unit}`,lot}))};}) as (page:number,search:string,signal:AbortSignal)=>Promise<{results:any[];next:string|null|boolean}>;
+ return <SearchPicker title={mode==="matings"?t.chooseMating:t.chooseLot} language={language} searchable={mode==="lots"} searchPlaceholder={t.search} emptyLabel={t.empty} errorLabel={w.error} selectLabel={t.select} queryKey={['protocol-semen-picker',scope,date,mode]} fetchPage={fetchPage} keyExtractor={(item:any)=>item.id} row={(item:any)=>({title:item.label,subtitle:item.detail||undefined})} onSelect={onSelect} onClose={onClose}/>;
 }

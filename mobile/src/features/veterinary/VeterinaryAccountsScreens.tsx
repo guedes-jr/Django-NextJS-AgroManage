@@ -3,9 +3,13 @@ import { randomUUID } from 'expo-crypto';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { FlatList, Text, TextInput, View } from 'react-native';
+import { FlatList, RefreshControl, Text, TextInput, View } from 'react-native';
+import { colors } from '../../theme/tokens';
+import { HomeIcon } from '../home/HomeIcon';
+import { ActionGroup, ActionRow, BottomSheet, EmptyState, ErrorState, FilterChips, HeaderAction, IconTile, KpiStrip, ListRow, Notice, ScreenIntro, SearchBar, SkeletonList, mobileStyles as ms } from '../../components/mobile';
 import { z } from 'zod';
-import { AgendaButton, AgendaShell, Busy, styles as s } from '../agenda/ui';
+import { AgendaButton, FormField, styles as s } from '../agenda/ui';
+import { AgendaShell } from '../workspace/AppShell';
 import { useAuth } from '../auth/AuthProvider';
 import { moneyText } from '../inventory/launchContracts';
 import { canUseVeterinary, vetClientCommand, vetHerdPurposes, vetSettlementTotal, veterinaryMonthSchema, type VetClient, type VetClientCommand, type VetSettlementCommand } from './contracts';
@@ -69,6 +73,7 @@ export function VeterinaryClientsScreen() {
   const t = veterinaryMessages[language];
   const copy = accountsCopy[language];
   const [search, setSearch] = useState('');
+  const [actions, setActions] = useState<VetClient>();
   const cache = useQueryClient();
   const [editor, setEditor] = useState<VetClientCommand>();
   const [toDelete, setToDelete] = useState<VetClient>();
@@ -160,62 +165,44 @@ export function VeterinaryClientsScreen() {
   }
 
   return <AgendaShell title={copy.clients} backLabel={t.back} onBack={() => router.canGoBack() ? router.back() : router.replace('/veterinary')}>
-    {!allowed ? <Text style={s.error}>{t.noAccess}</Text> : <FlatList ref={list} data={rows} keyExtractor={row => row.id}
-      contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={<View style={{ gap: 8 }}>
-        <TextInput style={s.input} accessibilityLabel={copy.search} placeholder={copy.search} value={search} onChangeText={setSearch} maxLength={100}/>
-        {clients.isPending ? <Busy label={t.loading}/> : null}
-        {clients.isError ? <Text accessibilityRole="alert" style={s.error}>{t.error}</Text> : null}
-        <AgendaButton label={t.refresh} disabled={clients.isFetching} onPress={() => void clients.refetch()}/>
-        {message ? <Text accessibilityRole="alert" style={s.body}>{uncertain ? copy.unknown : message}</Text> : null}
-        {toDelete ? <View style={s.card}>
-          <Text style={s.title}>{copy.confirmRemove.replace('{name}', toDelete.name)}</Text>
-          <AgendaButton label={copy.remove} busy={sending} disabled={sending} onPress={() => void removeClient()}/>
+    {!allowed ? <View style={ms.list}><EmptyState title={t.noAccess}/></View> : <FlatList ref={list} data={rows} keyExtractor={row => row.id}
+      contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      refreshControl={<RefreshControl refreshing={false} onRefresh={() => void clients.refetch()} tintColor={colors.primary} colors={[colors.primary]}/>}
+      ListHeaderComponent={<View style={ms.header}>
+        <ScreenIntro title={copy.clients} action={!editor && !toDelete ? <HeaderAction label={copy.add} onPress={() => openEditor()}/> : undefined}/>
+        <SearchBar value={search} onChange={setSearch} placeholder={copy.search} language={language} debounce={150}/>
+        {clients.isError ? <ErrorState message={t.error} language={language} onRetry={() => void clients.refetch()}/> : null}
+        {message ? <Notice tone={uncertain ? 'warning' : 'info'} text={uncertain ? copy.unknown : message}/> : null}
+        {toDelete ? <View style={{ gap: 8 }}>
+          <Notice tone="danger" text={copy.confirmRemove.replace('{name}', toDelete.name)}/>
+          <AgendaButton variant="primary" label={copy.remove} busy={sending} disabled={sending} onPress={() => void removeClient()}/>
           <AgendaButton label={copy.cancel} disabled={sending} onPress={() => setToDelete(undefined)}/>
-        </View> : editor ? <View style={s.card}>
-          <Text accessibilityRole="header" style={s.title}>{editor.version ? copy.edit : copy.add}</Text>
-          {([['name', copy.name, 150], ['farm_name', copy.farm, 150], ['phone', copy.phone, 40]] as const).map(([field, label, limit]) => <View key={field}>
-            <Text style={s.body}>{label}</Text>
-            <TextInput style={s.input} accessibilityLabel={label} value={editor[field]} maxLength={limit}
+        </View> : editor ? <View style={{ gap: 10, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.surface }}>
+          <Text accessibilityRole="header" style={{ fontSize: 17, fontWeight: '800', color: colors.forest }}>{editor.version ? copy.edit : copy.add}</Text>
+          {([['name', copy.name, 150], ['farm_name', copy.farm, 150], ['phone', copy.phone, 40]] as const).map(([field, label, limit]) => <FormField key={field} label={label}>
+            <TextInput style={s.fieldControl} accessibilityLabel={label} value={editor[field]} maxLength={limit}
               editable={!sending && !uncertain} keyboardType={field === 'phone' ? 'phone-pad' : 'default'}
               onChangeText={value => setEditor({ ...editor, [field]: value })}/>
-          </View>)}
-          <Text style={s.body}>{copy.linkedFarm}</Text>
-          {farms.isPending ? <Busy label={t.loading}/> : null}
-          {farms.isError ? <><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={() => void farms.refetch()}/></> : null}
-          <View style={s.row}>
-            <AgendaButton label={copy.none} disabled={sending || uncertain} selected={editor.farm === null} onPress={() => setEditor({ ...editor, farm: null })}/>
-            {farms.data?.map(farm => <AgendaButton key={farm.id} label={farm.name} selected={editor.farm === farm.id}
-              disabled={sending || uncertain} onPress={() => setEditor({ ...editor, farm: farm.id })}/>)}
-          </View>
-          <Text style={s.body}>{copy.purpose}</Text>
-          <View style={s.row}>
-            {vetHerdPurposes.options.map(purpose => <AgendaButton key={purpose} label={copy.purposes[purpose]}
-              disabled={sending || uncertain} selected={editor.herd_purpose === purpose}
-              onPress={() => setEditor({ ...editor, herd_purpose: purpose })}/>)}
-          </View>
+          </FormField>)}
+          <Text style={s.label}>{copy.linkedFarm}</Text>
+          {farms.isPending ? <SkeletonList rows={1}/> : null}
+          {farms.isError ? <ErrorState message={t.error} language={language} onRetry={() => void farms.refetch()}/> : null}
+          <FilterChips value={editor.farm ?? ''} onChange={value => { if (!sending && !uncertain) setEditor({ ...editor, farm: value || null }); }} options={[{ value: '', label: copy.none }, ...(farms.data ?? []).map(farm => ({ value: farm.id, label: farm.name }))]}/>
+          <Text style={s.label}>{copy.purpose}</Text>
+          <FilterChips value={editor.herd_purpose} onChange={purpose => { if (!sending && !uncertain) setEditor({ ...editor, herd_purpose: purpose }); }} options={vetHerdPurposes.options.map(purpose => ({ value: purpose, label: copy.purposes[purpose] }))}/>
           <AgendaButton label={uncertain ? t.retry : copy.save} busy={sending} disabled={sending} variant="primary" onPress={() => void saveClient()}/>
           {!uncertain ? <AgendaButton label={copy.cancel} disabled={sending} onPress={() => setEditor(undefined)}/> : null}
-        </View> : <AgendaButton label={copy.add} onPress={() => openEditor()}/>}
-
+        </View> : null}
       </View>}
-      ListEmptyComponent={clients.isSuccess ? <Text style={s.body}>{copy.empty}</Text> : undefined}
-      renderItem={({ item }) => <View style={s.card}>
-        <Text style={s.title}>{item.name}</Text>
-        {item.farm_name ? <Text style={s.body}>{item.farm_name}</Text> : null}
-        {item.phone ? <Text selectable style={s.body}>{item.phone}</Text> : null}
-        <View style={s.row}>
-          <AgendaButton label={copy.edit} disabled={!!editor || !!toDelete || !item.updated_at} onPress={() => openEditor(item)}/>
-          <AgendaButton label={copy.remove} disabled={!!editor || !!toDelete} onPress={() => {
-            setMessage('');
-            setToDelete(item);
-            list.current?.scrollToOffset({ offset: 0, animated: true });
-          }}/>
-          <AgendaButton label={t.launch.start} onPress={() => router.push({ pathname: '/veterinary/launch', params: { client: item.id } })}/>
-          <AgendaButton label={copy.billing} onPress={() => router.push({ pathname: '/veterinary/billing', params: { client: item.id } })}/>
-        </View>
-      </View>}
+      ListEmptyComponent={clients.isPending ? <SkeletonList/> : clients.isSuccess ? <EmptyState title={copy.empty}/> : undefined}
+      renderItem={({ item }) => <ListRow meta={item.farm_name || undefined} title={item.name} subtitle={item.phone || undefined} leading={<IconTile tone="brand"><HomeIcon name="group" size={20} color={colors.primary}/></IconTile>} disabled={!!editor || !!toDelete} onPress={() => setActions(item)}/>}
     />}
+    <BottomSheet visible={!!actions} title={actions?.name ?? ''} onClose={() => setActions(undefined)} language={language}>{actions ? <ActionGroup>
+      <ActionRow label={t.launch.start} icon={<HomeIcon name="plus" size={20} color={colors.primary}/>} onPress={() => { const target = actions; setActions(undefined); router.push({ pathname: '/veterinary/launch', params: { client: target.id } }); }}/>
+      <ActionRow label={copy.billing} icon={<HomeIcon name="wallet" size={20} color={colors.primary}/>} onPress={() => { const target = actions; setActions(undefined); router.push({ pathname: '/veterinary/billing', params: { client: target.id } }); }}/>
+      <ActionRow label={copy.edit} disabled={!actions.updated_at} icon={<HomeIcon name="group" size={20} color={colors.primary}/>} onPress={() => { const target = actions; setActions(undefined); openEditor(target); }}/>
+      <ActionRow label={copy.remove} tone="danger" icon={<HomeIcon name="back" size={20} color={colors.error}/>} onPress={() => { const target = actions; setActions(undefined); setMessage(''); setToDelete(target); list.current?.scrollToOffset({ offset: 0, animated: true }); }}/>
+    </ActionGroup> : null}</BottomSheet>
   </AgendaShell>;
 }
 
@@ -226,9 +213,7 @@ export function VeterinaryBillingScreen() {
   const t = veterinaryMessages[language];
   const copy = accountsCopy[language];
   const client = z.uuid().safeParse(params.client).data;
-  const [draft, setDraft] = useState<string>();
   const [selection, setSelection] = useState(() => veterinaryMonthSchema.safeParse(params.month).data);
-  const [invalid, setInvalid] = useState(false);
   const [payment, setPayment] = useState<VetSettlementCommand>();
   const [sending, setSending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
@@ -278,60 +263,44 @@ export function VeterinaryBillingScreen() {
     }
   }
 
-  const header = <View style={{ gap: 8 }}>
-    <Text style={s.body}>{copy.month}</Text>
-    <TextInput style={s.input} accessibilityLabel={copy.month} value={draft ?? month ?? ''} onChangeText={setDraft} maxLength={7} editable={!payment}/>
-    <AgendaButton label={copy.apply} disabled={!!payment} onPress={() => {
-      const next = veterinaryMonthSchema.safeParse((draft ?? month ?? '').trim());
-      setInvalid(!next.success);
-      if (!next.success) return;
-      if (next.data === month) void billing.refetch();
-      else setSelection(next.data);
-    }}/>
-    {invalid ? <Text accessibilityRole="alert" style={s.error}>{copy.invalid}</Text> : null}
-    {workspace.isPending || (!!month && billing.isPending) ? <Busy label={t.loading}/> : null}
-    {billing.isError || (workspace.isError && !month) ? <>
-      <Text accessibilityRole="alert" style={s.error}>{t.error}</Text>
-      <AgendaButton label={t.retry} onPress={() => void (month ? billing.refetch() : workspace.refetch())}/>
-    </> : null}
-    {billing.data ? <View style={s.card}>
-      <Text accessibilityRole="header" style={s.title}>{row ? `${row.name} · ${billing.data.month}` : billing.data.month}</Text>
-      {total ? <Text style={s.body}>{copy.total}: {money(total)}</Text> : null}
-      {pending ? <Text style={s.body}>{copy.pending}: {money(pending)}</Text> : null}
-      {!row ? <Text style={s.body}>{copy.received}: {money(billing.data.received)}</Text> : null}
-      {client && !payment && unpaid.length > 0 && !billing.isFetching ? <AgendaButton label={copy.review} onPress={() => {
+  const shiftMonth = (value: string, delta: number) => { const [y = 2026, m = 1] = value.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + delta, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+  const maxMonth = workspace.data?.today.slice(0, 7);
+  const monthLabel = (value: string) => new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-15T12:00:00Z`));
+  const header = <View style={ms.header}>
+    <ScreenIntro title={row ? row.name : copy.billing} subtitle={copy.month}/>
+    {month ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 4, borderRadius: 16, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.surface }}>
+      <AgendaButton label="‹" accessibilityLabel={shiftMonth(month, -1)} disabled={!!payment} style={{ width: 44, paddingHorizontal: 0 }} onPress={() => setSelection(shiftMonth(month, -1))}/>
+      <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.forest, textTransform: 'capitalize' }}>{monthLabel(month)}</Text>
+      <AgendaButton label="›" accessibilityLabel={shiftMonth(month, 1)} disabled={!!payment || (!!maxMonth && shiftMonth(month, 1) > maxMonth)} style={{ width: 44, paddingHorizontal: 0 }} onPress={() => setSelection(shiftMonth(month, 1))}/>
+    </View> : null}
+    {workspace.isPending || (!!month && billing.isPending) ? <SkeletonList rows={1}/> : null}
+    {billing.isError || (workspace.isError && !month) ? <ErrorState message={t.error} language={language} onRetry={() => void (month ? billing.refetch() : workspace.refetch())}/> : null}
+    {billing.data ? <>
+      <KpiStrip items={[...(total ? [{ key: 't', label: copy.total, value: money(total) }] : []), ...(pending ? [{ key: 'p', label: copy.pending, value: money(pending), tone: 'warning' as const }] : []), ...(!row ? [{ key: 'r', label: copy.received, value: money(billing.data.received), tone: 'success' as const }] : [])]}/>
+      {client && !payment && unpaid.length > 0 && !billing.isFetching ? <AgendaButton variant="primary" label={copy.review} onPress={() => {
         setMessage('');
         setPayment({ client, month: billing.data.month, charges: unpaid.map(({ id, value, updated_at }) => ({ id, value, version: updated_at })) });
       }}/> : null}
-      {payment ? <>
-        <Text style={s.body}>{copy.charges}: {payment.charges.length} · {payment.month} · {money(vetSettlementTotal(payment.charges))}</Text>
+      {payment ? <View style={{ gap: 8 }}>
+        <Notice tone="info" text={`${copy.charges}: ${payment.charges.length} · ${payment.month} · ${money(vetSettlementTotal(payment.charges))}`}/>
         <AgendaButton label={uncertain ? t.retry : copy.confirm} busy={sending} disabled={sending} variant="primary" onPress={() => void settle()}/>
         {!uncertain ? <AgendaButton label={copy.cancel} disabled={sending} onPress={() => setPayment(undefined)}/> : null}
-      </> : null}
-    </View> : null}
-    {message ? <Text accessibilityRole="alert" style={s.body}>{uncertain ? copy.unknown : message}</Text> : null}
+      </View> : null}
+    </> : null}
+    {message ? <Notice tone={uncertain ? 'warning' : 'info'} text={uncertain ? copy.unknown : message}/> : null}
   </View>;
 
   return <AgendaShell title={copy.billing} backLabel={t.back} onBack={() => router.canGoBack() ? router.back() : router.replace('/veterinary')}>
-    {!allowed ? <Text style={s.error}>{t.noAccess}</Text> : client
-      ? <FlatList data={billing.data?.detail ?? []} keyExtractor={item => item.id} contentContainerStyle={s.content}
+    {!allowed ? <View style={ms.list}><EmptyState title={t.noAccess}/></View> : client
+      ? <FlatList data={billing.data?.detail ?? []} keyExtractor={item => item.id} contentContainerStyle={ms.list}
           keyboardShouldPersistTaps="handled" ListHeaderComponent={header}
-          ListEmptyComponent={billing.isSuccess ? <Text style={s.body}>{copy.noProcedures}</Text> : undefined}
-          renderItem={({ item }) => <View style={s.card}>
-            <Text style={s.title}>{item.identifier}</Text>
-            <Text style={s.body}>{item.date} · {t.kind[item.kind] ?? item.kind}</Text>
-            <Text style={s.body}>{money(item.value)} · {item.paid ? copy.paid : copy.awaiting}</Text>
-          </View>}/>
-      : <FlatList data={billing.data?.clients ?? []} keyExtractor={item => item.id} contentContainerStyle={s.content}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={() => void billing.refetch()} tintColor={colors.primary} colors={[colors.primary]}/>}
+          ListEmptyComponent={billing.isSuccess ? <EmptyState title={copy.noProcedures}/> : undefined}
+          renderItem={({ item }) => <ListRow meta={`${item.date} · ${t.kind[item.kind] ?? item.kind}`} title={item.identifier} value={money(item.value)} status={{ label: item.paid ? copy.paid : copy.awaiting, tone: item.paid ? 'success' : 'warning' }}/>}/>
+      : <FlatList data={billing.data?.clients ?? []} keyExtractor={item => item.id} contentContainerStyle={ms.list}
           keyboardShouldPersistTaps="handled" ListHeaderComponent={header}
-          ListEmptyComponent={billing.isSuccess ? <Text style={s.body}>{copy.empty}</Text> : undefined}
-          renderItem={({ item }) => <View style={s.card}>
-            <Text style={s.title}>{item.name}</Text>
-            {item.farm_name ? <Text style={s.body}>{item.farm_name}</Text> : null}
-            <Text style={s.body}>{copy.pending}: {money(item.receivable)}</Text>
-            <AgendaButton label={copy.billing} onPress={() => router.push({
-              pathname: '/veterinary/billing', params: { client: item.id, month: billing.data?.month },
-            })}/>
-          </View>}/>}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={() => void billing.refetch()} tintColor={colors.primary} colors={[colors.primary]}/>}
+          ListEmptyComponent={billing.isSuccess ? <EmptyState title={copy.empty}/> : undefined}
+          renderItem={({ item }) => <ListRow meta={item.farm_name || undefined} title={item.name} value={money(item.receivable)} valueCaption={copy.pending} leading={<IconTile tone="brand"><HomeIcon name="wallet" size={20} color={colors.primary}/></IconTile>} onPress={() => router.push({ pathname: '/veterinary/billing', params: { client: item.id, month: billing.data?.month } })}/>}/>}
   </AgendaShell>;
 }

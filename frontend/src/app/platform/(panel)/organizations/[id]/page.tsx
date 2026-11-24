@@ -2,22 +2,33 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FormEvent, useEffect, useState, type KeyboardEvent } from "react";
-import { Archive, ArrowLeft, Boxes, Building2, Eye, Pencil, RefreshCcw, PauseCircle, Sprout, Users, WalletCards } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { Activity, Archive, ArrowLeft, Boxes, Building2, ClipboardList, CreditCard, DatabaseBackup, Download, Eye, FileText, Gauge, History, Layers, LayoutDashboard, LifeBuoy, Pencil, RefreshCcw, PauseCircle, Receipt, ShieldCheck, Sprout, Users, WalletCards, type LucideIcon } from "lucide-react";
 
 import { useToast } from "@/components/ui/Toast";
 import { OrganizationDossierSection as DossierSection } from "@/components/platform/OrganizationDossierSections";
 import { OrganizationOperationsSection } from "@/components/platform/OrganizationOperationsSection";
 import { OrganizationResponsibleModal } from "@/components/platform/OrganizationResponsibleModal";
 import { OrganizationFormModal } from "@/components/platform/OrganizationFormModal";
+import { OrganizationSegmentsSection } from "@/components/platform/OrganizationSegmentsSection";
 import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
 import { platformService } from "@/services/platformApi";
 import type { OrganizationDossierSection, OrganizationStatus, PlatformOrganization } from "@/types/platform";
 
 const sectionLabels: Record<OrganizationDossierSection, string> = {
   summary: "Resumo", operation: "Operação e pendências", tickets: "Chamados", exports: "Exportação de dados", recovery: "Recuperação de dados", registration: "Cadastro", users: "Usuários", subscription: "Assinatura",
-  invoices: "Faturas", payments: "Pagamentos", consumption: "Consumo e limites", adoption: "Adoção e uso", history: "Histórico", "support-access": "Acessos assistidos",
+  segments: "Segmentos contratados", invoices: "Faturas", payments: "Pagamentos", consumption: "Consumo e limites", adoption: "Adoção e uso", history: "Histórico", "support-access": "Acessos assistidos",
 };
+const sectionIcons: Record<OrganizationDossierSection, LucideIcon> = {
+  summary: LayoutDashboard, operation: ClipboardList, adoption: Activity, consumption: Gauge, users: Users, "support-access": ShieldCheck, tickets: LifeBuoy,
+  subscription: CreditCard, segments: Layers, invoices: FileText, payments: Receipt, registration: Building2, exports: Download, recovery: DatabaseBackup, history: History,
+};
+const sectionGroups: { label: string; sections: OrganizationDossierSection[] }[] = [
+  { label: "Visão geral", sections: ["summary", "operation", "adoption", "consumption"] },
+  { label: "Pessoas e suporte", sections: ["users", "support-access", "tickets"] },
+  { label: "Comercial", sections: ["subscription", "segments", "invoices", "payments"] },
+  { label: "Dados", sections: ["registration", "exports", "recovery", "history"] },
+];
 
 export default function PlatformOrganizationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,8 +79,7 @@ export default function PlatformOrganizationDetailPage() {
   };
 
   const resendInvitation = async () => {
-    if (loadError) return <div className="alert alert-danger" role="alert">{loadError}<button className="btn btn-link" onClick={() => { setLoading(true); setLoadAttempt(value => value + 1); }}>Tentar novamente</button></div>;
-  if (!organization) return;
+    if (!organization) return;
     setResending(true);
     try {
       const result = await platformService.resendAdministratorInvitation(organization.id);
@@ -85,8 +95,8 @@ export default function PlatformOrganizationDetailPage() {
   };
   const invitationLabels = { pending: "Envio pendente", sent: "Convite enviado", failed: "Falha no envio", expired: "Convite expirado", accepted: "Convite aceito", revoked: "Convite invalidado" };
 
-  if (loading || (!loadError && organization?.id !== id)) return <div className="py-5 text-center"><div className="spinner-border text-success" /></div>;
-  if (!organization) return <div className="alert alert-danger">Organização não encontrada.</div>;
+  if (loading || (!loadError && organization?.id !== id)) return <div className="py-5 text-center" role="status"><div className="spinner-border text-success" /><span className="visually-hidden">Carregando organização…</span></div>;
+  if (loadError || !organization) return <div className="alert alert-danger d-flex flex-wrap align-items-center gap-2" role="alert">{loadError || "Organização não encontrada."}<button className="btn btn-sm btn-outline-danger" onClick={() => { setLoading(true); setLoadAttempt(value => value + 1); }}>Tentar novamente</button><Link href="/platform/organizations" className="btn btn-sm btn-link">Voltar às organizações</Link></div>;
 
   const sections = organization.available_sections || ["summary"];
   const selectedSection = sections.find(section => section === requestedSection) || "summary";
@@ -96,18 +106,6 @@ export default function PlatformOrganizationDetailPage() {
     url.searchParams.set("tab", section);
     window.history.replaceState(null, "", url);
   };
-  const tabKeyboard = (event: KeyboardEvent<HTMLButtonElement>) => {
-    let index = sections.indexOf(selectedSection);
-    if (event.key === "ArrowRight") index = (index + 1) % sections.length;
-    else if (event.key === "ArrowLeft") index = (index - 1 + sections.length) % sections.length;
-    else if (event.key === "Home") index = 0;
-    else if (event.key === "End") index = sections.length - 1;
-    else return;
-    event.preventDefault();
-    selectSection(sections[index]);
-    document.getElementById(`organization-tab-${sections[index]}`)?.focus();
-  };
-
   const metrics = [
     {label:"Usuários", value:organization.users_count, icon:Users},
     {label:"Fazendas", value:organization.farms_count, icon:Building2},
@@ -116,43 +114,72 @@ export default function PlatformOrganizationDetailPage() {
     {label:"Transações", value:organization.transactions_count ?? 0, icon:WalletCards},
   ];
 
-  return <>
-    <Link href="/platform/organizations" className="text-decoration-none text-muted d-inline-flex align-items-center gap-2 mb-3"><ArrowLeft size={16}/> Voltar às organizações</Link>
-    <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4"><div><div className="d-flex align-items-center gap-2 mb-2"><span className={`platform-status ${organization.status}`}>{organization.status_display}</span><span className="badge text-bg-dark text-uppercase">{organization.plan}</span></div><h1 className="h2 fw-bold mb-1">{organization.name}</h1><p className="text-muted mb-0">{organization.document || "Documento não informado"} · {organization.slug}</p></div><div className="d-flex flex-wrap gap-2"><button className="btn btn-outline-secondary" disabled={changing || resending} onClick={() => { setLoading(true); setLoadAttempt(value => value + 1); }}>Atualizar ficha</button>{organization.status === "active" && sections.includes("support-access") && <Link className="btn btn-outline-dark d-flex align-items-center gap-2" href={`/platform/support-access?organization=${organization.id}`}><Eye size={16}/>Acesso assistido</Link>}{canManage && <button className="btn btn-outline-secondary d-flex align-items-center gap-2" onClick={() => setShowEdit(true)}><Pencil size={16}/>Editar</button>}{canManage && organization.status === "active" && <button className="btn btn-outline-warning d-flex align-items-center gap-2" onClick={() => { setStatusReason(""); setStatusAction("suspended"); }} disabled={changing}><PauseCircle size={16}/>Suspender</button>}{canManage && organization.status !== "archived" && <button className="btn btn-outline-danger d-flex align-items-center gap-2" onClick={() => { setStatusReason(""); setStatusAction("archived"); }} disabled={changing}><Archive size={16}/>Arquivar</button>}{canManage && organization.status !== "active" && <button className="btn btn-success d-flex align-items-center gap-2" onClick={() => { setStatusReason(""); setStatusAction("active"); }} disabled={changing}><RefreshCcw size={16}/>Reativar organização</button>}</div></div>
-    {canManage && statusAction && <form className="platform-card p-4 mb-4" onSubmit={changeStatus} aria-label="Alterar estado da organização">
-      <h2 className="h5">{statusLabels[statusAction]} {organization.name}?</h2>
-      <p className="text-muted">{statusAction === "active" ? "O acesso será liberado e os usuários precisarão entrar novamente." : "Os dados serão preservados. O acesso será bloqueado e as sessões dos usuários e do suporte serão encerradas."}</p>
-      <label htmlFor="organization-status-reason" className="form-label">Motivo (opcional)</label>
-      <textarea id="organization-status-reason" className="form-control mb-3" maxLength={1000} rows={2} value={statusReason} onChange={event => setStatusReason(event.target.value)} disabled={changing}/>
-      <div className="d-flex gap-2"><button className="btn btn-dark" disabled={changing}>{changing ? "Processando..." : `Confirmar: ${statusLabels[statusAction]}`}</button><button type="button" className="btn btn-outline-secondary" onClick={() => setStatusAction(null)} disabled={changing}>Cancelar</button></div>
-    </form>}
-    <div role="tablist" aria-label="Ficha da organização" className="d-flex gap-2 overflow-auto border-bottom mb-4 pb-2">{sections.map(section => <button key={section} type="button" role="tab" id={`organization-tab-${section}`} aria-selected={selectedSection === section} aria-controls="organization-section" tabIndex={selectedSection === section ? 0 : -1} className={`btn text-nowrap ${selectedSection === section ? "btn-dark" : "btn-outline-secondary"}`} onClick={() => selectSection(section)} onKeyDown={tabKeyboard}>{sectionLabels[section]}</button>)}</div>
-    {requestedSection !== selectedSection && <p className="alert alert-info">Esta seção não está disponível para seu perfil. O resumo da organização está aberto.</p>}
-    <div id="organization-section" tabIndex={0} role="tabpanel" aria-labelledby={`organization-tab-${selectedSection}`}>
-      {selectedSection === "summary" ? <>
-    <div className="platform-card p-3 mb-4"><strong>Estado: {organization.status_display}</strong><div className="text-muted small">Última alteração: {new Date(organization.status_changed_at).toLocaleString("pt-BR")}</div>{organization.status_reason && <p className="mb-0 mt-2">Motivo: {organization.status_reason}</p>}</div>
-    <section className="platform-card p-4 mb-4"><div className="d-flex flex-wrap justify-content-between gap-3"><div><h2 className="h5">Responsável pela organização</h2>{organization.responsible ? <><strong>{organization.responsible.full_name}</strong><div>{organization.responsible.email}</div><span className={`platform-status mt-2 ${organization.responsible.is_active ? "active" : "suspended"}`}>{organization.responsible.is_active ? "Usuário ativo" : "Usuário inativo"}</span></> : <p className="text-muted mb-0">Nenhum responsável definido.</p>}</div>{canManage && <div><button className="btn btn-outline-secondary" onClick={() => setShowResponsible(true)}>{organization.responsible ? "Transferir responsável" : "Definir responsável"}</button></div>}</div>{organization.administrator_invitation && !organization.administrator_invitation.accepted_at && !organization.administrator_invitation.revoked_at && <div className="small mt-3">Convite: {invitationLabels[organization.administrator_invitation.state]} <button type="button" className="btn btn-link btn-sm" onClick={() => selectSection("users")}>Ver convite</button></div>}</section>
-    <OrganizationOperationsSection organization={organization} onNavigate={selectSection}/>
-    <div className="row g-3 mb-4 mt-1">{metrics.map((metric) => <div className="col-6 col-lg" key={metric.label}><div className="platform-card p-3 h-100"><div className="platform-icon mb-3"><metric.icon size={19}/></div><div className="fs-4 fw-bold">{metric.value}</div><div className="text-muted small">{metric.label}</div></div></div>)}</div>
-      </> : <>
-        {selectedSection === "users" && <>
-    {organization.administrator_invitation && <section className="platform-card p-4 mb-4">
-      <div className="d-flex flex-wrap justify-content-between gap-3">
-        <div><h2 className="h5">Primeiro administrador</h2><strong>{organization.administrator_invitation.full_name}</strong><div>{organization.administrator_invitation.email}</div></div>
-        <div><span className="badge text-bg-light">{invitationLabels[organization.administrator_invitation.state]}</span></div>
+  const visibleGroups = sectionGroups.map(group => ({ ...group, sections: group.sections.filter(section => sections.includes(section)) })).filter(group => group.sections.length);
+  const openStatus = (next: OrganizationStatus) => { setStatusReason(""); setStatusAction(next); };
+
+  return <div className="platform-management">
+    <Link href="/platform/organizations" className="platform-back"><ArrowLeft size={15}/>Voltar às organizações</Link>
+    <header className="platform-card p-3 mb-3">
+      <div className="platform-page-header mb-0">
+        <div>
+          <div className="platform-badges">
+            <span className={`platform-pill ${organization.status === "active" ? "success" : organization.status === "suspended" ? "danger" : ""}`}>{organization.status_display}</span>
+            <span className="platform-pill text-uppercase">{organization.subscription_plan_code || organization.plan}</span>
+          </div>
+          <h1>{organization.name}</h1>
+          <p>{organization.document || "Documento não informado"} · {organization.slug}{organization.responsible && <> · Responsável: {organization.responsible.full_name}</>}</p>
+        </div>
+        <div className="platform-actions">
+          <button className="btn btn-sm btn-outline-secondary" disabled={changing || resending} onClick={() => { setLoading(true); setLoadAttempt(value => value + 1); }}><RefreshCcw size={15}/>Atualizar</button>
+          {organization.status === "active" && sections.includes("support-access") && <Link className="btn btn-sm btn-outline-dark" href={`/platform/support-access?organization=${organization.id}`}><Eye size={15}/>Acesso assistido</Link>}
+          {canManage && <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowEdit(true)}><Pencil size={15}/>Editar cadastro</button>}
+          {canManage && organization.status === "active" && <button className="btn btn-sm btn-outline-warning" onClick={() => openStatus("suspended")} disabled={changing}><PauseCircle size={15}/>Suspender</button>}
+          {canManage && organization.status !== "archived" && <button className="btn btn-sm btn-outline-danger" onClick={() => openStatus("archived")} disabled={changing}><Archive size={15}/>Arquivar</button>}
+          {canManage && organization.status !== "active" && <button className="btn btn-sm btn-success" onClick={() => openStatus("active")} disabled={changing}><RefreshCcw size={15}/>Reativar</button>}
+        </div>
       </div>
-      <div className="small text-muted mt-3">Tentativas de envio: {organization.administrator_invitation.delivery_attempts}{organization.administrator_invitation.last_attempt_at && <> · Última tentativa: {new Date(organization.administrator_invitation.last_attempt_at).toLocaleString("pt-BR")}</>}</div>
-      {organization.administrator_invitation.accepted_at ? <div className="small text-muted">Aceito em {new Date(organization.administrator_invitation.accepted_at).toLocaleString("pt-BR")}</div> : organization.administrator_invitation.revoked_at ? <div className="small text-muted mt-2">Convite invalidado em {new Date(organization.administrator_invitation.revoked_at).toLocaleString("pt-BR")}.</div> : <>
-        <div className="small text-muted">Validade: {new Date(organization.administrator_invitation.expires_at).toLocaleString("pt-BR")}</div>
-        {organization.administrator_invitation.delivery_error && <div className="alert alert-warning mt-3 mb-0" role="alert">{organization.administrator_invitation.delivery_error}</div>}
-        {canManage && organization.status === "active" && <button className="btn btn-outline-success mt-3" disabled={resending} onClick={() => void resendInvitation()}>{resending ? "Enviando…" : "Reenviar convite"}</button>}
-      </>}
-    </section>}
+      <div className="platform-kpis mt-3">{metrics.map(metric => <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>)}</div>
+    </header>
+    {canManage && statusAction && <form className="platform-card platform-form-card mb-3" onSubmit={changeStatus} aria-label="Alterar estado da organização">
+      <h2>{statusLabels[statusAction]} {organization.name}?</h2>
+      <p>{statusAction === "active" ? "O acesso será liberado e os usuários precisarão entrar novamente." : "Os dados serão preservados. O acesso será bloqueado e as sessões dos usuários e do suporte serão encerradas."}</p>
+      <label htmlFor="organization-status-reason" className="form-label">Motivo (opcional)</label>
+      <textarea id="organization-status-reason" className="form-control" maxLength={1000} rows={2} value={statusReason} onChange={event => setStatusReason(event.target.value)} disabled={changing}/>
+      <div className="platform-form-footer"><button type="button" className="btn btn-outline-secondary" onClick={() => setStatusAction(null)} disabled={changing}>Cancelar</button><button className="btn btn-dark" disabled={changing}>{changing ? "Processando..." : `Confirmar: ${statusLabels[statusAction]}`}</button></div>
+    </form>}
+    <div className="platform-dossier">
+      <nav className="platform-card platform-dossier-nav" aria-label="Ficha da organização">
+        {visibleGroups.map(group => <div className="platform-dossier-group" key={group.label} role="group" aria-label={group.label}>
+          <div className="platform-dossier-caption">{group.label}</div>
+          {group.sections.map(section => { const Icon = sectionIcons[section]; return <button key={section} type="button" aria-current={selectedSection === section ? "page" : undefined} aria-controls="organization-section" onClick={() => selectSection(section)}><Icon size={16}/>{sectionLabels[section]}</button>; })}
+        </div>)}
+      </nav>
+      <div className="platform-dossier-body" id="organization-section" aria-label={sectionLabels[selectedSection]}>
+        {requestedSection !== selectedSection && <p className="alert alert-info py-2 small">Esta seção não está disponível para seu perfil. O resumo da organização está aberto.</p>}
+        {selectedSection === "summary" ? <>
+          <div className="platform-card p-3 mb-3"><strong>Estado: {organization.status_display}</strong><div className="text-muted small">Última alteração: {new Date(organization.status_changed_at).toLocaleString("pt-BR")}</div>{organization.status_reason && <p className="mb-0 mt-2">Motivo: {organization.status_reason}</p>}</div>
+          <section className="platform-card p-3 mb-3"><div className="d-flex flex-wrap justify-content-between gap-3"><div><h2 className="h6 fw-bold">Responsável pela organização</h2>{organization.responsible ? <><strong>{organization.responsible.full_name}</strong><div>{organization.responsible.email}</div><span className={`platform-pill mt-2 ${organization.responsible.is_active ? "success" : "danger"}`}>{organization.responsible.is_active ? "Usuário ativo" : "Usuário inativo"}</span></> : <p className="text-muted mb-0">Nenhum responsável definido.</p>}</div><div className="platform-actions align-items-start">{organization.responsible && <Link className="btn btn-sm btn-outline-secondary" href={`/platform/users/${organization.responsible.id}`}>Gerenciar usuário</Link>}{canManage && <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowResponsible(true)}>{organization.responsible ? "Transferir responsável" : "Definir responsável"}</button>}</div></div>{organization.administrator_invitation && !organization.administrator_invitation.accepted_at && !organization.administrator_invitation.revoked_at && <div className="small mt-3">Convite: {invitationLabels[organization.administrator_invitation.state]} <button type="button" className="btn btn-link btn-sm" onClick={() => selectSection("users")}>Ver convite</button></div>}</section>
+          <OrganizationOperationsSection organization={organization} onNavigate={selectSection}/>
+        </> : selectedSection === "segments" ? <OrganizationSegmentsSection organizationId={organization.id} canManage={canManage}/> : <>
+          {selectedSection === "users" && <>
+            {organization.administrator_invitation && <section className="platform-card p-3 mb-3">
+              <div className="d-flex flex-wrap justify-content-between gap-3">
+                <div><h2 className="h6 fw-bold">Primeiro administrador</h2><strong>{organization.administrator_invitation.full_name}</strong><div>{organization.administrator_invitation.email}</div></div>
+                <div><span className="platform-pill">{invitationLabels[organization.administrator_invitation.state]}</span></div>
+              </div>
+              <div className="small text-muted mt-3">Tentativas de envio: {organization.administrator_invitation.delivery_attempts}{organization.administrator_invitation.last_attempt_at && <> · Última tentativa: {new Date(organization.administrator_invitation.last_attempt_at).toLocaleString("pt-BR")}</>}</div>
+              {organization.administrator_invitation.accepted_at ? <div className="small text-muted">Aceito em {new Date(organization.administrator_invitation.accepted_at).toLocaleString("pt-BR")}</div> : organization.administrator_invitation.revoked_at ? <div className="small text-muted mt-2">Convite invalidado em {new Date(organization.administrator_invitation.revoked_at).toLocaleString("pt-BR")}.</div> : <>
+                <div className="small text-muted">Validade: {new Date(organization.administrator_invitation.expires_at).toLocaleString("pt-BR")}</div>
+                {organization.administrator_invitation.delivery_error && <div className="alert alert-warning mt-3 mb-0" role="alert">{organization.administrator_invitation.delivery_error}</div>}
+                {canManage && organization.status === "active" && <button className="btn btn-sm btn-outline-success mt-3" disabled={resending} onClick={() => void resendInvitation()}>{resending ? "Enviando…" : "Reenviar convite"}</button>}
+              </>}
+            </section>}
+          </>}
+          <DossierSection key={`${organization.id}-${selectedSection}-${organization.updated_at}`} organization={organization} section={selectedSection} onNavigate={selectSection}/>
         </>}
-        <DossierSection key={`${organization.id}-${selectedSection}-${organization.updated_at}`} organization={organization} section={selectedSection} onNavigate={selectSection}/>
-      </>}
+      </div>
     </div>
     {showResponsible && <OrganizationResponsibleModal organization={organization} onClose={() => setShowResponsible(false)} onSaved={result => { setOrganization(result); setShowResponsible(false); showToast("Responsável atualizado com sucesso.", "success"); }}/>}
     {showEdit && <OrganizationFormModal organization={organization} onClose={() => setShowEdit(false)} onSaved={(updated) => { setOrganization(updated); setShowEdit(false); showToast("Organização atualizada com sucesso.", "success"); }} />}
-  </>;
+  </div>;
 }

@@ -1,14 +1,6 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { colors, radius, space, touchTarget, type } from '../../theme/tokens';
-export function AgendaShell({title,backLabel,onBack,children,layout='wide'}:PropsWithChildren<{title:string;backLabel:string;onBack:()=>void;layout?:'wide'|'form'}>) {
-  return <SafeAreaView style={styles.safe}><StatusBar style="dark"/><View style={styles.header}><AgendaButton label={`‹ ${backLabel}`} onPress={onBack}/><Text accessibilityRole="header" style={styles.heading}>{title}</Text></View><View style={layout==='form'?styles.formFrame:styles.contentFrame}>{children}</View></SafeAreaView>;
-}
-export function AgendaFormShell(props:PropsWithChildren<{title:string;backLabel:string;onBack:()=>void;layout?:'form'}>) {
-  return <AgendaShell {...props} layout="form"/>;
-}
 // `primary` is reserved for the one main action of a screen (save/confirm/send): full width and prominent.
 export function AgendaButton({label,onPress,selected=false,disabled=false,busy=false,variant='secondary',accessibilityLabel,style}:{label:string;onPress:()=>void;selected?:boolean;disabled?:boolean;busy?:boolean;variant?:'primary'|'secondary';accessibilityLabel?:string;style?:StyleProp<ViewStyle>}) {
   const primary=variant==='primary';

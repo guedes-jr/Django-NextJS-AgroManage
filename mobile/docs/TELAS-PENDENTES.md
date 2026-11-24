@@ -6,6 +6,29 @@ Levantamento local em **7 de novembro de 2026**. Fonte de verdade: rotas `fronte
 
 A Fase 1 já possui seu recorte funcional: Agenda com consulta/detalhe/criação/edição/situação, navegação protegida, perfil mínimo, busca de entidades, contexto de fazenda, fuso organizacional em “Hoje” e prioridades da Home independentes do financeiro. Consulte [entregas, limites e validação](partes/05-08-PRIMEIRO-APP.md#complemento-funcional-da-fase-1--7-de-novembro-de-2026). Homologação com dados reais e em Android/iOS continua pendente. Edição completa de perfil, responsáveis e lembretes permanecem no web; módulos de domínio não foram antecipados. O inventário abaixo preserva a linha de base do levantamento: os itens implementados devem ser avaliados com esta atualização, e não contados novamente como ausentes.
 
+## Incremento de 23 de novembro de 2026 — padrão nativo e novos módulos
+
+**Padrão de interação.** Kit em `src/components/mobile` (linha tocável, busca com debounce, chips, folha inferior, indicadores que filtram, ficha com métricas, rolagem contínua com puxar para atualizar, estados vazios/erro/carregando, seletor em tela cheia). Aplicado a Estoque (lista, ficha, lotes, movimentações), Leite e tanques (movimentos e qualidade), Rebanho de corte e leiteiro (lista, ficha com linha do tempo, pastos, ocupações, manejos, operações, reprodução, protocolos), Trato, Clínica, Notificações, Suínos (fases e ficha), Veterinário (curral), Perfil, Fazendas e Busca, além dos seletores usados pelos formulários. Todas as telas secundárias e formulários passaram a usar o cabeçalho e a barra inferior do `WorkspaceShell` (`workspace/AppShell`).
+
+**Novos módulos nativos** (mesmos endpoints e permissões do web):
+
+| ID | Entregue no app | Continua no web |
+| --- | --- | --- |
+| F01–F03 | Painel (saldo, a receber/a pagar, realizado, fluxo de 30 dias, maiores despesas, projeção 7/30/90 dias), títulos a receber/pagar com filtros, ficha com histórico de baixas, novo título essencial, baixa integral e estorno com chave de idempotência e revalidação | Contas bancárias, categorias, parcelamento/recorrência, vínculo com lote/plantação, exportação, edição/exclusão de título |
+| P01–P04, P06 | Segmento completo: visão geral (dashboard de plantações), lista, ficha com indicadores/resultado e histórico; cadastro e edição de plantação; lançamento de plantio, adubação, defensivos, irrigação, preparo do solo e colheita (parcial/total, venda só com acesso financeiro), pelos mesmos endpoints do web — o servidor baixa estoque, calcula custo e sincroniza o financeiro (`finance_sync`) | Fertirrigação, análise de solo, recomendações do agrônomo, mão de obra, estrutura do setor, vendas de safra avulsas, edição/exclusão de operações |
+| T01–T02 (consulta) | Lista por categoria/busca/fazenda e ficha com manutenção e itens; valores só com acesso financeiro | Cadastro, edição e itens |
+| U04 | Lista de chamados, abertura, conversa com resposta, resolver/fechar/reabrir | Anexos |
+| I01 | Conversas, nova conversa com sugestões, chat com cota e mensagens de segurança | Feedback de respostas |
+
+| B10 | Vendas de animais: histórico, venda total/parcial do lote por kg vivo ou arroba de carcaça, descontos e vencimento do recebível; acesso pela ficha do lote e pelas rotinas | Baixas por morte/descarte e estorno de venda |
+| Q01 | Central com estoque baixo, validade de lotes e inventário do rebanho | Relatório geral, indicadores de lote, produtividade e exportações PDF/Excel |
+| U05 (consulta) | Diretório da equipe (perfil, situação, busca, filtros) | Convites e alterações de acesso |
+| U06 | Organização: dados, plano e segmentos contratados, contatos/endereços; edição de nome, e-mail e telefone por administrador | Idioma, endereços/contatos, assinatura e troca de plano |
+
+Agenda: lista e ficha alinhadas ao padrão (cabeçalho com “+ Nova atividade”, atalho “Hoje”, filtros, linhas por domínio, puxar para atualizar), mantendo calendário e restauração de contexto. Também foram convertidos Ração (fórmulas/produções), Evolução do leite, Custos do rebanho, histórico de trato leiteiro, Veterinário (animais, rebanho, relatório, clientes e cobrança) e os seletores de participantes de pesagem, sanitário e castração.
+
+Pendente: seletores internos de ocorrência, classificação, protocolos, ocupações, cobertura, vacinação, medicação, trato leiteiro e produção de ração ainda usam paginação “Anterior/Próxima” (funcionais, dentro do shell). Homologação em aparelhos Android/iOS continua pendente para todo o incremento.
+
 ## Início da Fase 2 — consulta do rebanho
 
 Implementados primeiro recorte de animais/lotes de corte e leite, busca/filtros/paginação, ficha operacional e histórico de animal sob demanda. B01 tem a visão inicial; B04 tem lista/ficha, formulário essencial e transferência entre lotes, com expansão na Fase 4. B02 tem sua consulta nativa. B03 agora possui cadastro/edição essencial de animal e B05 registro de pesagem de animal/lote. L01 agora tem resumo diário, listas e lançamento/correção individual e total. O complemento agora entrega visão remota do rebanho, cadastro/edição essencial de lotes e transferência online de composição entre lotes, com prévia, seleção de identificados e confirmação idempotente. Campos avançados, histórico completo de lote/pesagens, baixas/vendas e lançamentos/cancelamentos de tanques e registro de qualidade continuam pendentes; cabeçalho/menu compartilhado já atende Home, Agenda, corte/leite e produção de leite, preservando navegação de retorno em fichas/formulários. [Evidências e limites](partes/05-08-PRIMEIRO-APP.md#primeiro-recorte-de-consulta-bovina--7-de-novembro-de-2026). A linha de base abaixo não deve ser interpretada como ausência dessas consultas já entregues.

@@ -6,7 +6,7 @@ import {canOpenModule} from '../src/features/home/contracts';
 const keys=(query:string,allowed=moduleKeys)=>visibleModuleGroups(allowed,'pt-BR',query).flatMap(group=>group.keys);
 test('module groups cover each existing destination once without changing native/web support',()=>{
  const all=moduleGroups.flatMap(group=>[...group.keys]);assert.equal(new Set(all).size,all.length);assert.deepEqual([...all].sort(),[...moduleKeys].sort());
- assert.ok(nativeDestination('dairy'));assert.equal(nativeDestination('finance'),null);
+ assert.ok(nativeDestination('dairy'));assert.deepEqual(nativeDestination('finance'),{pathname:'/finance'});
 });
 test('search matches accents descriptions and groups without surfacing unauthorized modules',()=>{
  assert.ok(keys('pecuaria').includes('dairy'));assert.ok(keys('vacinacoes').includes('clinic'));assert.deepEqual(keys('gestao',['inventory','dairy']),['inventory']);assert.deepEqual(keys('receitas',['agenda','dairy']),[]);assert.deepEqual(keys('not-a-module'),[]);

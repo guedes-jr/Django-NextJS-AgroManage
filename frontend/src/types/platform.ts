@@ -162,7 +162,7 @@ export interface OrganizationResponsible {
 
 export type OrganizationResponsiblePage = PaginatedResponse<OrganizationResponsible>;
 
-export type OrganizationDossierSection = "summary" | "registration" | "users" | "subscription" | "invoices" | "payments" | "history" | "support-access" | "consumption" | "adoption" | "operation" | "tickets" | "exports" | "recovery";
+export type OrganizationDossierSection = "summary" | "registration" | "users" | "subscription" | "segments" | "invoices" | "payments" | "history" | "support-access" | "consumption" | "adoption" | "operation" | "tickets" | "exports" | "recovery";
 
 export interface OrganizationRegistration {
   id: string; name: string; slug: string; document: string; email: string; phone: string; address: string;
@@ -234,11 +234,13 @@ export interface PlatformUser {
   email: string;
   full_name: string;
   phone: string;
-  role: "admin" | "manager" | "operator";
+  role: PlatformUserRole;
   role_display: string;
   organization_id: string | null;
   organization_name: string | null;
   is_active: boolean;
+  organization_responsible: boolean;
+  phone_is_whatsapp: boolean;
   force_password_change: boolean;
   last_login: string | null;
   created_at: string;
@@ -246,6 +248,28 @@ export interface PlatformUser {
 }
 
 export type PlatformUserPage = PaginatedResponse<PlatformUser>;
+export type PlatformUserRole = "admin" | "manager" | "operator" | "feeder" | "veterinarian";
+export interface PlatformUserDetail extends PlatformUser {
+  can_operate_crops: boolean;
+  operator_read_only: boolean;
+  allowed_livestock: string[];
+  receive_system_alerts: boolean;
+}
+export interface PlatformUserFormOptions {
+  roles: { value: PlatformUserRole; label: string }[];
+  species: { id: string; code: string; name: string }[];
+}
+export type PlatformUserUpdate = Partial<Pick<PlatformUserDetail, "email" | "full_name" | "phone" | "phone_is_whatsapp" | "role" | "can_operate_crops" | "operator_read_only" | "allowed_livestock" | "receive_system_alerts" | "force_password_change">>;
+export interface PlatformUserPasswordReset { new_password: string; new_password_confirm: string; force_password_change: boolean; revoke_sessions: boolean }
+export interface OrganizationSegmentTier { id: string; label: string; monthly_price: string | null; requires_quote: boolean }
+export interface OrganizationSegment {
+  code: string; name: string; subtitle: string; contracted: boolean; tiers: OrganizationSegmentTier[];
+  item: { tier: string; tier_label: string; monthly_price: string | null; final_monthly_price: string | null } | null;
+}
+export interface OrganizationSegmentOverview {
+  subscription: { id: string; status: string; status_display: string } | null;
+  segments: OrganizationSegment[];
+}
 
 export interface PlatformAffiliate {
   id: string; user_id: string; full_name: string; email: string; code: string;

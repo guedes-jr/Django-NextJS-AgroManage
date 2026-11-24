@@ -1,21 +1,25 @@
 import { WorkspaceShell } from '../workspace/WorkspaceShell';
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { organizationDay } from '../workspace/contracts';
-import { FarmContextButton } from '../workspace/FarmContextButton';
 import { useRead } from '../workspace/useRead';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { colors } from '../../theme/tokens';
+import { HomeIcon, type HomeIconName } from '../home/HomeIcon';
+import { EmptyState, ErrorState, FilterChips, HeaderAction, IconTile, ListRow, ScreenIntro, SkeletonList, mobileStyles as ms } from '../../components/mobile';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../auth/AuthProvider';
 import { agendaListingQuery, canReadAgenda, taskWriteAccess, shiftDay, type AgendaQuery, type agendaPageSchema } from './contracts';
 import { agendaMessages, agendaLabel } from './messages';
-import { AgendaButton, Busy, StatusPill, styles as s } from './ui';
+import { AgendaButton, Busy, StatusPill, styles as s, type StatusTone } from './ui';
 import type { z } from 'zod';
 import { restoreAgendaSelection } from './selection';
 import { agendaActivityCount, agendaDayLabel, agendaStatusTone, agendaWeekLabel } from './presentation';
 import { taskFormMessages } from './formMessages';
 
 type AgendaViewMode = 'month' | 'week' | 'list';
+const domainTone = (domain: string): StatusTone => domain === 'livestock' ? 'info' : domain === 'crops' ? 'success' : domain === 'holidays' ? 'warning' : 'neutral';
+const domainIcon = (domain: string): HomeIconName => domain === 'livestock' ? 'heart' : domain === 'crops' ? 'leaf' : domain === 'holidays' ? 'bell' : 'agenda';
 
 function shiftMonth(day: string, offset: number): string {
   const [y = 2026, m = 1, d = 1] = day.split('-').map(Number);
@@ -228,32 +232,18 @@ function AgendaContents({ timezone }: { timezone: string }) {
           key={`${start}:${end}:${domain}:${page}:${recorded}:${viewMode}:${currentDate}:${farmKey}`}
           data={displayedEvents}
           keyExtractor={item => item.id}
-          contentContainerStyle={s.content}
+          contentContainerStyle={ms.list}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={false} onRefresh={() => setReload(v => v + 1)} tintColor={colors.primary} colors={[colors.primary]} />}
           ListHeaderComponent={
             <View style={{ gap: 12 }}>
-              {/* Contexto da Fazenda e Botão de Criar Atividade lado a lado */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <FarmContextButton style={{ flex: 1 }} />
-                {state.status === 'signedIn' && taskWriteAccess(state.session.user) === 'full' && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={taskFormMessages[language].create}
-                    style={[s.createButton, { flex: 1 }]}
-                    onPress={() => { remember(); router.push({ pathname: '/agenda/task-form', params: { date: currentDate } }); }}
-                  >
-                    <Text style={s.createButtonText}>+ {taskFormMessages[language].create}</Text>
-                  </Pressable>
-                )}
-              </View>
-              {state.status === 'signedIn' && state.session.user.access.read_only && <Text style={s.badge}>{t.readonly}</Text>}
-
+              <ScreenIntro title={t.title} subtitle={farm?.name} badge={state.status === 'signedIn' && state.session.user.access.read_only ? <View style={{ marginTop: 6 }}><StatusPill label={t.readonly} tone="neutral" /></View> : undefined} action={state.status === 'signedIn' && taskWriteAccess(state.session.user) === 'full' ? <HeaderAction label={taskFormMessages[language].create} onPress={() => { remember(); router.push({ pathname: '/agenda/task-form', params: { date: currentDate } }); }} /> : undefined} />
               <View style={s.calendarCard}>
                 <View style={s.calendarHeader}>
                   <Pressable accessibilityRole="button" accessibilityLabel={t.previous} style={s.navButton} onPress={() => movePeriod(-1)}>
                     <Text style={s.navButtonText}>‹</Text>
                   </Pressable>
-                  <Text style={s.calendarPeriod}>{periodTitle}</Text>
+                  <View style={{ flex: 1, alignItems: 'center' }}><Text style={s.calendarPeriod}>{periodTitle}</Text>{currentDate !== today && <Pressable accessibilityRole="button" hitSlop={10} onPress={() => selectDate(today)}><Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary, textDecorationLine: 'underline' }}>{t.today}</Text></Pressable>}</View>
                   <Pressable accessibilityRole="button" accessibilityLabel={t.next} style={s.navButton} onPress={() => movePeriod(1)}>
                     <Text style={s.navButtonText}>›</Text>
                   </Pressable>
@@ -316,34 +306,7 @@ function AgendaContents({ timezone }: { timezone: string }) {
                 )}
               </View>
 
-              {/* Filtros em formato de Chips Horizontais */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={s.chipContent}>
-                {(['all', 'tasks', 'livestock', 'crops', 'holidays'] as const).map(value => (
-                  <Pressable
-                    key={value}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: domain === value }}
-                    style={[s.chip, domain === value && s.chipSelected]}
-                    onPress={() => { setDomain(value); setPage(1); }}
-                  >
-                    <Text style={[s.chipText, domain === value && s.chipTextSelected]}>{t[value]}</Text>
-                  </Pressable>
-                ))}
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityLabel={t.recorded}
-                  accessibilityState={{ checked: recorded }}
-                  style={[s.chip, recorded && s.chipSelected]}
-                  onPress={() => { setRecorded(!recorded); setPage(1); }}
-                >
-                  <Text style={[s.chipText, recorded && s.chipTextSelected]}>
-                    {recorded ? `✓ ${t.recorded}` : t.recorded}
-                  </Text>
-                </Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel={t.refresh} style={s.chip} onPress={() => setReload(v => v + 1)}>
-                  <Text style={s.chipText}>↻ {t.refresh}</Text>
-                </Pressable>
-              </ScrollView>
+              <FilterChips label={t.all} value={domain} onChange={value => { setDomain(value); setPage(1); }} options={(['all', 'tasks', 'livestock', 'crops', 'holidays'] as const).map(value => ({ value, label: t[value] }))} trailing={<Pressable accessibilityRole="checkbox" accessibilityLabel={t.recorded} accessibilityState={{ checked: recorded }} style={[s.chip, { borderRadius: 999, minHeight: 40, borderColor: colors.inputBorder, backgroundColor: colors.surface }, recorded && s.chipSelected]} onPress={() => { setRecorded(!recorded); setPage(1); }}><Text style={[s.chipText, { fontSize: 14 }, recorded && s.chipTextSelected]}>{recorded ? `✓ ${t.recorded}` : t.recorded}</Text></Pressable>} />
 
               {/* Cabeçalho da Lista de Atividades do Dia/Período */}
               <View style={s.daySummaryHeader}>
@@ -357,38 +320,27 @@ function AgendaContents({ timezone }: { timezone: string }) {
                 )}
               </View>
 
-              {busy && <Busy label={t.loading} />}
-              {failed && (
-                <View style={s.card}>
-                  <Text accessibilityRole="alert" style={s.error}>{t.error}</Text>
-                  <AgendaButton label={t.retry} onPress={() => setReload(v => v + 1)} />
-                </View>
-              )}
+              {busy && <SkeletonList rows={3} />}
+              {failed && <ErrorState message={t.error} language={language} onRetry={() => setReload(v => v + 1)} />}
             </View>
           }
           ListEmptyComponent={
             !busy && !failed ? (
-              <View style={[s.card, { alignItems: 'center', paddingVertical: 24 }]}>
-                <Text style={s.body}>{viewMode === 'list' ? t.empty : t.emptyDay}</Text>
-              </View>
+              <EmptyState title={viewMode === 'list' ? t.empty : t.emptyDay} />
             ) : undefined
           }
           renderItem={({ item }) => (
-            <Pressable
-              accessibilityRole="button"
+            <ListRow
+              meta={`${formatDate(item.date)}${item.farm_name ? ` · ${item.farm_name}` : ''}`}
+              title={item.title}
+              subtitle={item.estimated ? t.estimated : undefined}
+              status={{ label: agendaLabel(t, item.status), tone: agendaStatusTone(item.status) }}
+              leading={<IconTile tone={domainTone(item.domain)}><HomeIcon name={domainIcon(item.domain)} size={20} color={colors.textSoft} /></IconTile>}
               onPress={() => { remember(); router.push({
                 pathname: '/agenda/[id]',
                 params: { id: item.id, start: queryStart, end: queryEnd, domain, page: String(page), recorded: recorded ? '1' : '0', farm: farm?.id },
               }); }}
-              style={s.card}
-            >
-              <Text style={s.muted}>{formatDate(item.date)} · {item.farm_name}</Text>
-              <Text style={s.title}>{item.title}</Text>
-              <View style={s.row}>
-                <StatusPill label={agendaLabel(t, item.status)} tone={agendaStatusTone(item.status)} />
-                {item.estimated && <Text style={s.muted}>{t.estimated}</Text>}
-              </View>
-            </Pressable>
+            />
           )}
           ListFooterComponent={
             data && !busy && (data.previous || data.next) ? (

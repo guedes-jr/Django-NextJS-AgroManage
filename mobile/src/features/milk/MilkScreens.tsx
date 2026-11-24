@@ -1,7 +1,7 @@
 import {tankMessages} from './tankMessages';
 import {WorkspaceShell} from '../workspace/WorkspaceShell';
 import { useCallback, useState } from 'react';
-import { FlatList, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -9,8 +9,12 @@ import { useAuth } from '../auth/AuthProvider';
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { workspaceMessages } from '../workspace/messages';
 import { organizationDay } from '../workspace/contracts';
-import { FarmContextButton } from '../workspace/FarmContextButton';
-import { AgendaButton, Busy, styles as s } from '../agenda/ui';
+import { AgendaButton, Busy, StatusPill, styles as s } from '../agenda/ui';
+import { HomeIcon } from '../home/HomeIcon';
+import { DairyIcon } from '../cattle/DairyIcon';
+import { colors } from '../../theme/tokens';
+import { DateStepper, EmptyState, ErrorState, HeaderAction, IconTile, KpiStrip, ListFooter, ListRow, MetricGrid, Notice, ScreenIntro, SearchBar, Segmented, Shortcut, SkeletonList, mobileStyles as ms } from '../../components/mobile';
+import { useInfinitePages } from '../../components/mobile/useInfinitePages';
 import { canReadCattle,canCreateCattle } from '../cattle/contracts';
 import { milkCalendarDate,isPeriodMilkTotal,milkKinds,type MilkQuery,type MilkCow,type MilkRecord,type MilkTotal } from './contracts';
 import { milkMessages } from './messages';
@@ -29,37 +33,43 @@ export function MilkScreen(){
 }
 function MilkContents({today,readOnly}:{today:string;readOnly:boolean}){
  const {state,controller,language}=useAuth();const {farm}=useWorkspace();const router=useRouter();const t=milkMessages[language],w=workspaceMessages[language];
- const [adjustingDate,setAdjustingDate]=useState(false),[details,setDetails]=useState(false),[searching,setSearching]=useState(false);
- const [date,setDate]=useState(today),[draftDate,setDraftDate]=useState(today),[invalid,setInvalid]=useState(false),[kind,setKind]=useState<MilkQuery['kind']>('cows'),[search,setSearch]=useState(''),[draft,setDraft]=useState('');
- const [pagination,setPagination]=useState({farm:farm?.id??'',page:1});const page=pagination.farm===(farm?.id??'')?pagination.page:1;const setPage=(value:number)=>setPagination({farm:farm?.id??'',page:value});
+ const [date,setDate]=useState(today),[kind,setKind]=useState<MilkQuery['kind']>('cows'),[search,setSearch]=useState(''),[details,setDetails]=useState(false);
  const summary=useQuery({queryKey:['milk-summary',date,farm?.id],queryFn:({signal})=>controller.milkSummary(date,farm?.id,signal)});
- const list=useQuery({queryKey:['milk-list',date,farm?.id,kind,search,page],queryFn:({signal})=>controller.milkPage({date,farm:farm?.id,kind,search,page},signal)});
+ const list=useInfinitePages<MilkCow|MilkRecord|MilkTotal>({queryKey:['milk-list','infinite',date,farm?.id,kind,search],enabled:true,fetchPage:(page,signal)=>controller.milkPage({date,farm:farm?.id,kind,search,page},signal)});
  const {refetch:refreshSummary}=summary,{refetch:refreshList}=list;useFocusEffect(useCallback(()=>{void refreshSummary();void refreshList();},[refreshSummary,refreshList]));
- const total=denied(summary.error)?undefined:summary.data,data=denied(list.error)?undefined:list.data;
+ const total=denied(summary.error)?undefined:summary.data,blocked=denied(list.error);
  const writable=!readOnly&&state.status==='signedIn'&&canCreateCattle(state.session.user),editable=writable&&state.status==='signedIn'&&['admin','manager'].includes(state.session.user.access.role);
  const number=(value:string|number|null)=>value==null?'—':new Intl.NumberFormat(language,{maximumFractionDigits:2}).format(Number(value));
- const metric=(label:string,value:string|number|null)=><View key={label} style={{flexGrow:1,flexBasis:64,minWidth:0}}><Text style={s.label}>{label}</Text><Text style={s.body}>{number(value)}</Text></View>;
- return <WorkspaceShell active="milk" title={t.title}><FlatList<MilkCow|MilkRecord|MilkTotal> key={`${date}:${farm?.id}:${kind}:${search}:${page}`} data={data?.results??[]} keyExtractor={item=>item.id} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
-  ListHeaderComponent={<View style={{gap:12}}>
-   <View style={s.card}><Text style={s.title}>{t.context}</Text><FarmContextButton/><View style={s.row}><Text style={[s.body,{flex:1,minWidth:120}]}>{milkCalendarDate(date,language)}</Text>
-    <AgendaButton label={adjustingDate?t.closeFilters:t.changeDate} selected={adjustingDate} onPress={()=>setAdjustingDate(value=>!value)}/></View>
-    {adjustingDate&&<><Text style={s.label}>{t.date}</Text><TextInput accessibilityLabel={t.date} value={draftDate} onChangeText={setDraftDate} autoCapitalize="none" maxLength={10} style={s.input}/><AgendaButton label={t.apply} onPress={()=>{const valid=/^\d{4}-\d{2}-\d{2}$/.test(draftDate)&&!Number.isNaN(Date.parse(draftDate))&&new Date(`${draftDate}T12:00:00Z`).toISOString().slice(0,10)===draftDate&&draftDate<=today;if(valid){setDate(draftDate);setPage(1);setInvalid(false);setAdjustingDate(false);}else setInvalid(true);}}/>{invalid&&<Text accessibilityRole="alert" style={s.error}>{t.dateError}</Text>}</>}
-    {!writable&&<Text style={s.badge}>{t.readonly}</Text>}
-   </View>
-   {summary.isPending?<Busy label={w.loading}/>:summary.isError?<View style={s.card}><Text style={s.error}>{total?t.stale:w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refreshSummary()}/></View>:null}
-   {total&&<View style={s.card}><Text style={s.title}>{t.summary}</Text><View style={s.row}>{metric(t.produced,total.produced_liters)}{metric(t.discarded,total.discarded_liters)}{metric(t.usable,total.usable_liters)}</View><AgendaButton label={details?t.hideDetails:t.cowDetails} selected={details} onPress={()=>setDetails(value=>!value)}/>{details&&<View style={s.row}>{metric(t.expected,total.expected_cows)}{metric(t.milked,total.milked_cows)}{metric(t.pending,total.pending_cows)}{metric(t.average,total.average_per_milked_cow)}</View>}{total.aggregate_mode&&<Text style={s.muted}>{t.aggregate}</Text>}</View>}
-   <View style={s.row}><AgendaButton label={t.refresh} disabled={summary.isFetching||list.isFetching} onPress={()=>{void refreshSummary();void refreshList();}}/><AgendaButton label={tankMessages[language].open} onPress={()=>router.push('/milk/tanks')}/></View>
-   <Text style={s.title}>{t.entries}</Text><View style={s.row}>{milkKinds.map(value=><AgendaButton key={value} label={t[value]} selected={kind===value} onPress={()=>{setKind(value);setSearch('');setDraft('');setSearching(false);setPage(1);}}/>)}</View>
-   {kind!=='totals'&&<><AgendaButton label={searching?t.closeSearch:t.search} selected={searching||!!search} onPress={()=>setSearching(value=>!value)}/>{!!search&&<Text style={s.muted}>{t.search}: {search}</Text>}{searching&&<><TextInput placeholder={t.search} value={draft} accessibilityLabel={t.search} onChangeText={setDraft} maxLength={100} style={s.input}/><AgendaButton label={t.find} onPress={()=>{setSearch(draft.trim());setPage(1);setSearching(false);}}/></>}</>}
-   {writable&&kind==='totals'&&<Text style={s.muted}>{t.modeHint}</Text>}
-
-   {writable&&kind==='totals'&&(!farm?<AgendaButton label={t.newTotal} disabled={list.isFetching||list.isError} onPress={()=>router.push('/farms')}/>:data?.count===0&&<AgendaButton label={t.newTotal} disabled={list.isFetching||list.isError||summary.isPending||summary.isFetching||summary.isError||!!total?.aggregate_mode||!!(total?.milked_cows&&total.milked_cows>0)} onPress={()=>router.push({pathname:'/milk/form',params:{mode:'total',farm:farm.id,date}})}/>)}
-   {list.isPending&&<Busy label={w.loading}/>}{list.isError&&<><Text accessibilityRole="alert" style={s.error}>{data?t.stale:w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refreshList()}/></>}
-  </View>}
-  ListEmptyComponent={!list.isPending&&!list.isError?<Text style={s.body}>{t.empty}</Text>:undefined}
-  renderItem={({item})=><View style={s.card}>
-   {'entry_status' in item?<><Text style={s.title}>{item.identifier}{item.name?` · ${item.name}`:''}</Text><Text style={s.body}>{item.farm_name}</Text><Text style={s.badge}>{item.entry_status==='pending'?t.pendingEntry:t[item.entry_status]}</Text><Text>{number(item.liters)} L</Text>{writable&&item.entry_status!=='total'&&<AgendaButton label={t.newIndividual} disabled={list.isFetching||list.isError} onPress={()=>router.push({pathname:'/milk/form',params:{mode:'individual',animal:item.id,farm:item.farm,date}})}/>}</>:
-    <><Text style={s.title}>{'animal' in item?`${item.identifier} · ${t[item.session]}`:item.farm_name}</Text>{'animal' in item&&<Text style={s.muted}>{item.farm_name}</Text>}<Text style={s.body}>{number(item.liters)} L · {t.discarded}: {number(item.discarded_liters)} L</Text>{'farm' in item?(isPeriodMilkTotal(item)?<MilkPeriodDetails record={item}/>:<Text style={s.muted}>{milkCalendarDate(item.date,language)}</Text>):null}{editable&&('animal' in item||!isPeriodMilkTotal(item))&&<AgendaButton label={t.edit} disabled={list.isFetching||list.isError} onPress={()=>router.push({pathname:'/milk/form',params:{mode:'animal' in item?'individual':'total',id:item.id,date:item.date,...('animal' in item?{animal:item.animal,session:item.session,...(farm?{farm:farm.id}:{})}:{farm:item.farm})}})}/>}</>}
-  </View>}
-  ListFooterComponent={data?<View style={s.row}><AgendaButton label={w.previous} disabled={!data.previous||list.isFetching} onPress={()=>setPage(Math.max(1,page-1))}/><Text>{`${w.page} ${page}`}</Text><AgendaButton label={w.next} disabled={!data.next||list.isFetching} onPress={()=>setPage(page+1)}/></View>:undefined}/></WorkspaceShell>;
+ const unitless=(label:string)=>label.replace(/\s*\(L\)\s*$/,'');
+ const busy=list.isFetching||list.isError;
+ const canNewTotal=writable&&kind==='totals'&&!!farm&&list.count===0&&!busy&&!summary.isPending&&!summary.isFetching&&!summary.isError&&!total?.aggregate_mode&&!(total?.milked_cows&&total.milked_cows>0);
+ const header=<View style={ms.header}>
+  <ScreenIntro title={t.title} subtitle={farm?.name} badge={!writable?<View style={{marginTop:6}}><StatusPill label={t.readonly} tone="neutral"/></View>:undefined} action={canNewTotal?<HeaderAction label={t.newTotal} onPress={()=>router.push({pathname:'/milk/form',params:{mode:'total',farm:farm!.id,date}})}/>:undefined}/>
+  <DateStepper value={date} max={today} onChange={setDate} language={language} format={day=>milkCalendarDate(day,language)}/>
+  {summary.isPending?<SkeletonList rows={1}/>:summary.isError?<ErrorState message={total?t.stale:w.error} language={language} onRetry={()=>void refreshSummary()}/>:null}
+  {total&&<>
+   <KpiStrip items={[{key:'p',label:unitless(t.produced),value:`${number(total.produced_liters)} L`},{key:'d',label:unitless(t.discarded),value:`${number(total.discarded_liters)} L`,tone:Number(total.discarded_liters)>0?'warning':undefined},{key:'u',label:unitless(t.usable),value:`${number(total.usable_liters)} L`,tone:'success'}]}/>
+   <Pressable accessibilityRole="button" accessibilityState={{expanded:details}} onPress={()=>setDetails(v=>!v)} style={{minHeight:44,justifyContent:'center'}}><Text style={{fontSize:14,fontWeight:'700',color:colors.primary}}>{details?t.hideDetails:t.cowDetails}</Text></Pressable>
+   {details&&<MetricGrid columns={2} items={[{label:t.expected,value:number(total.expected_cows)},{label:t.milked,value:number(total.milked_cows)},{label:t.pending,value:number(total.pending_cows),tone:total.pending_cows?'warning':undefined},{label:unitless(t.average),value:number(total.average_per_milked_cow),unit:'L'}]}/>}
+   {total.aggregate_mode&&<Notice text={t.aggregate}/>}
+  </>}
+  <View style={ms.wrap}><Shortcut label={tankMessages[language].open} icon={<HomeIcon name="box" size={18} color={colors.primary}/>} onPress={()=>router.push('/milk/tanks')}/></View>
+  <Segmented value={kind} onChange={value=>{setKind(value);setSearch('');}} options={milkKinds.map(value=>({value,label:t[value]}))}/>
+  {kind!=='totals'?<SearchBar value={search} onChange={setSearch} placeholder={t.search} language={language}/>:writable&&<Notice text={farm?t.modeHint:t.selectFarm}/>}
+  {writable&&kind==='totals'&&!farm&&<Shortcut label={w.farms} onPress={()=>router.push('/farms')}/>}
+  {list.isError&&!!list.rows.length&&<ErrorState message={t.stale} language={language} onRetry={()=>void refreshList()}/>}
+ </View>;
+ const render=({item}:{item:MilkCow|MilkRecord|MilkTotal})=>{
+  if('entry_status' in item){const pending=item.entry_status==='pending';const canOpen=writable&&item.entry_status!=='total'&&!busy;
+   return <ListRow meta={item.farm_name} title={`${item.identifier}${item.name?` · ${item.name}`:''}`} value={item.liters==null?undefined:`${number(item.liters)} L`} status={{label:pending?t.pendingEntry:t[item.entry_status],tone:pending?'warning':item.entry_status==='total'?'info':'success'}} leading={<IconTile tone={pending?'warning':'brand'}><DairyIcon name="cow" size={20} color={pending?colors.warning:colors.primary}/></IconTile>} accessibilityLabel={canOpen?`${t.newIndividual}: ${item.identifier}`:undefined} onPress={canOpen?()=>router.push({pathname:'/milk/form',params:{mode:'individual',animal:item.id,farm:item.farm,date}}):undefined}/>;}
+  if('animal' in item){const canEdit=editable&&!busy;
+   return <ListRow meta={`${t[item.session]} · ${item.farm_name}`} title={item.identifier} value={`${number(item.liters)} L`} valueCaption={Number(item.discarded_liters)>0?`${unitless(t.discarded)}: ${number(item.discarded_liters)} L`:undefined} accessibilityLabel={canEdit?`${t.edit}: ${item.identifier}`:undefined} onPress={canEdit?()=>router.push({pathname:'/milk/form',params:{mode:'individual',id:item.id,date:item.date,animal:item.animal,session:item.session,...(farm?{farm:farm.id}:{})}}):undefined}/>;}
+  const period=isPeriodMilkTotal(item),canEdit=editable&&!period&&!busy;
+  return <ListRow meta={period?undefined:milkCalendarDate(item.date,language)} title={item.farm_name} value={`${number(item.liters)} L`} valueCaption={Number(item.discarded_liters)>0?`${unitless(t.discarded)}: ${number(item.discarded_liters)} L`:undefined} status={{label:t.total,tone:'info'}} extra={period?<MilkPeriodDetails record={item}/>:undefined} accessibilityLabel={canEdit?`${t.edit}: ${item.farm_name}`:undefined} onPress={canEdit?()=>router.push({pathname:'/milk/form',params:{mode:'total',id:item.id,date:item.date,farm:item.farm}}):undefined}/>;
+ };
+ return <WorkspaceShell active="milk" title={t.title}>{blocked?<View style={ms.list}><EmptyState title={w.noAccess}/></View>:<FlatList<MilkCow|MilkRecord|MilkTotal> data={list.rows} keyExtractor={item=>item.id} renderItem={render} contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+  refreshControl={<RefreshControl refreshing={list.refreshing} onRefresh={()=>{void list.refresh();void refreshSummary();}} tintColor={colors.primary} colors={[colors.primary]}/>}
+  onEndReached={list.loadMore} onEndReachedThreshold={0.4} ListHeaderComponent={header}
+  ListEmptyComponent={list.isPending?<SkeletonList/>:list.isError?<ErrorState message={w.error} language={language} onRetry={()=>void refreshList()}/>:<EmptyState title={t.empty}/>}
+  ListFooterComponent={list.rows.length?<ListFooter loading={list.isFetchingNextPage} end={!list.hasNextPage} language={language}/>:undefined}/>}</WorkspaceShell>;
 }

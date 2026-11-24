@@ -5,6 +5,8 @@ import { canCreateCattle } from '../cattle/contracts';
 import { canWriteClinic } from '../clinic/contracts';
 import { canWriteDailyFeeding } from '../feeding/contracts';
 import { canWriteInventory } from '../inventory/contracts';
+import { canWriteFinance } from '../finance/contracts';
+import { canWriteCrops } from '../crops/contracts';
 import { canOpenModule, type ModuleKey } from '../home/contracts';
 import type { HomeIconName } from '../home/HomeIcon';
 import { nativeDestination } from './navigation';
@@ -30,8 +32,8 @@ export function quickActions(user: User): QuickAction[] {
     can('beef') && canCreateCattle(user) && { id: 'beefAnimal', module: 'beef', icon: 'plus', destination: native('beef') },
     can('inventory') && canWriteInventory(user) && { id: 'stock', module: 'inventory', icon: 'box', destination: { pathname: '/inventory/launch' } },
     can('swine') && { id: 'swine', module: 'swine', icon: 'pig', destination: null },
-    can('crops') && { id: 'crops', module: 'crops', icon: 'leaf', destination: null },
-    can('finance') && { id: 'finance', module: 'finance', icon: 'wallet', destination: null },
+    can('crops') && canWriteCrops(user) && { id: 'crops', module: 'crops', icon: 'leaf', destination: native('crops') },
+    can('finance') && canWriteFinance(user) && { id: 'finance', module: 'finance', icon: 'wallet', destination: native('finance') },
     can('structure') && { id: 'structure', module: 'structure', icon: 'home', destination: null },
   ];
   return actions.filter((action): action is QuickAction => !!action);
@@ -49,7 +51,7 @@ const pt: Copy = {
     beefAnimal: { label: 'Novo animal de corte', description: 'Cadastro no gado de corte' },
     stock: { label: 'Movimentar estoque', description: 'Entrada ou saída de produtos' },
     swine: { label: 'Suinocultura', description: 'Lançamentos de suínos' },
-    crops: { label: 'Plantações', description: 'Operações de lavoura' },
+    crops: { label: 'Registrar operação na lavoura', description: 'Plantio, adubação, defensivos, irrigação e colheita' },
     finance: { label: 'Lançamento financeiro', description: 'Receitas e despesas' },
     structure: { label: 'Estrutura da fazenda', description: 'Pastos, instalações e áreas' },
   },
@@ -65,7 +67,7 @@ const en: Copy = {
     beefAnimal: { label: 'New beef animal', description: 'Beef herd registration' },
     stock: { label: 'Move inventory', description: 'Product receipt or issue' },
     swine: { label: 'Swine', description: 'Swine records' },
-    crops: { label: 'Crops', description: 'Field operations' },
+    crops: { label: 'Record field operation', description: 'Planting, fertilization, crop protection, irrigation and harvest' },
     finance: { label: 'Financial entry', description: 'Revenue and expenses' },
     structure: { label: 'Farm structure', description: 'Pastures, facilities and areas' },
   },
@@ -81,7 +83,7 @@ const es: Copy = {
     beefAnimal: { label: 'Nuevo animal de carne', description: 'Registro en ganado de carne' },
     stock: { label: 'Mover inventario', description: 'Entrada o salida de productos' },
     swine: { label: 'Porcicultura', description: 'Registros de cerdos' },
-    crops: { label: 'Cultivos', description: 'Operaciones de cultivo' },
+    crops: { label: 'Registrar operación de cultivo', description: 'Siembra, fertilización, fitosanitarios, riego y cosecha' },
     finance: { label: 'Registro financiero', description: 'Ingresos y gastos' },
     structure: { label: 'Estructura de la finca', description: 'Potreros, instalaciones y áreas' },
   },

@@ -1,10 +1,14 @@
-import {useCallback, useMemo, useState, type ReactNode} from 'react';
-import {FlatList, ScrollView, Text, TextInput, View} from 'react-native';
+import {useCallback, useMemo, useState} from 'react';
+import {FlatList, RefreshControl, Text, View} from 'react-native';
+import {colors} from '../../theme/tokens';
+import {HomeIcon} from '../home/HomeIcon';
+import {BottomSheet, DetailHeader, EmptyState, ErrorState, FilterChips, IconTile, ListRow, Notice, ScreenIntro, SearchBar, SectionLabel, SelectChip, SheetOption, SkeletonList, mobileStyles as ms} from '../../components/mobile';
 import {useFocusEffect, useLocalSearchParams, useRouter} from 'expo-router';
 import {useQuery} from '@tanstack/react-query';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaButton, AgendaShell, Busy, StatusPill, styles as s} from '../agenda/ui';
+import { AgendaButton } from '../agenda/ui';
+import { AgendaShell } from '../workspace/AppShell';
 import {animalRows, canUseVeterinary, vetCategories, vetStatuses, type AnimalFilter, type VetAnimal, type VetHistory} from './contracts';
 import {fill, historyLines, veterinaryMessages} from './messages';
 
@@ -25,41 +29,33 @@ export function VeterinaryAnimalsScreen(){
   const rows=useMemo(()=>animalRows(all,filter),[all,filter]);
   const back=()=>router.canGoBack()?router.back():router.replace('/veterinary');
   const set=(patch:Partial<AnimalFilter>)=>setFilter(f=>({...f,...patch}));
-  if(!allowed)return <AgendaShell title={a.title} backLabel={t.back} onBack={back}><View style={s.content}><Text style={s.error}>{t.noAccess}</Text></View></AgendaShell>;
-  const chipRow=(children:ReactNode)=><ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={{gap:8}}>{children}</ScrollView>;
+  const [sheet,setSheet]=useState<'client'|'category'|null>(null);
+  if(!allowed)return <AgendaShell title={a.title} backLabel={t.back} onBack={back}><View style={ms.list}><EmptyState title={t.noAccess}/></View></AgendaShell>;
+  const clientRow=clients.data?.find(c=>c.id===filter.client);
   return <AgendaShell title={a.title} backLabel={t.back} onBack={back}>
-    <FlatList<VetAnimal> contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" data={rows} keyExtractor={row=>row.id}
-      ListHeaderComponent={<View style={{gap:12}}>
-        <Text style={s.muted}>{a.subtitle}</Text>
-        {(clients.data?.length??0)>1&&chipRow(<>
-          <AgendaButton label={t.allClients} selected={!filter.client} onPress={()=>set({client:''})}/>
-          {clients.data!.map(c=><AgendaButton key={c.id} label={c.farm_name?`${c.name} · ${c.farm_name}`:c.name} selected={filter.client===c.id} onPress={()=>set({client:c.id})}/>)}
-        </>)}
-        {chipRow(<>
-          <AgendaButton label={a.allStatuses} selected={!filter.status} onPress={()=>set({status:''})}/>
-          {vetStatuses.map(v=><AgendaButton key={v} label={t.status[v]} selected={filter.status===v} onPress={()=>set({status:v})}/>)}
-        </>)}
-        {chipRow(<>
-          <AgendaButton label={a.allCategories} selected={!filter.category} onPress={()=>set({category:''})}/>
-          {vetCategories.map(v=><AgendaButton key={v} label={t.category[v]??v} selected={filter.category===v} onPress={()=>set({category:v})}/>)}
-        </>)}
-        <TextInput accessibilityLabel={t.search} placeholder={t.search} style={s.input} value={filter.search} onChangeText={v=>set({search:v})} maxLength={100} autoCorrect={false}/>
-        <AgendaButton label={t.refresh} disabled={animals.isFetching} onPress={()=>void refetch()}/>
-        {animals.isPending&&<Busy label={t.loading}/>}
-        {animals.isError&&<><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>void refetch()}/></>}
-        {animals.data&&<Text style={s.muted}>{fill(t.count,{count:rows.length})}</Text>}
+    <FlatList<VetAnimal> contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" data={rows} keyExtractor={row=>row.id}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={()=>void refetch()} tintColor={colors.primary} colors={[colors.primary]}/>}
+      ListHeaderComponent={<View style={ms.header}>
+        <ScreenIntro title={a.title} subtitle={a.subtitle}/>
+        <SearchBar value={filter.search} onChange={v=>set({search:v})} placeholder={t.search} language={language} debounce={150}/>
+        <FilterChips value={filter.status} onChange={v=>set({status:v})} options={[{value:'' as const,label:a.allStatuses},...vetStatuses.map(v=>({value:v,label:t.status[v]}))]} trailing={<>
+          <SelectChip label={a.allCategories} value={filter.category?t.category[filter.category]??filter.category:undefined} active={!!filter.category} onPress={()=>setSheet('category')}/>
+          {(clients.data?.length??0)>1&&<SelectChip label={t.allClients} value={clientRow?.name} active={!!filter.client} onPress={()=>setSheet('client')}/>}
+        </>}/>
+        {animals.isError&&!!all.length&&<ErrorState message={t.error} language={language} onRetry={()=>void refetch()}/>}
+        {animals.data&&<Text style={{fontSize:12,color:colors.muted}}>{fill(t.count,{count:rows.length})}</Text>}
       </View>}
-      renderItem={({item})=><View style={s.card}>
-        <Text style={s.muted}>{item.client_name}{item.farm_name?` · ${item.farm_name}`:''}</Text>
-        <Text style={s.title}>{item.identifier}{item.name?` · ${item.name}`:''}</Text>
-        <View style={s.row}><StatusPill label={t.status[item.status]} tone={STATUS_TONE[item.status]}/><Text style={s.muted}>{t.category[item.category]??item.category} · {fill(a.procedures,{count:item.procedures_count})}</Text></View>
-        <Text style={s.body}>{t.next}: {fill(t.nextCode[item.next.code]??item.next.code,{day:item.next.day??''})}</Text>
-        <View style={s.row}>
-          <AgendaButton label={a.history} onPress={()=>router.push({pathname:'/veterinary/animal',params:{id:item.id}})}/>
-          <AgendaButton label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:{client:item.client,animal:item.identifier}})}/>
-        </View>
-      </View>}
-      ListEmptyComponent={animals.data?<Text style={s.body}>{all.length?t.none:t.empty}</Text>:undefined}/>
+      renderItem={({item})=><ListRow meta={`${item.client_name}${item.farm_name?` · ${item.farm_name}`:''}`} title={`${item.identifier}${item.name?` · ${item.name}`:''}`} subtitle={`${t.next}: ${fill(t.nextCode[item.next.code]??item.next.code,{day:item.next.day??''})} · ${t.category[item.category]??item.category} · ${fill(a.procedures,{count:item.procedures_count})}`} status={{label:t.status[item.status],tone:STATUS_TONE[item.status]}} leading={<IconTile tone={STATUS_TONE[item.status]}><HomeIcon name="heart" size={20} color={colors.textSoft}/></IconTile>} accessibilityLabel={`${item.identifier}. ${a.history}`} onPress={()=>router.push({pathname:'/veterinary/animal',params:{id:item.id}})}
+        extra={<View style={{flexDirection:'row',marginTop:8}}><AgendaButton label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:{client:item.client,animal:item.identifier}})}/></View>}/>}
+      ListEmptyComponent={animals.isPending?<SkeletonList/>:animals.isError?<ErrorState message={t.error} language={language} onRetry={()=>void refetch()}/>:<EmptyState title={all.length?t.none:t.empty}/>}/>
+    <BottomSheet visible={sheet==='category'} title={a.allCategories} onClose={()=>setSheet(null)} language={language}>
+      <SheetOption label={a.allCategories} selected={!filter.category} onPress={()=>{set({category:''});setSheet(null);}}/>
+      {vetCategories.map(v=><SheetOption key={v} label={t.category[v]??v} selected={filter.category===v} onPress={()=>{set({category:v});setSheet(null);}}/>)}
+    </BottomSheet>
+    <BottomSheet visible={sheet==='client'} title={t.allClients} onClose={()=>setSheet(null)} language={language}>
+      <SheetOption label={t.allClients} selected={!filter.client} onPress={()=>{set({client:''});setSheet(null);}}/>
+      {clients.data?.map(c=><SheetOption key={c.id} label={c.farm_name?`${c.name} · ${c.farm_name}`:c.name} selected={filter.client===c.id} onPress={()=>{set({client:c.id});setSheet(null);}}/>)}
+    </BottomSheet>
   </AgendaShell>;
 }
 
@@ -77,32 +73,22 @@ export function VeterinaryAnimalScreen(){
   const date=(day:string)=>new Intl.DateTimeFormat(language,{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`));
   const back=()=>router.canGoBack()?router.back():router.replace('/veterinary/animals');
   const title=animal?fill(a.historyTitle,{animal:animal.identifier}):a.history;
-  if(!allowed)return <AgendaShell title={a.history} backLabel={t.back} onBack={back}><View style={s.content}><Text style={s.error}>{t.noAccess}</Text></View></AgendaShell>;
+  if(!allowed)return <AgendaShell title={a.history} backLabel={t.back} onBack={back}><View style={ms.list}><EmptyState title={t.noAccess}/></View></AgendaShell>;
   return <AgendaShell title={title} backLabel={t.back} onBack={back}>
-    <FlatList<VetHistory> contentContainerStyle={s.content} data={history.data??[]} keyExtractor={row=>row.id}
-      ListHeaderComponent={<View style={{gap:12}}>
-        {animal&&<View style={s.card}>
-          <Text style={s.muted}>{animal.client_name}{animal.farm_name?` · ${animal.farm_name}`:''}</Text>
-          <Text style={s.title}>{animal.identifier}{animal.name?` · ${animal.name}`:''}</Text>
-          <View style={s.row}><StatusPill label={t.status[animal.status]} tone={STATUS_TONE[animal.status]}/><Text style={s.muted}>{t.category[animal.category]??animal.category}</Text></View>
-          <Text style={s.body}>{t.next}: {fill(t.nextCode[animal.next.code]??animal.next.code,{day:animal.next.day??''})}{animal.next.date?` · ${date(animal.next.date)}`:''}</Text>
-          <AgendaButton variant="primary" label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:{client:animal.client,animal:animal.identifier}})}/>
-        </View>}
-        {history.isPending&&<Busy label={t.loading}/>}
-        {history.isError&&<><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={()=>void history.refetch()}/></>}
+    <FlatList<VetHistory> contentContainerStyle={ms.list} data={history.data??[]} keyExtractor={row=>row.id}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={()=>{void history.refetch();void animals.refetch();}} tintColor={colors.primary} colors={[colors.primary]}/>}
+      ListHeaderComponent={<View style={ms.header}>
+        {animal&&<DetailHeader meta={`${animal.client_name}${animal.farm_name?` · ${animal.farm_name}`:''}`} title={`${animal.identifier}${animal.name?` · ${animal.name}`:''}`} leading={<IconTile tone={STATUS_TONE[animal.status]}><HomeIcon name="heart" size={22} color={colors.textSoft}/></IconTile>} status={[{label:t.status[animal.status],tone:STATUS_TONE[animal.status]},{label:t.category[animal.category]??animal.category,tone:'neutral'}]}>
+          <Notice tone="info" text={`${t.next}: ${fill(t.nextCode[animal.next.code]??animal.next.code,{day:animal.next.day??''})}${animal.next.date?` · ${date(animal.next.date)}`:''}`}/>
+        </DetailHeader>}
+        {animal&&<AgendaButton variant="primary" label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:{client:animal.client,animal:animal.identifier}})}/>}
+        <SectionLabel title={a.history}/>
+        {history.isError&&<ErrorState message={t.error} language={language} onRetry={()=>void history.refetch()}/>}
       </View>}
       renderItem={({item})=>{
         const view=historyLines(t,item,date);
-        return <View style={s.card}>
-          <Text style={s.muted}>{date(item.date)}</Text>
-          <Text style={s.title}>{view.title}</Text>
-          {(!!view.result||item.herd_synced)&&<View style={s.row}>
-            {!!view.result&&<StatusPill label={view.result} tone={item.result==='pregnant'?'success':'danger'}/>}
-            {item.herd_synced&&<StatusPill label={a.inHerd} tone="info"/>}
-          </View>}
-          {view.lines.map((line,index)=><Text key={index} style={s.body}>{line}</Text>)}
-        </View>;
+        return <ListRow meta={date(item.date)} title={view.title} subtitle={view.lines.join('\n')||undefined} status={view.result?{label:view.result,tone:item.result==='pregnant'?'success':'danger'}:item.herd_synced?{label:a.inHerd,tone:'info'}:undefined}/>;
       }}
-      ListEmptyComponent={history.data?<Text style={s.body}>{a.empty}</Text>:undefined}/>
+      ListEmptyComponent={history.isPending?<SkeletonList rows={3}/>:history.data?<EmptyState title={a.empty}/>:undefined}/>
   </AgendaShell>;
 }

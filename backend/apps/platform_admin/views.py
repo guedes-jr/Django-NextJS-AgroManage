@@ -31,6 +31,7 @@ from celery import current_app
 
 from apps.organizations.models import Organization
 from apps.organizations.models import OrganizationContact
+from apps.livestock.models import Species
 from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, Subscription
 from apps.billing.services import create_manual_invoice, record_manual_payment
 from apps.ai_assistant.models import (
@@ -61,6 +62,9 @@ from .serializers import (
     DemoRequestPipelineSerializer,
     MarketingEventSerializer,
     PlatformUserSerializer,
+    PlatformUserDetailSerializer,
+    PlatformUserPasswordSerializer,
+    PlatformUserUpdateSerializer,
     ChangeSubscriptionPlanSerializer,
     SubscriptionDiscountSerializer,
     FeatureSerializer,
@@ -909,7 +913,7 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         if self.action == "dossier_tickets":
             from apps.ai_assistant.ticket_views import TeamSupportPermission
             return [TeamSupportPermission()]
-        if self.action == "dossier_reconcile_storage" or (self.action == "dossier_usage" and self.request.method == "PATCH"):
+        if self.action == "dossier_reconcile_storage" or (self.action in {"dossier_usage", "dossier_segments"} and self.request.method in {"PATCH", "POST"}):
             return [IsPlatformAdmin()]
         if self.action == "dossier_history":
             return [IsPlatformAuditor()]
@@ -1029,6 +1033,15 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         organization = self._dossier_organization()
         subscription = Subscription.objects.select_related("organization", "plan").filter(organization=organization).first()
         return Response({"subscription": SubscriptionSerializer(subscription).data if subscription else None})
+
+    @action(detail=True, methods=["get", "post"], url_path="segments")
+    def dossier_segments(self, request, pk=None):
+        """Contracted segments (e.g. Área do veterinário) of the organization's subscription."""
+        from .organization_segments import change_segment, segment_overview
+        organization = self._dossier_organization()
+        if request.method == "GET":
+            return Response(segment_overview(organization))
+        return Response(change_segment(request=request, organization=organization, data=request.data))
 
     @action(detail=True, methods=["get"], url_path="invoices")
     def dossier_invoices(self, request, pk=None):
@@ -1218,10 +1231,14 @@ class PlatformDemoRequestViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
-    """Global customer user directory and account security actions."""
+    """Global customer user directory, profile corrections and account security actions."""
 
     serializer_class = PlatformUserSerializer
     permission_classes = [IsPlatformStaff]
+    audited_fields = (
+        "email", "full_name", "phone", "phone_is_whatsapp", "role", "can_operate_crops",
+        "operator_read_only", "receive_system_alerts", "force_password_change",
+    )
     search_fields = ("full_name", "email", "phone", "organization__name")
     ordering_fields = ("full_name", "email", "role", "is_active", "created_at", "last_login")
     ordering = ("-created_at",)
@@ -1235,9 +1252,91 @@ class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     def get_permissions(self):
-        if self.action in {"activate", "block", "revoke_sessions"}:
+        if self.action in {"activate", "block", "revoke_sessions", "partial_update", "set_password"}:
             return [IsPlatformAdmin()]
         return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return PlatformUserDetailSerializer
+        return super().get_serializer_class()
+
+    def _snapshot(self, user):
+        data = {field: getattr(user, field) for field in self.audited_fields}
+        data["allowed_livestock"] = sorted(user.allowed_livestock.values_list("code", flat=True))
+        return data
+
+    @action(detail=False, methods=["get"], url_path="form-options")
+    def form_options(self, request):
+        return Response({
+            "roles": [{"value": value, "label": label} for value, label in User.Role.choices],
+            "species": [{"id": str(item.pk), "code": item.code, "name": item.name} for item in Species.objects.order_by("name")],
+        })
+
+    def partial_update(self, request, pk=None):
+        with transaction.atomic():
+            user = self.get_object()
+            if user.organization_id:
+                Organization.objects.select_for_update().filter(pk=user.organization_id).first()
+            user = User.objects.select_for_update().get(pk=user.pk)
+            before = self._snapshot(user)
+            serializer = PlatformUserUpdateSerializer(user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            new_role = serializer.validated_data.get("role", user.role)
+            removing_admin = user.role == User.Role.ADMIN and new_role != User.Role.ADMIN
+            if removing_admin and user.organization_responsible:
+                return Response(
+                    {"detail": "O responsável pela organização deve permanecer administrador. Transfira a responsabilidade antes de alterar o papel."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if removing_admin and user.is_active and user.organization_id and not User.objects.filter(
+                organization_id=user.organization_id, role=User.Role.ADMIN, is_active=True,
+            ).exclude(pk=user.pk).exists():
+                return Response(
+                    {"detail": "A organização precisa manter um administrador ativo."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            serializer.save()
+            user.refresh_from_db()
+            after = self._snapshot(user)
+            changed = sorted(field for field in after if after[field] != before[field])
+            if {"email", "role"} & set(changed):
+                # Identity or permission level changed: issued tokens must not keep the old context.
+                self._revoke_user_sessions(user)
+            if changed:
+                record_platform_action(
+                    request=request,
+                    action="user.updated",
+                    organization=user.organization,
+                    object_type="User",
+                    object_id=user.id,
+                    description=f"Dados do usuário alterados pela equipe da plataforma: {', '.join(changed)}.",
+                    extra_data={"before": {key: before[key] for key in changed}, "after": {key: after[key] for key in changed}},
+                )
+        return Response(PlatformUserDetailSerializer(user).data)
+
+    @action(detail=True, methods=["post"], url_path="set-password")
+    def set_password(self, request, pk=None):
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=self.get_object().pk)
+            serializer = PlatformUserPasswordSerializer(data=request.data, context={"user": user})
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            user.set_password(data["new_password"])
+            user.force_password_change = data["force_password_change"]
+            user.save(update_fields=["password", "force_password_change", "updated_at"])
+            if data["revoke_sessions"]:
+                self._revoke_user_sessions(user)
+            record_platform_action(
+                request=request,
+                action="user.password_reset",
+                organization=user.organization,
+                object_type="User",
+                object_id=user.id,
+                description="Senha do usuário redefinida pela equipe da plataforma.",
+                extra_data={"force_password_change": data["force_password_change"], "sessions_revoked": data["revoke_sessions"]},
+            )
+        return Response(PlatformUserDetailSerializer(user).data)
 
     @staticmethod
     def _revoke_user_sessions(user):

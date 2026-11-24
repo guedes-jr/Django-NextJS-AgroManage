@@ -4,7 +4,8 @@ import {useLocalSearchParams, useRouter} from 'expo-router';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaButton, AgendaShell, Busy, StatusPill, styles as s} from '../agenda/ui';
+import { AgendaButton, Busy, StatusPill, styles as s } from '../agenda/ui';
+import { AgendaShell } from '../workspace/AppShell';
 import {VetSaveRejected, VetSaveUnconfirmed} from '../../services/authApi';
 import {canUseVeterinary, vetCategories, type VetClient, type VetWorkspace} from './contracts';
 import {

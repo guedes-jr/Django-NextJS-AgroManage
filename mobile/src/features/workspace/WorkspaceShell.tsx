@@ -19,7 +19,8 @@ import {ActionTile,styles as ui} from '../agenda/ui';
 import {balanceNavSlots,moduleKeys,nativeDestination,type NavSlot} from './navigation';
 import {canSearch,searchKinds} from './contracts';
 type Open=(key:ModuleKey)=>void;
-type WorkspaceShellProps={active:'home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile';title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void;layout?:'wide'|'form'};
+export type WorkspaceArea='home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile'|'veterinary'|'finance'|'crops'|'structure'|'support'|'assistant'|'reports'|'settings'|'other';
+type WorkspaceShellProps={active:WorkspaceArea;title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void;layout?:'wide'|'form'};
 const shellStyles=StyleSheet.create({
  bodyBackdrop:{flex:1,width:'100%',backgroundColor:colors.background},
  pageBody:{flex:1,minWidth:0,width:'100%',maxWidth:1600,alignSelf:'center',backgroundColor:colors.background},
@@ -37,7 +38,7 @@ export function WorkspaceShell({active,title,children,onBack,layout='wide'}:Work
  const button=(label:string,onPress:()=>void,icon?:HomeIconName)=><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({pressed})=>[s.button,pressed&&s.pressed]}>{icon&&<HomeIcon name={icon}/>}<Text style={s.buttonText}>{label}</Text></Pressable>;
  const currentModule=panel&&panel!=='modules'&&panel!=='create'?panel:null;
  const runAction=(action:QuickAction)=>{setLinkFailed(false);if(action.destination){setPanel(null);router.navigate(action.destination);}else setPanel(action.module);};
- const modulesSelected=panel==='modules'||(!panel&&!['home','agenda','search'].includes(active));
+ const modulesSelected=panel==='modules'||(!panel&&!['home','agenda','search','finance'].includes(active));
  const closePanel=()=>{Keyboard.dismiss();setPanel(null);};
  const handleBack=()=>{if(onBack){onBack();return;}if(router.canGoBack())router.back();else router.navigate('/');};
  return <SafeAreaView style={s.safe} edges={['top','left','right','bottom']}><StatusBar style="light"/><View style={{flex:1}} aria-hidden={!!panel} accessibilityElementsHidden={!!panel} importantForAccessibility={panel?'no-hide-descendants':'auto'} pointerEvents={panel?'none':'auto'}>
@@ -83,7 +84,7 @@ export function WorkspaceShell({active,title,children,onBack,layout='wide'}:Work
       </Svg>
       </View>
       {(()=>{const tab=(key:NavSlot,label:string,icon:HomeIconName,selected:boolean,onPress:()=>void)=><Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} aria-selected={selected} style={s.tab} onPress={onPress}><View style={[s.tabInner,selected&&s.tabSelected]}><HomeIcon name={icon} size={key==='home'?24:22} color="#FFF"/><Text style={selected?s.activeTab:s.tabText}>{label}</Text></View></Pressable>;
-       const render=(slot:NavSlot,index:number)=>slot==='home'?tab('home',t.home,'home',active==='home'&&!panel,()=>{setPanel(null);if(active!=='home')router.navigate('/');}):slot==='agenda'?tab('agenda',t.agenda,'agenda',active==='agenda'&&!panel,()=>open('agenda')):slot==='search'?tab('search',t.searchTab,'search',active==='search'&&!panel,()=>{setPanel(null);if(active!=='search')router.navigate('/search');}):slot==='finance'?tab('finance',t.finance,'chart',panel==='finance',()=>open('finance')):slot==='modules'?tab('modules',t.modules,'modules',modulesSelected,()=>{setQuery('');setPanel('modules');}):<View key={`spacer-${index}`} aria-hidden style={s.tab}/>;
+       const render=(slot:NavSlot,index:number)=>slot==='home'?tab('home',t.home,'home',active==='home'&&!panel,()=>{setPanel(null);if(active!=='home')router.navigate('/');}):slot==='agenda'?tab('agenda',t.agenda,'agenda',active==='agenda'&&!panel,()=>open('agenda')):slot==='search'?tab('search',t.searchTab,'search',active==='search'&&!panel,()=>{setPanel(null);if(active!=='search')router.navigate('/search');}):slot==='finance'?tab('finance',t.finance,'chart',active==='finance'&&!panel,()=>open('finance')):slot==='modules'?tab('modules',t.modules,'modules',modulesSelected,()=>{setQuery('');setPanel('modules');}):<View key={`spacer-${index}`} aria-hidden style={s.tab}/>;
        const creating=!session.user.access.read_only&&actions.length>0;
        const slots=balanceNavSlots(['home',...(canOpenModule(session.user.access,'agenda')?['agenda' as const]:[])],[...(financial?['finance' as const]:[]),'modules'],searchable?'search':null,creating);
        return <>{slots.left.map(render)}{creating&&<Pressable accessibilityRole="button" accessibilityLabel={t.create} style={s.create} onPress={() => {setQuery('');setPanel('create');}}><View style={s.createCircle}><Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill} aria-hidden={true}><Defs><LinearGradient id="home-create-fill" x1="0%" y1="0%" x2="100%" y2="100%"><Stop stopColor="#EDFF2C"/><Stop offset="1" stopColor="#B9F000"/></LinearGradient></Defs><Rect width="100%" height="100%" rx={24} fill="url(#home-create-fill)"/></Svg><View style={s.createIcon}><HomeIcon name="plus" size={26} color="#123A1D"/></View></View><Text style={s.createText}>{t.create}</Text></Pressable>}{slots.right.map(render)}</>;})()}

@@ -13,7 +13,8 @@ import { AuthFailure } from '../../services/authApi';
 import { taskInputSchema, taskWriteAccess, taskStatuses, taskPriorities, daySchema, type AgendaTask, type taskOptionsSchema, type TaskInput } from './contracts';
 import { agendaLabel, agendaMessages } from './messages';
 import { taskFormMessages } from './formMessages';
-import { AgendaButton, AgendaFormShell as AgendaShell, Busy, styles as s } from './ui';
+import { AgendaButton, Busy, styles as s } from './ui';
+import { AgendaFormShell as AgendaShell } from '../workspace/AppShell';
 type Options=z.infer<typeof taskOptionsSchema>;
 export function TaskFormScreen() {
   const {taskId,date}=useLocalSearchParams<{taskId?:string;date?:string}>();

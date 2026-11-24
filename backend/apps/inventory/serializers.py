@@ -351,10 +351,10 @@ class StockCountSerializer(serializers.Serializer):
 
 class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     purchase_payment_method = serializers.ChoiceField(choices=FinancialTransaction.PaymentMethod.choices, write_only=True, required=False, default="transfer")
-    purchase_due_date = serializers.DateField(write_only=True, required=False)
+    purchase_due_date = serializers.DateField(write_only=True, required=False, allow_null=True)
     purchase_payment_status = serializers.ChoiceField(choices=["pending", "paid"], write_only=True, required=False, default="pending")
-    purchase_bank_account = serializers.PrimaryKeyRelatedField(queryset=BankAccount.objects.all(), write_only=True, required=False)
-    purchase_payment_date = serializers.DateField(write_only=True, required=False)
+    purchase_bank_account = serializers.PrimaryKeyRelatedField(queryset=BankAccount.objects.all(), write_only=True, required=False, allow_null=True)
+    purchase_payment_date = serializers.DateField(write_only=True, required=False, allow_null=True)
 
     item_nome = serializers.CharField(source="item.nome", read_only=True)
     item_categoria = serializers.CharField(source="item.categoria", read_only=True)
@@ -396,12 +396,25 @@ class MovimentacaoEstoqueSerializer(serializers.ModelSerializer):
     fornecedor = serializers.PrimaryKeyRelatedField(
         queryset=Fornecedor.objects.all(), write_only=True, required=False, allow_null=True
     )
-    data_entrada = serializers.DateField(write_only=True, required=False)
+    data_entrada = serializers.DateField(write_only=True, required=False, allow_null=True)
     numero_lote = serializers.CharField(write_only=True, required=False, allow_blank=True)
     data_validade = serializers.DateField(write_only=True, required=False, allow_null=True)
     data_fabricacao = serializers.DateField(write_only=True, required=False, allow_null=True)
     local_armazenamento = serializers.CharField(write_only=True, required=False, allow_blank=True)
     nota_fiscal = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    def to_internal_value(self, data):
+        if hasattr(data, "copy"):
+            data = data.copy()
+        elif isinstance(data, dict):
+            data = dict(data)
+        for field in (
+            "purchase_bank_account", "purchase_due_date", "purchase_payment_date",
+            "data_entrada", "data_validade", "data_fabricacao", "fornecedor", "farm", "lote"
+        ):
+            if field in data and data[field] == "":
+                data[field] = None
+        return super().to_internal_value(data)
 
     class Meta:
         model = MovimentacaoEstoque

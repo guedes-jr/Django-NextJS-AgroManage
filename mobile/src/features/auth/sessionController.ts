@@ -65,6 +65,15 @@ import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalIn
 import { canSearch, type SearchQuery } from '../workspace/contracts';
 import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
+import { canReadTeam } from '../team/contracts';
+import { canEditOrganization, canReadOrganization, type OrganizationUpdate } from '../organization/contracts';
+import { canReadReport, type ReportKind } from '../reports/contracts';
+import { canReadCattleSales, canSellCattle, type CattleSaleInput } from '../cattle/saleContracts';
+import { canUseAssistant } from '../assistant/contracts';
+import { canUseSupport, type OpenTicketInput, type ReplyInput, type TicketQuery } from '../support/contracts';
+import { canReadStructures, type StructureQuery } from '../structures/contracts';
+import { canReadCrops, canWriteCrops, cropOperationSchema, operationPayload, type CropActivityKind, type CropOperationInput, type PlantationInput, type PlantationQuery } from '../crops/contracts';
+import { activePayment, canReadFinance, canReverse, canSettle, canWriteFinance, transactionInputSchema, FinanceChanged, type ReversalInput, type SettlementInput, type TransactionInput, type TransactionQuery } from '../finance/contracts';
 import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, SwineDiagnosisContextChanged, SwineBirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
 
@@ -182,6 +191,113 @@ export class SessionController {
   inventoryMovements(query:MovementQuery,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryMovements(tokens,this.language,query,signal));}
   inventoryMovement(id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryMovement(tokens,this.language,id,signal));}
   inventoryLot(id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryLot(tokens,this.language,id,signal));}
+  private financeRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canReadFinance(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(read);
+  }
+  financeStats(signal?:AbortSignal){return this.financeRead(tokens=>this.api.financeStats(tokens,this.language,signal));}
+  financeProjection(days:number,signal?:AbortSignal){return this.financeRead(tokens=>this.api.financeProjection(tokens,this.language,days,signal));}
+  financeTransactions(query:TransactionQuery,signal?:AbortSignal){return this.financeRead(tokens=>this.api.financeTransactions(tokens,this.language,query,signal));}
+  financeTransaction(id:string,signal?:AbortSignal){return this.financeRead(tokens=>this.api.financeTransaction(tokens,this.language,id,signal));}
+  financeCategories(signal?:AbortSignal){return this.financeRead(tokens=>this.api.financeCategories(tokens,this.language,signal));}
+  financeAccounts(signal?:AbortSignal){return this.financeRead(tokens=>this.api.financeAccounts(tokens,this.language,signal));}
+  private financeSaving=false;
+  /** One financial write at a time, revalidating the user and organization against the server before posting. */
+  private async financeMutation<T>(operation:(tokens:Tokens,current:()=>void)=>Promise<T>){
+    if(this.financeSaving)throw new AuthFailure('unsupported');this.financeSaving=true;
+    try{return await this.financeRead(async tokens=>{
+      const epoch=this.epoch;const current=()=>{if(this.state.status!=='signedIn'||epoch!==this.epoch)throw new AuthFailure('expired');};
+      const user=await this.api.user(tokens,this.language);current();if(!canWriteFinance(user))throw new AuthFailure('unsupported');
+      const organization=await this.api.organization(tokens,this.language);current();
+      if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id||organization.id!==this.state.session.organization.id){await this.signOut();throw new AuthFailure('expired');}
+      return operation(tokens,current);
+    });}finally{this.financeSaving=false;}
+  }
+  createFinanceTransaction(input:TransactionInput){return this.financeMutation(async(tokens,current)=>{
+    const value=transactionInputSchema.parse(input);
+    const [categories,accounts]=await Promise.all([this.api.financeCategories(tokens,this.language),this.api.financeAccounts(tokens,this.language)]);current();
+    if(!categories.some(c=>c.id===value.category&&c.is_active)||value.bank_account&&!accounts.some(a=>a.id===value.bank_account&&a.is_active))throw new AuthFailure('unsupported');
+    return this.api.createFinanceTransaction(tokens,this.language,value);
+  });}
+  settleFinanceTransaction(id:string,input:SettlementInput){return this.financeMutation(async(tokens,current)=>{
+    const row=await this.api.financeTransaction(tokens,this.language,id);current();
+    if(!canSettle(row))throw new FinanceChanged();
+    await this.api.settleFinanceTransaction(tokens,this.language,id,input);
+  });}
+  reverseFinanceTransaction(id:string,input:ReversalInput){return this.financeMutation(async(tokens,current)=>{
+    const row=await this.api.financeTransaction(tokens,this.language,id);current();
+    if(!canReverse(row)||(activePayment(row)?.id??undefined)!==input.payment)throw new FinanceChanged();
+    await this.api.reverseFinanceTransaction(tokens,this.language,id,input);
+  });}
+  private cropsRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canReadCrops(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(read);
+  }
+  plantations(query:PlantationQuery,signal?:AbortSignal){return this.cropsRead(tokens=>this.api.plantations(tokens,this.language,query,signal));}
+  plantation(id:string,signal?:AbortSignal){return this.cropsRead(tokens=>this.api.plantation(tokens,this.language,id,signal));}
+  plantationDashboard(id:string,signal?:AbortSignal){return this.cropsRead(tokens=>this.api.plantationDashboard(tokens,this.language,id,signal));}
+  cropsDashboard(signal?:AbortSignal){return this.cropsRead(tokens=>this.api.cropsDashboard(tokens,this.language,signal));}
+  cropFields(signal?:AbortSignal){return this.cropsRead(tokens=>this.api.cropFields(tokens,this.language,signal));}
+  cropItems(categories:string[],signal?:AbortSignal){return this.cropsRead(tokens=>this.api.cropItems(tokens,this.language,categories,signal));}
+  private cropsSaving=false;
+  /** One crop write at a time; the server derives lot, prices, stock consumption and finance sync. */
+  private async cropsMutation<T>(operation:(tokens:Tokens,user:Session['user'])=>Promise<T>){
+    if(this.cropsSaving)throw new AuthFailure('unsupported');this.cropsSaving=true;
+    try{return await this.cropsRead(async tokens=>{
+      const epoch=this.epoch;const user=await this.api.user(tokens,this.language);
+      if(this.state.status!=='signedIn'||epoch!==this.epoch||user.id!==this.state.session.user.id)throw new AuthFailure('expired');
+      if(!canWriteCrops(user))throw new AuthFailure('unsupported');
+      return operation(tokens,user);
+    });}finally{this.cropsSaving=false;}
+  }
+  savePlantation(input:PlantationInput,id?:string){return this.cropsMutation(tokens=>this.api.savePlantation(tokens,this.language,input,id));}
+  createCropOperation(input:CropOperationInput){return this.cropsMutation((tokens,user)=>{const value=cropOperationSchema.parse(input);return this.api.createCropOperation(tokens,this.language,value.kind,operationPayload(value,user.access.can_view_financial));});}
+  cropActivities(kind:CropActivityKind,plantation:string,page:number,signal?:AbortSignal){return this.cropsRead(tokens=>this.api.cropActivities(tokens,this.language,kind,plantation,page,signal));}
+  private structureRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canReadStructures(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(read);
+  }
+  farmStructures(query:StructureQuery,signal?:AbortSignal){return this.structureRead(tokens=>this.api.farmStructures(tokens,this.language,query,signal));}
+  farmStructure(id:string,signal?:AbortSignal){return this.structureRead(tokens=>this.api.farmStructure(tokens,this.language,id,signal));}
+  private supportRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canUseSupport(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(read);
+  }
+  supportTickets(query:TicketQuery,signal?:AbortSignal){return this.supportRead(tokens=>this.api.supportTickets(tokens,this.language,query,signal));}
+  supportTicket(id:string,signal?:AbortSignal){return this.supportRead(tokens=>this.api.supportTicket(tokens,this.language,id,signal));}
+  supportMessages(id:string,page:number,signal?:AbortSignal){return this.supportRead(tokens=>this.api.supportMessages(tokens,this.language,id,page,signal));}
+  private supportSaving=false;
+  private async supportWrite<T>(operation:(tokens:Tokens)=>Promise<T>){
+    if(this.supportSaving)throw new AuthFailure('unsupported');this.supportSaving=true;
+    try{return await this.supportRead(operation);}finally{this.supportSaving=false;}
+  }
+  openSupportTicket(input:OpenTicketInput){return this.supportWrite(tokens=>this.api.openSupportTicket(tokens,this.language,input));}
+  replySupportTicket(id:string,input:ReplyInput){return this.supportWrite(tokens=>this.api.replySupportTicket(tokens,this.language,id,input));}
+  transitionSupportTicket(id:string,status:'resolved'|'closed'|'open',version:number){return this.supportWrite(tokens=>this.api.transitionSupportTicket(tokens,this.language,id,status,version));}
+  private assistantRead<T>(read:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canUseAssistant(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(read);
+  }
+  aiUsage(signal?:AbortSignal){return this.assistantRead(tokens=>this.api.aiUsage(tokens,this.language,signal));}
+  aiConversations(page:number,signal?:AbortSignal){return this.assistantRead(tokens=>this.api.aiConversations(tokens,this.language,page,signal));}
+  aiConversation(id:string,signal?:AbortSignal){return this.assistantRead(tokens=>this.api.aiConversation(tokens,this.language,id,signal));}
+  private asking=false;
+  createAiConversation(title:string){return this.assistantRead(tokens=>this.api.createAiConversation(tokens,this.language,title));}
+  async askAi(id:string,question:string){if(this.asking)throw new AuthFailure('unsupported');this.asking=true;try{return await this.assistantRead(tokens=>this.api.askAi(tokens,this.language,id,question));}finally{this.asking=false;}}
+  teamMembers(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadTeam(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.teamMembers(tokens,this.language,signal));}
+  cattleSales(production:'beef'|'dairy',farm?:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadCattleSales(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.cattleSales(tokens,this.language,production,farm,signal));}
+  private selling=false;
+  async registerCattleSale(production:'beef'|'dairy',batch:string,input:CattleSaleInput){
+    if(this.selling)throw new AuthFailure('unsupported');this.selling=true;
+    try{return await this.workspaceRead(async tokens=>{const user=await this.api.user(tokens,this.language);if(this.state.status!=='signedIn'||user.id!==this.state.session.user.id)throw new AuthFailure('expired');if(!canSellCattle(user))throw new AuthFailure('unsupported');return this.api.registerCattleSale(tokens,this.language,production,batch,input);});}
+    finally{this.selling=false;}
+  }
+  private reportRead<T>(kind:ReportKind,read:(tokens:Tokens)=>Promise<T>){if(this.state.status!=='signedIn'||!canReadReport(this.state.session.user,kind))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(read);}
+  lowStockReport(signal?:AbortSignal){return this.reportRead('low-stock',tokens=>this.api.lowStockReport(tokens,this.language,signal));}
+  expiryReport(days:number,signal?:AbortSignal){return this.reportRead('expiry',tokens=>this.api.expiryReport(tokens,this.language,days,signal));}
+  herdInventoryReport(signal?:AbortSignal){return this.reportRead('herd',tokens=>this.api.herdInventoryReport(tokens,this.language,signal));}
+  myOrganization(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.myOrganization(tokens,this.language,signal));}
+  updateOrganization(input:OrganizationUpdate){if(this.state.status!=='signedIn'||!canEditOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(async tokens=>{const user=await this.api.user(tokens,this.language);if(!canEditOrganization(user))throw new AuthFailure('unsupported');return this.api.updateOrganization(tokens,this.language,input);});}
   private inventorySaving=false;
   private async inventoryMutation<T>(operation:(tokens:Tokens,current:()=>void,user:Session['user'])=>Promise<T>){
     if(this.inventorySaving)throw new AuthFailure('unsupported');this.inventorySaving=true;

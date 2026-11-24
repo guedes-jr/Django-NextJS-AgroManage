@@ -1,6 +1,6 @@
 import {useCallback,useState} from 'react';
 import { colors } from '../../theme/tokens';
-import {FlatList,Pressable,StyleSheet,Text,TextInput,View} from 'react-native';
+import {FlatList,RefreshControl,Text,View} from 'react-native';
 import {useFocusEffect,useLocalSearchParams,useRouter} from 'expo-router';
 import {useQuery} from '@tanstack/react-query';
 import {z} from 'zod';
@@ -8,7 +8,9 @@ import {useAuth} from '../auth/AuthProvider';
 import {WorkspaceShell} from '../workspace/WorkspaceShell';
 import {useWorkspace} from '../workspace/WorkspaceProvider';
 import {workspaceMessages} from '../workspace/messages';
-import {AgendaShell,AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {AgendaButton,StatusPill} from '../agenda/ui';
+import {DetailHeader,EmptyState,ErrorState,IconTile,KpiStrip,ListFooter,ListRow,MetricGrid,ScreenIntro,SearchBar,SectionLabel,Segmented,SkeletonList,mobileStyles as ms} from '../../components/mobile';
+import {useInfinitePages} from '../../components/mobile/useInfinitePages';
 import {productionSchema} from '../cattle/contracts';
 import {DairyIcon} from '../cattle/DairyIcon';
 import {canReadDailyFeeding,canWriteDailyFeeding,feedingBatchPage,FeedingDayChanged,feedingDeliveriesForDay,type FeedingBatch} from './contracts';
@@ -19,54 +21,57 @@ const number=(value:number|string,language:string)=>new Intl.NumberFormat(langua
 export function FeedingScreen(){
  const params=useLocalSearchParams(),initial=productionSchema.safeParse(params.production??'beef');
  const {state,controller,language}=useAuth(),{farm}=useWorkspace(),router=useRouter(),t=feedingMessages[language],w=workspaceMessages[language];
- const [production,setProduction]=useState(initial.success?initial.data:'beef'),[search,setSearch]=useState(''),[draft,setDraft]=useState(''),[searching,setSearching]=useState(false),[paging,setPaging]=useState({scope:'',page:1});
- const scope=JSON.stringify([production,farm?.id,search]),page=paging.scope===scope?paging.page:1;
+ const [production,setProduction]=useState(initial.success?initial.data:'beef'),[search,setSearch]=useState('');
  const allowed=initial.success&&state.status==='signedIn'&&canReadDailyFeeding(state.session.user);
- const q=useQuery({queryKey:['feeding',production,farm?.id,page,search],enabled:allowed,staleTime:0,queryFn:async({signal})=>feedingBatchPage.parse(await controller.dailyFeeding({resource:'batches',production,page,search,farm:farm?.id},signal))});
- const {refetch}=q;useFocusEffect(useCallback(()=>{if(allowed)void refetch();},[allowed,refetch]));
- const data=q.isError?undefined:q.data;
- const find=()=>{setSearch(draft.trim());setPaging({scope:'',page:1});setSearching(false);if(draft.trim()===search&&page===1)void refetch();};
- return <WorkspaceShell active="feeding" title={t.title}>{!allowed?<View style={s.content}><Text style={s.error}>{w.noAccess}</Text></View>:<FlatList<FeedingBatch> data={data?.results??[]} keyExtractor={row=>row.id} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
-  ListHeaderComponent={<View style={{gap:12,marginBottom:12}}>
-   <View style={f.panel}><View style={f.heading}><View style={f.icon}><DairyIcon name="wheat" color={colors.warning}/></View><View style={{flex:1,minWidth:0,gap:3}}><Text style={s.label}>{t.today}</Text><Text accessibilityRole="header" style={f.title}>{data?dayLabel(data.date,language):'—'}</Text>{farm&&<Text style={s.muted}>{farm.name}</Text>}</View></View>
-    <View accessibilityRole="tablist" style={f.tabs}>{(['beef','dairy'] as const).map(value=><Pressable key={value} accessibilityRole="tab" accessibilityState={{selected:production===value}} onPress={()=>{setProduction(value);setPaging({scope:'',page:1});}} style={[f.tab,production===value&&f.tabSelected]}><DairyIcon name={value==='dairy'?'milk':'bull'} size={20}/><Text style={f.tabText}>{t[value]}</Text></Pressable>)}</View>
-    <View style={f.heading}><View style={{flex:1,gap:2}}><Text style={s.label}>{t.batches}</Text><Text style={f.total}>{data?number(data.count,language):'—'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={searching?t.closeFilters:t.filters} accessibilityState={{selected:searching||!!search}} onPress={()=>setSearching(value=>!value)} style={[f.control,(searching||!!search)&&{backgroundColor:colors.softStrong}]}><DairyIcon name="search" size={20}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={t.refresh} accessibilityState={{disabled:q.isFetching}} disabled={q.isFetching} onPress={()=>void refetch()} style={f.control}><Text aria-hidden style={f.refresh}>↻</Text></Pressable></View>
-    {state.status==='signedIn'&&!canWriteDailyFeeding(state.session.user)&&<Text style={s.badge}>{t.readonly}</Text>}
-   </View>
-   {searching&&<View style={f.panel}><Text style={s.label}>{t.search}</Text><TextInput accessibilityLabel={t.search} placeholder={t.search} style={s.input} value={draft} onChangeText={setDraft} maxLength={100} returnKeyType="search" onSubmitEditing={find}/><View style={s.row}><AgendaButton label={t.find} onPress={find}/><AgendaButton label={t.clear} onPress={()=>{setDraft('');setSearch('');setPaging({scope:'',page:1});setSearching(false);}}/></View></View>}
-   {!!search&&<Text style={s.muted}>{t.search}: {search}</Text>}
-   {q.isFetching&&<Busy label={w.loading}/>}{q.isError&&<View style={f.panel}><Text accessibilityRole="alert" style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refetch()}/>{page>1&&<AgendaButton label={`${w.page} 1`} onPress={()=>setPaging({scope,page:1})}/>}</View>}
-  </View>}
-  renderItem={({item})=><Pressable accessibilityRole="button" accessibilityLabel={`${item.batch_code}. ${item.name}. ${t.heads}: ${number(item.head_count,language)}. ${t.supplied}: ${number(item.supplied_kg,language)} kg. ${t.deliveries}`} onPress={()=>router.push({pathname:'/feeding/batch',params:{batch:item.id,production,farm:item.farm}})} style={({pressed})=>[f.panel,{marginBottom:10,opacity:pressed?0.7:1}]}><View style={f.heading}><View style={f.herdIcon}><DairyIcon name="herd"/></View><View style={{flex:1,minWidth:0,gap:3}}><Text style={f.title}>{item.batch_code}</Text>{!!item.name&&<Text style={s.body}>{item.name}</Text>}</View><DairyIcon name="arrow" size={18}/></View><Text style={s.muted}>{item.farm_name}</Text><View style={f.metrics}><View style={f.metric}><Text style={s.label}>{t.heads}</Text><Text style={f.total}>{number(item.head_count,language)}</Text></View><View style={f.metric}><Text style={s.label}>{t.supplied}</Text><Text style={f.total}>{number(item.supplied_kg,language)}<Text style={f.unit}> kg</Text></Text></View></View></Pressable>}
-  ListEmptyComponent={data?.count===0?<View style={f.empty}><DairyIcon name="herd" size={32}/><Text style={s.body}>{t.empty}</Text></View>:undefined}
-  ListFooterComponent={data&&(data.previous||data.next)?<View style={s.row}><AgendaButton label={w.previous} disabled={!data.previous||q.isFetching} onPress={()=>setPaging({scope,page:Math.max(1,page-1)})}/><Text>{w.page} {number(page,language)}</Text><AgendaButton label={w.next} disabled={!data.next||q.isFetching} onPress={()=>setPaging({scope,page:page+1})}/></View>:undefined}/>}</WorkspaceShell>;
+ const list=useInfinitePages<FeedingBatch>({queryKey:['feeding','infinite',production,farm?.id,search],enabled:allowed,fetchPage:async(page,signal)=>feedingBatchPage.parse(await controller.dailyFeeding({resource:'batches',production,page,search,farm:farm?.id},signal))});
+ const {refetch}=list;useFocusEffect(useCallback(()=>{if(allowed)void refetch();},[allowed,refetch]));
+ const day=(list.data?.pages[0] as {date?:string}|undefined)?.date;
+ const supplied=list.rows.reduce((sum,row)=>sum+Number(row.supplied_kg),0),pendingBatches=list.rows.filter(row=>Number(row.supplied_kg)===0).length;
+ const complete=!list.hasNextPage&&!!list.data;
+ const header=<View style={ms.header}>
+  <ScreenIntro title={t.title} subtitle={[day?dayLabel(day,language):null,farm?.name].filter(Boolean).join(' · ')} badge={state.status==='signedIn'&&!canWriteDailyFeeding(state.session.user)?<View style={{marginTop:6}}><StatusPill label={t.readonly} tone="neutral"/></View>:undefined}/>
+  <Segmented value={production} onChange={setProduction} options={(['beef','dairy'] as const).map(value=>({value,label:t[value]}))}/>
+  {list.count!==undefined&&<KpiStrip items={[{key:'b',label:t.batches,value:number(list.count,language)},...(complete?[{key:'s',label:t.supplied,value:`${number(supplied,language)} kg`,tone:'success' as const},{key:'p',label:t.unfed,value:number(pendingBatches,language),tone:pendingBatches?'warning' as const:undefined}]:[])]}/>}
+  <SearchBar value={search} onChange={setSearch} placeholder={t.search} language={language}/>
+  {list.isError&&!!list.rows.length&&<ErrorState message={w.error} language={language} onRetry={()=>void refetch()}/>}
+ </View>;
+ return <WorkspaceShell active="feeding" title={t.title}>{!allowed?<View style={ms.list}><EmptyState title={w.noAccess}/></View>:<FlatList<FeedingBatch> data={list.rows} keyExtractor={row=>row.id} contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" ListHeaderComponent={header}
+  refreshControl={<RefreshControl refreshing={list.refreshing} onRefresh={()=>void list.refresh()} tintColor={colors.primary} colors={[colors.primary]}/>} onEndReached={list.loadMore} onEndReachedThreshold={0.4}
+  renderItem={({item})=>{const fed=Number(item.supplied_kg)>0;return <ListRow meta={item.farm_name} title={`${item.batch_code}${item.name?` · ${item.name}`:''}`} subtitle={`${number(item.head_count,language)} ${t.heads.toLowerCase()}`} value={`${number(item.supplied_kg,language)} kg`} valueCaption={t.supplied} leading={<IconTile tone={fed?'success':'warning'}><DairyIcon name="wheat" size={20} color={fed?colors.success:colors.warning}/></IconTile>} accessibilityLabel={`${item.batch_code}. ${item.name}. ${t.heads}: ${number(item.head_count,language)}. ${t.supplied}: ${number(item.supplied_kg,language)} kg. ${t.deliveries}`} onPress={()=>router.push({pathname:'/feeding/batch',params:{batch:item.id,production,farm:item.farm}})}/>;}}
+  ListEmptyComponent={list.isPending?<SkeletonList/>:list.isError?<ErrorState message={w.error} language={language} onRetry={()=>void refetch()}/>:<EmptyState title={t.empty}/>}
+  ListFooterComponent={list.rows.length?<ListFooter loading={list.isFetchingNextPage} end={!list.hasNextPage} language={language}/>:undefined}/>}</WorkspaceShell>;
 }
 export const feedingRoute=z.object({batch:z.uuid(),farm:z.uuid(),production:productionSchema});
+type Delivery=ReturnType<typeof feedingDeliveriesForDay>['results'][number];
 export function FeedingBatchScreen(){
  const params=useLocalSearchParams(),route=feedingRoute.safeParse(params),{state,controller,language}=useAuth(),t=feedingMessages[language],w=workspaceMessages[language],router=useRouter();
- const [paging,setPaging]=useState({day:'',page:1}),[expanded,setExpanded]=useState<string|null>(null);
+ const [expanded,setExpanded]=useState<string|null>(null);
  const allowed=route.success&&state.status==='signedIn'&&canReadDailyFeeding(state.session.user);
  const batch=useQuery({queryKey:['feeding-batch',params.batch,params.farm,params.production],enabled:allowed,staleTime:0,queryFn:async({signal})=>{if(!route.success)throw Error('route');const data=feedingBatchPage.parse(await controller.dailyFeeding({...route.data,resource:'batches',page:1,search:''},signal));const row=data.results.find(value=>value.id===route.data.batch&&value.farm===route.data.farm);if(!row)throw Error('unavailable');return {row,date:data.date,timezone:data.timezone};}});
- const day=batch.data?.date,page=paging.day===day?paging.page:1;
- const records=useQuery({queryKey:['feeding-deliveries',params.batch,params.farm,params.production,day,page],enabled:allowed&&!!batch.data&&!batch.isError,staleTime:0,retry:false,queryFn:async({signal})=>{if(!route.success||!day)throw Error('route');return feedingDeliveriesForDay(await controller.dailyFeeding({...route.data,resource:'deliveries',page,search:''},signal),day);}});
+ const day=batch.data?.date;
+ const records=useInfinitePages<Delivery>({queryKey:['feeding-deliveries','infinite',params.batch,params.farm,params.production,day],enabled:allowed&&!!batch.data&&!batch.isError,fetchPage:async(page,signal)=>{if(!route.success||!day)throw Error('route');return feedingDeliveriesForDay(await controller.dailyFeeding({...route.data,resource:'deliveries',page,search:''},signal),day);}});
  const {refetch:refreshBatch}=batch,{refetch:refreshRecords}=records;
  useFocusEffect(useCallback(()=>{if(allowed)void refreshBatch();},[allowed,refreshBatch]));
  useFocusEffect(useCallback(()=>{if(allowed&&day&&!batch.isError)void refreshRecords();},[allowed,day,batch.isError,refreshRecords]));
- const context=batch.isError?undefined:batch.data,data=records.isError||!context?undefined:records.data;
+ const context=batch.isError?undefined:batch.data,rows=records.isError||!context?[]:records.rows;
+ const [refreshing,setRefreshing]=useState(false);
  const refresh=async()=>{const result=await refreshBatch();if(result.data&&!result.isError&&result.data.date===day)await refreshRecords();};
- const writable=state.status==='signedIn'&&canWriteDailyFeeding(state.session.user),writeDisabled=batch.isFetching||batch.isError||records.isPending||records.isFetching||records.isError;
- return <AgendaShell title={t.deliveries} backLabel={w.back} onBack={()=>router.canGoBack()?router.back():router.replace('/feeding')}>
-  <FlatList data={data?.results??[]} keyExtractor={row=>row.id} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
-   ListHeaderComponent={<View style={{gap:12,marginBottom:12}}>{!allowed?<Text style={s.error}>{w.noAccess}</Text>:<>
-    {batch.isFetching&&<Busy label={w.loading}/>}{batch.isError&&<View style={f.panel}><Text accessibilityRole="alert" style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refresh()}/></View>}
-    {context&&<View style={f.panel}><View style={f.heading}><View style={f.herdIcon}><DairyIcon name="herd"/></View><View style={{flex:1,minWidth:0,gap:3}}><Text accessibilityRole="header" style={f.title}>{context.row.batch_code}</Text>{!!context.row.name&&<Text style={s.body}>{context.row.name}</Text>}<Text style={s.muted}>{context.row.farm_name} · {t[route.success?route.data.production:'beef']}</Text></View></View><Text style={s.label}>{t.today}: {dayLabel(context.date,language)}</Text><View style={f.metrics}><View style={f.metric}><Text style={s.label}>{t.heads}</Text><Text style={f.total}>{number(context.row.head_count,language)}</Text></View><View style={f.metric}><Text style={s.label}>{t.supplied}</Text><Text style={f.total}>{number(context.row.supplied_kg,language)}<Text style={f.unit}> kg</Text></Text></View></View>{writable&&route.success?<AgendaButton label={t.launch} disabled={writeDisabled} onPress={()=>router.push({pathname:'/feeding/form',params:route.data})}/>:<Text style={s.badge}>{t.readonly}</Text>}<Text style={s.muted}>{t.scope}</Text></View>}
-    <View style={f.heading}><Text accessibilityRole="header" style={[f.title,{flex:1}]}>{t.deliveries}{data?` (${number(data.count,language)})`:''}</Text><Pressable accessibilityRole="button" accessibilityLabel={t.refresh} disabled={batch.isFetching||records.isFetching} style={f.control} onPress={()=>void refresh()}><Text aria-hidden style={f.refresh}>↻</Text></Pressable></View>
-    {records.isFetching&&<Busy label={w.loading}/>}{records.isError&&context&&<View style={f.panel}><Text accessibilityRole="alert" style={s.error}>{records.error instanceof FeedingDayChanged?t.historyDayChanged:w.error}</Text><AgendaButton label={w.retry} onPress={()=>void refresh()}/>{page>1&&<AgendaButton label={`${w.page} 1`} onPress={()=>setPaging({day:day??'',page:1})}/>}</View>}
-   </>}</View>}
-   renderItem={({item})=><View style={f.panel}><View style={f.heading}><View style={f.icon}><DairyIcon name="wheat" color={colors.warning}/></View><View style={{flex:1,minWidth:0,gap:4}}><Text style={f.title}>{item.item_name}</Text><Text style={f.total}>{number(item.quantity_kg,language)}<Text style={f.unit}> kg</Text></Text></View></View><Text style={s.body}>{t.author}: {item.recorded_by||'—'}</Text><Text style={s.muted}>{t.time}: {new Intl.DateTimeFormat(language,{dateStyle:'medium',timeStyle:'short',timeZone:data!.timezone}).format(new Date(item.created_at))}</Text><Pressable accessibilityRole="button" accessibilityState={{expanded:expanded===item.id}} onPress={()=>setExpanded(value=>value===item.id?null:item.id)} style={f.details}><Text style={f.link}>{expanded===item.id?t.hideDetails:t.details}</Text><Text aria-hidden style={f.link}>{expanded===item.id?'−':'+'}</Text></Pressable>{expanded===item.id&&<>{!!item.notes&&<Text style={s.body}>{item.notes}</Text>}<Text selectable style={s.muted}>{item.id}</Text></>}</View>}
-   ItemSeparatorComponent={()=><View style={{height:10}}/>}
-   ListEmptyComponent={data?.count===0?<View style={f.empty}><DairyIcon name="wheat" size={32}/><Text style={s.body}>{t.empty}</Text></View>:undefined}
-   ListFooterComponent={data&&(data.previous||data.next)?<View style={s.row}><AgendaButton label={w.previous} disabled={!data.previous||records.isFetching} onPress={()=>setPaging({day:day??'',page:Math.max(1,page-1)})}/><Text>{w.page} {number(page,language)}</Text><AgendaButton label={w.next} disabled={!data.next||records.isFetching} onPress={()=>setPaging({day:day??'',page:page+1})}/></View>:undefined}/>
- </AgendaShell>;
+ const writable=state.status==='signedIn'&&canWriteDailyFeeding(state.session.user),writeDisabled=batch.isFetching||batch.isError||records.isPending||(records.isFetching&&!records.isFetchingNextPage)||records.isError;
+ const header=<View style={ms.header}>{!allowed?<EmptyState title={w.noAccess}/>:<>
+  {batch.isPending?<SkeletonList rows={2}/>:batch.isError?<ErrorState message={w.error} language={language} onRetry={()=>void refresh()}/>:null}
+  {context&&<DetailHeader meta={`${context.row.farm_name} · ${t[route.success?route.data.production:'beef']}`} title={`${context.row.batch_code}${context.row.name?` · ${context.row.name}`:''}`} leading={<IconTile tone="brand"><DairyIcon name="herd" size={22}/></IconTile>} status={[{label:`${t.today}: ${dayLabel(context.date,language)}`,tone:'neutral'},...(!writable?[{label:t.readonly,tone:'neutral' as const}]:[])]}>
+   <MetricGrid columns={2} items={[{label:t.heads,value:number(context.row.head_count,language)},{label:t.supplied,value:number(context.row.supplied_kg,language),unit:'kg',tone:Number(context.row.supplied_kg)>0?'success':'warning'}]}/>
+   {writable&&route.success&&<AgendaButton variant="primary" label={t.launch} disabled={writeDisabled} onPress={()=>router.push({pathname:'/feeding/form',params:route.data})}/>}
+   <Text style={{fontSize:12,lineHeight:17,color:colors.muted}}>{t.scope}</Text>
+  </DetailHeader>}
+  <SectionLabel title={`${t.deliveries}${records.count!==undefined&&context?` · ${number(records.count,language)}`:''}`}/>
+  {records.isError&&context&&<ErrorState message={records.error instanceof FeedingDayChanged?t.historyDayChanged:w.error} language={language} onRetry={()=>void refresh()}/>}
+ </>}</View>;
+ return <WorkspaceShell active="feeding" title={t.deliveries} onBack={()=>router.canGoBack()?router.back():router.replace('/feeding')}>
+  <FlatList<Delivery> data={rows} keyExtractor={row=>row.id} contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" ListHeaderComponent={header}
+   refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async()=>{setRefreshing(true);try{await refresh();}finally{setRefreshing(false);}}} tintColor={colors.primary} colors={[colors.primary]}/>} onEndReached={records.loadMore} onEndReachedThreshold={0.4}
+   renderItem={({item})=>{const open=expanded===item.id;return <ListRow meta={new Intl.DateTimeFormat(language,{timeStyle:'short',timeZone:context?.timezone}).format(new Date(item.created_at))} title={item.item_name} subtitle={`${t.author}: ${item.recorded_by||'—'}`} value={`${number(item.quantity_kg,language)} kg`} leading={<IconTile tone="warning"><DairyIcon name="wheat" size={20} color={colors.warning}/></IconTile>} accessibilityLabel={`${item.item_name}. ${number(item.quantity_kg,language)} kg. ${open?t.hideDetails:t.details}`} onPress={()=>setExpanded(value=>value===item.id?null:item.id)} extra={open?<View style={{gap:4,marginTop:6}}>{!!item.notes&&<Text style={{fontSize:14,lineHeight:20,color:colors.textSoft}}>{item.notes}</Text>}<Text selectable style={{fontSize:12,color:colors.muted}}>{item.id}</Text></View>:undefined}/>;}}
+   ListEmptyComponent={!context?undefined:records.isPending?<SkeletonList rows={3}/>:records.isError?undefined:<EmptyState title={t.empty}/>}
+   ListFooterComponent={rows.length?<ListFooter loading={records.isFetchingNextPage} end={!records.hasNextPage} language={language}/>:undefined}/>
+ </WorkspaceShell>;
 }
-const f=StyleSheet.create({panel:{padding:12,gap:12,borderWidth:1,borderColor:colors.borderSoft,borderRadius:14,backgroundColor:colors.surface},heading:{flexDirection:'row',alignItems:'center',gap:10},icon:{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:colors.warningSurface},herdIcon:{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:colors.primarySoft},title:{fontSize:18,fontWeight:'800',color:colors.forest},total:{fontSize:25,fontWeight:'800',color:colors.forest},unit:{fontSize:15,fontWeight:'600'},tabs:{flexDirection:'row',gap:4,padding:3,borderRadius:12,backgroundColor:colors.track},tab:{flex:1,minHeight:44,alignItems:'center',justifyContent:'center',flexDirection:'row',flexWrap:'wrap',gap:6,padding:8,borderRadius:9},tabSelected:{backgroundColor:colors.surface},tabText:{fontSize:14,fontWeight:'600',color:colors.primary,flexShrink:1},control:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:colors.borderSoft,borderRadius:12},refresh:{fontSize:25,color:colors.primary},metrics:{flexDirection:'row',flexWrap:'wrap',gap:12,borderTopWidth:1,borderColor:colors.divider,paddingTop:10},metric:{flexBasis:100,flexGrow:1,minWidth:0,gap:4},empty:{padding:24,gap:12,alignItems:'center',backgroundColor:colors.surface,borderRadius:14},details:{minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,borderTopWidth:1,borderColor:colors.divider},link:{fontSize:14,fontWeight:'600',color:colors.primary,flexShrink:1}});

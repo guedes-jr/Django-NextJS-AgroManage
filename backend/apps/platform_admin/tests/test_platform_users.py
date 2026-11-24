@@ -95,3 +95,91 @@ class PlatformUserManagementAPITestCase(APITestCase):
 
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         self.assertEqual(block_response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PlatformUserEditingAPITestCase(APITestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(name="Cliente", slug="cliente-edit")
+        self.admin = User.objects.create_user(
+            email="dono@cliente.com", password="CustomerPassword-8472", full_name="Dono",
+            role=User.Role.ADMIN, organization=self.organization, organization_responsible=True,
+        )
+        self.customer = User.objects.create_user(
+            email="user@cliente.com", password="CustomerPassword-8472", full_name="Usuário Cliente",
+            role=User.Role.MANAGER, organization=self.organization,
+        )
+        self.platform_admin = User.objects.create_user(
+            email="admin@platform.local", password="PlatformPassword-8472", full_name="Platform Admin", is_staff=True,
+        )
+        PlatformStaffProfile.objects.create(user=self.platform_admin, role=PlatformStaffProfile.Role.ADMIN)
+        self.client.force_authenticate(user=self.platform_admin)
+
+    def url(self, user, name="platform-user-detail"):
+        return reverse(name, args=[user.id])
+
+    def test_platform_admin_updates_profile_and_records_audit(self):
+        response = self.client.patch(self.url(self.customer), {
+            "full_name": "Nome Corrigido", "email": "Novo@Cliente.com", "phone": "11999990000",
+            "phone_is_whatsapp": True, "role": User.Role.OPERATOR, "operator_read_only": True,
+        }, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.full_name, "Nome Corrigido")
+        self.assertEqual(self.customer.email, "novo@cliente.com")
+        self.assertEqual(self.customer.role, User.Role.OPERATOR)
+        self.assertTrue(self.customer.operator_read_only)
+        self.assertEqual(self.customer.session_version, 1)
+        audit = PlatformAuditLog.objects.get(action="user.updated")
+        self.assertEqual(audit.extra_data["before"]["email"], "user@cliente.com")
+        self.assertNotIn("password", audit.extra_data["after"])
+
+    def test_rejects_duplicate_email(self):
+        response = self.client.patch(self.url(self.customer), {"email": "DONO@cliente.com"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data["error"]["detail"])
+
+    def test_responsible_must_remain_admin(self):
+        response = self.client.patch(self.url(self.admin), {"role": User.Role.MANAGER}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, User.Role.ADMIN)
+
+    def test_scope_flags_are_cleared_for_non_operator_roles(self):
+        self.customer.role = User.Role.OPERATOR
+        self.customer.can_operate_crops = True
+        self.customer.save()
+        response = self.client.patch(self.url(self.customer), {"role": User.Role.MANAGER}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.can_operate_crops)
+
+    def test_platform_admin_sets_password_and_revokes_sessions(self):
+        response = self.client.post(self.url(self.customer, "platform-user-set-password"), {
+            "new_password": "NovaSenhaSegura-9921", "new_password_confirm": "NovaSenhaSegura-9921",
+        }, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.customer.refresh_from_db()
+        self.assertTrue(self.customer.check_password("NovaSenhaSegura-9921"))
+        self.assertTrue(self.customer.force_password_change)
+        self.assertEqual(self.customer.session_version, 1)
+        audit = PlatformAuditLog.objects.get(action="user.password_reset")
+        self.assertNotIn("NovaSenhaSegura-9921", str(audit.extra_data))
+
+    def test_password_confirmation_must_match(self):
+        response = self.client.post(self.url(self.customer, "platform-user-set-password"), {
+            "new_password": "NovaSenhaSegura-9921", "new_password_confirm": "Outra-9921xx",
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_support_cannot_edit_or_set_password(self):
+        support = User.objects.create_user(email="support@platform.local", password="SupportPassword-8472", full_name="Suporte")
+        PlatformStaffProfile.objects.create(user=support, role=PlatformStaffProfile.Role.SUPPORT)
+        self.client.force_authenticate(user=support)
+        self.assertEqual(self.client.patch(self.url(self.customer), {"full_name": "X"}, format="json").status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.post(self.url(self.customer, "platform-user-set-password"), {}, format="json").status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_cannot_edit_internal_staff_through_customer_directory(self):
+        response = self.client.patch(self.url(self.platform_admin), {"full_name": "X"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

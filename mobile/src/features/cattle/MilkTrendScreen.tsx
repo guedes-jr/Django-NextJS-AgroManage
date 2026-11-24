@@ -1,14 +1,16 @@
 import {useCallback,useState} from 'react';
-import {FlatList,Modal,Text,TextInput,View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {FlatList,RefreshControl,Text,View} from 'react-native';
 import {useFocusEffect,useLocalSearchParams} from 'expo-router';
 import {useQuery} from '@tanstack/react-query';
 import {z} from 'zod';
 import {useAuth} from '../auth/AuthProvider';
 import {useWorkspace} from '../workspace/WorkspaceProvider';
 import {WorkspaceShell} from '../workspace/WorkspaceShell';
-import {FarmContextButton} from '../workspace/FarmContextButton';
-import {AgendaButton,Busy,styles as s} from '../agenda/ui';
+import {styles as ui} from '../agenda/ui';
+import {colors} from '../../theme/tokens';
+import {DairyIcon} from './DairyIcon';
+import {DateStepper,EmptyState,ErrorState,FilterChips,IconTile,KpiStrip,ListRow,MetricGrid,Notice,PickerModal,ScreenIntro,SectionLabel,SelectChip,Shortcut,SkeletonList,mobileStyles as ms} from '../../components/mobile';
+import {useInfinitePages} from '../../components/mobile/useInfinitePages';
 import {workspaceMessages} from '../workspace/messages';
 import {canReadCattle} from './contracts';
 import {cattleMessages,cattleLabel} from './messages';
@@ -17,19 +19,46 @@ import {milkTrendQuerySchema,formatMilkVolume,type MilkTrendOptions,type MilkTre
 export function MilkTrendScreen(){
  const params=useLocalSearchParams(),route=z.object({production:z.literal('dairy'),farm:z.uuid().optional()}).safeParse(params),{state,controller,language}=useAuth(),{farm}=useWorkspace(),t=milkTrendMessages[language],w=workspaceMessages[language],farmId=route.success?route.data.farm??farm?.id:undefined,allowed=route.success&&state.status==='signedIn'&&canReadCattle(state.session.user);
  const q=useQuery({queryKey:['milk-trend-options',farmId],enabled:allowed,staleTime:0,queryFn:({signal})=>controller.milkTrendOptions(farmId,signal)}),{refetch}=q;useFocusEffect(useCallback(()=>{if(allowed)void refetch();},[allowed,refetch]));
- return <WorkspaceShell active="dairy" title={t.title}>{!allowed?<View style={s.content}><Text style={s.error}>{w.noAccess}</Text></View>:q.isError?<View style={s.content}><Text style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void q.refetch()}/></View>:q.isPending?<Busy label={w.loading}/>:<Report key={farmId??'all'} options={q.data} showFarm={!params.farm}/>}</WorkspaceShell>;
+ return <WorkspaceShell active="dairy" title={t.title}>{!allowed?<View style={ms.list}><EmptyState title={w.noAccess}/></View>:q.isError?<View style={ms.list}><ErrorState message={w.error} language={language} onRetry={()=>void refetch()}/></View>:q.isPending?<View style={ms.list}><SkeletonList rows={3}/></View>:<Report key={farmId??'all'} options={q.data}/>}</WorkspaceShell>;
 }
-function Report({options,showFarm}:{options:MilkTrendOptions;showFarm:boolean}){
- const {controller,language}=useAuth(),t=milkTrendMessages[language],w=workspaceMessages[language],c=cattleMessages[language],[start,setStart]=useState(options.start),[end,setEnd]=useState(options.end),[drop,setDrop]=useState(options.drop_percent),[animal,setAnimal]=useState<MilkTrendAnimal>(),[picker,setPicker]=useState<MilkTrendQuery|null>(null),[message,setMessage]=useState(''),[filtersOpen,setFiltersOpen]=useState(false),[helpOpen,setHelpOpen]=useState(false);
- const [applied,setApplied]=useState<MilkTrendQuery>({production:'dairy',farm:options.farm?.id,start:options.start,end:options.end,drop_percent:options.drop_percent});
- const draft=()=>milkTrendQuerySchema.safeParse({production:'dairy',farm:options.farm?.id,start,end,animal:animal?.id,drop_percent:drop.replace(',','.')});const parsed=draft(),dirty=!parsed.success||JSON.stringify(parsed.data)!==JSON.stringify(milkTrendQuerySchema.parse(applied));
- const q=useQuery({queryKey:['milk-trends',applied],enabled:!dirty,staleTime:0,queryFn:({signal})=>controller.milkTrends(applied,signal)}),{refetch}=q;useFocusEffect(useCallback(()=>{if(!dirty)void refetch();},[dirty,refetch]));
- const apply=()=>{const value=draft();if(!value.success||end>options.today){setMessage(t.invalid);return;}setMessage('');setFiltersOpen(false);if(JSON.stringify(value.data)===JSON.stringify(milkTrendQuerySchema.parse(applied)))void q.refetch();else setApplied(value.data);};
- const data=!dirty&&!q.isError&&!q.isFetching?q.data:undefined,volume=(v:string)=>`${formatMilkVolume(v,language)} L`,date=(v:string)=>new Intl.DateTimeFormat(language,{dateStyle:'medium',timeZone:'UTC'}).format(new Date(`${v}T12:00:00Z`));
- return <><FlatList contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" data={data?.series??[]} keyExtractor={p=>p.date} ListHeaderComponent={<View style={{gap:12}}>{showFarm&&<FarmContextButton/>}{options.farm&&<Text style={s.heading}>{options.farm.name}</Text>}<View style={s.row}><AgendaButton label={filtersOpen?t.closeFilters:t.filters} selected={filtersOpen} onPress={()=>setFiltersOpen(value=>!value)}/><AgendaButton label={t.basis} selected={helpOpen} onPress={()=>setHelpOpen(value=>!value)}/></View>{helpOpen&&<View style={s.card}><Text style={s.muted}>{t.scope}</Text><Text style={s.muted}>{t.note}</Text></View>}{filtersOpen&&<View style={{gap:12}}><Text style={s.label}>{t.start}</Text><TextInput style={s.input} accessibilityLabel={t.start} value={start} onChangeText={setStart} maxLength={10}/><Text style={s.label}>{t.end}</Text><TextInput style={s.input} accessibilityLabel={t.end} value={end} onChangeText={setEnd} maxLength={10}/><Text style={s.label}>{t.drop}</Text><TextInput style={s.input} accessibilityLabel={t.drop} value={drop} onChangeText={setDrop} keyboardType="decimal-pad" maxLength={6}/><AgendaButton label={t.choose} onPress={()=>{const value=draft();if(value.success&&end<=options.today){setMessage('');setPicker(value.data);}else setMessage(t.invalid);}}/>{animal&&<Text style={s.heading}>{animal.identifier} · {cattleLabel(c,animal.purpose)}</Text>}<AgendaButton label={t.all} selected={!animal} onPress={()=>setAnimal(undefined)}/><AgendaButton label={t.apply} onPress={apply}/></View>}{!!message&&<Text accessibilityRole="alert" style={s.error}>{message}</Text>}{dirty&&<Text style={s.muted}>{t.stale}</Text>}{!dirty&&q.isFetching&&<Busy label={w.loading}/ >}{!dirty&&q.isError&&<><Text style={s.error}>{w.error}</Text><AgendaButton label={t.retry} onPress={()=>void q.refetch()}/></>}{data&&<>{data.animal&&<Text style={s.heading}>{data.animal.identifier} · {cattleLabel(c,data.animal.purpose)}</Text>}<Text style={s.heading}>{t.applied}: {date(data.start)} – {date(data.end)}</Text><View style={s.card}><Text style={s.body}>{t.produced}: {volume(data.produced)}</Text><Text style={s.body}>{t.discarded}: {volume(data.discarded)}</Text><Text style={s.body}>{t.usable}: {volume(data.usable)}</Text><Text style={s.body}>{t.days}: {data.days_with_records}</Text></View>{data.drop_alert&&<View style={s.card}><Text accessibilityRole="alert" style={s.heading}>{t.alert}: {formatMilkVolume(data.drop_alert.drop_percent,language)}%</Text><Text style={s.body}>{t.previous}: {date(data.drop_alert.previous_date)} → {date(data.drop_alert.date)}</Text><Text style={s.muted}>{t.alertNote}</Text></View>}<Text style={s.heading}>{t.sessions}</Text>{data.sessions.map(row=><View style={s.card} key={row.session}><Text style={s.heading}>{t[row.session]}</Text><Text style={s.body}>{volume(row.liters)} · {t.records}: {row.records}</Text></View>)}</>}</View>} renderItem={({item})=><View style={s.card}><Text style={s.heading}>{date(item.date)}</Text><Text style={s.body}>{t.produced}: {volume(item.produced)}</Text><Text style={s.body}>{t.discarded}: {volume(item.discarded)} · {t.usable}: {volume(item.usable)}</Text><Text style={s.muted}>{item.aggregate?t.aggregate:`${t.individual} · ${t.cows}: ${item.milked_cows}`}</Text></View>} ListEmptyComponent={data&&!data.series.length?<Text style={s.body}>{t.empty}</Text>:undefined}/>{picker&&<AnimalPicker query={picker} onClose={()=>setPicker(null)} onSelect={row=>{setAnimal(row);setPicker(null);}}/>}</>;
+const shift=(day:string,delta:number)=>{const d=new Date(`${day}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);};
+type Period='7'|'30'|'90'|'custom';
+function Report({options}:{options:MilkTrendOptions}){
+ const {controller,language}=useAuth(),t=milkTrendMessages[language],w=workspaceMessages[language],c=cattleMessages[language];
+ const [period,setPeriod]=useState<Period>('custom'),[start,setStart]=useState(options.start),[end,setEnd]=useState(options.end),[drop,setDrop]=useState(String(Number(options.drop_percent))),[animal,setAnimal]=useState<MilkTrendAnimal>(),[picker,setPicker]=useState(false);
+ const choose=(p:Period)=>{setPeriod(p);if(p!=='custom'){setEnd(options.today);setStart(shift(options.today,-(Number(p)-1)));}};
+ const parsed=milkTrendQuerySchema.safeParse({production:'dairy',farm:options.farm?.id,start,end,animal:animal?.id,drop_percent:drop});
+ const query=parsed.success?parsed.data:null;
+ const q=useQuery({queryKey:['milk-trends',query],enabled:!!query,staleTime:0,queryFn:({signal})=>controller.milkTrends(query!,signal)}),{refetch}=q;useFocusEffect(useCallback(()=>{if(query)void refetch();},[query,refetch]));
+ const [refreshing,setRefreshing]=useState(false);
+ const data=q.isError?undefined:q.data,volume=(v:string)=>`${formatMilkVolume(v,language)} L`,date=(v:string)=>new Intl.DateTimeFormat(language,{dateStyle:'medium',timeZone:'UTC'}).format(new Date(`${v}T12:00:00Z`));
+ const drops=Array.from(new Set(['10','15','20','30',String(Number(options.drop_percent))])).sort((a,b)=>Number(a)-Number(b));
+ const header=<View style={ms.header}>
+  <ScreenIntro title={t.title} subtitle={options.farm?.name??t.scope}/>
+  <FilterChips value={period} onChange={choose} options={[{value:'7',label:`7 ${t.days.toLowerCase()}`},{value:'30',label:`30 ${t.days.toLowerCase()}`},{value:'90',label:`90 ${t.days.toLowerCase()}`},{value:'custom',label:`${date(start)} – ${date(end)}`}]}/>
+  {period==='custom'&&<View style={{gap:8}}><Text style={ui.label}>{t.start}</Text><DateStepper value={start} max={end} onChange={setStart} language={language}/><Text style={ui.label}>{t.end}</Text><DateStepper value={end} min={start} max={options.today} onChange={setEnd} language={language}/></View>}
+  <View style={{gap:6}}><Text style={ui.label}>{t.drop}</Text><FilterChips value={drop} onChange={setDrop} options={drops.map(v=>({value:v,label:`${v}%`}))}/></View>
+  <View style={ms.wrap}><SelectChip label={t.all} value={animal?`${animal.identifier}`:undefined} active={!!animal} onPress={()=>setPicker(true)}/>{animal&&<Shortcut label={t.all} onPress={()=>setAnimal(undefined)}/>}</View>
+  {!query&&<Notice tone="danger" text={t.invalid}/>}
+  {q.isFetching&&!data?<SkeletonList rows={2}/>:q.isError?<ErrorState message={w.error} language={language} onRetry={()=>void refetch()}/>:data&&<>
+   {data.animal&&<Notice tone="info" text={`${data.animal.identifier} · ${cattleLabel(c,data.animal.purpose)}`}/>}
+   <KpiStrip items={[{key:'p',label:t.produced,value:volume(data.produced)},{key:'d',label:t.discarded,value:volume(data.discarded),tone:Number(data.discarded)>0?'warning':undefined},{key:'u',label:t.usable,value:volume(data.usable),tone:'success'}]}/>
+   <Text style={{fontSize:12,color:colors.muted}}>{`${t.days}: ${data.days_with_records} · ${t.applied}: ${date(data.start)} – ${date(data.end)}`}</Text>
+   {data.drop_alert&&<Notice tone="danger" text={`${t.alert}: ${formatMilkVolume(data.drop_alert.drop_percent,language)}% · ${date(data.drop_alert.previous_date)} → ${date(data.drop_alert.date)}. ${t.alertNote}`}/>}
+   {!!data.sessions.length&&<><SectionLabel title={t.sessions}/><MetricGrid columns={3} items={data.sessions.map(row=>({label:`${t[row.session]} · ${row.records} ${t.records.toLowerCase()}`,value:formatMilkVolume(row.liters,language),unit:'L'}))}/></>}
+   <SectionLabel title={t.title}/>
+  </>}
+ </View>;
+ return <><FlatList contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" data={data?.series??[]} keyExtractor={p=>p.date} ListHeaderComponent={header}
+  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async()=>{setRefreshing(true);try{await refetch();}finally{setRefreshing(false);}}} tintColor={colors.primary} colors={[colors.primary]}/>}
+  renderItem={({item})=><ListRow meta={item.aggregate?t.aggregate:`${t.individual} · ${t.cows}: ${item.milked_cows}`} title={date(item.date)} subtitle={`${t.discarded}: ${volume(item.discarded)} · ${t.usable}: ${volume(item.usable)}`} value={volume(item.produced)} status={data?.drop_alert?.date===item.date?{label:t.alert,tone:'danger'}:undefined}/>}
+  ListEmptyComponent={data&&!data.series.length?<EmptyState title={t.empty}/>:undefined}
+  ListFooterComponent={<Notice tone="neutral" text={`${t.scope} ${t.note}`}/>}/>
+  {picker&&query&&<AnimalPicker query={query} onClose={()=>setPicker(false)} onSelect={row=>{setAnimal(row);setPicker(false);}}/>}</>;
 }
 function AnimalPicker({query,onClose,onSelect}:{query:MilkTrendQuery;onClose:()=>void;onSelect:(row:MilkTrendAnimal)=>void}){
- const {controller,language}=useAuth(),t=milkTrendMessages[language],w=workspaceMessages[language],c=cattleMessages[language],[page,setPage]=useState(1),[draft,setDraft]=useState(''),[search,setSearch]=useState('');
- const q=useQuery({queryKey:['milk-trend-animals',query,page,search],staleTime:0,gcTime:0,queryFn:({signal})=>controller.milkTrendAnimals(query,page,search,signal)});
- return <Modal animationType="slide" onRequestClose={onClose}><SafeAreaView style={{flex:1,backgroundColor:'#F5F7F0'}}><FlatList<MilkTrendAnimal> contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" data={q.isFetching||q.isError?[]:q.data?.results??[]} keyExtractor={a=>a.id} ListHeaderComponent={<View style={{gap:12}}><Text style={s.heading}>{t.choose}</Text><AgendaButton label={w.back} onPress={onClose}/><TextInput style={s.input} accessibilityLabel={t.search} placeholder={t.search} value={draft} onChangeText={setDraft} maxLength={100}/><AgendaButton label={w.find} onPress={()=>{setPage(1);setSearch(draft.trim());}}/>{q.isFetching&&<Busy label={w.loading}/ >}{q.isError&&<><Text style={s.error}>{w.error}</Text><AgendaButton label={w.retry} onPress={()=>void q.refetch()}/></>}</View>} renderItem={({item})=><View style={s.card}><Text style={s.heading}>{item.identifier}</Text><Text style={s.body}>{cattleLabel(c,item.purpose)}</Text><AgendaButton label={`${t.select}: ${item.identifier}`} onPress={()=>onSelect(item)}/></View>} ListEmptyComponent={!q.isFetching&&!q.isError?<Text style={s.body}>{t.noAnimals}</Text>:undefined} ListFooterComponent={<View style={s.row}><AgendaButton label={w.previous} disabled={q.isFetching||!q.data?.previous} onPress={()=>setPage(p=>p-1)}/><Text style={s.body}>{w.page} {page}</Text><AgendaButton label={w.next} disabled={q.isFetching||!q.data?.next||page>=100000} onPress={()=>setPage(p=>p+1)}/></View>}/></SafeAreaView></Modal>;
+ const {controller,language}=useAuth(),t=milkTrendMessages[language],w=workspaceMessages[language],c=cattleMessages[language],[search,setSearch]=useState('');
+ const list=useInfinitePages<MilkTrendAnimal>({queryKey:['milk-trend-animals','infinite',query,search],enabled:true,fetchPage:(page,signal)=>controller.milkTrendAnimals(query,page,search,signal) as Promise<{results:MilkTrendAnimal[];next:string|null}>});
+ return <PickerModal<MilkTrendAnimal> title={t.choose} language={language} onClose={onClose} search={search} onSearch={setSearch} searchPlaceholder={t.search} list={list} keyExtractor={a=>a.id} emptyLabel={t.noAnimals} errorLabel={w.error}
+  renderItem={item=><ListRow title={item.identifier} subtitle={cattleLabel(c,item.purpose)} leading={<IconTile tone="info"><DairyIcon name="cow" size={20} color={colors.info}/></IconTile>} accessibilityLabel={`${t.select}: ${item.identifier}`} onPress={()=>onSelect(item)}/>}/>;
 }

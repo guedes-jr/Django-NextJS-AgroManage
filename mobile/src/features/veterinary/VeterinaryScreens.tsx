@@ -1,9 +1,13 @@
 import {useCallback, useMemo, useState} from 'react';
-import {FlatList, Linking, ScrollView, Text, TextInput, View} from 'react-native';
+import {FlatList, Linking, RefreshControl, Text, View} from 'react-native';
 import {useFocusEffect, useRouter} from 'expo-router';
 import {useQuery} from '@tanstack/react-query';
 import {useAuth} from '../auth/AuthProvider';
-import {AgendaButton, AgendaShell, Busy, StatusPill, styles as s, type StatusTone} from '../agenda/ui';
+import { AgendaButton, StatusPill, type StatusTone } from '../agenda/ui';
+import { HomeIcon } from '../home/HomeIcon';
+import { colors } from '../../theme/tokens';
+import { BottomSheet, EmptyState, ErrorState, FilterChips, HeaderAction, IconTile, KpiStrip, ListRow, ScreenIntro, SearchBar, SelectChip, SheetOption, Shortcut, SkeletonList, WebFallback, mobileStyles as ms } from '../../components/mobile';
+import { AgendaShell } from '../workspace/AppShell';
 import {parseApiUrl} from '../../config/environment';
 import {canUseVeterinary, curralPresets, curralRows, curralSummary, daysBetween, type CurralPreset, type VetAnimal, type VetDeadline} from './contracts';
 import {fill, veterinaryMessages, type VeterinaryCopy} from './messages';
@@ -45,69 +49,48 @@ export function VeterinaryCurralScreen(){
   const time=animals.dataUpdatedAt?new Intl.DateTimeFormat(language,{hour:'2-digit',minute:'2-digit'}).format(new Date(animals.dataUpdatedAt)):'';
   const refresh=()=>{void animals.refetch();void workspace.refetch();void clients.refetch();};
   const back=()=>router.canGoBack()?router.back():router.replace('/');
+  const [sheet,setSheet]=useState(false);
+  const [refreshing,setRefreshing]=useState(false);
 
-  if(!allowed)return <AgendaShell title={t.title} backLabel={t.back} onBack={back}><View style={s.content}><Text style={s.error}>{t.noAccess}</Text></View></AgendaShell>;
+  if(!allowed)return <AgendaShell title={t.title} backLabel={t.back} onBack={back}><View style={ms.list}><EmptyState title={t.noAccess}/></View></AgendaShell>;
+  const clientRow=clients.data?.find(row=>row.id===client);
 
-  const header=<View style={{gap:12}}>
-    <Text accessibilityRole="header" style={s.title}>{t.curral}</Text>
-    <Text style={s.muted}>{t.subtitle}</Text>
-    <View style={s.row}>
-      <StatusPill label={`${t.late}: ${summary.late}`} tone={summary.late?'danger':'neutral'}/>
-      <StatusPill label={`${t.today}: ${summary.today}`} tone={summary.today?'warning':'neutral'}/>
-      <StatusPill label={`${t.week}: ${summary.week}`} tone="info"/>
+  const header=<View style={ms.header}>
+    <ScreenIntro title={t.curral} subtitle={t.subtitle} action={<HeaderAction label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:client?{client}:{}})}/>}/>
+    <KpiStrip items={[
+      {key:'late',label:t.late,value:String(summary.late),tone:summary.late?'danger':undefined,selected:preset==='late',onPress:()=>setPreset(preset==='late'?'all':'late')},
+      {key:'today',label:t.today,value:String(summary.today),tone:summary.today?'warning':undefined,selected:preset==='today',onPress:()=>setPreset(preset==='today'?'all':'today')},
+      {key:'week',label:t.week,value:String(summary.week),tone:'info',selected:preset==='week',onPress:()=>setPreset(preset==='week'?'all':'week')},
+    ]}/>
+    <View style={ms.wrap}>
+      <Shortcut label={t.animals.start} icon={<HomeIcon name="leaf" size={18} color={colors.primary}/>} onPress={()=>router.push('/veterinary/animals')}/>
+      <Shortcut label={accountsCopy[language].clients} icon={<HomeIcon name="group" size={18} color={colors.primary}/>} onPress={()=>router.push('/veterinary/clients')}/>
+      <Shortcut label={accountsCopy[language].billing} icon={<HomeIcon name="wallet" size={18} color={colors.primary}/>} onPress={()=>router.push('/veterinary/billing')}/>
+      <Shortcut label={vetConsultationCopy[language].herd} icon={<HomeIcon name="group" size={18} color={colors.primary}/>} onPress={()=>router.push('/veterinary/herd')}/>
+      <Shortcut label={vetConsultationCopy[language].report} icon={<HomeIcon name="chart" size={18} color={colors.primary}/>} onPress={()=>router.push('/veterinary/report')}/>
     </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={{gap:8}}>
-      {curralPresets.map(value=><AgendaButton key={value} label={t.presets[value]} selected={preset===value} onPress={()=>setPreset(value)}/>)}
-    </ScrollView>
-    {(clients.data?.length??0)>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={{gap:8}}>
-      <AgendaButton label={t.allClients} selected={!client} onPress={()=>setClient('')}/>
-      {clients.data!.map(row=><AgendaButton key={row.id} label={row.farm_name?`${row.name} · ${row.farm_name}`:row.name} selected={client===row.id} onPress={()=>setClient(row.id)}/>)}
-    </ScrollView>}
-    <TextInput accessibilityLabel={t.search} placeholder={t.search} style={s.input} value={draft} onChangeText={setDraft} maxLength={100} autoCorrect={false} returnKeyType="search"/>
-    <View style={s.row}>
-      <AgendaButton label={t.refresh} disabled={animals.isFetching} onPress={refresh}/>
-      {!!time&&<Text style={s.muted}>{fill(t.updated,{time})}</Text>}
-    </View>
-    <AgendaButton variant="primary" label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:client?{client}:{}})}/>
-    <AgendaButton label={t.animals.start} onPress={()=>router.push('/veterinary/animals')}/>
-    <View style={s.row}>
-      <AgendaButton label={accountsCopy[language].clients} onPress={() => router.push('/veterinary/clients')}/>
-      <AgendaButton label={accountsCopy[language].billing} onPress={() => router.push('/veterinary/billing')}/>
-    </View>
-    <View style={s.row}>
-      <AgendaButton label={vetConsultationCopy[language].herd} onPress={() => router.push('/veterinary/herd')}/>
-      <AgendaButton label={vetConsultationCopy[language].report} onPress={() => router.push('/veterinary/report')}/>
-    </View>
-    <AgendaButton label={t.web} onPress={()=>void openWeb('/home/veterinario?aba=al').then(()=>setFailedLink(false)).catch(()=>setFailedLink(true))}/>
-    {failedLink&&<Text style={s.error}>{t.failedLink}</Text>}
-    {animals.isPending&&<Busy label={t.loading}/>}
-    {animals.isError&&<><Text accessibilityRole="alert" style={s.error}>{t.error}</Text><AgendaButton label={t.retry} onPress={refresh}/></>}
-    {animals.data&&<Text style={s.muted}>{fill(t.count,{count:rows.length})}</Text>}
+    <SearchBar value={draft} onChange={setDraft} placeholder={t.search} language={language} debounce={150}/>
+    <FilterChips value={preset} onChange={setPreset} options={curralPresets.map(value=>({value,label:t.presets[value]}))} trailing={(clients.data?.length??0)>1?<SelectChip label={t.allClients} value={clientRow?clientRow.name:undefined} active={!!client} onPress={()=>setSheet(true)}/>:undefined}/>
+    {animals.isError&&!!all.length&&<ErrorState message={t.error} language={language} onRetry={refresh}/>}
+    {animals.data&&<Text style={{fontSize:12,color:colors.muted}}>{fill(t.count,{count:rows.length})}{time?` · ${fill(t.updated,{time})}`:''}</Text>}
   </View>;
 
   return <AgendaShell title={t.title} backLabel={t.back} onBack={back}>
     <FlatList<VetAnimal>
-      contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" data={rows} keyExtractor={row=>row.id}
+      contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" data={rows} keyExtractor={row=>row.id}
       ListHeaderComponent={header}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async()=>{setRefreshing(true);try{await Promise.all([animals.refetch(),workspace.refetch(),clients.refetch()]);}finally{setRefreshing(false);}}} tintColor={colors.primary} colors={[colors.primary]}/>}
       renderItem={({item})=>{
         const late=item.deadline==='late'&&item.next.date&&today?daysBetween(item.next.date,today):0;
-        return <View style={s.card} accessible accessibilityLabel={`${item.identifier}. ${nextText(t,item)}. ${t.deadline[item.deadline]}`}>
-          <Text style={s.muted}>{item.client_name}{item.farm_name?` · ${item.farm_name}`:''}</Text>
-          <Text style={s.title}>{item.identifier}{item.name?` · ${item.name}`:''}</Text>
-          <Text style={s.body}>{t.next}: {nextText(t,item)}{item.next.date?` · ${date(item.next.date)}`:''}</Text>
-          <View style={s.row}>
-            <StatusPill label={late>0?fill(t.lateDays,{days:late}):t.deadline[item.deadline]} tone={TONE[item.deadline]}/>
-            <StatusPill label={t.status[item.status]}/>
-            <Text style={s.muted}>{t.category[item.category]??item.category}</Text>
-          </View>
-          {item.last&&<Text style={s.muted}>{t.last}: {t.kind[item.last.kind]??item.last.kind} · {date(item.last.date)}</Text>}
-          <View style={s.row}>
-            <AgendaButton label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:{client:item.client,animal:item.identifier}})}/>
-            <AgendaButton label={t.animals.history} onPress={()=>router.push({pathname:'/veterinary/animal',params:{id:item.id}})}/>
-          </View>
-        </View>;
+        return <ListRow meta={`${item.client_name}${item.farm_name?` · ${item.farm_name}`:''}`} title={`${item.identifier}${item.name?` · ${item.name}`:''}`} subtitle={`${t.next}: ${nextText(t,item)}${item.next.date?` · ${date(item.next.date)}`:''}${item.last?`\n${t.last}: ${t.kind[item.last.kind]??item.last.kind} · ${date(item.last.date)}`:''}`} status={{label:late>0?fill(t.lateDays,{days:late}):t.deadline[item.deadline],tone:TONE[item.deadline]}} leading={<IconTile tone={TONE[item.deadline]}><HomeIcon name="heart" size={20} color={colors.textSoft}/></IconTile>} accessibilityLabel={`${item.identifier}. ${nextText(t,item)}. ${t.deadline[item.deadline]}. ${t.animals.history}`} onPress={()=>router.push({pathname:'/veterinary/animal',params:{id:item.id}})}
+          extra={<View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8}}><StatusPill label={t.status[item.status]}/><Text style={{fontSize:12,color:colors.muted,alignSelf:'center'}}>{t.category[item.category]??item.category}</Text><View style={{flexGrow:1}}/><AgendaButton label={t.launch.start} onPress={()=>router.push({pathname:'/veterinary/launch',params:{client:item.client,animal:item.identifier}})}/></View>}/>;
       }}
-      ListEmptyComponent={animals.data?<Text style={s.body}>{all.length?t.none:t.empty}</Text>:undefined}
+      ListEmptyComponent={animals.isPending?<SkeletonList/>:animals.isError?<ErrorState message={t.error} language={language} onRetry={refresh}/>:<EmptyState title={all.length?t.none:t.empty}/>}
+      ListFooterComponent={<WebFallback hint={t.subtitle} label={t.web} failed={failedLink?t.failedLink:undefined} onPress={()=>void openWeb('/home/veterinario?aba=al').then(()=>setFailedLink(false)).catch(()=>setFailedLink(true))}/>}
     />
+    <BottomSheet visible={sheet} title={t.allClients} onClose={()=>setSheet(false)} language={language}>
+      <SheetOption label={t.allClients} selected={!client} onPress={()=>{setClient('');setSheet(false);}}/>
+      {clients.data?.map(row=><SheetOption key={row.id} label={row.farm_name?`${row.name} · ${row.farm_name}`:row.name} selected={client===row.id} onPress={()=>{setClient(row.id);setSheet(false);}}/>)}
+    </BottomSheet>
   </AgendaShell>;
 }

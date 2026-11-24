@@ -1,3 +1,12 @@
+import { organizationSchema as orgSettingsSchema, organizationUpdateSchema, type OrganizationUpdate } from '../features/organization/contracts';
+import { expirySchema, herdInventorySchema, lowStockSchema } from '../features/reports/contracts';
+import { cattleSaleListSchema, salePayload, type CattleSaleInput } from '../features/cattle/saleContracts';
+import { createTeamEndpoints } from './teamApi';
+import { createAssistantEndpoints } from './assistantApi';
+import { createSupportEndpoints } from './supportApi';
+import { createStructureEndpoints } from './structuresApi';
+import { createCropsEndpoints } from './cropsApi';
+import { createFinanceEndpoints } from './financeApi';
 import { semenSaleAmount, semenSaleBook, semenSaleCommand, semenSaleReceipt, type SemenSaleCommand } from '../features/swine/semenSales';
 import { swineSales } from '../features/swine/sales';
 import { herdHistory, herdPage, herdQuery, reportQuery, reportResponse, type HerdQuery, type ReportQuery } from '../features/veterinary/consultation';
@@ -170,6 +179,19 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     return { headers: { 'Accept-Language': language, ...(access ? { Authorization: `Bearer ${access}` } : {}) } };
   };
   return {
+    ...createFinanceEndpoints(http,options),
+    ...createCropsEndpoints(http,options),
+    ...createStructureEndpoints(http,options),
+    ...createSupportEndpoints(http,options),
+    ...createAssistantEndpoints(http,options),
+    ...createTeamEndpoints(http,options),
+    async myOrganization(tokens:Tokens,language:Language,signal?:AbortSignal){return orgSettingsSchema.parse((await http.get('organizations/me/',{...options(language,tokens.access),signal})).data);},
+    async updateOrganization(tokens:Tokens,language:Language,input:OrganizationUpdate){return orgSettingsSchema.parse((await http.patch('organizations/me/',organizationUpdateSchema.parse(input),options(language,tokens.access))).data);},
+    async lowStockReport(tokens:Tokens,language:Language,signal?:AbortSignal){return lowStockSchema.parse((await http.get('reports/stock/low/',{...options(language,tokens.access),signal})).data);},
+    async expiryReport(tokens:Tokens,language:Language,days:number,signal?:AbortSignal){return expirySchema.parse((await http.get('reports/stock/expiry/',{...options(language,tokens.access),params:{days},signal})).data);},
+    async herdInventoryReport(tokens:Tokens,language:Language,signal?:AbortSignal){return herdInventorySchema.parse((await http.get('reports/livestock/inventory/',{...options(language,tokens.access),params:{status:'active'},signal})).data);},
+    async cattleSales(tokens:Tokens,language:Language,production:'beef'|'dairy',farm:string|undefined,signal?:AbortSignal){return cattleSaleListSchema.parse((await http.get('livestock/cattle/batches/sales/',{...options(language,tokens.access),params:{production,...(farm?{farm}:{})},signal})).data);},
+    async registerCattleSale(tokens:Tokens,language:Language,production:'beef'|'dairy',batch:string,input:CattleSaleInput){return (await http.post(`livestock/cattle/batches/${z.uuid().parse(batch)}/register-sale/`,salePayload(input),{...options(language,tokens.access),params:{production}})).data as unknown;},
     async vaccinationOptions(tokens:Tokens,language:Language,signal?:AbortSignal){return vaccinationOptionsSchema.parse((await http.get('livestock/vaccinations/mobile-options/',{...options(language,tokens.access),signal})).data);},
     async vaccinationTargets(tokens:Tokens,language:Language,query:VaccinationQuery,signal?:AbortSignal){const q=vaccinationQuerySchema.parse(query);const data=vaccinationTargetPage.parse((await http.get('livestock/vaccinations/mobile-targets/',{...options(language,tokens.access),params:{...q,page_size:20},signal})).data);if(data.results.some(r=>r.kind!==q.kind||q.target&&r.id!==q.target||q.farm&&r.farm!==q.farm||q.species&&r.species!==q.species))throw Error('vaccination target scope');return data;},
     async vaccinationVaccines(tokens:Tokens,language:Language,query:VaccinationQuery,signal?:AbortSignal){const q=vaccinationQuerySchema.parse(query);if(!q.species)throw Error('species required');return vaccinePage.parse((await http.get('livestock/vaccinations/mobile-vaccines/',{...options(language,tokens.access),params:{...q,page_size:20},signal})).data);},

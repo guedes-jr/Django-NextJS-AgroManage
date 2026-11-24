@@ -9,7 +9,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { organizationDay } from '../workspace/contracts';
 import { workspaceMessages } from '../workspace/messages';
-import { AgendaButton, AgendaFormShell as AgendaShell, Busy, styles as s } from '../agenda/ui';
+import { AgendaButton, Busy, styles as s } from '../agenda/ui';
+import { AgendaFormShell as AgendaShell } from '../workspace/AppShell';
 import { AuthFailure, DairyFeedingSaveUnconfirmed, authError } from '../../services/authApi';
 import {
   canReadDairyFeeding,

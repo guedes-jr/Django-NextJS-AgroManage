@@ -8,6 +8,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.text import slugify
 
 from apps.accounts.models import OrganizationAdministratorInvitation
+from apps.accounts.serializers import OperatorScopeValidationMixin, WhatsAppContactMixin
+from apps.livestock.models import Species
 from apps.organizations.serializers import OrganizationAddressSerializer, OrganizationContactSerializer
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, PlanEntitlement, Subscription
@@ -558,11 +560,69 @@ class PlatformUserSerializer(serializers.ModelSerializer):
             "organization_id",
             "organization_name",
             "is_active",
+            "organization_responsible",
+            "phone_is_whatsapp",
             "force_password_change",
             "last_login",
             "created_at",
             "updated_at",
         )
+
+
+class PlatformUserDetailSerializer(PlatformUserSerializer):
+    allowed_livestock = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+
+    class Meta(PlatformUserSerializer.Meta):
+        fields = (
+            *PlatformUserSerializer.Meta.fields,
+            "can_operate_crops",
+            "operator_read_only",
+            "allowed_livestock",
+            "receive_system_alerts",
+        )
+
+
+class PlatformUserUpdateSerializer(OperatorScopeValidationMixin, WhatsAppContactMixin, serializers.ModelSerializer):
+    """Every customer profile field the platform team may correct on behalf of the client."""
+
+    full_name = serializers.CharField(max_length=255, trim_whitespace=True)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True, trim_whitespace=True)
+    allowed_livestock = serializers.PrimaryKeyRelatedField(queryset=Species.objects.all(), many=True, required=False)
+
+    class Meta:
+        model = User
+        fields = (
+            "email", "full_name", "phone", "phone_is_whatsapp", "role",
+            "can_operate_crops", "allowed_livestock", "operator_read_only",
+            "receive_system_alerts", "force_password_change",
+        )
+
+    def validate_email(self, value):
+        email = User.objects.normalize_email(value).strip().lower()
+        if User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("Já existe um usuário com este e-mail.")
+        return email
+
+    def validate_full_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Informe o nome do usuário.")
+        return value
+
+
+class PlatformUserPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
+    new_password_confirm = serializers.CharField(write_only=True, trim_whitespace=False)
+    force_password_change = serializers.BooleanField(default=True)
+    revoke_sessions = serializers.BooleanField(default=True)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError({"new_password_confirm": "As senhas não conferem."})
+        try:
+            validate_password(attrs["new_password"], user=self.context.get("user"))
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"new_password": list(error.messages)})
+        return attrs
 
 
 class PlanEntitlementSerializer(serializers.ModelSerializer):

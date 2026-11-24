@@ -26,11 +26,11 @@ test('feeder only sees the feeding routine', () => {
   assert.deepEqual(ids(make({ role: 'feeder' })), ['feeding']);
 });
 
-test('managers get inventory and web-only routines, read-only users get none', () => {
+test('managers get native inventory and finance routines, read-only users get none', () => {
   const manager = quickActions(make({ role: 'manager', can_view_financial: true, livestock_species: ['bovinos', 'suinos'] }));
   const byId = Object.fromEntries(manager.map(action => [action.id, action]));
   assert.deepEqual(byId.stock?.destination, { pathname: '/inventory/launch' });
-  assert.equal(byId.finance?.destination, null);
+  assert.deepEqual(byId.finance?.destination, { pathname: '/finance/form' });
   assert.equal(byId.swine?.destination, null);
   assert.equal(manager[0]?.id, 'milk');
   assert.deepEqual(quickActions(make({ role: 'manager', read_only: true })), []);
