@@ -88,7 +88,7 @@ Evidências atuais, relativas a `mobile/`: `app/_layout.tsx`, `app/agenda/`, `ap
 - Uma rota web pode conter abas, detalhes e formulários em modais. A tabela de backlog inclui esses fluxos: contar apenas arquivos `page.tsx` subestimaria o trabalho.
 - Corte e leite usam componentes compartilhados, mas devem manter entradas, contexto e regras distintos. Reutilização de componentes não dispensa homologação de cada produção.
 - Rotas antigas de bovinos e aliases não exigem telas duplicadas. Resolver links antigos para o destino canônico autorizado.
-- `/platform` permanece excluído. Marketing, páginas SEO, blog, demonstração, calculadora pública e portal de afiliados não são requisitos do aplicativo operacional; manter acesso web quando necessário.
+- `/platform` entra como **Fase 7 — Backoffice da plataforma** (ver seção abaixo), restrito à equipe interna. Marketing, páginas SEO, blog, demonstração, calculadora pública e portal de afiliados não são requisitos do aplicativo operacional; manter acesso web quando necessário.
 - Aves possui rotas e componentes web, mas permanece fora da primeira entrega mobile enquanto não houver confirmação de disponibilidade comercial e operacional. Registrar como condicional, sem anunciá-lo como pronto.
 - Cada ID agrupa cobertura e lacunas: ler os incrementos e a descrição da linha, distinguindo código existente, validação técnica e aceite nativo. A presença no backlog não significa ausência de implementação. Fase agrupa escopo; a ordem ativa fica no plano principal, sem prazo prometido.
 
@@ -205,6 +205,23 @@ Priorizar consulta financeira e relatórios; separar PRs de liquidação/estorno
 Começar por cache autorizado de leitura e rascunhos; versionar persistência e separar organização/usuário. Adicionar captura, compartilhamento, push e biometria conforme consumidores reais. Fila de escrita só por endpoint com idempotência/reconciliação comprovadas, não por botão geral “sincronizar”.
 
 **Aceite:** logout/troca de contexto não expõe dados anteriores; recuperar rascunho sem confundir com registro confirmado; conflito não perde entrada. Validar Android/iOS, permissões negadas e aparelho de entrada. Qualidade nativa é contínua desde a Fase 1, não apenas uma tarefa final.
+
+### Fase 7 — Backoffice da plataforma (/platform), solicitado em 24/11/2026
+
+Somente para a equipe interna (`is_platform_staff`), com sessão própria (`/platform/me/`) e as mesmas permissões por papel do web (proprietário, administrador, suporte, auditor, desenvolvedor). Consome os endpoints `platform/*` existentes; nenhuma regra nova no app.
+
+| Id | Tela | Conteúdo mínimo | Prioridade |
+| --- | --- | --- | --- |
+| PL01 | Entrada e visão geral | Login da equipe, KPIs (organizações, usuários ativos, MRR), pendências (chamados, faturas vencidas, organizações suspensas) | Alta |
+| PL02 | Organizações | Busca e filtros em chips (estado, sem administrador, pendência financeira), lista em cartões | Alta |
+| PL03 | Ficha da organização | Resumo, responsável, segmentos contratados e valor mensal, descontos (consultar/encerrar), suspender/reativar com motivo | Alta |
+| PL04 | Usuários | Busca, ficha, editar dados e papel/segmentos, redefinir senha, bloquear/reativar, encerrar sessões | Alta |
+| PL05 | Chamados | Fila e conversa (reaproveitar o suporte nativo), atribuição | Média |
+| PL06 | Financeiro SaaS | MRR, faturas vencidas, registrar pagamento | Média |
+| PL07 | Cupons e segmentos | Consulta; edição de preços fica no web | Baixa |
+| PL08 | Auditoria e saúde | Últimas ações e estado dos serviços (somente consulta) | Baixa |
+
+Fora do app: SQL/sandbox/consultas aprovadas, atualização do sistema, gateways, IA, campanhas de marketing e exportação/recuperação de dados (ações sensíveis ou de tela grande).
 
 ## 5. Dependências e evidências para cada domínio
 

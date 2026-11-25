@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { Fragment } from 'react';
-import { useOrganizationLocale } from "@/lib/locale";
+import { useOptionalOrganizationLocale } from "@/lib/locale";
+import { translateMessage, type TranslationKey } from "@/lib/localeMessages";
 export function safeMarketingUrl(url: string) { try { const parsed = new URL(url); return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : undefined; } catch { return undefined; } }
 function inline(text: string) {
   return text.split(/(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g).map((part, i) => {
@@ -13,6 +14,8 @@ function inline(text: string) {
   });
 }
 export default function MarketingContent({body, images = [], link_url, link_label}: {body: string; images?: {id: string; image: string}[]; link_url?: string; link_label?: string}) {
-  const { t } = useOrganizationLocale();
+  // Also rendered in the platform backoffice (campaign preview), outside an organization workspace.
+  const locale = useOptionalOrganizationLocale();
+  const t = (key: TranslationKey) => locale ? locale.t(key) : translateMessage("pt-BR", key);
   return <div className="marketing-content">{body.split('\n').map((line, i) => <div key={i} style={{whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', minHeight: '1.3em'}}>{line.startsWith('- ') ? <>• {inline(line.slice(2))}</> : inline(line)}</div>)}<div className="d-flex flex-wrap gap-2 mt-3">{images.map(image => <a href={safeMarketingUrl(image.image)} target="_blank" rel="noopener noreferrer" key={image.id}><Image unoptimized width={240} height={280} src={image.image} alt={t("marketing.imageAlt")} style={{maxWidth: '100%', width: 240, maxHeight: 280, objectFit: 'contain', borderRadius: 12}} /></a>)}</div>{link_url && safeMarketingUrl(link_url) && <a className="btn btn-success mt-3" href={safeMarketingUrl(link_url)} target="_blank" rel="noopener noreferrer">{link_label || t("marketing.learnMore")}</a>}</div>;
 }

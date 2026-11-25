@@ -225,7 +225,9 @@ else
 fi
 
 echo "[DEPLOY] Gerando build do Next.js..."
-npm run build
+# The default Node heap is not enough for the minifier on this server (4 GB RAM): the build
+# failed with a masked "WebpackError is not a constructor" and left the frontend stopped.
+NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2560}" npm run build
 
 echo "[DEPLOY] Reiniciando frontend e nginx..."
 require_sudo_access
