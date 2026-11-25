@@ -44,8 +44,10 @@ class HerdTests(VeterinaryBase):
         history = self.client.get(f"{HERD}{self.cow.pk}/").data
         self.assertEqual({event["kind"] for event in history["events"]}, {"vaccination", "health"})
         self.assertNotIn("300", str(history))  # no costs
-        # The segments themselves stay closed to the veterinarian.
-        self.assertEqual(self.client.get("/api/v1/livestock/animals/").status_code, 403)
+        # An enabled segment opens to the veterinarian like an operator, scoped to that species.
+        animals = self.client.get("/api/v1/livestock/animals/")
+        self.assertEqual(animals.status_code, 200)
+        self.assertNotIn(str(self.sow.pk), str(animals.data))
 
     def test_other_organization_herd_is_not_visible(self):
         other = Organization.objects.create(name="Vet B", slug="vet-b-herd")

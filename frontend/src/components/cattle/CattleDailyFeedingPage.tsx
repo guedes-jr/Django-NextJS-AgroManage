@@ -57,7 +57,7 @@ export default function DailyFeedingPage() {
     && (status === "all" || (status === "recorded" ? row.deliveries.length > 0 : row.deliveries.length === 0))) || [];
   return <div className={styles.page}>
     <header className={styles.header}><div>
-      {access?.role !== "feeder" && <Link href={cattleHref("/home/seguimento/gado-de-corte/relatorios#alimentacao", segment)} className="small">{segment === "dairy" ? t("cattleReproduction.dairy") : t("cattleReproduction.beef")} / Relatórios</Link>}
+      {<Link href={cattleHref("/home/seguimento/gado-de-corte/relatorios#alimentacao", segment)} className="small">{segment === "dairy" ? t("cattleReproduction.dairy") : t("cattleReproduction.beef")} / Relatórios</Link>}
       <h1>Tratos de hoje</h1><p className={styles.muted}>{data ? new Date(`${data.date}T12:00:00`).toLocaleDateString(language) : "Rotina alimentar"} · Fornecimento por lote e pasto, usando as rações do estoque.</p>
     </div><button type="button" className="btn btn-outline-secondary btn-sm" onClick={reload} disabled={loading}><RefreshCw size={16} className="me-2"/>{t("inventory.alerts.refresh")}</button></header>
     {success && <p className="alert alert-success" role="status">{success}</p>}

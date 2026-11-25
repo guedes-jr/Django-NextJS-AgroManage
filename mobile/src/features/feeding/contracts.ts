@@ -1,8 +1,9 @@
 import {z} from 'zod';
 import type {User} from '../auth/contracts';
+import { hasSegment, isScoped, isVeterinaryOnly } from '../auth/contracts';
 import {productionSchema,matchesProduction,type Production} from '../cattle/contracts';
-export function canReadDailyFeeding(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&user.access.role!=='veterinarian'&&(!['operator','feeder'].includes(user.access.role)||!!user.access.livestock_species?.includes('bovinos'));}
-export function canWriteDailyFeeding(user:User){return canReadDailyFeeding(user)&&!user.access.read_only&&['admin','manager','feeder'].includes(user.access.role);}
+export function canReadDailyFeeding(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&!isVeterinaryOnly(user.access)&&hasSegment(user.access,'bovinos')&&(!isScoped(user.access)||!!user.access.livestock_species?.includes('bovinos'));}
+export function canWriteDailyFeeding(user:User){return canReadDailyFeeding(user)&&!user.access.read_only;}
 const decimal=z.string().regex(/^\d+(\.\d{1,2})?$/);
 export const feedingBatchSchema=z.object({id:z.uuid(),batch_code:z.string(),name:z.string(),farm:z.uuid(),farm_name:z.string(),production:z.string(),head_count:z.number().int().positive(),supplied_kg:decimal});
 export const feedingProductSchema=z.object({id:z.uuid(),name:z.string(),unit:z.literal('kg')});

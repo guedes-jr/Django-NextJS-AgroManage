@@ -80,7 +80,7 @@ class CastrationMaintenanceTests(APITestCase):
 
     def test_operator_and_feeder_cannot_edit_cancel_or_load_form(self):
         values=self.values()
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+f'{self.management.pk}/mobile-castration-edit/',self.query).status_code,403)
             self.assertEqual(self.edit(values).status_code,403); self.assertEqual(self.cancel(values).status_code,403)

@@ -34,7 +34,7 @@ test('preview and confirmation use distinct endpoints and confirmation sends onl
  assert.deepEqual(await f.controller.confirmStockLaunch(values,reviewed),{id,lote:lot,payable:null});assert.deepEqual(f.calls.at(-1),{path:'inventory/movimentacoes/confirm/',body:{preview_token:'synthetic-review'}});await assert.rejects(f.controller.confirmStockLaunch({...values,motivo:'Outro'},reviewed));assert.equal(f.calls.filter(c=>c.path.includes('/confirm/')).length,1);
 });
 test('stock writing preserves role, read-only and financial restrictions before requesting purchase preview',async()=>{
- for(const role of ['operator','feeder'] as const){const f=await fixture({...user,access:{...user.access,role}});await assert.rejects(f.controller.previewStockLaunch(values));assert.equal(f.calls.some(c=>c.path.startsWith('inventory/')),false);}
+ for(const role of ['operator','veterinarian'] as const){const f=await fixture({...user,access:{...user.access,role}});await assert.rejects(f.controller.previewStockLaunch(values));assert.equal(f.calls.some(c=>c.path.startsWith('inventory/')),false);}
  const readonly=await fixture({...user,access:{...user.access,read_only:true}});await assert.rejects(readonly.controller.previewStockLaunch(values));assert.equal(readonly.calls.some(c=>c.path.startsWith('inventory/')),false);
  const nonfinancial=await fixture({...user,access:{...user.access,can_view_financial:false}});const purchase={...values,tipo:'compra' as const,farm:id,custo_unitario:'2',purchase_due_date:'2026-12-07'};await assert.rejects(nonfinancial.controller.previewStockLaunch(purchase));assert.equal(nonfinancial.calls.some(c=>c.path.startsWith('inventory/')),false);
 });

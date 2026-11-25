@@ -47,7 +47,7 @@ test('formula save and production confirmation send minimal commands, never fina
  await assert.rejects(f.controller.confirmFeed({...production,quantidade_real:'1'},preview));assert.equal(f.calls.filter(c=>c.path.endsWith('mobile-confirm/')).length,1);
 });
 test('feed respects roles, read-only status and new session authorization before mutations',async()=>{
- for(const actor of [{...user,access:{...user.access,role:'feeder' as const}},{...user,access:{...user.access,role:'operator' as const}},{...user,access:{...user.access,read_only:true}}]){
+ for(const actor of [{...user,access:{...user.access,role:'veterinarian' as const}},{...user,access:{...user.access,role:'operator' as const}},{...user,access:{...user.access,read_only:true}}]){
   const f=await fixture(actor);await assert.rejects(f.controller.previewFeed(production));await assert.rejects(f.controller.saveFeedFormula(formulaInput));assert.equal(f.calls.some(c=>c.path.endsWith('mobile-preview/')||c.path.endsWith('mobile-save/')),false);
  }
  const f=await fixture();let release!:()=>void;f.hold(()=>new Promise<void>(resolve=>{release=resolve;}));const pending=f.controller.previewFeed(production);while(!release)await new Promise(resolve=>setTimeout(resolve,0));await assert.rejects(f.controller.previewFeed(production));await f.controller.signOut();release();await assert.rejects(pending);assert.equal(f.calls.some(c=>c.path.endsWith('mobile-confirm/')),false);

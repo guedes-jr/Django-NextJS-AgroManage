@@ -11,9 +11,14 @@ test('mobile navigation preserves species, financial and feeder restrictions', (
   assert.equal(canLoadFinancialHome({...access, can_view_financial:true}),false);
   assert.equal(canLoadFinancialHome({...access, role:'manager',can_view_financial:true}),true);
   for (const key of Object.keys(modulePaths) as (keyof typeof modulePaths)[]) {
-    assert.equal(canOpenModule({...access,role:'feeder'},key),['feeding','profile','notifications','support'].includes(key));
+    // A veterinarian without other segments only keeps the personal modules.
+    assert.equal(canOpenModule({...access,role:'veterinarian'},key),['profile','notifications','support'].includes(key));
   }
-  assert.equal(canOpenModule({...access,role:'feeder',livestock_species:[]},'feeding'),false);
+  // With the cattle segment enabled the veterinarian works like an operator.
+  assert.equal(canOpenModule({...access,role:'veterinarian',segments:['area-veterinario','bovinos']},'feeding'),true);
+  // Contracted segments gate every role: no cattle contract, no cattle module.
+  assert.equal(canOpenModule({...access,role:'manager',segments:['plantacoes']},'beef'),false);
+  assert.equal(canOpenModule({...access,role:'veterinarian',livestock_species:[]},'feeding'),false);
   // The veterinarian works only in the Área do veterinário: personal pages only in the app.
   for (const key of Object.keys(modulePaths) as (keyof typeof modulePaths)[]) assert.equal(canOpenModule({...access,role:'veterinarian'},key),['profile','notifications','support'].includes(key));
 });

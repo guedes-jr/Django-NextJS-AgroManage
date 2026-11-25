@@ -38,7 +38,7 @@ test('health refreshed access and organization changes block mutation',async()=>
  const f=await fixture();f.actor({...user,access:{...user.access,read_only:true}});await assert.rejects(f.controller.createHealthRecord(input));f.actor(user);f.org('changed');await assert.rejects(f.controller.createHealthRecord(input));assert.equal(f.calls.some(c=>c.path==='livestock/health/records/'),false);
 });
 test('health feeder and read-only sessions cannot write',async()=>{
- for(const actor of [{...user,access:{...user.access,role:'feeder' as const}},{...user,access:{...user.access,read_only:true}}]){const f=await fixture(actor);await assert.rejects(f.controller.createHealthRecord(input));assert.equal(f.calls.some(c=>c.path==='livestock/health/records/'),false);}
+ for(const actor of [{...user,access:{...user.access,role:'veterinarian' as const}},{...user,access:{...user.access,read_only:true}}]){const f=await fixture(actor);await assert.rejects(f.controller.createHealthRecord(input));assert.equal(f.calls.some(c=>c.path==='livestock/health/records/'),false);}
 });
 test('health uncertain receipt, timeout and server/network errors are distinct from known validation and are not retried',async()=>{
  const f=await fixture();for(const mode of ['400','408','500','network','invalid','extra'] as const){f.mode(mode);await assert.rejects(f.controller.createHealthRecord(input),error=>mode==='400'?!(error instanceof HealthSaveUnconfirmed):error instanceof HealthSaveUnconfirmed);}assert.equal(f.calls.filter(c=>c.path==='livestock/health/records/').length,6);

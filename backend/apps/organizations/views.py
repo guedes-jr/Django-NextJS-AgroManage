@@ -82,12 +82,9 @@ def segment_features_view(request):
 
 
 def _current_monthly_total(subscription):
-    items = list(subscription.items.all())
-    if items:
-        return sum((item.final_monthly_price or Decimal("0.00") for item in items), Decimal("0.00"))
-    if subscription.billing_cycle == Subscription.BillingCycle.YEARLY and subscription.plan.yearly_price:
-        return (subscription.plan.yearly_price / Decimal("12")).quantize(Decimal("0.01"))
-    return subscription.plan.monthly_price
+    from apps.billing.pricing import monthly_total
+
+    return monthly_total(subscription)
 
 
 def _change_preview(subscription, quote):
@@ -152,6 +149,7 @@ def subscription_change_confirm_view(request):
     if preview["effective_at"] == "next_renewal":
         return Response({"detail": translate_message("Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação.")}, status=status.HTTP_400_BAD_REQUEST)
 
+    previous_codes = set(subscription.items.values_list("segment_code", flat=True))
     subscription.items.all().delete()
     SubscriptionItem.objects.bulk_create([
         SubscriptionItem(
@@ -168,6 +166,12 @@ def subscription_change_confirm_view(request):
     ])
     subscription.billing_cycle = quote.billing_cycle
     subscription.save(update_fields=("billing_cycle", "updated_at"))
+    from apps.billing import segments as segment_catalog
+    from apps.billing.subscriptions import _drop_member_scope
+
+    segment_catalog.forget(org)
+    for code in previous_codes - {item.segment_code for item in quote.items.all()}:
+        _drop_member_scope(org, code)
     invoice = None
     if preview["prorated_difference"] > 0:
         invoice = create_manual_invoice(
@@ -374,3 +378,23 @@ class OrganizationAddressViewSet(OrganizationBaseViewSet):
 class OrganizationContactViewSet(OrganizationBaseViewSet):
     queryset = OrganizationContact.objects.all()
     serializer_class = OrganizationContactSerializer
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def subscription_coupon_view(request):
+    """Redeem a promotional coupon on the organization's subscription (admin only)."""
+    from apps.audit.models import AuditLog
+    from apps.audit.services import record_client_action
+    from apps.billing.pricing import breakdown
+    from apps.billing.subscriptions import redeem_coupon
+
+    org = getattr(request.user, "organization", None)
+    if not org or not hasattr(org, "subscription"):
+        return Response({"detail": translate_message("Assinatura não encontrada.")}, status=status.HTTP_404_NOT_FOUND)
+    if request.user.role != "admin":
+        return Response({"detail": translate_message("Somente administradores aplicam cupons.")}, status=status.HTTP_403_FORBIDDEN)
+    discount = redeem_coupon(org.subscription, request.data.get("code"), actor=request.user)
+    record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name="SubscriptionDiscount", object_id=discount.pk, description=f"Cupom aplicado: {discount.description}")
+    return Response(breakdown(org.subscription), status=status.HTTP_201_CREATED)

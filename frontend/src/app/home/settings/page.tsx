@@ -2,8 +2,9 @@
 
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 import SegmentFeaturesPanel from "@/components/settings/SegmentFeaturesPanel";
-import OperatorScopeOptions, {emptyOperatorScope} from "@/components/auth/OperatorScopeOptions";
-import { Member, UserRole, roleLabels, canManageMembers, canChangeMemberRole, updateMemberRole, memberError } from "@/services/memberService";
+import type { Member } from "@/services/memberService";
+import { MembersPanel } from "@/components/settings/MembersPanel";
+import { SubscriptionPanel, type PriceBreakdown } from "@/components/settings/SubscriptionPanel";
 
 import { useState, useEffect, useMemo } from "react";
 import { 
@@ -43,6 +44,7 @@ import { Button } from "@/components/ui/Button";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { Theme } from "@/lib/theme";
 import "@/components/dashboard/dashboard.css";
+import "./settings.css";
 import { organizationLanguages, useOrganizationLocale, type TranslationKey } from "@/lib/locale";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -90,6 +92,7 @@ interface Organization {
     monthly_total: string;
     billing_total: string;
     items: Array<{ id: string; tier_id: string; segment_code: string; segment_name: string; segment_subtitle: string; tier_label: string; final_monthly_price: string | null }>;
+    price?: PriceBreakdown;
   } | null;
 }
 
@@ -168,12 +171,6 @@ const getInitialPreferences = (): UserPreferences => {
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { language, updateLanguage, t } = useOrganizationLocale();
-  const localizedRoleLabels: Record<UserRole, TranslationKey> = {
-    admin: "role.admin",
-    manager: "role.manager",
-    operator: "role.operator",
-    feeder: "role.feeder",
-  };
   const themeLabels: Record<Theme, TranslationKey> = {
     light: "settings.preferences.themeLight",
     dark: "settings.preferences.themeDark",
@@ -184,30 +181,16 @@ export default function SettingsPage() {
     dark: "settings.preferences.themeDarkDescription",
     contrast: "settings.preferences.themeContrastDescription",
   };
-  const [activeTab, setActiveTab] = useState<Tab>("organization");
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "organization";
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return (["organization", "members", "subscription", "security", "preferences", "segmentFeatures"] as const).find(tab => tab === requested) || "organization";
+  });
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => getStoredCurrentUser());
   const [org, setOrg] = useState<Organization | null>(null);
-  const [updatingMember, setUpdatingMember] = useState<string | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [rolesOpen, setRolesOpen] = useState(false);
-  const [memberModalOpen, setMemberModalOpen] = useState(false);
-  const [memberModalMode, setMemberModalMode] = useState<'create' | 'edit'>('create');
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [memberLoading, setMemberLoading] = useState(false);
-  const [memberData, setMemberData] = useState({
-    email: '',
-    full_name: '',
-    role: 'operator',
-    ...emptyOperatorScope,
-    phone: '',
-    phone_is_whatsapp: false,
-    receive_system_alerts: false,
-    password: '',
-    password_confirm: ''
-  });
   const [subscriptionStats, setSubscriptionStats] = useState({
     farmsCount: 0,
     farmsLimit: 3,
@@ -261,17 +244,6 @@ export default function SettingsPage() {
   const [languageDraft, setLanguageDraft] = useState<typeof language | null>(null);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
-  const [invoices] = useState([
-    { id: '1', date: '2024-04-15', amount: 199.00, status: 'paid' },
-    { id: '2', date: '2024-03-15', amount: 199.00, status: 'paid' },
-    { id: '3', date: '2024-02-15', amount: 199.00, status: 'paid' },
-  ]);
-  const [paymentMethod] = useState({
-    type: 'card',
-    last4: '4242',
-    brand: 'Visa',
-    expiry: '12/26'
-  });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -333,9 +305,6 @@ export default function SettingsPage() {
           document: maskDocument(data.document || ""),
           phone: maskPhone(data.phone || ""),
         });
-      } else if (activeTab === "members") {
-        const res = await apiClient.get<Member[]>("/auth/members/");
-        setMembers(res.data);
       } else if (activeTab === "subscription") {
         try {
           const orgRes = await apiClient.get<Organization>("/organizations/me/");
@@ -646,112 +615,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateMemberRole = async (memberId: string, newRole: UserRole) => {
-    if (updatingMember) return;
-    setUpdatingMember(memberId); setError(null);
-    try {
-      const member = await updateMemberRole(memberId, newRole);
-      setMembers(prev => prev.map(item => item.id === memberId ? member : item));
-      setSuccess(t("settings.roleUpdated"));
-    } catch (error) {
-      setError(memberError(error, t("settings.roleUpdateError")));
-    } finally { setUpdatingMember(null); }
-  };
-
-  const openCreateMemberModal = () => {
-    setMemberModalMode('create');
-    setSelectedMemberId(null);
-    setMemberData({ ...emptyOperatorScope, email: '', full_name: '', role: 'operator', phone: '', phone_is_whatsapp: false, receive_system_alerts: false, password: '', password_confirm: '' });
-    setMemberModalOpen(true);
-  };
-
-  const openEditMemberModal = (member: Member) => {
-    setMemberModalMode('edit');
-    setSelectedMemberId(member.id);
-    setMemberData({
-      email: member.email,
-      full_name: member.full_name,
-      role: member.role,
-      can_operate_crops: member.can_operate_crops, allowed_livestock: member.allowed_livestock, operator_read_only: member.operator_read_only,
-      phone: member.phone || '',
-      phone_is_whatsapp: member.phone_is_whatsapp ?? false,
-      receive_system_alerts: member.receive_system_alerts ?? true,
-      password: '',
-      password_confirm: ''
-    });
-    setMemberModalOpen(true);
-  };
-
-  const handleSaveMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (memberModalMode === 'create' && memberData.password !== memberData.password_confirm) {
-      setError(t("settings.passwordsMismatch"));
-      return;
-    }
-    setMemberLoading(true);
-    setError(null);
-    try {
-      if (memberModalMode === 'create') {
-        const res = await apiClient.post("/auth/members/create/", memberData);
-        setMembers(prev => [...prev, res.data]);
-        setSuccess(t("settings.memberCreated"));
-      } else {
-        const payload: any = {
-          full_name: memberData.full_name,
-          role: memberData.role,
-          can_operate_crops: memberData.can_operate_crops, allowed_livestock: memberData.allowed_livestock, operator_read_only: memberData.operator_read_only,
-          phone: memberData.phone,
-          phone_is_whatsapp: memberData.phone_is_whatsapp,
-          receive_system_alerts: memberData.receive_system_alerts
-        };
-        // Para edição de e-mail e senha, dependemos do backend, mas vamos enviar.
-        if (memberData.password && memberData.password === memberData.password_confirm) {
-            // Nota: O backend pode não suportar alterar senha por aqui, mas a base de update está pronta
-        }
-        const res = await apiClient.patch(`/auth/members/${selectedMemberId}/`, payload);
-        setMembers(prev => prev.map(m => m.id === selectedMemberId ? res.data : m));
-        setSuccess(t("settings.memberUpdated"));
-      }
-      setMemberModalOpen(false);
-    } catch (err: any) {
-      console.error(err.response?.data);
-      let errorMsg = t("settings.memberSaveError");
-      if (err.response?.data) {
-        if (err.response.data.detail) {
-          errorMsg = err.response.data.detail;
-        } else if (typeof err.response.data === 'object') {
-          const firstKey = Object.keys(err.response.data)[0];
-          const firstError = err.response.data[firstKey];
-          errorMsg = Array.isArray(firstError) ? firstError[0] : firstError;
-        }
-      }
-      setError(errorMsg);
-    } finally {
-      setMemberLoading(false);
-    }
-  };
-
-  const handleToggleMemberStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      const res = await apiClient.patch(`/auth/members/${id}/`, { is_active: !currentStatus });
-      setMembers(prev => prev.map(m => m.id === id ? res.data : m));
-      setSuccess(!currentStatus ? t("settings.memberActivated") : t("settings.memberDeactivated"));
-    } catch {
-      setError(t("settings.memberStatusError"));
-    }
-  };
-
-  const handleDeleteMember = async (id: string) => {
-    if (!window.confirm(t("settings.memberDeleteConfirm"))) return;
-    try {
-      await apiClient.delete(`/auth/members/${id}/`);
-      setMembers(prev => prev.filter(m => m.id !== id));
-      setSuccess(t("settings.memberDeleted"));
-    } catch {
-      setError(t("settings.memberDeleteError"));
-    }
-  };
-
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordForm.new_password !== passwordForm.new_password_confirm) {
@@ -814,46 +677,61 @@ export default function SettingsPage() {
     }
   };
 
-  const tabs = [
-    { id: "organization", label: t("settings.tabs.organization"), icon: Building2 },
-    { id: "members", label: t("settings.tabs.members"), icon: Users },
-    { id: "subscription", label: t("settings.tabs.subscription"), icon: CreditCard },
-    { id: "security", label: t("settings.tabs.security"), icon: ShieldCheck },
-    { id: "preferences", label: t("settings.tabs.preferences"), icon: Settings },
-    { id: "segmentFeatures", label: t("settings.tabs.segmentFeatures"), icon: SlidersHorizontal },
+  const tabs: { id: Tab; label: string; description: TranslationKey; icon: typeof Building2 }[] = [
+    { id: "organization", label: t("settings.tabs.organization"), description: "settings.tabDesc.organization", icon: Building2 },
+    { id: "members", label: t("settings.tabs.members"), description: "settings.tabDesc.members", icon: Users },
+    { id: "subscription", label: t("settings.tabs.subscription"), description: "settings.tabDesc.subscription", icon: CreditCard },
+    { id: "segmentFeatures", label: t("settings.tabs.segmentFeatures"), description: "settings.tabDesc.segmentFeatures", icon: SlidersHorizontal },
+    { id: "preferences", label: t("settings.tabs.preferences"), description: "settings.tabDesc.preferences", icon: Settings },
+    { id: "security", label: t("settings.tabs.security"), description: "settings.tabDesc.security", icon: ShieldCheck },
   ];
+  const selectTab = (next: Tab) => {
+    setActiveTab(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(null, "", url);
+  };
+  const tabKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    let index = tabs.findIndex(tab => tab.id === activeTab);
+    if (event.key === "ArrowRight") index = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") index = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") index = 0;
+    else if (event.key === "End") index = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    selectTab(tabs[index].id);
+    document.getElementById(`settings-tab-${tabs[index].id}`)?.focus();
+  };
 
   return (
     <div className="settings-container">
-      <div className="mb-5">
-        <h1 className="fw-black mb-1" style={{ color: "var(--foreground)", fontSize: '1.875rem', letterSpacing: '-0.02em' }}>
-          {t("settings.title")}
-        </h1>
-        <p className="text-muted-foreground fw-medium">{t("settings.description")}</p>
+      <header className="settings-page-header">
+        <h1>{t("settings.title")}</h1>
+        <p>{t("settings.description")}</p>
+      </header>
+
+      <div className="settings-tabs" role="tablist" aria-label={t("settings.title")}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            id={`settings-tab-${tab.id}`}
+            aria-selected={activeTab === tab.id}
+            aria-controls="settings-panel"
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            onClick={() => selectTab(tab.id as Tab)}
+            onKeyDown={tabKeyboard}
+            className="settings-tab"
+          >
+            <tab.icon size={17} aria-hidden="true" />
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="dashboard-card settings-shell">
-        <div className="row g-0">
-          {/* Sidebar Tabs */}
-          <div className="col-12 col-md-3 border-end border-border" style={{ background: "var(--muted)" }}>
-            <div className="p-3 d-flex flex-column gap-1">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as Tab)}
-                  className={`settings-tab-btn d-flex align-items-center gap-3 p-3 rounded-xl border-0 text-start transition-all ${
-                    activeTab === tab.id ? "active" : ""
-                  }`}
-                >
-                  <tab.icon size={20} />
-                  <span className="fw-bold small">{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div className="col-12 col-md-9 p-5">
+      <div className="settings-panel" id="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${activeTab}`}>
+        {(() => { const current = tabs.find(tab => tab.id === activeTab); return current ? <div className="settings-panel-intro"><span className="settings-panel-icon"><current.icon size={19} aria-hidden="true"/></span><div><h2>{current.label}</h2><p>{t(current.description)}</p></div></div> : null; })()}
             {loading ? (
               <div className="d-flex align-items-center justify-content-center py-5">
                 <Loader2 className="animate-spin text-primary" size={32} />
@@ -1110,101 +988,7 @@ export default function SettingsPage() {
 
 
                 {/* --- Members Tab --- */}
-                {activeTab === "members" && (
-                  <div className="fade-in">
-                    <div className="d-flex justify-content-between align-items-center mb-4">
-                      <div>
-                        <div className="d-flex align-items-center gap-2"><h2 className="fw-bold h5 mb-1">{t("settings.members.title")}</h2><button type="button" className="btn btn-sm btn-outline-secondary" title={t("settings.members.permissions")} aria-label={t("settings.members.consultPermissions")} onClick={() => setRolesOpen(true)}><Settings size={16}/></button></div>
-                        <p className="small text-muted-foreground">{t("settings.members.description")}</p>
-                      </div>
-                      <button 
-                        onClick={openCreateMemberModal}
-                        disabled={!canManageMembers(currentUser?.role)}
-                        className="btn-secondary-elegant py-2 px-3 fw-bold small"
-                      >
-                        {t("settings.members.new")}
-                      </button>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="table table-borderless align-middle">
-                        <thead>
-                          <tr className="border-bottom">
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3">{t("settings.members.member")}</th>
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3">{t("settings.members.role")}</th>
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3">{t("settings.members.status")}</th>
-                            <th className="small fw-black text-muted-foreground text-uppercase py-3 text-end">{t("settings.members.actions")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {members.map((member) => (
-                            <tr key={member.id} className="border-bottom-dashed">
-                              <td className="py-4">
-                                <div className="d-flex align-items-center gap-3">
-                                  <div className="avatar-small">
-                                    {member.full_name[0]}
-                                  </div>
-                                  <div>
-                                    <div className="fw-bold small">{member.full_name}</div>
-                                    <div className="text-muted-foreground extra-small">{member.email}</div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                <select 
-                                  className="form-select-minimal fw-semibold small"
-                                  value={member.role}
-                                  disabled={updatingMember !== null || !canChangeMemberRole(currentUser, member)}
-                                  aria-label={`${t("settings.members.role")} - ${member.full_name}`}
-                                  onChange={(e) => void handleUpdateMemberRole(member.id, e.target.value as UserRole)}
-                                >
-                                  {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{roleLabels[role]}</option>)}
-                                </select>
-                              </td>
-                              <td>
-                                <Badge 
-                                  className={`px-2 py-1 border-0 fw-bold extra-small ${
-                                    member.is_active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
-                                  }`}
-                                >
-                                  {member.is_active ? t("settings.members.active") : t("settings.members.inactive")}
-                                </Badge>
-                              </td>
-                              <td className="text-end">
-                                <div className="d-flex justify-content-end gap-1">
-                                  <button 
-                                    onClick={() => openEditMemberModal(member)}
-                                    disabled={!canManageMembers(currentUser?.role) || member.organization_responsible}
-                                    className="btn-icon-muted"
-                                    title={t("settings.members.edit")}
-                                  >
-                                    <FileText size={16} />
-                                  </button>
-                                  <button 
-                                    onClick={() => handleToggleMemberStatus(member.id, member.is_active)}
-                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || member.organization_responsible}
-                                    className={`btn-icon-${member.is_active ? 'warning' : 'success'}`}
-                                    title={member.is_active ? t("settings.members.deactivate") : t("settings.members.activate")}
-                                  >
-                                    {member.is_active ? <AlertTriangle size={16} /> : <Save size={16} />}
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteMember(member.id)}
-                                    disabled={!canManageMembers(currentUser?.role) || currentUser?.id === member.id || member.organization_responsible}
-                                    className="btn-icon-danger"
-                                    title={t("settings.members.delete")}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                {activeTab === "members" && <MembersPanel embedded />}
 
                 {activeTab === "segmentFeatures" && <SegmentFeaturesPanel />}
 
@@ -1401,117 +1185,20 @@ export default function SettingsPage() {
 
                 {/* --- Subscription Tab --- */}
                 {activeTab === "subscription" && (
-                  <div className="fade-in py-4">
-                    <div className="plan-card p-5 rounded-3xl border d-flex justify-content-between align-items-center" style={{ background: 'var(--primary)', color: 'white' }}>
-                      <div>
-                        <div className="small fw-bold text-white/70 text-uppercase mb-2">{t("settings.subscription.current")}</div>
-                        <h3 className="fw-black h1 mb-1">{org?.subscription?.items?.length ? t("settings.subscription.segments").replace("{count}", numberFormat.format(org.subscription.items.length)) : org?.subscription?.plan_name || org?.plan_display || 'FREE'}</h3>
-                        <p className="mb-0 text-white/80 fw-medium">{t("settings.subscription.billing")} {org?.subscription?.billing_cycle === "yearly" ? t("settings.subscription.yearly") : t("settings.subscription.monthly")}</p>
-                      </div>
-                      <div className="text-end">
-                        <div className="h3 fw-black mb-0">{money(org?.subscription?.monthly_total || 0)}<small className="fs-6 fw-normal">{t("settings.subscription.perMonth")}</small></div>
-                        {org?.subscription?.billing_cycle === "yearly" && <div className="small text-white-50 mt-1">{money(org.subscription.billing_total)} {t("settings.subscription.forYear")}</div>}
-                        <button onClick={openPlanSelector} disabled={planChangeLoading} className="btn btn-light mt-3 fw-bold rounded-xl px-4 py-2 border-0">{planChangeLoading ? t("settings.subscription.loading") : t("settings.subscription.change")}</button>
-                      </div>
-                    </div>
-
-                    {!!org?.subscription?.items?.length && <div className="row g-3 mt-2">{org.subscription.items.map(item => <div className="col-md-6" key={item.id}><div className="dashboard-card p-3 border-dashed h-100"><div className="extra-small text-uppercase fw-bold text-success">{item.segment_name}</div><div className="fw-bold mt-1">{item.segment_subtitle}</div><div className="small text-muted-foreground mt-1">{item.tier_label}</div><div className="fw-black mt-2">{item.final_monthly_price === null ? t("settings.subscription.quote") : `${money(item.final_monthly_price)}${t("settings.subscription.perMonth")}`}</div></div></div>)}</div>}
-
-                    <div className="row g-4 mt-4">
-                      <div className="col-md-4">
-                        <div className="dashboard-card p-4 text-center border-dashed">
-                          <h4 className="small fw-bold text-muted-foreground mb-3">{t("settings.subscription.farms")}</h4>
-                          <div className="h3 fw-black">{subscriptionStats.farmsCount} / {subscriptionStats.farmsLimit === 999 ? '∞' : subscriptionStats.farmsLimit}</div>
-                          <div className="progress mt-3" style={{ height: '6px' }}>
-                            <div className="progress-bar bg-primary" style={{ width: `${Math.min((subscriptionStats.farmsCount / subscriptionStats.farmsLimit) * 100, 100)}%` }}></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="dashboard-card p-4 text-center border-dashed">
-                          <h4 className="small fw-bold text-muted-foreground mb-3">{t("settings.subscription.members")}</h4>
-                          <div className="h3 fw-black">{subscriptionStats.membersCount} / {subscriptionStats.membersLimit === 999 ? '∞' : subscriptionStats.membersLimit}</div>
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="dashboard-card p-4 text-center border-dashed">
-                          <h4 className="small fw-bold text-muted-foreground mb-3">{t("settings.subscription.storage")}</h4>
-                          <div className="h3 fw-black">{formatStorage(subscriptionStats.storageUsed)} / {subscriptionStats.storageLimit === 999 ? '∞' : formatStorage(subscriptionStats.storageLimit)}</div>
-                          <div className="progress mt-3" style={{ height: '6px' }}>
-                            <div className="progress-bar bg-primary" style={{ width: `${Math.min((subscriptionStats.storageUsed / subscriptionStats.storageLimit) * 100, 100)}%` }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <hr className="my-5" />
-
-                    {/* Payment Method */}
-                    <div className="mb-5">
-                      <div className="d-flex justify-content-between align-items-center mb-4">
-                        <div>
-                          <h2 className="fw-bold h5 mb-1">{t("settings.subscription.paymentMethod")}</h2>
-                          <p className="small text-muted-foreground">{t("settings.subscription.paymentDescription")}</p>
-                        </div>
-                      </div>
-
-                      <div className="dashboard-card p-4 border-dashed">
-                        <div className="d-flex align-items-center justify-content-between">
-                          <div className="d-flex align-items-center gap-3">
-                            <div className="icon-box bg-primary/10 text-primary rounded-xl p-3">
-                              <CreditCard size={24} />
-                            </div>
-                            <div>
-                              <h4 className="fw-bold small mb-1">{paymentMethod.brand} •••• {paymentMethod.last4}</h4>
-                              <p className="extra-small text-muted-foreground mb-0">{t("settings.subscription.expires")} {paymentMethod.expiry}</p>
-                            </div>
-                          </div>
-                          <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">{t("settings.subscription.active")}</Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Invoice History */}
-                    <div>
-                      <div className="d-flex justify-content-between align-items-center mb-4">
-                        <div>
-                          <h2 className="fw-bold h5 mb-1">{t("settings.subscription.history")}</h2>
-                          <p className="small text-muted-foreground">{t("settings.subscription.allInvoices")}</p>
-                        </div>
-                      </div>
-
-                      <div className="table-responsive">
-                        <table className="table table-borderless align-middle">
-                          <thead className="bg-muted/30">
-                            <tr>
-                              <th className="small fw-black text-muted-foreground py-3 px-3">{t("settings.subscription.date")}</th>
-                              <th className="small fw-black text-muted-foreground py-3">{t("settings.subscription.description")}</th>
-                              <th className="small fw-black text-muted-foreground py-3">{t("settings.subscription.value")}</th>
-                              <th className="small fw-black text-muted-foreground py-3">{t("settings.subscription.status")}</th>
-                              <th className="small fw-black text-muted-foreground py-3 text-end">{t("settings.subscription.action")}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {invoices.map((invoice) => (
-                              <tr key={invoice.id} className="border-bottom-dashed">
-                                <td className="py-3 px-3 small">{new Date(invoice.date).toLocaleDateString(language)}</td>
-                                <td className="py-3 small text-muted-foreground">{t("settings.subscription.planPro").replace("{date}", new Date(`${invoice.date}T00:00:00`).toLocaleDateString(language, { month: "long", year: "numeric" }))}</td>
-                                <td className="py-3 small fw-bold">{money(invoice.amount)}</td>
-                                <td className="py-3">
-                                  <Badge className="bg-success/10 text-success border-0 extra-small fw-bold">{t("settings.subscription.paid")}</Badge>
-                                </td>
-                                <td className="py-3 text-end">
-                                  <button className="btn-icon-muted" title={t("settings.downloadPdf")}>
-                                    <Download size={16} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
+                  <SubscriptionPanel
+                    price={org?.subscription?.price}
+                    statusLabel={org?.subscription?.status === "active" ? t("settings.subscription.active") : org?.subscription?.status || "—"}
+                    billingCycle={org?.subscription?.billing_cycle}
+                    canManage={currentUser?.role === "admin"}
+                    changing={planChangeLoading}
+                    onChangeSegments={openPlanSelector}
+                    onPriceChange={price => setOrg(current => current?.subscription ? { ...current, subscription: { ...current.subscription, price, monthly_total: price.total } } : current)}
+                    usage={[
+                      { label: t("settings.subscription.farms"), used: numberFormat.format(subscriptionStats.farmsCount), limit: subscriptionStats.farmsLimit === 999 ? "∞" : numberFormat.format(subscriptionStats.farmsLimit), percent: subscriptionStats.farmsLimit === 999 ? null : subscriptionStats.farmsCount / subscriptionStats.farmsLimit * 100 },
+                      { label: t("settings.subscription.members"), used: numberFormat.format(subscriptionStats.membersCount), limit: subscriptionStats.membersLimit === 999 ? "∞" : numberFormat.format(subscriptionStats.membersLimit), percent: subscriptionStats.membersLimit === 999 ? null : subscriptionStats.membersCount / subscriptionStats.membersLimit * 100 },
+                      { label: t("settings.subscription.storage"), used: formatStorage(subscriptionStats.storageUsed), limit: subscriptionStats.storageLimit === 999 ? "∞" : formatStorage(subscriptionStats.storageLimit), percent: subscriptionStats.storageLimit === 999 ? null : subscriptionStats.storageUsed / subscriptionStats.storageLimit * 100 },
+                    ]}
+                  />
                 )}
 
                 {/* --- Security Tab --- */}
@@ -1556,162 +1243,8 @@ export default function SettingsPage() {
 
               </>
             )}
-          </div>
-        </div>
       </div>
 
-      {/* Create / Edit Member Modal */}
-      <Modal isOpen={rolesOpen} onClose={() => setRolesOpen(false)} title={t("settings.members.permissions")} description={t("settings.roles.note")}>
-        <div className="d-grid gap-3">
-          {[
-            [t("role.admin"), t("settings.roles.admin")],
-            [t("role.manager"), t("settings.roles.manager")],
-            [t("role.operator"), t("settings.roles.operator")],
-            [t("role.feeder"), t("settings.roles.feeder")],
-          ].map(([name, description]) => <article key={name} className="border rounded-3 p-3"><h3 className="h6">{name}</h3><p className="small text-muted-foreground mb-0">{description}</p></article>)}
-        </div>
-      </Modal>
-      <Modal
-        isOpen={memberModalOpen}
-        onClose={() => setMemberModalOpen(false)}
-        title={memberModalMode === 'create' ? t("settings.member.create") : t("settings.member.edit")}
-        description={memberModalMode === 'create' ? t("settings.member.createDescription") : t("settings.member.editDescription")}
-        maxWidth="max-w-xl"
-        footer={
-          <div className="d-flex align-items-center justify-content-end w-100 p-3 bg-muted/5 gap-2">
-            <Button variant="outline-secondary" onClick={() => setMemberModalOpen(false)} disabled={memberLoading} className="rounded-xl">
-              {t("settings.member.cancel")}
-            </Button>
-            <Button onClick={handleSaveMember} disabled={memberLoading} style={{ background: "var(--primary)", color: "white" }} className="rounded-xl shadow-lg">
-              {memberLoading ? t("settings.member.saving") : (memberModalMode === 'create' ? t("settings.member.create") : t("settings.member.save"))}
-            </Button>
-          </div>
-        }
-      >
-        <div className="p-3 p-md-5">
-          <form id="member-form" onSubmit={handleSaveMember}>
-            <div className="row g-4">
-              <div className="col-12 col-md-6">
-                <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">{t("settings.member.fullName")} <span className="text-danger">*</span></label>
-                  <div className="login-input-wrapper">
-                    <input
-                      type="text"
-                      className="login-input login-input-icon-left bg-transparent text-foreground"
-                      value={memberData.full_name}
-                      onChange={e => setMemberData({...memberData, full_name: e.target.value})}
-                      required
-                    />
-                    <User className="login-input-icon text-muted-foreground" size={15} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-6">
-                <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">{t("settings.member.email")} <span className="text-danger">*</span></label>
-                  <div className="login-input-wrapper">
-                    <input
-                      type="email"
-                      className="login-input login-input-icon-left bg-transparent text-foreground"
-                      value={memberData.email}
-                      onChange={e => setMemberData({...memberData, email: e.target.value})}
-                      required
-                      disabled={memberModalMode === 'edit'} // Usually emails are not editable easily
-                    />
-                    <Mail className="login-input-icon text-muted-foreground" size={15} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-6">
-                <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">{t("settings.member.phoneOptional")}</label>
-                  <div className="login-input-wrapper">
-                    <input
-                      type="text"
-                      className="login-input login-input-icon-left bg-transparent text-foreground"
-                      value={memberData.phone}
-                      onChange={e => setMemberData({...memberData, phone: e.target.value})}
-                    />
-                    <Phone className="login-input-icon text-muted-foreground" size={15} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-6">
-                <div className="login-input-group mb-0">
-                  <label className="login-label fw-semibold">{t("settings.member.role")} <span className="text-danger">*</span></label>
-                  <div className="login-input-wrapper">
-                    <select
-                      className="login-input login-input-icon-left bg-transparent text-foreground"
-                      value={memberData.role}
-                      disabled={memberModalMode === "edit" && !canChangeMemberRole(currentUser, members.find(member => member.id === selectedMemberId) || { ...memberData, id: selectedMemberId || "", role: memberData.role as UserRole, role_display: "", is_active: true, organization_responsible: false })}
-                      onChange={e => setMemberData({...memberData, ...(!["operator", "feeder"].includes(e.target.value) ? emptyOperatorScope : e.target.value === "feeder" ? {can_operate_crops: false, allowed_livestock: []} : {}), role: e.target.value})}
-                    >
-                      {(Object.keys(roleLabels) as UserRole[]).map(role => <option key={role} value={role} >{t(localizedRoleLabels[role])}</option>)}
-                    </select>
-                    <ShieldCheck className="login-input-icon text-muted-foreground" size={15} />
-                  </div>
-                </div>
-              </div>
-
-              {["operator", "feeder"].includes(memberData.role) && <div className="col-12"><OperatorScopeOptions role={memberData.role} value={memberData} disabled={memberLoading} onChange={value => setMemberData({...memberData,...value})}/></div>}
-              <div className="col-12"><WhatsAppContactOptions value={memberData} disabled={memberLoading} onChange={value => setMemberData({ ...memberData, ...value })} /></div>
-
-              {memberModalMode === 'create' && (
-                <>
-                  <div className="col-12 col-md-6">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">{t("settings.member.password")} <span className="text-danger">*</span></label>
-                      <div className="login-input-wrapper">
-                        <input
-                          type="password"
-                          className={`login-input login-input-icon-left bg-transparent text-foreground ${memberData.password && memberData.password.length < 8 ? 'border-danger' : (memberData.password.length >= 8 ? 'border-success' : '')}`}
-                          value={memberData.password}
-                          onChange={e => setMemberData({...memberData, password: e.target.value})}
-                          required
-                          minLength={8}
-                        />
-                        <Lock className={`login-input-icon ${memberData.password && memberData.password.length < 8 ? 'text-danger' : (memberData.password.length >= 8 ? 'text-success' : 'text-muted-foreground')}`} size={15} />
-                      </div>
-                      {memberData.password && memberData.password.length < 8 && (
-                        <div className="text-danger extra-small mt-1 fw-bold">{t("settings.member.passwordShort")}</div>
-                      )}
-                      {memberData.password && memberData.password.length >= 8 && (
-                        <div className="text-success extra-small mt-1 fw-bold">{t("settings.member.passwordGood")}</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="col-12 col-md-6">
-                    <div className="login-input-group mb-0">
-                      <label className="login-label fw-semibold">{t("settings.member.confirmPassword")} <span className="text-danger">*</span></label>
-                      <div className="login-input-wrapper">
-                        <input
-                          type="password"
-                          className={`login-input login-input-icon-left bg-transparent text-foreground ${memberData.password_confirm && memberData.password !== memberData.password_confirm ? 'border-danger' : (memberData.password_confirm && memberData.password === memberData.password_confirm ? 'border-success' : '')}`}
-                          value={memberData.password_confirm}
-                          onChange={e => setMemberData({...memberData, password_confirm: e.target.value})}
-                          required
-                          minLength={8}
-                        />
-                        <Lock className={`login-input-icon ${memberData.password_confirm && memberData.password !== memberData.password_confirm ? 'text-danger' : (memberData.password_confirm && memberData.password === memberData.password_confirm ? 'text-success' : 'text-muted-foreground')}`} size={15} />
-                      </div>
-                      {memberData.password_confirm && memberData.password !== memberData.password_confirm && (
-                        <div className="text-danger extra-small mt-1 fw-bold">{t("settings.member.passwordsDiffer")}</div>
-                      )}
-                      {memberData.password_confirm && memberData.password === memberData.password_confirm && (
-                        <div className="text-success extra-small mt-1 fw-bold">{t("settings.member.passwordsMatch")}</div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </form>
-        </div>
-      </Modal>
 
       {/* Address Modal */}
       {addressModalOpen && (

@@ -31,7 +31,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         ADMIN = "admin", "Administrador"
         MANAGER = "manager", "Gerente"
         OPERATOR = "operator", "Operador"
-        FEEDER = "feeder", "Tratador"
         VETERINARIAN = "veterinarian", "Veterinário"
 
     class Theme(models.TextChoices):
@@ -55,6 +54,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     can_operate_crops = models.BooleanField(default=False)
     allowed_livestock = models.ManyToManyField("livestock.Species", blank=True, related_name="authorized_operators")
     operator_read_only = models.BooleanField(default=False)
+    # Área do veterinário for an operator: off unless the admin enables it in Membros.
+    veterinary_access = models.BooleanField(default=False)
     phone = models.CharField(max_length=30, blank=True)
     phone_is_whatsapp = models.BooleanField(default=False)
     receive_system_alerts = models.BooleanField(default=True)

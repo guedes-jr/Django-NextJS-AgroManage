@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { Activity, Archive, ArrowLeft, Boxes, Building2, ClipboardList, CreditCard, DatabaseBackup, Download, Eye, FileText, Gauge, History, Layers, LayoutDashboard, LifeBuoy, Pencil, RefreshCcw, PauseCircle, Receipt, ShieldCheck, Sprout, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, Archive, BadgePercent, ArrowLeft, Boxes, Building2, ClipboardList, CreditCard, DatabaseBackup, Download, Eye, FileText, Gauge, History, Layers, LayoutDashboard, LifeBuoy, Pencil, RefreshCcw, PauseCircle, Receipt, ShieldCheck, Sprout, Users, WalletCards, type LucideIcon } from "lucide-react";
 
 import { useToast } from "@/components/ui/Toast";
 import { OrganizationDossierSection as DossierSection } from "@/components/platform/OrganizationDossierSections";
@@ -11,22 +11,23 @@ import { OrganizationOperationsSection } from "@/components/platform/Organizatio
 import { OrganizationResponsibleModal } from "@/components/platform/OrganizationResponsibleModal";
 import { OrganizationFormModal } from "@/components/platform/OrganizationFormModal";
 import { OrganizationSegmentsSection } from "@/components/platform/OrganizationSegmentsSection";
+import { OrganizationDiscountsSection } from "@/components/platform/OrganizationDiscountsSection";
 import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
 import { platformService } from "@/services/platformApi";
 import type { OrganizationDossierSection, OrganizationStatus, PlatformOrganization } from "@/types/platform";
 
 const sectionLabels: Record<OrganizationDossierSection, string> = {
   summary: "Resumo", operation: "Operação e pendências", tickets: "Chamados", exports: "Exportação de dados", recovery: "Recuperação de dados", registration: "Cadastro", users: "Usuários", subscription: "Assinatura",
-  segments: "Segmentos contratados", invoices: "Faturas", payments: "Pagamentos", consumption: "Consumo e limites", adoption: "Adoção e uso", history: "Histórico", "support-access": "Acessos assistidos",
+  segments: "Segmentos contratados", discounts: "Descontos", invoices: "Faturas", payments: "Pagamentos", consumption: "Consumo e limites", adoption: "Adoção e uso", history: "Histórico", "support-access": "Acessos assistidos",
 };
 const sectionIcons: Record<OrganizationDossierSection, LucideIcon> = {
   summary: LayoutDashboard, operation: ClipboardList, adoption: Activity, consumption: Gauge, users: Users, "support-access": ShieldCheck, tickets: LifeBuoy,
-  subscription: CreditCard, segments: Layers, invoices: FileText, payments: Receipt, registration: Building2, exports: Download, recovery: DatabaseBackup, history: History,
+  subscription: CreditCard, segments: Layers, discounts: BadgePercent, invoices: FileText, payments: Receipt, registration: Building2, exports: Download, recovery: DatabaseBackup, history: History,
 };
 const sectionGroups: { label: string; sections: OrganizationDossierSection[] }[] = [
   { label: "Visão geral", sections: ["summary", "operation", "adoption", "consumption"] },
   { label: "Pessoas e suporte", sections: ["users", "support-access", "tickets"] },
-  { label: "Comercial", sections: ["subscription", "segments", "invoices", "payments"] },
+  { label: "Comercial", sections: ["subscription", "segments", "discounts", "invoices", "payments"] },
   { label: "Dados", sections: ["registration", "exports", "recovery", "history"] },
 ];
 
@@ -160,7 +161,7 @@ export default function PlatformOrganizationDetailPage() {
           <div className="platform-card p-3 mb-3"><strong>Estado: {organization.status_display}</strong><div className="text-muted small">Última alteração: {new Date(organization.status_changed_at).toLocaleString("pt-BR")}</div>{organization.status_reason && <p className="mb-0 mt-2">Motivo: {organization.status_reason}</p>}</div>
           <section className="platform-card p-3 mb-3"><div className="d-flex flex-wrap justify-content-between gap-3"><div><h2 className="h6 fw-bold">Responsável pela organização</h2>{organization.responsible ? <><strong>{organization.responsible.full_name}</strong><div>{organization.responsible.email}</div><span className={`platform-pill mt-2 ${organization.responsible.is_active ? "success" : "danger"}`}>{organization.responsible.is_active ? "Usuário ativo" : "Usuário inativo"}</span></> : <p className="text-muted mb-0">Nenhum responsável definido.</p>}</div><div className="platform-actions align-items-start">{organization.responsible && <Link className="btn btn-sm btn-outline-secondary" href={`/platform/users/${organization.responsible.id}`}>Gerenciar usuário</Link>}{canManage && <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowResponsible(true)}>{organization.responsible ? "Transferir responsável" : "Definir responsável"}</button>}</div></div>{organization.administrator_invitation && !organization.administrator_invitation.accepted_at && !organization.administrator_invitation.revoked_at && <div className="small mt-3">Convite: {invitationLabels[organization.administrator_invitation.state]} <button type="button" className="btn btn-link btn-sm" onClick={() => selectSection("users")}>Ver convite</button></div>}</section>
           <OrganizationOperationsSection organization={organization} onNavigate={selectSection}/>
-        </> : selectedSection === "segments" ? <OrganizationSegmentsSection organizationId={organization.id} canManage={canManage}/> : <>
+        </> : selectedSection === "segments" ? <OrganizationSegmentsSection organizationId={organization.id} canManage={canManage}/> : selectedSection === "discounts" ? <OrganizationDiscountsSection organizationId={organization.id} canManage={canManage}/> : <>
           {selectedSection === "users" && <>
             {organization.administrator_invitation && <section className="platform-card p-3 mb-3">
               <div className="d-flex flex-wrap justify-content-between gap-3">

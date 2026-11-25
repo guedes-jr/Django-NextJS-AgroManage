@@ -162,7 +162,7 @@ export interface OrganizationResponsible {
 
 export type OrganizationResponsiblePage = PaginatedResponse<OrganizationResponsible>;
 
-export type OrganizationDossierSection = "summary" | "registration" | "users" | "subscription" | "segments" | "invoices" | "payments" | "history" | "support-access" | "consumption" | "adoption" | "operation" | "tickets" | "exports" | "recovery";
+export type OrganizationDossierSection = "summary" | "registration" | "users" | "subscription" | "segments" | "discounts" | "invoices" | "payments" | "history" | "support-access" | "consumption" | "adoption" | "operation" | "tickets" | "exports" | "recovery";
 
 export interface OrganizationRegistration {
   id: string; name: string; slug: string; document: string; email: string; phone: string; address: string;
@@ -223,6 +223,8 @@ export interface OrganizationFormPayload {
   address: string;
   plan_id: string;
   billing_cycle: "monthly" | "yearly" | "custom";
+  /** Contracted segments on creation (at least one). Later changes go through the dossier. */
+  segments?: SegmentCode[];
 }
 
 export interface OrganizationCreatePayload extends OrganizationFormPayload {
@@ -248,27 +250,61 @@ export interface PlatformUser {
 }
 
 export type PlatformUserPage = PaginatedResponse<PlatformUser>;
-export type PlatformUserRole = "admin" | "manager" | "operator" | "feeder" | "veterinarian";
+export type PlatformUserRole = "admin" | "manager" | "operator" | "veterinarian";
+export type SegmentCode = "plantacoes" | "bovinos" | "suinos" | "area-veterinario";
 export interface PlatformUserDetail extends PlatformUser {
-  can_operate_crops: boolean;
+  /** Segments stored for the member (operator/veterinarian); admin and manager use every contracted one. */
+  segments: SegmentCode[];
+  contracted_segments: SegmentCode[];
   operator_read_only: boolean;
-  allowed_livestock: string[];
   receive_system_alerts: boolean;
 }
 export interface PlatformUserFormOptions {
   roles: { value: PlatformUserRole; label: string }[];
-  species: { id: string; code: string; name: string }[];
+  segments: { code: SegmentCode; name: string }[];
 }
-export type PlatformUserUpdate = Partial<Pick<PlatformUserDetail, "email" | "full_name" | "phone" | "phone_is_whatsapp" | "role" | "can_operate_crops" | "operator_read_only" | "allowed_livestock" | "receive_system_alerts" | "force_password_change">>;
+export type PlatformUserUpdate = Partial<Pick<PlatformUserDetail, "email" | "full_name" | "phone" | "phone_is_whatsapp" | "role" | "segments" | "operator_read_only" | "receive_system_alerts" | "force_password_change">>;
 export interface PlatformUserPasswordReset { new_password: string; new_password_confirm: string; force_password_change: boolean; revoke_sessions: boolean }
-export interface OrganizationSegmentTier { id: string; label: string; monthly_price: string | null; requires_quote: boolean }
+
+export interface PriceDiscountLine { id: string; description: string; kind: DiscountKind; source: DiscountSource; amount: string }
+export interface PriceBreakdown {
+  currency: string; billing_cycle: string; gross: string; subtotal: string; discount_total: string; total: string;
+  lines: { segment_code: string; name: string; tier_label: string; base: string; on_request: boolean; total: string; discounts: PriceDiscountLine[] }[];
+  subscription_discounts: PriceDiscountLine[];
+  applied_discount_ids: string[];
+}
+export type DiscountKind = "percentage" | "fixed_amount" | "fixed_price" | "exemption";
+export type DiscountSource = "manual" | "coupon" | "referral" | "campaign";
+export interface OrganizationSegmentTier { id: string; label: string; minimum_quantity: number | null; maximum_quantity: number | null; monthly_price: string | null; requires_quote: boolean }
 export interface OrganizationSegment {
-  code: string; name: string; subtitle: string; contracted: boolean; tiers: OrganizationSegmentTier[];
+  code: SegmentCode; name: string; subtitle: string; metric_label: string; contracted: boolean; tiers: OrganizationSegmentTier[];
   item: { tier: string; tier_label: string; monthly_price: string | null; final_monthly_price: string | null } | null;
 }
 export interface OrganizationSegmentOverview {
   subscription: { id: string; status: string; status_display: string } | null;
+  price: PriceBreakdown | null;
   segments: OrganizationSegment[];
+}
+export interface SubscriptionDiscountRow {
+  id: string; source: DiscountSource; source_display: string; kind: DiscountKind; kind_display: string; value: string;
+  segment_code: string; description: string; starts_at: string; ends_at: string | null; cumulative: boolean;
+  coupon_code: string | null; revoked_at: string | null; is_active: boolean; created_by_name: string | null; created_at: string;
+}
+export interface OrganizationDiscountOverview {
+  subscription: { id: string; status: string; status_display: string } | null;
+  price: PriceBreakdown | null;
+  discounts: SubscriptionDiscountRow[];
+}
+export interface DiscountPayload { kind: DiscountKind; value?: string; segment_code?: string; description: string; source?: "manual" | "campaign"; starts_at?: string | null; ends_at?: string | null; months?: number | null }
+export interface PlatformCoupon {
+  id: string; code: string; description: string; kind: DiscountKind; kind_display: string; value: string; segment_code: string;
+  duration_months: number | null; valid_from: string | null; valid_until: string | null; max_redemptions: number | null;
+  first_contract_only: boolean; cumulative: boolean; is_active: boolean; redemptions: number; created_at: string;
+}
+export interface SegmentCatalogTier { id?: string; label: string; minimum_quantity: number | null; maximum_quantity: number | null; monthly_price: string | null; requires_quote: boolean; is_active: boolean; sort_order?: number }
+export interface SegmentCatalogEntry {
+  id: string; code: SegmentCode; name: string; subtitle: string; description: string; metric_label: string; annual_discount_percent: string;
+  is_active: boolean; is_public: boolean; sort_order: number; tiers: SegmentCatalogTier[]; contracted_count: number;
 }
 
 export interface PlatformAffiliate {
@@ -277,6 +313,7 @@ export interface PlatformAffiliate {
   portal_access_only:boolean;
   commission_duration:"first_payment"|"first_three_payments"|"permanent";
   commission_type_display: string; commission_value: string; currency: string;
+  customer_discount_kind: DiscountKind | ""; customer_discount_value: string; customer_discount_months: number | null;
   activated_at: string | null; deactivated_at: string | null; clicks: number;
   registrations: number; conversions: number; commissions_total: string;
   created_at: string; updated_at: string;
@@ -342,11 +379,7 @@ export interface PlatformSubscription {
   cancelled_at: string | null;
   notes: string;
   current_period_ends_at: string | null;
-  discount_type: "percentage" | "fixed_amount" | "";
-  discount_value: string;
-  discount_starts_at: string | null;
-  discount_ends_at: string | null;
-  has_active_discount: boolean;
+  price: PriceBreakdown;
 }
 
 export type PlatformSubscriptionPage = PaginatedResponse<PlatformSubscription>;

@@ -53,7 +53,7 @@ class CollectiveMedicationDraftTests(APITestCase):
     def test_roles_and_birth_chronology(self):
         values=self.values(); self.other.birth_date=self.today; self.other.save(); values=self.values()
         self.assertEqual(self.save({**values,'date':str(self.today-timedelta(days=1))}).status_code,400)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.save(values).status_code,403)
     def test_entry_failure_rolls_back_draft_and_leaves_stock_unchanged(self):

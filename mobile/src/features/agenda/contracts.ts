@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { User } from '../auth/contracts';
+import { isScoped, isVeterinaryOnly } from '../auth/contracts';
 export const daySchema = z.iso.date();
 export const agendaQuerySchema = z.object({
   start: daySchema, end: daySchema, farm:z.uuid().optional(),
@@ -26,7 +27,7 @@ export const taskSchema = z.object({
   assigned_to:z.uuid().nullable(),created_by:z.uuid().nullable(),
   assigned_to_name:z.string().nullish(), created_by_name:z.string().nullish(),
 });
-export function canReadAgenda(user: User) { return !user.force_password_change && !user.is_platform_staff && !user.affiliate_portal_only && user.access.role !== 'feeder' && user.access.role !== 'veterinarian'; }
+export function canReadAgenda(user: User) { return !user.force_password_change && !user.is_platform_staff && !user.affiliate_portal_only && !isVeterinaryOnly(user.access); }
 export function calendarDay(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
@@ -38,14 +39,14 @@ export function shiftDay(day:string, offset:number) {
 // Only known tenant destinations may be opened. Never forward arbitrary URLs or credentials.
 export function safeAgendaSource(path:string|null, user:User):string|null {
   if (!path || !canReadAgenda(user) || /[\\\s]/.test(path)) return null;
-  if (/^\/home\/plantacoes\/[0-9a-f-]{36}$/.test(path)) return user.access.role !== 'operator' || user.access.can_operate_crops ? path : null;
+  if (/^\/home\/plantacoes\/[0-9a-f-]{36}$/.test(path)) return !isScoped(user.access) || user.access.can_operate_crops ? path : null;
   const match = path.match(/^\/home\/seguimento\/(gado-de-corte|pecuaria-leiteira|suinos)(?:\/(reproducao|sanidade|manejos|racao|operacoes)(\?tab=(protocols|occurrences))?)?$/);
   if (!match) return null;
   const species = match[1] === 'suinos' ? 'suinos' : 'bovinos';
-  return user.access.role !== 'operator' || user.access.livestock_species?.includes(species) ? path : null;
+  return !isScoped(user.access) || user.access.livestock_species?.includes(species) ? path : null;
 }
 
-export const taskOptionsSchema=z.object({user_id:z.uuid(),role:z.enum(['admin','manager','operator','feeder']),read_only:z.boolean(),timezone:z.string().min(1)});
+export const taskOptionsSchema=z.object({user_id:z.uuid(),role:z.enum(['admin','manager','operator','veterinarian']),read_only:z.boolean(),timezone:z.string().min(1)});
 export type AgendaTask=z.infer<typeof taskSchema>;
 export const taskStatuses=['open','in_progress','done','cancelled'] as const;
 export const taskPriorities=['low','medium','high','critical'] as const;

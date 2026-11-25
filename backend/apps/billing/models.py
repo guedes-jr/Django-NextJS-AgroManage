@@ -238,10 +238,6 @@ class Subscription(BaseModel):
         YEARLY = "yearly", "Anual"
         CUSTOM = "custom", "Personalizado"
 
-    class DiscountType(models.TextChoices):
-        PERCENTAGE = "percentage", "Percentual"
-        FIXED_AMOUNT = "fixed_amount", "Valor fixo"
-
     organization = models.OneToOneField(
         "organizations.Organization",
         on_delete=models.CASCADE,
@@ -261,40 +257,11 @@ class Subscription(BaseModel):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     custom_limits = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
-    discount_type = models.CharField(
-        max_length=20,
-        choices=DiscountType.choices,
-        blank=True,
-    )
-    discount_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    discount_starts_at = models.DateTimeField(null=True, blank=True)
-    discount_ends_at = models.DateTimeField(null=True, blank=True)
-
     class Meta(BaseModel.Meta):
         ordering = ("-created_at",)
 
     def __str__(self):
         return f"{self.organization} — {self.plan}"
-
-    @property
-    def has_active_discount(self):
-        if not self.discount_type or Decimal(self.discount_value) <= 0:
-            return False
-        now = timezone.now()
-        if self.discount_starts_at and self.discount_starts_at > now:
-            return False
-        return not self.discount_ends_at or self.discount_ends_at > now
-
-    def calculate_discount(self, amount):
-        amount = Decimal(amount)
-        if not self.has_active_discount:
-            return Decimal("0.00")
-        discount_value = Decimal(self.discount_value)
-        if self.discount_type == self.DiscountType.PERCENTAGE:
-            discount = amount * discount_value / Decimal("100")
-        else:
-            discount = discount_value
-        return min(discount, amount).quantize(Decimal("0.01"))
 
 
 class Invoice(BaseModel):
@@ -400,3 +367,72 @@ class OrganizationStoredFile(BaseModel):
 
     class Meta(BaseModel.Meta):
         constraints = [models.UniqueConstraint(fields=["model_label", "object_id", "field_name"], name="unique_quota_file_reference")]
+
+
+class DiscountKind(models.TextChoices):
+    PERCENTAGE = "percentage", "Percentual"
+    FIXED_AMOUNT = "fixed_amount", "Valor em reais"
+    FIXED_PRICE = "fixed_price", "Preço final fixo"
+    EXEMPTION = "exemption", "Isenção total"
+
+
+class Coupon(BaseModel):
+    """Promotional code that creates a subscription discount when redeemed."""
+
+    code = models.CharField(max_length=40, unique=True)
+    description = models.CharField(max_length=255, blank=True)
+    kind = models.CharField(max_length=20, choices=DiscountKind.choices)
+    value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    segment_code = models.SlugField(max_length=80, blank=True, help_text="Vazio: vale para a assinatura inteira.")
+    duration_months = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Vazio: sem prazo.")
+    valid_from = models.DateTimeField(null=True, blank=True)
+    valid_until = models.DateTimeField(null=True, blank=True)
+    max_redemptions = models.PositiveIntegerField(null=True, blank=True)
+    first_contract_only = models.BooleanField(default=False)
+    cumulative = models.BooleanField(default=True, help_text="Falso: não se soma a outros descontos de cupom ou indicação.")
+    is_active = models.BooleanField(default=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-created_at",)
+
+    def save(self, *args, **kwargs):
+        self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.code
+
+
+class SubscriptionDiscount(BaseModel):
+    """One discount applied to a subscription (whole subscription or a single segment)."""
+
+    class Source(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        COUPON = "coupon", "Cupom promocional"
+        REFERRAL = "referral", "Indicação"
+        CAMPAIGN = "campaign", "Campanha"
+
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="discounts")
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.MANUAL)
+    kind = models.CharField(max_length=20, choices=DiscountKind.choices)
+    value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    segment_code = models.SlugField(max_length=80, blank=True, help_text="Vazio: vale para a assinatura inteira.")
+    description = models.CharField(max_length=255)
+    starts_at = models.DateTimeField(default=timezone.now)
+    ends_at = models.DateTimeField(null=True, blank=True, help_text="Vazio: sem prazo.")
+    cumulative = models.BooleanField(default=True)
+    coupon = models.ForeignKey(Coupon, on_delete=models.PROTECT, null=True, blank=True, related_name="discounts")
+    affiliate = models.ForeignKey("affiliates.AffiliateProfile", on_delete=models.PROTECT, null=True, blank=True, related_name="customer_discounts")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("created_at",)
+        indexes = [models.Index(fields=("subscription", "revoked_at"))]
+
+    def is_active_at(self, moment=None):
+        moment = moment or timezone.now()
+        return self.revoked_at is None and self.starts_at <= moment and (self.ends_at is None or self.ends_at > moment)
+
+    def __str__(self):
+        return f"{self.subscription} — {self.get_kind_display()} {self.value}"

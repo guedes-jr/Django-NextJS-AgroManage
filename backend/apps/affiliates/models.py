@@ -60,6 +60,10 @@ class AffiliateProfile(BaseModel):
         default=0,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    # Discount granted to the customer referred by this affiliate (empty kind: none).
+    customer_discount_kind = models.CharField(max_length=20, blank=True, default="")
+    customer_discount_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    customer_discount_months = models.PositiveSmallIntegerField(null=True, blank=True)
     commission_duration = models.CharField(
         max_length=30,
         choices=CommissionDuration.choices,

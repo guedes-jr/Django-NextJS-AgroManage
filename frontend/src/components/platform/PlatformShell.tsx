@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Activity, Bot, Building2, ClipboardList, CreditCard, Eye, Handshake, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards, BookOpen, MessageCircle, Bell, Megaphone, ChevronDown, Menu, X, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Building2, ClipboardList, CreditCard, Eye, Handshake, LayoutDashboard, LogOut, RefreshCw, ScrollText, Settings, ShieldCheck, Tags, Terminal, UserCog, Users, WalletCards, BookOpen, MessageCircle, Bell, Megaphone, ChevronDown, Menu, X, type LucideIcon, Layers, BadgePercent } from "lucide-react";
 
 import { clearPlatformSession, platformService, PLATFORM_STAFF } from "@/services/platformApi";
 import type { PlatformStaff } from "@/types/platform";
@@ -27,6 +27,8 @@ const navigationGroups: { id: string; label: string; icon: LucideIcon; items: Na
   ] },
   { id: "commercial", label: "Comercial e financeiro", icon: WalletCards, items: [
     { href: "/platform/plans", label: "Planos e assinaturas", icon: Tags },
+    { href: "/platform/segments", label: "Segmentos e preços", icon: Layers },
+    { href: "/platform/coupons", label: "Cupons", icon: BadgePercent },
     { href: "/platform/finance", label: "Financeiro SaaS", icon: WalletCards },
     { href: "/platform/payment-gateways", label: "Gateways", icon: CreditCard },
     { href: "/platform/affiliates", label: "Afiliados", icon: Handshake, roles: administrators },

@@ -58,7 +58,7 @@ class CollectiveMedicationConfirmationTests(APITestCase):
         from django.contrib.auth import get_user_model
         actor=get_user_model().objects.create_user(email='other-collective@example.invalid',password='test',role='manager',organization=self.org)
         self.client.force_authenticate(actor);self.assertEqual(self.confirm(review).status_code,403);self.client.force_authenticate(self.user)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role;self.user.save();self.user.allowed_livestock.add(self.species);self.assertEqual(self.confirm(review).status_code,403)
     def test_nonstock_documentary_or_cancelled_drafts_not_supported(self):
         review=self.review();self.management.status='cancelled';self.management.save();self.assertEqual(self.confirm(review).status_code,409)

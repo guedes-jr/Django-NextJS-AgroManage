@@ -50,7 +50,7 @@ class CastrationConfirmationTests(APITestCase):
         other=get_user_model().objects.create_user(email='cas-other@example.invalid',password='test',role='manager',organization=self.org)
         self.client.force_authenticate(other); self.assertEqual(self.confirm(review).status_code,403)
         self.client.force_authenticate(self.user)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+f'{self.management.pk}/mobile-castration-review/',self.query).status_code,403)
             self.assertEqual(self.confirm(review).status_code,403)

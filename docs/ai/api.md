@@ -1821,6 +1821,10 @@ Agenda PDF uses a printable version of the web calendar: compact month/week grid
 
 ### Tratador and today's cattle feeding
 
+> **Retired (accounts.0014).** The `feeder` role no longer exists: existing feeders became
+> operators with only the cattle segment, and operators with cattle now register daily
+> feeding. The text below is kept as history of the endpoint behaviour.
+
 `accounts.0012` adds `User.role=feeder` (Tratador). Existing assignments remain
 unchanged. Administrators configure the role in Settings → Membros, where the
 role information button explains the four roles. The feeder scope currently
@@ -3815,3 +3819,55 @@ expenses whose operation no longer exists.
 Sales in `ton` count as kg. `CropSale.unit` also accepts `bale` and `bundle`.
 The crop segment card no longer counts input stock purchases (general expense);
 only inputs used in operations and manual expenses linked to a cycle.
+
+
+## Contracted segments, member scope, price and discounts
+
+**Catalog.** One contractable segment per product area: `plantacoes`, `bovinos`, `suinos`,
+`area-veterinario` (`apps/billing/segments.py`). `billing.0013` renamed the full-cycle swine
+offer to `suinos`, retired swine fattening (kept for history), created `bovinos` ("Sob consulta")
+and gave **every existing subscription all four segments plus an indefinite 100% exemption
+described as "Organização de teste"**. New organizations get the base segments (crops, cattle,
+swine) at tier price; the platform form may choose them (`segments` on create).
+
+**Contract = access.** A segment is available when the subscription (trialing/active/past_due)
+has a `SubscriptionItem` with its code. The organization always keeps at least one segment.
+`effective_access` (`/auth/me/` → `access`) adds `segments` (what the member opens now) and
+`contracted_segments`. Request gates: admin/manager open every contracted segment; operator
+and veterinarian only the ones in their scope. Paths `crops/`, `livestock/`, `veterinary/`
+are denied when the segment is not granted.
+
+**Member scope.** `segments` (list) on `/auth/members/` create/PATCH and `/platform/users/{id}/`
+is the public contract; it is stored in `can_operate_crops`, `allowed_livestock` and the new
+`User.veterinary_access`. Operators get the Área do veterinário only when it is listed
+(`veterinary_access=True`); veterinarians have it by role and, with other segments, work like
+an operator there. Admin/manager payloads clear the scope. Removing a segment from the
+organization removes it from every member.
+
+**Price.** `apps/billing/pricing.py` is the only calculation (client subscription, platform
+dossier, MRR in the platform dashboard/finance, commission eligibility). Monthly price = sum
+of segment items (negotiated `final_monthly_price`, else tier price; annual cycle applies the
+segment annual discount) minus active `SubscriptionDiscount` rows, in this order: segment fixed
+price → segment % → segment R$ → subscription fixed price → % → R$; exemption zeroes its scope;
+never negative. A non-cumulative coupon/referral/campaign discount is not combined with other
+promotional ones (cheapest valid option wins); manual discounts always apply. Manual invoices
+take the entered amount as final. Affiliate commission requires a positive monthly price.
+
+**Discounts.** `SubscriptionDiscount`: source (manual, coupon, referral, campaign), kind
+(percentage, fixed_amount, fixed_price, exemption), value, optional segment, start/end (empty
+end = indefinite), cumulative, revoked_at. The legacy single discount on `Subscription` was
+migrated and removed (`POST /platform/subscriptions/{id}/discount/` no longer exists).
+`Coupon`: code, kind/value, segment, duration in months, validity window, usage limit,
+first-contract-only, cumulative. `AffiliateProfile.customer_discount_*` grants the referred
+customer a discount when the referral registers.
+
+**Endpoints.**
+- `GET|POST /platform/organizations/{id}/segments/` — overview with price; contract/re-price
+  (`tier` or `quantity`, optional `final_monthly_price`) or remove (`contracted=false`). Admin writes.
+- `GET|POST /platform/organizations/{id}/discounts/`, `POST …/discounts/{discount_id}/revoke/`.
+- `GET|PATCH /platform/segment-catalog/` — segments and quantity tiers (tiers used by contracts
+  are deactivated, never deleted).
+- `GET|POST|PATCH /platform/coupons/`.
+- `POST /organizations/me/subscription/coupon/` — client admin redeems `{code}`.
+- `GET /public/plan-segments/` returns tier `minimum_quantity`/`maximum_quantity` and
+  `metric_label`; the landing builder picks the tier from the quantity informed.

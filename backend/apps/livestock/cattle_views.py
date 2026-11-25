@@ -58,11 +58,9 @@ class CattlePermission(OrganizationRolePermission):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        user = request.user
-        return (
-            user.role not in {"operator", "feeder"}
-            or user.allowed_livestock.filter(code="bovinos").exists()
-        )
+        from apps.billing.segments import CATTLE, user_segments
+
+        return CATTLE in user_segments(request.user)
 
 
 class CattleOverviewView(APIView):
@@ -1170,7 +1168,7 @@ class CattleFeedPlanViewSet(viewsets.ReadOnlyModelViewSet):
 class CattleDailyFeedingView(APIView):
     """Operational projection excluding inventory prices and costs."""
     permission_classes = [CattlePermission]
-    create_roles = {"admin", "manager", "feeder"}
+    create_roles = {"admin", "manager", "operator"}
 
     def get(self, request):
         if request.query_params.get('view') == 'mobile':

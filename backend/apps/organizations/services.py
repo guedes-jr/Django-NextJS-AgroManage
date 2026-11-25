@@ -66,7 +66,11 @@ def create_organization_with_administrator(*, data, request):
                 raise ValidationError({"plan_id": translate_message("Plano ativo não encontrado.")})
             billing_cycle = values.pop("billing_cycle")
             legacy_codes = {choice[0] for choice in Organization.Plan.choices}
-            organization = Organization.objects.create(**values, plan=plan.code if plan.code in legacy_codes else Organization.Plan.FREE)
+            segments = values.pop("segments", None)
+            organization = Organization(**values, plan=plan.code if plan.code in legacy_codes else Organization.Plan.FREE)
+            # Contracted segments chosen in the platform form (the signal falls back to the base ones).
+            organization._initial_segments = segments
+            organization.save()
             subscription, _ = Subscription.objects.get_or_create(
                 organization=organization,
                 defaults={"plan": plan, "status": Subscription.Status.ACTIVE, "billing_cycle": billing_cycle, "started_at": timezone.now()},

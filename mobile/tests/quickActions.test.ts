@@ -14,16 +14,17 @@ const ids = (user: User) => quickActions(user).map(action => action.id);
 
 test('field routines come first and follow the destination permissions', () => {
   const operator = ids(make({}));
-  assert.deepEqual(operator.slice(0, 2), ['milk', 'clinic']);
+  assert.deepEqual(operator.slice(0, 3), ['milk', 'feeding', 'clinic']);
   assert.ok(operator.includes('task'));
-  assert.equal(operator.includes('feeding'), false, 'operators cannot write daily feeding');
+  assert.ok(operator.includes('feeding'), 'operators with cattle record daily feeding (former feeder role)');
   assert.equal(operator.includes('stock'), false, 'operators cannot write inventory');
   assert.equal(operator.includes('finance'), false);
   assert.equal(operator.includes('swine'), false);
 });
 
-test('feeder only sees the feeding routine', () => {
-  assert.deepEqual(ids(make({ role: 'feeder' })), ['feeding']);
+test('a veterinarian without other segments has no field routine; with cattle, works like an operator', () => {
+  assert.deepEqual(ids(make({ role: 'veterinarian', segments: ['area-veterinario'] })), []);
+  assert.ok(ids(make({ role: 'veterinarian', segments: ['area-veterinario', 'bovinos'] })).includes('feeding'));
 });
 
 test('managers get native inventory and finance routines, read-only users get none', () => {

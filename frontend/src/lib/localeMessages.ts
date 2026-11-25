@@ -1,12 +1,14 @@
 import { veterinaryMessages } from "./veterinaryMessages";
 import { cropSalesMessages } from "./cropSalesMessages";
 import { segmentFeatureMessages } from "./segmentFeatureMessages";
+import { settingsMessages } from "./settingsMessages";
 
 export const messages = {
   "pt-BR": {
     ...veterinaryMessages["pt-BR"],
     ...cropSalesMessages["pt-BR"],
     ...segmentFeatureMessages["pt-BR"],
+    ...settingsMessages["pt-BR"],
     "dairy.worksheet.groupTitle": "Lançar ração por grupos",
     "dairy.worksheet.groupDescription": "Selecione animais por categoria, organize grupos e confira o consumo total do período.",
     "dairy.worksheet.groupName": "Nome do grupo",
@@ -4634,6 +4636,7 @@ export const messages = {
     ...veterinaryMessages["en"],
     ...cropSalesMessages["en"],
     ...segmentFeatureMessages["en"],
+    ...settingsMessages["en"],
     "dairy.worksheet.groupTitle": "Feed groups",
     "dairy.worksheet.groupDescription": "Select animals by category, create groups and review period consumption.",
     "dairy.worksheet.groupName": "Group name",
@@ -9214,6 +9217,7 @@ export const messages = {
     ...veterinaryMessages["es"],
     ...cropSalesMessages["es"],
     ...segmentFeatureMessages["es"],
+    ...settingsMessages["es"],
     "dairy.worksheet.groupTitle": "Alimentar por grupos",
     "dairy.worksheet.groupDescription": "Seleccione animales por categoría, cree grupos y revise el consumo del período.",
     "dairy.worksheet.groupName": "Nombre del grupo",
@@ -13788,6 +13792,7 @@ export const messages = {
     ...veterinaryMessages["pt-PT"],
     ...cropSalesMessages["pt-PT"],
     ...segmentFeatureMessages["pt-PT"],
+    ...settingsMessages["pt-PT"],
     "dairy.worksheet.groupTitle": "Fornecer ração por grupos",
     "dairy.worksheet.groupDescription": "Selecione animais por categoria, crie grupos e confira o consumo do período.",
     "dairy.worksheet.groupName": "Nome do grupo",

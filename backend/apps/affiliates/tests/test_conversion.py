@@ -167,11 +167,10 @@ class AffiliateConversionTestCase(TestCase):
 
         self.assertEqual(Commission.objects.filter(organization=organization).count(), 4)
 
-    def test_free_plan_payment_does_not_generate_commission(self):
+    def test_exempt_subscription_payment_does_not_generate_commission(self):
+        from apps.billing.subscriptions import add_discount
         _customer, organization, _attribution = self.create_referred_customer("free")
-        free_plan = Plan.objects.get(code="free")
-        organization.subscription.plan = free_plan
-        organization.subscription.save(update_fields=["plan", "updated_at"])
+        add_discount(organization.subscription, kind="exemption", description="Organização de teste")
         invoice = self.create_invoice(organization, number="CONVERSION-006")
 
         record_manual_payment(invoice=invoice, amount=Decimal("100.00"))

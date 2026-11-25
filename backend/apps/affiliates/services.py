@@ -76,6 +76,8 @@ def bind_attribution_to_customer(*, token, user, organization):
     attribution.save(
         update_fields=["user", "organization", "status", "registered_at", "updated_at"]
     )
+    from apps.billing.subscriptions import grant_referral_discount
+    grant_referral_discount(organization=organization, affiliate=attribution.affiliate)
     return attribution
 
 
@@ -130,7 +132,10 @@ def create_commission_for_paid_invoice(*, invoice, payment=None):
 
     plan = invoice.subscription.plan
     transaction_amount = Decimal(invoice.total)
-    is_paid_plan = Decimal(plan.monthly_price) > 0 or Decimal(plan.yearly_price) > 0
+    # A paying customer has a positive monthly price (segments minus discounts); an exempt
+    # (e.g. test) organization never generates commission.
+    from apps.billing.pricing import monthly_total
+    is_paid_plan = monthly_total(invoice.subscription) > 0
     if (
         invoice.status != Invoice.Status.PAID
         or Decimal(invoice.amount_paid) < transaction_amount

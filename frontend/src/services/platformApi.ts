@@ -15,6 +15,10 @@ import type {
   PlatformUserPasswordReset,
   PlatformUserUpdate,
   OrganizationSegmentOverview,
+  OrganizationDiscountOverview,
+  DiscountPayload,
+  PlatformCoupon,
+  SegmentCatalogEntry,
   PlatformPlan,
   PlatformPlanPage,
   PlatformSubscriptionPage,
@@ -357,7 +361,7 @@ export const platformService = {
     const { data } = await platformApi.post<PlatformAffiliate>("platform/affiliates/", payload);
     return data;
   },
-  async updateAffiliate(id:string, payload:{commission_type:string;commission_value:string;commission_duration:string;currency:string}) {
+  async updateAffiliate(id:string, payload:{commission_type:string;commission_value:string;commission_duration:string;currency:string;customer_discount_kind?:string;customer_discount_value?:string;customer_discount_months?:number|null}) {
     const { data } = await platformApi.patch<PlatformAffiliate>(`platform/affiliates/${id}/`, payload);
     return data;
   },
@@ -453,7 +457,7 @@ export const platformService = {
   async organizationSegments(id: string) {
     return (await platformApi.get<OrganizationSegmentOverview>(`platform/organizations/${id}/segments/`)).data;
   },
-  async changeOrganizationSegment(id: string, payload: { segment_code: string; contracted: boolean; tier?: string | null; final_monthly_price?: string | null; reason?: string }) {
+  async changeOrganizationSegment(id: string, payload: { segment_code: string; contracted: boolean; tier?: string | null; quantity?: number | null; final_monthly_price?: string | null; reason?: string }) {
     return (await platformApi.post<OrganizationSegmentOverview>(`platform/organizations/${id}/segments/`, payload)).data;
   },
   async blockUser(id: string) {
@@ -487,14 +491,26 @@ export const platformService = {
       billing_cycle: billingCycle,
     });
   },
-  async setSubscriptionDiscount(id: string, payload: {
-    discount_type: "percentage" | "fixed_amount" | "";
-    discount_value: string;
-    discount_starts_at: string | null;
-    discount_ends_at: string | null;
-  }) {
-    const { data } = await platformApi.post(`platform/subscriptions/${id}/discount/`, payload);
-    return data;
+  async organizationDiscounts(id: string) {
+    return (await platformApi.get<OrganizationDiscountOverview>(`platform/organizations/${id}/discounts/`)).data;
+  },
+  async addOrganizationDiscount(id: string, payload: DiscountPayload) {
+    return (await platformApi.post<OrganizationDiscountOverview>(`platform/organizations/${id}/discounts/`, payload)).data;
+  },
+  async revokeOrganizationDiscount(id: string, discountId: string) {
+    return (await platformApi.post<OrganizationDiscountOverview>(`platform/organizations/${id}/discounts/${discountId}/revoke/`)).data;
+  },
+  async coupons(params?: Record<string, string | number>) {
+    return (await platformApi.get<PaginatedResponse<PlatformCoupon>>("platform/coupons/", { params })).data;
+  },
+  async saveCoupon(payload: Partial<PlatformCoupon>, id?: string) {
+    return id ? (await platformApi.patch<PlatformCoupon>(`platform/coupons/${id}/`, payload)).data : (await platformApi.post<PlatformCoupon>("platform/coupons/", payload)).data;
+  },
+  async segmentCatalog() {
+    return (await platformApi.get<SegmentCatalogEntry[]>("platform/segment-catalog/")).data;
+  },
+  async saveSegmentCatalog(id: string, payload: Partial<SegmentCatalogEntry>) {
+    return (await platformApi.patch<SegmentCatalogEntry>(`platform/segment-catalog/${id}/`, payload)).data;
   },
   async whatsappQueue(params?:Record<string,string|number>){return (await platformApi.get<WhatsAppQueuePage>("platform/whatsapp-web/queue/",{params})).data;},
   async editWhatsAppQueue(id:string,body:string){return (await platformApi.patch<WhatsAppQueueMessage>(`platform/whatsapp-web/queue/${id}/`,{body})).data;},

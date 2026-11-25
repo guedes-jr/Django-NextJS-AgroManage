@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Organization, OrganizationAddress, OrganizationContact
 
@@ -59,19 +60,18 @@ class OrganizationSerializer(serializers.ModelSerializer):
             "discount_percent": item.discount_percent,
             "final_monthly_price": item.final_monthly_price,
         } for item in subscription.items.all()]
-        monthly_total = sum((item.final_monthly_price or 0 for item in subscription.items.all()), 0)
-        if not items:
-            monthly_total = subscription.plan.yearly_price / 12 if subscription.billing_cycle == "yearly" and subscription.plan.yearly_price else subscription.plan.monthly_price
+        from apps.billing.pricing import breakdown
+
+        price = breakdown(subscription)
+        monthly_total = Decimal(price["total"])
         return {
             "plan_name": subscription.plan.name,
             "plan_code": subscription.plan.code,
             "status": subscription.status,
             "billing_cycle": subscription.billing_cycle,
             "current_period_ends_at": subscription.current_period_ends_at,
-            "discount_type": subscription.discount_type,
-            "discount_value": subscription.discount_value,
-            "discount_ends_at": subscription.discount_ends_at,
-            "has_active_discount": subscription.has_active_discount,
+            "price": price,
+            "has_active_discount": Decimal(price["discount_total"]) > 0,
             "monthly_total": monthly_total,
             "billing_total": monthly_total * (12 if subscription.billing_cycle == "yearly" else 1),
             "items": items,

@@ -110,7 +110,7 @@ class MobileMovementTests(APITestCase):
         self.assertEqual(self.lot.quantidade_atual, Decimal("0"))
 
     def test_operator_and_feeder_cannot_adjust(self):
-        for role in ["operator", "feeder"]:
+        for role in ["operator"]:
             self.user.role = role
             self.user.save(update_fields=["role"])
             self.assertEqual(self.client.post(self.count_url, {"quantidade_contada": "1", "saldo_esperado": "10", "motivo": "Negado"}, format="json").status_code, 403)

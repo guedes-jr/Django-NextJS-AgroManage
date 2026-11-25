@@ -482,3 +482,44 @@ class DashboardSegmentTestCase(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["kpis"]["dashboard_expense"], 90.0)
         self.assertEqual(response.data["kpis"]["month_expense"], 160.0)
+
+    def test_swine_breeding_purchase_matriz_and_reprodutor_appear_in_dashboard(self):
+        swine, _ = Species.objects.get_or_create(code="suinos", defaults={"name": "Suínos"})
+        matriz = AnimalBatch.objects.create(
+            farm=self.farm,
+            species=swine,
+            batch_code="MATRIZ-01",
+            quantity=1,
+            category=AnimalBatch.Category.MATRIZ,
+            origin=AnimalBatch.Origin.PURCHASED,
+            entry_date=date.today(),
+            purchase_value=Decimal("1500.00"),
+        )
+        reprodutor = AnimalBatch.objects.create(
+            farm=self.farm,
+            species=swine,
+            batch_code="REPRODUTOR-01",
+            quantity=1,
+            category=AnimalBatch.Category.REPRODUTOR,
+            origin=AnimalBatch.Origin.PURCHASED,
+            entry_date=date.today(),
+            purchase_value=Decimal("2000.00"),
+        )
+
+        tx_matriz = Transaction.objects.get(reference=f"PURCHASE-BATCH-{matriz.id}")
+        self.assertEqual(tx_matriz.status, Transaction.Status.PAID)
+        self.assertEqual(tx_matriz.payment_date, date.today())
+
+        tx_reprodutor = Transaction.objects.get(reference=f"PURCHASE-BATCH-{reprodutor.id}")
+        self.assertEqual(tx_reprodutor.status, Transaction.Status.PAID)
+        self.assertEqual(tx_reprodutor.payment_date, date.today())
+
+        response = self.client.get(reverse("dashboard-summary"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["kpis"]["month_expense"], 3500.0)
+        self.assertEqual(response.data["segments"]["livestock"]["cost"], 3500.0)
+        swine_card = next(
+            card for card in response.data["segments"]["livestock_by_species"]
+            if card["code"] in ["suino", "suinos"]
+        )
+        self.assertEqual(swine_card["cost"], 3500.0)

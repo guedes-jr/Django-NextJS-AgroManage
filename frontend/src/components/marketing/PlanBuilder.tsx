@@ -22,11 +22,11 @@ import {
   Sprout,
   Trash2,
 } from "lucide-react";
-import { createPublicSubscriptionQuote, getPublicPlanCatalog } from "@/services/publicPlanCatalog";
+import { createPublicSubscriptionQuote, getPublicPlanCatalog, tierForQuantity } from "@/services/publicPlanCatalog";
 import type { PublicTranslator, PublicTranslationKey } from "@/lib/publicMessages";
 import { usePublicLocale } from "@/lib/publicLocale";
 
-type Tier = { id: string; label: string; price: number | null };
+type Tier = { id: string; label: string; price: number | null; min: number | null; max: number | null };
 type Segment = {
   id: string;
   title: string;
@@ -34,6 +34,7 @@ type Segment = {
   description: string;
   image: string;
   accent: "wine" | "green";
+  metric: string;
   Icon: typeof Sprout;
   annualDiscountPercent: number;
   tiers: Tier[];
@@ -56,6 +57,10 @@ const planTextKeys: Record<string, PublicTranslationKey> = {
   "201 a 1.000 animais": "public.201To1000Animals",
   "Acima de 1.000 animais": "public.over1000Animals",
   "Plantações": "users.crops",
+  "Bovinos": "plans.cattle",
+  "Corte e leite": "plans.cattleSubtitle",
+  "Suínos": "swine.home.title",
+  "Área do veterinário": "plans.vet",
   "Planejamento e produtividade": "public.planningAndProductivity",
   "Controle cultivos, insumos, operações e custos do plantio à colheita.": "public.trackCropsInputsOperationsAndCostsFromPlantingToHarvest",
   "Até 1 hectare": "public.upTo1Hectare",
@@ -89,6 +94,7 @@ const planSteps = [
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState("");
   const [selected, setSelected] = useState<Record<string, string>>({});
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [catalogStatus,setCatalogStatus]=useState<'loading'|'ready'|'error'>('loading');
   const [catalogRetry,setCatalogRetry]=useState(0);
   const quoteTask=useRef(false);
@@ -98,7 +104,7 @@ const planSteps = [
     void getPublicPlanCatalog(abort.signal).then(catalog=>{
       if(abort.signal.aborted)return;
       const icons:Record<string,typeof Sprout>={pig:PiggyBank,swine:PiggyBank,cow:Beef,beef:Beef,cattle:Beef,milk:Droplets,dairy:Droplets,inventory:Boxes,sprout:Sprout};
-      setSegments(catalog.map(segment=>({id:segment.id,title:localizePlanText(segment.name,t),subtitle:localizePlanText(segment.subtitle,t),description:localizePlanText(segment.description,t),image:segment.image,accent:segment.accent,Icon:icons[segment.icon]??Leaf,annualDiscountPercent:segment.annualDiscountPercent,tiers:segment.tiers.map(tier=>({...tier,label:localizePlanText(tier.label,t)}))})));
+      setSegments(catalog.map(segment=>({id:segment.id,title:localizePlanText(segment.name,t),subtitle:localizePlanText(segment.subtitle,t),description:localizePlanText(segment.description,t),image:segment.image,accent:segment.accent,metric:segment.metric,Icon:icons[segment.icon]??Leaf,annualDiscountPercent:segment.annualDiscountPercent,tiers:segment.tiers.map(tier=>({...tier,label:localizePlanText(tier.label,t)}))})));
       setSelected(current=>{
         const next:Record<string,string>={};
         for(const segment of catalog)if(segment.tiers.some(tier=>tier.id===current[segment.id]))next[segment.id]=current[segment.id];
@@ -128,6 +134,18 @@ const planSteps = [
 
   const selectTier = (segmentId: string, tierId: string) => {
     setSelected((current) => ({ ...current, [segmentId]: tierId }));
+  };
+  /** The amount of animals/matrices/hectares picks the price tier; the radios remain a manual choice. */
+  const setQuantity = (segment: Segment, value: string) => {
+    setQuantities(current => ({ ...current, [segment.id]: value }));
+    const amount = Number(value);
+    if (value === "" || !Number.isFinite(amount)) return;
+    const tier = tierForQuantity(segment.tiers, amount);
+    if (tier) setSelected(current => ({ ...current, [segment.id]: tier.id }));
+  };
+  const outOfRange = (segment: Segment) => {
+    const value = quantities[segment.id];
+    return !!value && !tierForQuantity(segment.tiers, Number(value));
   };
   const toggleSegment = (segmentId: string) => {
     setSelected((current) => {
@@ -195,6 +213,12 @@ const planSteps = [
               <div className="segment-content">
                 <div className="segment-title"><span><segment.Icon/></span><div><h3>{segment.title}</h3><strong>{segment.subtitle}</strong></div></div>
                 <p>{segment.description}</p>
+                {segment.metric && segment.tiers.some(tier => tier.min !== null || tier.max !== null) && <div className="segment-quantity">
+                  <label htmlFor={`quantity-${segment.id}`}>{t("plans.quantity", { metric: segment.metric })}</label>
+                  <input id={`quantity-${segment.id}`} type="number" inputMode="numeric" min={0} value={quantities[segment.id] ?? ""} aria-describedby={`quantity-hint-${segment.id}`}
+                    onChange={event => setQuantity(segment, event.target.value)}/>
+                  <small id={`quantity-hint-${segment.id}`} role={outOfRange(segment) ? "alert" : undefined}>{outOfRange(segment) ? t("plans.quantityOutOfRange") : t("plans.quantityHint")}</small>
+                </div>}
                 <div className="segment-tiers">
                   {segment.tiers.map((tier) => <label className={selected[segment.id] === tier.id ? "active" : ""} key={tier.id}>
                     <input type="radio" name={segment.id} checked={selected[segment.id] === tier.id} onChange={() => selectTier(segment.id, tier.id)}/>
@@ -212,7 +236,7 @@ const planSteps = [
           <div className="selection-summary">
             <h3><ShoppingCart/> {t("public.yourSelectedPlan")}</h3>
             {chosen.length ? chosen.map(({ segment, tier }) => <div className={`selected-plan ${segment.accent}`} key={segment.id}>
-              <segment.Icon/><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}</small></span>
+              <segment.Icon/><span><strong>{segment.title} {segment.subtitle}</strong><small>{tier.label}{quantities[segment.id] ? ` · ${quantities[segment.id]} ${segment.metric}` : ""}</small></span>
               <b>{tier.price === null ? t("plans.quote") : formatMoney(tier.price)}</b>
               <button onClick={() => toggleSegment(segment.id)} aria-label={`${t("plans.remove")} ${segment.title}`}><Trash2/></button>
             </div>) : <p className="empty-selection">{t("public.selectAtLeastOneSegmentToBuildYourPlan")}</p>}

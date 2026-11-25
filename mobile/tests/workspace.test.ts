@@ -13,7 +13,7 @@ test('organization calendar day uses its timezone across midnight and leap days'
 });
 test('search permissions do not broaden operator or feeder domains',()=>{
   assert.equal(canSearch(user,'animal'),true);assert.equal(canSearch(user,'crop'),false);assert.equal(canSearch(user,'inventory'),false);assert.equal(canSearch(user,'structure'),false);
-  for(const kind of ['animal','batch','crop','inventory','structure'] as const){assert.equal(canSearch({...user,access:{...user.access,role:'feeder'}},kind),false);assert.equal(canSearch({...user,force_password_change:true},kind),false);assert.equal(canSearch({...user,access:{...user.access,role:'manager'}},kind),true);}
+  for(const kind of ['animal','batch','crop','inventory','structure'] as const){assert.equal(canSearch({...user,access:{...user.access,role:'veterinarian'}},kind),false);assert.equal(canSearch({...user,force_password_change:true},kind),false);assert.equal(canSearch({...user,access:{...user.access,role:'manager'}},kind),true);}
 });
 test('search validates input, preserves string identifiers and builds its own destinations',()=>{
   assert.equal(searchQuerySchema.safeParse({kind:'crop',search:'a',page:1}).success,false);assert.equal(searchQuerySchema.safeParse({kind:'crop',search:'milho',page:0}).success,false);
@@ -32,7 +32,7 @@ function fixture(actor=user,delay?:()=>Promise<void>){
   const api=createAuthApi('https://example.com/api/v1/',create({adapter}));const controller=new SessionController(api,{read:async()=>null,save:async()=>{},clear:async()=>{}},'pt-BR');return {calls,controller};
 }
 test('unauthorized search and farm reads never reach the API; feeder may read its profile',async()=>{
-  const f=fixture({...user,access:{...user.access,role:'feeder'}});await f.controller.signIn('test@example.com','password');
+  const f=fixture({...user,access:{...user.access,role:'veterinarian'}});await f.controller.signIn('test@example.com','password');
   await assert.rejects(f.controller.farms(1));await assert.rejects(f.controller.searchEntities({kind:'animal',search:'teste',page:1}));assert.equal(f.calls.some(c=>c.path==='farms/'||c.path?.includes('animals')),false);assert.equal((await f.controller.profile()).phone,'123');
 });
 test('authorized search sends paginated remote query and farm reads discard responses after logout',async()=>{

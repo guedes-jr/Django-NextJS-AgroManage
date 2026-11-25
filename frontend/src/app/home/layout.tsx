@@ -49,9 +49,8 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
     };
   }, []);
   useEffect(() => {
-    if (access?.role === "feeder" && pathname === "/home" && access.livestock_species?.includes("bovinos")) router.replace("/home/seguimento/gado-de-corte/racao/tratos");
-    // The veterinarian works only in the Área do veterinário; the general dashboard is not available to this role.
-    if (access?.role === "veterinarian" && pathname === "/home") router.replace(VETERINARY_PATH);
+    // A veterinarian without other segments works only in the Área do veterinário.
+    if (access?.role === "veterinarian" && pathname === "/home" && !(access.segments || []).some(code => code !== "area-veterinario")) router.replace(VETERINARY_PATH);
   }, [access, pathname, router]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const openSidebar = useCallback(() => setIsSidebarOpen(true), []);

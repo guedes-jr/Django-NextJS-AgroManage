@@ -38,7 +38,7 @@ test('inventory API sends only supported filters, uses operational projection an
 });
 test('inventory remains manager/admin-only in mobile; readonly managers may consult without financial capability',async()=>{
  const readonly=await fixture({...actor,access:{...actor.access,read_only:true}});await readonly.controller.inventorySummary();assert.equal(canReadInventory({...actor,access:{...actor.access,read_only:true}}),true);
- for(const role of ['operator','feeder'] as const){const f=await fixture({...actor,access:{...actor.access,role,livestock_species:['bovinos']}});await assert.rejects(f.controller.inventorySummary());await assert.rejects(f.controller.inventoryPage(query));await assert.rejects(f.controller.inventoryDetail('items',id));assert.equal(f.calls.some(c=>c.path.startsWith('inventory/')),false);}
+ for(const role of ['operator','veterinarian'] as const){const f=await fixture({...actor,access:{...actor.access,role,livestock_species:['bovinos']}});await assert.rejects(f.controller.inventorySummary());await assert.rejects(f.controller.inventoryPage(query));await assert.rejects(f.controller.inventoryDetail('items',id));assert.equal(f.calls.some(c=>c.path.startsWith('inventory/')),false);}
  for(const changes of [{force_password_change:true},{is_platform_staff:true},{affiliate_portal_only:true}])assert.equal(canReadInventory({...actor,...changes}),false);
 });
 test('inventory discards late responses after signout and does not reopen a previous session',async()=>{

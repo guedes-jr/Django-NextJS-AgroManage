@@ -1,10 +1,11 @@
 import apiClient from "./api";
 
-export const roleLabels = { admin: "Administrador", manager: "Gerente", operator: "Operador", feeder: "Tratador" };
+/** Every organization role, in display order. Keep in sync with User.Role in the backend. */
+export const roleLabels = { admin: "Administrador", manager: "Gerente", operator: "Operador", veterinarian: "Veterinário" };
 export type UserRole = keyof typeof roleLabels;
 export interface Member {
   id: string; email: string; full_name: string; phone?: string; phone_is_whatsapp: boolean; receive_system_alerts: boolean;
-  can_operate_crops: boolean; allowed_livestock: string[]; operator_read_only: boolean; organization_responsible: boolean;
+  segments: string[]; operator_read_only: boolean; organization_responsible: boolean;
   role: UserRole; role_display: string; is_active: boolean;
 }
 export function canManageMembers(role?: string) { return role === "admin"; }

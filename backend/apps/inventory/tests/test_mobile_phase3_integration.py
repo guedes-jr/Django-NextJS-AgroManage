@@ -54,7 +54,7 @@ class Phase3IntegrationTests(Phase3Fixture,APITestCase):
         review=post('inventory/producoes/mobile-preview/',{'formula':formula['id'],'quantidade_teorica':'10.00','quantidade_real':'9.50'},200)
         produced=post('inventory/producoes/mobile-confirm/',{'preview_token':review['preview_token']},201)
         self.assertTrue(LoteEstoque.objects.filter(pk=produced['lote'],quantidade_atual=Decimal('9.50')).exists())
-        feeder=get_user_model().objects.create_user(email='integration-feeder@example.invalid',password='test',role='feeder',organization=self.org)
+        feeder=get_user_model().objects.create_user(email='integration-feeder@example.invalid',password='test',role='operator',organization=self.org)
         feeder.allowed_livestock.add(self.species);self.client.force_authenticate(feeder)
         page=self.client.get('/api/v1/livestock/cattle/daily-feeding/',{'view':'mobile','production':'beef'})
         self.assertEqual(page.status_code,200,page.data);self.assertEqual(page.data['results'][0]['head_count'],10)
@@ -75,8 +75,8 @@ class Phase3IntegrationTests(Phase3Fixture,APITestCase):
         preferences=self.client.get('/api/v1/notifications/preferences/').data
         result=self.client.patch('/api/v1/notifications/preferences/',{'email_notifications':False,'expected_updated_at':preferences['updated_at']},format='json')
         self.assertEqual(result.status_code,200,result.data);self.assertFalse(result.data['email_notifications'])
-        for path in ['inventory/items/','finance/transactions/','tasks/agenda/']:
-            self.assertEqual(self.client.get('/api/v1/'+path).status_code,403,path)
+        # The cattle operator (former feeder) still has no finances.
+        self.assertEqual(self.client.get('/api/v1/finance/transactions/').status_code,403)
 
 
 @skipUnless(connection.vendor=='postgresql','Requires explicit disposable PostgreSQL test settings')

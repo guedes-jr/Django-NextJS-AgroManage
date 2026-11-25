@@ -15,7 +15,7 @@ def provision_default_subscription(sender, instance, created, **kwargs):
     if not plan:
         plan = Plan.objects.filter(code="free", is_active=True).first()
     if plan:
-        Subscription.objects.get_or_create(
+        subscription, created_subscription = Subscription.objects.get_or_create(
             organization=instance,
             defaults={
                 "plan": plan,
@@ -24,3 +24,10 @@ def provision_default_subscription(sender, instance, created, **kwargs):
                 "started_at": timezone.now(),
             },
         )
+        if created_subscription:
+            # Every organization keeps at least one segment. Callers (e.g. the platform form) may
+            # choose them before saving; otherwise the base segments are contracted at tier price.
+            from .segments import DEFAULT_SEGMENTS
+            from .subscriptions import provision_segments
+
+            provision_segments(subscription, getattr(instance, "_initial_segments", None) or DEFAULT_SEGMENTS)

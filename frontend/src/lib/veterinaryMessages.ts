@@ -2,6 +2,7 @@
 const pt = {
   "sidebar.veterinary": "Área do veterinário",
   "users.role.veterinarian": "Veterinário",
+  "settings.roles.veterinarian": "Trabalha na Área do veterinário: atendimentos, clientes e cobranças da área. Consulta apenas os rebanhos da fazenda liberados pelo administrador, sem acesso ao financeiro geral ou à gestão de membros.",
   "vet.title": "Área do veterinário",
   "vet.subtitle": "Seus clientes, animais atendidos e o que cobrar de cada um.",
   "vet.tab.summary": "Resumo",
@@ -545,6 +546,7 @@ export type VeterinaryMessages = Record<keyof typeof pt, string>;
 const en: VeterinaryMessages = {
   ...pt,
   "sidebar.veterinary": "Veterinarian area", "users.role.veterinarian": "Veterinarian",
+  "settings.roles.veterinarian": "Works in the Veterinarian area: visits, clients and charges of the area. Only views the farm herds the administrator allows, without access to general finances or member management.",
   "vet.title": "Veterinarian area",
   "vet.subtitle": "Your clients, the animals you attended and what to bill each one.",
   "vet.tab.summary": "Summary", "vet.tab.launch": "Record visit", "vet.tab.animals": "Animals", "vet.tab.clients": "Clients",
@@ -836,6 +838,7 @@ const en: VeterinaryMessages = {
 const es: VeterinaryMessages = {
   ...pt,
   "sidebar.veterinary": "Área del veterinario", "users.role.veterinarian": "Veterinario",
+  "settings.roles.veterinarian": "Trabaja en el Área del veterinario: atenciones, clientes y cobros del área. Solo consulta los rebaños de la finca que el administrador autoriza, sin acceso a las finanzas generales ni a la gestión de miembros.",
   "vet.title": "Área del veterinario", "vet.subtitle": "Tus clientes, los animales atendidos y lo que cobrar a cada uno.",
   "vet.tab.summary": "Resumen", "vet.tab.launch": "Registrar atención", "vet.tab.animals": "Animales", "vet.tab.clients": "Clientes",
   "vet.tab.billing": "Cobro", "vet.tab.report": "Informe", "vet.tab.alerts": "Alertas", "vet.loading": "Cargando…",
@@ -1117,6 +1120,7 @@ const es: VeterinaryMessages = {
 
 const ptPT: VeterinaryMessages = {
   ...pt,
+  "settings.roles.veterinarian": "Trabalha na Área do veterinário: atendimentos, clientes e cobranças da área. Consulta apenas os efetivos da exploração autorizados pelo administrador, sem acesso às finanças gerais nem à gestão de membros.",
   "vet.subtitle": "Os seus clientes, os animais atendidos e o que cobrar a cada um.",
   "vet.tab.launch": "Registar atendimento",
   "vet.error": "Não foi possível carregar a Área do veterinário. Tente novamente.",

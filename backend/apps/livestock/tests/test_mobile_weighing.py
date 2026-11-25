@@ -50,7 +50,7 @@ class MobileWeighingTests(APITestCase):
         values=self.values(); values['date']='2020-01-01'
         self.assertEqual(self.save(values).status_code,400)
         self.assertEqual(self.client.get(self.base+'mobile-weighing-options/',{**self.query,'farm':str(self.foreign_farm.pk)}).status_code,404)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+'mobile-weighing-options/',self.query).status_code,403)
             self.assertEqual(self.client.get(self.base+'mobile-weighing-animals/',self.query).status_code,403)

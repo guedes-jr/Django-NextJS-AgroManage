@@ -66,7 +66,7 @@ class CollectiveMedicationMaintenanceTests(APITestCase):
     def test_tenant_role_and_foreign_stock_are_guarded(self):
         values=self.values();self.assertEqual(self.edit({**values,'farm':str(self.item.pk)}).status_code,404)
         self.assertEqual(self.edit({**values,'inventory_lot':str(self.item.pk)}).status_code,400)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role;self.user.save();self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.edit(values).status_code,403);self.assertEqual(self.cancel(values).status_code,403)
 

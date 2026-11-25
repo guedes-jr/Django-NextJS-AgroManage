@@ -79,8 +79,9 @@ def create_subscription_quote(*, tier_ids, billing_cycle):
 def create_manual_invoice(*, organization, due_date, description, amount, notes=""):
     subscription = organization.subscription
     amount = Decimal(amount)
-    discount_total = subscription.calculate_discount(amount)
-    total = amount - discount_total
+    # The amount entered is already net: segment prices and discounts are combined in pricing.py.
+    discount_total = Decimal("0.00")
+    total = amount
     number = f"AG-{timezone.now():%Y%m%d}-{uuid4().hex[:8].upper()}"
     invoice = Invoice.objects.create(
         number=number,

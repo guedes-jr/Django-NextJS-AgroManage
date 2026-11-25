@@ -61,7 +61,7 @@ class FollowUpTests(APITestCase):
     def test_context_roles_and_source_state_guarded(self):
         values=self.values(); self.assertEqual(self.resolve({**values,'farm':str(self.foreign_farm.pk)}).status_code,404)
         self.assertEqual(self.resolve({**values,'production':'invalid'}).status_code,400)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.resolve(values).status_code,403)
             self.assertEqual(self.client.get(self.base+f'{self.management.pk}/mobile-follow-up/',self.query).status_code,403)

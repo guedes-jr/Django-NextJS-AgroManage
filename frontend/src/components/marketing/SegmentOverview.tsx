@@ -1,16 +1,15 @@
 "use client";
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Beef, Bird, Check, Droplets, PiggyBank, Sprout } from 'lucide-react';
+import { ArrowRight, Beef, Bird, Check, PiggyBank, Sprout, Stethoscope } from 'lucide-react';
 import { usePublicLocale } from '@/lib/publicLocale';
 import type { PublicTranslationKey } from '@/lib/publicMessages';
 import { getPublicSegments, type PublicSegment } from '@/services/publicSegments';
 const definitions: {code:string;title:PublicTranslationKey;subtitle?:PublicTranslationKey;description:PublicTranslationKey;icon:typeof Sprout;features:PublicTranslationKey[]}[] = [
   {code:'plantacoes',title:'users.crops',subtitle:'public.planningAndProductivity',description:'public.trackCropsInputsOperationsAndCostsFromPlantingToHarvest',icon:Sprout,features:['public.soilPreparationFertilizationAndSeeds','public.irrigationPesticidesAndFertigation','public.laborAgronomistHistoryAndHarvest']},
-  {code:'suinocultura-ciclo-completo',title:'swine.home.title',subtitle:'public.fullCycle',description:'public.manageReproductionMaternityGrowthAndFinishingInOneRoutine',icon:PiggyBank,features:['segments.reproduction','segments.phases','public.feedConsumptionAndFormulas']},
-  {code:'suinocultura-engorda',title:'swine.home.title',subtitle:'swineReproduction.fattening',description:'public.trackBatchesConsumptionAndPerformanceFromGrowthToFinishing',icon:PiggyBank,features:['segments.batches','public.feedConsumptionAndFormulas','segments.sales']},
-  {code:'gado-de-corte',title:'sidebar.beefCattle',description:'segments.beefDescription',icon:Beef,features:['segments.batches','segments.pasture','segments.sales']},
-  {code:'pecuaria-leiteira',title:'sidebar.dairy',description:'segments.dairyDescription',icon:Droplets,features:['segments.milk','segments.tank','segments.dairyHerd']},
+  {code:'bovinos',title:'plans.cattle',subtitle:'plans.cattleSubtitle',description:'segments.beefDescription',icon:Beef,features:['segments.batches','segments.pasture','segments.milk']},
+  {code:'suinos',title:'swine.home.title',subtitle:'public.fullCycle',description:'public.manageReproductionMaternityGrowthAndFinishingInOneRoutine',icon:PiggyBank,features:['segments.reproduction','segments.phases','public.feedConsumptionAndFormulas']},
+  {code:'area-veterinario',title:'plans.vet',description:'vet.subtitle',icon:Stethoscope,features:['vet.tab.launch','vet.tab.clients','vet.tab.billing']},
 ];
 export function SegmentOverview() {
   const { t }=usePublicLocale();

@@ -8,7 +8,6 @@ export type HomeSection = 'actions' | 'veterinary' | 'finance' | 'dairy' | 'agen
 
 // The Home grows with the role: each section appears only when the profile can load its data,
 // using the same gates as the screens and endpoints behind it.
-//  feeder   → own routine
 //  operator → routines, dairy herd panel (when allowed), upcoming activities, modules
 //  manager  → financial KPIs, dairy herd panel, upcoming activities, financial detail
 //  admin    → everything a manager sees, plus administration shortcuts

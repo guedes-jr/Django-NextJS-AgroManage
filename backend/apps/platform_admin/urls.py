@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from . import views, notification_views, marketing_views
 from .batch_views import OrganizationBatchViewSet
+from .billing_catalog_views import PlatformCouponViewSet, PlatformSegmentCatalogViewSet
 from .exports.views import OrganizationExportViewSet
 from .recovery.views import RecoveryViewSet
 
@@ -17,6 +18,8 @@ router.register("team", views.PlatformTeamViewSet, basename="platform-team")
 router.register("audit-logs", views.PlatformAuditLogViewSet, basename="platform-audit-log")
 router.register("demo-requests", views.PlatformDemoRequestViewSet, basename="platform-demo-request")
 router.register("plans", views.PlatformPlanViewSet, basename="platform-plan")
+router.register("segment-catalog", PlatformSegmentCatalogViewSet, basename="platform-segment-catalog")
+router.register("coupons", PlatformCouponViewSet, basename="platform-coupon")
 router.register("features", views.PlatformFeatureViewSet, basename="platform-feature")
 router.register("subscriptions", views.PlatformSubscriptionViewSet, basename="platform-subscription")
 router.register("invoices", views.PlatformInvoiceViewSet, basename="platform-invoice")

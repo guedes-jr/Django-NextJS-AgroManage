@@ -144,7 +144,7 @@ class MobileFeedTests(APITestCase):
         self.assertFalse(MovimentacaoEstoque.objects.exists())
 
     def test_restricted_roles_cannot_read_or_write_new_flow(self):
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role;self.user.save();self.client.force_authenticate(self.user)
             self.assertEqual(self.client.get(self.base+'formulas/mobile/').status_code,403)
             self.assertEqual(self.client.get(self.base+'producoes/mobile/').status_code,403)

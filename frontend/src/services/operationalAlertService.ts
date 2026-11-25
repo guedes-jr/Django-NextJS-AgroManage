@@ -10,8 +10,9 @@ export const alertSegments: Record<string, string> = { suinos: "Suinocultura", b
 
 export async function getSystemAlerts(): Promise<SystemAlert[]> {
   const access = await getOrganizationAccess();
-  const codes = access.role === "feeder" ? [] : access.role === "operator"
-    ? (access.livestock_species || []).filter(code => code in alertSegments) : Object.keys(alertSegments);
+  const codes = access.role === "operator" || access.role === "veterinarian"
+    ? (access.livestock_species || []).filter(code => code in alertSegments)
+    : Object.keys(alertSegments).filter(code => !access.segments || access.segments.includes(code));
   const groups = await Promise.all(codes.map(async species => {
     const data = await getReproductionDashboard(species, true);
     const alerts: Omit<SystemAlert, "species" | "id">[] = [...(data.alerts || []), ...(data.aiSuggestions || []).map((item: { text: string; alert_key?: string }) => ({ ...item, type: "info" }))];

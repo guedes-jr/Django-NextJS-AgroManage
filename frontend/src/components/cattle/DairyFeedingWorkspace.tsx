@@ -81,7 +81,7 @@ export function DairyFeedingWorkspace() {
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
   }, [dirty, pending]);
-  if (access && ['feeder', 'operator'].includes(access.role)) return <DailyFeedingPage/>;
+  if (access && ['operator', 'veterinarian'].includes(access.role)) return <DailyFeedingPage/>;
   if (!manager) return <p role="alert">{t('cattle.feedProduction.permissionDenied')}</p>;
 
   function addGroup() {

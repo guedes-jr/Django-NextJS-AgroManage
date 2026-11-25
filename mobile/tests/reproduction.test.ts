@@ -31,7 +31,7 @@ test('reproduction rejects a returned animal outside requested farm or segment',
 });
 test('reproduction remains available to read-only bovine operator, rejects feeder and unrelated species',async()=>{
  const allowed=await fixture();await allowed.controller.reproductionPage(query);
- for(const actor of [{...user,access:{...user.access,role:'feeder' as const}},{...user,access:{...user.access,livestock_species:['suinos']}}]){const f=await fixture(actor);await assert.rejects(f.controller.reproductionPage(query));await assert.rejects(f.controller.reproductionAnimal(id,query));assert.equal(f.calls.some(c=>c.path.includes('mobile-reproduction')),false);}
+ for(const actor of [{...user,access:{...user.access,role:'veterinarian' as const}},{...user,access:{...user.access,livestock_species:['suinos']}}]){const f=await fixture(actor);await assert.rejects(f.controller.reproductionPage(query));await assert.rejects(f.controller.reproductionAnimal(id,query));assert.equal(f.calls.some(c=>c.path.includes('mobile-reproduction')),false);}
 });
 test('reproduction discards read response after logout',async()=>{
  const f=await fixture();let release!:()=>void;f.hold(()=>new Promise<void>(resolve=>{release=resolve;}));const pending=f.controller.reproductionPage(query);while(!release)await new Promise(resolve=>setTimeout(resolve,0));await f.controller.signOut();release();await assert.rejects(pending);

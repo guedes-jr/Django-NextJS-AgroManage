@@ -110,6 +110,9 @@ class OrganizationRolePermission(BasePermission):
         if request.method in SAFE_METHODS:
             return True
         role = getattr(user, "role", None)
+        if role == "veterinarian":
+            # Outside the Área do veterinário the vet works in the enabled segments like an operator.
+            role = "operator"
         operation = getattr(view, "action_operations", {}).get(getattr(view, "action", None))
         if request.method == "DELETE" or operation == "delete":
             return role in getattr(view, "delete_roles", self.default_delete_roles)

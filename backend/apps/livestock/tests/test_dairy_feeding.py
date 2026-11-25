@@ -95,7 +95,7 @@ class DairyFeedingTests(DairyWorksheetFixture, APITestCase):
         self.assertTrue(history["results"][0]["groups"][0]["cancelled"])
 
     def test_all_other_roles_and_foreign_targets_are_rejected(self):
-        for role in ["operator", "feeder"]:
+        for role in ["operator"]:
             self.user.role = role
             self.user.save()
             self.user.allowed_livestock.add(self.species)

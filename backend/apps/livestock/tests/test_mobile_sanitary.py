@@ -47,7 +47,7 @@ class SanitaryDraftTests(APITestCase):
     def test_tenant_roles_and_animal_chronology_guarded(self):
         values=self.values(); self.assertEqual(self.save({**values,'farm':str(self.foreign_farm.pk)}).status_code,404)
         self.cow.entry_date=self.today; self.cow.save(); values=self.values(); self.assertEqual(self.save({**values,'date':'2020-01-01'}).status_code,400)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.save(values).status_code,403)
             self.assertEqual(self.client.get(self.base+'mobile-sanitary-options/',self.query).status_code,403)

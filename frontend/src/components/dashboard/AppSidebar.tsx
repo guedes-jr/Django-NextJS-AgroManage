@@ -199,11 +199,11 @@ export function AppSidebar({ isOpen, onClose, access = null }: AppSidebarProps) 
 
       <div className="sidebar-nav-container">
         <nav className="sidebar-navigation" aria-label={t("sidebar.areas")}>
-          {sidebarSections.filter(section => section.items.some(item => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
+          {sidebarSections.filter(section => section.items.some(item => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "operator") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href))).map((section) => (
             <section className="sidebar-section" key={section.label} aria-labelledby={`sidebar-${section.label}`}>
               <h2 id={`sidebar-${section.label}`}>{t(sectionLabels[section.label])}</h2>
               <div className="sidebar-section-items">
-                {section.items.filter((item) => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "feeder") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
+                {section.items.filter((item) => (item.href !== "/home/seguimento/gado-de-corte/racao/tratos" || access?.role === "operator") && (!item.requiresAffiliate || isAffiliate) && canAccessOrganizationPath(access,item.href)).map((item) => {
                   const active = isActive(item.href);
                   return (
                     <div key={item.href}>

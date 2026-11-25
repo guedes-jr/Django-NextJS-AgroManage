@@ -40,7 +40,7 @@ test('inventory writes use fresh permission, server choices, tenant preflight an
  const changed=await fixture();changed.org();await assert.rejects(changed.controller.saveInventory(command));assert.equal(changed.writes.length,0);assert.equal(changed.controller.getSnapshot().status,'signedOut');
 });
 test('unauthorized profiles, inactive edits, absent version and unsupported choices stop before mutation',async()=>{
- for(const role of ['operator','feeder'] as const){const actor={...user,access:{...user.access,role}};assert.equal(canWriteInventory(actor),false);const f=await fixture(actor);await assert.rejects(f.controller.saveInventory(command));assert.equal(f.writes.length,0);}
+ for(const role of ['operator','veterinarian'] as const){const actor={...user,access:{...user.access,role}};assert.equal(canWriteInventory(actor),false);const f=await fixture(actor);await assert.rejects(f.controller.saveInventory(command));assert.equal(f.writes.length,0);}
  const f=await fixture();for(const cmd of [{...command,record:{...item,ativo:false}},{...command,record:{...item,updated_at:undefined}},{...command,values:{...command.values,unidade_medida:'fake'}},{...command,values:{...command.values,categorias:['fake']}}] as InventoryCommand[])await assert.rejects(f.controller.saveInventory(cmd));assert.equal(f.writes.length,0);
 });
 test('simultaneous saves and logout during metadata preflight cannot create another write',async()=>{

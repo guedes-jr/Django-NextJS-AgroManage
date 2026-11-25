@@ -30,6 +30,7 @@ export function OrganizationFormModal({
     address: organization?.address || "",
     plan_id: organization?.subscription_plan_id || "",
     billing_cycle: organization?.billing_cycle || "monthly",
+    segments: organization ? undefined : ["plantacoes", "bovinos", "suinos"],
   });
 
   useEffect(() => {
@@ -78,6 +79,15 @@ export function OrganizationFormModal({
             <div className="col-md-5"><label className="form-label fw-semibold">Ciclo de cobrança</label><select className="form-select" value={form.billing_cycle} onChange={(event) => setForm({ ...form, billing_cycle: event.target.value as OrganizationFormPayload["billing_cycle"] })}><option value="monthly">Mensal</option><option value="yearly">Anual</option><option value="custom">Personalizado</option></select></div>
           </div>
           {!organization && <fieldset className="border-top mt-4 pt-3" disabled={saving}>
+            <legend className="h6 fw-bold">Segmentos contratados</legend>
+            <p className="small text-muted">Selecione ao menos um. Os preços seguem a tabela de Segmentos e preços e podem ser negociados na ficha.</p>
+            <div className="d-flex flex-wrap gap-3 mb-2">{([["plantacoes", "Plantações"], ["bovinos", "Bovinos"], ["suinos", "Suínos"], ["area-veterinario", "Área do veterinário"]] as const).map(([code, label]) => <div className="form-check" key={code}>
+              <input id={`new-org-${code}`} type="checkbox" className="form-check-input" checked={!!form.segments?.includes(code)} onChange={event => setForm({ ...form, segments: event.target.checked ? [...(form.segments || []), code] : (form.segments || []).filter(value => value !== code) })}/>
+              <label htmlFor={`new-org-${code}`} className="form-check-label">{label}</label>
+            </div>)}</div>
+            {!form.segments?.length && <div className="text-danger small" role="alert">Selecione ao menos um segmento.</div>}
+          </fieldset>}
+          {!organization && <fieldset className="border-top mt-4 pt-3" disabled={saving}>
             <legend className="h5">Primeiro administrador</legend>
             <p className="text-muted small">O responsável receberá um convite para definir a senha. O acesso será ativado após o aceite.</p>
             <div className="row g-3">
@@ -86,7 +96,7 @@ export function OrganizationFormModal({
             </div>
           </fieldset>}
         </div>
-        <div className="p-3 border-top d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={onClose}>Cancelar</button><button className="btn btn-success d-flex align-items-center gap-2" disabled={saving || !form.plan_id}><Save size={16} />{saving ? "Salvando..." : "Salvar organização"}</button></div>
+        <div className="p-3 border-top d-flex justify-content-end gap-2"><button type="button" className="btn btn-outline-secondary" onClick={onClose}>Cancelar</button><button className="btn btn-success d-flex align-items-center gap-2" disabled={saving || !form.plan_id || (!organization && !form.segments?.length)}><Save size={16} />{saving ? "Salvando..." : "Salvar organização"}</button></div>
       </form>
     </div>
   </div>;

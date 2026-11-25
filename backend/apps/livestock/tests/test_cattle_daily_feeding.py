@@ -24,7 +24,9 @@ class DailyFeedingTests(CattleFeedingFixture, APITestCase):
         self.assertNotIn("forecast", str(result.data))
         self.assertNotIn("cost", str(result.data))
         self.assertEqual(str(result.data["formulas"][0]["id"]), str(self.formula.pk))
-        for path in ("reports/dashboard", "finance/transactions", "auth/members", "inventory/items", "livestock/cattle/feed-plans", "livestock/cattle/trough-readings", "tasks/agenda", "livestock/cattle/overview", "affiliates/me"):
+        # The Tratador role was retired: an operator with the cattle segment registers tratos,
+        # still without finances or member management.
+        for path in ("finance/transactions", "auth/members"):
             self.assertEqual(self.client.get(f"/api/v1/{path}/").status_code, 403, path)
 
     def test_trato_uses_existing_consumption_once_and_records_only_changes(self):

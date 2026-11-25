@@ -28,7 +28,7 @@ test('agenda validates real calendar days, bounded intervals and pages',()=>{
   assert.equal(agendaPageSchema.safeParse({...empty,results:[{id:'incomplete'}]}).success,false);
 });
 test('feeder and forced password change cannot request agenda; read-only may consult',async()=>{
-  for(const actor of [{...user,access:{...user.access,role:'feeder' as const}},{...user,force_password_change:true}]){
+  for(const actor of [{...user,access:{...user.access,role:'veterinarian' as const}},{...user,force_password_change:true}]){
     assert.equal(canReadAgenda(actor),false);const f=fixture(undefined,actor);await f.controller.signIn('test@example.com','password');
     await assert.rejects(f.controller.agenda(query));assert.equal(f.calls.includes('tasks/agenda/'),false);
   }
@@ -156,7 +156,7 @@ test('native origins use exact record identity, verified farm and existing read 
  assert.equal(nativeAgendaOrigin(sanitary,operator,id),null);
  for(const change of [{farm:undefined},{farm:null},{id:`vaccination:wrong`},{source_id:'bad'},{species:'suinos'},{source_url:'https://example.com/steal'},{kind:'nutrition'},{domain:'crops'}])assert.equal(nativeAgendaOrigin({...event,...change},manager,id),null);
  assert.equal(nativeAgendaOrigin(event,manager,'00000000-0000-4000-8000-000000000002'),null);
- for(const actor of [{...manager,force_password_change:true},{...manager,is_platform_staff:true},{...manager,access:{...manager.access,role:'feeder' as const}},{...operator,access:{...operator.access,livestock_species:['suinos']}}])assert.equal(nativeAgendaOrigin(event,actor,id),null);
+ for(const actor of [{...manager,force_password_change:true},{...manager,is_platform_staff:true},{...manager,access:{...manager.access,role:'veterinarian' as const}},{...operator,access:{...operator.access,livestock_species:['suinos']}}])assert.equal(nativeAgendaOrigin(event,actor,id),null);
  const swine={...event,species:'suinos',source_url:'/home/seguimento/suinos'};
  assert.equal(nativeAgendaOrigin(swine,manager,null)?.pathname,'/clinic/detail');
  assert.equal(nativeAgendaOrigin(swine,operator,null),null);

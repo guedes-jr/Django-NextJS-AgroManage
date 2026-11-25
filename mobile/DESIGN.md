@@ -140,7 +140,7 @@ Formulários de lançamento: avançar com o teclado entre campos numéricos (`re
 
 | Perfil | Seções |
 | --- | --- |
-| Tratador | Rotina de trato · módulos |
+| Veterinário (só a própria área) | Área do veterinário · módulos pessoais |
 | Operador | Registrar agora · resumo da pecuária leiteira (com bovinos) · próximas atividades · módulos |
 | Gerente | Indicadores financeiros · resumo leiteiro · próximas atividades · desempenho, alertas, movimentações e estoque |
 | Admin | Tudo do gerente · Administração (equipe e acessos, estrutura, estoque) |

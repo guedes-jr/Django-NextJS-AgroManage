@@ -58,7 +58,7 @@ class MobileCastrationTests(APITestCase):
     def test_own_farm_and_manager_roles_required(self):
         values=self.values()
         self.assertEqual(self.client.get(self.base+'mobile-castration-options/',{**self.query,'farm':str(self.foreign_farm.pk)}).status_code,404)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+'mobile-castration-options/',self.query).status_code,403)
             self.assertEqual(self.client.get(self.base+'mobile-castration-animals/',self.query).status_code,403)

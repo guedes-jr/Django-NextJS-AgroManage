@@ -44,6 +44,7 @@ class PlatformAffiliateSerializer(serializers.ModelSerializer):
             "id", "user_id", "full_name", "email", "code", "status",
             "commission_type", "commission_type_display", "commission_value", "currency",
             "commission_duration",
+            "customer_discount_kind", "customer_discount_value", "customer_discount_months",
             "portal_access_only",
             "activated_at", "deactivated_at", "clicks", "registrations", "conversions",
             "commissions_total", "created_at", "updated_at",
@@ -126,10 +127,19 @@ class PlatformAffiliateCreateSerializer(serializers.ModelSerializer):
 class PlatformAffiliateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AffiliateProfile
-        fields = ("commission_type", "commission_value", "commission_duration", "currency")
+        fields = (
+            "commission_type", "commission_value", "commission_duration", "currency",
+            "customer_discount_kind", "customer_discount_value", "customer_discount_months",
+        )
 
     def validate(self, attrs):
-        return validate_commission_rule(attrs, self.instance)
+        kind = attrs.get("customer_discount_kind", getattr(self.instance, "customer_discount_kind", ""))
+        if kind:
+            from apps.billing.subscriptions import validate_discount
+            attrs["customer_discount_value"] = validate_discount(kind, attrs.get("customer_discount_value", getattr(self.instance, "customer_discount_value", 0)))
+        commission = {key: value for key, value in attrs.items() if not key.startswith("customer_discount_")}
+        validate_commission_rule(commission, self.instance)
+        return attrs
 
     def update(self, instance, validated_data):
         for field, value in validated_data.items():

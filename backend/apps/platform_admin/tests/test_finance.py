@@ -34,6 +34,9 @@ class PlatformFinanceAPITestCase(APITestCase):
         subscription = self.organization.subscription
         subscription.plan = plan
         subscription.save(update_fields=["plan", "updated_at"])
+        # Revenue comes from the contracted segments: one segment negotiated at R$ 249,90.
+        subscription.items.exclude(segment_code="plantacoes").delete()
+        subscription.items.update(final_monthly_price=Decimal("249.90"))
         self.client.force_authenticate(user=self.admin)
 
     def test_creates_invoice_and_records_payment(self):
@@ -235,10 +238,9 @@ class PlatformFinanceAPITestCase(APITestCase):
             self.assertEqual(self.client.get(reverse(path)).status_code, 403)
 
     def test_mrr_accounts_for_discount_independently_of_period(self):
-        subscription = self.organization.subscription
-        subscription.discount_type = "percentage"
-        subscription.discount_value = Decimal(10)
-        subscription.save()
+        from apps.billing.subscriptions import add_discount
+
+        add_discount(self.organization.subscription, kind="percentage", value=Decimal(10), description="Teste")
         response = self.client.get(
             reverse("platform-finance-dashboard"),
             {"date_from": "2000-01-01", "date_to": "2000-01-31"},

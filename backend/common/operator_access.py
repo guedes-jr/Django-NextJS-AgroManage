@@ -79,33 +79,28 @@ FINANCIAL_ACTIONS = {
 
 
 def is_operator(user):
-    return getattr(user, "role", None) in {"operator", "feeder"}
+    """Scoped members: operators and veterinarians (outside the Área do veterinário)."""
+    return getattr(user, "role", None) in {"operator", "veterinarian"}
 
 
 def effective_access(user):
+    from apps.billing import segments as catalog
     from apps.organizations.segment_features import feature_map
-    from apps.veterinary.access import can_use_veterinary
 
-    operator = is_operator(user)
-    if getattr(user, "role", None) == "veterinarian":
-        # The vet works in the Área do veterinário (plus personal pages). The species
-        # granted by the admin are the farm herd they may consult there (read-only).
-        return {
-            "role": user.role, "can_manage_users": False, "can_view_financial": False, "can_operate_crops": False,
-            "livestock_species": [species.code for species in user.allowed_livestock.all()],
-            "read_only": False, "veterinary": can_use_veterinary(user),
-            "segment_features": feature_map(user.organization),
-        }
+    role = getattr(user, "role", None)
+    granted = catalog.user_segments(user)
+    scoped = is_operator(user)
+    livestock = [code for code in catalog.LIVESTOCK_SEGMENTS if code in granted]
     return {
-        "role": user.role,
-        "can_manage_users": user.role == "admin",
-        "can_view_financial": not operator,
-        "can_operate_crops": user.role != "feeder" and (not operator or user.can_operate_crops),
-        "livestock_species": [species.code for species in user.allowed_livestock.all()]
-        if operator
-        else None,
-        "read_only": operator and user.operator_read_only,
-        "veterinary": can_use_veterinary(user),
+        "role": role,
+        "can_manage_users": role == "admin",
+        "can_view_financial": role in ("admin", "manager"),
+        "can_operate_crops": catalog.CROPS in granted,
+        "livestock_species": livestock if scoped else None,
+        "segments": [code for code in catalog.ALL_SEGMENTS if code in granted],
+        "contracted_segments": [code for code in catalog.ALL_SEGMENTS if code in catalog.contracted_segments(user.organization)],
+        "read_only": scoped and user.operator_read_only,
+        "veterinary": catalog.VETERINARY in granted,
         "segment_features": feature_map(user.organization),
     }
 
@@ -114,68 +109,93 @@ VETERINARIAN_PATHS = (
     "auth/me", "auth/preferences", "auth/change-password", "auth/force-change-password", "auth/token",
     "auth/logout", "notifications", "support", "veterinary",
 )
+PERSONAL_PATHS = (
+    "auth/me",
+    "auth/preferences",
+    "auth/change-password",
+    "auth/force-change-password",
+    "auth/token",
+    "auth/logout",
+    "notifications",
+    "support",
+    "affiliates",
+)
+
+
+def _segment_path_allowed(granted, path):
+    """Module paths follow the segments the user can open (contracted ∩ role scope)."""
+    from apps.billing import segments as catalog
+
+    if path.startswith("crops/"):
+        return catalog.CROPS in granted
+    if path.startswith("livestock/"):
+        return any(code in granted for code in catalog.LIVESTOCK_SEGMENTS)
+    if path == "veterinary" or path.startswith("veterinary/"):
+        return catalog.VETERINARY in granted
+    return True
+
+
+def _request_segments(user, request):
+    """Segments for this request only (authentication and permission share one lookup)."""
+    from apps.billing import segments as catalog
+
+    key = (getattr(user, "pk", None), getattr(user, "role", None))
+    cached = getattr(request, "_fm_segments", None)
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    granted = catalog.user_segments(user)
+    try:
+        request._fm_segments = (key, granted)
+    except AttributeError:
+        pass
+    return granted
 
 
 def request_allowed(user, request):
-    if getattr(user, "role", None) == "veterinarian":
-        path = request.path.removeprefix("/api/v1/").strip("/")
+    from apps.billing import segments as catalog
+
+    role = getattr(user, "role", None)
+    path = request.path.removeprefix("/api/v1/").strip("/")
+    if role in ("admin", "manager"):
+        gated = path.startswith(("crops/", "livestock/", "veterinary/")) or path == "veterinary"
+        return not gated or _segment_path_allowed(_request_segments(user, request), path)
+    if role not in ("operator", "veterinarian"):
+        return False
+    granted = _request_segments(user, request)
+    if any(path == prefix or path.startswith(prefix + "/") for prefix in PERSONAL_PATHS):
+        return True
+    if path == "veterinary" or path.startswith("veterinary/"):
+        return catalog.VETERINARY in granted
+    if role == "veterinarian":
         if path in ("organizations/me", "platform/client-state"):
             return request.method in SAFE_METHODS
-        if path in ("tasks/agenda", "tasks/agenda-options"):
-            # The vet follows the area's returns in the Agenda when the admin turned it on.
+        if path in ("tasks/agenda", "tasks/agenda-options") and not granted - {catalog.VETERINARY}:
+            # A vet without other segments follows the area's returns when the admin turned it on.
             from apps.organizations import segment_features as features
 
             return request.method in SAFE_METHODS and features.enabled(user.organization, features.VETERINARY, features.AGENDA)
-        return any(path == prefix or path.startswith(prefix + "/") for prefix in VETERINARIAN_PATHS)
-    if not is_operator(user):
-        return getattr(user, "role", None) in ("admin", "manager")
-    path = request.path.removeprefix("/api/v1/").strip("/")
-    personal_paths = (
-        "auth/me",
-        "auth/preferences",
-        "auth/change-password",
-        "auth/force-change-password",
-        "auth/token",
-        "auth/logout",
-        "notifications",
-        "support",
-        "affiliates",
-    )
-    if user.role == "feeder" and (path == "affiliates" or path.startswith("affiliates/")):
-        return False
-    if any(
-        path == prefix or path.startswith(prefix + "/") for prefix in personal_paths
-    ):
-        return True
+        if not granted - {catalog.VETERINARY}:
+            return False
     if user.operator_read_only and request.method not in SAFE_METHODS:
         return False
     if path == "auth/operator-options":
         return True
-    if user.role == "feeder":
-        if path == "organizations/me":
-            return request.method in SAFE_METHODS
-        return (
-            path == "livestock/cattle/daily-feeding"
-            and request.method in (*SAFE_METHODS, "POST")
-            and user.allowed_livestock.filter(code="bovinos").exists()
-        )
+    livestock = any(code in granted for code in catalog.LIVESTOCK_SEGMENTS)
     if path == "reports/dashboard":
         return True
     if path == "inventory/consumos" and request.method == "POST":
-        return user.allowed_livestock.exists()
+        return livestock
     if path.startswith("inventory/"):
         resource = path.split("/")[1]
         return (
             request.method in SAFE_METHODS
             and resource in ("items", "lotes", "formulas", "consumos")
-            and (user.can_operate_crops or user.allowed_livestock.exists())
+            and (catalog.CROPS in granted or livestock)
         )
     if path.startswith("tasks"):
         return True
-    if path.startswith("crops/"):
-        return user.can_operate_crops
-    if path.startswith("livestock/"):
-        return user.allowed_livestock.exists()
+    if path.startswith("crops/") or path.startswith("livestock/"):
+        return _segment_path_allowed(granted, path)
     if path.startswith("farms/") or path in ("farms", "organizations/me"):
         restricted = (
             "farms/assets",
@@ -197,7 +217,9 @@ def enforce_request(user, request):
 
 
 def species_codes(user):
-    return {species.code for species in user.allowed_livestock.all()}
+    from apps.billing import segments as catalog
+
+    return {code for code in catalog.user_segments(user) if code in catalog.LIVESTOCK_SEGMENTS}
 
 
 def scoped_queryset(queryset, user):

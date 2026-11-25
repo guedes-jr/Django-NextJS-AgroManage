@@ -16,7 +16,7 @@ class OrganizationSectionFilters(serializers.Serializer):
 def dossier_sections(request):
     if not request or not IsPlatformStaff().has_permission(request, None):
         return []
-    sections = ["summary", "registration", "users", "subscription", "segments", "invoices", "payments", "consumption", "adoption", "operation"]
+    sections = ["summary", "registration", "users", "subscription", "segments", "discounts", "invoices", "payments", "consumption", "adoption", "operation"]
     from .exports.service import allowed
     if allowed(request.user):
         sections.extend(["exports", "recovery"])

@@ -33,7 +33,7 @@ test('summary rejects a mismatched date and malformed requests',async()=>{
  const count=f.calls.length;await assert.rejects(f.controller.dairyOverview('2026-02-30'));assert.equal(f.calls.length,count);
 });
 test('summary preserves cattle access restrictions before any request',async()=>{
- for(const actor of [{...user,force_password_change:true},{...user,access:{...user.access,role:'feeder' as const}},{...user,access:{...user.access,livestock_species:['suinos']}}]){
+ for(const actor of [{...user,force_password_change:true},{...user,access:{...user.access,role:'veterinarian' as const}},{...user,access:{...user.access,livestock_species:['suinos']}}]){
   const f=fixture(actor);await f.controller.signIn('test@example.invalid','test');await assert.rejects(f.controller.dairyOverview(snapshot.date));assert.equal(f.calls.some(call=>call.path?.includes('dairy-overview')),false);
  }
 });

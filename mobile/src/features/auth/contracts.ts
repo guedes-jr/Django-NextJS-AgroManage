@@ -26,17 +26,25 @@ export const userSchema = z.object({
   id: z.string().min(1), email: z.string(), full_name: z.string(),
   force_password_change: z.boolean(), is_platform_staff: z.boolean(), affiliate_portal_only: z.boolean(),
   access: z.object({
-    role: z.enum(['admin', 'manager', 'operator', 'feeder', 'veterinarian']),
+    role: z.enum(['admin', 'manager', 'operator', 'veterinarian']),
     can_manage_users: z.boolean(), can_view_financial: z.boolean(), can_operate_crops: z.boolean(),
     livestock_species: z.array(z.string()).nullable(), read_only: z.boolean(),
+    // Segments this member can open now (contracted ∩ role scope) and those the organization contracted.
+    segments: z.array(z.string()).optional(), contracted_segments: z.array(z.string()).optional(),
     // Área do veterinário contracted and allowed for this role; segment options (Configurações).
     veterinary: z.boolean().optional(),
     segment_features: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
   }),
 });
 export type User = z.infer<typeof userSchema>;
-/** The veterinarian works only in the Área do veterinário: no operational module of the farm. */
+export const VETERINARY_SEGMENT = 'area-veterinario';
 export const isVeterinarian = (user: Pick<User, 'access'>) => user.access.role === 'veterinarian';
+/** Operator and veterinarian only open the segments enabled for them in Membros. */
+export const isScoped = (access: User['access']) => access.role === 'operator' || access.role === 'veterinarian';
+/** A veterinarian without other segments works only in the Área do veterinário. */
+export const isVeterinaryOnly = (access: User['access']) => access.role === 'veterinarian' && !(access.segments ?? []).some(code => code !== VETERINARY_SEGMENT);
+/** Segment opened by the member now; older payloads without the list keep the previous behaviour. */
+export const hasSegment = (access: User['access'], code: string) => !access.segments || access.segments.includes(code);
 export const organizationSchema = z.object({ id: z.string().min(1), name: z.string(), language: z.enum(languages) });
 export type Organization = z.infer<typeof organizationSchema>;
 export type Session = { user: User; organization: Organization };

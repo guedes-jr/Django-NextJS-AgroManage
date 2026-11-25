@@ -94,21 +94,29 @@ class MemberRoleTests(APITestCase):
             response = self.client.post(reverse("auth_members_create"), {"email": f"new-{role}@example.com", "full_name": "Novo", "role": role, "password": "test12345", "password_confirm": "test12345"}, format="json")
             self.assertEqual(response.status_code, 400 if role == "owner" else 201)
 
-    def test_feeder_can_be_created_and_scoped_only_to_cattle(self):
+    def test_operator_segments_follow_contract_and_veterinary_needs_opt_in(self):
+        from apps.billing.models import PlanSegment, PlanTier
+        from apps.billing.subscriptions import upsert_segment
         from apps.livestock.models import Species
         cattle, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
-        pigs, _ = Species.objects.get_or_create(code="suinos", defaults={"name": "Suínos"})
-        response = self.client.post(reverse("auth_members_create"), {
-            "email": "new-feeder@example.invalid", "full_name": "Tratador",
-            "role": "feeder", "password": "test12345", "password_confirm": "test12345",
-            "allowed_livestock": [str(cattle.pk), str(pigs.pk)], "can_operate_crops": True,
-        }, format="json")
+        payload = {"email": "new-op@example.invalid", "full_name": "Operador", "role": "operator", "password": "test12345", "password_confirm": "test12345"}
+        response = self.client.post(reverse("auth_members_create"), {**payload, "segments": ["bovinos"]}, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         member = User.objects.get(pk=response.data["id"])
-        self.assertEqual(member.get_role_display(), "Tratador")
+        self.assertEqual(response.data["segments"], ["bovinos"])
         self.assertFalse(member.can_operate_crops)
         self.assertEqual(list(member.allowed_livestock.all()), [cattle])
-        self.assertEqual(self.patch(member, operator_read_only=True).status_code, 200)
+        self.assertFalse(member.veterinary_access)
+        # The Área do veterinário is only granted when contracted and explicitly enabled.
+        self.assertEqual(self.patch(member, segments=["bovinos", "area-veterinario"]).status_code, 400)
+        segment, _ = PlanSegment.objects.get_or_create(code="area-veterinario", defaults={"name": "Área do veterinário", "subtitle": "Vet", "description": "Vet"})
+        if not segment.tiers.filter(is_active=True).exists():
+            PlanTier.objects.create(segment=segment, label="Sob consulta", requires_quote=True)
+        upsert_segment(self.org.subscription, "area-veterinario")
+        self.assertEqual(self.patch(member, segments=["bovinos", "area-veterinario"]).status_code, 200)
+        member.refresh_from_db()
+        self.assertTrue(member.veterinary_access)
         self.assertEqual(self.patch(member, role="manager").status_code, 200)
         member.refresh_from_db()
         self.assertFalse(member.allowed_livestock.exists())
+        self.assertFalse(member.veterinary_access)

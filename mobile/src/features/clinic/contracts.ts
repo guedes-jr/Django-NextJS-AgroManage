@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import type {User} from '../auth/contracts';
-export function canReadClinic(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&user.access.role!=='feeder'&&user.access.role!=='veterinarian'&&(user.access.role!=='operator'||!!user.access.livestock_species?.length);}
+import { isScoped, isVeterinaryOnly } from '../auth/contracts';
+export function canReadClinic(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&!isVeterinaryOnly(user.access)&&(!isScoped(user.access)||!!user.access.livestock_species?.length);}
 export function canWriteClinic(user:User){return canReadClinic(user)&&!user.access.read_only;}
 /** Exams/treatments and vaccinations. Consultations and sanitary alerts were removed with the web clinic. */
 export const clinicKinds=['health','vaccinations'] as const;

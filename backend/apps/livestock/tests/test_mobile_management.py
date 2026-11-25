@@ -52,7 +52,7 @@ class MobileManagementTests(APITestCase):
 
     def test_manager_only_preserves_legacy_access(self):
         self.assertEqual(self.client.get(self.base,{'production':'dairy'}).status_code,200)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+'mobile/',self.query).status_code,403)
             self.assertEqual(self.client.get(self.base+f'{self.management.pk}/mobile/',self.query).status_code,403)

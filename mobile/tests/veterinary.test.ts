@@ -20,7 +20,9 @@ test('veterinary area requires the contracted segment and an allowed role',()=>{
   assert.equal(canUseVeterinary(vet),true);
   assert.equal(canUseVeterinary({...vet,access:{...vet.access,veterinary:false}}),false);
   assert.equal(canUseVeterinary({...vet,access:{...vet.access,role:'manager'}}),true);
-  for(const role of ['operator','feeder'] as const)assert.equal(canUseVeterinary({...vet,access:{...vet.access,role}}),false);
+  // The API grants `veterinary` to an operator only when the admin enabled the area in Membros.
+  assert.equal(canUseVeterinary({...vet,access:{...vet.access,role:'operator'}}),true);
+  assert.equal(canUseVeterinary({...vet,access:{...vet.access,role:'operator',veterinary:false}}),false);
   assert.equal(canUseVeterinary({...vet,force_password_change:true}),false);
   // Older payloads without the field keep the area closed.
   const legacy=userSchema.parse({...vet,access:{role:'admin',can_manage_users:true,can_view_financial:true,can_operate_crops:true,livestock_species:null,read_only:false}});

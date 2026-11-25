@@ -34,7 +34,7 @@ const getStoredUser = (): UserData | null => {
 const roleConfig: Record<string, { label: TranslationKey; color: string; bg: string }> = {
   admin: { label: "role.admin", color: "#1e40af", bg: "#dbeafe" },
   manager: { label: "role.manager", color: "#166534", bg: "#dcfce7" },
-  feeder: { label: "role.feeder", color: "#166534", bg: "#dcfce7" },
+  veterinarian: { label: "users.role.veterinarian", color: "#0f766e", bg: "#ccfbf1" },
   operator: { label: "role.operator", color: "#374151", bg: "#f3f4f6" },
 };
 
@@ -93,7 +93,7 @@ export function TopBar({ onMenuClick, isMenuOpen = false }: TopBarProps) {
         >
           <Menu size={24} />
         </button>
-        {access?.role !== "feeder" && <ContextualBackButton area="home" />}
+        <ContextualBackButton area="home" />
         <div className="d-none d-lg-block">
           {/* Breadcrumb placeholders or empty for page context */}
         </div>

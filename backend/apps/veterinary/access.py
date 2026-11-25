@@ -1,32 +1,30 @@
-"""Who can open the Área do veterinário: contracted segment + admin, manager or veterinarian."""
+"""Who can open the Área do veterinário: contracted segment + admin, manager, veterinarian or an enabled operator."""
 from django.utils.translation import gettext_lazy as translate_message_lazy
 from rest_framework.permissions import BasePermission
 
 SEGMENT_CODE = "area-veterinario"
 ROLES = {"admin", "manager", "veterinarian"}
-# Subscription states that keep contracted segments available (suspended/cancelled block them).
-ENABLED_STATUSES = {"trialing", "active", "past_due"}
+
+
+def veterinary_members_q():
+    """Members that may receive the area (roles with default access, or enabled operators)."""
+    from django.db.models import Q
+
+    return Q(role__in=ROLES) | Q(role="operator", veterinary_access=True)
 
 
 def veterinary_enabled(organization):
     """True when the organization's subscription currently includes the veterinary segment."""
-    if organization is None:
-        return False
-    from apps.billing.models import SubscriptionItem
+    from apps.billing.segments import VETERINARY, contracted_segments
 
-    return SubscriptionItem.objects.filter(
-        subscription__organization=organization,
-        subscription__status__in=ENABLED_STATUSES,
-        segment_code=SEGMENT_CODE,
-    ).exists()
+    return VETERINARY in contracted_segments(organization)
 
 
 def can_use_veterinary(user):
-    return (
-        getattr(user, "is_authenticated", False)
-        and getattr(user, "role", None) in ROLES
-        and veterinary_enabled(getattr(user, "organization", None))
-    )
+    """Contracted segment + admin/manager/veterinarian, or an operator explicitly enabled in Membros."""
+    from apps.billing.segments import VETERINARY, user_segments
+
+    return getattr(user, "is_authenticated", False) and VETERINARY in user_segments(user)
 
 
 class VeterinaryAccess(BasePermission):

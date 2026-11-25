@@ -61,7 +61,7 @@ class SanitaryConfirmationTests(APITestCase):
         from django.contrib.auth import get_user_model
         other=get_user_model().objects.create_user(email='san-other@example.invalid',password='test',role='manager',organization=self.org)
         self.client.force_authenticate(other); self.assertEqual(self.confirm(review).status_code,403); self.client.force_authenticate(self.user)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.confirm(review).status_code,403)
     def test_health_failure_rolls_back_all_records_and_confirmation(self):

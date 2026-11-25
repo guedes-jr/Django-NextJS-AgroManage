@@ -67,7 +67,7 @@ class SanitaryMaintenanceTests(APITestCase):
         self.assertEqual(set(self.management.entries.values_list('id',flat=True)),set(before))
     def test_nonmanager_roles_cannot_read_or_write(self):
         values=self.values()
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.edit(values).status_code,403); self.assertEqual(self.cancel(values).status_code,403)
             self.assertEqual(self.client.get(self.base+f'{self.management.pk}/mobile-sanitary-edit/',self.query).status_code,403)

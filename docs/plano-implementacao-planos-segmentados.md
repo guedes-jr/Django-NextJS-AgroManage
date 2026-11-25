@@ -76,3 +76,11 @@ Permitir que cada cliente monte uma assinatura combinando segmentos (por exemplo
 - Provedor de pagamento e meios aceitos.
 - Destino das faixas sob consulta: CRM, WhatsApp ou formulário comercial.
 - Política de combinação e eventuais descontos progressivos por quantidade de segmentos.
+
+
+## Atualização — segmentos como contrato e descontos
+
+- Um segmento por área (Plantações, Bovinos, Suínos, Área do veterinário), com faixas por quantidade editáveis em /platform › Segmentos e preços; a landing calcula o valor pela quantidade informada.
+- Valor mensal = soma dos segmentos − descontos (manual, cupom, indicação, campanha; %, R$, preço fixo ou isenção; com prazo ou sem prazo). Detalhes em `docs/ai/api.md` › Contracted segments.
+- Organizações existentes: todos os segmentos com isenção "Organização de teste".
+- Pendente: cobrança recorrente automática (faturas seguem manuais) e recálculo automático da faixa pela quantidade real de animais/hectares.

@@ -141,7 +141,8 @@ resolution. Neither changes authentication or tenant scope.
 
 Internal species/API identity remains `bovinos`/`bovino`. Web access checks map
 both new trees to the existing bovine species scope; operators retain the same
-financial restrictions and feeders can only access daily feeding. Sidebar,
+financial restrictions (the former feeder role is now an operator with the cattle
+segment). Routes of a segment the member cannot open (`access.segments`) are hidden. Sidebar,
 search, finance origins, task origins, agenda and new notifications generate
 canonical URLs. Historical stored links remain valid through the redirects.
 

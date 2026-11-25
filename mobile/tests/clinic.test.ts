@@ -28,7 +28,7 @@ test('clinic filters validate UUIDs, paired bounded periods and animal versus ba
 });
 test('clinic role guard permits authorized operator read/write and denies feeder, missing species or veterinarian',()=>{
  assert.equal(canReadClinic(user),true);assert.equal(canWriteClinic(user),true);assert.equal(canReadClinic({...user,access:{...user.access,read_only:true}}),true);assert.equal(canWriteClinic({...user,access:{...user.access,read_only:true}}),false);
- for(const actor of [{...user,force_password_change:true},{...user,access:{...user.access,role:'feeder' as const}},{...user,access:{...user.access,livestock_species:[]}},{...user,access:{...user.access,role:'veterinarian' as const}}])assert.equal(canReadClinic(actor),false);
+ for(const actor of [{...user,force_password_change:true},{...user,access:{...user.access,role:'veterinarian' as const}},{...user,access:{...user.access,livestock_species:[]}},{...user,access:{...user.access,role:'veterinarian' as const}}])assert.equal(canReadClinic(actor),false);
 });
 test('clinic operational reads use fixed paginated endpoints and validate returned context',async()=>{
  const f=await fixture();assert.equal((await f.controller.clinicPage(query)).results.length,1);assert.equal((f.calls.at(-1)?.params as {page_size:number;kind:string}).page_size,20);assert.equal((f.calls.at(-1)?.params as {kind:string}).kind,'health');

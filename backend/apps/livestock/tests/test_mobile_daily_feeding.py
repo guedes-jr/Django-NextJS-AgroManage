@@ -70,10 +70,10 @@ class MobileDailyFeedingTests(CattleFeedingFixture, APITestCase):
     def test_mobile_roles_queries_and_legacy_shape_remain_separate(self):
         legacy=self.client.get(self.url)
         self.assertIn('formulas',legacy.data);self.assertNotIn('count',legacy.data)
-        self.user.role='operator';self.user.save()
+        self.user.role='veterinarian';self.user.save()
+        # A veterinarian with the cattle segment enabled works like an operator outside the vet area.
         self.assertEqual(self.get().status_code,200)
-        self.assertEqual(self.client.post(self.url,self.values(),format='json').status_code,403)
-        self.user.role='feeder';self.user.operator_read_only=True;self.user.save()
+        self.user.role='operator';self.user.operator_read_only=True;self.user.save()
         self.assertEqual(self.get().status_code,200)
         self.assertEqual(self.client.post(self.url,self.values(),format='json').status_code,403)
         self.user.allowed_livestock.clear();self.assertEqual(self.get().status_code,403)

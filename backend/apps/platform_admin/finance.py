@@ -103,16 +103,10 @@ def finance_summary(filters):
     for key, path in [("organization", "organization_id"), ("plan", "plan_id")]:
         if filters.get(key):
             subscriptions = subscriptions.filter(**{path: filters[key]})
-    mrr = Decimal(0)
-    for subscription in subscriptions:
-        yearly = subscription.billing_cycle == Subscription.BillingCycle.YEARLY
-        price = (
-            subscription.plan.yearly_price
-            if yearly
-            else subscription.plan.monthly_price
-        )
-        net = price - subscription.calculate_discount(price)
-        mrr += net / 12 if yearly else net
+    from apps.billing.pricing import monthly_total
+
+    # Monthly recurring revenue: segments minus discounts, the same calculation shown to the client.
+    mrr = sum((monthly_total(subscription) for subscription in subscriptions.prefetch_related("items", "discounts")), Decimal(0))
     balance = ExpressionWrapper(
         F("total") - F("amount_paid"),
         output_field=DecimalField(max_digits=14, decimal_places=2),

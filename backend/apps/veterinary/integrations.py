@@ -53,9 +53,9 @@ def team_users(organization):
     """Users who may be chosen as responsible: the area team, or every admin/manager/vet."""
     from apps.accounts.models import User
 
-    from .access import ROLES
+    from .access import veterinary_members_q
 
-    return User.objects.filter(organization=organization, is_active=True, role__in=ROLES).order_by("full_name", "email")
+    return User.objects.filter(veterinary_members_q(), organization=organization, is_active=True).order_by("full_name", "email")
 
 
 def responsible_for(organization, user_id):

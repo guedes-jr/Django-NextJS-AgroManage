@@ -97,30 +97,22 @@ class PlatformBillingAPITestCase(APITestCase):
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         self.assertEqual(create_response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_platform_admin_applies_permanent_percentage_discount(self):
-        subscription = self.organization.subscription
+    def test_platform_admin_adds_and_revokes_discount_on_dossier(self):
         self.client.force_authenticate(user=self.platform_admin)
+        url = reverse("platform-organization-dossier-discounts", args=[self.organization.id])
 
-        response = self.client.post(
-            reverse("platform-subscription-set-discount", args=[subscription.id]),
-            {"discount_type": "percentage", "discount_value": "15.00"},
-            format="json",
-        )
+        response = self.client.post(url, {"kind": "percentage", "value": "15.00", "description": "Parceria"}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        subscription.refresh_from_db()
-        self.assertTrue(subscription.has_active_discount)
-        self.assertEqual(str(subscription.discount_value), "15.00")
-        self.assertTrue(
-            PlatformAuditLog.objects.filter(action="subscription.discount_updated").exists()
-        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        discount = response.data["discounts"][0]
+        self.assertTrue(discount["is_active"])
+        self.assertIsNone(discount["ends_at"])
+        self.assertTrue(PlatformAuditLog.objects.filter(action="subscription.discount_added").exists())
+        revoke = self.client.post(reverse("platform-organization-dossier-revoke-discount", args=[self.organization.id, discount["id"]]))
+        self.assertEqual(revoke.status_code, status.HTTP_200_OK)
+        self.assertFalse(revoke.data["discounts"][0]["is_active"])
 
-    def test_active_discount_is_applied_to_manual_invoice(self):
-        subscription = self.organization.subscription
-        subscription.discount_type = Subscription.DiscountType.FIXED_AMOUNT
-        subscription.discount_value = "20.00"
-        subscription.save(update_fields=["discount_type", "discount_value", "updated_at"])
-
+    def test_manual_invoice_amount_is_final(self):
         invoice = create_manual_invoice(
             organization=self.organization,
             due_date="2026-12-01",
@@ -129,5 +121,5 @@ class PlatformBillingAPITestCase(APITestCase):
         )
 
         self.assertIsInstance(invoice, Invoice)
-        self.assertEqual(str(invoice.discount_total), "20.00")
-        self.assertEqual(str(invoice.total), "80.00")
+        self.assertEqual(str(invoice.discount_total), "0.00")
+        self.assertEqual(str(invoice.total), "100.00")

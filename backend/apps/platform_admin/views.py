@@ -31,8 +31,10 @@ from celery import current_app
 
 from apps.organizations.models import Organization
 from apps.organizations.models import OrganizationContact
-from apps.livestock.models import Species
+from apps.billing.models import PlanSegment
+from apps.billing.segments import ALL_SEGMENTS as SEGMENT_CODES
 from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, Subscription
+from apps.billing.pricing import monthly_total
 from apps.billing.services import create_manual_invoice, record_manual_payment
 from apps.ai_assistant.models import (
     AIConversation, AIFeedback, AIMessage, AIModel, AIModelSyncRun,
@@ -66,7 +68,6 @@ from .serializers import (
     PlatformUserPasswordSerializer,
     PlatformUserUpdateSerializer,
     ChangeSubscriptionPlanSerializer,
-    SubscriptionDiscountSerializer,
     FeatureSerializer,
     PlanSerializer,
     SubscriptionSerializer,
@@ -714,13 +715,7 @@ def dashboard_summary(request):
         active_plan_subscriptions = plan_subscriptions.filter(status=Subscription.Status.ACTIVE)
         plan_organizations = Organization.objects.filter(subscription__plan=plan)
         plan_users = User.objects.filter(organization__subscription__plan=plan)
-        segment_mrr = Decimal("0")
-        for subscription in active_plan_subscriptions:
-            segment_mrr += (
-                subscription.plan.yearly_price / Decimal("12")
-                if subscription.billing_cycle == Subscription.BillingCycle.YEARLY
-                else subscription.plan.monthly_price
-            )
+        segment_mrr = sum((monthly_total(subscription) for subscription in active_plan_subscriptions.prefetch_related("items", "discounts")), Decimal("0"))
         segment_results.append({
             "code": plan.code,
             "name": plan.name,
@@ -734,13 +729,7 @@ def dashboard_summary(request):
             "mrr": segment_mrr,
         })
 
-    mrr = Decimal("0")
-    for subscription in active_subscriptions:
-        mrr += (
-            subscription.plan.yearly_price / Decimal("12")
-            if subscription.billing_cycle == Subscription.BillingCycle.YEARLY
-            else subscription.plan.monthly_price
-        )
+    mrr = sum((monthly_total(subscription) for subscription in active_subscriptions.prefetch_related("items", "discounts")), Decimal("0"))
     open_invoices = unpaid_invoices()
     overdue_invoices = select_overdue_invoices()
     open_leads = DemoRequest.objects.exclude(status__in=(DemoRequest.Status.WON, DemoRequest.Status.LOST))
@@ -913,7 +902,7 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         if self.action == "dossier_tickets":
             from apps.ai_assistant.ticket_views import TeamSupportPermission
             return [TeamSupportPermission()]
-        if self.action == "dossier_reconcile_storage" or (self.action in {"dossier_usage", "dossier_segments"} and self.request.method in {"PATCH", "POST"}):
+        if self.action in {"dossier_reconcile_storage", "dossier_revoke_discount"} or (self.action in {"dossier_usage", "dossier_segments", "dossier_discounts"} and self.request.method in {"PATCH", "POST"}):
             return [IsPlatformAdmin()]
         if self.action == "dossier_history":
             return [IsPlatformAuditor()]
@@ -1042,6 +1031,19 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         if request.method == "GET":
             return Response(segment_overview(organization))
         return Response(change_segment(request=request, organization=organization, data=request.data))
+
+    @action(detail=True, methods=["get", "post"], url_path="discounts")
+    def dossier_discounts(self, request, pk=None):
+        from .organization_segments import create_discount, discount_overview
+        organization = self._dossier_organization()
+        if request.method == "GET":
+            return Response(discount_overview(organization))
+        return Response(create_discount(request=request, organization=organization, data=request.data), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path=r"discounts/(?P<discount_id>[^/.]+)/revoke")
+    def dossier_revoke_discount(self, request, pk=None, discount_id=None):
+        from .organization_segments import revoke
+        return Response(revoke(request=request, organization=self._dossier_organization(), discount_id=discount_id))
 
     @action(detail=True, methods=["get"], url_path="invoices")
     def dossier_invoices(self, request, pk=None):
@@ -1236,8 +1238,8 @@ class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PlatformUserSerializer
     permission_classes = [IsPlatformStaff]
     audited_fields = (
-        "email", "full_name", "phone", "phone_is_whatsapp", "role", "can_operate_crops",
-        "operator_read_only", "receive_system_alerts", "force_password_change",
+        "email", "full_name", "phone", "phone_is_whatsapp", "role", "operator_read_only",
+        "receive_system_alerts", "force_password_change",
     )
     search_fields = ("full_name", "email", "phone", "organization__name")
     ordering_fields = ("full_name", "email", "role", "is_active", "created_at", "last_login")
@@ -1262,15 +1264,17 @@ class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
         return super().get_serializer_class()
 
     def _snapshot(self, user):
+        from apps.billing.segments import member_segments
+
         data = {field: getattr(user, field) for field in self.audited_fields}
-        data["allowed_livestock"] = sorted(user.allowed_livestock.values_list("code", flat=True))
+        data["segments"] = sorted(member_segments(user))
         return data
 
     @action(detail=False, methods=["get"], url_path="form-options")
     def form_options(self, request):
         return Response({
             "roles": [{"value": value, "label": label} for value, label in User.Role.choices],
-            "species": [{"id": str(item.pk), "code": item.code, "name": item.name} for item in Species.objects.order_by("name")],
+            "segments": [{"code": item.code, "name": item.name} for item in PlanSegment.objects.filter(code__in=SEGMENT_CODES).order_by("sort_order")],
         })
 
     def partial_update(self, request, pk=None):
@@ -1280,7 +1284,7 @@ class PlatformUserViewSet(viewsets.ReadOnlyModelViewSet):
                 Organization.objects.select_for_update().filter(pk=user.organization_id).first()
             user = User.objects.select_for_update().get(pk=user.pk)
             before = self._snapshot(user)
-            serializer = PlatformUserUpdateSerializer(user, data=request.data, partial=True)
+            serializer = PlatformUserUpdateSerializer(user, data=request.data, partial=True, context={"organization": user.organization})
             serializer.is_valid(raise_exception=True)
             new_role = serializer.validated_data.get("role", user.role)
             removing_admin = user.role == User.Role.ADMIN and new_role != User.Role.ADMIN
@@ -1756,46 +1760,6 @@ class PlatformSubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
             object_id=subscription.id,
             description=f"Plano alterado de {previous_plan.name} para {plan.name}.",
             extra_data={"previous_plan": previous_plan.code, "new_plan": plan.code},
-        )
-        return Response(SubscriptionSerializer(subscription).data)
-
-    @action(detail=True, methods=["post"], url_path="discount")
-    @transaction.atomic
-    def set_discount(self, request, pk=None):
-        subscription = self.get_object()
-        serializer = SubscriptionDiscountSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        previous = {
-            "type": subscription.discount_type,
-            "value": str(subscription.discount_value),
-            "starts_at": subscription.discount_starts_at,
-            "ends_at": subscription.discount_ends_at,
-        }
-        subscription.discount_type = data.get("discount_type", "")
-        subscription.discount_value = data.get("discount_value", Decimal("0"))
-        subscription.discount_starts_at = data.get("discount_starts_at")
-        subscription.discount_ends_at = data.get("discount_ends_at")
-        subscription.save(update_fields=[
-            "discount_type", "discount_value", "discount_starts_at",
-            "discount_ends_at", "updated_at",
-        ])
-        record_platform_action(
-            request=request,
-            action="subscription.discount_updated",
-            organization=subscription.organization,
-            object_type="Subscription",
-            object_id=subscription.id,
-            description="Desconto da assinatura atualizado.",
-            extra_data={
-                "previous": previous,
-                "current": {
-                    "type": subscription.discount_type,
-                    "value": str(subscription.discount_value),
-                    "starts_at": subscription.discount_starts_at,
-                    "ends_at": subscription.discount_ends_at,
-                },
-            },
         )
         return Response(SubscriptionSerializer(subscription).data)
 

@@ -360,6 +360,12 @@
 .segment-title h3 { margin:0; color:#10291c; font-size:1.18rem; font-weight:850; }
 .segment-title strong { display:block; margin-top:2px; color:#5b675f; font-size:.72rem; letter-spacing:.055em; text-transform:uppercase; }
 .segment-content>p { min-height:60px; margin:15px 0; color:#5f6e65; font-size:.79rem; line-height:1.55; }
+.segment-quantity { display:flex; flex-direction:column; gap:4px; margin:0 0 10px; }
+.segment-quantity label { font-size:.82rem; font-weight:700; color:var(--foreground,#142719); }
+.segment-quantity input { min-height:44px; padding:8px 12px; border:1px solid #8a9a88; border-radius:10px; font-size:16px; font-variant-numeric:tabular-nums; background:#fff; }
+.segment-quantity input:focus-visible { outline:2px solid #288e3b; outline-offset:1px; }
+.segment-quantity small { color:#536353; font-size:.76rem; }
+.segment-quantity small[role="alert"] { color:#8a5a00; }
 .segment-tiers { display:flex; flex-direction:column; gap:6px; }
 .segment-tiers label { min-height:44px; padding:8px 10px; display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; cursor:pointer; background:#fafbf9; border:1px solid #e6ebe4; border-radius:10px; }
 .segment-tiers label.active { background:#f3f8f0; border-color:#9bc49f; }

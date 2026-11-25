@@ -109,7 +109,7 @@ class MobileInventoryWritesTests(APITestCase):
         self.assertEqual(foreign.nome, "Outra")
 
     def test_operator_and_feeder_cannot_create_inventory_registrations(self):
-        for role in ["operator", "feeder"]:
+        for role in ["operator"]:
             self.user.role = role
             self.user.save(update_fields=["role"])
             for route in ["inventory-items-list", "inventory-fornecedores-list"]:

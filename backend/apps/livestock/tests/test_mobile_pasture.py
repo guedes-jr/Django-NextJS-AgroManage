@@ -51,7 +51,7 @@ class MobilePastureTests(APITestCase):
         self.assertEqual(self.client.get(self.base+'mobile-form-options/',{'farm':str(self.foreign_farm.pk)}).status_code,404)
         values=self.values(edit=True)
         self.assertEqual(self.save({**values,'farm':str(self.foreign_farm.pk)},edit=True).status_code,404)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+'mobile-form-options/',{'farm':str(self.farm.pk)}).status_code,403)
             self.assertEqual(self.save(values,edit=True).status_code,403)

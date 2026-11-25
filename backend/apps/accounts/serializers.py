@@ -214,35 +214,67 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
         return value
 
 class OperatorScopeValidationMixin:
+    """Members' segment scope. ``segments`` is the public contract; it is stored in the crops flag,
+    the livestock species and ``veterinary_access`` (see apps.billing.segments)."""
+
+    def get_segments(self, user):
+        from apps.billing.segments import ALL_SEGMENTS, member_segments
+
+        codes = member_segments(user)
+        return [code for code in ALL_SEGMENTS if code in codes]
+
     def validate(self, attrs):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        from apps.billing import segments as catalog
+
         attrs = super().validate(attrs)
         role = attrs.get("role", getattr(self.instance, "role", "operator"))
-        if role == "veterinarian":
-            # For the veterinarian, allowed_livestock is the farm herd the admin lets
-            # them consult in the Área do veterinário (read-only).
-            if attrs.get("can_operate_crops") or attrs.get("operator_read_only"):
-                raise serializers.ValidationError(translate_message("As restrições de área são exclusivas do operador e do tratador."))
-            attrs.update(can_operate_crops=False, operator_read_only=False)
+        requested = self.initial_data.get("segments") if hasattr(self, "initial_data") else None
+        if role not in ("operator", "veterinarian"):
+            if requested or attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only"):
+                raise serializers.ValidationError(translate_message("Administrador e gerente acessam todos os segmentos contratados; restrições valem para operador e veterinário."))
+            attrs.update(can_operate_crops=False, allowed_livestock=[], operator_read_only=False, veterinary_access=False)
             return attrs
-        if role not in {"operator", "feeder"} and (attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only")):
-            raise serializers.ValidationError(translate_message("As restrições de área são exclusivas do operador e do tratador."))
-        if role == "feeder":
-            attrs["can_operate_crops"] = False
-            scope = attrs.get("allowed_livestock", self.instance.allowed_livestock.all() if self.instance else [])
-            attrs["allowed_livestock"] = [species for species in scope if species.code == "bovinos"]
-        if role not in {"operator", "feeder"}:
-            attrs.update(can_operate_crops=False, allowed_livestock=[], operator_read_only=False)
+        if requested is None and self.instance is not None and "role" not in attrs:
+            return attrs
+        if requested is None:
+            # Legacy payload (crops flag + species) or a role change keeping the stored scope.
+            codes = set()
+            if attrs.get("can_operate_crops", getattr(self.instance, "can_operate_crops", False)):
+                codes.add(catalog.CROPS)
+            species = attrs.get("allowed_livestock", self.instance.allowed_livestock.all() if self.instance else [])
+            codes |= {item.code for item in species if item.code in catalog.LIVESTOCK_SEGMENTS}
+            if role == "operator" and getattr(self.instance, "veterinary_access", False):
+                codes.add(catalog.VETERINARY)
+        else:
+            if not isinstance(requested, (list, tuple)):
+                raise serializers.ValidationError({"segments": translate_message("Informe a lista de segmentos.")})
+            codes = set(requested)
+        if role == "veterinarian":
+            codes.discard(catalog.VETERINARY)
+        organization = self.context.get("organization") or getattr(self.instance, "organization", None)
+        try:
+            codes = catalog.validate_member_segments(codes, organization, role)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"segments": error.messages})
+        from apps.livestock.models import Species
+
+        attrs["can_operate_crops"] = catalog.CROPS in codes
+        attrs["allowed_livestock"] = list(Species.objects.filter(code__in=codes & set(catalog.LIVESTOCK_SEGMENTS)))
+        attrs["veterinary_access"] = role == "operator" and catalog.VETERINARY in codes
         return attrs
 
 
 class OrganizationMemberSerializer(OperatorScopeValidationMixin, WhatsAppContactMixin, serializers.ModelSerializer):
     whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False, default=False)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    segments = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'full_name', 'role', 'role_display', 'can_operate_crops', 'allowed_livestock', 'operator_read_only', 'organization_responsible',
+            'id', 'email', 'full_name', 'role', 'role_display', 'segments', 'can_operate_crops', 'allowed_livestock', 'operator_read_only', 'organization_responsible',
             'phone', 'phone_is_whatsapp', 'receive_system_alerts', 'whatsapp_reproductive_alerts', 'avatar', 'is_active', 'created_at'
         ]
         read_only_fields = ['id', 'email', 'created_at', 'organization_responsible']

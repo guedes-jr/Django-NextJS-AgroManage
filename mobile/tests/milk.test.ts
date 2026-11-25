@@ -43,7 +43,7 @@ test('individual and total writes use distinct endpoints, corrections do not rew
 });
 test('readonly, feeder, future dates, changed identity and unauthorized corrections stop before mutation',async()=>{
  const f=await fixture();f.readonly();await assert.rejects(f.controller.saveMilk(f.command,values));assert.equal(f.writes.length,0);
- const feeder=await fixture({...user,access:{...user.access,role:'feeder'}});await assert.rejects(feeder.controller.saveMilk(feeder.command,values));assert.equal(feeder.writes.length,0);
+ const feeder=await fixture({...user,access:{...user.access,role:'veterinarian'}});await assert.rejects(feeder.controller.saveMilk(feeder.command,values));assert.equal(feeder.writes.length,0);
  const operator=await fixture({...user,access:{...user.access,role:'operator'}});await assert.rejects(operator.controller.saveMilk({...operator.command,id},values));assert.equal(operator.writes.length,0);
  const changed=await fixture();changed.foreignTotal();await assert.rejects(changed.controller.saveMilk({mode:'total',date:changed.today,farm:id,id},values));await assert.rejects(changed.controller.saveMilk({...changed.command,date:'2999-01-01'},values));assert.equal(changed.writes.length,0);
 });

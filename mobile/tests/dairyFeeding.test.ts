@@ -67,7 +67,7 @@ test('only bovine admins and managers can consult dairy group feeding', () => {
   assert.equal(canWriteDairyFeeding({ ...base, access: { ...base.access, read_only: false } }), true);
   assert.equal(canReadDairyFeeding({ ...base, access: { ...base.access, role: 'admin' } }), true);
   assert.equal(canReadDairyFeeding({ ...base, access: { ...base.access, role: 'operator' } }), false);
-  assert.equal(canReadDairyFeeding({ ...base, access: { ...base.access, role: 'feeder' } }), false);
+  assert.equal(canReadDairyFeeding({ ...base, access: { ...base.access, role: 'veterinarian' } }), false);
   assert.equal(canReadDairyFeeding({ ...base, force_password_change: true }), false);
 });
 

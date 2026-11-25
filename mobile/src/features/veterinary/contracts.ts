@@ -1,9 +1,9 @@
 import {z} from 'zod';
 import type {User} from '../auth/contracts';
 
-/** Área do veterinário (VT01): contracted segment, for admin, manager and veterinarian. */
+/** Área do veterinário (VT01): contracted segment, for admin, manager, veterinarian or an operator enabled in Membros. */
 export function canUseVeterinary(user:User){
-  return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&!!user.access.veterinary&&['admin','manager','veterinarian'].includes(user.access.role);
+  return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only&&!!user.access.veterinary;
 }
 
 export const vetStatuses=['protocol','inseminated','pregnant','open','attended','none'] as const;

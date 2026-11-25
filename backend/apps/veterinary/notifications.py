@@ -44,14 +44,14 @@ def collect_veterinary_notifications(now=None):
     from apps.notifications.services import NotificationService
     from apps.organizations import segment_features as features
 
-    from .access import ROLES, veterinary_enabled
+    from .access import veterinary_enabled, veterinary_members_q
 
     now = timezone.localtime(now)
     if now.hour < SEND_FROM_HOUR:
         return 0
     today = now.date()
     users = User.objects.filter(
-        is_active=True, organization__is_active=True, role__in=ROLES, receive_system_alerts=True, phone_is_whatsapp=True,
+        veterinary_members_q(), is_active=True, organization__is_active=True, receive_system_alerts=True, phone_is_whatsapp=True,
         notification_preference__whatsapp_reproductive_alerts=True,
     ).select_related("organization")
     created = 0

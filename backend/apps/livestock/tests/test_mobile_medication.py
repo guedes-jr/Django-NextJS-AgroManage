@@ -89,7 +89,7 @@ class MobileMedicationTests(APITestCase):
         self.assertEqual(self.client.get(self.base+'mobile-medication-lots/').data['count'], 0)
 
     def test_operator_and_feeder_cannot_access_managerial_application(self):
-        for role in ['operator', 'feeder']:
+        for role in ['operator']:
             self.user.role = role
             self.user.save()
             self.user.allowed_livestock.add(self.species)

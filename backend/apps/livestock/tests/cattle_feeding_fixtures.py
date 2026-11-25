@@ -18,7 +18,7 @@ class CattleFeedingFixture:
         self.org = Organization.objects.create(name="Tratos", slug="daily-feed")
         self.farm = Farm.objects.create(organization=self.org, name="Fazenda")
         self.species, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
-        self.user = get_user_model().objects.create_user(email="feeder@example.invalid", password="test", role="feeder", organization=self.org)
+        self.user = get_user_model().objects.create_user(email="feeder@example.invalid", password="test", role="operator", organization=self.org)
         self.user.allowed_livestock.add(self.species)
         self.batch = AnimalBatch.objects.create(farm=self.farm, species=self.species, batch_code="B1", quantity=10, entry_date=self.today)
         self.item = ItemEstoque.objects.create(organization=self.org, nome="Ração", categoria="racao", especie_animal="bovino", unidade_medida="kg")

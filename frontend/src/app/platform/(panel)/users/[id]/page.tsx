@@ -17,14 +17,15 @@ const tabs: { id: Tab; label: string; icon: typeof UserRound }[] = [
   { id: "access", label: "Papel e permissões", icon: ShieldCheck },
   { id: "security", label: "Senha e sessões", icon: KeyRound },
 ];
-const scopedRoles: PlatformUserRole[] = ["operator", "feeder"];
+const scopedRoles: PlatformUserRole[] = ["operator", "veterinarian"];
+const VET = "area-veterinario";
 const formatDate = (value: string | null, time = false) => value ? (time ? new Date(value).toLocaleString("pt-BR") : new Date(value).toLocaleDateString("pt-BR")) : "—";
 
 function toForm(user: PlatformUserDetail): Required<PlatformUserUpdate> {
   return {
     email: user.email, full_name: user.full_name, phone: user.phone || "", phone_is_whatsapp: user.phone_is_whatsapp,
-    role: user.role, can_operate_crops: user.can_operate_crops, operator_read_only: user.operator_read_only,
-    allowed_livestock: user.allowed_livestock, receive_system_alerts: user.receive_system_alerts, force_password_change: user.force_password_change,
+    role: user.role, segments: user.segments, operator_read_only: user.operator_read_only,
+    receive_system_alerts: user.receive_system_alerts, force_password_change: user.force_password_change,
   };
 }
 
@@ -131,7 +132,7 @@ export default function PlatformUserDetailPage() {
     <input id={`user-${key}`} type={type} className={`form-control ${errors[key] ? "is-invalid" : ""}`} value={form[key]} disabled={!canManage || saving} onChange={event => set(key, event.target.value)} {...extra}/>
     {errors[key] && <div className="invalid-feedback">{errors[key]}</div>}
   </div>;
-  const check = (key: "phone_is_whatsapp" | "receive_system_alerts" | "force_password_change" | "can_operate_crops" | "operator_read_only", label: string, disabled = false) => <div className="form-check">
+  const check = (key: "phone_is_whatsapp" | "receive_system_alerts" | "force_password_change" | "operator_read_only", label: string, disabled = false) => <div className="form-check">
     <input id={`user-${key}`} type="checkbox" className="form-check-input" checked={form[key]} disabled={!canManage || saving || disabled} onChange={event => set(key, event.target.checked)}/>
     <label htmlFor={`user-${key}`} className="form-check-label">{label}</label>
   </div>;
@@ -189,7 +190,7 @@ export default function PlatformUserDetailPage() {
 
         {tab === "access" && <form className="platform-card platform-form-card" onSubmit={save} noValidate>
           <h2>Papel e permissões</h2>
-          <p>O papel define o que o usuário vê na organização. Restrições de área valem apenas para operador e tratador.</p>
+          <p>O papel define o que o usuário vê. Administrador e gerente acessam todos os segmentos contratados; operador e veterinário, só os liberados.</p>
           <div className="row g-3">
             <div className="col-md-6">
               <label htmlFor="user-role" className="form-label">Papel na organização</label>
@@ -200,17 +201,20 @@ export default function PlatformUserDetailPage() {
               {user.organization_responsible && <div className="form-text">O responsável permanece administrador. Transfira a responsabilidade na ficha da organização para mudar o papel.</div>}
             </div>
           </div>
-          {(scopedRoles.includes(form.role) || form.role === "veterinarian") && <div className="mt-3 pt-3 border-top">
-            {scopedRoles.includes(form.role) && <div className="platform-check-grid mb-3">
-              {check("can_operate_crops", "Pode operar plantações", form.role === "feeder")}
-              {check("operator_read_only", "Somente leitura")}
-            </div>}
-            <div className="form-label">{form.role === "veterinarian" ? "Rebanhos que pode consultar" : "Rebanhos liberados"}</div>
-            {options?.species.length ? <div className="platform-check-grid">{options.species.filter(species => form.role !== "feeder" || species.code === "bovinos").map(species => <div className="form-check" key={species.id}>
-              <input id={`species-${species.id}`} type="checkbox" className="form-check-input" checked={form.allowed_livestock.includes(species.id)} disabled={!canManage || saving}
-                onChange={event => set("allowed_livestock", event.target.checked ? [...form.allowed_livestock, species.id] : form.allowed_livestock.filter(value => value !== species.id))}/>
-              <label htmlFor={`species-${species.id}`} className="form-check-label">{species.name}</label>
-            </div>)}</div> : <p className="small text-muted mb-0">Nenhuma espécie cadastrada.</p>}
+          {scopedRoles.includes(form.role) && <div className="mt-3 pt-3 border-top">
+            <div className="form-label">Segmentos liberados</div>
+            <p className="small text-muted">Somente segmentos contratados pela organização. A Área do veterinário já faz parte do cargo Veterinário; para o operador, precisa ser habilitada.</p>
+            {options?.segments.length ? <div className="platform-check-grid mb-2">{options.segments.filter(segment => user.contracted_segments.includes(segment.code)).map(segment => {
+              const fixed = segment.code === VET && form.role === "veterinarian";
+              const checked = fixed || form.segments.includes(segment.code);
+              return <div className="form-check" key={segment.code}>
+                <input id={`segment-${segment.code}`} type="checkbox" className="form-check-input" checked={checked} disabled={!canManage || saving || fixed}
+                  onChange={event => set("segments", event.target.checked ? [...form.segments, segment.code] : form.segments.filter(value => value !== segment.code))}/>
+                <label htmlFor={`segment-${segment.code}`} className="form-check-label">{segment.name}{fixed ? " (incluída no cargo)" : ""}</label>
+              </div>;
+            })}</div> : <p className="small text-muted mb-0">Nenhum segmento disponível.</p>}
+            {check("operator_read_only", "Somente consulta")}
+            {errors.segments && <div className="text-danger small mt-2">{errors.segments}</div>}
             {errors.non_field_errors && <div className="text-danger small mt-2">{errors.non_field_errors}</div>}
           </div>}
           {footer}

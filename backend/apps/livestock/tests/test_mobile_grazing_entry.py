@@ -61,7 +61,7 @@ class MobileGrazingEntryTests(APITestCase):
 
     def test_operator_and_feeder_cannot_use_write_context_or_mutations(self):
         values=self.values(); review=self.preview(values)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role; self.user.save(); self.user.allowed_livestock.add(self.species)
             self.assertEqual(self.client.get(self.base+'mobile-entry-options/',self.query).status_code,403)
             self.assertEqual(self.client.get(self.base+'mobile-entry-batches/',self.query).status_code,403)

@@ -58,7 +58,7 @@ class GrazingTransferTests(APITestCase):
         from django.contrib.auth import get_user_model
         other=get_user_model().objects.create_user(email='transfer-other@example.invalid',password='test',role='manager',organization=self.org)
         self.client.force_authenticate(other);self.assertEqual(self.confirm(review).status_code,403);self.client.force_authenticate(self.user)
-        for role in ['operator','feeder']:
+        for role in ['operator']:
             self.user.role=role;self.user.save();self.user.allowed_livestock.add(self.species);self.assertEqual(self.confirm(review).status_code,403)
     def test_inactive_empty_or_ambiguous_source_cannot_transfer(self):
         for field,value in [('quantity',0),('status','sold')]:

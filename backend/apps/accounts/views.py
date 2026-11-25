@@ -60,7 +60,7 @@ def member_detail_view(request, pk):
             member = User.objects.select_for_update().get(pk=pk, organization=org)
         except User.DoesNotExist:
             return Response(status=404)
-        before = {'role': member.role, 'can_operate_crops': member.can_operate_crops, 'allowed_livestock': list(member.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': member.operator_read_only, 'is_active': member.is_active}
+        before = {'role': member.role, 'veterinary_access': member.veterinary_access, 'can_operate_crops': member.can_operate_crops, 'allowed_livestock': list(member.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': member.operator_read_only, 'is_active': member.is_active}
         if request.method == 'DELETE':
             changes = {'is_active': False}
             serializer = OrganizationMemberSerializer(member, data=changes, partial=True)
@@ -79,7 +79,7 @@ def member_detail_view(request, pk):
         serializer.save()
         from apps.audit.services import record_client_action
         from apps.audit.models import AuditLog
-        record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name='User', object_id=member.pk, description='Permissões de usuário atualizadas.', extra_data={'before': before, 'after': {'role': member.role, 'can_operate_crops': member.can_operate_crops, 'allowed_livestock': list(member.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': member.operator_read_only, 'is_active': member.is_active}})
+        record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name='User', object_id=member.pk, description='Permissões de usuário atualizadas.', extra_data={'before': before, 'after': {'role': member.role, 'veterinary_access': member.veterinary_access, 'can_operate_crops': member.can_operate_crops, 'allowed_livestock': list(member.allowed_livestock.values_list('code', flat=True)), 'operator_read_only': member.operator_read_only, 'is_active': member.is_active}})
         return Response(status=204) if request.method == 'DELETE' else Response(serializer.data)
 
 
@@ -100,7 +100,7 @@ def create_member_view(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    serializer = CreateMemberSerializer(data=request.data)
+    serializer = CreateMemberSerializer(data=request.data, context={"organization": org})
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
@@ -446,5 +446,15 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def operator_options(request):
+    from apps.billing import segments as catalog
+    from apps.billing.models import PlanSegment
     from apps.livestock.models import Species
-    return Response({'roles': [{'value': value, 'label': label} for value, label in User.Role.choices], 'species': list(Species.objects.order_by('name').values('id', 'code', 'name'))})
+
+    contracted = catalog.contracted_segments(getattr(request.user, 'organization', None))
+    names = dict(PlanSegment.objects.filter(code__in=catalog.ALL_SEGMENTS).values_list('code', 'name'))
+    segments = [{'code': code, 'name': names.get(code, code), 'contracted': code in contracted} for code in catalog.MEMBER_SEGMENTS]
+    return Response({
+        'roles': [{'value': value, 'label': label} for value, label in User.Role.choices],
+        'segments': segments,
+        'species': list(Species.objects.order_by('name').values('id', 'code', 'name')),
+    })
