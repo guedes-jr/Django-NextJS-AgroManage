@@ -100,20 +100,21 @@ class MemberRoleTests(APITestCase):
         from apps.livestock.models import Species
         cattle, _ = Species.objects.get_or_create(code="bovinos", defaults={"name": "Bovinos"})
         payload = {"email": "new-op@example.invalid", "full_name": "Operador", "role": "operator", "password": "test12345", "password_confirm": "test12345"}
-        response = self.client.post(reverse("auth_members_create"), {**payload, "segments": ["bovinos"]}, format="json")
+        response = self.client.post(reverse("auth_members_create"), {**payload, "segments": ["gado-de-corte"]}, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         member = User.objects.get(pk=response.data["id"])
-        self.assertEqual(response.data["segments"], ["bovinos"])
+        self.assertEqual(response.data["segments"], ["gado-de-corte"])
+        self.assertEqual(member.segment_access, ["gado-de-corte"])
         self.assertFalse(member.can_operate_crops)
         self.assertEqual(list(member.allowed_livestock.all()), [cattle])
         self.assertFalse(member.veterinary_access)
         # The Área do veterinário is only granted when contracted and explicitly enabled.
-        self.assertEqual(self.patch(member, segments=["bovinos", "area-veterinario"]).status_code, 400)
+        self.assertEqual(self.patch(member, segments=["gado-de-corte", "area-veterinario"]).status_code, 400)
         segment, _ = PlanSegment.objects.get_or_create(code="area-veterinario", defaults={"name": "Área do veterinário", "subtitle": "Vet", "description": "Vet"})
         if not segment.tiers.filter(is_active=True).exists():
             PlanTier.objects.create(segment=segment, label="Sob consulta", requires_quote=True)
         upsert_segment(self.org.subscription, "area-veterinario")
-        self.assertEqual(self.patch(member, segments=["bovinos", "area-veterinario"]).status_code, 200)
+        self.assertEqual(self.patch(member, segments=["gado-de-corte", "area-veterinario"]).status_code, 200)
         member.refresh_from_db()
         self.assertTrue(member.veterinary_access)
         self.assertEqual(self.patch(member, role="manager").status_code, 200)

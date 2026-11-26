@@ -58,9 +58,9 @@ class CattlePermission(OrganizationRolePermission):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        from apps.billing.segments import CATTLE, user_segments
+        from apps.billing.segments import CATTLE_SEGMENTS, user_segments
 
-        return CATTLE in user_segments(request.user)
+        return bool(set(CATTLE_SEGMENTS) & user_segments(request.user))
 
 
 class CattleOverviewView(APIView):

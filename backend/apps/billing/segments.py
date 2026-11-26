@@ -1,29 +1,82 @@
-"""Single catalog of contractable segments and what each organization/user may access.
+"""Single registry of contractable segments (product areas) and what each one opens.
 
-A segment is contracted when the organization's subscription has a ``SubscriptionItem`` with its
-code and the subscription status keeps segments available. The organization always keeps at least
-one segment. Members see the intersection of the contracted segments with their own scope:
+A *segment* is a business area sold to the customer — not a herd/species. Several segments can
+share the same species (gado de corte and pecuária leiteira both work with ``bovinos``). To add a
+segment: append a ``Segment`` here, create its ``PlanSegment`` (price tiers) in a data migration or
+in /platform › Segmentos e preços, map its routes in the web/mobile navigation and add its card to
+the general dashboard (see CLAUDE.md › Novo segmento).
+
+Contract = access: a segment is available when the subscription (trialing/active/past_due) has an
+*active* ``SubscriptionItem`` with its code. An inactive item keeps tier and negotiated price for a
+one-click reactivation, but opens nothing and is not charged. Members see the intersection of the
+contracted segments with their scope:
 
 * admin and manager: every contracted segment;
 * operator: only the segments enabled in Membros (the Área do veterinário only when enabled too);
-* veterinarian: the Área do veterinário by default plus the segments enabled like an operator.
+* veterinarian: the Área do veterinário by role, plus the segments enabled like an operator.
 """
+from dataclasses import dataclass, field
+
 from django.core.exceptions import ValidationError
 
+
+@dataclass(frozen=True)
+class Segment:
+    code: str
+    name: str
+    # Herd species handled by the segment (livestock API scope); None for non-livestock areas.
+    species: str | None = None
+    # Cattle production handled by the segment (``?production=`` on the cattle API).
+    production: str | None = None
+    # API path prefixes (after /api/v1/) that belong to the segment.
+    api_prefixes: tuple = field(default_factory=tuple)
+    # Segment granted by role to the veterinarian (not chosen in Membros).
+    veterinary: bool = False
+
+
+REGISTRY = (
+    Segment("plantacoes", "Plantações", api_prefixes=("crops/",)),
+    Segment("suinocultura", "Suinocultura", species="suinos", api_prefixes=("livestock/",)),
+    Segment("gado-de-corte", "Gado de corte", species="bovinos", production="beef", api_prefixes=("livestock/",)),
+    Segment("pecuaria-leiteira", "Pecuária leiteira", species="bovinos", production="dairy", api_prefixes=("livestock/",)),
+    Segment("area-veterinario", "Área do veterinário", api_prefixes=("veterinary/",), veterinary=True),
+)
+BY_CODE = {segment.code: segment for segment in REGISTRY}
+
 CROPS = "plantacoes"
-CATTLE = "bovinos"
-SWINE = "suinos"
+SWINE = "suinocultura"
+BEEF = "gado-de-corte"
+DAIRY = "pecuaria-leiteira"
 VETERINARY = "area-veterinario"
-ALL_SEGMENTS = (CROPS, CATTLE, SWINE, VETERINARY)
-# Segments a member can be granted individually in Membros.
-MEMBER_SEGMENTS = (CROPS, CATTLE, SWINE, VETERINARY)
-DEFAULT_SEGMENTS = (CROPS, CATTLE, SWINE)
-LIVESTOCK_SEGMENTS = (CATTLE, SWINE)  # Segment code == Species.code
+ALL_SEGMENTS = tuple(segment.code for segment in REGISTRY)
+MEMBER_SEGMENTS = ALL_SEGMENTS
+LIVESTOCK_SEGMENTS = tuple(segment.code for segment in REGISTRY if segment.species)
+CATTLE_SEGMENTS = tuple(segment.code for segment in REGISTRY if segment.species == "bovinos")
+DEFAULT_SEGMENTS = (CROPS, BEEF, DAIRY, SWINE)
 ENABLED_STATUSES = {"trialing", "active", "past_due"}
+# Codes used before segments were split from herds (kept only for data migrations and old payloads).
+LEGACY_CODES = {"bovinos": (BEEF, DAIRY), "suinos": (SWINE,)}
+
+
+def species_for(codes):
+    """Herd species opened by the given segment codes."""
+    return {BY_CODE[code].species for code in codes if code in BY_CODE and BY_CODE[code].species}
+
+
+def productions_for(codes):
+    return {BY_CODE[code].production for code in codes if code in BY_CODE and BY_CODE[code].production}
+
+
+def normalize(codes):
+    """Accept legacy herd codes in old payloads and keep registry order."""
+    expanded = set()
+    for code in codes or []:
+        expanded.update(LEGACY_CODES.get(code, (code,)))
+    return [code for code in ALL_SEGMENTS if code in expanded] + sorted(expanded - set(ALL_SEGMENTS))
 
 
 def contracted_segments(organization):
-    """Codes of the segments currently available to the organization."""
+    """Codes of the active segments currently available to the organization."""
     if organization is None:
         return set()
     from .models import SubscriptionItem
@@ -32,6 +85,7 @@ def contracted_segments(organization):
         SubscriptionItem.objects.filter(
             subscription__organization=organization,
             subscription__status__in=ENABLED_STATUSES,
+            is_active=True,
             segment_code__in=ALL_SEGMENTS,
         ).values_list("segment_code", flat=True)
     )
@@ -42,14 +96,21 @@ def forget(organization):
 
 
 def member_segments(user):
-    """Segments stored for the member, from the scope fields (crops flag + livestock species)."""
-    livestock = getattr(user, "allowed_livestock", None)
-    codes = {species.code for species in livestock.all() if species.code in LIVESTOCK_SEGMENTS} if livestock is not None else set()
-    if getattr(user, "can_operate_crops", False):
-        codes.add(CROPS)
-    if getattr(user, "veterinary_access", False) or getattr(user, "role", None) == "veterinarian":
+    """Segments stored for the member in Membros (``User.segment_access``)."""
+    codes = set(getattr(user, "segment_access", None) or [])
+    if not codes:
+        # Scope written only in the older fields (crops flag, herd species, veterinary flag).
+        if getattr(user, "can_operate_crops", False):
+            codes.add(CROPS)
+        livestock = getattr(user, "allowed_livestock", None)
+        if livestock is not None and getattr(user, "pk", None):
+            herd = {species.code for species in livestock.all()}
+            codes |= {segment.code for segment in REGISTRY if segment.species in herd}
+        if getattr(user, "veterinary_access", False):
+            codes.add(VETERINARY)
+    if getattr(user, "role", None) == "veterinarian":
         codes.add(VETERINARY)
-    return codes
+    return codes & set(ALL_SEGMENTS)
 
 
 def user_segments(user):
@@ -65,7 +126,7 @@ def user_segments(user):
 
 
 def validate_member_segments(codes, organization, role):
-    codes = set(codes or [])
+    codes = set(normalize(codes))
     unknown = codes - set(MEMBER_SEGMENTS)
     if unknown:
         raise ValidationError("Segmento inválido para o membro: " + ", ".join(sorted(unknown)))
@@ -73,5 +134,11 @@ def validate_member_segments(codes, organization, role):
         raise ValidationError("Somente operador e veterinário recebem segmentos individualmente.")
     missing = codes - contracted_segments(organization)
     if missing:
-        raise ValidationError("A organização não contratou: " + ", ".join(sorted(missing)))
+        names = ", ".join(BY_CODE[code].name for code in sorted(missing) if code in BY_CODE)
+        raise ValidationError("A organização não tem ativo: " + names)
     return codes
+
+
+def legacy_scope(codes):
+    """Values for the older scope fields still read by enforcement code (crops flag, species)."""
+    return {"can_operate_crops": CROPS in codes, "species": species_for(codes), "veterinary_access": VETERINARY in codes}

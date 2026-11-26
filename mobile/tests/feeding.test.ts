@@ -7,7 +7,7 @@ import {userSchema} from '../src/features/auth/contracts';
 import {FeedingDayChanged,feedingDeliveriesForDay,canReadDailyFeeding,canWriteDailyFeeding,feedingDraftSchema,feedingCommand,feedingPayload,feedingBatchSchema,feedingCommandSchema,feedingReceiptSchema,type FeedingQuery} from '../src/features/feeding/contracts';
 import {feedingMessages} from '../src/features/feeding/messages';
 const id='00000000-0000-4000-8000-000000000001',item='00000000-0000-4000-8000-000000000002',farm='00000000-0000-4000-8000-000000000003',key='00000000-0000-4000-8000-000000000004';
-const user=userSchema.parse({id,full_name:'Operador',email:'test@example.com',force_password_change:false,is_platform_staff:false,affiliate_portal_only:false,access:{role:'operator',can_manage_users:false,can_view_financial:false,can_operate_crops:false,livestock_species:['bovinos'],segments:['bovinos'],read_only:false}});
+const user=userSchema.parse({id,full_name:'Operador',email:'test@example.com',force_password_change:false,is_platform_staff:false,affiliate_portal_only:false,access:{role:'operator',can_manage_users:false,can_view_financial:false,can_operate_crops:false,livestock_species:['bovinos'],segments:['gado-de-corte','pecuaria-leiteira'],read_only:false}});
 const batch=feedingBatchSchema.parse({id,batch_code:'B1',name:'',farm,farm_name:'Fazenda A',production:'beef',head_count:10,supplied_kg:'0.00'});
 const command=feedingCommand(batch,'beef','2026-11-07',{quantity_kg:'5,25',notes:' Trato '},{id:item,name:'Ração',unit:'kg'},key);
 const query:FeedingQuery={resource:'batches',production:'beef',page:1,search:''};
@@ -35,7 +35,7 @@ test('daily feeding keeps kg precision, stable key and distinct formula/final pr
 test('daily feeding follows the cattle segment: operator writes, vet only with the segment, read-only blocks writes',()=>{
  assert.equal(canReadDailyFeeding(user),true);assert.equal(canWriteDailyFeeding(user),true);
  const vetOnly={...user,access:{...user.access,role:'veterinarian' as const,segments:['area-veterinario']}};assert.equal(canReadDailyFeeding(vetOnly),false);
- const vet={...user,access:{...user.access,role:'veterinarian' as const,segments:['area-veterinario','bovinos']}};assert.equal(canWriteDailyFeeding(vet),true);
+ const vet={...user,access:{...user.access,role:'veterinarian' as const,segments:['area-veterinario','gado-de-corte','pecuaria-leiteira']}};assert.equal(canWriteDailyFeeding(vet),true);
  assert.equal(canReadDailyFeeding({...user,access:{...user.access,segments:['plantacoes']}}),false);
  for(const change of [{...user,force_password_change:true},{...user,is_platform_staff:true},{...user,access:{...user.access,livestock_species:[]}}])assert.equal(canReadDailyFeeding(change),false);
  assert.equal(canWriteDailyFeeding({...user,access:{...user.access,read_only:true}}),false);

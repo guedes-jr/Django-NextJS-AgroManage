@@ -56,6 +56,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     operator_read_only = models.BooleanField(default=False)
     # Área do veterinário for an operator: off unless the admin enables it in Membros.
     veterinary_access = models.BooleanField(default=False)
+    # Segments enabled for operator/veterinarian in Membros (codes of apps.billing.segments.REGISTRY).
+    # can_operate_crops, allowed_livestock and veterinary_access are kept in sync for older readers.
+    segment_access = models.JSONField(default=list, blank=True)
     phone = models.CharField(max_length=30, blank=True)
     phone_is_whatsapp = models.BooleanField(default=False)
     receive_system_alerts = models.BooleanField(default=True)

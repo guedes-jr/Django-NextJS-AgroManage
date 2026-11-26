@@ -90,7 +90,7 @@ def effective_access(user):
     role = getattr(user, "role", None)
     granted = catalog.user_segments(user)
     scoped = is_operator(user)
-    livestock = [code for code in catalog.LIVESTOCK_SEGMENTS if code in granted]
+    livestock = sorted(catalog.species_for(granted))
     return {
         "role": role,
         "can_manage_users": role == "admin",
@@ -120,6 +120,17 @@ PERSONAL_PATHS = (
     "support",
     "affiliates",
 )
+
+
+def _production_allowed(granted, request):
+    """Cattle API calls naming a production (beef/dairy) need the matching segment."""
+    from apps.billing import segments as catalog
+
+    params = getattr(request, "query_params", None) or getattr(request, "GET", {})
+    production = params.get("production") if hasattr(params, "get") else None
+    if production in ("beef", "dairy"):
+        return production in catalog.productions_for(granted)
+    return True
 
 
 def _segment_path_allowed(granted, path):
@@ -158,7 +169,10 @@ def request_allowed(user, request):
     path = request.path.removeprefix("/api/v1/").strip("/")
     if role in ("admin", "manager"):
         gated = path.startswith(("crops/", "livestock/", "veterinary/")) or path == "veterinary"
-        return not gated or _segment_path_allowed(_request_segments(user, request), path)
+        if not gated:
+            return True
+        granted = _request_segments(user, request)
+        return _segment_path_allowed(granted, path) and (not path.startswith("livestock/") or _production_allowed(granted, request))
     if role not in ("operator", "veterinarian"):
         return False
     granted = _request_segments(user, request)
@@ -195,7 +209,7 @@ def request_allowed(user, request):
     if path.startswith("tasks"):
         return True
     if path.startswith("crops/") or path.startswith("livestock/"):
-        return _segment_path_allowed(granted, path)
+        return _segment_path_allowed(granted, path) and (not path.startswith("livestock/") or _production_allowed(granted, request))
     if path.startswith("farms/") or path in ("farms", "organizations/me"):
         restricted = (
             "farms/assets",
@@ -219,7 +233,7 @@ def enforce_request(user, request):
 def species_codes(user):
     from apps.billing import segments as catalog
 
-    return {code for code in catalog.user_segments(user) if code in catalog.LIVESTOCK_SEGMENTS}
+    return catalog.species_for(catalog.user_segments(user))
 
 
 def scoped_queryset(queryset, user):

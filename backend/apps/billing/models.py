@@ -143,6 +143,9 @@ class SubscriptionItem(BaseModel):
     monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     final_monthly_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # Inactive: hidden and not charged, but tier and negotiated price stay for a quick reactivation.
+    is_active = models.BooleanField(default=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta(BaseModel.Meta):
         ordering = ("created_at",)

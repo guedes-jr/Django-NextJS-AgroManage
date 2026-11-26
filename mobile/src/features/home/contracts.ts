@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { User } from '../auth/contracts';
-import { hasSegment, isScoped, isVeterinaryOnly } from '../auth/contracts';
+import { BEEF_SEGMENT, CATTLE_SEGMENTS, DAIRY_SEGMENT, SWINE_SEGMENT, hasAnySegment, hasSegment, isScoped, isVeterinaryOnly } from '../auth/contracts';
 const amount = z.number().finite();
 const segment = z.object({ cost: amount, revenue: amount, profit: amount });
 export const dashboardSchema = z.object({
@@ -23,8 +23,10 @@ export function canOpenModule(access: User['access'], key: ModuleKey): boolean {
   if (isVeterinaryOnly(access)) return false;
   // Modules follow the contracted segments for every role.
   if (key === 'crops' && !hasSegment(access, 'plantacoes')) return false;
-  if (['beef', 'dairy', 'feeding'].includes(key) && !hasSegment(access, 'bovinos')) return false;
-  if (key === 'swine' && !hasSegment(access, 'suinos')) return false;
+  if (key === 'beef' && !hasSegment(access, BEEF_SEGMENT)) return false;
+  if (key === 'dairy' && !hasSegment(access, DAIRY_SEGMENT)) return false;
+  if (key === 'feeding' && !hasAnySegment(access, CATTLE_SEGMENTS)) return false;
+  if (key === 'swine' && !hasSegment(access, SWINE_SEGMENT)) return false;
   const bovine = access.livestock_species?.includes('bovinos') ?? false;
   if (key === 'finance') return access.can_view_financial && ['admin', 'manager'].includes(access.role);
   if (key === 'reports') return ['admin', 'manager'].includes(access.role);

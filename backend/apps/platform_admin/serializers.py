@@ -9,6 +9,7 @@ from django.utils.text import slugify
 
 from apps.accounts.models import OrganizationAdministratorInvitation
 from apps.accounts.serializers import OperatorScopeValidationMixin, WhatsAppContactMixin
+from apps.billing.segments import ALL_SEGMENTS as SEGMENT_CODES
 from apps.organizations.serializers import OrganizationAddressSerializer, OrganizationContactSerializer
 from apps.organizations.models import Organization
 from apps.billing.models import Feature, Invoice, Payment, PaymentGatewayConfiguration, Plan, PlanEntitlement, Subscription
@@ -25,18 +26,19 @@ class PaymentGatewayConfigurationSerializer(serializers.ModelSerializer):
     credential_configured = serializers.SerializerMethodField()
     credential_fields = serializers.SerializerMethodField()
     supported_methods = serializers.SerializerMethodField()
+    settings_fields = serializers.SerializerMethodField()
     environment_display = serializers.CharField(source="get_environment_display", read_only=True)
 
     class Meta:
         model = PaymentGatewayConfiguration
         fields = (
             "id", "provider", "display_name", "environment", "environment_display", "is_enabled",
-            "is_default", "credential_configured", "credential_fields", "supported_methods", "settings",
+            "is_default", "credential_configured", "credential_fields", "supported_methods", "settings_fields", "settings",
             "last_health_status", "last_health_message", "last_health_check_at", "credentials",
             "clear_credentials", "created_at", "updated_at",
         )
         read_only_fields = (
-            "id", "provider", "credential_configured", "credential_fields", "supported_methods",
+            "id", "provider", "credential_configured", "credential_fields", "supported_methods", "settings_fields",
             "last_health_status", "last_health_message", "last_health_check_at", "created_at", "updated_at",
         )
 
@@ -59,6 +61,10 @@ class PaymentGatewayConfigurationSerializer(serializers.ModelSerializer):
         gateway_class = self._gateway_class(obj)
         return list(gateway_class.supported_methods) if gateway_class else []
 
+    def get_settings_fields(self, obj):
+        gateway_class = self._gateway_class(obj)
+        return list(gateway_class.settings_fields) if gateway_class else []
+
     def validate(self, attrs):
         is_default = attrs.get("is_default", getattr(self.instance, "is_default", False))
         is_enabled = attrs.get("is_enabled", getattr(self.instance, "is_enabled", False))
@@ -69,6 +75,9 @@ class PaymentGatewayConfigurationSerializer(serializers.ModelSerializer):
             credentials = {**self.instance.get_credentials(), **attrs.get("credentials", {})}
             if not gateway_class or not all(credentials.get(key) for key in gateway_class.credential_fields):
                 raise serializers.ValidationError("Configure todas as credenciais antes de definir o gateway como padrão.")
+            settings_values = {**(self.instance.settings or {}), **attrs.get("settings", {})}
+            if not all(str(settings_values.get(key) or "").strip() for key in gateway_class.settings_fields):
+                raise serializers.ValidationError("Preencha as configurações obrigatórias do gateway antes de defini-lo como padrão.")
         return attrs
 
     def update(self, instance, validated_data):
@@ -504,7 +513,7 @@ class PlatformOrganizationWriteSerializer(serializers.ModelSerializer):
         write_only=True,
     )
     segments = serializers.ListField(
-        child=serializers.ChoiceField(choices=("plantacoes", "bovinos", "suinos", "area-veterinario")),
+        child=serializers.ChoiceField(choices=SEGMENT_CODES),
         write_only=True, required=False, allow_empty=False,
     )
 

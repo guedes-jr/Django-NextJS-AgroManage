@@ -1,4 +1,4 @@
-import { cattleAccessPath, legacyCattleRoot } from "./cattleNavigation";
+import { canonicalSegmentPath, cattleAccessPath } from "./cattleNavigation";
 import apiClient, { setOrganizationOperatorMode } from "./api";
 
 export type OrganizationAccess = {
@@ -29,13 +29,22 @@ export function featureOn(access: OrganizationAccess | null | undefined, segment
   return !!access?.segment_features?.[segment]?.[feature];
 }
 
-export const SEGMENT_CODES = ["plantacoes", "bovinos", "suinos", "area-veterinario"] as const;
+/** Contractable business areas (backend apps/billing/segments.py REGISTRY). */
+export const SEGMENT_CODES = ["plantacoes", "suinocultura", "gado-de-corte", "pecuaria-leiteira", "area-veterinario"] as const;
+/** Web route roots of each segment; a new segment adds its root here. */
+const segmentRoots: [string, string[]][] = [
+  ["/home/plantacoes", ["plantacoes"]],
+  ["/home/seguimento/suinos", ["suinocultura"]],
+  ["/home/seguimento/gado-de-corte", ["gado-de-corte"]],
+  ["/home/seguimento/pecuaria-leiteira", ["pecuaria-leiteira"]],
+  // Legacy cattle root serves both cattle segments.
+  ["/home/seguimento/bovinos", ["gado-de-corte", "pecuaria-leiteira"]],
+];
 
-/** Segment opened by a /home path, if any ("plantacoes", "bovinos", "suinos"). */
-function pathSegment(path: string) {
-  if (path.startsWith("/home/plantacoes")) return "plantacoes";
-  if (path.startsWith("/home/seguimento/")) return path.split("/")[3] || null;
-  return null;
+/** Segments that can open a /home path (any of them), or null when the path is not a segment area. */
+function pathSegments(path: string) {
+  path = canonicalSegmentPath(path);
+  return segmentRoots.find(([root]) => path === root || path.startsWith(`${root}/`))?.[1] ?? null;
 }
 
 export function hasSegment(access: OrganizationAccess | null | undefined, code: string) {
@@ -43,11 +52,11 @@ export function hasSegment(access: OrganizationAccess | null | undefined, code: 
 }
 
 export function canAccessOrganizationPath(access: OrganizationAccess | null, path: string) {
+  const required = pathSegments(path);
   path = cattleAccessPath(path);
   if (!access) return path === "/home";
   if (path === VETERINARY_PATH || path.startsWith(`${VETERINARY_PATH}/`)) return !!access.veterinary;
-  const segment = pathSegment(path);
-  if (segment && access.segments && !access.segments.includes(segment)) return false;
+  if (required && access.segments && !required.some(code => access.segments!.includes(code))) return false;
   const personal = ["/home/profile", "/home/notifications", "/home/suporte"];
   const isPersonal = personal.some(prefix => path === prefix || path.startsWith(`${prefix}/`));
   if (access.role === "veterinarian" && !(access.segments || []).some(code => code !== "area-veterinario")) {

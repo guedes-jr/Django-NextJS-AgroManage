@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { Activity, Archive, BadgePercent, ArrowLeft, Boxes, Building2, ClipboardList, CreditCard, DatabaseBackup, Download, Eye, FileText, Gauge, History, Layers, LayoutDashboard, LifeBuoy, Pencil, RefreshCcw, PauseCircle, Receipt, ShieldCheck, Sprout, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, Archive, BadgePercent, Trash2, ArrowLeft, Boxes, Building2, ClipboardList, CreditCard, DatabaseBackup, Download, Eye, FileText, Gauge, History, Layers, LayoutDashboard, LifeBuoy, Pencil, RefreshCcw, PauseCircle, Receipt, ShieldCheck, Sprout, Users, WalletCards, type LucideIcon } from "lucide-react";
 
 import { useToast } from "@/components/ui/Toast";
 import { OrganizationDossierSection as DossierSection } from "@/components/platform/OrganizationDossierSections";
@@ -12,6 +12,8 @@ import { OrganizationResponsibleModal } from "@/components/platform/Organization
 import { OrganizationFormModal } from "@/components/platform/OrganizationFormModal";
 import { OrganizationSegmentsSection } from "@/components/platform/OrganizationSegmentsSection";
 import { OrganizationDiscountsSection } from "@/components/platform/OrganizationDiscountsSection";
+import { OrganizationDeleteForm } from "@/components/platform/OrganizationDeleteForm";
+import { usePlatformIsOwner } from "@/components/platform/usePlatformRole";
 import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
 import { platformService } from "@/services/platformApi";
 import type { OrganizationDossierSection, OrganizationStatus, PlatformOrganization } from "@/types/platform";
@@ -43,6 +45,8 @@ export default function PlatformOrganizationDetailPage() {
   const [resending, setResending] = useState(false);
   const [showResponsible, setShowResponsible] = useState(false);
   const canManage = organization?.can_manage === true;
+  const isOwner = usePlatformIsOwner();
+  const [showDelete, setShowDelete] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadError, setLoadError] = useState("");
   const [requestedSection, setRequestedSection] = useState(() => typeof window === "undefined" ? "summary" : new URLSearchParams(window.location.search).get("tab") || "summary");
@@ -137,6 +141,7 @@ export default function PlatformOrganizationDetailPage() {
           {canManage && organization.status === "active" && <button className="btn btn-sm btn-outline-warning" onClick={() => openStatus("suspended")} disabled={changing}><PauseCircle size={15}/>Suspender</button>}
           {canManage && organization.status !== "archived" && <button className="btn btn-sm btn-outline-danger" onClick={() => openStatus("archived")} disabled={changing}><Archive size={15}/>Arquivar</button>}
           {canManage && organization.status !== "active" && <button className="btn btn-sm btn-success" onClick={() => openStatus("active")} disabled={changing}><RefreshCcw size={15}/>Reativar</button>}
+          {isOwner && organization.status === "archived" && <button className="btn btn-sm btn-danger" onClick={() => setShowDelete(true)} disabled={changing}><Trash2 size={15}/>Excluir definitivamente</button>}
         </div>
       </div>
       <div className="platform-kpis mt-3">{metrics.map(metric => <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>)}</div>
@@ -148,6 +153,7 @@ export default function PlatformOrganizationDetailPage() {
       <textarea id="organization-status-reason" className="form-control" maxLength={1000} rows={2} value={statusReason} onChange={event => setStatusReason(event.target.value)} disabled={changing}/>
       <div className="platform-form-footer"><button type="button" className="btn btn-outline-secondary" onClick={() => setStatusAction(null)} disabled={changing}>Cancelar</button><button className="btn btn-dark" disabled={changing}>{changing ? "Processando..." : `Confirmar: ${statusLabels[statusAction]}`}</button></div>
     </form>}
+    {isOwner && showDelete && <OrganizationDeleteForm organizationId={organization.id} name={organization.name} onCancel={() => setShowDelete(false)}/>}
     <div className="platform-dossier">
       <nav className="platform-card platform-dossier-nav" aria-label="Ficha da organização">
         {visibleGroups.map(group => <div className="platform-dossier-group" key={group.label} role="group" aria-label={group.label}>
@@ -159,7 +165,7 @@ export default function PlatformOrganizationDetailPage() {
         {requestedSection !== selectedSection && <p className="alert alert-info py-2 small">Esta seção não está disponível para seu perfil. O resumo da organização está aberto.</p>}
         {selectedSection === "summary" ? <>
           <div className="platform-card p-3 mb-3"><strong>Estado: {organization.status_display}</strong><div className="text-muted small">Última alteração: {new Date(organization.status_changed_at).toLocaleString("pt-BR")}</div>{organization.status_reason && <p className="mb-0 mt-2">Motivo: {organization.status_reason}</p>}</div>
-          <section className="platform-card p-3 mb-3"><div className="d-flex flex-wrap justify-content-between gap-3"><div><h2 className="h6 fw-bold">Responsável pela organização</h2>{organization.responsible ? <><strong>{organization.responsible.full_name}</strong><div>{organization.responsible.email}</div><span className={`platform-pill mt-2 ${organization.responsible.is_active ? "success" : "danger"}`}>{organization.responsible.is_active ? "Usuário ativo" : "Usuário inativo"}</span></> : <p className="text-muted mb-0">Nenhum responsável definido.</p>}</div><div className="platform-actions align-items-start">{organization.responsible && <Link className="btn btn-sm btn-outline-secondary" href={`/platform/users/${organization.responsible.id}`}>Gerenciar usuário</Link>}{canManage && <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowResponsible(true)}>{organization.responsible ? "Transferir responsável" : "Definir responsável"}</button>}</div></div>{organization.administrator_invitation && !organization.administrator_invitation.accepted_at && !organization.administrator_invitation.revoked_at && <div className="small mt-3">Convite: {invitationLabels[organization.administrator_invitation.state]} <button type="button" className="btn btn-link btn-sm" onClick={() => selectSection("users")}>Ver convite</button></div>}</section>
+          <section className="platform-card p-3 mb-3"><div className="d-flex flex-wrap justify-content-between gap-3"><div><h2 className="h6 fw-bold">Responsável pela organização</h2>{organization.responsible ? <><strong>{organization.responsible.full_name}</strong><div>{organization.responsible.email}</div><span className={`platform-pill mt-2 ${organization.responsible.is_active ? "success" : "danger"}`}>{organization.responsible.is_active ? "Usuário ativo" : "Usuário inativo"}</span></> : <p className="text-muted mb-0">Nenhum responsável definido.</p>}</div><div className="platform-actions align-items-start">{organization.responsible && <Link className="btn btn-sm btn-outline-secondary" href={`/platform/users/${organization.responsible.id}`}>Gerenciar usuário</Link>}{canManage && <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowResponsible(true)}>{organization.responsible ? "Transferir responsável" : "Definir responsável"}</button>}</div></div>{organization.administrator_invitation && !organization.administrator_invitation.accepted_at && !organization.administrator_invitation.revoked_at && <div className="small mt-3">Convite: {invitationLabels[organization.administrator_invitation.state]} <button type="button" className="btn btn-outline-secondary btn-sm platform-section-action" onClick={() => selectSection("users")}>Ver convite</button></div>}</section>
           <OrganizationOperationsSection organization={organization} onNavigate={selectSection}/>
         </> : selectedSection === "segments" ? <OrganizationSegmentsSection organizationId={organization.id} canManage={canManage}/> : selectedSection === "discounts" ? <OrganizationDiscountsSection organizationId={organization.id} canManage={canManage}/> : <>
           {selectedSection === "users" && <>

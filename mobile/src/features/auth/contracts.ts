@@ -45,6 +45,12 @@ export const isScoped = (access: User['access']) => access.role === 'operator' |
 export const isVeterinaryOnly = (access: User['access']) => access.role === 'veterinarian' && !(access.segments ?? []).some(code => code !== VETERINARY_SEGMENT);
 /** Segment opened by the member now; older payloads without the list keep the previous behaviour. */
 export const hasSegment = (access: User['access'], code: string) => !access.segments || access.segments.includes(code);
+/** Business areas that work with the cattle herd (backend apps/billing/segments.py CATTLE_SEGMENTS). */
+export const BEEF_SEGMENT = 'gado-de-corte';
+export const DAIRY_SEGMENT = 'pecuaria-leiteira';
+export const SWINE_SEGMENT = 'suinocultura';
+export const CATTLE_SEGMENTS = [BEEF_SEGMENT, DAIRY_SEGMENT] as const;
+export const hasAnySegment = (access: User['access'], codes: readonly string[]) => codes.some(code => hasSegment(access, code));
 export const organizationSchema = z.object({ id: z.string().min(1), name: z.string(), language: z.enum(languages) });
 export type Organization = z.infer<typeof organizationSchema>;
 export type Session = { user: User; organization: Organization };

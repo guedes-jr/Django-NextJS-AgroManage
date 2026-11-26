@@ -214,8 +214,8 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
         return value
 
 class OperatorScopeValidationMixin:
-    """Members' segment scope. ``segments`` is the public contract; it is stored in the crops flag,
-    the livestock species and ``veterinary_access`` (see apps.billing.segments)."""
+    """Members' segment scope. ``segments`` is the public contract, stored in ``segment_access``;
+    the crops flag, livestock species and ``veterinary_access`` are derived for older readers."""
 
     def get_segments(self, user):
         from apps.billing.segments import ALL_SEGMENTS, member_segments
@@ -234,19 +234,18 @@ class OperatorScopeValidationMixin:
         if role not in ("operator", "veterinarian"):
             if requested or attrs.get("can_operate_crops") or attrs.get("allowed_livestock") or attrs.get("operator_read_only"):
                 raise serializers.ValidationError(translate_message("Administrador e gerente acessam todos os segmentos contratados; restrições valem para operador e veterinário."))
-            attrs.update(can_operate_crops=False, allowed_livestock=[], operator_read_only=False, veterinary_access=False)
+            attrs.update(can_operate_crops=False, allowed_livestock=[], operator_read_only=False, veterinary_access=False, segment_access=[])
             return attrs
         if requested is None and self.instance is not None and "role" not in attrs:
             return attrs
         if requested is None:
-            # Legacy payload (crops flag + species) or a role change keeping the stored scope.
-            codes = set()
-            if attrs.get("can_operate_crops", getattr(self.instance, "can_operate_crops", False)):
-                codes.add(catalog.CROPS)
-            species = attrs.get("allowed_livestock", self.instance.allowed_livestock.all() if self.instance else [])
-            codes |= {item.code for item in species if item.code in catalog.LIVESTOCK_SEGMENTS}
-            if role == "operator" and getattr(self.instance, "veterinary_access", False):
-                codes.add(catalog.VETERINARY)
+            if self.instance is not None:
+                codes = set(self.instance.segment_access or [])
+            else:
+                # Older payload (crops flag + species): map species to their segments.
+                codes = {catalog.CROPS} if attrs.get("can_operate_crops") else set()
+                for species in attrs.get("allowed_livestock", []):
+                    codes |= {segment.code for segment in catalog.REGISTRY if segment.species == species.code}
         else:
             if not isinstance(requested, (list, tuple)):
                 raise serializers.ValidationError({"segments": translate_message("Informe a lista de segmentos.")})
@@ -260,9 +259,11 @@ class OperatorScopeValidationMixin:
             raise serializers.ValidationError({"segments": error.messages})
         from apps.livestock.models import Species
 
-        attrs["can_operate_crops"] = catalog.CROPS in codes
-        attrs["allowed_livestock"] = list(Species.objects.filter(code__in=codes & set(catalog.LIVESTOCK_SEGMENTS)))
-        attrs["veterinary_access"] = role == "operator" and catalog.VETERINARY in codes
+        legacy = catalog.legacy_scope(codes)
+        attrs["segment_access"] = [code for code in catalog.ALL_SEGMENTS if code in codes]
+        attrs["can_operate_crops"] = legacy["can_operate_crops"]
+        attrs["allowed_livestock"] = list(Species.objects.filter(code__in=legacy["species"]))
+        attrs["veterinary_access"] = role == "operator" and legacy["veterinary_access"]
         return attrs
 
 

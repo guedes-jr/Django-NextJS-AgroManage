@@ -68,17 +68,36 @@ def upsert_segment(subscription, code, *, tier_id=None, final_monthly_price=None
     else:
         item.discount_percent = annual
         item.final_monthly_price = None if list_price is None else (list_price - list_price * annual / Decimal("100")).quantize(Decimal("0.01"))
+    item.is_active, item.deactivated_at = True, None
     item.save()
     catalog.forget(subscription.organization)
     return item, previous
+
+
+def _ensure_another_active(subscription, code):
+    if not subscription.items.filter(is_active=True).exclude(segment_code=code).exists():
+        raise ValidationError({"detail": "A organização precisa manter ao menos um segmento ativo."})
+
+
+def set_segment_active(subscription, code, active):
+    """Inactive segments are hidden and not charged; tier and negotiated price stay for reactivation."""
+    item = subscription.items.filter(segment_code=code).first()
+    if item is None:
+        raise ValidationError({"detail": "Este segmento não está contratado."})
+    if not active:
+        _ensure_another_active(subscription, code)
+    item.is_active = active
+    item.deactivated_at = None if active else timezone.now()
+    item.save(update_fields=["is_active", "deactivated_at", "updated_at"])
+    return item
 
 
 def remove_segment(subscription, code):
     item = subscription.items.filter(segment_code=code).first()
     if item is None:
         raise ValidationError({"detail": "Este segmento não está contratado."})
-    if subscription.items.count() <= 1:
-        raise ValidationError({"detail": "A organização precisa manter ao menos um segmento contratado."})
+    if item.is_active:
+        _ensure_another_active(subscription, code)
     snapshot = item_snapshot(item)
     item.delete()
     catalog.forget(subscription.organization)
@@ -87,15 +106,21 @@ def remove_segment(subscription, code):
 
 
 def _drop_member_scope(organization, code):
-    """Members lose a segment the organization no longer has."""
+    """Members lose a segment the organization removed (inactivation keeps their scope)."""
     from django.contrib.auth import get_user_model
 
-    users = get_user_model().objects.filter(organization=organization)
-    if code == catalog.CROPS:
-        users.filter(can_operate_crops=True).update(can_operate_crops=False)
-    elif code in catalog.LIVESTOCK_SEGMENTS:
-        for user in users.filter(allowed_livestock__code=code).distinct():
-            user.allowed_livestock.remove(*user.allowed_livestock.filter(code=code))
+    from apps.livestock.models import Species
+
+    for user in get_user_model().objects.filter(organization=organization, role__in=["operator", "veterinarian"]):
+        codes = [value for value in (user.segment_access or []) if value != code]
+        if codes == (user.segment_access or []):
+            continue
+        legacy = catalog.legacy_scope(codes)
+        user.segment_access = codes
+        user.can_operate_crops = legacy["can_operate_crops"]
+        user.veterinary_access = user.role == "operator" and legacy["veterinary_access"]
+        user.save(update_fields=["segment_access", "can_operate_crops", "veterinary_access", "updated_at"])
+        user.allowed_livestock.set(Species.objects.filter(code__in=legacy["species"]))
 
 
 def item_snapshot(item):
@@ -103,12 +128,13 @@ def item_snapshot(item):
         "segment_code": item.segment_code, "segment_name": item.segment_name, "tier": str(item.tier_id), "tier_label": item.tier_label,
         "monthly_price": None if item.monthly_price is None else str(item.monthly_price),
         "final_monthly_price": None if item.final_monthly_price is None else str(item.final_monthly_price),
+        "is_active": item.is_active, "deactivated_at": item.deactivated_at.isoformat() if item.deactivated_at else None,
     }
 
 
 def provision_segments(subscription, codes):
     """Contract the given segments (at least one) on a new subscription."""
-    codes = [code for code in dict.fromkeys(codes or []) if code in catalog.ALL_SEGMENTS]
+    codes = [code for code in catalog.normalize(codes) if code in catalog.ALL_SEGMENTS]
     if not codes:
         raise ValidationError({"segments": "Selecione ao menos um segmento."})
     for code in codes:
@@ -152,7 +178,7 @@ def redeem_coupon(subscription, code, *, actor=None):
         raise ValidationError({"coupon": "Este cupom já foi usado por esta organização."})
     if coupon.first_contract_only and SubscriptionDiscount.objects.filter(subscription=subscription, source=SubscriptionDiscount.Source.COUPON).exists():
         raise ValidationError({"coupon": "Cupom válido apenas na primeira contratação."})
-    if coupon.segment_code and not subscription.items.filter(segment_code=coupon.segment_code).exists():
+    if coupon.segment_code and not subscription.items.filter(segment_code=coupon.segment_code, is_active=True).exists():
         raise ValidationError({"coupon": "O cupom vale para um segmento que não está contratado."})
     return add_discount(
         subscription, kind=coupon.kind, value=coupon.value, description=f"Cupom {coupon.code}" + (f" — {coupon.description}" if coupon.description else ""),

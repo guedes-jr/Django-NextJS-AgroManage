@@ -47,13 +47,15 @@ CATALOG = {segment.code: segment for segment in SEGMENTS}
 
 
 def _available(organization, segment):
-    if not segment.contracted:
-        return True
-    if segment.code == VETERINARY:
-        from apps.veterinary.access import veterinary_enabled
+    """Feature groups follow the active contracted segments (herd groups: any segment of that herd)."""
+    from apps.billing import segments as catalog
 
-        return veterinary_enabled(organization)
-    return False
+    contracted = catalog.contracted_segments(organization)
+    if segment.code == VETERINARY:
+        return catalog.VETERINARY in contracted
+    if segment.code == CROPS:
+        return catalog.CROPS in contracted
+    return any(catalog.BY_CODE[code].species == segment.code for code in contracted)
 
 
 def feature_map(organization):

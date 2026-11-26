@@ -24,7 +24,7 @@ test('field routines come first and follow the destination permissions', () => {
 
 test('a veterinarian without other segments has no field routine; with cattle, works like an operator', () => {
   assert.deepEqual(ids(make({ role: 'veterinarian', segments: ['area-veterinario'] })), []);
-  assert.ok(ids(make({ role: 'veterinarian', segments: ['area-veterinario', 'bovinos'] })).includes('feeding'));
+  assert.ok(ids(make({ role: 'veterinarian', segments: ['area-veterinario', 'gado-de-corte','pecuaria-leiteira'] })).includes('feeding'));
 });
 
 test('managers get native inventory and finance routines, read-only users get none', () => {

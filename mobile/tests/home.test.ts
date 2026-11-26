@@ -15,7 +15,7 @@ test('mobile navigation preserves species, financial and feeder restrictions', (
     assert.equal(canOpenModule({...access,role:'veterinarian'},key),['profile','notifications','support'].includes(key));
   }
   // With the cattle segment enabled the veterinarian works like an operator.
-  assert.equal(canOpenModule({...access,role:'veterinarian',segments:['area-veterinario','bovinos']},'feeding'),true);
+  assert.equal(canOpenModule({...access,role:'veterinarian',segments:['area-veterinario','gado-de-corte','pecuaria-leiteira']},'feeding'),true);
   // Contracted segments gate every role: no cattle contract, no cattle module.
   assert.equal(canOpenModule({...access,role:'manager',segments:['plantacoes']},'beef'),false);
   assert.equal(canOpenModule({...access,role:'veterinarian',livestock_species:[]},'feeding'),false);

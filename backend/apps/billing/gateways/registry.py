@@ -1,4 +1,5 @@
 from .base import BasePaymentGateway, PaymentGatewayError
+from .asaas import AsaasGateway
 from .gerencianet import GerencianetGateway
 
 
@@ -20,11 +21,12 @@ class PaymentGatewayRegistry:
         return self.get_class(configuration.provider)(configuration)
 
     def catalog(self):
-        return [{"provider": code, "display_name": cls.display_name, "credential_fields": cls.credential_fields, "supported_methods": cls.supported_methods} for code, cls in self._gateways.items()]
+        return [{"provider": code, "display_name": cls.display_name, "credential_fields": cls.credential_fields, "supported_methods": cls.supported_methods, "settings_fields": cls.settings_fields} for code, cls in self._gateways.items()]
 
 
 gateway_registry = PaymentGatewayRegistry()
 gateway_registry.register(GerencianetGateway)
+gateway_registry.register(AsaasGateway)
 
 
 def get_default_gateway():

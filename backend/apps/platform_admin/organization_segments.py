@@ -12,13 +12,15 @@ from rest_framework.exceptions import NotFound, ValidationError
 from apps.billing import segments as catalog
 from apps.billing.models import DiscountKind, PlanSegment, Subscription, SubscriptionDiscount
 from apps.billing.pricing import breakdown
-from apps.billing.subscriptions import add_discount, discount_row, item_snapshot, remove_segment, revoke_discount, upsert_segment
+from apps.billing.subscriptions import add_discount, discount_row, item_snapshot, remove_segment, revoke_discount, set_segment_active, upsert_segment
 from .services import record_platform_action
 
 
 class SegmentChangeSerializer(serializers.Serializer):
     segment_code = serializers.ChoiceField(choices=catalog.ALL_SEGMENTS)
     contracted = serializers.BooleanField()
+    # Only toggles an existing item: inactive = hidden and not charged, kept for reactivation.
+    active = serializers.BooleanField(required=False, allow_null=True, default=None)
     tier = serializers.UUIDField(required=False, allow_null=True)
     quantity = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     final_monthly_price = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0"), required=False, allow_null=True)
@@ -54,6 +56,7 @@ def segment_overview(organization):
         "segments": [{
             "code": segment.code, "name": segment.name, "subtitle": segment.subtitle, "metric_label": segment.metric_label,
             "contracted": segment.code in items,
+            "active": segment.code in items and items[segment.code].is_active,
             "item": item_snapshot(items[segment.code]) if segment.code in items else None,
             "tiers": [{
                 "id": str(tier.id), "label": tier.label, "minimum_quantity": tier.minimum_quantity, "maximum_quantity": tier.maximum_quantity,
@@ -70,7 +73,12 @@ def change_segment(*, request, organization, data):
     with transaction.atomic():
         subscription = _subscription(organization, lock=True)
         code = values["segment_code"]
-        if values["contracted"]:
+        if values["contracted"] and values.get("active") is not None:
+            item = set_segment_active(subscription, code, values["active"])
+            action = "subscription.segment_reactivated" if values["active"] else "subscription.segment_deactivated"
+            description = f"Segmento {item.segment_name} {'reativado' if values['active'] else 'inativado'}."
+            extra = {"after": item_snapshot(item)}
+        elif values["contracted"]:
             item, before = upsert_segment(subscription, code, tier_id=values.get("tier"), quantity=values.get("quantity"), final_monthly_price=values.get("final_monthly_price"))
             action = "subscription.segment_updated" if before else "subscription.segment_added"
             description = f"Segmento {item.segment_name} {'atualizado na' if before else 'contratado na'} assinatura."

@@ -1,11 +1,13 @@
 "use client";
 
+import { segmentNames } from "@/components/platform/OrganizationDiscountsSection";
+
 import { FormEvent, useEffect, useState } from "react";
 import { Building2, Save, X } from "lucide-react";
 
 import { getOrganizationErrorMessage } from "@/services/organizationInvitations";
 import { platformService } from "@/services/platformApi";
-import type { OrganizationFormPayload, PlatformOrganization, PlatformPlan } from "@/types/platform";
+import type { OrganizationFormPayload, PlatformOrganization, PlatformPlan, SegmentCode } from "@/types/platform";
 
 export function OrganizationFormModal({
   organization,
@@ -30,7 +32,7 @@ export function OrganizationFormModal({
     address: organization?.address || "",
     plan_id: organization?.subscription_plan_id || "",
     billing_cycle: organization?.billing_cycle || "monthly",
-    segments: organization ? undefined : ["plantacoes", "bovinos", "suinos"],
+    segments: organization ? undefined : ["plantacoes", "gado-de-corte", "pecuaria-leiteira", "suinocultura"],
   });
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export function OrganizationFormModal({
           {!organization && <fieldset className="border-top mt-4 pt-3" disabled={saving}>
             <legend className="h6 fw-bold">Segmentos contratados</legend>
             <p className="small text-muted">Selecione ao menos um. Os preços seguem a tabela de Segmentos e preços e podem ser negociados na ficha.</p>
-            <div className="d-flex flex-wrap gap-3 mb-2">{([["plantacoes", "Plantações"], ["bovinos", "Bovinos"], ["suinos", "Suínos"], ["area-veterinario", "Área do veterinário"]] as const).map(([code, label]) => <div className="form-check" key={code}>
+            <div className="d-flex flex-wrap gap-3 mb-2">{(Object.entries(segmentNames) as [SegmentCode, string][]).map(([code, label]) => <div className="form-check" key={code}>
               <input id={`new-org-${code}`} type="checkbox" className="form-check-input" checked={!!form.segments?.includes(code)} onChange={event => setForm({ ...form, segments: event.target.checked ? [...(form.segments || []), code] : (form.segments || []).filter(value => value !== code) })}/>
               <label htmlFor={`new-org-${code}`} className="form-check-label">{label}</label>
             </div>)}</div>

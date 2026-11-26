@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 from apps.billing.models import Coupon
 from apps.billing.pricing import breakdown, monthly_total
 from apps.billing.segments import contracted_segments
-from apps.billing.subscriptions import add_discount, redeem_coupon, remove_segment, upsert_segment
+from apps.billing.subscriptions import add_discount, redeem_coupon, remove_segment, set_segment_active, upsert_segment
 from apps.organizations.models import Organization
 
 
@@ -16,15 +16,15 @@ class PricingTests(TestCase):
     def setUp(self):
         self.organization = Organization.objects.create(name="Preço", slug="preco")
         self.subscription = self.organization.subscription
-        # Two priced segments: crops R$ 100, swine R$ 50 (cattle stays on request = R$ 0).
+        # Two priced segments: crops R$ 100, swine R$ 50 (cattle segments stay on request = R$ 0).
         upsert_segment(self.subscription, "plantacoes", final_monthly_price=Decimal("100.00"))
-        upsert_segment(self.subscription, "suinos", final_monthly_price=Decimal("50.00"))
+        upsert_segment(self.subscription, "suinocultura", final_monthly_price=Decimal("50.00"))
 
     def total(self):
         return monthly_total(self.subscription)
 
     def test_new_organization_contracts_base_segments(self):
-        self.assertEqual(contracted_segments(self.organization), {"plantacoes", "bovinos", "suinos"})
+        self.assertEqual(contracted_segments(self.organization), {"plantacoes", "gado-de-corte", "pecuaria-leiteira", "suinocultura"})
         self.assertEqual(self.total(), Decimal("150.00"))
 
     def test_order_segment_then_subscription(self):
@@ -36,7 +36,7 @@ class PricingTests(TestCase):
         self.assertEqual(Decimal(breakdown(self.subscription)["discount_total"]), Decimal("44.00"))
 
     def test_fixed_price_and_exemption(self):
-        add_discount(self.subscription, kind="fixed_price", value=30, segment_code="suinos", description="Fixo")
+        add_discount(self.subscription, kind="fixed_price", value=30, segment_code="suinocultura", description="Fixo")
         self.assertEqual(self.total(), Decimal("130.00"))
         add_discount(self.subscription, kind="exemption", description="Organização de teste")
         self.assertEqual(self.total(), Decimal("0.00"))
@@ -63,8 +63,19 @@ class PricingTests(TestCase):
         with self.assertRaises(ValidationError):
             redeem_coupon(other.subscription, "bemvindo")
 
-    def test_keeps_at_least_one_segment(self):
-        remove_segment(self.subscription, "bovinos")
-        remove_segment(self.subscription, "suinos")
+    def test_keeps_at_least_one_active_segment(self):
+        remove_segment(self.subscription, "gado-de-corte")
+        remove_segment(self.subscription, "pecuaria-leiteira")
+        remove_segment(self.subscription, "suinocultura")
         with self.assertRaises(ValidationError):
             remove_segment(self.subscription, "plantacoes")
+        with self.assertRaises(ValidationError):
+            set_segment_active(self.subscription, "plantacoes", False)
+
+    def test_inactive_segment_is_hidden_and_not_charged_but_keeps_price(self):
+        set_segment_active(self.subscription, "suinocultura", False)
+        self.assertNotIn("suinocultura", contracted_segments(self.organization))
+        self.assertEqual(self.total(), Decimal("100.00"))
+        item = set_segment_active(self.subscription, "suinocultura", True)
+        self.assertEqual(item.final_monthly_price, Decimal("50.00"))
+        self.assertEqual(self.total(), Decimal("150.00"))

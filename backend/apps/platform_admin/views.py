@@ -902,6 +902,8 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         if self.action == "dossier_tickets":
             from apps.ai_assistant.ticket_views import TeamSupportPermission
             return [TeamSupportPermission()]
+        if self.action == "permanent_deletion":
+            return [IsPlatformAdmin()]
         if self.action in {"dossier_reconcile_storage", "dossier_revoke_discount"} or (self.action in {"dossier_usage", "dossier_segments", "dossier_discounts"} and self.request.method in {"PATCH", "POST"}):
             return [IsPlatformAdmin()]
         if self.action == "dossier_history":
@@ -1031,6 +1033,15 @@ class PlatformOrganizationViewSet(viewsets.ModelViewSet):
         if request.method == "GET":
             return Response(segment_overview(organization))
         return Response(change_segment(request=request, organization=organization, data=request.data))
+
+    @action(detail=True, methods=["get", "post"], url_path="deletion")
+    def permanent_deletion(self, request, pk=None):
+        """GET: blockers and counts; POST: permanent deletion (platform owner, archived, typed slug)."""
+        from .organization_deletion import delete_organization, deletion_preview
+        organization = self._dossier_organization()
+        if request.method == "GET":
+            return Response(deletion_preview(organization))
+        return Response(delete_organization(request=request, organization_id=organization.pk, data=request.data))
 
     @action(detail=True, methods=["get", "post"], url_path="discounts")
     def dossier_discounts(self, request, pk=None):

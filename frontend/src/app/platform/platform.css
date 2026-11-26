@@ -235,3 +235,17 @@
   .platform-filter-bar .form-select { flex:1 1 140px; }
 }
 @media (hover: none) { .platform-row-link:hover td { background:transparent; } }
+
+/* Compact row action (e.g. manage organization): 36px desktop, 44px touch. */
+.platform-icon-action { display:inline-grid; place-items:center; width:36px; height:36px; border:1px solid #cfd8d2; border-radius:10px; background:#fff; color:#3f5247; transition:background .15s,color .15s,border-color .15s; }
+.platform-icon-action:hover { background:#e8f5eb; border-color:#9bc49f; color:#14532d; }
+.platform-icon-action:focus-visible { outline:2px solid #16a34a; outline-offset:2px; }
+@media (max-width: 991.98px) { .platform-icon-action { width:44px; height:44px; } }
+.platform-section-action { display:inline-flex; align-items:center; gap:4px; margin:8px 8px 0 0; font-weight:600; }
+.platform-danger-zone { border-color:#f1b4b4; background:#fffafa; }
+.platform-danger-zone h2 { display:flex; align-items:center; gap:8px; color:#991b1b; }
+.platform-segment-row { display:flex; flex-direction:column; gap:12px; }
+.platform-segment-summary { display:grid; grid-template-columns:minmax(160px,1.3fr) auto minmax(150px,1fr) auto; align-items:center; gap:12px; }
+.platform-segment-row.is-inactive h3, .platform-segment-row.is-inactive .platform-segment-summary > div:nth-child(3) { color:#6b7280; }
+.platform-segment-tier { flex:2 1 240px !important; }
+@media (max-width: 767.98px) { .platform-segment-summary { grid-template-columns:1fr auto; } .platform-segment-summary > .platform-actions { grid-column:1 / -1; justify-content:flex-start !important; } }

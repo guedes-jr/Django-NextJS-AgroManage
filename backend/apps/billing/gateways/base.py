@@ -31,6 +31,8 @@ class BasePaymentGateway(ABC):
     display_name = "Gateway base"
     credential_fields: tuple[str, ...] = ()
     supported_methods: tuple[str, ...] = ()
+    # Non-secret settings required before the gateway can become the default (e.g. receiver PIX key).
+    settings_fields: tuple[str, ...] = ()
 
     def __init__(self, configuration):
         self.configuration = configuration

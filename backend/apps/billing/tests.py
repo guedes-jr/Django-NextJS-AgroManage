@@ -168,3 +168,76 @@ class PaymentGatewayArchitectureTestCase(APITestCase):
         )
         self.assertEqual(result.external_id, "charge-123")
         self.assertEqual(result.status, "succeeded")
+
+
+class AsaasGatewayTestCase(APITestCase):
+    def setUp(self):
+        self.configuration = PaymentGatewayConfiguration.objects.get(provider="asaas")
+        self.configuration.set_credentials({"api_key": "$aact_test", "webhook_token": "hook-token"})
+        self.configuration.save()
+        self.gateway = gateway_registry.create(self.configuration)
+
+    def charge(self, method="boleto"):
+        return self.gateway.create_charge(GatewayChargeRequest(
+            reference="invoice-1", amount=Decimal("120.5"), currency="BRL", payment_method=method,
+            customer={"name": "Fazenda Teste", "document": "12.345.678/0001-90", "email": "f@example.com", "external_reference": "org-1"},
+        ))
+
+    def test_registered_with_methods_and_seeded(self):
+        self.assertEqual(self.gateway.provider_code, "asaas")
+        self.assertEqual(set(self.gateway.supported_methods), {"pix", "boleto", "credit_card"})
+        self.assertEqual(self.gateway.base_url, "https://api-sandbox.asaas.com/v3")
+
+    @patch("apps.billing.gateways.asaas.AsaasGateway._urlopen")
+    def test_creates_customer_and_boleto_charge(self, urlopen):
+        urlopen.side_effect = [
+            {"data": []},  # no charge with this externalReference yet
+            {"data": []}, {"data": []},  # customer not found by reference nor document
+            {"id": "cus_1"},
+            {"id": "pay_1", "status": "PENDING", "billingType": "BOLETO", "invoiceUrl": "https://asaas/i/pay_1"},
+        ]
+        result = self.charge()
+        self.assertEqual((result.external_id, result.status), ("pay_1", "pending"))
+        customer = urlopen.call_args_list[3].args
+        self.assertEqual((customer[0], customer[1]), ("POST", "/customers"))
+        self.assertEqual(customer[2]["cpfCnpj"], "12345678000190")
+        method, path, payload = urlopen.call_args_list[4].args
+        self.assertEqual((method, path), ("POST", "/payments"))
+        self.assertEqual((payload["customer"], payload["billingType"], payload["value"], payload["externalReference"]), ("cus_1", "BOLETO", 120.5, "invoice-1"))
+
+    @patch("apps.billing.gateways.asaas.AsaasGateway._urlopen")
+    def test_existing_charge_is_reused_and_pix_returns_qr_code(self, urlopen):
+        urlopen.side_effect = [
+            {"data": [{"id": "pay_2", "status": "PENDING", "billingType": "PIX"}]},
+            {"encodedImage": "iVBOR", "payload": "000201"},
+        ]
+        result = self.charge("pix")
+        self.assertEqual(result.external_id, "pay_2")
+        self.assertEqual(result.raw["pix_qr_code"]["payload"], "000201")
+        self.assertEqual(urlopen.call_count, 2)
+
+    @patch("apps.billing.gateways.asaas.AsaasGateway._urlopen")
+    def test_refund_and_status_mapping(self, urlopen):
+        urlopen.side_effect = [{"id": "pay_3", "status": "REFUNDED"}, {"id": "pay_3", "status": "RECEIVED"}]
+        self.assertEqual(self.gateway.refund("pay_3", Decimal("10")).status, "refunded")
+        self.assertEqual(urlopen.call_args_list[0].args[2], {"value": 10.0})
+        self.assertEqual(self.gateway.get_charge("pay_3").status, "succeeded")
+
+    def test_rejects_unsupported_currency_and_missing_credentials(self):
+        from .gateways.base import PaymentGatewayError
+        with self.assertRaises(PaymentGatewayError):
+            self.gateway.create_charge(GatewayChargeRequest(reference="x", amount=Decimal("1"), currency="USD", customer={}, payment_method="pix"))
+        self.configuration.set_credentials({})
+        self.configuration.save()
+        with self.assertRaises(PaymentGatewayError):
+            gateway_registry.create(self.configuration).get_charge("pay_1")
+
+    def test_webhook_requires_token(self):
+        from .gateways.base import PaymentGatewayError
+        body = b'{"event":"PAYMENT_RECEIVED","payment":{"id":"pay_4","status":"RECEIVED"}}'
+        result = self.gateway.parse_webhook(body, {"Asaas-Access-Token": "hook-token"})
+        self.assertEqual((result.external_id, result.status), ("pay_4", "succeeded"))
+        with self.assertRaises(PaymentGatewayError):
+            self.gateway.parse_webhook(body, {"Asaas-Access-Token": "wrong"})
+        with self.assertRaises(PaymentGatewayError):
+            self.gateway.parse_webhook(body, {})

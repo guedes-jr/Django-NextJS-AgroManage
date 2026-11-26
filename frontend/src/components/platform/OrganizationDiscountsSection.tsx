@@ -7,7 +7,7 @@ import { getOrganizationErrorMessage } from "@/services/organizationInvitations"
 import { platformService } from "@/services/platformApi";
 import type { DiscountKind, OrganizationDiscountOverview, PriceBreakdown } from "@/types/platform";
 
-export const segmentNames: Record<string, string> = { plantacoes: "Plantações", bovinos: "Bovinos", suinos: "Suínos", "area-veterinario": "Área do veterinário" };
+export const segmentNames: Record<string, string> = { plantacoes: "Plantações", suinocultura: "Suinocultura", "gado-de-corte": "Gado de corte", "pecuaria-leiteira": "Pecuária leiteira", "area-veterinario": "Área do veterinário" };
 export const discountKinds: Record<DiscountKind, string> = { percentage: "Percentual (%)", fixed_amount: "Valor em reais", fixed_price: "Preço final fixo", exemption: "Isenção total" };
 const money = (value: string | number | null | undefined) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const date = (value: string | null) => value ? new Date(value).toLocaleDateString("pt-BR") : "Sem prazo";

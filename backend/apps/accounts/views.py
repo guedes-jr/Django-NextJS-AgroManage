@@ -452,7 +452,7 @@ def operator_options(request):
 
     contracted = catalog.contracted_segments(getattr(request.user, 'organization', None))
     names = dict(PlanSegment.objects.filter(code__in=catalog.ALL_SEGMENTS).values_list('code', 'name'))
-    segments = [{'code': code, 'name': names.get(code, code), 'contracted': code in contracted} for code in catalog.MEMBER_SEGMENTS]
+    segments = [{'code': code, 'name': names.get(code, catalog.BY_CODE[code].name), 'contracted': code in contracted} for code in catalog.MEMBER_SEGMENTS]
     return Response({
         'roles': [{'value': value, 'label': label} for value, label in User.Role.choices],
         'segments': segments,

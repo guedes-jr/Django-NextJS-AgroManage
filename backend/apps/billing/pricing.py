@@ -56,8 +56,10 @@ def _apply(amount, discounts):
 
 
 def _base_lines(subscription):
-    items = list(subscription.items.all())
-    if items:
+    # Inactive segments are kept for reactivation but are not charged.
+    contracted = list(subscription.items.all())
+    items = [item for item in contracted if item.is_active]
+    if contracted:
         return [
             Line(item.segment_code, item.segment_name, item.tier_label,
                  money(item.final_monthly_price if item.final_monthly_price is not None else item.monthly_price),

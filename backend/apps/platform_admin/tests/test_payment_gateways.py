@@ -43,3 +43,21 @@ class PlatformPaymentGatewayTests(APITestCase):
         }, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_asaas_is_listed_and_can_become_default_without_pix_key(self):
+        listed = {row["provider"]: row for row in self.client.get(reverse("platform-payment-gateways")).data}
+        self.assertEqual(listed["asaas"]["credential_fields"], ["api_key", "webhook_token"])
+        self.assertEqual(listed["asaas"]["settings_fields"], [])
+        self.assertEqual(listed["gerencianet"]["settings_fields"], ["pix_key"])
+        response = self.client.patch(reverse("platform-payment-gateway-detail", args=[listed["asaas"]["id"]]), {
+            "credentials": {"api_key": "$aact_test", "webhook_token": "token"}, "is_enabled": True, "is_default": True,
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data["is_default"])
+
+    def test_gerencianet_default_requires_pix_key(self):
+        response = self.client.patch(reverse("platform-payment-gateway-detail", args=[self.gateway.id]), {
+            "credentials": {"client_id": "c", "client_secret": "s", "certificate_pem": "p", "private_key_pem": "k", "webhook_secret": "w"},
+            "is_enabled": True, "is_default": True,
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

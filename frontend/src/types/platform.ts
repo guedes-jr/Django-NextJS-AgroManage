@@ -28,6 +28,8 @@ export interface PlatformPaymentGateway {
   credential_configured: boolean;
   credential_fields: string[];
   supported_methods: string[];
+  /** Non-secret settings required before becoming the default (e.g. "pix_key"). */
+  settings_fields: string[];
   settings: Record<string, unknown>;
   last_health_status: "unknown" | "healthy" | "error";
   last_health_message: string;
@@ -251,7 +253,8 @@ export interface PlatformUser {
 
 export type PlatformUserPage = PaginatedResponse<PlatformUser>;
 export type PlatformUserRole = "admin" | "manager" | "operator" | "veterinarian";
-export type SegmentCode = "plantacoes" | "bovinos" | "suinos" | "area-veterinario";
+/** Contractable business areas (backend apps/billing/segments.py REGISTRY); extend both together. */
+export type SegmentCode = "plantacoes" | "suinocultura" | "gado-de-corte" | "pecuaria-leiteira" | "area-veterinario";
 export interface PlatformUserDetail extends PlatformUser {
   /** Segments stored for the member (operator/veterinarian); admin and manager use every contracted one. */
   segments: SegmentCode[];
@@ -278,7 +281,8 @@ export type DiscountSource = "manual" | "coupon" | "referral" | "campaign";
 export interface OrganizationSegmentTier { id: string; label: string; minimum_quantity: number | null; maximum_quantity: number | null; monthly_price: string | null; requires_quote: boolean }
 export interface OrganizationSegment {
   code: SegmentCode; name: string; subtitle: string; metric_label: string; contracted: boolean; tiers: OrganizationSegmentTier[];
-  item: { tier: string; tier_label: string; monthly_price: string | null; final_monthly_price: string | null } | null;
+  active: boolean;
+  item: { tier: string; tier_label: string; monthly_price: string | null; final_monthly_price: string | null; is_active: boolean; deactivated_at: string | null } | null;
 }
 export interface OrganizationSegmentOverview {
   subscription: { id: string; status: string; status_display: string } | null;

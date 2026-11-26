@@ -19,6 +19,16 @@ export function usePlatformCanManage() {
   return canManage;
 }
 
+/** Only the platform owner can delete an organization permanently. */
+export function usePlatformIsOwner() {
+  const [owner] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return (JSON.parse(localStorage.getItem(PLATFORM_STAFF) || "{}") as PlatformStaff).role === "platform_owner"; }
+    catch { return false; }
+  });
+  return owner;
+}
+
 /** First readable message from the API error envelope ({error: {detail: {field: [...]}}}). */
 export function platformErrorFields(error: unknown): Record<string, string> {
   const data = (error as { response?: { data?: { error?: { detail?: unknown }; detail?: unknown } } })?.response?.data;

@@ -457,7 +457,7 @@ export const platformService = {
   async organizationSegments(id: string) {
     return (await platformApi.get<OrganizationSegmentOverview>(`platform/organizations/${id}/segments/`)).data;
   },
-  async changeOrganizationSegment(id: string, payload: { segment_code: string; contracted: boolean; tier?: string | null; quantity?: number | null; final_monthly_price?: string | null; reason?: string }) {
+  async changeOrganizationSegment(id: string, payload: { segment_code: string; contracted: boolean; active?: boolean | null; tier?: string | null; quantity?: number | null; final_monthly_price?: string | null; reason?: string }) {
     return (await platformApi.post<OrganizationSegmentOverview>(`platform/organizations/${id}/segments/`, payload)).data;
   },
   async blockUser(id: string) {
@@ -490,6 +490,12 @@ export const platformService = {
       plan_id: planId,
       billing_cycle: billingCycle,
     });
+  },
+  async organizationDeletion(id: string) {
+    return (await platformApi.get<{ can_delete: boolean; blockers: string[]; confirmation: string; counts: { users: number; farms: number; invoices: number } }>(`platform/organizations/${id}/deletion/`)).data;
+  },
+  async deleteOrganization(id: string, payload: { confirmation: string; reason: string }) {
+    return (await platformApi.post(`platform/organizations/${id}/deletion/`, payload)).data;
   },
   async organizationDiscounts(id: string) {
     return (await platformApi.get<OrganizationDiscountOverview>(`platform/organizations/${id}/discounts/`)).data;

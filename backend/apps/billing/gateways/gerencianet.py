@@ -19,6 +19,7 @@ class GerencianetGateway(BasePaymentGateway):
     display_name = "Gerencianet / Efí"
     credential_fields = ("client_id", "client_secret", "certificate_pem", "private_key_pem", "webhook_secret")
     supported_methods = ("pix",)
+    settings_fields = ("pix_key",)
     base_urls = {"sandbox": "https://pix-h.api.efipay.com.br", "production": "https://pix.api.efipay.com.br"}
 
     @property
