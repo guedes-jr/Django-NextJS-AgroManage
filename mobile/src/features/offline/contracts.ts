@@ -49,3 +49,31 @@ export function createMemoryLocalCache(namespace:string,now:()=>number=Date.now)
   async clearScope(scope){for(const key of [...rows.keys()])if(key.startsWith(`${scope}\n`))rows.delete(key);},
  };
 }
+
+/** Prefetched agenda (P08.01): next 14 days, all farms, without recorded events. */
+export const AGENDA_WINDOW_DAYS=14;
+export const AGENDA_WINDOW_PAGES=12;
+export const AGENDA_WINDOW_KEY='agendaWindow';
+const PAGE_SIZE=25;
+type WindowEvent={id:string;source_id:string;date:string;domain:string;farm?:string|null;kind:string};
+export type AgendaWindow<E extends WindowEvent=WindowEvent>={start:string;end:string;complete:boolean;events:E[]};
+const shift=(day:string,offset:number)=>new Date(Date.parse(`${day}T12:00:00Z`)+offset*86400000).toISOString().slice(0,10);
+
+/**
+ * Agenda page answered from the prefetched window with the same rules as `apps/tasks/agenda.py`:
+ * date range, domain group, farm (organization-wide items stay, veterinary alerts leave), order by day,
+ * kind and source, 25 per page. Requests for recorded events or outside the covered days get null.
+ */
+export function agendaFromWindow<E extends WindowEvent>(window:AgendaWindow<E>,query:{start:string;end:string;farm?:string;domain:string;page:number;include_recorded:boolean}){
+ if(query.include_recorded)return null;
+ const last=window.events.at(-1)?.date;
+ const coveredEnd=window.complete?window.end:last?shift(last,-1):null;
+ if(!coveredEnd||query.start<window.start||query.end>coveredEnd)return null;
+ const rows=window.events
+  .filter(event=>event.date>=query.start&&event.date<=query.end)
+  .filter(event=>query.domain==='all'||event.domain===query.domain)
+  .filter(event=>!query.farm||event.farm===query.farm||(!event.farm&&event.kind!=='vet_alert'))
+  .sort((a,b)=>a.date.localeCompare(b.date)||a.kind.localeCompare(b.kind)||a.source_id.localeCompare(b.source_id));
+ const from=(query.page-1)*PAGE_SIZE;
+ return {count:rows.length,next:from+PAGE_SIZE<rows.length?`offline:${query.page+1}`:null,previous:query.page>1?`offline:${query.page-1}`:null,results:rows.slice(from,from+PAGE_SIZE)};
+}

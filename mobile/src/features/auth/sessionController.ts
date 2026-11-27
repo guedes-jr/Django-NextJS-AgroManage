@@ -64,7 +64,7 @@ import { canOpenModule, canLoadFinancialHome } from '../home/contracts';
 import { canWriteSwine, matchesSwineBirth, matchesSwineDiagnosis, swineBirthInputSchema, swineBatchWeightCommandSchema, swineDiagnosisInputSchema, swineMatingCommandSchema, type SwineBatchWeightCommand, type SwineBirthInput, type SwineDiagnosisInput, type SwineMatingCommand, type SwinePhase } from '../swine/contracts';
 import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalInputSchema, weightInputSchema, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../cattle/contracts';
 import { canSearch, type SearchQuery } from '../workspace/contracts';
-import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
+import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery, type AgendaEvent, shiftDay } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
 import { canManageMembers, canReadTeam } from '../team/contracts';
 import { canEditOrganization, canReadOrganization, type OrganizationUpdate, type PaymentMethod } from '../organization/contracts';
@@ -78,7 +78,7 @@ import { activePayment, canReadFinance, canReverse, canSettle, canWriteFinance, 
 import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, SwineDiagnosisContextChanged, SwineBirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
 import type {PickedFile} from '../support/attachments';
-import { offlineAllowed, snapshotKey, type LocalCache } from '../offline/contracts';
+import { AGENDA_WINDOW_DAYS, AGENDA_WINDOW_KEY, AGENDA_WINDOW_PAGES, agendaFromWindow, offlineAllowed, snapshotKey, type AgendaWindow, type LocalCache } from '../offline/contracts';
 import { draftScope } from '../drafts/contracts';
 
 export interface TokenVault {
@@ -128,6 +128,11 @@ export class SessionController {
     const scope = cache && this.snapshotScope(); const key = cache && snapshotKey(cache[0], cache[1]);
     if (this.state.offline) {
       if (scope && key) { const hit = await this.local!.readSnapshot(scope, key).catch(() => null); if (hit) return hit.data as T; }
+      if (scope && cache?.[0] === 'agenda') {
+        const saved = await this.local!.readSnapshot(scope, AGENDA_WINDOW_KEY).catch(() => null);
+        const page = saved && agendaFromWindow(saved.data as AgendaWindow, agendaQuerySchema.parse(cache[1][0]));
+        if (page) return page as T;
+      }
       throw new AuthFailure('offline');
     }
     const epoch = this.epoch;
@@ -994,6 +999,30 @@ export class SessionController {
     this.language = resolved.session.organization.language;
     void this.local?.saveSession(resolved.session, Date.now()).catch(() => {});
     this.set({ status: 'signedIn', session: resolved.session });
+    this.prefetchOffline();
+  }
+  private lastPrefetch = 0;
+  /**
+   * Download for offline consultation (P08.01): agenda options, farms and the next 14 days of agenda, at most
+   * every 30 minutes while online. Best effort: a failure here never affects the session.
+   */
+  private prefetchOffline() {
+    if (!this.local || this.state.status !== 'signedIn' || this.state.offline || !canReadAgenda(this.state.session.user)) return;
+    if (Date.now() - this.lastPrefetch < 30 * 60000) return;
+    this.lastPrefetch = Date.now(); const epoch = this.epoch;
+    void (async () => {
+      const options = await this.agendaOptions();
+      await this.farms(1).catch(() => {});
+      const start = organizationDay(options.timezone); const end = shiftDay(start, AGENDA_WINDOW_DAYS - 1);
+      const events: AgendaEvent[] = []; let complete = false;
+      for (let page = 1; page <= AGENDA_WINDOW_PAGES; page += 1) {
+        const data = await this.agenda({ start, end, domain: 'all', page, include_recorded: false });
+        events.push(...data.results);
+        if (!data.next) { complete = true; break; }
+      }
+      const scope = this.snapshotScope();
+      if (scope && epoch === this.epoch) await this.local!.saveSnapshot(scope, AGENDA_WINDOW_KEY, { start, end, complete, events } satisfies AgendaWindow<AgendaEvent>);
+    })().catch(() => { this.lastPrefetch = 0; });
   }
   /** Network failure while restoring: open the last confirmed session read-only when inside the 24 h window. */
   private async enterOffline(epoch: number) {
