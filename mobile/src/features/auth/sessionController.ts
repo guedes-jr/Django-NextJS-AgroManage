@@ -78,6 +78,8 @@ import { activePayment, canReadFinance, canReverse, canSettle, canWriteFinance, 
 import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, SwineDiagnosisContextChanged, SwineBirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
 import type {PickedFile} from '../support/attachments';
+import { offlineAllowed, snapshotKey, type LocalCache } from '../offline/contracts';
+import { draftScope } from '../drafts/contracts';
 
 export interface TokenVault {
   read(): Promise<Tokens | null>;
@@ -87,7 +89,8 @@ export interface TokenVault {
 export type SessionState =
   | { status: 'restoring' }
   | { status: 'signedOut' }
-  | { status: 'signedIn'; session: Session }
+  // `offline`: opened without the server from the last session it confirmed (read-only, saved results).
+  | { status: 'signedIn'; session: Session; offline?: { confirmedAt: number } }
   // Platform team (backoffice): no organization; only platform/* endpoints.
   | { status: 'platform'; session: PlatformSession }
   | { status: 'unavailable'; error: AuthFailure };
@@ -103,7 +106,8 @@ export class SessionController {
   private mustClear = false;
   private writes: Promise<void> = Promise.resolve();
   private readonly initialLanguage: Language;
-  constructor(private api: AuthApi, private vault: TokenVault, private language: Language) { this.initialLanguage = language; }
+  constructor(private api: AuthApi, private vault: TokenVault, private language: Language, private local?: LocalCache) { this.initialLanguage = language; }
+  isOffline(){return this.state.status==='signedIn'&&!!this.state.offline;}
   getSnapshot = () => this.state;
   async dashboard(period: string, signal?: AbortSignal) {
     if (!this.tokens || this.state.status !== 'signedIn') throw new AuthFailure('expired');
@@ -118,13 +122,19 @@ export class SessionController {
       throw error;
     }
   }
-  private async agendaRequest<T>(request: (tokens: Tokens) => Promise<T>) {
+  private async agendaRequest<T>(request: (tokens: Tokens) => Promise<T>, cache?: [string, unknown[]]) {
     if (!this.tokens || this.state.status !== 'signedIn') throw new AuthFailure('expired');
     if (!canReadAgenda(this.state.session.user)) throw new AuthFailure('unsupported');
+    const scope = cache && this.snapshotScope(); const key = cache && snapshotKey(cache[0], cache[1]);
+    if (this.state.offline) {
+      if (scope && key) { const hit = await this.local!.readSnapshot(scope, key).catch(() => null); if (hit) return hit.data as T; }
+      throw new AuthFailure('offline');
+    }
     const epoch = this.epoch;
     try {
       const result = await request(this.tokens);
       if (epoch !== this.epoch) throw new AuthFailure('expired');
+      if (scope && key) void this.local!.saveSnapshot(scope, key, result).catch(() => {});
       return result;
     } catch (error) {
       if (authError(error).key === 'expired' && epoch === this.epoch) await this.signOut();
@@ -132,13 +142,13 @@ export class SessionController {
     }
   }
   agenda(query: AgendaQuery, signal?: AbortSignal) {
-    return this.agendaRequest(tokens => this.api.agenda(tokens,this.language,agendaQuerySchema.parse(query),signal));
+    return this.agendaRequest(tokens => this.api.agenda(tokens,this.language,agendaQuerySchema.parse(query),signal),['agenda',[query]]);
   }
   agendaTask(id:string, signal?:AbortSignal) {
     return this.agendaRequest(tokens => this.api.agendaTask(tokens,this.language,id,signal));
   }
   agendaOptions(signal?:AbortSignal) {
-    return this.agendaRequest(tokens=>this.api.agendaOptions(tokens,this.language,signal));
+    return this.agendaRequest(tokens=>this.api.agendaOptions(tokens,this.language,signal),['agendaOptions',[]]);
   }
   private taskSaving=false;
   async saveAgendaTask(payload:TaskInput|{status:string},id?:string,context?:{farm:string|null;taskFarm?:string|null;assertCurrent:()=>void}) {
@@ -167,11 +177,22 @@ export class SessionController {
       });
     } finally {this.taskSaving=false;}
   }
-  private async workspaceRead<T>(request:(tokens:Tokens)=>Promise<T>) {
+  /** Scope of saved results: API environment, user and organization of the current session. */
+  private snapshotScope(){return this.local&&this.state.status==='signedIn'?draftScope(this.local.namespace,this.state.session.user.id,this.state.session.organization.id):null;}
+  /**
+   * `cache` marks an allowlisted read (offline policy): online its result is saved on the device; offline
+   * the saved result is returned, after the same permission guard of the caller.
+   */
+  private async workspaceRead<T>(request:(tokens:Tokens)=>Promise<T>,cache?:[string,unknown[]]) {
     if(!this.tokens||this.state.status!=='signedIn')throw new AuthFailure('expired');
     if(this.state.session.user.force_password_change)throw new AuthFailure('unsupported');
+    const scope=cache&&this.snapshotScope();const key=cache&&snapshotKey(cache[0],cache[1]);
+    if(this.state.offline){
+     if(scope&&key){const hit=await this.local!.readSnapshot(scope,key).catch(()=>null);if(hit)return hit.data as T;}
+     throw new AuthFailure('offline');
+    }
     const epoch=this.epoch;
-    try{const result=await request(this.tokens);if(epoch!==this.epoch)throw new AuthFailure('expired');return result;}
+    try{const result=await request(this.tokens);if(epoch!==this.epoch)throw new AuthFailure('expired');if(scope&&key)void this.local!.saveSnapshot(scope,key,result).catch(()=>{});return result;}
     catch(error){
       if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();
       // 402: subscription suspended for non-payment; reload access so the app shows the payment screen.
@@ -195,28 +216,28 @@ export class SessionController {
     catch(error){if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();}
   }
   invoicePayment(invoice:string,method:PaymentMethod){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.invoicePayment(tokens,this.language,invoice,method));}
-  profile(signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.profile(tokens,this.language,signal));}
+  profile(signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.profile(tokens,this.language,signal),['profile',[]]);}
   farms(page:number,signal?:AbortSignal){
     if(this.state.status!=='signedIn'||!canReadAgenda(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
-    return this.workspaceRead(tokens=>this.api.farms(tokens,this.language,page,signal));
+    return this.workspaceRead(tokens=>this.api.farms(tokens,this.language,page,signal),['farms',[page]]);
   }
   searchEntities(query:SearchQuery,signal?:AbortSignal){
     if(this.state.status!=='signedIn'||!canSearch(this.state.session.user,query.kind))return Promise.reject(new AuthFailure('unsupported'));
     return this.workspaceRead(tokens=>this.api.searchEntities(tokens,this.language,query,signal));
   }
   getSessionEpoch(){return this.epoch;}
-  private inventoryRead<T>(read:(tokens:Tokens)=>Promise<T>){
+  private inventoryRead<T>(read:(tokens:Tokens)=>Promise<T>,cache?:[string,unknown[]]){
     if(this.state.status!=='signedIn'||!canReadInventory(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
-    return this.workspaceRead(read);
+    return this.workspaceRead(read,cache);
   }
-  inventorySummary(signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventorySummary(tokens,this.language,signal));}
+  inventorySummary(signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventorySummary(tokens,this.language,signal),['inventorySummary',[]]);}
   inventoryChoices(signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryChoices(tokens,this.language,signal));}
-  inventoryPage(query:InventoryQuery,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryPage(tokens,this.language,query,signal));}
-  inventoryDetail(kind:'items'|'suppliers',id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryDetail(tokens,this.language,kind,id,signal));}
+  inventoryPage(query:InventoryQuery,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryPage(tokens,this.language,query,signal),query.kind==='suppliers'?undefined:['inventoryPage',[query]]);}
+  inventoryDetail(kind:'items'|'suppliers',id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryDetail(tokens,this.language,kind,id,signal),kind==='items'?['inventoryDetail',[kind,id]]:undefined);}
   inventoryFormChoices(signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryFormChoices(tokens,this.language,signal));}
   inventoryMovements(query:MovementQuery,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryMovements(tokens,this.language,query,signal));}
   inventoryMovement(id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryMovement(tokens,this.language,id,signal));}
-  inventoryLot(id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryLot(tokens,this.language,id,signal));}
+  inventoryLot(id:string,signal?:AbortSignal){return this.inventoryRead(tokens=>this.api.inventoryLot(tokens,this.language,id,signal),['inventoryLot',[id]]);}
   private financeRead<T>(read:(tokens:Tokens)=>Promise<T>){
     if(this.state.status!=='signedIn'||!canReadFinance(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
     return this.workspaceRead(read);
@@ -483,7 +504,7 @@ export class SessionController {
   saveNotificationPreferences(input:PreferenceValues,record:Preferences){return this.notificationMutation(async(tokens,current,user)=>{const patch=preferencesPatch(input,record);const allowed=preferenceFields(user);if(Object.keys(patch).some(key=>key!=='expected_updated_at'&&key!=='frequency'&&!allowed.includes(key as typeof allowed[number])))throw new AuthFailure('unsupported');current();return this.api.saveNotificationPreferences(tokens,this.language,input,record);});}
   dailyFeeding(query:FeedingQuery,signal?:AbortSignal){
     if(this.state.status!=='signedIn'||!canReadDailyFeeding(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
-    return this.workspaceRead(tokens=>this.api.dailyFeeding(tokens,this.language,query,signal));
+    return this.workspaceRead(tokens=>this.api.dailyFeeding(tokens,this.language,query,signal),['dailyFeeding',[query]]);
   }
   private feedingSaving=false;
   async saveDailyFeeding(command:FeedingCommand,reconcile=false){
@@ -526,9 +547,9 @@ export class SessionController {
     const value=launchInputSchema.parse(input);if(!sameLaunch(value,preview)||(value.tipo==='compra'&&!user.access.can_view_financial))throw new AuthFailure('unsupported');
     current();return this.api.confirmStockLaunch(tokens,this.language,preview.preview_token);
   });}
-  private cattleRead<T>(read:(tokens:Tokens)=>Promise<T>){
+  private cattleRead<T>(read:(tokens:Tokens)=>Promise<T>,cache?:[string,unknown[]]){
     if(this.state.status!=='signedIn'||!canReadCattle(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
-    return this.workspaceRead(read);
+    return this.workspaceRead(read,cache);
   }
   private swineRead<T>(read:(tokens:Tokens)=>Promise<T>){
     if(this.state.status!=='signedIn'||!canOpenModule(this.state.session.user.access,'swine'))return Promise.reject(new AuthFailure('unsupported'));
@@ -846,9 +867,9 @@ export class SessionController {
   pasture(id:string,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.pasture(tokens,this.language,id,farm,signal));}
   reproductionPage(query:ReproductionQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.reproductionPage(tokens,this.language,query,signal));}
   reproductionAnimal(id:string,query:ReproductionQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.reproductionAnimal(tokens,this.language,id,query,signal));}
-  cattleList(query:CattleQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleList(tokens,this.language,query,signal));}
-  cattleDetail(kind:CattleKind,id:string,production:Production,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleDetail(tokens,this.language,kind,id,production,farm,signal));}
-  cattleHistory(id:string,production:Production,page:number,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleHistory(tokens,this.language,id,production,page,farm,signal));}
+  cattleList(query:CattleQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleList(tokens,this.language,query,signal),['cattleList',[query]]);}
+  cattleDetail(kind:CattleKind,id:string,production:Production,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleDetail(tokens,this.language,kind,id,production,farm,signal),['cattleDetail',[kind,id,production,farm??null]]);}
+  cattleHistory(id:string,production:Production,page:number,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleHistory(tokens,this.language,id,production,page,farm,signal),['cattleHistory',[id,production,page,farm??null]]);}
   private cattleSaving=false;
   private async cattleWrite<T>(operation:(tokens:Tokens,user:Session['user'],today:string,assertCurrent:()=>void)=>Promise<T>){
     if(this.cattleSaving)throw new AuthFailure('unsupported');
@@ -880,7 +901,7 @@ export class SessionController {
       return this.api.recordCattleWeight(tokens,this.language,kind,id,production,farm,payload);
     });
   }
-  dairyOverview(date:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.dairyOverview(tokens,this.language,date,signal));}
+  dairyOverview(date:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.dairyOverview(tokens,this.language,date,signal),['dairyOverview',[date]]);}
   milkSummary(date:string,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkSummary(tokens,this.language,date,farm,signal));}
   milkPage(query:MilkQuery,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkPage(tokens,this.language,query,signal));}
   milkDetail(mode:MilkCommand['mode'],id:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.milkDetail(tokens,this.language,mode,id,signal));}
@@ -929,7 +950,7 @@ export class SessionController {
     }
     assertCurrent();return this.api.saveMilk(tokens,this.language,value,payload);
   });}
-  cattleOverview(production:Production,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleOverview(tokens,this.language,production,farm,signal));}
+  cattleOverview(production:Production,farm?:string,signal?:AbortSignal){return this.cattleRead(tokens=>this.api.cattleOverview(tokens,this.language,production,farm,signal),['cattleOverview',[production,farm??null]]);}
   saveCattleBatch(values:BatchInput,production:Production,farm:string,id?:string){return this.cattleWrite(async(tokens,user,today,assertCurrent)=>{
     const payload=batchInputSchema(today).parse(values);
     if(id){const record=await this.api.cattleDetail(tokens,this.language,'batches',id,production,farm);assertCurrent();if(!('quantity' in record)||!canEditBatch(user,record)||(payload.birth_date&&record.entry_date&&payload.birth_date>record.entry_date))throw new AuthFailure('unsupported');}
@@ -966,11 +987,46 @@ export class SessionController {
     const organization = await this.api.organization(tokens, this.language);
     return { kind: 'organization', session: { user, organization } };
   }
+  /** Every call follows a successful server check, so it also refreshes the offline session (organizations only). */
   private enter(resolved: Resolved) {
-    if (resolved.kind === 'platform') { this.language = this.initialLanguage; this.set({ status: 'platform', session: resolved.session }); return; }
+    this.api.setOffline?.(false);
+    if (resolved.kind === 'platform') { this.language = this.initialLanguage; void this.local?.clearSession().catch(() => {}); this.set({ status: 'platform', session: resolved.session }); return; }
     this.language = resolved.session.organization.language;
+    void this.local?.saveSession(resolved.session, Date.now()).catch(() => {});
     this.set({ status: 'signedIn', session: resolved.session });
   }
+  /** Network failure while restoring: open the last confirmed session read-only when inside the 24 h window. */
+  private async enterOffline(epoch: number) {
+    if (!this.local) return false;
+    let tokens: Tokens | null = this.tokens;
+    try { tokens ??= await this.vault.read(); } catch { return false; }
+    const cached = await this.local.readSession().catch(() => null);
+    if (!tokens || !cached || !offlineAllowed(cached.confirmedAt, Date.now()) || epoch !== this.epoch) return false;
+    this.tokens = tokens; this.language = cached.session.organization.language;
+    this.api.setOffline?.(true);
+    this.set({ status: 'signedIn', session: cached.session, offline: { confirmedAt: cached.confirmedAt } });
+    return true;
+  }
+  private reconnecting = false;
+  /** Probe the server without leaving the screens: back online on success, still offline on a network failure. */
+  reconnect = async () => {
+    if (this.reconnecting || this.state.status !== 'signedIn' || !this.state.offline || !this.tokens) return;
+    this.reconnecting = true; const epoch = this.epoch; const tokens = this.tokens;
+    this.api.setOffline?.(false);
+    try {
+      const resolved = await this.resolve(tokens);
+      if (epoch === this.epoch) this.enter(resolved);
+    } catch (error) {
+      if (epoch !== this.epoch) return;
+      const failure = authError(error);
+      if (failure.key === 'network' && this.state.status === 'signedIn' && this.state.offline) {
+        if (offlineAllowed(this.state.offline.confirmedAt, Date.now())) this.api.setOffline?.(true);
+        else this.set({ status: 'unavailable', error: failure });
+        return;
+      }
+      await this.restore();
+    } finally { this.reconnecting = false; }
+  };
   restore = (): Promise<void> => {
     if (this.restoreTask) return this.restoreTask;
     const epoch = ++this.epoch;
@@ -998,10 +1054,12 @@ export class SessionController {
         const failure = authError(error);
         if (failure.key === 'expired' || failure.key === 'unsupported' || failure.key === 'invalidResponse') {
           this.tokens = null;
+          void this.local?.clearSession().catch(() => {});
           try { await this.write(() => this.vault.clear()); }
           catch { this.set({ status: 'unavailable', error: new AuthFailure('storage') }); return; }
           if (epoch === this.epoch) this.set({ status: 'signedOut' });
-        } else this.set({ status: 'unavailable', error: failure });
+        } else if (failure.key === 'network' && await this.enterOffline(epoch)) return;
+        else if (epoch === this.epoch) this.set({ status: 'unavailable', error: failure });
       }
     })().finally(() => { this.restoreTask = null; });
     return this.restoreTask;
@@ -1032,6 +1090,9 @@ export class SessionController {
     } finally { this.signingIn = false; }
   }
   async signOut() {
+    const scope = this.snapshotScope();
+    if (this.local) { void this.local.clearSession().catch(() => {}); if (scope) void this.local.clearScope(scope).catch(() => {}); }
+    this.api.setOffline?.(false);
     ++this.epoch;
     this.importReview=undefined;this.importCheckTicket=undefined;
     const tokens = this.tokens;

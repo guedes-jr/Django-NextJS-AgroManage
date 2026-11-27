@@ -175,11 +175,21 @@ export function authError(error: unknown): AuthFailure {
 }
 export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
   const http = client ?? create({ baseURL: baseURL ?? undefined, timeout: 15000, headers: { Accept: 'application/json' } });
+  // Offline consultation: requests are refused before leaving the device. Writes therefore never end in an
+  // "unknown result" state, and reads fail at once (saved results are served by the session controller).
+  // The controller lifts this flag only while it probes the server to reconnect.
+  let offline = false;
+  // Synchronous: keeps axios dispatching in the same tick, as without interceptors.
+  http.interceptors?.request.use(config => {
+    if (offline) throw new AuthFailure('offline');
+    return config;
+  }, undefined, { synchronous: true });
   const options = (language: Language, access?: string) => {
     if (!baseURL) throw new AuthFailure('configuration');
     return { headers: { 'Accept-Language': language, ...(access ? { Authorization: `Bearer ${access}` } : {}) } };
   };
   return {
+    setOffline(value: boolean) { offline = value; },
     ...createFinanceEndpoints(http,options),
     ...createCropsEndpoints(http,options),
     ...createStructureEndpoints(http,options),

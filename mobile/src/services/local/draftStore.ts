@@ -1,33 +1,6 @@
-import * as SQLite from 'expo-sqlite';
+import {localDatabase as database} from './database';
 import {draftFeatures,draftRouteSchema,type DraftFeature,type DraftRecord} from '../../features/drafts/contracts';
 import type {DraftStore} from '../../features/drafts/store';
-
-/**
- * Versioned local database (P08.03). Migrations only add structure; a failed migration leaves the
- * previous version (and the user's drafts) in place instead of recreating the database.
- */
-const migrations:string[]=[
- `CREATE TABLE IF NOT EXISTS drafts(
-   id TEXT PRIMARY KEY NOT NULL, scope TEXT NOT NULL, feature TEXT NOT NULL, context TEXT NOT NULL,
-   form_version INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'draft', title TEXT NOT NULL, route TEXT NOT NULL, payload TEXT NOT NULL,
-   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE INDEX IF NOT EXISTS drafts_scope ON drafts(scope, updated_at DESC);`,
-];
-
-let opening:Promise<SQLite.SQLiteDatabase>|null=null;
-function database(){
- opening??=(async()=>{
-  const db=await SQLite.openDatabaseAsync('fazendamais-local.db');
-  await db.execAsync('PRAGMA journal_mode = WAL;');
-  const row=await db.getFirstAsync<{user_version:number}>('PRAGMA user_version');
-  for(let version=row?.user_version??0;version<migrations.length;version+=1){
-   const sql=migrations[version]!;
-   await db.withExclusiveTransactionAsync(async txn=>{await txn.execAsync(sql);await txn.execAsync(`PRAGMA user_version = ${version+1}`);});
-  }
-  return db;
- })().catch(error=>{opening=null;throw error;});
- return opening;
-}
 
 type Row={id:string;scope:string;feature:string;context:string;form_version:number;state:string;title:string;route:string;payload:string;created_at:number;updated_at:number};
 function toRecord(row:Row):DraftRecord|null{

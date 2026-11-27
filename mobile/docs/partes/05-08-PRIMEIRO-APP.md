@@ -732,17 +732,17 @@ P07-A: consulta/resumo; P07-B: criação/edição individual; P07-C: modo total 
 
 ### Tarefas
 
-- [ ] P08.01 — Definir allowlist de consultas offline: campos mínimos de animal/fazenda, agenda de janela limitada e contexto do formulário. Financeiro excluído inicialmente; não persistir indiscriminadamente toda a cache.
-- [ ] P08.02 — Definir política de autorização offline: validade máxima, exigência de sessão anterior válida, bloqueio local e comportamento sem conseguir revalidar. Documentar a revogação que não pode ser conhecida enquanto o dispositivo está desconectado.
+- [ ] P08.01 — (Aplicado em 27/11/2026: rebanho, agenda, estoque sem fornecedores, lotes e trato do dia, fazendas e perfil; financeiro excluído) Definir allowlist de consultas offline: campos mínimos de animal/fazenda, agenda de janela limitada e contexto do formulário. Financeiro excluído inicialmente; não persistir indiscriminadamente toda a cache.
+- [ ] P08.02 — (Aprovado em 27/11/2026: até 24 h após a última confirmação, somente consulta; revogação só é conhecida ao reconectar) Definir política de autorização offline: validade máxima, exigência de sessão anterior válida, bloqueio local e comportamento sem conseguir revalidar. Documentar a revogação que não pode ser conhecida enquanto o dispositivo está desconectado.
 - [ ] P08.03 — (Primeiro recorte em 27/11/2026: rascunhos locais de cadastro de animal e chamado; homologação pendente) Criar SQLite e migrações versionadas. Uma migração que falha não pode apagar rascunhos silenciosamente; cache descartável e entrada do usuário têm recuperação diferente.
 - [ ] P08.04 — (Primeiro recorte em 27/11/2026: rascunhos locais de cadastro de animal e chamado; homologação pendente) Persistir rascunhos por organização/usuário/feature/fazenda, com ID local, versão do formulário, datas e campos necessários. Não armazenar token em SQLite.
 - [ ] P08.05 — (Primeiro recorte em 27/11/2026: rascunhos locais de cadastro de animal e chamado; homologação pendente) Implementar salvamento após alterações com intervalo controlado e indicador de persistência. Reduzir gravações repetidas; tratar disco cheio e erro de escrita.
 - [ ] P08.06 — (Primeiro recorte em 27/11/2026: rascunhos locais de cadastro de animal e chamado; homologação pendente) Criar central de rascunhos com identificação, data, estado e opções retomar/descartar. Evitar duplicar um rascunho a cada retorno à tela.
 - [ ] P08.07 — Ao retomar, revalidar contexto, recurso, campos obrigatórios e permissão quando online. Dados antigos podem precisar de revisão antes de enviar.
-- [ ] P08.08 — Mostrar horário da última atualização e estado sem conexão. Indicador de rede não prova disponibilidade da API; tratar timeout/servidor indisponível mesmo com Wi-Fi.
+- [ ] P08.08 — (Aviso de sem conexão com horário da última confirmação em 27/11/2026; horário por tela pendente) Mostrar horário da última atualização e estado sem conexão. Indicador de rede não prova disponibilidade da API; tratar timeout/servidor indisponível mesmo com Wi-Fi.
 - [ ] P08.09 — (Primeiro recorte em 27/11/2026: rascunhos locais de cadastro de animal e chamado; homologação pendente) Implementar retenção/limites de snapshots e anexos. Para rascunhos, apresentar política de expiração e aviso em vez de apagar sem conhecimento do usuário.
 - [ ] P08.10 — (Primeiro recorte em 27/11/2026: rascunhos locais de cadastro de animal e chamado; homologação pendente) Definir destino dos dados em logout, troca de conta e revogação. Se houver conservação local, ela exige desenho de criptografia e chave segregada; se houver descarte, informar a perda e permitir cancelar logout voluntário quando apropriado. Revogação de segurança não depende da concordância do usuário.
-- [ ] P08.11 — Atualizar consultas ao retomar o app/recuperar conexão com limites; não usar polling contínuo como mecanismo principal.
+- [ ] P08.11 — (Reconexão ao voltar ao primeiro plano, manual e a cada 60 s só no modo offline, em 27/11/2026) Atualizar consultas ao retomar o app/recuperar conexão com limites; não usar polling contínuo como mecanismo principal.
 - [ ] P08.12 — Instrumentar tamanho do cache, erros de persistência e quantidade de rascunhos sem capturar conteúdo.
 
 ### Modelo local proposto

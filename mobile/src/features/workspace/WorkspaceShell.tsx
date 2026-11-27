@@ -19,6 +19,7 @@ import {ActionTile,styles as ui} from '../agenda/ui';
 import {balanceNavSlots,moduleKeys,nativeDestination,type NavSlot} from './navigation';
 import {canSearch,searchKinds} from './contracts';
 import { useSignOutWithDrafts } from '../drafts/hooks';
+import { OfflineBanner } from '../offline/OfflineBanner';
 type Open=(key:ModuleKey)=>void;
 export type WorkspaceArea='home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile'|'veterinary'|'finance'|'crops'|'structure'|'support'|'assistant'|'reports'|'settings'|'other';
 type WorkspaceShellProps={active:WorkspaceArea;title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void;layout?:'wide'|'form'};
@@ -76,6 +77,7 @@ export function WorkspaceShell({active,title,children,onBack,layout='wide'}:Work
           <Path d="M0 85C140 6 230 28 390 75S615 60 780 32V100H0Z" fill={colors.background}/>
         </Svg>
       </View>
+<OfflineBanner/>
 <View style={shellStyles.bodyBackdrop}><View style={layout==='form'?shellStyles.formBody:shellStyles.pageBody}>{typeof children==='function'?children(open):children}</View></View>
 {!keyboard&&<><View pointerEvents="box-none" style={s.navBackdrop}>
     <View testID="home-navigation" accessibilityRole="tablist" style={s.nav}>
