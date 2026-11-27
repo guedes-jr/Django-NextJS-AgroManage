@@ -15,6 +15,8 @@ import {DetailHeader,EmptyState,ErrorState,FilterChips,HeaderAction,IconTile,Lis
 import {useInfinitePages} from '../../components/mobile/useInfinitePages';
 import {canUseSupport,customerTransitions,ticketCategories,ticketPriorities,ticketStatuses,type SupportTicket,type TicketMessage,type TicketStatus} from './contracts';
 import {supportMessages} from './messages';
+import {AttachmentBlock} from './AttachmentBlock';
+import type {PickedFile} from './attachments';
 
 const statusTone=(s:TicketStatus):StatusTone=>s==='waiting_customer'?'warning':s==='resolved'?'success':s==='closed'?'neutral':s==='in_progress'?'info':'warning';
 const when=(v:string,language:string)=>new Intl.DateTimeFormat(language,{dateStyle:'medium',timeStyle:'short'}).format(new Date(v));
@@ -73,6 +75,7 @@ export function SupportDetailScreen(){
  const row=ticket.data;
  const reload=()=>{void refetchTicket();void refetchMessages();void client.invalidateQueries({queryKey:['support-tickets']});};
  const send=async()=>{if(busy||!row||!reply.trim())return;setBusy(true);setNotice('');try{await controller.replySupportTicket(row.id,{body:reply.trim(),request_key:key.current,expected_version:row.version});setReply('');key.current=randomUUID();reload();}catch(e){setNotice(failure(e,t));reload();}finally{setBusy(false);}};
+ const uploadTo=async(messageId:string,file:PickedFile,requestKey:string)=>{if(!row)throw Error('ticket');try{return await controller.uploadSupportAttachment(row.id,messageId,file,row.version,requestKey);}finally{reload();}};
  const move=async(status:'resolved'|'closed'|'open')=>{if(busy||!row)return;setBusy(true);setNotice('');try{await controller.transitionSupportTicket(row.id,status,row.version);reload();}catch(e){setNotice(failure(e,t));reload();}finally{setBusy(false);}};
  const header=row?<View style={ms.header}>
   <DetailHeader meta={`${t.categories[row.category]??row.category} · ${t.priorities[row.priority]??row.priority}`} title={row.subject} leading={<IconTile tone={statusTone(row.status)}><HomeIcon name="bell" size={22} color={colors.textSoft}/></IconTile>} status={[{label:t.statuses[row.status]??row.status,tone:statusTone(row.status)}]}>
@@ -90,7 +93,7 @@ export function SupportDetailScreen(){
     renderItem={({item})=><View accessible accessibilityLabel={`${item.from_team?t.team:item.author_name}. ${item.body}`} style={{alignSelf:item.from_team?'flex-start':'flex-end',maxWidth:'88%',gap:4,padding:space.md,borderRadius:radius.lg,borderBottomLeftRadius:item.from_team?4:radius.lg,borderBottomRightRadius:item.from_team?radius.lg:4,backgroundColor:item.from_team?colors.surface:colors.primarySoft,borderWidth:1,borderColor:item.from_team?colors.borderSoft:colors.primarySoft}}>
      <Text style={{fontSize:12,fontWeight:'700',color:item.from_team?colors.info:colors.primary}}>{item.from_team?`${t.team} · ${item.author_name}`:item.author_name}</Text>
      <Text selectable style={{fontSize:15,lineHeight:22,color:colors.text}}>{item.body}</Text>
-     {!!item.attachments.length&&<Text style={{fontSize:12,color:colors.muted}}>{`${item.attachments.length} ${t.attachments}`}</Text>}
+     <AttachmentBlock attachments={item.attachments} canAttach={item.can_attach&&row.status!=='resolved'&&row.status!=='closed'} language={language} upload={(file,key)=>uploadTo(item.id,file,key)} request={attachmentId=>controller.supportAttachmentRequest(row.id,attachmentId)}/>
      <Text style={{fontSize:11,color:colors.muted,alignSelf:'flex-end'}}>{when(item.created_at,language)}</Text>
     </View>}
     ListEmptyComponent={messages.isPending?<SkeletonList rows={2}/>:messages.isError?<ErrorState message={w.error} language={language} onRetry={()=>void refetchMessages()}/>:<Notice tone="neutral" text={t.noMessages}/>}

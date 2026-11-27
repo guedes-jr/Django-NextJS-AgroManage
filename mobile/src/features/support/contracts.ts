@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import type {User} from '../auth/contracts';
+import {attachmentSchema} from './attachments';
 
 /** Organization members open and follow their own tickets; platform/affiliate profiles use other channels. */
 export function canUseSupport(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only;}
@@ -10,7 +11,7 @@ export type TicketStatus=typeof ticketStatuses[number];
 export const ticketSchema=z.object({id:z.uuid(),subject:z.string(),category:z.enum(ticketCategories),priority:z.enum(ticketPriorities),status:z.enum(ticketStatuses),version:z.number().int().min(1),requester_name:z.string().nullable().optional(),assignee_name:z.string().nullable().optional(),created_at:z.string(),updated_at:z.string()});
 export type SupportTicket=z.infer<typeof ticketSchema>;
 export const ticketPageSchema=z.object({count:z.number().int().nonnegative(),next:z.string().nullable(),results:z.array(ticketSchema)});
-export const messageSchema=z.object({id:z.uuid(),author_name:z.string(),body:z.string(),from_team:z.boolean(),attachments:z.array(z.object({id:z.uuid(),filename:z.string(),size:z.number()})),created_at:z.string()});
+export const messageSchema=z.object({id:z.uuid(),author_name:z.string(),body:z.string(),from_team:z.boolean(),attachments:z.array(attachmentSchema),can_attach:z.boolean().optional().default(false),created_at:z.string()});
 export type TicketMessage=z.infer<typeof messageSchema>;
 export const messagePageSchema=z.object({count:z.number().int().nonnegative(),next:z.string().nullable(),results:z.array(messageSchema)});
 export const ticketQuerySchema=z.object({status:z.enum(['',...ticketStatuses]).default(''),search:z.string().trim().max(200).default(''),page:z.number().int().min(1).max(100000).default(1)});

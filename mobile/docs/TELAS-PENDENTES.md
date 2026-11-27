@@ -17,7 +17,7 @@ A Fase 1 já possui seu recorte funcional: Agenda com consulta/detalhe/criação
 | F01–F03 | Painel (saldo, a receber/a pagar, realizado, fluxo de 30 dias, maiores despesas, projeção 7/30/90 dias), títulos a receber/pagar com filtros, ficha com histórico de baixas, novo título essencial, baixa integral e estorno com chave de idempotência e revalidação | Contas bancárias, categorias, parcelamento/recorrência, vínculo com lote/plantação, exportação, edição/exclusão de título |
 | P01–P04, P06 | Segmento completo: visão geral (dashboard de plantações), lista, ficha com indicadores/resultado e histórico; cadastro e edição de plantação; lançamento de plantio, adubação, defensivos, irrigação, preparo do solo e colheita (parcial/total, venda só com acesso financeiro), pelos mesmos endpoints do web — o servidor baixa estoque, calcula custo e sincroniza o financeiro (`finance_sync`) | Fertirrigação, análise de solo, recomendações do agrônomo, mão de obra, estrutura do setor, vendas de safra avulsas, edição/exclusão de operações |
 | T01–T02 (consulta) | Lista por categoria/busca/fazenda e ficha com manutenção e itens; valores só com acesso financeiro | Cadastro, edição e itens |
-| U04 | Lista de chamados, abertura, conversa com resposta, resolver/fechar/reabrir | Anexos |
+| U04 | Lista de chamados, abertura, conversa com resposta, resolver/fechar/reabrir. **Anexos (27/11/2026):** abrir anexos baixados com autorização (folha de compartilhamento do sistema) e anexar foto da câmera, imagem da galeria ou arquivo às próprias mensagens, com os limites do servidor (10 MB, 5 por mensagem, formatos aceitos) e nova tentativa com a mesma chave | — |
 | I01 | Conversas, nova conversa com sugestões, chat com cota e mensagens de segurança | Feedback de respostas |
 
 | B10 | Vendas de animais: histórico, venda total/parcial do lote por kg vivo ou arroba de carcaça, descontos e vencimento do recebível; acesso pela ficha do lote e pelas rotinas | Baixas por morte/descarte e estorno de venda |
@@ -151,7 +151,7 @@ Em cada linha, entregar consulta antes de escrita quando houver risco de estoque
 | U06 | Configurações da organização | Dados, contatos/endereços, membros, assinatura, segurança e preferências; idioma organizacional restrito; verificar ações web disponíveis | Fase 5 · P13 |
 | I01 | Assistente IA | Conversa, histórico quando suportado, contexto explícito, limites, cancelamento e falha online | Fase 5 · P13 |
 | O01 | Downloads, rascunhos e sincronização | Consulta autorizada salva, data de atualização, rascunhos, pendências, conflitos e resultado desconhecido; nenhuma fila de escrita genérica | Fase 6 · P08/P16 |
-| O02 | Captura e anexos | Câmera/galeria/arquivo; prévia, envio, falha e permissão negada; scanner/localização só com caso de uso validado | Fase 6 · P14 |
+| O02 | Captura e anexos | **Primeiro consumidor (27/11/2026):** chamados do cliente e da equipe — câmera (permissão pedida só no uso, alternativa pela galeria quando negada), galeria pelo seletor do sistema, arquivo, validação local, envio com estado e nova tentativa idempotente, abertura autorizada. `expo-image-picker` (sem microfone) e `expo-sharing` adicionados. Pendente: prévia da imagem antes do envio, anexos em outros módulos (veterinário, clínica) e homologação Android/iOS; scanner/localização só com caso de uso validado | Fase 6 · P14 |
 | O03 | Sobre e ajuda de acesso | Versão, informações do app, Termos/Privacidade e links seguros; biometria opcional com alternativa | Fase 6 · P14/P17 |
 | V01 | Aves: cadastro, reprodução, ração e fórmulas | Condicional: auditar maturidade e oferta antes de desenhar/copiar o fluxo web; não entra no piloto | Fora do piloto |
 
@@ -221,7 +221,7 @@ Somente para a equipe interna (`is_platform_staff`), com sessão própria (`/pla
 | PL07 | Cupons e segmentos | Consulta; edição de preços fica no web | Baixa |
 | PL08 | Auditoria e saúde | Últimas ações e estado dos serviços (somente consulta) | Baixa |
 
-**Estado (27/11/2026):** PL01–PL04 implementados. O login da equipe abre uma sessão própria (`status: 'platform'`, sem organização) com rotas em `app/(platform)/platform/*`, shell com voltar/sair e as mesmas permissões do web (proprietário e administrador alteram; suporte, auditor e desenvolvedor consultam). PL03 cobre resumo, segmentos com valor mensal, descontos ativos (encerrar), suspender/arquivar/reativar com motivo; PL04 cobre busca, dados, papel e segmentos, redefinição de senha, encerrar sessões e bloquear/reativar. **PL05–PL08 (27/11/2026):** fila de chamados com assumir/liberar, mudança de situação e resposta pública ou nota interna (mesma chave para a mesma resposta); financeiro SaaS com MRR, recebido, saldo, faturas vencidas/abertas e registro de pagamento manual (proprietário/administrador); cupons e faixas de preço por segmento em consulta; saúde dos serviços (proprietário/administrador/desenvolvedor) e trilha de auditoria (proprietário/administrador/auditor). Pendente: anexos de chamados, histórico completo de mensagens além da primeira página e homologação em aparelho. Afiliado do portal continua sem acesso ao app.
+**Estado (27/11/2026):** PL01–PL04 implementados. O login da equipe abre uma sessão própria (`status: 'platform'`, sem organização) com rotas em `app/(platform)/platform/*`, shell com voltar/sair e as mesmas permissões do web (proprietário e administrador alteram; suporte, auditor e desenvolvedor consultam). PL03 cobre resumo, segmentos com valor mensal, descontos ativos (encerrar), suspender/arquivar/reativar com motivo; PL04 cobre busca, dados, papel e segmentos, redefinição de senha, encerrar sessões e bloquear/reativar. **PL05–PL08 (27/11/2026):** fila de chamados com assumir/liberar, mudança de situação e resposta pública ou nota interna (mesma chave para a mesma resposta); financeiro SaaS com MRR, recebido, saldo, faturas vencidas/abertas e registro de pagamento manual (proprietário/administrador); cupons e faixas de preço por segmento em consulta; saúde dos serviços (proprietário/administrador/desenvolvedor) e trilha de auditoria (proprietário/administrador/auditor). **Anexos e histórico (27/11/2026):** conversa completa com "carregar mensagens anteriores" e anexos (abrir e enviar, inclusive em nota interna) pelo mesmo bloco do suporte do cliente. Pendente: homologação em aparelho. Afiliado do portal continua sem acesso ao app.
 
 Fora do app: SQL/sandbox/consultas aprovadas, atualização do sistema, gateways, IA, campanhas de marketing e exportação/recuperação de dados (ações sensíveis ou de tela grande).
 
@@ -311,7 +311,7 @@ Caminhos relativos a `frontend/src/app/`. Esta lista cobre todas as páginas for
 | `/home/estrutura` | T01–T02 · pendente nativo |
 | `/home/estrutura/propriedade` | T01–T02 · pendente nativo |
 | `/home/estrutura/reservatorio` | T01–T02 · pendente nativo |
-| `/home/financeiro` | F01–F03 · pendente nativo |
+| `/home/financeiro` | F01–F03 · recorte nativo em `/finance` (ver incremento de 23/11/2026) |
 | `/home/notifications/alertas` | U02–U03 · pendente nativo |
 | `/home/notifications` | U02–U03 · pendente nativo |
 | `/home/notifications/preferences` | U02–U03 · pendente nativo |

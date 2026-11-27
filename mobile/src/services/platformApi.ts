@@ -2,6 +2,8 @@ import type {AxiosInstance} from 'axios';
 import {z} from 'zod';
 import type {Language} from '../i18n/messages';
 import {auditPageSchema,catalogSchema,couponPageSchema,financeSummarySchema,healthSchema,invoicePageSchema,paymentInputSchema,teamMessagePageSchema,teamMessageSchema,teamReplySchema,teamTicketPageSchema,teamTicketSchema,type PaymentInput,type TeamReply,discountOverviewSchema,passwordResetSchema,platformDashboardSchema,platformOrganizationPageSchema,platformOrganizationSchema,platformStaffSchema,platformUserPageSchema,platformUserSchema,segmentOverviewSchema,statusActions,type PasswordReset} from '../features/platform/contracts';
+import {uploadAttachment} from './supportApi';
+import type {PickedFile} from '../features/support/attachments';
 
 type Tokens={access:string};
 type Options=(language:Language,access?:string)=>{headers:Record<string,string>};
@@ -35,6 +37,8 @@ export function createPlatformEndpoints(http:AxiosInstance,options:Options){
   async platformTicket(tokens:Tokens,language:Language,id:string,signal?:AbortSignal){return get(teamTicketSchema,`platform/support/tickets/${uuid(id)}/`,tokens,language,undefined,signal);},
   async platformTicketMessages(tokens:Tokens,language:Language,id:string,page:number,signal?:AbortSignal){return get(teamMessagePageSchema,`platform/support/tickets/${uuid(id)}/messages/`,tokens,language,{page},signal);},
   async platformReplyTicket(tokens:Tokens,language:Language,id:string,input:TeamReply){return z.object({ticket:teamTicketSchema,message:teamMessageSchema}).parse((await http.post(`platform/support/tickets/${uuid(id)}/messages/`,teamReplySchema.parse(input),options(language,tokens.access))).data);},
+  async platformUploadTicketAttachment(tokens:Tokens,language:Language,id:string,messageId:string,file:PickedFile,expected_version:number,request_key:string){return uploadAttachment(http,`platform/support/tickets/${uuid(id)}/messages/${uuid(messageId)}/attachments/`,options(language,tokens.access),file,expected_version,request_key,teamTicketSchema);},
+  platformTicketAttachmentRequest(tokens:Tokens,language:Language,id:string,attachmentId:string){return {url:http.getUri({url:`platform/support/tickets/${uuid(id)}/attachments/${uuid(attachmentId)}/download/`}),headers:options(language,tokens.access).headers};},
   async platformTicketStatus(tokens:Tokens,language:Language,id:string,status:string,expected_version:number){return teamTicketSchema.parse((await http.post(`platform/support/tickets/${uuid(id)}/transition/`,{status,expected_version},options(language,tokens.access))).data);},
   async platformAssignTicket(tokens:Tokens,language:Language,id:string,assignee_id:string|null,expected_version:number){return teamTicketSchema.parse((await http.patch(`platform/support/tickets/${uuid(id)}/`,{assignee_id,expected_version},options(language,tokens.access))).data);},
   async platformFinance(tokens:Tokens,language:Language,signal?:AbortSignal){return get(financeSummarySchema,'platform/finance/dashboard/',tokens,language,undefined,signal);},

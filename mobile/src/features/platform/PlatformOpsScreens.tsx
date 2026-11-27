@@ -4,10 +4,12 @@ import {useLocalSearchParams,useRouter} from 'expo-router';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {isAxiosError} from 'axios';
 import {randomUUID} from 'expo-crypto';
-import {AgendaButton,FormField,styles as ui} from '../agenda/ui';
+import {AgendaButton,FormField,StatusPill,styles as ui} from '../agenda/ui';
 import {EmptyState,ErrorState,FilterChips,InfoList,KpiStrip,ListRow,Notice,SearchBar,SectionLabel,SkeletonList} from '../../components/mobile';
-import {colors,space,type as typo} from '../../theme/tokens';
-import {actionLabel,canAnswerTickets,canReadAudit,canReadHealth,canRecordPayment,nextStatuses,paymentInputSchema,type PlatformInvoice,type TeamTicket} from './contracts';
+import {colors,radius,space,type as typo} from '../../theme/tokens';
+import {useInfinitePages} from '../../components/mobile/useInfinitePages';
+import {AttachmentBlock} from '../support/AttachmentBlock';
+import {actionLabel,canAnswerTickets,canReadAudit,canReadHealth,canRecordPayment,nextStatuses,paymentInputSchema,type PlatformInvoice,type TeamMessage,type TeamTicket} from './contracts';
 import {Pager,PlatformShell,apiMessage,usePlatform} from './PlatformScreens';
 
 const ticketTone=(status:TeamTicket['status'])=>status==='open'?'warning' as const:status==='in_progress'?'info' as const:status==='resolved'||status==='closed'?'success' as const:'neutral' as const;
@@ -37,14 +39,16 @@ export function PlatformTicketScreen(){
  const {id}=useLocalSearchParams<{id:string}>();
  const allowed=!!session&&canAnswerTickets(session.staff);
  const ticket=useQuery({queryKey:['platform-ticket',id],enabled:allowed,queryFn:({signal})=>controller.platform((api,tokens,lang)=>api.platformTicket(tokens,lang,id,signal))});
- const messages=useQuery({queryKey:['platform-ticket-messages',id],enabled:allowed,queryFn:({signal})=>controller.platform((api,tokens,lang)=>api.platformTicketMessages(tokens,lang,id,1,signal))});
+ // Every page of the conversation, not only the first one.
+ const messages=useInfinitePages<TeamMessage>({queryKey:['platform-ticket-messages',id],enabled:allowed,fetchPage:async(page,signal)=>{const data=await controller.platform((api,tokens,lang)=>api.platformTicketMessages(tokens,lang,id,page,signal));return {...data,next:data.next??null};}});
  const [reply,setReply]=useState('');const [internal,setInternal]=useState(false);const [busy,setBusy]=useState(false);const [notice,setNotice]=useState<{text:string;ok:boolean}|null>(null);
  // Same key for the same reply intention (safe retry after an uncertain result).
  const key=useRef(randomUUID());
  const run=async(action:()=>Promise<unknown>,ok:string,after?:()=>void)=>{if(busy)return;setBusy(true);setNotice(null);
   try{await action();after?.();setNotice({text:ok,ok:true});}
   catch(error){setNotice({text:isAxiosError(error)&&error.response?.status===409?t.conflict:apiMessage(error)||t.failed,ok:false});}
-  finally{setBusy(false);await Promise.all([ticket.refetch(),messages.refetch()]);void client.invalidateQueries({queryKey:['platform-tickets']});}};
+  finally{setBusy(false);await reload();}};
+ const reload=async()=>{await Promise.all([ticket.refetch(),messages.refetch()]);void client.invalidateQueries({queryKey:['platform-tickets']});};
  const row=ticket.data;const me=session?.user.id;
  return <PlatformShell title={row?.subject||t.tickets} onBack={()=>router.canGoBack()?router.back():router.replace('/platform/tickets')} refresh={()=>Promise.all([ticket.refetch(),messages.refetch()])}>
   {!allowed?<EmptyState title={t.noTicketAccess}/>:ticket.isPending?<SkeletonList rows={3}/>:ticket.isError||!row?<ErrorState message={t.error} language={language} onRetry={()=>void ticket.refetch()}/>:<>
@@ -59,9 +63,20 @@ export function PlatformTicketScreen(){
     <Text style={{...typo.body,flex:1,color:colors.text}}>{t.internal}</Text><Switch accessible={false} value={internal} onValueChange={setInternal} trackColor={{true:colors.primary,false:colors.muted}}/>
    </Pressable>
    <AgendaButton variant="primary" label={t.send} busy={busy} disabled={busy||!reply.trim()} onPress={()=>void run(()=>controller.platform((api,tokens,lang)=>api.platformReplyTicket(tokens,lang,id,{body:reply.trim(),request_key:key.current,expected_version:row.version,is_internal:internal})),t.sent,()=>{setReply('');setInternal(false);key.current=randomUUID();})}/>
-   <SectionLabel title={t.tickets}/>
-   {messages.isPending?<SkeletonList rows={2}/>:messages.isError||!messages.data?<ErrorState message={t.error} language={language} onRetry={()=>void messages.refetch()}/>:!messages.data.results.length?<EmptyState title={t.empty}/>:
-    messages.data.results.map(message=><ListRow key={message.id} meta={`${message.author_name} · ${dateTime(message.created_at,language)}${message.is_internal?` · ${t.internalTag}`:''}`} title={message.body} status={message.from_team?{label:message.is_internal?t.internalTag:t.title,tone:message.is_internal?'warning':'info'}:undefined}/>)}
+   <SectionLabel title={t.conversation}/>
+   {messages.isPending?<SkeletonList rows={2}/>:messages.isError&&!messages.rows.length?<ErrorState message={t.error} language={language} onRetry={()=>void messages.refetch()}/>:!messages.rows.length?<EmptyState title={t.empty}/>:<>
+    {messages.rows.map(message=><View key={message.id} accessible={false} style={{gap:space.sm,padding:space.md,marginBottom:space.sm,borderRadius:radius.lg,borderWidth:1,borderColor:message.is_internal?colors.warning:colors.borderSoft,backgroundColor:message.from_team?colors.surface:colors.primarySoft}}>
+     <View style={{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:space.sm}}>
+      <Text style={{...typo.meta,flex:1,color:colors.muted}}>{`${message.author_name} · ${dateTime(message.created_at,language)}`}</Text>
+      {message.from_team&&<StatusPill label={message.is_internal?t.internalTag:t.title} tone={message.is_internal?'warning':'info'}/>}
+     </View>
+     <Text selectable style={{fontSize:15,lineHeight:22,color:colors.text}}>{message.body}</Text>
+     <AttachmentBlock attachments={message.attachments} canAttach={message.can_attach} language={language}
+      upload={async(file,requestKey)=>{try{return await controller.platform((api,tokens,lang)=>api.platformUploadTicketAttachment(tokens,lang,id,message.id,file,row.version,requestKey));}finally{await reload();}}}
+      request={attachmentId=>controller.platform(async(api,tokens,lang)=>api.platformTicketAttachmentRequest(tokens,lang,id,attachmentId))}/>
+    </View>)}
+    {messages.hasNextPage&&<AgendaButton label={t.moreMessages} busy={messages.isFetchingNextPage} disabled={messages.isFetchingNextPage} onPress={messages.loadMore}/>}
+   </>}
   </>}
  </PlatformShell>;
 }

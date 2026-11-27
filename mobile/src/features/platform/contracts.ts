@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import type {User} from '../auth/contracts';
+import {attachmentSchema} from '../support/attachments';
 
 /** Platform team member returned by platform/me/ (backoffice, no organization). */
 export const platformStaffSchema=z.object({id:z.string(),email:z.string(),full_name:z.string(),role:z.string(),role_display:z.string().optional().default(''),mfa_required:z.boolean().optional().default(false)});
@@ -77,7 +78,8 @@ export const teamTicketSchema=z.object({
 }).passthrough();
 export type TeamTicket=z.infer<typeof teamTicketSchema>;
 export const teamTicketPageSchema=page(teamTicketSchema);
-export const teamMessageSchema=z.object({id:z.string(),author_name:z.string(),body:z.string(),from_team:z.boolean(),is_internal:z.boolean().optional().default(false),created_at:z.string()}).passthrough();
+export const teamMessageSchema=z.object({id:z.string(),author_name:z.string(),body:z.string(),from_team:z.boolean(),is_internal:z.boolean().optional().default(false),attachments:z.array(attachmentSchema).optional().default([]),can_attach:z.boolean().optional().default(false),created_at:z.string()}).passthrough();
+export type TeamMessage=z.infer<typeof teamMessageSchema>;
 export const teamMessagePageSchema=page(teamMessageSchema);
 export const teamReplySchema=z.object({body:z.string().trim().min(1).max(10000),request_key:z.uuid(),expected_version:z.number().int().min(1),is_internal:z.boolean()});
 export type TeamReply=z.infer<typeof teamReplySchema>;

@@ -77,6 +77,7 @@ import { canReadCrops, canWriteCrops, cropOperationSchema, operationPayload, typ
 import { activePayment, canReadFinance, canReverse, canSettle, canWriteFinance, transactionInputSchema, FinanceChanged, type ReversalInput, type SettlementInput, type TransactionInput, type TransactionQuery } from '../finance/contracts';
 import { AuthFailure, MilkPeriodReadOnly, authError, MatingContextChanged, DiagnosisContextChanged, BirthContextChanged, SwineDiagnosisContextChanged, SwineBirthContextChanged, type AuthApi } from '../../services/authApi';
 import { credentialsSchema, type Tokens, type Session } from './contracts';
+import type {PickedFile} from '../support/attachments';
 
 export interface TokenVault {
   read(): Promise<Tokens | null>;
@@ -298,6 +299,9 @@ export class SessionController {
   }
   openSupportTicket(input:OpenTicketInput){return this.supportWrite(tokens=>this.api.openSupportTicket(tokens,this.language,input));}
   replySupportTicket(id:string,input:ReplyInput){return this.supportWrite(tokens=>this.api.replySupportTicket(tokens,this.language,id,input));}
+  uploadSupportAttachment(id:string,messageId:string,file:PickedFile,version:number,requestKey:string){return this.supportWrite(tokens=>this.api.uploadSupportAttachment(tokens,this.language,id,messageId,file,version,requestKey));}
+  /** URL plus current authorization for a private attachment; read right before downloading so the token is fresh. */
+  supportAttachmentRequest(id:string,attachmentId:string){return this.supportRead(async tokens=>this.api.supportAttachmentRequest(tokens,this.language,id,attachmentId));}
   transitionSupportTicket(id:string,status:'resolved'|'closed'|'open',version:number){return this.supportWrite(tokens=>this.api.transitionSupportTicket(tokens,this.language,id,status,version));}
   private assistantRead<T>(read:(tokens:Tokens)=>Promise<T>){
     if(this.state.status!=='signedIn'||!canUseAssistant(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
