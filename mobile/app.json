@@ -20,6 +20,9 @@
         "photosPermission": "O Fazenda Mais usa suas fotos apenas quando você escolhe uma imagem para anexar a um chamado de suporte.",
         "cameraPermission": "O Fazenda Mais usa a câmera apenas quando você tira uma foto para anexar a um chamado de suporte.",
         "microphonePermission": false
+      }],
+      ["expo-local-authentication", {
+        "faceIDPermission": "O Fazenda Mais usa o Face ID apenas para desbloquear o app quando você ativa essa opção no perfil."
       }]
     ],
     "ios": {

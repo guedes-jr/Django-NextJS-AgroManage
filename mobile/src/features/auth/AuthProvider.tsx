@@ -6,6 +6,7 @@ import { messages, resolveLanguage } from '../../i18n/messages';
 import { createAuthApi } from '../../services/authApi';
 import { SessionController } from './sessionController';
 import { createTokenVault } from './tokenVault';
+import { systemUiState } from '../security/systemUi';
 
 function createRuntime() {
   const deviceLanguage = resolveLanguage(getLocales()[0]?.languageTag);
@@ -19,7 +20,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     void runtime.controller.restore();
     const listener = AppState.addEventListener('change', state => {
-      if (state === 'active' && runtime.controller.getSnapshot().status === 'signedIn' && !runtime.controller.isSelectingLocalDocument()) void runtime.controller.restore();
+      if (state === 'active' && runtime.controller.getSnapshot().status === 'signedIn' && !runtime.controller.isSelectingLocalDocument() && !systemUiState().active) void runtime.controller.restore();
     });
     return () => listener.remove();
   }, [runtime]);

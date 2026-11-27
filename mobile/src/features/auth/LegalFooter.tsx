@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { legalUrls } from '../../config/environment';
 import { useAuth } from './AuthProvider';
+import { useRouter } from 'expo-router';
+import { securityMessages } from '../security/messages';
 import { AuthIcon } from '../../components/auth/AuthIcon';
 import { authSizing } from '../../theme/tokens';
 
 export function LegalFooter() {
-  const { t } = useAuth();
+  const { t, language } = useAuth();
+  const router = useRouter();
   const [opening, setOpening] = useState(false);
   const [failed, setFailed] = useState(false);
   const urls = legalUrls(process.env.EXPO_PUBLIC_SITE_URL, __DEV__);
@@ -30,6 +33,9 @@ export function LegalFooter() {
         {key === 'terms' && <View accessible={false} pointerEvents="none" style={footerStyles.divider} />}
       </Pressable>)}
     </View>
+    <Pressable accessibilityRole="link" accessibilityLabel={securityMessages[language].about} onPress={() => router.push('/about')} style={footerStyles.link}>
+      <Text style={footerStyles.linkText}>{securityMessages[language].about}</Text>
+    </Pressable>
     <Text style={footerStyles.copyright}>© {new Date().getFullYear()} Fazenda Mais. {t.allRightsReserved}</Text>
     {failed && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={footerStyles.error}>{t.legalLinkFailed}</Text>}
   </View>;

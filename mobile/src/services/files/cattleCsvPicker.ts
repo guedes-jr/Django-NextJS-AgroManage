@@ -1,6 +1,8 @@
+import {withSystemUi} from '../../features/security/systemUi';
 import {CsvFileError,isPickerCacheCopy,loadCsvSelection,type LoadedCsv} from '../../features/cattle/csvFile';
 /** Native implementation; web resolves cattleCsvPicker.web.ts. */
-export async function pickCattleCsv():Promise<LoadedCsv|null>{
+export function pickCattleCsv(){return withSystemUi(pickCsv);}
+async function pickCsv():Promise<LoadedCsv|null>{
  try{
   const [{getDocumentAsync},{File,Paths,FileMode}]=await Promise.all([import('expo-document-picker'),import('expo-file-system')]);
   const picked=await getDocumentAsync({type:['text/csv','text/comma-separated-values','application/csv','text/plain','application/vnd.ms-excel'],multiple:false,copyToCacheDirectory:true});

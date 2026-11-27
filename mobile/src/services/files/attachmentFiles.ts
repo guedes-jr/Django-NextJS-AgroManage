@@ -1,9 +1,11 @@
+import {withSystemUi} from '../../features/security/systemUi';
 import {attachmentMime,attachmentName,type PickSource,type PickedFile} from '../../features/support/attachments';
 
 export class AttachmentFileError extends Error{constructor(public reason:'permission'|'read'|'share'|'unsupported'){super(reason);}}
 
 /** Native camera/gallery/file selection; web resolves attachmentFiles.web.ts. Returns null when the user cancels. */
-export async function pickAttachment(source:PickSource):Promise<PickedFile|null>{
+export function pickAttachment(source:PickSource){return withSystemUi(()=>pick(source));}
+async function pick(source:PickSource):Promise<PickedFile|null>{
  try{
   if(source==='document'){
    const {getDocumentAsync}=await import('expo-document-picker');
@@ -27,7 +29,8 @@ export async function pickAttachment(source:PickSource):Promise<PickedFile|null>
 }
 
 /** Downloads an authorized attachment into the cache and opens the system share/preview sheet. */
-export async function openAttachment(request:{url:string;headers:Record<string,string>},attachment:{id:string;filename:string}){
+export function openAttachment(request:{url:string;headers:Record<string,string>},attachment:{id:string;filename:string}){return withSystemUi(()=>download(request,attachment));}
+async function download(request:{url:string;headers:Record<string,string>},attachment:{id:string;filename:string}){
  const [{Directory,File,Paths},Sharing]=await Promise.all([import('expo-file-system'),import('expo-sharing')]);
  if(!(await Sharing.isAvailableAsync()))throw new AttachmentFileError('share');
  let file:InstanceType<typeof File>;

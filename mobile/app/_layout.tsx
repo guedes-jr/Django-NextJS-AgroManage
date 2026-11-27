@@ -9,6 +9,7 @@ import { getLocales } from 'expo-localization';
 import { hideAsync, preventAutoHideAsync } from 'expo-splash-screen';
 import { Platform } from 'react-native';
 import { AuthProvider } from '../src/features/auth/AuthProvider';
+import { BiometricLockProvider } from '../src/features/security/BiometricLock';
 import { AppLoading } from '../src/components/AppLoading';
 import { messages, resolveLanguage } from '../src/i18n/messages';
 
@@ -26,8 +27,8 @@ function StartupGate({ children }: PropsWithChildren) {
   return children;
 }
 export default function RootLayout() {
-  return <SafeAreaProvider><StartupGate><AuthProvider><SessionQueryProvider><WorkspaceProvider>
+  return <SafeAreaProvider><StartupGate><AuthProvider><BiometricLockProvider><SessionQueryProvider><WorkspaceProvider>
     <StatusBar style="dark" />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F5F7F2' } }} />
-  </WorkspaceProvider></SessionQueryProvider></AuthProvider></StartupGate></SafeAreaProvider>;
+  </WorkspaceProvider></SessionQueryProvider></BiometricLockProvider></AuthProvider></StartupGate></SafeAreaProvider>;
 }

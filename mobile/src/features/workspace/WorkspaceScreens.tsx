@@ -15,6 +15,8 @@ import { ActionGroup, ActionRow, EmptyState, ErrorState, FilterChips, IconTile, 
 import { useInfinitePages } from '../../components/mobile/useInfinitePages';
 import { AgendaShell } from './AppShell';
 import { workspaceMessages } from './messages';
+import { BiometricSetting } from '../security/BiometricLock';
+import { securityMessages } from '../security/messages';
 import { useRead } from './useRead';
 import { canSearch, searchKinds, type SearchKind } from './contracts';
 import { useWorkspace } from './WorkspaceProvider';
@@ -40,6 +42,9 @@ export function ProfileScreen(){
       <ActionRow label={`${t.privacy} ↗`} icon={<HomeIcon name="arrow" size={20} color={colors.primary}/>} onPress={()=>web('/privacidade')}/>
     </ActionGroup>
     {linkFailed&&<ErrorState message={t.failedLink} language={language}/>}
+    <SectionLabel title={securityMessages[language].security}/>
+    <BiometricSetting language={language}/>
+    <ActionGroup><ActionRow label={securityMessages[language].about} icon={<HomeIcon name="arrow" size={20} color={colors.primary}/>} onPress={()=>router.push('/about')}/></ActionGroup>
     <Notice tone="neutral" text={t.profileHint}/>
     <ActionGroup><ActionRow tone="danger" label={t.logout} icon={<HomeIcon name="back" size={20} color={colors.error}/>} onPress={()=>void controller.signOut()}/></ActionGroup>
   </ScrollView></WorkspaceShell>;

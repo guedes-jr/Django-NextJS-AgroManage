@@ -33,7 +33,7 @@
 
 ### Subparte 14C — Biometria, localização e compartilhamento
 
-- [ ] P14.15 — Biometria opcional após autenticação válida, com fallback seguro para indisponibilidade/bloqueio. Definir prazo de desbloqueio local e retorno do app ao primeiro plano.
+- [ ] P14.15 — (Implementado em 27/11/2026; homologação em aparelho pendente) Biometria opcional após autenticação válida, com fallback seguro para indisponibilidade/bloqueio. Definir prazo de desbloqueio local e retorno do app ao primeiro plano.
 - [ ] P14.16 — Não prometer desbloqueio offline de qualquer sessão: respeitar a política de validade da Parte 08 e particularidades de restauração/reinstalação do armazenamento seguro.
 - [ ] P14.17 — Localização pontual apenas ao preencher ação que precisa de coordenada; informar finalidade, precisão e data da leitura. Não solicitar localização em segundo plano por conveniência.
 - [ ] P14.18 — Tratar localização desativada, imprecisa ou expirada; oferecer entrada alternativa quando a regra do domínio permitir. GPS não define sozinho a propriedade autorizada.

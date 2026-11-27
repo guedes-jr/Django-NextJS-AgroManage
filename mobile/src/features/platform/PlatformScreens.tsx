@@ -11,6 +11,8 @@ import {parseApiUrl} from '../../config/environment';
 import {colors,space,type as typo} from '../../theme/tokens';
 import {canAnswerTickets,canManagePlatform,platformRoles,platformUserDraft,platformUserPayload,type PlatformOrganization,type PlatformSession,type PlatformUser,type PlatformUserDraft} from './contracts';
 import {platformMessages} from './messages';
+import {BiometricSetting} from '../security/BiometricLock';
+import {securityMessages} from '../security/messages';
 
 /** Readable 4xx message from the API envelope; never raw 5xx bodies. */
 export function apiMessage(error:unknown){
@@ -78,6 +80,9 @@ export function PlatformHomeScreen(){
   {linkFailed&&<Notice tone="danger" text={t.error}/>}
   <Notice tone="neutral" text={t.webHint}/>
   <AgendaButton label={t.web} onPress={()=>{setLinkFailed(false);void openWeb('/platform').catch(()=>setLinkFailed(true));}}/>
+  <SectionLabel title={securityMessages[language].security}/>
+  <BiometricSetting language={language}/>
+  <AgendaButton label={securityMessages[language].about} onPress={()=>router.push('/about')}/>
  </PlatformShell>;
 }
 
