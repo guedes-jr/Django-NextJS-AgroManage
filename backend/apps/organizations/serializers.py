@@ -59,7 +59,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
             "monthly_price": item.monthly_price,
             "discount_percent": item.discount_percent,
             "final_monthly_price": item.final_monthly_price,
-        } for item in subscription.items.all()]
+        } for item in subscription.items.all() if item.is_active]  # Inactive segments stay hidden from the client.
         from apps.billing.pricing import breakdown
 
         price = breakdown(subscription)

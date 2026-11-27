@@ -6,12 +6,27 @@ export function canReadOrganization(user:User){return !user.force_password_chang
 export function canEditOrganization(user:User){return canReadOrganization(user)&&user.access.role==='admin'&&!user.access.read_only;}
 const s=z.string().nullable().optional();
 const money=z.union([z.string(),z.number()]).nullable().optional();
+/** Itemized monthly amount (apps/billing/pricing.py): segments minus discounts, never negative. */
+const discountLine=z.object({id:z.string(),description:z.string(),kind:z.string(),source:z.string(),amount:z.string()});
+export const priceSchema=z.object({
+ currency:z.string().default('BRL'),billing_cycle:z.string().optional(),gross:z.string(),subtotal:z.string(),discount_total:z.string(),total:z.string(),
+ lines:z.array(z.object({segment_code:z.string(),name:z.string(),tier_label:z.string(),base:z.string(),on_request:z.boolean().optional().default(false),total:z.string(),discounts:z.array(discountLine).default([])})),
+ subscription_discounts:z.array(discountLine).default([]),
+});
+export type Price=z.infer<typeof priceSchema>;
 export const organizationSchema=z.object({
  id:z.uuid(),name:z.string(),document:s,plan_display:s,language:z.string(),status_display:s,email:s,phone:s,address:s,farms_count:z.number().nullable().optional(),storage_used:z.number().nullable().optional(),
  contacts:z.array(z.object({id:z.string(),label:s,tipo:s,kind:s,value:s,valor:s}).passthrough()).optional().default([]),
  addresses:z.array(z.object({id:z.string()}).passthrough()).optional().default([]),
- subscription:z.object({status:s,items:z.array(z.object({id:z.string(),segment_name:s,tier_label:s,final_monthly_price:money}).passthrough()).optional().default([])}).passthrough().nullable().optional(),
+ subscription:z.object({status:s,billing_cycle:s,items:z.array(z.object({id:z.string(),segment_code:s,segment_name:s,tier_label:s,final_monthly_price:money}).passthrough()).optional().default([]),price:priceSchema.nullable().optional()}).passthrough().nullable().optional(),
 });
+
+/** Coupon codes: letters, digits, hyphen and underscore (same rule as the platform). */
+export const couponSchema=z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9_-]+$/);
+/** Every discount applied to the subscription with the line it belongs to (segment or whole subscription). */
+export function priceDiscounts(price:Price,subscriptionLabel:string){
+ return [...price.lines.flatMap(line=>line.discounts.map(row=>({...row,scope:line.name}))),...price.subscription_discounts.map(row=>({...row,scope:subscriptionLabel}))];
+}
 export type Organization=z.infer<typeof organizationSchema>;
 /** Plan invoices (GET organizations/me/invoices/): admin and manager, same as the web Plan panel. */
 export const planInvoicesSchema=z.object({subscription_status:s,results:z.array(z.object({

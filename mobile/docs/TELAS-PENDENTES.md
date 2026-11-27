@@ -23,7 +23,7 @@ A Fase 1 já possui seu recorte funcional: Agenda com consulta/detalhe/criação
 | B10 | Vendas de animais: histórico, venda total/parcial do lote por kg vivo ou arroba de carcaça, descontos e vencimento do recebível; acesso pela ficha do lote e pelas rotinas | Baixas por morte/descarte e estorno de venda |
 | Q01 | Central com estoque baixo, validade de lotes e inventário do rebanho | Relatório geral, indicadores de lote, produtividade e exportações PDF/Excel |
 | U05 (consulta) | Diretório da equipe (perfil, situação, busca, filtros) | Convites e alterações de acesso |
-| U06 | Organização: dados, plano e segmentos contratados, contatos/endereços; edição de nome, e-mail e telefone por administrador | Idioma, endereços/contatos, assinatura e troca de plano |
+| U06 | Configurações da organização | Dados (edição pelo administrador), faturas do plano e pagamento. **Assinatura (27/11/2026):** composição do valor (segmentos ativos, descontos por segmento e da assinatura, total mensal e anual) e aplicação de cupom pelo administrador. Pendente: contatos/endereços, troca de segmentos e idioma organizacional (web) | Fase 5 · P13 |
 
 Agenda: lista e ficha alinhadas ao padrão (cabeçalho com “+ Nova atividade”, atalho “Hoje”, filtros, linhas por domínio, puxar para atualizar), mantendo calendário e restauração de contexto. Também foram convertidos Ração (fórmulas/produções), Evolução do leite, Custos do rebanho, histórico de trato leiteiro, Veterinário (animais, rebanho, relatório, clientes e cobrança) e os seletores de participantes de pesagem, sanitário e castração.
 
