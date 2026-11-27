@@ -34,10 +34,14 @@ export const userSchema = z.object({
     // Área do veterinário contracted and allowed for this role; segment options (Configurações).
     veterinary: z.boolean().optional(),
     segment_features: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
+    // "suspended": the API answers 402 outside the payment screen (see backend enforce_request).
+    subscription_status: z.string().nullable().optional(),
   }),
 });
 export type User = z.infer<typeof userSchema>;
 export const VETERINARY_SEGMENT = 'area-veterinario';
+/** Subscription suspended for non-payment: only the payment screen opens. */
+export const isSuspended = (user: Pick<User, 'access'>) => user.access.subscription_status === 'suspended';
 export const isVeterinarian = (user: Pick<User, 'access'>) => user.access.role === 'veterinarian';
 /** Operator and veterinarian only open the segments enabled for them in Membros. */
 export const isScoped = (access: User['access']) => access.role === 'operator' || access.role === 'veterinarian';

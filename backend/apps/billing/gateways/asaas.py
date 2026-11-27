@@ -129,6 +129,29 @@ class AsaasGateway(BasePaymentGateway):
         status = self._status(body.get("status"))
         return GatewayResult(external_id=body.get("id", external_id), status="refunded" if status in {"refunded", "succeeded"} else status, raw=body)
 
+    def payment_options(self, external_id, method, *, due_date=None):
+        if method not in {"pix", "boleto", "credit_card"}:
+            raise PaymentGatewayError("Forma de pagamento inválida.")
+        path = f"/payments/{quote(external_id)}"
+        body = self._request("GET", path)
+        update = {}
+        if body.get("billingType") not in {"UNDEFINED", self.billing_types[method]}:
+            update["billingType"] = "UNDEFINED"  # Customer may pick any method on the same charge.
+        if due_date and str(body.get("dueDate") or "") < str(due_date):
+            update["dueDate"] = str(due_date)  # Segunda via: same charge, renewed due date.
+        if update:
+            body = self._request("POST", path, payload=update)
+        if method == "credit_card":
+            # Card data is typed only on the Asaas page (never in our system).
+            return {"method": method, "payment_url": body.get("invoiceUrl", "")}
+        if method == "boleto":
+            line = self._request("GET", f"{path}/identificationField")
+            return {"method": method, "bank_slip_url": body.get("bankSlipUrl", ""), "digitable_line": line.get("identificationField", ""),
+                    "due_date": body.get("dueDate", ""), "payment_url": body.get("invoiceUrl", "")}
+        pix = self._request("GET", f"{path}/pixQrCode")
+        return {"method": method, "pix_copy_paste": pix.get("payload", ""), "pix_qr_image": pix.get("encodedImage", ""),
+                "expires_at": pix.get("expirationDate", ""), "payment_url": body.get("invoiceUrl", "")}
+
     def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> GatewayResult:
         expected = self.credentials.get("webhook_token", "")
         received = next((value for key, value in (headers or {}).items() if key.lower() in {"asaas-access-token", "http_asaas_access_token"}), "")

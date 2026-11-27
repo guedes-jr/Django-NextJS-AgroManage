@@ -103,6 +103,14 @@ class GerencianetGateway(BasePaymentGateway):
         body = self._request("PUT", f"/v2/pix/{external_id}/devolucao/{refund_id}", payload={"valor": f"{amount:.2f}"})
         return GatewayResult(external_id=body.get("id", refund_id), status="refunded" if body.get("status") == "DEVOLVIDO" else "pending", raw=body)
 
+    def payment_options(self, external_id, method, *, due_date=None):
+        if method != "pix":
+            raise PaymentGatewayError("A Efí está configurada somente para PIX.")
+        body = self._request("GET", f"/v2/cob/{external_id}")
+        if not body.get("pixCopiaECola"):
+            raise PaymentGatewayError("A cobrança PIX não está mais disponível. Fale com o suporte.")
+        return {"method": "pix", "pix_copy_paste": body["pixCopiaECola"], "pix_qr_image": "", "expires_at": ""}
+
     def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> GatewayResult:
         try:
             body = json.loads(payload); pix = body.get("pix", [])[0]

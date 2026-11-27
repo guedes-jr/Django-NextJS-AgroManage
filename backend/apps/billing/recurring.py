@@ -312,3 +312,23 @@ def run_cycle(*, today=None):
             logger.exception("Gateway charge failed for invoice %s", invoice.pk)
     result.update(apply_delinquency(today=today))
     return result
+
+
+def payment_options(invoice, method):
+    """Payment page: make sure the invoice has a gateway charge and return how to pay it now.
+    An overdue charge gets a new due date (tomorrow) so the boleto/PIX can still be paid."""
+    from .gateways.base import PaymentGatewayError
+    from .gateways.registry import gateway_registry
+    from .models import PaymentGatewayConfiguration
+
+    if invoice.status not in {Invoice.Status.OPEN, Invoice.Status.OVERDUE} or invoice.total <= invoice.amount_paid:
+        raise PaymentGatewayError("Esta fatura não tem saldo em aberto.")
+    payment = charge_invoice(invoice)
+    if payment is None:
+        raise PaymentGatewayError("Pagamento online indisponível no momento. Fale com o suporte.")
+    configuration = PaymentGatewayConfiguration.objects.filter(provider=payment.provider, is_enabled=True).first()
+    if configuration is None:
+        raise PaymentGatewayError("Pagamento online indisponível no momento. Fale com o suporte.")
+    tomorrow = timezone.localdate() + timedelta(days=1)
+    options = gateway_registry.create(configuration).payment_options(payment.external_id, method, due_date=tomorrow)
+    return {**options, "invoice_id": str(invoice.pk), "number": invoice.number, "amount": str(invoice.total - invoice.amount_paid)}

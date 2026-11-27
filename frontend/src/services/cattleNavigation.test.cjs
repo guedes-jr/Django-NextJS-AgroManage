@@ -91,3 +91,15 @@ test('global redirect is permanent and API/media proxies keep their own prefixes
   assert.equal(rewrites[0].destination, 'http://127.0.0.1:8000/api/v1/:path*/');
   assert.equal(rewrites[1].source, '/media/:path*');
 });
+
+test('suspended subscription opens only the payment page, and the payment page only while suspended', () => {
+  const accessExports = {};
+  load('organizationAccess.ts', accessExports, (name) => name === './cattleNavigation' ? navigation : { default: {}, setOrganizationOperatorMode: () => {} });
+  const admin = { role: 'admin', can_manage_users: true, segments: ['plantacoes'], read_only: false };
+  const suspended = { ...admin, subscription_status: 'suspended' };
+  for (const path of ['/home', '/home/plantacoes', '/home/settings', '/home/profile', '/home/suporte']) assert.equal(accessExports.canAccessOrganizationPath(suspended, path), false, path);
+  assert.equal(accessExports.canAccessOrganizationPath(suspended, '/home/pagamento'), true);
+  assert.equal(accessExports.canAccessOrganizationPath(admin, '/home/pagamento'), false);
+  assert.equal(accessExports.canAccessOrganizationPath(admin, '/home'), true);
+  assert.ok(fs.existsSync(`${__dirname}/../app/home/pagamento/page.tsx`));
+});

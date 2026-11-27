@@ -18,6 +18,12 @@ export const planInvoicesSchema=z.object({subscription_status:s,results:z.array(
  id:z.string(),number:z.string(),status:z.string(),due_date:z.string(),total:z.string(),balance:z.string(),overdue:z.boolean(),payment_url:z.string().optional().default(''),notes:z.string().optional().default(''),
 }).passthrough())});
 export type PlanInvoices=z.infer<typeof planInvoicesSchema>;
+export const paymentMethods=['pix','boleto','credit_card'] as const;
+export type PaymentMethod=typeof paymentMethods[number];
+/** GET organizations/me/invoices/<id>/payment/?method=: links and codes from the gateway. */
+export const invoicePaymentSchema=z.object({method:z.enum(paymentMethods),amount:z.string(),payment_url:z.string().optional().default(''),bank_slip_url:z.string().optional().default(''),
+ digitable_line:z.string().optional().default(''),due_date:z.string().optional().default(''),pix_copy_paste:z.string().optional().default(''),pix_qr_image:z.string().optional().default(''),expires_at:z.string().optional().default('')}).passthrough();
+export type InvoicePayment=z.infer<typeof invoicePaymentSchema>;
 export type InvoiceState='open'|'overdue'|'paid'|'void';
 export function invoiceState(row:PlanInvoices['results'][number]):InvoiceState{return row.status==='paid'?'paid':row.overdue?'overdue':row.status==='void'||row.status==='uncollectible'?'void':'open';}
 /** Only gateway links on https are opened outside the app. */

@@ -156,3 +156,83 @@ class CustomerInvoicesTests(APITestCase):
         self.client.force_authenticate(admin)
         row = self.client.get(url).data["results"][0]
         self.assertEqual((row["number"], row["payment_url"], row["overdue"], row["balance"]), (invoice.number, "https://asaas/i/pay_c", True, "50.00"))
+
+
+class SuspendedSubscriptionTests(APITestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from .services import create_manual_invoice
+
+        self.org = Organization.objects.create(name="Suspensa", slug="suspensa")
+        plan = Plan.objects.first() or Plan.objects.create(code="segmentado", name="Segmentado")
+        self.subscription = Subscription.objects.filter(organization=self.org).first() or Subscription.objects.create(organization=self.org, plan=plan, started_at=timezone.now())
+        self.subscription.status = Subscription.Status.SUSPENDED
+        self.subscription.save()
+        User = get_user_model()
+        self.admin = User.objects.create_user(email="adm@suspensa.test", password="Strong-8472x", organization=self.org, role="admin")
+        self.operator = User.objects.create_user(email="op@suspensa.test", password="Strong-8472x", organization=self.org, role="operator")
+        self.invoice = create_manual_invoice(organization=self.org, due_date=timezone.localdate() - timedelta(days=20), description="Ciclo", amount=Decimal("80"))
+        configuration = PaymentGatewayConfiguration.objects.get(provider="asaas")
+        configuration.set_credentials({"api_key": "$aact", "webhook_token": "tok"})
+        configuration.is_enabled = configuration.is_default = True
+        configuration.save()
+
+    def login(self, user):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        token = RefreshToken.for_user(user)
+        token["session_version"] = user.session_version
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
+
+    def test_everything_but_session_and_payment_is_blocked_with_402(self):
+        self.login(self.admin)
+        me = self.client.get("/api/v1/auth/me/")
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.data["access"]["subscription_status"], "suspended")
+        self.assertEqual(self.client.get(reverse("my-invoices")).status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/organizations/me/").status_code, 200)
+        for path in ("/api/v1/reports/dashboard/", "/api/v1/notifications/", "/api/v1/farms/"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 402, path)
+            self.assertEqual(response.data["error"]["code"], "subscription_suspended")
+        self.assertEqual(self.client.patch("/api/v1/organizations/me/", {"name": "x"}, format="json").status_code, 402)
+
+    @patch("apps.billing.gateways.asaas.AsaasGateway.payment_options")
+    @patch("apps.billing.gateways.asaas.AsaasGateway.create_charge")
+    def test_admin_gets_boleto_pix_or_card_and_operator_cannot(self, create_charge, options):
+        create_charge.return_value = GatewayResult(external_id="pay_s", status="pending", raw={"invoiceUrl": "https://asaas/i/pay_s"})
+        options.return_value = {"method": "boleto", "bank_slip_url": "https://asaas/b/pay_s", "digitable_line": "34191.79001"}
+        url = reverse("my-invoice-payment", args=[self.invoice.pk])
+        self.login(self.operator)
+        self.assertEqual(self.client.get(url, {"method": "boleto"}).status_code, 403)
+        self.login(self.admin)
+        self.assertEqual(self.client.get(url, {"method": "dinheiro"}).status_code, 400)
+        response = self.client.get(url, {"method": "boleto"})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual((response.data["digitable_line"], response.data["amount"]), ("34191.79001", "80.00"))
+        self.assertEqual(options.call_args.args, ("pay_s", "boleto"))
+        self.assertEqual(options.call_args.kwargs["due_date"], timezone.localdate() + timedelta(days=1))
+        self.client.get(url, {"method": "pix"})
+        self.assertEqual(create_charge.call_count, 1)  # Same charge reused for every method.
+
+    @patch("apps.billing.gateways.asaas.AsaasGateway._urlopen")
+    def test_asaas_renews_overdue_charge_for_second_copy(self, urlopen):
+        from .gateways.registry import gateway_registry
+
+        urlopen.side_effect = [
+            {"id": "pay_r", "billingType": "BOLETO", "dueDate": "2026-01-01", "invoiceUrl": "https://asaas/i/pay_r"},
+            {"id": "pay_r", "billingType": "BOLETO", "dueDate": "2026-12-01", "bankSlipUrl": "https://asaas/b/pay_r", "invoiceUrl": "https://asaas/i/pay_r"},
+            {"identificationField": "34191.79001 01043.510047"},
+        ]
+        result = gateway_registry.create(PaymentGatewayConfiguration.objects.get(provider="asaas")).payment_options("pay_r", "boleto", due_date=date(2026, 12, 1))
+        self.assertEqual(urlopen.call_args_list[1].args, ("POST", "/payments/pay_r", {"dueDate": "2026-12-01"}))
+        self.assertEqual((result["bank_slip_url"], result["digitable_line"]), ("https://asaas/b/pay_r", "34191.79001 01043.510047"))
+
+    def test_platform_staff_is_not_blocked(self):
+        from apps.platform_admin.models import PlatformStaffProfile
+        from django.contrib.auth import get_user_model
+
+        staff = get_user_model().objects.create_user(email="staff@suspensa.test", password="Strong-8472x", is_staff=True)
+        PlatformStaffProfile.objects.create(user=staff, role="platform_admin")
+        self.login(staff)
+        self.assertNotEqual(self.client.get(reverse("platform-organization-list")).status_code, 402)

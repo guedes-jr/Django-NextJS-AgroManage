@@ -66,7 +66,7 @@ import { canSearch, type SearchQuery } from '../workspace/contracts';
 import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
 import { canReadTeam } from '../team/contracts';
-import { canEditOrganization, canReadOrganization, type OrganizationUpdate } from '../organization/contracts';
+import { canEditOrganization, canReadOrganization, type OrganizationUpdate, type PaymentMethod } from '../organization/contracts';
 import { canReadReport, type ReportKind } from '../reports/contracts';
 import { canReadCattleSales, canSellCattle, type CattleSaleInput } from '../cattle/saleContracts';
 import { canUseAssistant } from '../assistant/contracts';
@@ -167,8 +167,20 @@ export class SessionController {
     if(this.state.session.user.force_password_change)throw new AuthFailure('unsupported');
     const epoch=this.epoch;
     try{const result=await request(this.tokens);if(epoch!==this.epoch)throw new AuthFailure('expired');return result;}
-    catch(error){if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();throw error;}
+    catch(error){
+      if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();
+      // 402: subscription suspended for non-payment; reload access so the app shows the payment screen.
+      else if(isAxiosError(error)&&error.response?.status===402&&epoch===this.epoch)void this.refreshAccess();
+      throw error;
+    }
   }
+  /** Re-read user and organization (after a 402 or when the member says the invoice was paid). */
+  async refreshAccess(){
+    const tokens=this.tokens;if(!tokens||this.state.status!=='signedIn')return;const epoch=this.epoch;
+    try{const session=await this.validate(tokens);if(epoch===this.epoch&&this.state.status==='signedIn')this.set({status:'signedIn',session});}
+    catch(error){if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();}
+  }
+  invoicePayment(invoice:string,method:PaymentMethod){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.invoicePayment(tokens,this.language,invoice,method));}
   profile(signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.profile(tokens,this.language,signal));}
   farms(page:number,signal?:AbortSignal){
     if(this.state.status!=='signedIn'||!canReadAgenda(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { getOrganizationAccess, canAccessOrganizationPath, type OrganizationAccess, VETERINARY_PATH, ACCESS_CHANGED_EVENT } from "@/services/organizationAccess";
+import { getOrganizationAccess, canAccessOrganizationPath, isSuspended, type OrganizationAccess, SUSPENDED_PATH, VETERINARY_PATH, ACCESS_CHANGED_EVENT } from "@/services/organizationAccess";
 import Link from "next/link";
 import { OrganizationAccessContext } from "@/components/auth/OrganizationAccessContext";
 import { useCallback, useEffect, useState } from "react";
@@ -48,6 +48,12 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
       window.removeEventListener(ACCESS_CHANGED_EVENT, refresh);
     };
   }, []);
+  const suspended = isSuspended(access);
+  useEffect(() => {
+    // Suspended for non-payment: every route goes to the payment page, and back home once paid.
+    if (suspended && pathname !== SUSPENDED_PATH) router.replace(SUSPENDED_PATH);
+    if (!suspended && access && pathname === SUSPENDED_PATH) router.replace("/home");
+  }, [access, suspended, pathname, router]);
   useEffect(() => {
     // A veterinarian without other segments works only in the Área do veterinário.
     if (access?.role === "veterinarian" && pathname === "/home" && !(access.segments || []).some(code => code !== "area-veterinario")) router.replace(VETERINARY_PATH);
@@ -69,6 +75,13 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [closeSidebar, isSidebarOpen]);
+
+  if (suspended) {
+    // No sidebar, search, notifications or banners: nothing else is reachable (API answers 402).
+    return <OrganizationAccessContext.Provider value={access}><div className="app-workspace" style={{ minHeight: "100dvh", background: "var(--background)" }}>
+      <main className="workspace-content">{pathname === SUSPENDED_PATH ? children : <p role="status">{t("layout.verifyingAccess")}</p>}</main>
+    </div></OrganizationAccessContext.Provider>;
+  }
 
   return (
     <OrganizationAccessContext.Provider value={access}><NotificationProvider><div className="app-workspace d-flex" style={{ minHeight: "100vh" }}>

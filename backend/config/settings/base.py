@@ -215,6 +215,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "common.exceptions.custom_exception_handler",
     "DEFAULT_THROTTLE_RATES": {
+        "invoice_payment": "30/hour",
         "affiliate_tracking": env("AFFILIATE_TRACKING_RATE", default="60/min"),
         "subscription_quote": env("SUBSCRIPTION_QUOTE_RATE", default="20/hour"),
     },

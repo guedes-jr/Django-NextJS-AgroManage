@@ -1,13 +1,13 @@
 """Organization operator scope, independent of UI visibility."""
 
-from django.utils.translation import gettext as translate_message
+from django.utils.translation import gettext as translate_message, gettext_lazy as translate_message_lazy
 
 from functools import wraps
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Model, Q
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
 
 SPECIES_PATHS = {
@@ -102,6 +102,8 @@ def effective_access(user):
         "read_only": scoped and user.operator_read_only,
         "veterinary": catalog.VETERINARY in granted,
         "segment_features": feature_map(user.organization),
+        # "suspended": clients send every route to the payment page (see enforce_request).
+        "subscription_status": subscription_status(user),
     }
 
 
@@ -223,7 +225,46 @@ def request_allowed(user, request):
     return False
 
 
+# With the subscription suspended for non-payment, only the session and the payment page work.
+SUSPENDED_PATHS = (
+    "auth/me", "auth/token", "auth/logout", "auth/preferences", "auth/change-password",
+    "auth/force-change-password", "organizations/me/invoices",
+)
+
+
+class SubscriptionSuspended(APIException):
+    status_code = 402
+    default_code = "subscription_suspended"
+    default_detail = translate_message_lazy("Acesso suspenso por falta de pagamento. Regularize a fatura vencida para reativar.")
+
+
+def subscription_status(user, request=None):
+    """Status of the user's organization subscription (cached on the request)."""
+    cached = getattr(request, "_fm_subscription_status", None) if request is not None else None
+    if cached is not None:
+        return cached[0]
+    from apps.billing.models import Subscription
+
+    organization_id = getattr(user, "organization_id", None)
+    status = Subscription.objects.filter(organization_id=organization_id).values_list("status", flat=True).first() if organization_id else None
+    if request is not None:
+        try:
+            request._fm_subscription_status = (status,)
+        except AttributeError:
+            pass
+    return status
+
+
+def suspended_request_allowed(request):
+    path = request.path.removeprefix("/api/v1/").strip("/")
+    if path == "organizations/me":
+        return request.method in SAFE_METHODS
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in SUSPENDED_PATHS)
+
+
 def enforce_request(user, request):
+    if subscription_status(user, request) == "suspended" and not suspended_request_allowed(request):
+        raise SubscriptionSuspended()
     if not request_allowed(user, request):
         raise PermissionDenied(
             translate_message("Seu perfil não permite acessar esta área. Solicite autorização ao administrador.")

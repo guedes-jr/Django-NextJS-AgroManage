@@ -55,6 +55,11 @@ class BasePaymentGateway(ABC):
     def refund(self, external_id: str, amount: Decimal | None = None) -> GatewayResult:
         raise NotImplementedError
 
+    def payment_options(self, external_id: str, method: str, *, due_date=None) -> dict[str, Any]:
+        """How to pay an existing charge with ``method`` (pix, boleto, credit_card): links and codes
+        shown on the payment page. ``due_date`` renews an expired charge (segunda via)."""
+        raise PaymentGatewayError("Este gateway não oferece esta forma de pagamento.")
+
     @abstractmethod
     def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> GatewayResult:
         raise NotImplementedError

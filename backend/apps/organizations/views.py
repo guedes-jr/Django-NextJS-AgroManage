@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.db import transaction
 from decimal import Decimal
+from rest_framework.throttling import ScopedRateThrottle
 from .models import OrganizationAddress, OrganizationContact
 from .serializers import (
     OrganizationSerializer, 
@@ -426,3 +427,30 @@ def my_invoices_view(request):
         })
     subscription = getattr(org, "subscription", None)
     return Response({"subscription_status": getattr(subscription, "status", None), "results": rows})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_invoice_payment_view(request, invoice_id):
+    """Payment page (also while suspended): boleto (segunda via), PIX or card link for one invoice."""
+    from apps.billing.gateways.base import PaymentGatewayError
+    from apps.billing.models import Invoice
+    from apps.billing.recurring import payment_options
+
+    user = request.user
+    if not getattr(user, "organization_id", None) or user.role not in ("admin", "manager"):
+        return Response({"detail": translate_message("Somente administradores e gerentes pagam as faturas do plano.")}, status=status.HTTP_403_FORBIDDEN)
+    method = request.query_params.get("method", "")
+    if method not in ("pix", "boleto", "credit_card"):
+        return Response({"method": translate_message("Escolha PIX, boleto ou cartão de crédito.")}, status=status.HTTP_400_BAD_REQUEST)
+    invoice = Invoice.objects.filter(pk=invoice_id, organization_id=user.organization_id).select_related("organization").first()
+    if invoice is None:
+        return Response({"detail": translate_message("Fatura não encontrada.")}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        return Response(payment_options(invoice, method))
+    except PaymentGatewayError as error:
+        return Response({"detail": str(error)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+my_invoice_payment_view.cls.throttle_scope = "invoice_payment"
+my_invoice_payment_view.cls.throttle_classes = [ScopedRateThrottle]

@@ -16,11 +16,16 @@ export type OrganizationAccess = {
   veterinary?: boolean;
   /** Configurações › Recursos dos segmentos: {segment: {feature: on}}. */
   segment_features?: SegmentFeatures;
+  /** "suspended": every route goes to SUSPENDED_PATH and the API answers 402 elsewhere. */
+  subscription_status?: string | null;
 };
 
 export type SegmentFeatures = Record<string, Record<string, boolean>>;
 
 export const VETERINARY_PATH = "/home/veterinario";
+/** Payment page while the subscription is suspended for non-payment. */
+export const SUSPENDED_PATH = "/home/pagamento";
+export const isSuspended = (access: OrganizationAccess | null | undefined) => access?.subscription_status === "suspended";
 /** Fired after the admin changes something the access payload carries (segment features). */
 export const ACCESS_CHANGED_EVENT = "fm:organization-access-changed";
 
@@ -55,6 +60,8 @@ export function canAccessOrganizationPath(access: OrganizationAccess | null, pat
   const required = pathSegments(path);
   path = cattleAccessPath(path);
   if (!access) return path === "/home";
+  // Suspended for non-payment: only the payment page; the payment page only while suspended.
+  if (isSuspended(access) !== (path === SUSPENDED_PATH)) return false;
   if (path === VETERINARY_PATH || path.startsWith(`${VETERINARY_PATH}/`)) return !!access.veterinary;
   if (required && access.segments && !required.some(code => access.segments!.includes(code))) return false;
   const personal = ["/home/profile", "/home/notifications", "/home/suporte"];

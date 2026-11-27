@@ -7,9 +7,10 @@ import type { z } from 'zod';
 import type { MessageKey } from '../../i18n/messages';
 import { authError, type AuthFailure } from '../../services/authApi';
 import { AppLoading } from '../../components/AppLoading';
-import { newPasswordSchema } from './contracts';
+import { isSuspended, newPasswordSchema } from './contracts';
 import { useAuth } from './AuthProvider';
 import { LoginScreen } from './LoginScreen';
+import { SuspendedPaymentScreen } from '../billing/SuspendedPaymentScreen';
 import { Action, AuthShell, Field, Heading, Notice, styles } from './AuthControls';
 
 function PasswordChange() {
@@ -40,6 +41,8 @@ export function SessionScreen() {
   const { state, t, controller } = useAuth();
   if (state.status === 'signedOut') return <LoginScreen />;
   if (state.status === 'restoring') return <AppLoading label={t.loading} />;
+  // Suspended for non-payment: the payment screen replaces the whole app.
+  if (state.status === 'signedIn' && !state.session.user.force_password_change && isSuspended(state.session.user)) return <SuspendedPaymentScreen />;
   if (state.status === 'signedIn' && !state.session.user.force_password_change) return <HomeScreen key={state.session.user.id + state.session.organization.id} session={state.session} />;
   return <AuthShell>
     {state.status === 'unavailable' ? <>

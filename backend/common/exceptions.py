@@ -52,6 +52,7 @@ def _get_error_code(status_code: int) -> str:
     codes = {
         400: "bad_request",
         401: "unauthorized",
+        402: "subscription_suspended",
         403: "forbidden",
         404: "not_found",
         405: "method_not_allowed",
@@ -67,6 +68,7 @@ def _get_error_message(status_code: int) -> str:
     messages = {
         400: _("Bad request."),
         401: _("Authentication credentials were not provided or are invalid."),
+        402: _("Subscription suspended for non-payment."),
         403: _("You do not have permission to perform this action."),
         404: _("The requested resource was not found."),
         405: _("Method not allowed."),
