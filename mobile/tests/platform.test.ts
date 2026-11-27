@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {canManagePlatform,platformUserDraft,platformUserPayload,platformUserSchema,platformOrganizationSchema,platformDashboardSchema} from '../src/features/platform/contracts';
+import {actionLabel,canAnswerTickets,canManagePlatform,canReadAudit,canReadHealth,canRecordPayment,financeSummarySchema,nextStatuses,paymentInputSchema,platformDashboardSchema,platformOrganizationSchema,platformUserDraft,platformUserPayload,platformUserSchema,teamReplySchema} from '../src/features/platform/contracts';
 import {platformMessages} from '../src/features/platform/messages';
 
 const staff=(role:string)=>({id:'s',email:'s@example.com',full_name:'S',role,role_display:'',mfa_required:false});
@@ -28,4 +28,32 @@ test('API payloads parse with optional blocks missing',()=>{
 
 test('backoffice texts exist in the four languages',()=>{
  for(const copy of Object.values(platformMessages))for(const key of ['title','organizations','users','suspend','resetPassword','confirmBlock','webHint'] as const)assert.ok(copy[key]?.trim(),key);
+});
+
+
+test('ticket, finance, audit and health follow the platform roles',()=>{
+ assert.equal(canAnswerTickets(staff('platform_support')),true);assert.equal(canAnswerTickets(staff('platform_auditor')),false);
+ assert.equal(canRecordPayment(staff('platform_admin')),true);assert.equal(canRecordPayment(staff('platform_support')),false);
+ assert.equal(canReadAudit(staff('platform_auditor')),true);assert.equal(canReadAudit(staff('platform_developer')),false);
+ assert.equal(canReadHealth(staff('platform_developer')),true);assert.equal(canReadHealth(staff('platform_support')),false);
+});
+
+test('ticket transitions and team replies',()=>{
+ assert.deepEqual(nextStatuses('open'),['in_progress','waiting_customer','resolved']);
+ assert.deepEqual(nextStatuses('resolved'),['open','closed']);
+ assert.deepEqual(nextStatuses('closed'),['open']);
+ assert.equal(teamReplySchema.safeParse({body:'  ',request_key:'6a4b3d2c-1e0f-4a9b-8c7d-6e5f4a3b2c1d',expected_version:1,is_internal:false}).success,false);
+ assert.equal(teamReplySchema.parse({body:' Olá ',request_key:'6a4b3d2c-1e0f-4a9b-8c7d-6e5f4a3b2c1d',expected_version:2,is_internal:true}).body,'Olá');
+});
+
+test('payment amount accepts comma decimals and rejects zero',()=>{
+ assert.equal(paymentInputSchema.parse({amount:'79,90',payment_method:'pix',notes:''}).amount,'79.90');
+ for(const amount of ['0','0,00','-1','abc','1.234'])assert.equal(paymentInputSchema.safeParse({amount,payment_method:'pix',notes:''}).success,false,amount);
+ assert.equal(financeSummarySchema.parse({mrr:12.5}).mrr,'12.5');
+});
+
+test('audit codes become readable labels and new texts exist in four languages',()=>{
+ assert.equal(actionLabel('organization.deleted'),'Organization deleted');
+ assert.equal(actionLabel('subscription.segment_added'),'Subscription segment added');
+ for(const copy of Object.values(platformMessages))for(const key of ['tickets','assignMe','internal','finance','recordPayment','catalog','audit','health'] as const)assert.ok(copy[key]?.trim(),key);
 });

@@ -9,11 +9,11 @@ import {AgendaButton,FormField,styles as ui} from '../agenda/ui';
 import {ActionGroup,ActionRow,DetailHeader,EmptyState,ErrorState,FilterChips,InfoList,KpiStrip,ListRow,Notice,ScreenIntro,SearchBar,SectionLabel,SkeletonList,mobileStyles as ms} from '../../components/mobile';
 import {parseApiUrl} from '../../config/environment';
 import {colors,space,type as typo} from '../../theme/tokens';
-import {canManagePlatform,platformRoles,platformUserDraft,platformUserPayload,type PlatformOrganization,type PlatformSession,type PlatformUser,type PlatformUserDraft} from './contracts';
+import {canAnswerTickets,canManagePlatform,platformRoles,platformUserDraft,platformUserPayload,type PlatformOrganization,type PlatformSession,type PlatformUser,type PlatformUserDraft} from './contracts';
 import {platformMessages} from './messages';
 
 /** Readable 4xx message from the API envelope; never raw 5xx bodies. */
-function apiMessage(error:unknown){
+export function apiMessage(error:unknown){
  if(!isAxiosError(error)||!error.response||error.response.status>=500)return '';
  const data=error.response.data as {error?:{detail?:unknown};detail?:unknown}|undefined;
  const detail=data?.error?.detail??data?.detail;
@@ -21,14 +21,14 @@ function apiMessage(error:unknown){
  if(detail&&typeof detail==='object')return Object.values(detail as Record<string,unknown>).flat().filter(x=>typeof x==='string').join(' ').slice(0,400);
  return '';
 }
-function usePlatform(){
+export function usePlatform(){
  const auth=useAuth();const session:PlatformSession|null=auth.state.status==='platform'?auth.state.session:null;
  return {...auth,session,t:platformMessages[auth.language],manage:!!session&&canManagePlatform(session.staff)};
 }
-async function openWeb(path:string){const site=parseApiUrl(process.env.EXPO_PUBLIC_SITE_URL??'https://fazendamais.com',__DEV__);if(!site)throw Error('site');await Linking.openURL(new URL(path,site).href);}
+export async function openWeb(path:string){const site=parseApiUrl(process.env.EXPO_PUBLIC_SITE_URL??'https://fazendamais.com',__DEV__);if(!site)throw Error('site');await Linking.openURL(new URL(path,site).href);}
 
 /** Backoffice shell: brand header with back and sign-out; no farm navigation. */
-function PlatformShell({title,onBack,children,scroll=true,refresh}:PropsWithChildren<{title:string;onBack?:()=>void;scroll?:boolean;refresh?:()=>Promise<unknown>}>){
+export function PlatformShell({title,onBack,children,scroll=true,refresh}:PropsWithChildren<{title:string;onBack?:()=>void;scroll?:boolean;refresh?:()=>Promise<unknown>}>){
  const {controller,t}=usePlatform();const [refreshing,setRefreshing]=useState(false);
  const header=<View style={{flexDirection:'row',alignItems:'center',gap:space.sm,paddingHorizontal:space.lg,paddingVertical:space.md,backgroundColor:colors.forest}}>
   {onBack&&<Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onBack} hitSlop={12} style={{minHeight:44,minWidth:44,justifyContent:'center'}}><Text style={{color:'#FFFFFF',fontSize:16,fontWeight:'700'}}>‹ {t.back}</Text></Pressable>}
@@ -49,9 +49,9 @@ export function PlatformHomeScreen(){
  const d=q.data;
  type Pending={label:string;count:number;open:()=>void};
  const pending:Pending[]=d?([
-  {label:t.overdue,count:d.finance.overdue_invoices,open:()=>router.push('/platform/organizations')},
+  {label:t.overdue,count:d.finance.overdue_invoices,open:()=>router.push('/platform/finance')},
   {label:t.suspended,count:d.organizations.suspended,open:()=>router.push('/platform/organizations?status=suspended')},
-  ...(d.support?[{label:`${t.openTickets} · ${t.awaitingTeam}`,count:d.support.awaiting_team,open:()=>{void openWeb('/platform/tickets').catch(()=>setLinkFailed(true));}}]:[]),
+  ...(d.support?[{label:`${t.openTickets} · ${t.awaitingTeam}`,count:d.support.awaiting_team,open:()=>router.push('/platform/tickets')}]:[]),
   {label:`${t.members} · ${t.withoutOrg}`,count:d.users.without_organization,open:()=>router.push('/platform/users')},
  ] as Pending[]).filter(row=>row.count>0):[];
  return <PlatformShell title={t.title} refresh={()=>q.refetch()}>
@@ -69,6 +69,10 @@ export function PlatformHomeScreen(){
    <ActionGroup>
     <ActionRow label={t.organizations} description={`${d.organizations.total} · ${d.organizations.suspended} ${t.suspended.toLowerCase()}`} onPress={()=>router.push('/platform/organizations')}/>
     <ActionRow label={t.users} description={`${d.users.total} · ${d.users.active} ${t.userActive.toLowerCase()}`} onPress={()=>router.push('/platform/users')}/>
+    {session&&canAnswerTickets(session.staff)&&<ActionRow label={t.tickets} description={d.support?`${d.support.active} · ${d.support.awaiting_team} ${t.awaitingTeam}`:undefined} onPress={()=>router.push('/platform/tickets')}/>}
+    <ActionRow label={t.finance} description={`${t.mrr}: ${money(d.finance.mrr)}`} onPress={()=>router.push('/platform/finance')}/>
+    <ActionRow label={t.catalog} onPress={()=>router.push('/platform/catalog')}/>
+    <ActionRow label={t.audit} onPress={()=>router.push('/platform/audit')}/>
    </ActionGroup>
   </>}
   {linkFailed&&<Notice tone="danger" text={t.error}/>}
@@ -77,7 +81,7 @@ export function PlatformHomeScreen(){
  </PlatformShell>;
 }
 
-function Pager({page,hasPrevious,hasNext,onChange,t}:{page:number;hasPrevious:boolean;hasNext:boolean;onChange:(page:number)=>void;t:typeof platformMessages['pt-BR']}){
+export function Pager({page,hasPrevious,hasNext,onChange,t}:{page:number;hasPrevious:boolean;hasNext:boolean;onChange:(page:number)=>void;t:typeof platformMessages['pt-BR']}){
  if(!hasPrevious&&!hasNext)return null;
  return <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:space.sm,marginTop:space.md}}>
   <AgendaButton label={t.previous} disabled={!hasPrevious} onPress={()=>onChange(page-1)}/>

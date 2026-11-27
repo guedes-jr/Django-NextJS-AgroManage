@@ -67,3 +67,47 @@ export const passwordResetSchema=z.object({new_password:z.string().min(8),new_pa
 export type PasswordReset=z.infer<typeof passwordResetSchema>;
 /** Suspend/archive/reactivate: reason is recorded in the organization history. */
 export const statusActions={suspended:'suspend',archived:'archive',active:'activate'} as const;
+
+/** PL05 — team support queue (platform/support/tickets/). */
+export const teamTicketStatuses=['open','in_progress','waiting_customer','resolved','closed'] as const;
+export const teamTicketSchema=z.object({
+ id:z.string(),subject:z.string(),category:z.string(),priority:z.string(),status:z.enum(teamTicketStatuses),version:z.number().int().min(1),
+ organization_name:z.string().nullable().optional(),requester_name:z.string().nullable().optional(),assignee_id:z.string().nullable().optional(),assignee_name:z.string().nullable().optional(),
+ created_at:z.string(),updated_at:z.string(),
+}).passthrough();
+export type TeamTicket=z.infer<typeof teamTicketSchema>;
+export const teamTicketPageSchema=page(teamTicketSchema);
+export const teamMessageSchema=z.object({id:z.string(),author_name:z.string(),body:z.string(),from_team:z.boolean(),is_internal:z.boolean().optional().default(false),created_at:z.string()}).passthrough();
+export const teamMessagePageSchema=page(teamMessageSchema);
+export const teamReplySchema=z.object({body:z.string().trim().min(1).max(10000),request_key:z.uuid(),expected_version:z.number().int().min(1),is_internal:z.boolean()});
+export type TeamReply=z.infer<typeof teamReplySchema>;
+/** Next statuses the team can set from the app (the server validates transitions and versions). */
+export const nextStatuses=(status:TeamTicket['status']):TeamTicket['status'][]=>status==='closed'?['open']:status==='resolved'?['open','closed']:['in_progress','waiting_customer','resolved'].filter(value=>value!==status) as TeamTicket['status'][];
+/** Only owner, administrator and support answer tickets (TeamSupportPermission). */
+export const canAnswerTickets=(staff:PlatformStaff)=>['platform_owner','platform_admin','platform_support'].includes(staff.role);
+
+/** PL06 — SaaS finance. */
+export const financeSummarySchema=z.object({mrr:money,arr:money,received_month:money,outstanding:money,overdue_amount:money,open_invoices:n,overdue_invoices:n,active_subscriptions:n}).passthrough();
+export type FinanceSummary=z.infer<typeof financeSummarySchema>;
+export const invoiceSchema=z.object({id:z.string(),number:z.string(),organization_name:z.string().nullable().optional(),status:z.string(),status_display:z.string().optional().default(''),effective_status:z.string().optional().default(''),total:money,amount_due:money,due_date:z.string(),plan_name:z.string().nullable().optional()}).passthrough();
+export type PlatformInvoice=z.infer<typeof invoiceSchema>;
+export const invoicePageSchema=page(invoiceSchema);
+export const paymentInputSchema=z.object({amount:z.string().trim().regex(/^\d+([.,]\d{1,2})?$/).transform(v=>v.replace(',','.')).refine(v=>Number(v)>0),payment_method:z.string().trim().min(1).max(40),notes:z.string().max(2000)});
+export type PaymentInput=z.input<typeof paymentInputSchema>;
+/** Recording payments is restricted to owner and administrator (IsPlatformAdmin). */
+export const canRecordPayment=canManagePlatform;
+
+/** PL07 — catalog (read-only in the app). */
+export const couponRowSchema=z.object({id:z.string(),code:z.string(),description:z.string().optional().default(''),kind_display:z.string().optional().default(''),value:z.string(),kind:z.string(),segment_code:z.string().optional().default(''),is_active:z.boolean(),redemptions:n,max_redemptions:z.number().nullable().optional(),valid_until:z.string().nullable().optional()}).passthrough();
+export const couponPageSchema=page(couponRowSchema);
+export const catalogSchema=z.array(z.object({id:z.string(),code:z.string(),name:z.string(),metric_label:z.string().optional().default(''),is_active:z.boolean(),contracted_count:n,
+ tiers:z.array(z.object({label:z.string(),minimum_quantity:z.number().nullable(),maximum_quantity:z.number().nullable(),monthly_price:z.string().nullable(),requires_quote:z.boolean(),is_active:z.boolean()}))}).passthrough());
+
+/** PL08 — audit trail and service health. */
+export const auditRowSchema=z.object({id:z.string(),action:z.string(),actor_name:z.string().nullable().optional(),organization_name:z.string().nullable().optional(),description:z.string().optional().default(''),created_at:z.string()}).passthrough();
+export const auditPageSchema=page(auditRowSchema);
+export const healthSchema=z.object({status:z.string(),checked_at:z.string(),checks:z.record(z.string(),z.object({status:z.string()}).passthrough())}).passthrough();
+export const canReadAudit=(staff:PlatformStaff)=>['platform_owner','platform_admin','platform_auditor'].includes(staff.role);
+export const canReadHealth=(staff:PlatformStaff)=>['platform_owner','platform_admin','platform_developer'].includes(staff.role);
+/** Audit action codes become readable labels: "organization.deleted" → "Organization deleted". */
+export const actionLabel=(action:string)=>{const text=action.replace(/[._]/g,' ').trim();return text.charAt(0).toUpperCase()+text.slice(1);};

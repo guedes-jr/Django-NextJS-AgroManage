@@ -1,7 +1,7 @@
 import type {AxiosInstance} from 'axios';
 import {z} from 'zod';
 import type {Language} from '../i18n/messages';
-import {discountOverviewSchema,passwordResetSchema,platformDashboardSchema,platformOrganizationPageSchema,platformOrganizationSchema,platformStaffSchema,platformUserPageSchema,platformUserSchema,segmentOverviewSchema,statusActions,type PasswordReset} from '../features/platform/contracts';
+import {auditPageSchema,catalogSchema,couponPageSchema,financeSummarySchema,healthSchema,invoicePageSchema,paymentInputSchema,teamMessagePageSchema,teamMessageSchema,teamReplySchema,teamTicketPageSchema,teamTicketSchema,type PaymentInput,type TeamReply,discountOverviewSchema,passwordResetSchema,platformDashboardSchema,platformOrganizationPageSchema,platformOrganizationSchema,platformStaffSchema,platformUserPageSchema,platformUserSchema,segmentOverviewSchema,statusActions,type PasswordReset} from '../features/platform/contracts';
 
 type Tokens={access:string};
 type Options=(language:Language,access?:string)=>{headers:Record<string,string>};
@@ -29,6 +29,23 @@ export function createPlatformEndpoints(http:AxiosInstance,options:Options){
   async platformUser(tokens:Tokens,language:Language,id:string,signal?:AbortSignal){return get(platformUserSchema,`platform/users/${uuid(id)}/`,tokens,language,undefined,signal);},
   async platformUpdateUser(tokens:Tokens,language:Language,id:string,body:Record<string,unknown>){return platformUserSchema.parse((await http.patch(`platform/users/${uuid(id)}/`,body,options(language,tokens.access))).data);},
   async platformSetPassword(tokens:Tokens,language:Language,id:string,input:PasswordReset){return platformUserSchema.parse((await http.post(`platform/users/${uuid(id)}/set-password/`,passwordResetSchema.parse(input),options(language,tokens.access))).data);},
+  async platformTickets(tokens:Tokens,language:Language,query:{page:number;status:string;search:string},signal?:AbortSignal){
+   return get(teamTicketPageSchema,'platform/support/tickets/',tokens,language,{page:query.page,...(query.status?{status:query.status}:{}),...(query.search?{search:query.search.slice(0,120)}:{})},signal);
+  },
+  async platformTicket(tokens:Tokens,language:Language,id:string,signal?:AbortSignal){return get(teamTicketSchema,`platform/support/tickets/${uuid(id)}/`,tokens,language,undefined,signal);},
+  async platformTicketMessages(tokens:Tokens,language:Language,id:string,page:number,signal?:AbortSignal){return get(teamMessagePageSchema,`platform/support/tickets/${uuid(id)}/messages/`,tokens,language,{page},signal);},
+  async platformReplyTicket(tokens:Tokens,language:Language,id:string,input:TeamReply){return z.object({ticket:teamTicketSchema,message:teamMessageSchema}).parse((await http.post(`platform/support/tickets/${uuid(id)}/messages/`,teamReplySchema.parse(input),options(language,tokens.access))).data);},
+  async platformTicketStatus(tokens:Tokens,language:Language,id:string,status:string,expected_version:number){return teamTicketSchema.parse((await http.post(`platform/support/tickets/${uuid(id)}/transition/`,{status,expected_version},options(language,tokens.access))).data);},
+  async platformAssignTicket(tokens:Tokens,language:Language,id:string,assignee_id:string|null,expected_version:number){return teamTicketSchema.parse((await http.patch(`platform/support/tickets/${uuid(id)}/`,{assignee_id,expected_version},options(language,tokens.access))).data);},
+  async platformFinance(tokens:Tokens,language:Language,signal?:AbortSignal){return get(financeSummarySchema,'platform/finance/dashboard/',tokens,language,undefined,signal);},
+  async platformInvoices(tokens:Tokens,language:Language,query:{page:number;status:string;search:string},signal?:AbortSignal){
+   return get(invoicePageSchema,'platform/invoices/',tokens,language,{page:query.page,...(query.status?{status:query.status}:{}),...(query.search?{search:query.search.slice(0,120)}:{})},signal);
+  },
+  async platformRecordPayment(tokens:Tokens,language:Language,id:string,input:PaymentInput){await http.post(`platform/invoices/${uuid(id)}/record-payment/`,paymentInputSchema.parse(input),options(language,tokens.access));},
+  async platformCoupons(tokens:Tokens,language:Language,signal?:AbortSignal){return get(couponPageSchema,'platform/coupons/',tokens,language,{page_size:100},signal);},
+  async platformCatalog(tokens:Tokens,language:Language,signal?:AbortSignal){return get(catalogSchema,'platform/segment-catalog/',tokens,language,undefined,signal);},
+  async platformAudit(tokens:Tokens,language:Language,page:number,signal?:AbortSignal){return get(auditPageSchema,'platform/audit-logs/',tokens,language,{page},signal);},
+  async platformHealth(tokens:Tokens,language:Language,signal?:AbortSignal){return get(healthSchema,'platform/operations/health/',tokens,language,undefined,signal);},
   async platformUserAction(tokens:Tokens,language:Language,id:string,action:'block'|'activate'|'revoke-sessions'){await http.post(`platform/users/${uuid(id)}/${action}/`,{},options(language,tokens.access));},
  };
 }
