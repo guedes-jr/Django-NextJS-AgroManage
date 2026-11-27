@@ -65,7 +65,7 @@ import { canReadCattle, canCreateCattle, canEditCattle, canWeighCattle, animalIn
 import { canSearch, type SearchQuery } from '../workspace/contracts';
 import { canReadAgenda, agendaQuerySchema, taskWriteAccess, taskInputSchema, type TaskInput, type AgendaQuery } from '../agenda/contracts';
 import type { Language } from '../../i18n/messages';
-import { canReadTeam } from '../team/contracts';
+import { canManageMembers, canReadTeam } from '../team/contracts';
 import { canEditOrganization, canReadOrganization, type OrganizationUpdate, type PaymentMethod } from '../organization/contracts';
 import { canReadReport, type ReportKind } from '../reports/contracts';
 import { canReadCattleSales, canSellCattle, type CattleSaleInput } from '../cattle/saleContracts';
@@ -297,6 +297,14 @@ export class SessionController {
   createAiConversation(title:string){return this.assistantRead(tokens=>this.api.createAiConversation(tokens,this.language,title));}
   async askAi(id:string,question:string){if(this.asking)throw new AuthFailure('unsupported');this.asking=true;try{return await this.assistantRead(tokens=>this.api.askAi(tokens,this.language,id,question));}finally{this.asking=false;}}
   teamMembers(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadTeam(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.teamMembers(tokens,this.language,signal));}
+  /** Member management (organization admin). The user is re-read before each write. */
+  private teamWrite<T>(request:(tokens:Tokens)=>Promise<T>){
+    if(this.state.status!=='signedIn'||!canManageMembers(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
+    return this.workspaceRead(async tokens=>{const user=await this.api.user(tokens,this.language);if(!canManageMembers(user))throw new AuthFailure('unsupported');return request(tokens);});
+  }
+  memberOptions(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canManageMembers(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.memberOptions(tokens,this.language,signal));}
+  createMember(body:Record<string,unknown>){return this.teamWrite(tokens=>this.api.createMember(tokens,this.language,body));}
+  updateMember(id:string,body:Record<string,unknown>){return this.teamWrite(tokens=>this.api.updateMember(tokens,this.language,id,body));}
   cattleSales(production:'beef'|'dairy',farm?:string,signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadCattleSales(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.cattleSales(tokens,this.language,production,farm,signal));}
   private selling=false;
   async registerCattleSale(production:'beef'|'dairy',batch:string,input:CattleSaleInput){

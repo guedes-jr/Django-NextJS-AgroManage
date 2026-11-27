@@ -54,8 +54,9 @@ class MobileFeedTests(APITestCase):
         self.assertEqual(response.data['count'],1)
         self.assertNotIn('custo',str(response.data))
         self.assertEqual(self.client.get(self.base+f'formulas/{foreign.pk}/mobile/').status_code,404)
-        with self.assertNumQueries(3):
-            # Count, formula/product join and ingredient/product join; independent of ingredients
+        with self.assertNumQueries(4):
+            # Subscription status gate (suspended organizations are blocked), count,
+            # formula/product join and ingredient/product join; independent of ingredients
             self.client.get(self.base+'formulas/mobile/')
 
     def test_review_is_read_only_precise_and_hides_cost_even_in_token(self):
