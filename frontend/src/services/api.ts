@@ -140,8 +140,11 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Subscription suspended for non-payment: the only reachable screen is the payment page.
-    if (error.response?.status === 402 && typeof window !== "undefined" && window.location.pathname.startsWith("/home") && window.location.pathname !== "/home/pagamento") {
-      window.location.replace("/home/pagamento");
+    // 402: a blocking stage (suspended, first access pending, free trial over) opens only its page.
+    if (error.response?.status === 402 && typeof window !== "undefined" && window.location.pathname.startsWith("/home")) {
+      const code = (error.response.data as { error?: { detail?: { code?: string } } } | undefined)?.error?.detail?.code;
+      const target = code === "onboarding_required" ? "/home/primeiro-acesso" : code === "trial_expired" ? "/home/assinar" : "/home/pagamento";
+      if (window.location.pathname !== target) window.location.replace(target);
       return Promise.reject(error);
     }
 

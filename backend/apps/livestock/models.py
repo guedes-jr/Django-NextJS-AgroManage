@@ -286,6 +286,8 @@ class AnimalBatch(BaseModel):
         verbose_name = "Animal Batch"
         verbose_name_plural = "Animal Batches"
         unique_together = [["farm", "batch_code"]]
+        # Segment scope (common/operator_access.segment_rows_q) filters by farm, species and purpose.
+        indexes = [models.Index(fields=["farm", "species", "cattle_purpose"], name="livestock_batch_segment")]
 
     def __str__(self) -> str:
         return f"{self.batch_code} ({self.species}) @ {self.farm}"
@@ -381,6 +383,8 @@ class Animal(BaseModel):
         verbose_name = "Animal"
         verbose_name_plural = "Animals"
         unique_together = [["farm", "identifier"]]
+        # Segment scope (common/operator_access.segment_rows_q) filters by farm, species and purpose.
+        indexes = [models.Index(fields=["farm", "species", "cattle_purpose"], name="livestock_animal_segment")]
 
     def __str__(self) -> str:
         return f"{self.identifier} ({self.species})"

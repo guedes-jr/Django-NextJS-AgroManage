@@ -1,4 +1,5 @@
 import type { SemenSaleCommand } from '../swine/semenSales';
+import type {BillingCycle,SegmentSelection} from '../onboarding/contracts';
 import type { PlatformSession } from '../platform/contracts';
 import { canReadSwineSales } from '../swine/sales';
 import type { HerdQuery, ReportQuery } from '../veterinary/consultation';
@@ -360,6 +361,15 @@ export class SessionController {
   expiryReport(days:number,signal?:AbortSignal){return this.reportRead('expiry',tokens=>this.api.expiryReport(tokens,this.language,days,signal));}
   herdInventoryReport(signal?:AbortSignal){return this.reportRead('herd',tokens=>this.api.herdInventoryReport(tokens,this.language,signal));}
   planInvoices(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.planInvoices(tokens,this.language,signal));}
+  // First access, end of the free trial and welcome tour: the server checks the admin role and the stage.
+  onboardingState(signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.onboardingState(tokens,this.language,signal));}
+  planCatalog(signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.planCatalog(tokens,this.language,signal));}
+  onboardingPreview(segments:SegmentSelection[],cycle:BillingCycle,coupon:string,signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.onboardingPreview(tokens,this.language,segments,cycle,coupon,signal));}
+  /** Accept the terms; the refreshed access opens the app (and the welcome tour). */
+  async onboardingComplete(segments:SegmentSelection[],cycle:BillingCycle,coupon:string,termsVersion:string){await this.workspaceRead(tokens=>this.api.onboardingComplete(tokens,this.language,segments,cycle,coupon,termsVersion));await this.refreshAccess();}
+  savePaymentMethod(method:PaymentMethod){return this.workspaceRead(tokens=>this.api.savePaymentMethod(tokens,this.language,method));}
+  async confirmSubscription(method:PaymentMethod){const result=await this.workspaceRead(tokens=>this.api.confirmSubscription(tokens,this.language,method));await this.refreshAccess();return result;}
+  async finishWelcomeTour(){try{await this.workspaceRead(tokens=>this.api.finishWelcomeTour(tokens,this.language));}finally{await this.refreshAccess();}}
   myOrganization(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.myOrganization(tokens,this.language,signal));}
   /** Promo code on the subscription: organization admin only (re-read before sending). */
   redeemCoupon(code:string){if(this.state.status!=='signedIn'||!canEditOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(async tokens=>{const user=await this.api.user(tokens,this.language);if(!canEditOrganization(user))throw new AuthFailure('unsupported');return this.api.redeemCoupon(tokens,this.language,code);});}

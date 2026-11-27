@@ -9,6 +9,9 @@ from django.utils import timezone
 from typing import Dict, List, Any
 
 
+from common.operator_access import organization_scoped_queryset
+
+
 class StockReportService:
     """Serviço para geração de relatórios de estoque."""
 
@@ -32,7 +35,7 @@ class StockReportService:
         from apps.inventory.models import ItemEstoque
 
         items = (
-            ItemEstoque.objects.filter(organization=organization, ativo=True)
+            organization_scoped_queryset(ItemEstoque.objects.all(), organization).filter(organization=organization, ativo=True)
             .defer("prioridade")
             .prefetch_related("lotes")
         )
@@ -89,7 +92,7 @@ class StockReportService:
         """
         from apps.inventory.models import MovimentacaoEstoque
 
-        queryset = MovimentacaoEstoque.objects.filter(
+        queryset = organization_scoped_queryset(MovimentacaoEstoque.objects.all(), organization).filter(
             item__organization=organization
         ).select_related("item", "lote", "responsavel")
 
@@ -173,7 +176,7 @@ class StockReportService:
         from apps.inventory.models import ItemEstoque
 
         items = (
-            ItemEstoque.objects.filter(
+            organization_scoped_queryset(ItemEstoque.objects.all(), organization).filter(
                 organization=organization, ativo=True, estoque_minimo__gt=0
             )
             .defer("prioridade")
@@ -223,7 +226,7 @@ class StockReportService:
         cutoff_date = today + timedelta(days=days_ahead)
 
         lotes = (
-            LoteEstoque.objects.filter(
+            organization_scoped_queryset(LoteEstoque.objects.all(), organization).filter(
                 item__organization=organization,
                 item__categoria__in=["medicamento", "vacina", "medicamento_vacina"],
                 data_validade__lte=cutoff_date,
@@ -265,7 +268,7 @@ class StockReportService:
             total_value += value
 
         expired = (
-            LoteEstoque.objects.filter(
+            organization_scoped_queryset(LoteEstoque.objects.all(), organization).filter(
                 item__organization=organization,
                 item__categoria__in=["medicamento", "vacina", "medicamento_vacina"],
                 data_validade__lt=today,
@@ -595,7 +598,7 @@ class LivestockReportService:
         """
         from apps.livestock.models import AnimalBatch, Species
 
-        batches = AnimalBatch.objects.filter(
+        batches = organization_scoped_queryset(AnimalBatch.objects.all(), organization).filter(
             farm__organization=organization
         ).exclude(
             phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,

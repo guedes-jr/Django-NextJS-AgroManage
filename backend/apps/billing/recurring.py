@@ -185,10 +185,11 @@ def _customer(organization):
     return {"name": organization.name, "document": organization.document, "email": organization.email, "external_reference": str(organization.pk)}
 
 
-def _payment_method(gateway):
-    preferred = getattr(settings, "BILLING_DEFAULT_PAYMENT_METHOD", "any")
-    if preferred in gateway.supported_methods:
-        return preferred
+def _payment_method(gateway, chosen=""):
+    """The customer's preferred method when the gateway supports it, else the configured default."""
+    for preferred in (chosen, getattr(settings, "BILLING_DEFAULT_PAYMENT_METHOD", "any")):
+        if preferred and preferred in gateway.supported_methods:
+            return preferred
     return gateway.supported_methods[0]
 
 
@@ -207,7 +208,7 @@ def charge_invoice(invoice):
         gateway = get_default_gateway()
     except PaymentGatewayError:
         return None
-    method = _payment_method(gateway)
+    method = _payment_method(gateway, getattr(invoice.subscription, "preferred_payment_method", "") if invoice.subscription_id else "")
     amount = invoice.total - invoice.amount_paid
     payment = Payment.objects.create(invoice=invoice, organization_id=invoice.organization_id, amount=amount, currency=invoice.currency,
                                      status=Payment.Status.PENDING, payment_method=method, provider=gateway.provider_code)

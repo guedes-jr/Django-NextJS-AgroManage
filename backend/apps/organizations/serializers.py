@@ -70,6 +70,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
             "status": subscription.status,
             "billing_cycle": subscription.billing_cycle,
             "current_period_ends_at": subscription.current_period_ends_at,
+            "trial_ends_at": subscription.trial_ends_at,
+            "preferred_payment_method": subscription.preferred_payment_method,
             "price": price,
             "has_active_discount": Decimal(price["discount_total"]) > 0,
             "monthly_total": monthly_total,

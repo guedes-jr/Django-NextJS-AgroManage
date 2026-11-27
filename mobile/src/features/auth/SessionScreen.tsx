@@ -8,7 +8,9 @@ import type { z } from 'zod';
 import type { MessageKey } from '../../i18n/messages';
 import { authError, type AuthFailure } from '../../services/authApi';
 import { AppLoading } from '../../components/AppLoading';
-import { isSuspended, newPasswordSchema } from './contracts';
+import { isOnboarding, isSuspended, isTrialExpired, newPasswordSchema } from './contracts';
+import { FirstAccessScreen } from '../onboarding/FirstAccessScreen';
+import { SubscribeScreen } from '../onboarding/SubscribeScreen';
 import { useAuth } from './AuthProvider';
 import { LoginScreen } from './LoginScreen';
 import { SuspendedPaymentScreen } from '../billing/SuspendedPaymentScreen';
@@ -44,6 +46,9 @@ export function SessionScreen() {
   if (state.status === 'restoring') return <AppLoading label={t.loading} />;
   // Suspended for non-payment: the payment screen replaces the whole app.
   if (state.status === 'signedIn' && !state.session.user.force_password_change && isSuspended(state.session.user)) return <SuspendedPaymentScreen />;
+  // First access pending (segments, price, terms) or free trial over: that screen replaces the whole app.
+  if (state.status === 'signedIn' && !state.session.user.force_password_change && isOnboarding(state.session.user)) return <FirstAccessScreen />;
+  if (state.status === 'signedIn' && !state.session.user.force_password_change && isTrialExpired(state.session.user)) return <SubscribeScreen />;
   // Platform team: the backoffice routes (no organization).
   if (state.status === 'platform' && !state.session.user.force_password_change) return <Redirect href="/platform" />;
   if (state.status === 'signedIn' && !state.session.user.force_password_change) return <HomeScreen key={state.session.user.id + state.session.organization.id} session={state.session} />;

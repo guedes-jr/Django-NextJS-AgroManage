@@ -22,7 +22,7 @@ export function MarketingHeader({ home = false }: { home?: boolean }) {
       </button>
       <nav className={open ? "marketing-nav open" : "marketing-nav"}>
         <Link href="/recursos" onClick={() => setOpen(false)}>{t("resources")}</Link>
-        <Link href="/planos" onClick={() => setOpen(false)}>{t("plans")}</Link>
+        <Link href="/assinatura" onClick={() => setOpen(false)}>{t("plans")}</Link>
         <Link href={home ? "/#como-funciona" : "/conteudos"} onClick={() => setOpen(false)}>{home ? t("landing.howItWorks") : t("content")}</Link>
         <Link href="/contato" onClick={() => setOpen(false)}>{t("contact")}</Link>
         <Link href="/login" className="nav-login" onClick={() => setOpen(false)}>{t("login")}</Link>

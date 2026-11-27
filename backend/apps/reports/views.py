@@ -522,9 +522,19 @@ def dashboard_summary(request):
     # ── Farms ─────────────────────────────────────────────────────────────────
     farms_qs = Farm.objects.filter(organization=org, is_active=True)
     farm_ids = list(farms_qs.values_list("id", flat=True))
+    # Only active segments count: rows of a removed segment stay in the database (platform audit)
+    # but leave the organization's totals; their finance launches are archived (segment_lifecycle).
+    from apps.billing import segments as segment_catalog
+    from common.operator_access import segment_scoped_queryset
+
+    def scope(queryset):
+        return segment_scoped_queryset(queryset, request.user)
+
+    active_segments = segment_catalog.user_segments(request.user)
+    crops_on = segment_catalog.CROPS in active_segments
 
     # ── Livestock ─────────────────────────────────────────────────────────────
-    batches_qs = AnimalBatch.objects.filter(
+    batches_qs = scope(AnimalBatch.objects.all()).filter(
         farm__in=farm_ids, status=AnimalBatch.Status.ACTIVE
     ).exclude(
         phase=AnimalBatch.Phase.GESTACAO_MATERNIDADE,
@@ -540,7 +550,7 @@ def dashboard_summary(request):
     )
 
     # ── Crops ─────────────────────────────────────────────────────────────────
-    fields_qs = Field.objects.filter(farm__in=farm_ids, is_active=True)
+    fields_qs = Field.objects.filter(farm__in=farm_ids, is_active=True) if crops_on else Field.objects.none()
     planted_area = fields_qs.aggregate(total=Sum("area_ha"))["total"] or 0
 
     active_cycles = PlantingCycle.objects.filter(
@@ -556,7 +566,7 @@ def dashboard_summary(request):
     )
 
     # ── Inventory ─────────────────────────────────────────────────────────────
-    inventory_qs = ItemEstoque.objects.filter(organization=org, ativo=True)
+    inventory_qs = scope(ItemEstoque.objects.all()).filter(organization=org, ativo=True)
     total_items = inventory_qs.count()
 
     inventory_value_expression = ExpressionWrapper(
@@ -569,7 +579,7 @@ def dashboard_summary(request):
         output_field=DecimalField(max_digits=20, decimal_places=2),
     )
 
-    inventory_value = LoteEstoque.objects.filter(
+    inventory_value = scope(LoteEstoque.objects.all()).filter(
         item__organization=org,
         item__ativo=True,
         ativo=True,
@@ -629,7 +639,7 @@ def dashboard_summary(request):
     # Legacy breeding purchases may predate their financial entry. Only add
     # purchases without any matching transaction; pending/cancelled entries
     # continue to follow the financial status rather than being counted again.
-    breeding_purchases = list(AnimalBatch.objects.filter(
+    breeding_purchases = list(scope(AnimalBatch.objects.all()).filter(
         farm__organization=org,
         origin=AnimalBatch.Origin.PURCHASED,
         category__in=[AnimalBatch.Category.MATRIZ, AnimalBatch.Category.MARRA,
@@ -669,7 +679,7 @@ def dashboard_summary(request):
         "foliar",
     }
     agricultural_item_ids = []
-    for item in ItemEstoque.objects.filter(organization=org).values(
+    for item in scope(ItemEstoque.objects.all()).filter(organization=org).values(
         "id", "categoria", "categorias", "especie_animal"
     ):
         categories = set(item["categorias"] or [])
@@ -713,7 +723,7 @@ def dashboard_summary(request):
     crop_expense_transactions = crop_transactions.filter(planting_cycle__isnull=False).exclude(
         _crop_automatic_reference_q()
     ).exclude(reference__in=inventory_purchase_references)
-    crop_operation_costs = _crop_operation_costs(org, period_start, period_end)
+    crop_operation_costs = _crop_operation_costs(org, period_start, period_end) if crops_on else {}
     crop_cost = (
         crop_expense_transactions.filter(
             category__category_type=FinancialCategory.CategoryType.EXPENSE
@@ -725,7 +735,7 @@ def dashboard_summary(request):
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
     # Sales without a finance mirror (Plantações › Financeiro switched off) still are
     # crop revenue: they are read from the sales themselves so nothing is counted twice.
-    unmirrored_sales = _unmirrored_crop_sales(org, period_start, period_end)
+    unmirrored_sales = _unmirrored_crop_sales(org, period_start, period_end) if crops_on else []
     crop_revenue += sum((row["value"] for row in unmirrored_sales), Decimal("0"))
 
     # ── Transações do segmento pecuário ──────────────────────────────────────
@@ -754,13 +764,13 @@ def dashboard_summary(request):
     livestock_revenue = livestock_transactions.filter(
         category__category_type=FinancialCategory.CategoryType.REVENUE
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
-    feed_consumption = ConsumoRacao.objects.filter(
+    feed_consumption = scope(ConsumoRacao.objects.all()).filter(
         organization=org,
         data_inicio__gte=period_start,
         data_inicio__lte=period_end,
     )
     feed_cost = feed_consumption.aggregate(total=Sum("custo_total"))["total"] or Decimal("0")
-    vaccine_consumption = MovimentacaoEstoque.objects.filter(
+    vaccine_consumption = scope(MovimentacaoEstoque.objects.all()).filter(
         item__organization=org,
         item__categoria__in=["vacina", "medicamento_vacina", "medicamento"],
         tipo="consumo",
@@ -769,12 +779,12 @@ def dashboard_summary(request):
     ).select_related("item", "lote")
     semen_item_ids = [
         item["id"]
-        for item in ItemEstoque.objects.filter(organization=org).values(
+        for item in scope(ItemEstoque.objects.all()).filter(organization=org).values(
             "id", "categoria", "categorias"
         )
         if item["categoria"] == "semen" or "semen" in (item["categorias"] or [])
     ]
-    semen_consumption = MovimentacaoEstoque.objects.filter(
+    semen_consumption = scope(MovimentacaoEstoque.objects.all()).filter(
         item_id__in=semen_item_ids,
         item__organization=org,
         tipo="consumo",
@@ -887,7 +897,7 @@ def dashboard_summary(request):
                 **segment_payload(Decimal("0"), Decimal("0"), [], []),
             })
             continue
-        species_batches = AnimalBatch.objects.filter(
+        species_batches = scope(AnimalBatch.objects.all()).filter(
             farm__in=farm_ids, species=species
         ).values_list("id", flat=True)
         species_references = (
@@ -935,7 +945,7 @@ def dashboard_summary(request):
             )
         else:
             species_feed = feed_consumption.filter(id__in=_attributed_ids)
-        species_vaccine_records = VaccinationRecord.objects.filter(
+        species_vaccine_records = scope(VaccinationRecord.objects.all()).filter(
             farm__organization=org,
             species=species,
             application_date__gte=period_start,
@@ -1006,6 +1016,9 @@ def dashboard_summary(request):
     livestock_by_species += _cattle_segments(
         org, period_start, period_end, period_transactions, inventory_purchase_references, segment_payload
     )
+    # Cards of segments the organization (or member) does not have active are not shown.
+    card_segment = {segment_features.SWINE: segment_catalog.SWINE}
+    livestock_by_species = [card for card in livestock_by_species if card_segment.get(card["code"], card["code"]) in active_segments]
 
     recent_transactions = [
         {

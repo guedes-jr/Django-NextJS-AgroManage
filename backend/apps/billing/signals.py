@@ -15,11 +15,15 @@ def provision_default_subscription(sender, instance, created, **kwargs):
     if not plan:
         plan = Plan.objects.filter(code="free", is_active=True).first()
     if plan:
+        # Self-service signups start pending: the first access chooses the segments, shows the price
+        # and the terms, then starts the free trial (apps/billing/onboarding.py).
+        self_service = bool(getattr(instance, "_self_service_signup", False))
         subscription, created_subscription = Subscription.objects.get_or_create(
             organization=instance,
             defaults={
                 "plan": plan,
-                "status": Subscription.Status.ACTIVE,
+                "status": Subscription.Status.TRIALING if self_service else Subscription.Status.ACTIVE,
+                "onboarding_required": self_service,
                 "billing_cycle": Subscription.BillingCycle.MONTHLY,
                 "started_at": timezone.now(),
             },

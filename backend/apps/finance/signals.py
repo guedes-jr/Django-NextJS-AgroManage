@@ -78,7 +78,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
         # Cattle operational changes (weights, phase, transfers, mortality) must
         # not rewrite the original payable or its negotiated due date.
         is_cattle = bool(instance.species and instance.species.code == "bovinos")
-        purchase_exists = is_cattle and Transaction.objects.filter(organization=instance.farm.organization, reference=ref_pur).exists()
+        purchase_exists = is_cattle and Transaction.all_objects.filter(organization=instance.farm.organization, reference=ref_pur).exists()
 
         if not purchase_exists:
             status = "pending" if is_cattle else "paid"
@@ -94,13 +94,13 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
             }
             if not is_cattle:
                 defaults["payment_date"] = instance.entry_date
-                existing_tx = Transaction.objects.filter(
+                existing_tx = Transaction.all_objects.filter(
                     organization=instance.farm.organization, reference=ref_pur
                 ).first()
                 if not existing_tx or existing_tx.status != Transaction.Status.CANCELLED:
                     defaults["status"] = "paid"
 
-            Transaction.objects.update_or_create(
+            Transaction.all_objects.update_or_create(
                 organization=instance.farm.organization,
                 reference=ref_pur,
                 defaults=defaults,
@@ -116,7 +116,7 @@ def create_livestock_transaction(sender, instance, created, **kwargs):
     if instance.status == AnimalBatch.Status.SOLD and instance.sale_value and instance.sale_value > 0:
         # Evitar duplicidade: verificar se já existe transação para esta referência
         ref_sale = f"SALE-BATCH-{instance.id}"
-        if not Transaction.objects.filter(organization=instance.farm.organization, reference=ref_sale).exists():
+        if not Transaction.all_objects.filter(organization=instance.farm.organization, reference=ref_sale).exists():
             category_sale, _ = FinancialCategory.objects.get_or_create(
                 organization=instance.farm.organization,
                 name="Venda de Animais",

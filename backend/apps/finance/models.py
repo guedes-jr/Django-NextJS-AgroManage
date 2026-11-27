@@ -2,6 +2,7 @@
 Finance domain models — transactions, categories, billing.
 """
 from common.models import BaseModel
+from common.quotas import QuotaManager
 from django.db import models, transaction
 
 
@@ -85,11 +86,26 @@ def segment_for(transaction):
         return "pecuaria-leiteira"
     if reference.startswith("LABOR-SWINE-"):
         return "suinos"
+    if reference.startswith("VETPROC-"):  # apps/veterinary/integrations.py FINANCE_PREFIX
+        return "area-veterinario"
     return None
+
+
+class VisibleTransactionManager(QuotaManager):
+    """Transactions the organization sees: those archived with a removed segment are left out.
+
+    Archived rows stay in the database for the platform audit (``Transaction.all_objects``) and are
+    never shown again, not even if the segment is activated later."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(archived_at__isnull=True)
 
 
 class Transaction(BaseModel):
     """A single financial transaction (revenue or expense)."""
+
+    objects = VisibleTransactionManager()
+    all_objects = QuotaManager()
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -144,6 +160,11 @@ class Transaction(BaseModel):
     # Vazio = despesa/receita geral. Derivado do vínculo em save(); ver segment_for().
     segmento = models.CharField(max_length=30, blank=True, default="", db_index=True)
 
+    # Set when the segment that owns the transaction is removed from the subscription (see
+    # apps/billing/segment_lifecycle.py): hidden from the organization for good, kept for audit.
+    archived_at = models.DateTimeField(null=True, blank=True, editable=False)
+    archived_segment = models.CharField(max_length=30, blank=True, default="", editable=False)
+
     series_id = models.UUIDField(null=True, blank=True, editable=False, db_index=True)
     series_kind = models.CharField(max_length=12, blank=True, editable=False)
     series_number = models.PositiveSmallIntegerField(null=True, blank=True, editable=False)
@@ -157,6 +178,11 @@ class Transaction(BaseModel):
         verbose_name = "Transaction"
         verbose_name_plural = "Transactions"
         constraints = [models.UniqueConstraint(fields=["organization", "series_id", "series_number"], name="unique_finance_series_number")]
+        indexes = [
+            # Every organization read filters archived_at IS NULL and, mostly, a due date range.
+            models.Index(fields=["organization", "archived_at", "due_date"], name="finance_tx_org_visible_due"),
+            models.Index(fields=["organization", "segmento"], name="finance_tx_org_segment"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.description} — R$ {self.amount} ({self.status})"
@@ -169,7 +195,16 @@ class Transaction(BaseModel):
             self.segmento = derived
             if kwargs.get("update_fields") is not None:
                 kwargs["update_fields"] = {*kwargs["update_fields"], "segmento"}
-        previous = type(self).objects.select_for_update().filter(pk=self.pk).first()
+        previous = type(self).all_objects.select_for_update().filter(pk=self.pk).first()
+        # New launches (or a launch moved to another segment) need the segment active. Older rows of a
+        # segment never contracted stay editable as they are.
+        if self.archived_at is None and self.segmento and self.organization_id and (previous is None or previous.segmento != self.segmento):
+            from apps.billing import segments as catalog
+
+            if self.segmento in catalog.inactive_stored_codes(self.organization):
+                from rest_framework.exceptions import ValidationError
+
+                raise ValidationError({"segmento": "Este segmento não está ativo na organização. Ative-o em Configurações › Assinatura para lançar valores nele."})
         if previous and self.payment_events.exists() and not getattr(self, "_settlement_operation", False):
             protected = ["amount", "category_id", "bank_account_id", "status", "payment_date", "payment_method", "farm_id", "animal_batch_id", "species_id", "planting_cycle_id"]
             if any(getattr(previous, key) != getattr(self, key) for key in protected):

@@ -228,6 +228,12 @@ class PlanEntitlement(BaseModel):
         ]
 
 
+class PaymentMethod(models.TextChoices):
+    PIX = "pix", "PIX"
+    BOLETO = "boleto", "Boleto"
+    CREDIT_CARD = "credit_card", "Cartão de crédito"
+
+
 class Subscription(BaseModel):
     class Status(models.TextChoices):
         TRIALING = "trialing", "Em teste"
@@ -260,11 +266,41 @@ class Subscription(BaseModel):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     custom_limits = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
+    # Self-service signups choose their segments, see the price and accept the terms on the first
+    # access (apps/billing/onboarding.py). Platform-created organizations never go through it.
+    onboarding_required = models.BooleanField(default=False)
+    onboarding_completed_at = models.DateTimeField(null=True, blank=True)
+    # Method chosen by the customer for the plan invoices (each invoice can still be paid another way).
+    preferred_payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True)
+
     class Meta(BaseModel.Meta):
         ordering = ("-created_at",)
 
     def __str__(self):
         return f"{self.organization} — {self.plan}"
+
+    @property
+    def onboarding_pending(self):
+        return self.onboarding_required and self.onboarding_completed_at is None
+
+    def trial_expired(self, moment=None):
+        return self.status == self.Status.TRIALING and bool(self.trial_ends_at) and self.trial_ends_at <= (moment or timezone.now())
+
+
+class SubscriptionTermsAcceptance(BaseModel):
+    """Proof of the subscription terms accepted on the first access: who, when, which version and
+    the exact composition and price shown at that moment."""
+
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="terms_acceptances")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="subscription_terms_acceptances")
+    terms_version = models.CharField(max_length=20)
+    accepted_at = models.DateTimeField()
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    snapshot = models.JSONField(default=dict)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-accepted_at",)
 
 
 class Invoice(BaseModel):
@@ -439,3 +475,26 @@ class SubscriptionDiscount(BaseModel):
 
     def __str__(self):
         return f"{self.subscription} — {self.get_kind_display()} {self.value}"
+
+
+class SegmentStatusEvent(BaseModel):
+    """History of segments activated or removed by the organization or the platform (audit)."""
+
+    class Action(models.TextChoices):
+        ACTIVATED = "activated", "Ativado"
+        DEACTIVATED = "deactivated", "Removido"
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="segment_events")
+    segment_code = models.SlugField(max_length=80)
+    action = models.CharField(max_length=20, choices=Action.choices)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="segment_events")
+    occurred_at = models.DateTimeField(default=timezone.now)
+    # Finance launches archived with the removal (hidden for good) and their totals by type.
+    archived_transactions = models.PositiveIntegerField(default=0)
+    archived_revenue = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    archived_expense = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    invoice_adjustment = models.CharField(max_length=40, blank=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ("-occurred_at",)
+        indexes = [models.Index(fields=["organization", "segment_code", "-occurred_at"], name="billing_segment_event_lookup")]

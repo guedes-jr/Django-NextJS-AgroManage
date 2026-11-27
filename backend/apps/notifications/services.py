@@ -207,6 +207,7 @@ class NotificationService:
         """Cria, uma única vez, os avisos de vacinas reprodutivas vencidas."""
         from django.db import transaction
         from apps.livestock.models import Birth, Litter, Mating
+        from common.operator_access import organization_scoped_queryset
 
         due = Birth.objects.filter(
             reproductive_vaccine_due_date__lte=timezone.now().date(),
@@ -223,6 +224,9 @@ class NotificationService:
                     'female__farm__organization', 'reproductive_vaccine_item'
                 ).get(id=birth_id)
                 if birth.reproductive_vaccine_notification_sent:
+                    continue
+                # Herd of a removed segment: not alerted (kept unsent if the segment comes back).
+                if not organization_scoped_queryset(Birth.objects.filter(pk=birth.pk), birth.female.farm.organization).exists():
                     continue
                 NotificationService.create_for_organization(
                     organization=birth.female.farm.organization,
@@ -255,6 +259,8 @@ class NotificationService:
                     'female__farm__organization', 'reproductive_vaccine_item'
                 ).get(id=mating_id)
                 if mating.reproductive_vaccine_notification_sent:
+                    continue
+                if not organization_scoped_queryset(Mating.objects.filter(pk=mating.pk), mating.female.farm.organization).exists():
                     continue
                 NotificationService.create_for_organization(
                     organization=mating.female.farm.organization,

@@ -97,7 +97,11 @@ interface Organization {
 }
 
 type PlanCatalogSegment = { code: string; name: string; subtitle: string; description: string; accent: "green" | "wine"; annual_discount_percent: string; tiers: Array<{ id: string; label: string; monthly_price: string | null; requires_quote: boolean }> };
-type ChangePreview = { quote: { public_token: string; billing_cycle: "monthly" | "yearly"; monthly_subtotal: string; monthly_discount: string; monthly_total: string; billing_total: string; requires_contact: boolean }; current_monthly_total: string; new_monthly_total: string; monthly_difference: string; prorated_difference: string; remaining_days: number; effective_at: "immediately" | "next_renewal" };
+type ChangePreview = { quote: { public_token: string; billing_cycle: "monthly" | "yearly"; monthly_subtotal: string; monthly_discount: string; monthly_total: string; billing_total: string; requires_contact: boolean }; current_monthly_total: string; new_monthly_total: string; monthly_difference: string; prorated_difference: string; remaining_days: number; effective_at: "immediately" | "next_renewal";
+  added_segments?: string[];
+  /** Removing a segment: its finance launches are archived for good, operational data is kept. */
+  removed_segments?: { segment_code: string; segment_name: string; finance: { count: number; revenue: string; expense: string } }[];
+  requires_finance_confirmation?: boolean };
 
 type Tab = "organization" | "members" | "subscription" | "security" | "preferences" | "segmentFeatures";
 
@@ -204,6 +208,7 @@ export default function SettingsPage() {
   const [selectedTiers, setSelectedTiers] = useState<Record<string, string>>({});
   const [selectedBilling, setSelectedBilling] = useState<"monthly" | "yearly">("monthly");
   const [changePreview, setChangePreview] = useState<ChangePreview | null>(null);
+  const [financeAck, setFinanceAck] = useState(false);
   const [planChangeLoading, setPlanChangeLoading] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [addressModalMode, setAddressModalMode] = useState<'add' | 'edit'>('add');
@@ -382,6 +387,7 @@ export default function SettingsPage() {
     try {
       const { data } = await apiClient.post<ChangePreview>("/organizations/me/subscription/change-preview/", { tier_ids: tierIds, billing_cycle: selectedBilling });
       setChangePreview(data);
+      setFinanceAck(false);
     } catch {
       setError(t("settings.planPreviewError"));
     } finally {
@@ -394,7 +400,8 @@ export default function SettingsPage() {
     setPlanChangeLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post("/organizations/me/subscription/change/", { quote_token: changePreview.quote.public_token });
+      if (changePreview.requires_finance_confirmation && !financeAck) { setError(t("segmentRemoval.ackRequired")); return; }
+      const { data } = await apiClient.post("/organizations/me/subscription/change/", { quote_token: changePreview.quote.public_token, confirm_finance_removal: financeAck });
       setOrg(current => current ? { ...current, subscription: data.subscription } : current);
       setSuccess(data.detail || t("settings.planUpdated"));
       setPlanSelectorOpen(false);
@@ -1456,7 +1463,7 @@ export default function SettingsPage() {
         maxWidth="plan-selector-modal"
         footer={<>
           <button type="button" className="btn-secondary-elegant px-4 py-2" onClick={() => { setPlanSelectorOpen(false); setChangePreview(null); }}>{t("settings.plan.cancel")}</button>
-          {!changePreview ? <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || !Object.keys(selectedTiers).length} onClick={previewPlanChange}>{planChangeLoading ? t("settings.plan.calculating") : t("settings.plan.calculate")}</button> : <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || changePreview.quote.requires_contact || changePreview.effective_at === "next_renewal"} onClick={confirmPlanChange}>{planChangeLoading ? t("settings.plan.confirming") : changePreview.quote.requires_contact ? t("settings.plan.specialist") : changePreview.effective_at === "next_renewal" ? t("settings.plan.downgradeRenewal") : t("settings.plan.confirm")}</button>}
+          {!changePreview ? <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || !Object.keys(selectedTiers).length} onClick={previewPlanChange}>{planChangeLoading ? t("settings.plan.calculating") : t("settings.plan.calculate")}</button> : <button type="button" className="btn-primary-elegant px-4 py-2" disabled={planChangeLoading || changePreview.effective_at === "next_renewal" || (!!changePreview.requires_finance_confirmation && !financeAck)} onClick={confirmPlanChange}>{planChangeLoading ? t("settings.plan.confirming") : changePreview.effective_at === "next_renewal" ? t("settings.plan.downgradeRenewal") : t("settings.plan.confirm")}</button>}
         </>}
       >
         <div className="p-3 p-md-4 plan-selector-content">
@@ -1480,6 +1487,16 @@ export default function SettingsPage() {
             {selectedBilling === "yearly" && <div className="purchase-total"><span>{t("settings.plan.purchaseTotal")}</span><strong>{money(changePreview.quote.billing_total)}</strong></div>}
             {changePreview.effective_at === "immediately" && Number(changePreview.prorated_difference) > 0 && <p>{t("settings.plan.applyNow")} <strong>{money(changePreview.prorated_difference)}</strong>.</p>}
             {changePreview.effective_at === "next_renewal" && <p>{t("settings.plan.nextRenewal")}</p>}
+            {!!changePreview.removed_segments?.length && <div className="segment-removal" role="region" aria-label={t("segmentRemoval.title")}>
+              <h4>{t("segmentRemoval.title")}</h4>
+              <ul>{changePreview.removed_segments.map(row => <li key={row.segment_code}>{row.finance.count
+                ? t("segmentRemoval.finance", { segment: row.segment_name, count: row.finance.count, revenue: money(row.finance.revenue), expense: money(row.finance.expense) })
+                : t("segmentRemoval.noFinance", { segment: row.segment_name })}</li>)}</ul>
+              <p>{t("segmentRemoval.kept")}</p>
+              <p>{t("segmentRemoval.billing")}</p>
+              {changePreview.requires_finance_confirmation && <label className="segment-removal-ack"><input type="checkbox" className="form-check-input" checked={financeAck} onChange={event => { setFinanceAck(event.target.checked); setError(null); }}/><span>{t("segmentRemoval.ack")}</span></label>}
+            </div>}
+            {!!changePreview.added_segments?.length && <p>{t("segmentRemoval.added")}</p>}
           </section>}
         </div>
       </Modal>
@@ -1578,6 +1595,12 @@ export default function SettingsPage() {
         .change-preview>div { display:flex; justify-content:space-between; gap:1rem; padding:.6rem 0; border-bottom:1px solid var(--border); font-size:.78rem; }
         .change-preview .purchase-total { padding:.85rem; margin-top:.55rem; color:#145f35; background:#eaf6e5; border:0; border-radius:9px; font-weight:900; }
         .change-preview p { margin:.75rem 0 0; color:var(--muted-foreground); font-size:.72rem; }
+        .segment-removal { margin-top:.85rem; padding:.85rem; border:1px solid var(--warning); border-radius:9px; background:var(--card); }
+        .segment-removal h4 { margin:0 0 .4rem; font-size:.85rem; font-weight:800; color:var(--foreground); }
+        .segment-removal ul { margin:0; padding-left:1.1rem; font-size:.78rem; color:var(--foreground); }
+        .segment-removal p { margin:.5rem 0 0; }
+        .segment-removal-ack { display:flex; gap:.5rem; align-items:flex-start; margin-top:.65rem; font-size:.78rem; font-weight:700; color:var(--foreground); cursor:pointer; }
+        .segment-removal-ack .form-check-input { flex:none; width:18px; height:18px; margin-top:1px; }
         @media(max-width:900px){.plan-selector-grid{grid-template-columns:1fr}.plan-segment-option>p{min-height:0}}
         .form-control-custom {
           width: 100%;

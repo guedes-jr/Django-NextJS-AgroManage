@@ -787,6 +787,58 @@ Expired/revoked grants, suspended organizations and disabled/unauthorized staff
 are rejected on each request. The platform support access screen requires no
 protocol, justification or duration selection.
 
+## First access, free trial and subscription confirmation
+
+Self-service signups (`auth/register`, password or Google login that provisions an organization) create the
+subscription with `onboarding_required=True` and status `trialing`. Platform-created organizations, seeds and
+tests are unaffected. Logic lives in `apps/billing/onboarding.py`; prices always come from `pricing.breakdown`.
+
+- `GET organizations/me/onboarding/` → `{pending, can_complete, trial_days, terms_version}`.
+- `POST organizations/me/onboarding/preview/` (admin, throttle `onboarding_preview`) with
+  `{segments:[{segment_code, quantity}], billing_cycle, coupon}` → summary (`price` breakdown with `quantity` per
+  line, `cycle_total`, `unpriced`, `trial_ends_at`, `coupon_applied`, `coupon_error`, `terms_version`). Nothing is
+  saved (rolled-back transaction). Quantity is required for segments whose tiers have ranges.
+- `POST organizations/me/onboarding/complete/` (admin) with the same body plus `accepted_terms: true` and the
+  current `terms_version`: only the chosen segments stay contracted, the coupon is redeemed, the trial
+  (`BILLING_TRIAL_DAYS`, default 7) starts, a `SubscriptionTermsAcceptance` (user, version, IP, user agent and
+  price snapshot) is stored and `User.welcome_tour_pending` is set.
+- `PUT organizations/me/subscription/payment-method/` (admin) `{payment_method: pix|boleto|credit_card}`.
+- `POST organizations/me/subscription/subscribe/` (admin, while `trialing`): ends the trial, sets status `active`;
+  with `BILLING_AUTO_INVOICING_ENABLED` it issues and charges the first cycle invoice in the preferred method.
+- `POST auth/welcome-tour/` clears `welcome_tour_pending`.
+
+`auth/me` → `access` adds `access_stage` (`onboarding` | `trial_expired` | `suspended` | null), `trial_ends_at`
+and `welcome_tour_pending`. In the `onboarding` and `trial_expired` stages the API answers 402 outside the
+session, `public/` and the stage endpoints, with `error.detail.code` = `onboarding_required` or `trial_expired`
+(web routes to `/home/primeiro-acesso` or `/home/assinar`; mobile shows `FirstAccessScreen`/`SubscribeScreen`).
+
+## Segment removal and re-activation
+
+Owner: `apps/billing/segment_lifecycle.py`; row scope: `common/operator_access.py`
+(`segment_rows_q`, `segment_scoped_queryset`, `organization_scoped_queryset`). A segment is active when its
+`SubscriptionItem.is_active` is true; a segment never contracted is treated as inactive.
+
+- Removing never deletes rows. Operational data of the segment (animals/batches by species and cattle purpose,
+  dairy- and cattle-only tables, plantations, veterinary, inventory rows by `segmento`) is hidden from every role
+  of the organization and cannot be written (`ensure_in_segment_scope` rolls back saves; `crops/`, `livestock/cattle/`,
+  `livestock/swine/`, `reports/crops/` and `reports/livestock/` paths are gated). Platform audit, exports
+  (`_base_manager`) and recovery keep every row. Re-activation shows the data again.
+- Finance launches of the segment (`Transaction.segmento` in `Segment.stored_codes`, e.g. `suinos` for
+  Suinocultura; `VETPROC-` mirrors are `area-veterinario`) are archived (`archived_at`) and leave Financeiro,
+  balances and dashboards for good — `Transaction.objects` excludes them, `Transaction.all_objects` sees them.
+  Integrations look references up with `all_objects`, so archived mirrors are never recreated. New launches in an
+  inactive segment are refused in `Transaction.save`.
+- Billing stops at removal: the next cycle excludes the segment and an issued, unpaid invoice of a future period
+  is recalculated (`invoice_adjustment`: `updated`, `voided`, `kept_paid`, `kept_gateway`). No refund of the
+  period already started.
+- `POST organizations/me/subscription/change-preview/` adds `added_segments`, `removed_segments` (finance count,
+  revenue, expense and kept records) and `requires_finance_confirmation`. `.../change/` answers 400 with
+  `confirm_finance_removal` + `removed_segments` until the client sends `confirm_finance_removal: true`. Price
+  decreases apply immediately; segments "sob consulta" are accepted with the price pending.
+- Platform `POST platform/organizations/{id}/segments/` accepts `confirm_finance_removal`; the overview lists `events`
+  (`SegmentStatusEvent`: who, when, archived launches and totals, invoice adjustment).
+- `python manage.py segment_scope_report [--organization slug]` lists, read-only, what each organization stops seeing.
+
 ## Organization lifecycle
 
 Organizations expose `status` (`active`, `suspended`, `archived`),

@@ -218,6 +218,7 @@ REST_FRAMEWORK = {
         "invoice_payment": "30/hour",
         "affiliate_tracking": env("AFFILIATE_TRACKING_RATE", default="60/min"),
         "subscription_quote": env("SUBSCRIPTION_QUOTE_RATE", default="20/hour"),
+        "onboarding_preview": env("ONBOARDING_PREVIEW_RATE", default="120/hour"),
     },
 }
 
@@ -372,3 +373,5 @@ SANDBOX_EXECUTOR_ENABLED = env.bool("SANDBOX_EXECUTOR_ENABLED", default=False)
 SANDBOX_EXECUTOR_SOCKET = env("SANDBOX_EXECUTOR_SOCKET", default="/run/agromanage-sandbox/executor.sock")
 SANDBOX_EXECUTOR_TOKEN = env("SANDBOX_EXECUTOR_TOKEN", default="")
 SANDBOX_EXECUTOR_TIMEOUT = env.int("SANDBOX_EXECUTOR_TIMEOUT", default=7)
+# Free trial (days) that starts when a self-service signup accepts the subscription terms.
+BILLING_TRIAL_DAYS = env.int("BILLING_TRIAL_DAYS", default=7)

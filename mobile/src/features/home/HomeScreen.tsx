@@ -17,6 +17,8 @@ import { DairyHomePanel } from './DairyHomePanel';
 import { homeSections } from './homeSections';
 import { quickActions, quickActionMessages } from '../workspace/quickActions';
 import { colors } from '../../theme/tokens';
+import { WelcomeTour } from '../onboarding/WelcomeTour';
+import { TrialNotice } from '../onboarding/TrialNotice';
 export function HomeScreen({ session }: { session: Session }) {
   const { language, controller } = useAuth();
   const t = homeMessages[language];
@@ -50,10 +52,12 @@ export function HomeScreen({ session }: { session: Session }) {
   const metric = (label: string, value: string, icon: HomeIconName, note?: string) => <View key={label} style={[s.metric, width < 350 && { width:'100%' }]}><View style={s.metricHeading}><View style={s.iconTile}><HomeIcon name={icon} size={22}/></View><Text style={[s.caption,s.grow]}>{label}</Text></View><Text style={s.amount}>{value}</Text>{note && <Text style={s.note}>{note}</Text>}</View>;
   const segments = data ? [...(canOpenModule(session.user.access,'crops') ? [{ key:'crops' as ModuleKey, label:t.crops,...data.segments.crops }] : []), ...(data.segments.livestock_by_species?.map(segment => ({...segment,key:(segment.code === 'suinos' ? 'swine' : segment.code === 'bovinos' ? 'beef' : null) as ModuleKey | null,label:segment.code === 'suinos' ? t.swine : segment.code === 'bovinos' ? `${t.beef} / ${t.dairy}` : segment.name })) ?? [])] : [];
   return <WorkspaceShell active="home">{open=><>
+    {session.user.access.welcome_tour_pending && <WelcomeTour />}
     <ScrollView testID="home-scroll" contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" refreshControl={financial ? <RefreshControl refreshing={loading} onRefresh={refresh}/> : undefined}>
       <View style={s.content}>
         <View style={s.intro}><Text accessibilityRole="header" style={s.greeting}>{t.hello} <Text style={s.green}>{session.user.full_name.split(' ')[0] || session.organization.name}!</Text></Text></View>
         {session.user.access.read_only && <Text style={s.notice}>{t.readonly}</Text>}
+        <TrialNotice user={session.user} onOpen={() => router.push('/subscribe')} />
         {sections.map(section => {
           switch (section) {
             case 'actions': return actions.length > 0 && <View key={section}><View style={{ gap: 8 }}><View style={ui.sectionHeader}><Text accessibilityRole="header" style={ui.sectionHeading}>{qa.title}</Text></View><View style={ui.tileGrid}>{actions.map(action => { const copy = qa.actions[action.id]; return <ActionTile key={action.id} label={copy.label} description={copy.description} icon={<HomeIcon name={action.icon} size={20}/>} compact onPress={() => action.destination && router.navigate(action.destination)}/>; })}</View></View></View>;

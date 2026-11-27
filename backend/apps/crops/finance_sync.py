@@ -78,7 +78,7 @@ def stock_paid_cost(instance) -> Decimal:
     if spec is None or spec.model_name not in STOCK_INPUT_MODELS or not lot_id:
         return ZERO
     organization = instance.plantation.organization
-    purchased = Transaction.objects.filter(organization=organization, reference=f"LOTE-{lot_id}").exclude(
+    purchased = Transaction.all_objects.filter(organization=organization, reference=f"LOTE-{lot_id}").exclude(
         status=Transaction.Status.CANCELLED
     ).exists()
     return _decimal(instance.total_price).quantize(Decimal("0.01")) if purchased else ZERO
@@ -125,7 +125,7 @@ def sync_operation_transaction(instance, user=None) -> str:
         # Recursos dos segmentos › Plantações › Financeiro is off: existing mirrors stay as they are.
         return "skipped"
     reference = spec.reference(instance)
-    existing = Transaction.objects.filter(organization=organization, reference=reference).order_by("created_at")
+    existing = Transaction.all_objects.filter(organization=organization, reference=reference).order_by("created_at")
     current = existing.first()
     cost = mirror_cost(instance)
 
@@ -180,7 +180,7 @@ def remove_operation_transaction(instance) -> None:
     spec = spec_for(instance)
     if spec is None:
         return
-    Transaction.objects.filter(
+    Transaction.all_objects.filter(
         organization=instance.plantation.organization, reference=spec.reference(instance)
     ).exclude(status=Transaction.Status.CANCELLED).delete()
 
@@ -211,7 +211,7 @@ def resync_organization(organization, dry_run: bool = False) -> dict:
                 ids.add(spec.reference(instance))
                 report[sync_operation_transaction(instance)] += 1
 
-            mirrors = Transaction.objects.filter(
+            mirrors = Transaction.all_objects.filter(
                 organization=organization, reference__startswith=f"{spec.prefix}-"
             ).exclude(status=Transaction.Status.CANCELLED)
             if spec.prefix == "LABOR":

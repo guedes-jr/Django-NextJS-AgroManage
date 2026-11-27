@@ -279,9 +279,18 @@ def check_stock_levels_notifications():
 
     from .services import NotificationService
 
+    from apps.billing import segments as segment_catalog
+
     items = ItemEstoque.objects.filter(estoque_minimo__gt=0, ativo=True)
+    hidden_by_organization = {}
 
     for item in items:
+        # Items of a removed segment are not alerted (they are hidden from the organization).
+        if item.segmento:
+            if item.organization_id not in hidden_by_organization:
+                hidden_by_organization[item.organization_id] = segment_catalog.inactive_stored_codes(item.organization)
+            if item.segmento in hidden_by_organization[item.organization_id]:
+                continue
         total_qty = LoteEstoque.objects.filter(item=item, ativo=True).aggregate(
             total=Sum("quantidade_atual")
         )["total"] or 0

@@ -224,3 +224,24 @@
 .landing-home .segment-development p { margin:4px 0 0; font-size:13px; line-height:1.5; }
 @media(max-width:1000px) { .landing-home .segment-overview-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:600px) { .landing-home .segment-overview-grid { grid-template-columns:1fr; } .landing-home .segment-overview-card { padding:22px; } }
+
+/* Assinatura: valores e faixas (limites) de cada segmento, lidos do catálogo público. */
+.subscription-pricing { padding:72px 0; }
+.subscription-pricing-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px; }
+.subscription-pricing-card { display:flex; flex-direction:column; gap:12px; padding:22px; background:white; border:1px solid var(--marketing-line); border-radius:18px; }
+.subscription-pricing-card h3 { margin:0; color:var(--marketing-dark); font-size:1.15rem; font-weight:800; letter-spacing:-.02em; }
+.subscription-pricing-card header p { margin:2px 0 0; color:#5c6b61; font-size:.85rem; }
+.subscription-pricing-card > small { color:var(--marketing-green); font-size:.75rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.subscription-pricing-card ul { display:flex; flex-direction:column; margin:0; padding:0; list-style:none; flex:1; }
+.subscription-pricing-card li { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--marketing-line); color:#3f4d44; font-size:.88rem; }
+.subscription-pricing-card li strong { flex:none; color:var(--marketing-dark); font-variant-numeric:tabular-nums; }
+.subscription-pricing-card li strong small { margin-left:2px; color:#5c6b61; font-weight:600; }
+.subscription-pricing-card .marketing-button { align-self:flex-start; }
+.subscription-pricing-notes { display:flex; flex-wrap:wrap; justify-content:center; gap:10px 28px; margin:28px 0 0; padding:0; list-style:none; color:#3f4d44; font-size:.92rem; }
+.subscription-pricing-notes li { display:inline-flex; align-items:center; gap:8px; }
+.subscription-pricing-notes svg { color:var(--marketing-green); }
+.subscription-pricing-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:22px; }
+@media (max-width:640px) {
+  .subscription-pricing { padding:48px 0; }
+  .subscription-pricing-actions .marketing-button { flex:1 1 100%; }
+}

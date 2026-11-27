@@ -15,6 +15,12 @@ const nextConfig = {
 
   async redirects() {
     return [{
+        // The public "Planos" page became "Assinatura" (keeps old links, ads and search results).
+        source: "/planos",
+        destination: "/assinatura",
+        permanent: true,
+      },
+      {
         // The veterinary clinic was replaced by the "Área do veterinário".
         source: "/home/clinico/:path*",
         destination: "/home/veterinario",

@@ -1,4 +1,5 @@
 import { getPublicTranslator } from "@/lib/publicLocaleServer";
+import { SubscriptionPricing } from "@/components/marketing/SubscriptionPricing";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -82,7 +83,7 @@ const faqs = [
   [t("public.doTheModulesWorkTogether"), t("public.yesStockProductionHerdsFinancesAndReportsShareTheSame")],
 ];
   return <div className="landing-home">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({"@context":"https://schema.org","@type":"SoftwareApplication",name:"Fazenda Mais",applicationCategory:"BusinessApplication",operatingSystem:"Web",description:t("public.aFarmManagementPlatformForFarmsProductionHerdsStockAnd"),url:"/planos"})}} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({"@context":"https://schema.org","@type":"SoftwareApplication",name:"Fazenda Mais",applicationCategory:"BusinessApplication",operatingSystem:"Web",description:t("public.aFarmManagementPlatformForFarmsProductionHerdsStockAnd"),url:"/assinatura"})}} />
     <MarketingHeader home />
     <main id="marketing-main" tabIndex={-1}>
       <section className="marketing-hero">
@@ -91,7 +92,7 @@ const faqs = [
             <div className="eyebrow"><Sprout size={16} /> {t("public.simpleIntegratedFarmManagement")}</div>
             <h1>{t("public.moreControlInTheField")} <span>{t("public.betterResults")}</span> {t("public.forYourOperation")}</h1>
             <p>{t("public.farmsProductionHerdsStockAndFinancesConnectedInOnePlatform")}</p>
-            <div className="hero-actions"><Link href="/contato" className="marketing-button primary">{t("requestDemo")} <ArrowRight size={18} /></Link><Link href="/planos" className="marketing-button secondary">{t("public.viewPlans")}</Link></div>
+            <div className="hero-actions"><Link href="/contato" className="marketing-button primary">{t("requestDemo")} <ArrowRight size={18} /></Link><Link href="/assinatura" className="marketing-button secondary">{t("public.viewPlans")}</Link></div>
             <div className="hero-proof"><span><CheckCircle2 size={17} /> {t("public.assistedImplementation")}</span><span><CheckCircle2 size={17} /> {t("public.specialistSupport")}</span><span><CheckCircle2 size={17} /> {t("public.protectedData")}</span></div>
           </div>
           <div className="hero-visual">
@@ -125,7 +126,7 @@ const faqs = [
 
       <section className="marketing-section audience-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">{t("public.builtForThePeopleRunningTheOperation")}</div><h2>{t("public.fromTheFieldToStrategicManagement")}</h2><p>{t("public.anExperienceForDifferentLevelsOfResponsibilityWithoutComplicatingThe")}</p></div><div className="audience-grid">{audiences.map(({icon:Icon,title,text})=><article key={title}><Icon size={28}/><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 
-      <section className="marketing-section plan-calculator-cta" id="planos"><div className="marketing-container"><div className="final-cta-card"><div><div className="eyebrow light">{t("public.aTailoredPlan")}</div><h2>{t("public.calculateTheIdealPlanForYourOperation")}</h2><p>{t("public.chooseSegmentsEnterEachActivitySSizeAndSeeThe")}</p></div><Link href="/planos" className="marketing-button light">{t("public.calculateMyPlan")} <ArrowRight size={18}/></Link></div></div></section>
+      <SubscriptionPricing />
 
       <section className="marketing-section testimonials-section"><div className="marketing-container"><div className="section-heading"><div className="eyebrow">{t("public.experienceFromTheField")}</div><h2>{t("public.moreClarityToRunTheOperation")}</h2><p>{t("public.seeHowConnectedManagementTransformsDailyWorkForFarmersAnd")}</p></div><div className="testimonials-grid">{testimonials.map((testimonial)=><article className="testimonial-card" key={testimonial.name}><div className="testimonial-top"><div className="testimonial-stars" aria-label={t("public.5OutOf5Stars")}>{Array.from({length:5}).map((_,index)=><Star key={index} size={15} fill="currentColor" />)}</div><Quote size={28}/></div><blockquote>“{testimonial.quote}”</blockquote><div className="testimonial-author"><span>{testimonial.initials}</span><div><strong>{testimonial.name}</strong><small>{testimonial.role}</small></div></div></article>)}</div></div></section>
 
@@ -133,7 +134,7 @@ const faqs = [
 
       <section className="marketing-section faq-section"><div className="marketing-container faq-grid"><div><div className="eyebrow">{t("public.frequentlyAskedQuestions")}</div><h2>{t("public.beforeYouStart")}</h2><p>{t("public.quickAnswersAboutAccessImplementationAndUsingThePlatform")}</p><Link href="/contato" className="text-link">{t("public.stillHaveQuestionsContactUs")} <ArrowRight size={17}/></Link></div><div className="faq-list">{faqs.map(([question,answer])=><details key={question}><summary>{question}<span>+</span></summary><p>{answer}</p></details>)}</div></div></section>
 
-      <section className="final-cta"><div className="marketing-container final-cta-card"><div><div className="eyebrow light">{t("public.readyToOrganizeYourOperation")}</div><h2>{t("public.bringMoreClarityToEveryFieldDecision")}</h2><p>{t("public.exploreFazendaMaisInADemoTailoredToYourProperty")}</p></div><div className="final-cta-actions"><Link href="/contato" className="marketing-button light">{t("requestDemo")} <ArrowRight size={18}/></Link><Link href="/planos" className="marketing-button outline-light">{t("public.viewPlans")}</Link></div></div></section>
+      <section className="final-cta"><div className="marketing-container final-cta-card"><div><div className="eyebrow light">{t("public.readyToOrganizeYourOperation")}</div><h2>{t("public.bringMoreClarityToEveryFieldDecision")}</h2><p>{t("public.exploreFazendaMaisInADemoTailoredToYourProperty")}</p></div><div className="final-cta-actions"><Link href="/contato" className="marketing-button light">{t("requestDemo")} <ArrowRight size={18}/></Link><Link href="/assinatura" className="marketing-button outline-light">{t("public.viewPlans")}</Link></div></div></section>
     </main>
     <MarketingFooter brandSymbol />
   </div>;

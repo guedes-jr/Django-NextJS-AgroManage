@@ -63,7 +63,7 @@ def sell(user, command):
     snapshot = {key: str(value) for key, value in command.items()}
     # Serialize keys across lots, so a retry or a concurrent submission cannot post twice.
     type(org).objects.select_for_update(no_key=True).only("id").get(pk=org.pk)
-    existing = Transaction.objects.filter(organization=org, reference=reference).first()
+    existing = Transaction.all_objects.filter(organization=org, reference=reference).first()
     if existing:
         metadata = sale_metadata(existing)
         if not metadata or metadata.get("command") != snapshot:

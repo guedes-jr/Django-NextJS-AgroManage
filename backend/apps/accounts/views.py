@@ -148,7 +148,10 @@ def _ensure_user_organization(user):
         suffix += 1
         slug = f"{base_slug}-{suffix}" if base_slug else f"organizacao-{suffix}"
 
-    organization = Organization.objects.create(name=base_name[:255], slug=slug[:100])
+    organization = Organization(name=base_name[:255], slug=slug[:100])
+    # The admin chooses the segments and accepts the subscription terms on the first access.
+    organization._self_service_signup = True
+    organization.save()
     user.organization = organization
     user.role = User.Role.ADMIN
     user.organization_responsible = True
@@ -458,3 +461,13 @@ def operator_options(request):
         'segments': segments,
         'species': list(Species.objects.order_by('name').values('id', 'code', 'name')),
     })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def welcome_tour_view(request):
+    """The welcome tour (shown once after the first access) was finished or skipped."""
+    if request.user.welcome_tour_pending:
+        request.user.welcome_tour_pending = False
+        request.user.save(update_fields=["welcome_tour_pending", "updated_at"])
+    return Response(status=status.HTTP_204_NO_CONTENT)

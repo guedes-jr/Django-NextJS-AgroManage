@@ -140,6 +140,14 @@ const pt = {
   "subscription.coupon.adminOnly": "Somente o administrador aplica cupons.",
   "subscription.limits": "Uso e limites",
   "subscription.status": "Situação",
+  "segmentRemoval.title": "O que acontece com os segmentos removidos",
+  "segmentRemoval.finance": "{segment}: {count} lançamento(s) financeiro(s) (receitas {revenue}; despesas {expense}) sairão do Financeiro e não poderão ser recuperados, nem se você reativar o segmento.",
+  "segmentRemoval.noFinance": "{segment}: não há lançamentos financeiros deste segmento.",
+  "segmentRemoval.kept": "Animais, lotes, plantações e manejos ficam guardados e voltam a aparecer se você reativar o segmento. Enquanto ele estiver removido, ninguém registra dados nele, e ele sai das dashboards e dos alertas.",
+  "segmentRemoval.billing": "A cobrança do segmento para a partir de agora. O período já iniciado continua sendo cobrado.",
+  "segmentRemoval.ack": "Entendo que os lançamentos financeiros desses segmentos serão removidos definitivamente.",
+  "segmentRemoval.added": "Segmentos novos começam do zero. Se você já usou o segmento antes, os dados guardados voltam, mas sem os lançamentos financeiros removidos.",
+  "segmentRemoval.ackRequired": "Confirme a remoção dos lançamentos financeiros para continuar.",
 };
 type SettingsMessages = Record<keyof typeof pt, string>;
 
@@ -241,6 +249,14 @@ const en: SettingsMessages = {
   "subscription.change": "Change segments", "subscription.coupon.title": "Promo code", "subscription.coupon.placeholder": "Enter the code",
   "subscription.coupon.apply": "Apply code", "subscription.coupon.applied": "Code applied.", "subscription.coupon.error": "Could not apply the code.",
   "subscription.coupon.adminOnly": "Only the administrator applies promo codes.", "subscription.limits": "Usage and limits", "subscription.status": "Status",
+  "segmentRemoval.title": "What happens to the removed segments",
+  "segmentRemoval.finance": "{segment}: {count} financial entr(ies) (revenue {revenue}; expenses {expense}) will leave Finance and cannot be recovered, not even if you reactivate the segment.",
+  "segmentRemoval.noFinance": "{segment}: this segment has no financial entries.",
+  "segmentRemoval.kept": "Animals, batches, plantings and handling records are kept and show up again if you reactivate the segment. While it is removed, nobody can record data in it, and it leaves dashboards and alerts.",
+  "segmentRemoval.billing": "Billing for the segment stops now. The period already started is still charged.",
+  "segmentRemoval.ack": "I understand that the financial entries of these segments will be removed permanently.",
+  "segmentRemoval.added": "New segments start from scratch. If you used the segment before, its saved data comes back, without the removed financial entries.",
+  "segmentRemoval.ackRequired": "Confirm the removal of the financial entries to continue.",
 };
 
 const es: SettingsMessages = {
@@ -341,6 +357,14 @@ const es: SettingsMessages = {
   "subscription.change": "Cambiar segmentos", "subscription.coupon.title": "Cupón promocional", "subscription.coupon.placeholder": "Escriba el código",
   "subscription.coupon.apply": "Aplicar cupón", "subscription.coupon.applied": "Cupón aplicado.", "subscription.coupon.error": "No fue posible aplicar el cupón.",
   "subscription.coupon.adminOnly": "Solo el administrador aplica cupones.", "subscription.limits": "Uso y límites", "subscription.status": "Situación",
+  "segmentRemoval.title": "Qué pasa con los segmentos quitados",
+  "segmentRemoval.finance": "{segment}: {count} movimiento(s) financiero(s) (ingresos {revenue}; gastos {expense}) saldrán de Finanzas y no podrán recuperarse, ni siquiera si reactiva el segmento.",
+  "segmentRemoval.noFinance": "{segment}: no hay movimientos financieros de este segmento.",
+  "segmentRemoval.kept": "Animales, lotes, plantaciones y manejos se conservan y vuelven a aparecer si reactiva el segmento. Mientras esté quitado, nadie registra datos en él, y sale de los paneles y de las alertas.",
+  "segmentRemoval.billing": "El cobro del segmento se detiene ahora. El período ya iniciado se sigue cobrando.",
+  "segmentRemoval.ack": "Entiendo que los movimientos financieros de estos segmentos se eliminarán definitivamente.",
+  "segmentRemoval.added": "Los segmentos nuevos empiezan desde cero. Si ya usó el segmento, los datos guardados vuelven, sin los movimientos financieros eliminados.",
+  "segmentRemoval.ackRequired": "Confirme la eliminación de los movimientos financieros para continuar.",
 };
 
 const ptPT: SettingsMessages = {
@@ -375,6 +399,9 @@ const ptPT: SettingsMessages = {
   "members.roleDesc.veterinarian": "Trabalha na Área do veterinário e, se libertados, noutros segmentos como um operador.",
   "subscription.quote": "Sob consulta",
   "subscription.coupon.placeholder": "Introduza o código",
+  "segmentRemoval.kept": "Animais, lotes, plantações e maneios ficam guardados e voltam a aparecer se reativar o segmento. Enquanto estiver removido, ninguém regista dados nele, e sai dos painéis e dos alertas.",
+  "segmentRemoval.finance": "{segment}: {count} lançamento(s) financeiro(s) (receitas {revenue}; despesas {expense}) sairão das Finanças e não poderão ser recuperados, nem que reative o segmento.",
+  "segmentRemoval.added": "Os segmentos novos começam do zero. Se já utilizou o segmento, os dados guardados voltam, mas sem os lançamentos financeiros removidos.",
 };
 
 export const settingsMessages = { "pt-BR": pt, en, es, "pt-PT": ptPT } as const;

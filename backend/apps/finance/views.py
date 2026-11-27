@@ -137,11 +137,16 @@ class TransactionViewSet(viewsets.ModelViewSet):
         from apps.livestock.models import AnimalBatch, Species
         from apps.crops.models import PlantingCycle
         organization = request.user.organization
+        from apps.billing import segments as segment_catalog
+        from common.operator_access import segment_scoped_queryset
+
+        crops_on = segment_catalog.CROPS in segment_catalog.user_segments(request.user)
         return Response({
             "farms": list(Farm.objects.filter(organization=organization).order_by("name").values("id", "name")),
-            "species": list(Species.objects.order_by("name").values("id", "name", "code")),
-            "batches": list(AnimalBatch.objects.filter(farm__organization=organization).order_by("batch_code").values("id", "batch_code", "farm_id", "species_id", "cattle_purpose")),
-            "plantations": list(PlantingCycle.objects.filter(Q(organization=organization) | Q(organization__isnull=True, field__farm__organization=organization)).order_by("name").values("id", "name", "farm_id", "field__farm_id")),
+            # Only active segments can receive new launches (Transaction.save also refuses them).
+            "species": list(segment_scoped_queryset(Species.objects.all(), request.user).order_by("name").values("id", "name", "code")),
+            "batches": list(segment_scoped_queryset(AnimalBatch.objects.all(), request.user).filter(farm__organization=organization).order_by("batch_code").values("id", "batch_code", "farm_id", "species_id", "cattle_purpose")),
+            "plantations": list(PlantingCycle.objects.filter(Q(organization=organization) | Q(organization__isnull=True, field__farm__organization=organization)).order_by("name").values("id", "name", "farm_id", "field__farm_id")) if crops_on else [],
         })
 
     @action(detail=False, methods=["post"])

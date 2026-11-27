@@ -288,6 +288,8 @@ export interface OrganizationSegmentOverview {
   subscription: { id: string; status: string; status_display: string } | null;
   price: PriceBreakdown | null;
   segments: OrganizationSegment[];
+  /** Audit: removals/re-activations and the finance launches archived (hidden from the organization). */
+  events?: { segment_code: string; action: "activated" | "deactivated"; occurred_at: string; actor: string; archived_transactions: number; archived_revenue: string; archived_expense: string; invoice_adjustment: string }[];
 }
 export interface SubscriptionDiscountRow {
   id: string; source: DiscountSource; source_display: string; kind: DiscountKind; kind_display: string; value: string;

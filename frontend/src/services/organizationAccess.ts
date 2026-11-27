@@ -18,6 +18,12 @@ export type OrganizationAccess = {
   segment_features?: SegmentFeatures;
   /** "suspended": every route goes to SUSPENDED_PATH and the API answers 402 elsewhere. */
   subscription_status?: string | null;
+  /** Screen that replaces the workspace: first access, free trial over or suspended for non-payment. */
+  access_stage?: "onboarding" | "trial_expired" | "suspended" | null;
+  /** End of the free trial while the subscription is trialing. */
+  trial_ends_at?: string | null;
+  /** Welcome tour shown once after the first access. */
+  welcome_tour_pending?: boolean;
 };
 
 export type SegmentFeatures = Record<string, Record<string, boolean>>;
@@ -26,6 +32,17 @@ export const VETERINARY_PATH = "/home/veterinario";
 /** Payment page while the subscription is suspended for non-payment. */
 export const SUSPENDED_PATH = "/home/pagamento";
 export const isSuspended = (access: OrganizationAccess | null | undefined) => access?.subscription_status === "suspended";
+/** First access of a self-service signup: segments, price and terms. */
+export const ONBOARDING_PATH = "/home/primeiro-acesso";
+/** Subscription confirmation and payment method (required once the free trial ends). */
+export const SUBSCRIBE_PATH = "/home/assinar";
+/** The only path open in a blocking stage, or null when the workspace is available. */
+export function stagePath(access: OrganizationAccess | null | undefined) {
+  if (access?.access_stage === "onboarding") return ONBOARDING_PATH;
+  if (access?.access_stage === "trial_expired") return SUBSCRIBE_PATH;
+  if (isSuspended(access)) return SUSPENDED_PATH;
+  return null;
+}
 /** Fired after the admin changes something the access payload carries (segment features). */
 export const ACCESS_CHANGED_EVENT = "fm:organization-access-changed";
 
@@ -60,8 +77,12 @@ export function canAccessOrganizationPath(access: OrganizationAccess | null, pat
   const required = pathSegments(path);
   path = cattleAccessPath(path);
   if (!access) return path === "/home";
-  // Suspended for non-payment: only the payment page; the payment page only while suspended.
-  if (isSuspended(access) !== (path === SUSPENDED_PATH)) return false;
+  // Blocking stages open only their page; those pages open only in their stage (the subscribe
+  // page also opens to the admin during the free trial).
+  const stage = stagePath(access);
+  if (stage) return path === stage;
+  if (path === SUSPENDED_PATH || path === ONBOARDING_PATH) return false;
+  if (path === SUBSCRIBE_PATH) return access.role === "admin" && !!access.trial_ends_at;
   if (path === VETERINARY_PATH || path.startsWith(`${VETERINARY_PATH}/`)) return !!access.veterinary;
   if (required && access.segments && !required.some(code => access.segments!.includes(code))) return false;
   const personal = ["/home/profile", "/home/notifications", "/home/suporte"];

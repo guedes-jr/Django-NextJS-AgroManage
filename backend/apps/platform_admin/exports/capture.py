@@ -80,7 +80,8 @@ class Capture:
             prefix = scope.removesuffix("field__farm__organization")
             canonical = prefix + "organization"
             query = Q(**{canonical: self.organization_id}) | (Q(**{canonical + "__isnull": True}) & query)
-        queryset = model.objects.filter(query)
+        # Base manager: rows hidden from the organization (finance archived with a removed segment) stay in the package.
+        queryset = model._base_manager.filter(query)
         if label == "accounts.user":
             queryset = queryset.filter(pk__in=self.customer_ids)
         for field in ("user",):
@@ -183,7 +184,7 @@ class Capture:
                         raise ExportFailure("cross_tenant_reference")
                 elif REGISTRY[label]["scope"] is None or label == GLOBAL_ITEM_CATALOG:
                     for start in range(0, len(missing), 500):
-                        queryset = model.objects.filter(pk__in=missing[start:start + 500])
+                        queryset = model._base_manager.filter(pk__in=missing[start:start + 500])
                         if label == GLOBAL_ITEM_CATALOG:
                             queryset = queryset.filter(organization__isnull=True)
                         self.capture_rows(label, queryset)

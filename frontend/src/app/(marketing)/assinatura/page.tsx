@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> { const { t } = awai
     t("public.combineYourOperationSSegmentsAndFindTheFazendaMais"),
 }; }
 
-export default function PlanosPage() {
+export default function AssinaturaPage() {
 
   return (
     <>

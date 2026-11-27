@@ -89,6 +89,12 @@ def _current_monthly_total(subscription):
 
 
 def _change_preview(subscription, quote):
+    """Price difference of a quote against the current subscription and what removing segments implies.
+
+    Removing a segment takes effect now and is not refunded: the period already started stays
+    charged and the next cycles no longer include it (apps/billing/segment_lifecycle.py)."""
+    from apps.billing.segment_lifecycle import deactivation_impact
+
     current_monthly = _current_monthly_total(subscription)
     difference = quote.monthly_total - current_monthly
     remaining_days = 0
@@ -102,8 +108,11 @@ def _change_preview(subscription, quote):
         current_credit = current_monthly * Decimal(min(remaining_days, 30)) / Decimal("30")
         prorata = max(quote.billing_total - current_credit, Decimal("0.00")).quantize(Decimal("0.01"))
     else:
-        effective_at = "immediately" if difference >= 0 else "next_renewal"
-        prorata = (difference * Decimal(min(remaining_days, 30)) / Decimal("30")).quantize(Decimal("0.01"))
+        effective_at = "immediately"
+        prorata = max(difference * Decimal(min(remaining_days, 30)) / Decimal("30"), Decimal("0.00")).quantize(Decimal("0.01"))
+    chosen = {item.segment_code for item in quote.items.all()}
+    active = set(subscription.items.filter(is_active=True).values_list("segment_code", flat=True))
+    removed = [deactivation_impact(subscription.organization, code) for code in sorted(active - chosen)]
     return {
         "quote": PublicSubscriptionQuoteSerializer(quote).data,
         "current_monthly_total": current_monthly,
@@ -112,6 +121,9 @@ def _change_preview(subscription, quote):
         "prorated_difference": prorata,
         "remaining_days": remaining_days,
         "effective_at": effective_at,
+        "added_segments": sorted(chosen - active),
+        "removed_segments": removed,
+        "requires_finance_confirmation": any(row["finance"]["count"] for row in removed),
     }
 
 
@@ -142,37 +154,48 @@ def subscription_change_confirm_view(request):
         return Response({"detail": translate_message("Orçamento inválido.")}, status=status.HTTP_400_BAD_REQUEST)
     if quote.status != SubscriptionQuote.Status.DRAFT or quote.is_expired:
         return Response({"detail": translate_message("Este orçamento não está mais disponível.")}, status=status.HTTP_400_BAD_REQUEST)
-    if quote.requires_contact:
-        return Response({"detail": translate_message("Esta composição precisa de atendimento comercial.")}, status=status.HTTP_400_BAD_REQUEST)
+    # Segments "sob consulta" are contracted with the price pending (the commercial team sets it
+    # before they are charged), as on the first access.
 
     subscription = org.subscription
     preview = _change_preview(subscription, quote)
     if preview["effective_at"] == "next_renewal":
-        return Response({"detail": translate_message("Downgrades serão disponibilizados após a integração de agendamento para a próxima renovação.")}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": translate_message("A troca do plano anual para mensal vale a partir da próxima renovação. Fale com o suporte para agendá-la.")}, status=status.HTTP_400_BAD_REQUEST)
+    if preview["requires_finance_confirmation"] and request.data.get("confirm_finance_removal") is not True:
+        return Response({
+            "confirm_finance_removal": translate_message("Confirme que os lançamentos financeiros dos segmentos removidos serão apagados do Financeiro e não poderão ser recuperados."),
+            "removed_segments": preview["removed_segments"],
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-    previous_codes = set(subscription.items.values_list("segment_code", flat=True))
-    subscription.items.all().delete()
-    SubscriptionItem.objects.bulk_create([
-        SubscriptionItem(
-            subscription=subscription,
-            tier=item.tier,
-            segment_code=item.segment_code,
-            segment_name=item.segment_name,
-            segment_subtitle=item.segment_subtitle,
-            tier_label=item.tier_label,
-            monthly_price=item.monthly_price,
-            discount_percent=item.discount_percent,
-            final_monthly_price=item.final_monthly_price,
-        ) for item in quote.items.all()
-    ])
+    from apps.billing import segment_lifecycle as lifecycle
+
+    previous_cycle = subscription.billing_cycle
     subscription.billing_cycle = quote.billing_cycle
     subscription.save(update_fields=("billing_cycle", "updated_at"))
-    from apps.billing import segments as segment_catalog
-    from apps.billing.subscriptions import _drop_member_scope
+    for quoted in quote.items.all():
+        item = subscription.items.filter(segment_code=quoted.segment_code).first()
+        was_active = bool(item and item.is_active)
+        # Same tier and cycle keep the current (possibly negotiated) price; otherwise the quote's.
+        if item is None or item.tier_id != quoted.tier_id or previous_cycle != quote.billing_cycle:
+            item = item or SubscriptionItem(subscription=subscription, segment_code=quoted.segment_code)
+            for field in ("tier", "segment_name", "segment_subtitle", "tier_label", "monthly_price", "discount_percent", "final_monthly_price"):
+                setattr(item, field, getattr(quoted, field))
+        item.is_active, item.deactivated_at = True, None
+        item.save()
+        if not was_active:
+            lifecycle.record_activation(subscription, quoted.segment_code, actor=request.user)
+    from apps.audit.models import AuditLog
+    from apps.audit.services import record_client_action
 
-    segment_catalog.forget(org)
-    for code in previous_codes - {item.segment_code for item in quote.items.all()}:
-        _drop_member_scope(org, code)
+    for removed in preview["removed_segments"]:
+        event = lifecycle.deactivate(subscription, removed["segment_code"], actor=request.user, confirm_finance=True, drop_member_scope=True)
+        record_client_action(
+            request=request, action=AuditLog.Action.UPDATE, model_name="SubscriptionItem", object_id=subscription.pk,
+            description=f"Segmento {removed['segment_name']} removido: {event.archived_transactions} lançamento(s) financeiro(s) arquivado(s); dados operacionais mantidos.",
+            extra_data={"segment_code": removed["segment_code"], "invoice_adjustment": event.invoice_adjustment},
+        )
+    for code in preview["added_segments"]:
+        record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name="SubscriptionItem", object_id=subscription.pk, description=f"Segmento {code} ativado.")
     invoice = None
     if preview["prorated_difference"] > 0:
         invoice = create_manual_invoice(
@@ -399,6 +422,114 @@ def subscription_coupon_view(request):
     discount = redeem_coupon(org.subscription, request.data.get("code"), actor=request.user)
     record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name="SubscriptionDiscount", object_id=discount.pk, description=f"Cupom aplicado: {discount.description}")
     return Response(breakdown(org.subscription), status=status.HTTP_201_CREATED)
+
+
+def _client_ip(request):
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    return forwarded_for.split(",")[0].strip() if forwarded_for else request.META.get("REMOTE_ADDR")
+
+
+def _admin_subscription(request, message):
+    """(organization, error response) for subscription writes reserved to the admin."""
+    org = getattr(request.user, "organization", None)
+    if not org or not hasattr(org, "subscription"):
+        return None, Response({"detail": translate_message("Assinatura não encontrada.")}, status=status.HTTP_404_NOT_FOUND)
+    if request.user.role != "admin":
+        return None, Response({"detail": translate_message(message)}, status=status.HTTP_403_FORBIDDEN)
+    return org, None
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def onboarding_state_view(request):
+    """First access: whether it is pending, who can complete it and the trial and terms in force."""
+    from apps.billing.onboarding import TERMS_VERSION, trial_days
+
+    org = getattr(request.user, "organization", None)
+    subscription = getattr(org, "subscription", None) if org else None
+    return Response({
+        "pending": bool(subscription and subscription.onboarding_pending),
+        "can_complete": request.user.role == "admin",
+        "trial_days": trial_days(),
+        "terms_version": TERMS_VERSION,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def onboarding_preview_view(request):
+    from apps.billing.onboarding import preview
+
+    org, error = _admin_subscription(request, "Somente o administrador escolhe os segmentos da assinatura.")
+    if error:
+        return error
+    return Response(preview(
+        org, selections=request.data.get("segments"), billing_cycle=request.data.get("billing_cycle") or "monthly",
+        coupon=str(request.data.get("coupon") or ""),
+    ))
+
+
+onboarding_preview_view.cls.throttle_scope = "onboarding_preview"
+onboarding_preview_view.cls.throttle_classes = [ScopedRateThrottle]
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def onboarding_complete_view(request):
+    """Accept the terms: only the chosen segments stay contracted and the free trial starts."""
+    from apps.audit.models import AuditLog
+    from apps.audit.services import record_client_action
+    from apps.billing.onboarding import complete
+
+    org, error = _admin_subscription(request, "Somente o administrador aceita os termos da assinatura.")
+    if error:
+        return error
+    subscription, snapshot = complete(
+        org, request.user, selections=request.data.get("segments"), billing_cycle=request.data.get("billing_cycle") or "monthly",
+        coupon=str(request.data.get("coupon") or ""), accepted_terms=request.data.get("accepted_terms"),
+        terms_version=str(request.data.get("terms_version") or ""), ip_address=_client_ip(request),
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
+    )
+    record_client_action(
+        request=request, action=AuditLog.Action.UPDATE, model_name="Subscription", object_id=subscription.pk,
+        description=f"Primeiro acesso: termos {snapshot['terms_version']} aceitos, segmentos {', '.join(line['name'] for line in snapshot['price']['lines'])}",
+    )
+    return Response({"summary": snapshot, "trial_ends_at": subscription.trial_ends_at, "subscription": OrganizationSerializer(org).data["subscription"]})
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def subscription_payment_method_view(request):
+    from apps.billing.onboarding import set_payment_method
+
+    org, error = _admin_subscription(request, "Somente o administrador define a forma de pagamento.")
+    if error:
+        return error
+    subscription = set_payment_method(org.subscription, request.data.get("payment_method"))
+    return Response({"preferred_payment_method": subscription.preferred_payment_method})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def subscription_subscribe_view(request):
+    """Confirm the paid subscription at (or before) the end of the free trial."""
+    from apps.audit.models import AuditLog
+    from apps.audit.services import record_client_action
+    from apps.billing.onboarding import subscribe
+
+    org, error = _admin_subscription(request, "Somente o administrador confirma a assinatura.")
+    if error:
+        return error
+    subscription, invoice = subscribe(org, payment_method=str(request.data.get("payment_method") or ""))
+    record_client_action(
+        request=request, action=AuditLog.Action.UPDATE, model_name="Subscription", object_id=subscription.pk,
+        description=f"Assinatura confirmada após o período gratuito ({subscription.preferred_payment_method})",
+    )
+    org.refresh_from_db()
+    return Response({
+        "subscription": OrganizationSerializer(org).data["subscription"],
+        "invoice": {"id": str(invoice.id), "number": invoice.number, "total": str(invoice.total), "due_date": invoice.due_date} if invoice else None,
+    })
 
 
 @api_view(["GET"])

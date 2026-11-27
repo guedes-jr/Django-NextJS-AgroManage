@@ -70,6 +70,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     force_password_change = models.BooleanField(default=False)
+    # Short welcome tour shown once after the first-access subscription (web and mobile).
+    welcome_tour_pending = models.BooleanField(default=False)
     session_version = models.PositiveBigIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

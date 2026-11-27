@@ -179,7 +179,7 @@ never edited in the UI and no opening balance is presumed.
 
 The homepage `SegmentOverview` separates implemented workflows from commercial availability. Its read-only `publicSegments` service reads `/public/plan-segments/` without tenant credentials; only public segments with pricing tiers receive plan CTAs. Empty, loading and failed catalogs must not fabricate offers. Beef/dairy modules without a public offer direct visitors to contact; birds remain identified as in development. Preserve custom public-catalog copy and localize built-in descriptions in all four public languages.
 
-The public `PlanBuilder` uses `publicPlanCatalog` for validated public segments, active tiers, prices, icons and per-segment annual discounts. Do not restore hardcoded offers, fallback prices or preselected products. Selection is keyed by tier ID, not array position. `/planos?segmento=CODE` preselects only an existing offer. Empty/unavailable catalogs block checkout; quote creation remains server-authoritative through `/public/subscription-quotes/` with selected IDs and billing cycle.
+The public `PlanBuilder` uses `publicPlanCatalog` for validated public segments, active tiers, prices, icons and per-segment annual discounts. Do not restore hardcoded offers, fallback prices or preselected products. Selection is keyed by tier ID, not array position. `/assinatura?segmento=CODE` preselects only an existing offer (`/planos` redirects permanently). The landing `SubscriptionPricing` section lists the same catalog (prices and tier ranges) without hardcoded values. Empty/unavailable catalogs block checkout; quote creation remains server-authoritative through `/public/subscription-quotes/` with selected IDs and billing cycle.
 
 ## Dairy milk and feeding worksheets
 

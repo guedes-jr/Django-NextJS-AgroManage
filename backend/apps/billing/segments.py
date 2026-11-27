@@ -32,11 +32,18 @@ class Segment:
     api_prefixes: tuple = field(default_factory=tuple)
     # Segment granted by role to the veterinarian (not chosen in Membros).
     veterinary: bool = False
+    # Codes stored in finance.Transaction.segmento and inventory ItemEstoque/FormulaRacao.segmento
+    # (older tables keep "suinos" for Suinocultura). Defaults to the segment code.
+    data_codes: tuple = ()
+
+    @property
+    def stored_codes(self):
+        return self.data_codes or (self.code,)
 
 
 REGISTRY = (
     Segment("plantacoes", "Plantações", api_prefixes=("crops/",)),
-    Segment("suinocultura", "Suinocultura", species="suinos", api_prefixes=("livestock/",)),
+    Segment("suinocultura", "Suinocultura", species="suinos", api_prefixes=("livestock/",), data_codes=("suinocultura", "suinos")),
     Segment("gado-de-corte", "Gado de corte", species="bovinos", production="beef", api_prefixes=("livestock/",)),
     Segment("pecuaria-leiteira", "Pecuária leiteira", species="bovinos", production="dairy", api_prefixes=("livestock/",)),
     Segment("area-veterinario", "Área do veterinário", api_prefixes=("veterinary/",), veterinary=True),
@@ -56,6 +63,29 @@ DEFAULT_SEGMENTS = (CROPS, BEEF, DAIRY, SWINE)
 ENABLED_STATUSES = {"trialing", "active", "past_due"}
 # Codes used before segments were split from herds (kept only for data migrations and old payloads).
 LEGACY_CODES = {"bovinos": (BEEF, DAIRY), "suinos": (SWINE,)}
+
+
+def stored_codes(codes):
+    """Values of ``segmento`` columns (finance, inventory) that belong to the given segment codes."""
+    return {stored for code in codes if code in BY_CODE for stored in BY_CODE[code].stored_codes}
+
+
+def inactive_segments(organization):
+    """Segments removed from (or never added to) the organization's subscription, whatever the
+    billing status. An organization without any subscription item (legacy data) hides nothing."""
+    if organization is None:
+        return set()
+    from .models import SubscriptionItem
+
+    rows = dict(SubscriptionItem.objects.filter(subscription__organization=organization).values_list("segment_code", "is_active"))
+    if not rows:
+        return set()
+    return {code for code in ALL_SEGMENTS if not rows.get(code)}
+
+
+def inactive_stored_codes(organization):
+    """``segmento`` values of the inactive segments (finance and inventory rows hidden from the organization)."""
+    return stored_codes(inactive_segments(organization))
 
 
 def species_for(codes):

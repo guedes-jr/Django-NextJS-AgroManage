@@ -36,12 +36,19 @@ export const userSchema = z.object({
     segment_features: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
     // "suspended": the API answers 402 outside the payment screen (see backend enforce_request).
     subscription_status: z.string().nullable().optional(),
+    // Screen that replaces the app: first access, free trial over or suspended (backend access_stage).
+    access_stage: z.enum(['onboarding', 'trial_expired', 'suspended']).nullable().optional(),
+    trial_ends_at: z.string().nullable().optional(),
+    welcome_tour_pending: z.boolean().optional(),
   }),
 });
 export type User = z.infer<typeof userSchema>;
 export const VETERINARY_SEGMENT = 'area-veterinario';
 /** Subscription suspended for non-payment: only the payment screen opens. */
 export const isSuspended = (user: Pick<User, 'access'>) => user.access.subscription_status === 'suspended';
+/** First access pending (segments, price and terms) or free trial over (subscription confirmation). */
+export const isOnboarding = (user: Pick<User, 'access'>) => user.access.access_stage === 'onboarding';
+export const isTrialExpired = (user: Pick<User, 'access'>) => user.access.access_stage === 'trial_expired';
 export const isVeterinarian = (user: Pick<User, 'access'>) => user.access.role === 'veterinarian';
 /** Operator and veterinarian only open the segments enabled for them in Membros. */
 export const isScoped = (access: User['access']) => access.role === 'operator' || access.role === 'veterinarian';

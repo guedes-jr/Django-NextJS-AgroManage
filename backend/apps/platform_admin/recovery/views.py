@@ -100,7 +100,7 @@ class RecoveryViewSet(viewsets.GenericViewSet):
         page = self.paginate_queryset(list(package.rows[label].values()))
         model = apps.get_model(label)
         ids = [mapping[str(row[model._meta.pk.name])] for row in page if not package.shared(label, row)]
-        restored = {str(row[model._meta.pk.name]): row for row in model.objects.filter(pk__in=ids).values(*REGISTRY[label]["fields"])}
+        restored = {str(row[model._meta.pk.name]): row for row in model._base_manager.filter(pk__in=ids).values(*REGISTRY[label]["fields"])}
         return self.get_paginated_response([{"source": row, "restored": restored.get(str(mapping[str(row[model._meta.pk.name])])) if not package.shared(label, row) else None, "reference_only": package.shared(label, row)} for row in page])
 
     @action(detail=True, methods=["get"])

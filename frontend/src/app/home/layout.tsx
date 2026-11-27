@@ -1,7 +1,9 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { getOrganizationAccess, canAccessOrganizationPath, isSuspended, type OrganizationAccess, SUSPENDED_PATH, VETERINARY_PATH, ACCESS_CHANGED_EVENT } from "@/services/organizationAccess";
+import { getOrganizationAccess, canAccessOrganizationPath, stagePath, type OrganizationAccess, SUSPENDED_PATH, ONBOARDING_PATH, VETERINARY_PATH, ACCESS_CHANGED_EVENT } from "@/services/organizationAccess";
+import { TrialBanner } from "@/components/onboarding/TrialBanner";
+import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
 import Link from "next/link";
 import { OrganizationAccessContext } from "@/components/auth/OrganizationAccessContext";
 import { useCallback, useEffect, useState } from "react";
@@ -48,12 +50,13 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
       window.removeEventListener(ACCESS_CHANGED_EVENT, refresh);
     };
   }, []);
-  const suspended = isSuspended(access);
+  // Blocking stage (first access, free trial over, suspended): every route goes to its page and
+  // back home once it is resolved.
+  const stage = stagePath(access);
   useEffect(() => {
-    // Suspended for non-payment: every route goes to the payment page, and back home once paid.
-    if (suspended && pathname !== SUSPENDED_PATH) router.replace(SUSPENDED_PATH);
-    if (!suspended && access && pathname === SUSPENDED_PATH) router.replace("/home");
-  }, [access, suspended, pathname, router]);
+    if (stage && pathname !== stage) router.replace(stage);
+    if (!stage && access && (pathname === SUSPENDED_PATH || pathname === ONBOARDING_PATH)) router.replace("/home");
+  }, [access, stage, pathname, router]);
   useEffect(() => {
     // A veterinarian without other segments works only in the Área do veterinário.
     if (access?.role === "veterinarian" && pathname === "/home" && !(access.segments || []).some(code => code !== "area-veterinario")) router.replace(VETERINARY_PATH);
@@ -76,10 +79,10 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
     };
   }, [closeSidebar, isSidebarOpen]);
 
-  if (suspended) {
+  if (stage) {
     // No sidebar, search, notifications or banners: nothing else is reachable (API answers 402).
     return <OrganizationAccessContext.Provider value={access}><div className="app-workspace" style={{ minHeight: "100dvh", background: "var(--background)" }}>
-      <main className="workspace-content">{pathname === SUSPENDED_PATH ? children : <p role="status">{t("layout.verifyingAccess")}</p>}</main>
+      <main className="workspace-content">{pathname === stage ? children : <p role="status">{t("layout.verifyingAccess")}</p>}</main>
     </div></OrganizationAccessContext.Provider>;
   }
 
@@ -101,9 +104,11 @@ function HomeLayoutContent({ children }: { children: React.ReactNode }) {
         <TopBar onMenuClick={openSidebar} isMenuOpen={isSidebarOpen} />
         <main className="workspace-content flex-grow-1 overflow-auto">
           {!accessLoading && !accessError && <CampaignAlertBanner />}
+          {!accessLoading && !accessError && <TrialBanner access={access} />}
           {accessLoading ? <p role="status">{t("layout.verifyingAccess")}</p> : accessError ? <div className="alert alert-danger" role="alert">{t("layout.permissionsError")}</div> : canAccessOrganizationPath(access,pathname) ? children : <div className="alert alert-info"><h1 className="h5">{t("layout.unauthorizedTitle")}</h1><p>{t("layout.unauthorizedDescription")}</p><Link href="/home" className="btn btn-success">{t("layout.backToDashboard")}</Link></div>}
         </main>
       </div>
+      {access?.welcome_tour_pending && <WelcomeTour />}
     </div></NotificationProvider></OrganizationAccessContext.Provider>
   );
 }

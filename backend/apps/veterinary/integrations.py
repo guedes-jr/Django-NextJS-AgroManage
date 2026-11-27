@@ -184,7 +184,7 @@ def sync_finance(procedure):
     if not on(organization, features.FINANCE):
         return "skipped"
     reference = f"{FINANCE_PREFIX}{procedure.pk}"
-    current = Transaction.objects.filter(organization=organization, reference=reference).first()
+    current = Transaction.all_objects.filter(organization=organization, reference=reference).first()
     if current and current.status == Transaction.Status.CANCELLED:
         return "skipped"
     if procedure.not_done or procedure.value <= 0:
@@ -217,7 +217,7 @@ def sync_finance(procedure):
 def remove_finance(organization, procedure_ids):
     from apps.finance.models import Transaction
 
-    Transaction.objects.filter(
+    Transaction.all_objects.filter(
         organization=organization, reference__in=[f"{FINANCE_PREFIX}{pk}" for pk in procedure_ids],
     ).exclude(status=Transaction.Status.CANCELLED).delete()
 

@@ -12,6 +12,8 @@ from rest_framework.exceptions import NotFound, ValidationError
 from apps.billing import segments as catalog
 from apps.billing.models import DiscountKind, PlanSegment, Subscription, SubscriptionDiscount
 from apps.billing.pricing import breakdown
+from apps.billing import segment_lifecycle as lifecycle
+from apps.billing.models import SegmentStatusEvent
 from apps.billing.subscriptions import add_discount, discount_row, item_snapshot, remove_segment, revoke_discount, set_segment_active, upsert_segment
 from .services import record_platform_action
 
@@ -25,6 +27,8 @@ class SegmentChangeSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     final_monthly_price = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0"), required=False, allow_null=True)
     reason = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    # Removing or inactivating archives the segment's finance launches for good (segment_lifecycle).
+    confirm_finance_removal = serializers.BooleanField(required=False, default=False)
 
 
 class DiscountCreateSerializer(serializers.Serializer):
@@ -63,6 +67,13 @@ def segment_overview(organization):
                 "monthly_price": None if tier.monthly_price is None else str(tier.monthly_price), "requires_quote": tier.requires_quote,
             } for tier in segment.tiers.all() if tier.is_active],
         } for segment in segments],
+        # Audit: removals/re-activations and the finance launches archived (hidden from the client).
+        "events": [{
+            "segment_code": event.segment_code, "action": event.action, "occurred_at": event.occurred_at,
+            "actor": getattr(event.actor, "full_name", "") or getattr(event.actor, "email", ""),
+            "archived_transactions": event.archived_transactions, "archived_revenue": str(event.archived_revenue),
+            "archived_expense": str(event.archived_expense), "invoice_adjustment": event.invoice_adjustment,
+        } for event in SegmentStatusEvent.objects.filter(organization=organization).select_related("actor")[:30]],
     }
 
 
@@ -73,17 +84,32 @@ def change_segment(*, request, organization, data):
     with transaction.atomic():
         subscription = _subscription(organization, lock=True)
         code = values["segment_code"]
+        current = subscription.items.filter(segment_code=code).first()
+        confirm = values["confirm_finance_removal"]
         if values["contracted"] and values.get("active") is not None:
-            item = set_segment_active(subscription, code, values["active"])
+            if values["active"]:
+                item = set_segment_active(subscription, code, True)
+                if not (current and current.is_active):
+                    lifecycle.record_activation(subscription, code, actor=request.user)
+            else:
+                event = lifecycle.deactivate(subscription, code, actor=request.user, confirm_finance=confirm)
+                item = subscription.items.get(segment_code=code)
             action = "subscription.segment_reactivated" if values["active"] else "subscription.segment_deactivated"
             description = f"Segmento {item.segment_name} {'reativado' if values['active'] else 'inativado'}."
             extra = {"after": item_snapshot(item)}
+            if not values["active"]:
+                extra["archived_transactions"] = event.archived_transactions
         elif values["contracted"]:
             item, before = upsert_segment(subscription, code, tier_id=values.get("tier"), quantity=values.get("quantity"), final_monthly_price=values.get("final_monthly_price"))
+            if not (current and current.is_active):
+                lifecycle.record_activation(subscription, code, actor=request.user)
             action = "subscription.segment_updated" if before else "subscription.segment_added"
             description = f"Segmento {item.segment_name} {'atualizado na' if before else 'contratado na'} assinatura."
             extra = {"before": before, "after": item_snapshot(item)}
         else:
+            if current and current.is_active:
+                # Same rules as inactivating (finance archived, billing stops); then the price snapshot goes.
+                lifecycle.deactivate(subscription, code, actor=request.user, confirm_finance=confirm)
             before = remove_segment(subscription, code)
             action, description, extra = "subscription.segment_removed", f"Segmento {before['segment_name']} removido da assinatura.", {"before": before}
         record_platform_action(

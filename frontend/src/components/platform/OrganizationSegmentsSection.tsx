@@ -10,7 +10,7 @@ import { PriceSummary } from "@/components/platform/OrganizationDiscountsSection
 
 const money = (value: string | null) => value === null ? "Sob consulta" : Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-type SegmentChange = { segment_code: string; contracted: boolean; active?: boolean | null; tier?: string; quantity?: number | null; final_monthly_price?: string | null; reason?: string };
+type SegmentChange = { segment_code: string; contracted: boolean; active?: boolean | null; tier?: string; quantity?: number | null; final_monthly_price?: string | null; reason?: string; confirm_finance_removal?: boolean };
 
 function SegmentRow({ segment, canManage, busy, onChange }: {
   segment: OrganizationSegment; canManage: boolean; busy: boolean;
@@ -35,12 +35,12 @@ function SegmentRow({ segment, canManage, busy, onChange }: {
     if (ok) { setEditing(false); setReason(""); }
   };
   const toggle = async (active: boolean) => {
-    if (!active && !window.confirm(`Inativar ${segment.name}? A área some para a organização e deixa de ser cobrada. Faixa e valor negociado ficam guardados para reativar.`)) return;
-    await onChange({ segment_code: segment.code, contracted: true, active, reason: reason.trim() });
+    if (!active && !window.confirm(`Inativar ${segment.name}? A área some para a organização, ninguém registra dados nela e deixa de ser cobrada. Os lançamentos financeiros do segmento são arquivados DEFINITIVAMENTE (só a auditoria os vê; não voltam ao reativar). Animais, plantações e manejos ficam guardados.`)) return;
+    await onChange({ segment_code: segment.code, contracted: true, active, reason: reason.trim(), confirm_finance_removal: !active });
   };
   const remove = async () => {
-    if (!window.confirm(`Remover ${segment.name} da assinatura? Os membros perdem a liberação desta área e o valor negociado é descartado. Para pausar, prefira Inativar.`)) return;
-    await onChange({ segment_code: segment.code, contracted: false, reason: reason.trim() });
+    if (!window.confirm(`Remover ${segment.name} da assinatura? Os membros perdem a liberação desta área, o valor negociado é descartado e os lançamentos financeiros do segmento são arquivados DEFINITIVAMENTE. Os dados operacionais ficam guardados. Para pausar mantendo o preço, prefira Inativar.`)) return;
+    await onChange({ segment_code: segment.code, contracted: false, reason: reason.trim(), confirm_finance_removal: true });
   };
   return <div className={`platform-segment-row ${segment.contracted && !segment.active ? "is-inactive" : ""}`}>
     <div className="platform-segment-summary">
@@ -120,6 +120,13 @@ export function OrganizationSegmentsSection({ organizationId, canManage }: { org
     {!data.subscription ? <div className="alert alert-warning">A organização não possui assinatura. Crie a assinatura antes de contratar segmentos.</div> : <>
       <p className="small text-muted">Assinatura: {data.subscription.status_display}. Segmentos só ficam disponíveis com a assinatura em teste, ativa ou com pagamento pendente. A organização mantém ao menos um segmento; o valor mensal é a soma dos segmentos menos os descontos. Ao remover um segmento, os membros perdem o acesso a ele.</p>
       <div className="platform-card">{data.segments.length ? data.segments.map(segment => <SegmentRow key={`${segment.code}-${segment.item?.tier ?? "none"}-${segment.item?.final_monthly_price ?? ""}-${segment.active}`} segment={segment} canManage={canManage} busy={busy} onChange={change}/>) : <p className="p-3 text-muted mb-0">Nenhum segmento ativo no catálogo.</p>}</div>
+      {!!data.events?.length && <div className="platform-card mt-3">
+        <h3 className="h6 fw-bold mb-2">Histórico de segmentos (auditoria)</h3>
+        <ul className="list-unstyled small mb-0">{data.events.map(event => <li key={`${event.segment_code}-${event.occurred_at}`} className="py-1 border-bottom">
+          <strong>{data.segments.find(row => row.code === event.segment_code)?.name ?? event.segment_code}</strong> · {event.action === "deactivated" ? "Removido" : "Ativado"} em {new Date(event.occurred_at).toLocaleString("pt-BR")}{event.actor ? ` por ${event.actor}` : ""}
+          {event.action === "deactivated" && <span className="text-muted"> · {event.archived_transactions} lançamento(s) arquivado(s) (receitas {money(event.archived_revenue)}; despesas {money(event.archived_expense)}){event.invoice_adjustment === "kept_gateway" ? " · fatura já enviada ao gateway: ajustar manualmente" : event.invoice_adjustment ? ` · próxima fatura: ${event.invoice_adjustment}` : ""}</span>}
+        </li>)}</ul>
+      </div>}
     </>}
   </section>;
 }

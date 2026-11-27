@@ -7,6 +7,7 @@ from functools import wraps
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Model, Q
+from django.utils import timezone
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
 
@@ -30,6 +31,18 @@ SPECIES_PATHS = {
     "LitterMedication": ["batch__species"],
     "HistoricoEvento": ["matriz__species", "lote__species"],
     "ConsumoRacao": ["lote_animal__species", "animais__species"],
+}
+# Tables of one cattle production or of cattle only (farm scoped, no species/purpose on the row).
+DAIRY_ONLY_MODELS = {"CattleMilkDailyTotal", "DairyWorksheetState", "DairyWorksheetCommand", "MilkTank", "MilkTankMovement", "MilkTankQuality"}
+CATTLE_ONLY_MODELS = {
+    "CattlePasture", "CattleGrazing", "CattleAnimalProfile", "CattleManagement", "CattleManagementEntry", "CattleFeedPlan",
+    "CattleFeedDelivery", "CattleTroughReading", "CattlePurposeChange", "CattleTransfer", "CattleOccurrence", "CattleProtocol",
+    "CattleProtocolRun", "CattleProtocolStep",
+}
+# Inventory rows owned by a segment through ``segmento`` ("" = shared by every segment).
+INVENTORY_SEGMENT_PATHS = {
+    "ItemEstoque": "segmento", "FormulaRacao": "segmento", "LoteEstoque": "item__segmento",
+    "MovimentacaoEstoque": "item__segmento", "AlertaEstoque": "item__segmento", "ProducaoRacao": "formula__segmento",
 }
 OPERATIONAL_MODELS = {
     "CattleMilkDailyTotal",
@@ -104,7 +117,16 @@ def effective_access(user):
         "segment_features": feature_map(user.organization),
         # "suspended": clients send every route to the payment page (see enforce_request).
         "subscription_status": subscription_status(user),
+        # "onboarding" | "trial_expired" | "suspended" | None: the screen that replaces the workspace.
+        "access_stage": access_stage(user),
+        "trial_ends_at": _trial_ends_at(user),
+        "welcome_tour_pending": bool(getattr(user, "welcome_tour_pending", False)),
     }
+
+
+def _trial_ends_at(user):
+    row = _subscription_row(user)
+    return row["trial_ends_at"].isoformat() if row and row["status"] == "trialing" and row["trial_ends_at"] else None
 
 
 VETERINARIAN_PATHS = (
@@ -139,8 +161,18 @@ def _segment_path_allowed(granted, path):
     """Module paths follow the segments the user can open (contracted ∩ role scope)."""
     from apps.billing import segments as catalog
 
-    if path.startswith("crops/"):
+    if path.startswith(("crops/", "reports/crops/")):
         return catalog.CROPS in granted
+    if path.startswith(("reports/livestock/productivity", "reports/livestock/lot-indicators")):
+        return catalog.SWINE in granted
+    if path.startswith("reports/livestock/"):
+        return any(code in granted for code in catalog.LIVESTOCK_SEGMENTS)
+    if path.startswith(("livestock/cattle/milk", "livestock/cattle/dairy-")):
+        return catalog.DAIRY in granted
+    if path.startswith("livestock/cattle/"):
+        return any(code in granted for code in catalog.CATTLE_SEGMENTS)
+    if path.startswith(("livestock/swine/", "livestock/semen-sales", "livestock/semen-collections")):
+        return catalog.SWINE in granted
     if path.startswith("livestock/"):
         return any(code in granted for code in catalog.LIVESTOCK_SEGMENTS)
     if path == "veterinary" or path.startswith("veterinary/"):
@@ -170,7 +202,7 @@ def request_allowed(user, request):
     role = getattr(user, "role", None)
     path = request.path.removeprefix("/api/v1/").strip("/")
     if role in ("admin", "manager"):
-        gated = path.startswith(("crops/", "livestock/", "veterinary/")) or path == "veterinary"
+        gated = path.startswith(("crops/", "livestock/", "veterinary/", "reports/crops/", "reports/livestock/")) or path == "veterinary"
         if not gated:
             return True
         granted = _request_segments(user, request)
@@ -230,6 +262,13 @@ SUSPENDED_PATHS = (
     "auth/me", "auth/token", "auth/logout", "auth/preferences", "auth/change-password",
     "auth/force-change-password", "organizations/me/invoices",
 )
+# First access pending (self-service signup): only the session and the onboarding endpoints.
+ONBOARDING_PATHS = (
+    "auth/me", "auth/token", "auth/logout", "auth/preferences", "auth/change-password",
+    "auth/force-change-password", "organizations/me/onboarding", "public",
+)
+# Free trial over: the session, the subscription confirmation and the plan invoices.
+TRIAL_EXPIRED_PATHS = SUSPENDED_PATHS + ("organizations/me/subscription/subscribe", "organizations/me/subscription/payment-method", "public")
 
 
 class SubscriptionSuspended(APIException):
@@ -238,37 +277,100 @@ class SubscriptionSuspended(APIException):
     default_detail = translate_message_lazy("Acesso suspenso por falta de pagamento. Regularize a fatura vencida para reativar.")
 
 
-def subscription_status(user, request=None):
-    """Status of the user's organization subscription (cached on the request)."""
-    cached = getattr(request, "_fm_subscription_status", None) if request is not None else None
+class _StageBlocked(APIException):
+    """402 whose body names the stage, so clients open the right screen (see frontend api.ts)."""
+    status_code = 402
+    stage = ""
+    message = ""
+
+    def __init__(self):
+        super().__init__(detail={"detail": str(self.message), "code": self.stage})
+
+
+class OnboardingRequired(_StageBlocked):
+    stage = "onboarding_required"
+    message = translate_message_lazy("Conclua o primeiro acesso: escolha os segmentos e aceite os termos da assinatura.")
+
+
+class TrialExpired(_StageBlocked):
+    stage = "trial_expired"
+    message = translate_message_lazy("O período gratuito terminou. Confirme a assinatura para continuar usando o sistema.")
+
+
+def _subscription_row(user, request=None):
+    cached = getattr(request, "_fm_subscription_row", None) if request is not None else None
     if cached is not None:
         return cached[0]
     from apps.billing.models import Subscription
 
     organization_id = getattr(user, "organization_id", None)
-    status = Subscription.objects.filter(organization_id=organization_id).values_list("status", flat=True).first() if organization_id else None
+    row = Subscription.objects.filter(organization_id=organization_id).values(
+        "status", "onboarding_required", "onboarding_completed_at", "trial_ends_at",
+    ).first() if organization_id else None
     if request is not None:
         try:
-            request._fm_subscription_status = (status,)
+            request._fm_subscription_row = (row,)
         except AttributeError:
             pass
-    return status
+    return row
 
 
-def suspended_request_allowed(request):
+def subscription_status(user, request=None):
+    """Status of the user's organization subscription (cached on the request)."""
+    row = _subscription_row(user, request)
+    return row["status"] if row else None
+
+
+def access_stage(user, request=None):
+    """What the client must show instead of the workspace: "onboarding", "trial_expired",
+    "suspended" or None (normal access)."""
+    row = _subscription_row(user, request)
+    if not row:
+        return None
+    if row["onboarding_required"] and row["onboarding_completed_at"] is None:
+        return "onboarding"
+    if row["status"] == "suspended":
+        return "suspended"
+    if row["status"] == "trialing" and row["trial_ends_at"] and row["trial_ends_at"] <= timezone.now():
+        return "trial_expired"
+    return None
+
+
+def _path_in(request, paths):
     path = request.path.removeprefix("/api/v1/").strip("/")
     if path == "organizations/me":
         return request.method in SAFE_METHODS
-    return any(path == prefix or path.startswith(prefix + "/") for prefix in SUSPENDED_PATHS)
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in paths)
+
+
+def suspended_request_allowed(request):
+    return _path_in(request, SUSPENDED_PATHS)
 
 
 def enforce_request(user, request):
-    if subscription_status(user, request) == "suspended" and not suspended_request_allowed(request):
+    stage = access_stage(user, request)
+    if stage == "suspended" and not suspended_request_allowed(request):
         raise SubscriptionSuspended()
+    if stage == "onboarding" and not _path_in(request, ONBOARDING_PATHS):
+        raise OnboardingRequired()
+    if stage == "trial_expired" and not _path_in(request, TRIAL_EXPIRED_PATHS):
+        raise TrialExpired()
     if not request_allowed(user, request):
         raise PermissionDenied(
             translate_message("Seu perfil não permite acessar esta área. Solicite autorização ao administrador.")
         )
+
+
+def ensure_in_segment_scope(instance, user):
+    """A saved row of a segment the user cannot open (inactive segment, other production) rolls back."""
+    if not isinstance(instance, Model):
+        return
+    model = type(instance)
+    if model.__name__ not in SPECIES_PATHS and model.__name__ not in INVENTORY_SEGMENT_PATHS:
+        if model.__name__ not in DAIRY_ONLY_MODELS | CATTLE_ONLY_MODELS:
+            return
+    if not scoped_queryset(model._default_manager.filter(pk=instance.pk), user).exists():
+        raise PermissionDenied(translate_message("Este segmento não está ativo na sua organização. Ative-o em Configurações › Assinatura para registrar dados nele."))
 
 
 def species_codes(user):
@@ -277,29 +379,118 @@ def species_codes(user):
     return catalog.species_for(catalog.user_segments(user))
 
 
+def _granted(user):
+    """Segments the user opens now (contracted ∩ role scope). Read fresh: the same user object can
+    cross requests (tests, force_authenticate) and segments change at any time."""
+    from apps.billing import segments as catalog
+
+    return frozenset(catalog.user_segments(user))
+
+
+def _purpose_path(model, path):
+    """``…cattle_purpose`` next to a species path when the row (or its animal/batch) has a purpose."""
+    from django.core.exceptions import FieldDoesNotExist
+
+    prefix = path[: -len("species")] if path.endswith("species") else None
+    if prefix is None:
+        return None
+    target = model
+    try:
+        for part in [part for part in prefix.split("__") if part]:
+            target = target._meta.get_field(part).related_model
+        target._meta.get_field("cattle_purpose")
+    except (FieldDoesNotExist, AttributeError):
+        return None
+    return f"{prefix}cattle_purpose"
+
+
+def segment_rows_q(model, granted, keep_unsegmented=False):
+    """Rows of a species model that belong to the given segments, or None for other models.
+
+    Cattle rows follow the production: with only Gado de corte (or only Pecuária leiteira) the other
+    purpose is left out; "dual" and "unknown" animals belong to either cattle segment."""
+    from apps.billing import segments as catalog
+
+    paths = SPECIES_PATHS.get(model.__name__)
+    if not paths:
+        return None
+    species = catalog.species_for(granted)
+    productions = catalog.productions_for(granted)
+    split = "bovinos" in species and productions != {"beef", "dairy"}
+    purposes = {"unknown", "dual", ""} | productions
+    every_species = catalog.species_for(catalog.ALL_SEGMENTS)
+    query = Q()
+    for path in paths:
+        code = f"{path}__code" if path else "code"
+        clause = Q(**{f"{code}__in": species - {"bovinos"} if split else species})
+        if keep_unsegmented:
+            # Species outside the segment catalog belong to no segment: nothing hides them.
+            clause |= ~Q(**{f"{code}__in": every_species})
+        if split:
+            purpose = _purpose_path(model, path) if path else None
+            cattle = Q(**{code: "bovinos"})
+            clause |= cattle & Q(**{f"{purpose}__in": purposes}) if purpose else cattle
+        query |= clause
+    return query
+
+
+def _scope_rows(queryset, granted, hidden_codes):
+    from apps.billing import segments as catalog
+
+    name = queryset.model.__name__
+    inventory = INVENTORY_SEGMENT_PATHS.get(name)
+    if inventory:
+        return queryset.exclude(**{f"{inventory}__in": hidden_codes}) if hidden_codes else queryset
+    if queryset.model._meta.app_label != "livestock" or not set(catalog.LIVESTOCK_SEGMENTS) - set(granted):
+        return queryset
+    if name in DAIRY_ONLY_MODELS:
+        return queryset if catalog.DAIRY in granted else queryset.none()
+    if name in CATTLE_ONLY_MODELS:
+        return queryset if set(granted) & set(catalog.CATTLE_SEGMENTS) else queryset.none()
+    query = segment_rows_q(queryset.model, granted, keep_unsegmented=True)
+    if query is None:
+        return queryset
+    result = queryset.filter(query)
+    if name == "ConsumoRacao":
+        # Consumption with several animals: hidden when any of them belongs to a hidden segment.
+        result = result.exclude(pk__in=queryset.exclude(query).values("pk"))
+    return result.distinct()
+
+
+def segment_scoped_queryset(queryset, user):
+    """Hide rows of segments the user cannot open (inactive for the organization or out of the
+    member's scope). Platform audit and exports read the tables directly and keep every row."""
+    from apps.billing import segments as catalog
+
+    return _scope_rows(queryset, _granted(user), catalog.inactive_stored_codes(getattr(user, "organization", None)))
+
+
+def organization_scoped_queryset(queryset, organization):
+    """Same as segment_scoped_queryset for background work without a user (alerts, reports
+    services): only the segments active in the organization's subscription."""
+    from apps.billing import segments as catalog
+
+    inactive = catalog.inactive_segments(organization)
+    if not inactive:
+        return queryset
+    return _scope_rows(queryset, set(catalog.ALL_SEGMENTS) - inactive, catalog.stored_codes(inactive))
+
+
 def scoped_queryset(queryset, user):
     if not is_operator(user):
-        return queryset
-    if queryset.model.__name__ == "CattleMilkDailyTotal":
-        return queryset if "bovinos" in species_codes(user) else queryset.none()
-    paths = SPECIES_PATHS.get(queryset.model.__name__)
-    if paths:
-        query = Q()
-        for path in paths:
-            query |= Q(
-                **{f"{path}__code__in" if path else "code__in": species_codes(user)}
-            )
-        if queryset.model.__name__ == "Disease":
+        return segment_scoped_queryset(queryset, user)
+    name = queryset.model.__name__
+    if name in INVENTORY_SEGMENT_PATHS:
+        return segment_scoped_queryset(queryset, user)
+    if name in DAIRY_ONLY_MODELS | CATTLE_ONLY_MODELS:
+        return segment_scoped_queryset(queryset, user) if "bovinos" in species_codes(user) else queryset.none()
+    query = segment_rows_q(queryset.model, _granted(user))
+    if query is not None:
+        if name == "Disease":
             query |= Q(species__isnull=True)
         result = queryset.filter(query).distinct()
-        if queryset.model.__name__ in ("ConsumoRacao", "SanitaryAlert"):
-            from apps.livestock.models import Species
-
-            forbidden = Species.objects.exclude(code__in=species_codes(user)).values(
-                "pk"
-            )
-            for path in paths:
-                result = result.exclude(**{f"{path}__in": forbidden})
+        if name in ("ConsumoRacao", "SanitaryAlert"):
+            result = result.exclude(pk__in=queryset.exclude(query).values("pk"))
         return result
     # Non-species clinical catalogs are shared; farm scoping stays in the view.
     if (
@@ -543,14 +734,15 @@ def operator_scoped(cls):
     def guarded_initial(self, request, *args, **kwargs):
         initial(self, request, *args, **kwargs)
         enforce_request(request.user, request)
+        requested_species = request.query_params.get("species")
+        if requested_species and self.__module__.endswith("livestock.views") and requested_species not in species_codes(request.user):
+            from apps.billing import segments as catalog
+
+            # Admin and manager: only herds of a segment that is not active (others are unsegmented).
+            if is_operator(request.user) or requested_species in catalog.species_for(catalog.ALL_SEGMENTS):
+                raise PermissionDenied(translate_message("Rebanho não autorizado."))
         if not is_operator(request.user):
             return
-        if (
-            request.query_params.get("species")
-            and self.__module__.endswith("livestock.views")
-            and request.query_params["species"] not in species_codes(request.user)
-        ):
-            raise PermissionDenied(translate_message("Rebanho não autorizado."))
         if request.method not in SAFE_METHODS:
             if isinstance(request.data, dict) and request.data.get("status") in (
                 "sold",
@@ -693,6 +885,7 @@ def operator_scoped(cls):
                                 )
                     with transaction.atomic():
                         original(self, serializer)
+                        ensure_in_segment_scope(serializer.instance, self.request.user)
                         if (
                             creating
                             and is_operator(self.request.user)
