@@ -28,3 +28,18 @@ def expire_subscription_quotes():
     return SubscriptionQuote.objects.filter(status=SubscriptionQuote.Status.DRAFT, expires_at__lte=timezone.now()).update(
         status=SubscriptionQuote.Status.EXPIRED, updated_at=timezone.now(),
     )
+
+
+@shared_task
+def run_recurring_billing():
+    """Daily cycle invoices, gateway charges, period rollover and delinquency (off by setting)."""
+    from .recurring import run_cycle
+
+    return run_cycle()
+
+
+@shared_task
+def reconcile_gateway_payments():
+    from .recurring import enabled, reconcile_pending_payments
+
+    return reconcile_pending_payments() if enabled() else 0

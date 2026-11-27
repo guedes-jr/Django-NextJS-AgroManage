@@ -25,9 +25,10 @@ class AsaasGateway(BasePaymentGateway):
     provider_code = "asaas"
     display_name = "Asaas"
     credential_fields = ("api_key", "webhook_token")
-    supported_methods = ("pix", "boleto", "credit_card")
+    # "any": the customer picks PIX, boleto or card on the Asaas invoice page.
+    supported_methods = ("any", "pix", "boleto", "credit_card")
     base_urls = {"sandbox": "https://api-sandbox.asaas.com/v3", "production": "https://api.asaas.com/v3"}
-    billing_types = {"pix": "PIX", "boleto": "BOLETO", "credit_card": "CREDIT_CARD"}
+    billing_types = {"any": "UNDEFINED", "pix": "PIX", "boleto": "BOLETO", "credit_card": "CREDIT_CARD"}
     statuses = {
         "PENDING": "pending", "AWAITING_RISK_ANALYSIS": "pending", "OVERDUE": "pending",
         "RECEIVED": "succeeded", "CONFIRMED": "succeeded", "RECEIVED_IN_CASH": "succeeded",
@@ -102,7 +103,7 @@ class AsaasGateway(BasePaymentGateway):
     def create_charge(self, request: GatewayChargeRequest) -> GatewayResult:
         billing_type = self.billing_types.get(request.payment_method)
         if not billing_type:
-            raise PaymentGatewayError("O Asaas aceita PIX, boleto ou cartão de crédito.")
+            raise PaymentGatewayError("O Asaas aceita PIX, boleto, cartão de crédito ou escolha do cliente.")
         if request.currency.upper() != "BRL":
             raise PaymentGatewayError("O Asaas cobra somente em reais (BRL).")
         reference = (request.idempotency_key or request.reference)[:100]

@@ -13,6 +13,15 @@ export const organizationSchema=z.object({
  subscription:z.object({status:s,items:z.array(z.object({id:z.string(),segment_name:s,tier_label:s,final_monthly_price:money}).passthrough()).optional().default([])}).passthrough().nullable().optional(),
 });
 export type Organization=z.infer<typeof organizationSchema>;
+/** Plan invoices (GET organizations/me/invoices/): admin and manager, same as the web Plan panel. */
+export const planInvoicesSchema=z.object({subscription_status:s,results:z.array(z.object({
+ id:z.string(),number:z.string(),status:z.string(),due_date:z.string(),total:z.string(),balance:z.string(),overdue:z.boolean(),payment_url:z.string().optional().default(''),notes:z.string().optional().default(''),
+}).passthrough())});
+export type PlanInvoices=z.infer<typeof planInvoicesSchema>;
+export type InvoiceState='open'|'overdue'|'paid'|'void';
+export function invoiceState(row:PlanInvoices['results'][number]):InvoiceState{return row.status==='paid'?'paid':row.overdue?'overdue':row.status==='void'||row.status==='uncollectible'?'void':'open';}
+/** Only gateway links on https are opened outside the app. */
+export function safePaymentUrl(value:string){try{const url=new URL(value);return url.protocol==='https:'?url.href:null;}catch{return null;}}
 export const organizationUpdateSchema=z.object({name:z.string().trim().min(2).max(255),email:z.union([z.literal(''),z.email()]),phone:z.string().trim().max(30)});
 export type OrganizationUpdate=z.input<typeof organizationUpdateSchema>;
 /** Human-readable line for an address returned by the API, whatever its naming. */

@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { type TranslationKey, useOrganizationLocale } from "@/lib/locale";
 import { apiClient } from "@/services/api";
 import { memberError } from "@/services/memberService";
+import { PlanInvoices } from "@/components/settings/PlanInvoices";
 
 export type PriceDiscount = { id: string; description: string; kind: string; source: string; amount: string };
 export type PriceBreakdown = {
@@ -93,6 +94,7 @@ export function SubscriptionPanel({ price, statusLabel, billingCycle, canManage,
       </form>
     </section>
 
+    <PlanInvoices/>
     <section className="settings-section">
       <header className="settings-section-header"><div><h2>{t("subscription.limits")}</h2></div></header>
       <div className="usage-grid">{usage.map(row => <div key={row.label}>

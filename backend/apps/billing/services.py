@@ -125,15 +125,9 @@ def record_manual_payment(*, invoice, amount, payment_method="manual", external_
         metadata={"notes": notes},
     )
     PaymentAttempt.objects.create(payment=payment, succeeded=True)
-    invoice.amount_paid += amount
-    if invoice.amount_paid >= invoice.total:
-        invoice.status = Invoice.Status.PAID
-        invoice.paid_at = max(invoice.payments.filter(status=Payment.Status.SUCCEEDED).values_list("paid_at", flat=True))
-    invoice.save(update_fields=["amount_paid", "status", "paid_at", "updated_at"])
-    if invoice.status == Invoice.Status.PAID:
-        from apps.affiliates.services import create_commission_for_paid_invoice
+    from .recurring import settle_invoice
 
-        create_commission_for_paid_invoice(invoice=invoice, payment=payment)
+    settle_invoice(invoice, payment)
     return payment
 
 

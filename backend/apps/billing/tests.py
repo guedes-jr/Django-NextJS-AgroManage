@@ -185,7 +185,7 @@ class AsaasGatewayTestCase(APITestCase):
 
     def test_registered_with_methods_and_seeded(self):
         self.assertEqual(self.gateway.provider_code, "asaas")
-        self.assertEqual(set(self.gateway.supported_methods), {"pix", "boleto", "credit_card"})
+        self.assertEqual(set(self.gateway.supported_methods), {"any", "pix", "boleto", "credit_card"})
         self.assertEqual(self.gateway.base_url, "https://api-sandbox.asaas.com/v3")
 
     @patch("apps.billing.gateways.asaas.AsaasGateway._urlopen")

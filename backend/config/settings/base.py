@@ -275,6 +275,12 @@ AI_MODEL_SYNC_DAY_OF_WEEK = env("AI_MODEL_SYNC_DAY_OF_WEEK", default="monday")
 AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
 AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
 AI_MODEL_CATALOG_STALE_DAYS = env.int("AI_MODEL_CATALOG_STALE_DAYS", default=14)
+# Recurring billing (apps/billing/recurring.py). Off until the platform decides the start date.
+BILLING_AUTO_INVOICING_ENABLED = env.bool("BILLING_AUTO_INVOICING_ENABLED", default=False)
+BILLING_INVOICE_LEAD_DAYS = env.int("BILLING_INVOICE_LEAD_DAYS", default=7)
+BILLING_SUSPEND_AFTER_DAYS = env.int("BILLING_SUSPEND_AFTER_DAYS", default=15)
+BILLING_DEFAULT_PAYMENT_METHOD = env("BILLING_DEFAULT_PAYMENT_METHOD", default="any")
+
 CELERY_BEAT_SCHEDULE = {
     "agenda-whatsapp-reminders": {"task": "apps.tasks.tasks.collect_agenda_reminders", "schedule": 60.0},
     "organization-recovery-maintenance": {"task": "apps.platform_admin.tasks.maintain_organization_recoveries", "schedule": 60.0},
@@ -282,6 +288,8 @@ CELERY_BEAT_SCHEDULE = {
     "organization-batch-resume": {"task": "apps.platform_admin.tasks.resume_organization_batches", "schedule": 60.0},
     "organization-quota-snapshots": {"task": "apps.platform_admin.tasks.refresh_organization_quota_snapshots", "schedule": 3600.0},
     "organization-adoption": {"task": "apps.platform_admin.tasks.refresh_organization_adoption", "schedule": 3600.0},
+    "billing-recurring-cycle": {"task": "apps.billing.tasks.run_recurring_billing", "schedule": crontab(minute=20, hour=6)},
+    "billing-reconcile-payments": {"task": "apps.billing.tasks.reconcile_gateway_payments", "schedule": crontab(minute=40)},
     "billing-expire-quotes": {"task": "apps.billing.tasks.expire_subscription_quotes", "schedule": crontab(minute=5, hour=1)},
     "organization-storage-reconciliation": {"task": "apps.billing.tasks.reconcile_organization_storage", "schedule": crontab(minute=15, hour=2)},
     "marketing-outbox": {"task": "apps.notifications.tasks.process_marketing_outbox", "schedule": 60.0},

@@ -296,6 +296,7 @@ export class SessionController {
   lowStockReport(signal?:AbortSignal){return this.reportRead('low-stock',tokens=>this.api.lowStockReport(tokens,this.language,signal));}
   expiryReport(days:number,signal?:AbortSignal){return this.reportRead('expiry',tokens=>this.api.expiryReport(tokens,this.language,days,signal));}
   herdInventoryReport(signal?:AbortSignal){return this.reportRead('herd',tokens=>this.api.herdInventoryReport(tokens,this.language,signal));}
+  planInvoices(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.planInvoices(tokens,this.language,signal));}
   myOrganization(signal?:AbortSignal){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.myOrganization(tokens,this.language,signal));}
   updateOrganization(input:OrganizationUpdate){if(this.state.status!=='signedIn'||!canEditOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(async tokens=>{const user=await this.api.user(tokens,this.language);if(!canEditOrganization(user))throw new AuthFailure('unsupported');return this.api.updateOrganization(tokens,this.language,input);});}
   private inventorySaving=false;

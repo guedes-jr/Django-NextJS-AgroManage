@@ -55,3 +55,31 @@ def public_subscription_quote_detail(request, public_token):
         quote.status = SubscriptionQuote.Status.EXPIRED
         quote.save(update_fields=("status", "updated_at"))
     return Response(PublicSubscriptionQuoteSerializer(quote).data)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def gateway_webhook(request, provider):
+    """Payment notifications. The gateway adapter authenticates the call (token/HMAC) and parses it;
+    unknown charges are acknowledged so the provider does not retry forever."""
+    import logging
+
+    from .gateways.base import PaymentGatewayError
+    from .gateways.registry import gateway_registry
+    from .models import PaymentGatewayConfiguration
+    from .recurring import apply_gateway_status
+
+    configuration = PaymentGatewayConfiguration.objects.filter(provider=provider, is_enabled=True).first()
+    if configuration is None:
+        return Response({"detail": "Gateway não habilitado."}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        result = gateway_registry.create(configuration).parse_webhook(request.body, dict(request.headers))
+    except PaymentGatewayError as exc:
+        logging.getLogger(__name__).warning("Rejected %s webhook: %s", provider, exc)
+        return Response({"detail": "Notificação recusada."}, status=status.HTTP_401_UNAUTHORIZED)
+    apply_gateway_status(provider, result.external_id, result.status)
+    return Response({"received": True})
+
+
+gateway_webhook.cls.authentication_classes = []
+gateway_webhook.cls.throttle_classes = []

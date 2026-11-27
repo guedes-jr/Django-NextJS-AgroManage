@@ -398,3 +398,31 @@ def subscription_coupon_view(request):
     discount = redeem_coupon(org.subscription, request.data.get("code"), actor=request.user)
     record_client_action(request=request, action=AuditLog.Action.UPDATE, model_name="SubscriptionDiscount", object_id=discount.pk, description=f"Cupom aplicado: {discount.description}")
     return Response(breakdown(org.subscription), status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_invoices_view(request):
+    """Plan invoices of the organization with the open charge link (admin and manager, as the Financeiro)."""
+    from apps.billing.models import Invoice, Payment
+
+    user = request.user
+    org = getattr(user, "organization", None)
+    if not org or user.role not in ("admin", "manager"):
+        return Response({"detail": translate_message("Sem acesso às faturas do plano.")}, status=status.HTTP_403_FORBIDDEN)
+    rows = []
+    invoices = Invoice.objects.filter(organization=org).exclude(status=Invoice.Status.DRAFT).prefetch_related("payments").order_by("-due_date")[:24]
+    today = timezone.localdate()
+    for invoice in invoices:
+        pending = next((row for row in invoice.payments.all() if row.status == Payment.Status.PENDING and row.provider != "manual"), None)
+        meta = pending.metadata if pending else {}
+        open_balance = invoice.total - invoice.amount_paid
+        rows.append({
+            "id": str(invoice.pk), "number": invoice.number, "status": invoice.status, "due_date": invoice.due_date,
+            "total": str(invoice.total), "amount_paid": str(invoice.amount_paid), "balance": str(max(open_balance, Decimal("0.00"))),
+            "overdue": invoice.status in {Invoice.Status.OPEN, Invoice.Status.OVERDUE} and open_balance > 0 and invoice.due_date < today,
+            "paid_at": invoice.paid_at, "notes": invoice.notes,
+            "payment_url": meta.get("payment_url", ""), "pix_copy_paste": meta.get("pix_copy_paste", ""),
+        })
+    subscription = getattr(org, "subscription", None)
+    return Response({"subscription_status": getattr(subscription, "status", None), "results": rows})
