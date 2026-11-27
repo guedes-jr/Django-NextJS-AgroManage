@@ -1,0 +1,53 @@
+import type {Language} from '../../i18n/messages';
+
+/* Backoffice (platform team) — same vocabulary as the web /platform. */
+const pt={
+ title:'Plataforma',subtitle:'Central da equipe Fazenda Mais',logout:'Sair',back:'Voltar',loading:'Carregando…',error:'Não foi possível carregar. Tente novamente.',retry:'Tentar novamente',empty:'Nada encontrado.',readOnly:'Seu papel permite apenas consultar.',
+ organizations:'Organizações',users:'Usuários',overview:'Visão geral',active:'Ativas',suspended:'Suspensas',archived:'Arquivadas',all:'Todas',newLast30:'novas em 30 dias',
+ activeUsers:'Usuários ativos',mrr:'Receita mensal',overdue:'Faturas vencidas',openTickets:'Chamados em aberto',awaitingTeam:'aguardando a equipe',withoutOrg:'sem organização',pending:'Pendências',noPending:'Nenhuma pendência.',
+ search:'Buscar por nome, documento ou e-mail',searchUsers:'Buscar por nome, e-mail ou organização',farms:'Fazendas',members:'Usuários',plan:'Plano',responsible:'Responsável',noResponsible:'Sem responsável',
+ segments:'Segmentos e valor',inactive:'Inativo',notContracted:'Não contratado',total:'Total mensal',gross:'Soma dos segmentos',discounts:'Descontos',noDiscounts:'Nenhum desconto.',quote:'Sob consulta',revoke:'Encerrar',revoked:'Desconto encerrado.',confirmRevoke:'Encerrar o desconto "{name}"?',until:'até',noEnd:'sem prazo',
+ status:'Situação',suspend:'Suspender',archive:'Arquivar',reactivate:'Reativar',reason:'Motivo (opcional)',statusChanged:'Situação da organização atualizada.',confirmStatus:'Confirmar: {action} {name}?',suspendHint:'Bloqueia o acesso e encerra as sessões; os dados são preservados.',
+ data:'Dados pessoais',name:'Nome completo',email:'E-mail de acesso',phone:'Telefone',role:'Papel',organization:'Organização',lastLogin:'Último acesso',never:'Nunca acessou',
+ roles:{admin:'Administrador',manager:'Gerente',operator:'Operador',veterinarian:'Veterinário'} as Record<string,string>,
+ segmentNames:{plantacoes:'Plantações','gado-de-corte':'Gado de corte','pecuaria-leiteira':'Pecuária leiteira',suinocultura:'Suinocultura','area-veterinario':'Área do veterinário'} as Record<string,string>,
+ accessSegments:'Segmentos liberados',vetIncluded:'incluída no cargo',readOnlyLabel:'Somente consulta',lockedRole:'O responsável pela organização permanece administrador.',
+ save:'Salvar alterações',saved:'Dados do usuário atualizados.',failed:'Não foi possível salvar.',
+ security:'Senha e acesso',newPassword:'Nova senha',confirmPassword:'Confirmar nova senha',forceChange:'Exigir troca no próximo acesso',revokeSessions:'Encerrar sessões abertas',resetPassword:'Redefinir senha',passwordReset:'Senha redefinida. Informe a nova senha por um canal seguro.',passwordInvalid:'Mínimo de 8 caracteres e as senhas precisam ser iguais.',
+ block:'Bloquear usuário',unblock:'Reativar usuário',endSessions:'Encerrar sessões',blocked:'Usuário bloqueado.',unblocked:'Usuário reativado.',sessionsEnded:'Sessões encerradas.',confirmBlock:'Bloquear {name}? As sessões são encerradas.',cancel:'Cancelar',confirm:'Confirmar',
+ errName:'Informe o nome (mínimo 2 caracteres).',errEmail:'Informe um e-mail válido.',page:'Página {page}',previous:'Anterior',next:'Próxima',userActive:'Ativo',userBlocked:'Bloqueado',webHint:'Planos, cupons, faturas, exportações e demais ferramentas continuam no /platform web.',web:'Abrir /platform no web',
+};
+type Copy=Omit<Record<keyof typeof pt,string>,'roles'|'segmentNames'>&{roles:Record<string,string>;segmentNames:Record<string,string>};
+const en:Copy={...pt,
+ title:'Platform',subtitle:'Fazenda Mais team hub',logout:'Sign out',back:'Back',loading:'Loading…',error:'Could not load. Try again.',retry:'Try again',empty:'Nothing found.',readOnly:'Your role can only view.',
+ organizations:'Organizations',users:'Users',overview:'Overview',active:'Active',suspended:'Suspended',archived:'Archived',all:'All',newLast30:'new in 30 days',
+ activeUsers:'Active users',mrr:'Monthly revenue',overdue:'Overdue invoices',openTickets:'Open tickets',awaitingTeam:'awaiting the team',withoutOrg:'without organization',pending:'Pending items',noPending:'Nothing pending.',
+ search:'Search by name, tax ID or e-mail',searchUsers:'Search by name, e-mail or organization',farms:'Farms',members:'Users',plan:'Plan',responsible:'Owner',noResponsible:'No owner',
+ segments:'Segments and price',inactive:'Inactive',notContracted:'Not contracted',total:'Monthly total',gross:'Segments total',discounts:'Discounts',noDiscounts:'No discounts.',quote:'On request',revoke:'End',revoked:'Discount ended.',confirmRevoke:'End the discount "{name}"?',until:'until',noEnd:'no end date',
+ status:'Status',suspend:'Suspend',archive:'Archive',reactivate:'Reactivate',reason:'Reason (optional)',statusChanged:'Organization status updated.',confirmStatus:'Confirm: {action} {name}?',suspendHint:'Blocks access and ends sessions; data is kept.',
+ data:'Personal data',name:'Full name',email:'Sign-in e-mail',phone:'Phone',role:'Role',organization:'Organization',lastLogin:'Last sign-in',never:'Never signed in',
+ roles:{admin:'Administrator',manager:'Manager',operator:'Operator',veterinarian:'Veterinarian'},
+ segmentNames:{plantacoes:'Crops','gado-de-corte':'Beef cattle','pecuaria-leiteira':'Dairy farming',suinocultura:'Pig farming','area-veterinario':'Veterinarian area'},
+ accessSegments:'Granted segments',vetIncluded:'included in the role',readOnlyLabel:'Read only',lockedRole:'The organization owner stays administrator.',
+ save:'Save changes',saved:'User updated.',failed:'Could not save.',
+ security:'Password and access',newPassword:'New password',confirmPassword:'Confirm new password',forceChange:'Require change at next sign-in',revokeSessions:'End open sessions',resetPassword:'Reset password',passwordReset:'Password reset. Share it through a secure channel.',passwordInvalid:'At least 8 characters and both passwords must match.',
+ block:'Block user',unblock:'Reactivate user',endSessions:'End sessions',blocked:'User blocked.',unblocked:'User reactivated.',sessionsEnded:'Sessions ended.',confirmBlock:'Block {name}? Sessions are ended.',cancel:'Cancel',confirm:'Confirm',
+ errName:'Enter the name (at least 2 characters).',errEmail:'Enter a valid e-mail.',page:'Page {page}',previous:'Previous',next:'Next',userActive:'Active',userBlocked:'Blocked',webHint:'Plans, coupons, invoices, exports and other tools remain on the web /platform.',web:'Open /platform on the web',
+};
+const es:Copy={...pt,
+ title:'Plataforma',subtitle:'Central del equipo Fazenda Mais',logout:'Salir',back:'Volver',loading:'Cargando…',error:'No fue posible cargar. Intente de nuevo.',retry:'Intentar de nuevo',empty:'Nada encontrado.',readOnly:'Su rol solo permite consultar.',
+ organizations:'Organizaciones',users:'Usuarios',overview:'Visión general',active:'Activas',suspended:'Suspendidas',archived:'Archivadas',all:'Todas',newLast30:'nuevas en 30 días',
+ activeUsers:'Usuarios activos',mrr:'Ingreso mensual',overdue:'Facturas vencidas',openTickets:'Tickets abiertos',awaitingTeam:'esperando al equipo',withoutOrg:'sin organización',pending:'Pendientes',noPending:'Nada pendiente.',
+ search:'Buscar por nombre, documento o correo',searchUsers:'Buscar por nombre, correo u organización',farms:'Fincas',members:'Usuarios',plan:'Plan',responsible:'Responsable',noResponsible:'Sin responsable',
+ segments:'Segmentos y valor',inactive:'Inactivo',notContracted:'No contratado',total:'Total mensual',gross:'Suma de los segmentos',discounts:'Descuentos',noDiscounts:'Ningún descuento.',quote:'A consultar',revoke:'Finalizar',revoked:'Descuento finalizado.',confirmRevoke:'¿Finalizar el descuento "{name}"?',until:'hasta',noEnd:'sin plazo',
+ status:'Situación',suspend:'Suspender',archive:'Archivar',reactivate:'Reactivar',reason:'Motivo (opcional)',statusChanged:'Situación de la organización actualizada.',confirmStatus:'Confirmar: {action} {name}?',suspendHint:'Bloquea el acceso y cierra las sesiones; los datos se conservan.',
+ data:'Datos personales',name:'Nombre completo',email:'Correo de acceso',phone:'Teléfono',role:'Rol',organization:'Organización',lastLogin:'Último acceso',never:'Nunca accedió',
+ roles:{admin:'Administrador',manager:'Gerente',operator:'Operador',veterinarian:'Veterinario'},
+ segmentNames:{plantacoes:'Cultivos','gado-de-corte':'Ganado de carne','pecuaria-leiteira':'Ganadería lechera',suinocultura:'Porcicultura','area-veterinario':'Área del veterinario'},
+ accessSegments:'Segmentos liberados',vetIncluded:'incluida en el rol',readOnlyLabel:'Solo consulta',lockedRole:'El responsable de la organización sigue como administrador.',
+ save:'Guardar cambios',saved:'Usuario actualizado.',failed:'No fue posible guardar.',
+ security:'Contraseña y acceso',newPassword:'Nueva contraseña',confirmPassword:'Confirmar nueva contraseña',forceChange:'Exigir cambio en el próximo acceso',revokeSessions:'Cerrar sesiones abiertas',resetPassword:'Redefinir contraseña',passwordReset:'Contraseña redefinida. Compártala por un canal seguro.',passwordInvalid:'Mínimo 8 caracteres y las contraseñas deben coincidir.',
+ block:'Bloquear usuario',unblock:'Reactivar usuario',endSessions:'Cerrar sesiones',blocked:'Usuario bloqueado.',unblocked:'Usuario reactivado.',sessionsEnded:'Sesiones cerradas.',confirmBlock:'¿Bloquear a {name}? Se cierran las sesiones.',cancel:'Cancelar',confirm:'Confirmar',
+ errName:'Informe el nombre (mínimo 2 caracteres).',errEmail:'Informe un correo válido.',page:'Página {page}',previous:'Anterior',next:'Siguiente',userActive:'Activo',userBlocked:'Bloqueado',webHint:'Planes, cupones, facturas, exportaciones y demás herramientas siguen en el /platform web.',web:'Abrir /platform en la web',
+};
+export const platformMessages:Record<Language,Copy>={'pt-BR':pt,en,es,'pt-PT':{...pt,phone:'Telemóvel',search:'Pesquisar por nome, documento ou e-mail',searchUsers:'Pesquisar por nome, e-mail ou organização',segmentNames:{...pt.segmentNames,'gado-de-corte':'Bovinos de carne',suinocultura:'Suinicultura'}}};

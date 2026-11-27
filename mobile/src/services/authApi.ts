@@ -2,6 +2,7 @@ import { organizationSchema as orgSettingsSchema, organizationUpdateSchema, plan
 import { expirySchema, herdInventorySchema, lowStockSchema } from '../features/reports/contracts';
 import { cattleSaleListSchema, salePayload, type CattleSaleInput } from '../features/cattle/saleContracts';
 import { createTeamEndpoints } from './teamApi';
+import { createPlatformEndpoints } from './platformApi';
 import { createAssistantEndpoints } from './assistantApi';
 import { createSupportEndpoints } from './supportApi';
 import { createStructureEndpoints } from './structuresApi';
@@ -185,6 +186,7 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     ...createSupportEndpoints(http,options),
     ...createAssistantEndpoints(http,options),
     ...createTeamEndpoints(http,options),
+    ...createPlatformEndpoints(http,options),
     async invoicePayment(tokens:Tokens,language:Language,invoice:string,method:PaymentMethod){z.uuid().parse(invoice);return invoicePaymentSchema.parse((await http.get(`organizations/me/invoices/${invoice}/payment/`,{...options(language,tokens.access),params:{method}})).data);},
     async planInvoices(tokens:Tokens,language:Language,signal?:AbortSignal){return planInvoicesSchema.parse((await http.get('organizations/me/invoices/',{...options(language,tokens.access),signal})).data);},
     async myOrganization(tokens:Tokens,language:Language,signal?:AbortSignal){return orgSettingsSchema.parse((await http.get('organizations/me/',{...options(language,tokens.access),signal})).data);},

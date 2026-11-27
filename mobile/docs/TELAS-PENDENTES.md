@@ -221,6 +221,8 @@ Somente para a equipe interna (`is_platform_staff`), com sessão própria (`/pla
 | PL07 | Cupons e segmentos | Consulta; edição de preços fica no web | Baixa |
 | PL08 | Auditoria e saúde | Últimas ações e estado dos serviços (somente consulta) | Baixa |
 
+**Estado (27/11/2026):** PL01–PL04 implementados. O login da equipe abre uma sessão própria (`status: 'platform'`, sem organização) com rotas em `app/(platform)/platform/*`, shell com voltar/sair e as mesmas permissões do web (proprietário e administrador alteram; suporte, auditor e desenvolvedor consultam). PL03 cobre resumo, segmentos com valor mensal, descontos ativos (encerrar), suspender/arquivar/reativar com motivo; PL04 cobre busca, dados, papel e segmentos, redefinição de senha, encerrar sessões e bloquear/reativar. Pendentes: PL05–PL08 e homologação em aparelho. Afiliado do portal continua sem acesso ao app.
+
 Fora do app: SQL/sandbox/consultas aprovadas, atualização do sistema, gateways, IA, campanhas de marketing e exportação/recuperação de dados (ações sensíveis ou de tela grande).
 
 ## 5. Dependências e evidências para cada domínio

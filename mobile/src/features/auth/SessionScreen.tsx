@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
+import { Redirect } from 'expo-router';
 import { HomeScreen } from '../home/HomeScreen';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -43,6 +44,8 @@ export function SessionScreen() {
   if (state.status === 'restoring') return <AppLoading label={t.loading} />;
   // Suspended for non-payment: the payment screen replaces the whole app.
   if (state.status === 'signedIn' && !state.session.user.force_password_change && isSuspended(state.session.user)) return <SuspendedPaymentScreen />;
+  // Platform team: the backoffice routes (no organization).
+  if (state.status === 'platform' && !state.session.user.force_password_change) return <Redirect href="/platform" />;
   if (state.status === 'signedIn' && !state.session.user.force_password_change) return <HomeScreen key={state.session.user.id + state.session.organization.id} session={state.session} />;
   return <AuthShell>
     {state.status === 'unavailable' ? <>

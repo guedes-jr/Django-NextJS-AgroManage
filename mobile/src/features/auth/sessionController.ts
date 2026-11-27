@@ -1,4 +1,5 @@
 import type { SemenSaleCommand } from '../swine/semenSales';
+import type { PlatformSession } from '../platform/contracts';
 import { canReadSwineSales } from '../swine/sales';
 import type { HerdQuery, ReportQuery } from '../veterinary/consultation';
 import type { VetClientCommand, VetSettlementCommand } from '../veterinary/contracts';
@@ -86,7 +87,10 @@ export type SessionState =
   | { status: 'restoring' }
   | { status: 'signedOut' }
   | { status: 'signedIn'; session: Session }
+  // Platform team (backoffice): no organization; only platform/* endpoints.
+  | { status: 'platform'; session: PlatformSession }
   | { status: 'unavailable'; error: AuthFailure };
+type Resolved = { kind: 'organization'; session: Session } | { kind: 'platform'; session: PlatformSession };
 
 export class SessionController {
   private state: SessionState = { status: 'restoring' };
@@ -174,6 +178,15 @@ export class SessionController {
       throw error;
     }
   }
+  /** Backoffice requests: active platform session only; an expired token signs out. Writes are checked by role server-side. */
+  private async platformRead<T>(request:(tokens:Tokens)=>Promise<T>){
+    if(!this.tokens||this.state.status!=='platform')throw new AuthFailure('expired');
+    if(this.state.session.user.force_password_change)throw new AuthFailure('unsupported');
+    const epoch=this.epoch;
+    try{const result=await request(this.tokens);if(epoch!==this.epoch)throw new AuthFailure('expired');return result;}
+    catch(error){if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();throw error;}
+  }
+  platform<T>(call:(api:AuthApi,tokens:Tokens,language:Language)=>Promise<T>){return this.platformRead(tokens=>call(this.api,tokens,this.language));}
   /** Re-read user and organization (after a 402 or when the member says the invoice was paid). */
   async refreshAccess(){
     const tokens=this.tokens;if(!tokens||this.state.status!=='signedIn')return;const epoch=this.epoch;
@@ -937,10 +950,22 @@ export class SessionController {
     return task.catch(() => { throw new AuthFailure('storage'); });
   }
   private async validate(tokens: Tokens): Promise<Session> {
+    const resolved = await this.resolve(tokens);
+    if (resolved.kind !== 'organization') throw new AuthFailure('unsupported');
+    return resolved.session;
+  }
+  /** Organization member or active platform team member (backoffice). Affiliate portal stays on the web. */
+  private async resolve(tokens: Tokens): Promise<Resolved> {
     const user = await this.api.user(tokens, this.language);
-    if (user.is_platform_staff || user.affiliate_portal_only) throw new AuthFailure('unsupported');
+    if (user.affiliate_portal_only) throw new AuthFailure('unsupported');
+    if (user.is_platform_staff) return { kind: 'platform', session: { user, staff: await this.api.platformMe(tokens, this.language) } };
     const organization = await this.api.organization(tokens, this.language);
-    return { user, organization };
+    return { kind: 'organization', session: { user, organization } };
+  }
+  private enter(resolved: Resolved) {
+    if (resolved.kind === 'platform') { this.language = this.initialLanguage; this.set({ status: 'platform', session: resolved.session }); return; }
+    this.language = resolved.session.organization.language;
+    this.set({ status: 'signedIn', session: resolved.session });
   }
   restore = (): Promise<void> => {
     if (this.restoreTask) return this.restoreTask;
@@ -960,11 +985,10 @@ export class SessionController {
         try { tokens = this.tokens ?? await this.vault.read(); } catch { throw new AuthFailure('storage'); }
         if (epoch !== this.epoch) return;
         if (!tokens) { this.set({ status: 'signedOut' }); return; }
-        const session = await this.validate(tokens);
+        const resolved = await this.resolve(tokens);
         if (epoch !== this.epoch) return;
         this.tokens = tokens;
-        this.language = session.organization.language;
-        this.set({ status: 'signedIn', session });
+        this.enter(resolved);
       } catch (error) {
         if (epoch !== this.epoch) return;
         const failure = authError(error);
@@ -992,13 +1016,12 @@ export class SessionController {
     let tokens: Tokens | null = null;
     try {
       tokens = await login();
-      const session = await this.validate(tokens);
+      const resolved = await this.resolve(tokens);
       if (epoch !== this.epoch) { void this.api.logout(tokens, this.language).catch(() => {}); return; }
       await this.write(() => remember ? this.vault.save(tokens!) : this.vault.clear());
       if (epoch !== this.epoch) { void this.api.logout(tokens, this.language).catch(() => {}); return; }
       this.tokens = tokens;
-      this.language = session.organization.language;
-      this.set({ status: 'signedIn', session });
+      this.enter(resolved);
     } catch (error) {
       if (tokens) void this.api.logout(tokens, this.language).catch(() => {});
       throw authError(error);
@@ -1027,8 +1050,8 @@ export class SessionController {
     const epoch = this.epoch;
     try {
       await this.api.changePassword(tokens, password, confirmation, this.language);
-      const session = await this.validate(tokens);
-      if (epoch === this.epoch) this.set({ status: 'signedIn', session });
+      const resolved = await this.resolve(tokens);
+      if (epoch === this.epoch) this.enter(resolved);
     } catch (error) {
       const failure = authError(error);
       if (failure.key === 'expired') await this.signOut();
