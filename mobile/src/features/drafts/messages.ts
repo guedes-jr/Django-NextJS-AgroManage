@@ -11,7 +11,7 @@ const pt={
  expires:'Expira em {days} dia(s)',updated:'Atualizado em {date}',
  leaveTitle:'Sair do formulário?',leaveBody:'O que você digitou fica guardado como rascunho neste aparelho.',keep:'Manter rascunho',stay:'Continuar editando',discardAndLeave:'Descartar',
  logoutTitle:'Sair da conta?',logoutBody:'Há {count} rascunho(s) neste aparelho. Ao sair, eles serão apagados.',logoutConfirm:'Sair e apagar',logout:'Sair',
- features:{'cattle-animal':'Cadastro de animal','support-ticket':'Chamado de suporte'} as Record<DraftFeature,string>,
+ features:{'cattle-animal':'Cadastro de animal','support-ticket':'Chamado de suporte','milk-record':'Produção de leite','daily-feeding':'Trato diário','cattle-weighing':'Pesagem'} as Record<DraftFeature,string>,
 };
 type Copy=Omit<Record<keyof typeof pt,string>,'features'>&{features:Record<DraftFeature,string>};
 const en:Copy={
@@ -24,7 +24,7 @@ const en:Copy={
  expires:'Expires in {days} day(s)',updated:'Updated {date}',
  leaveTitle:'Leave the form?',leaveBody:'What you typed stays as a draft on this device.',keep:'Keep draft',stay:'Keep editing',discardAndLeave:'Discard',
  logoutTitle:'Sign out?',logoutBody:'There are {count} draft(s) on this device. Signing out deletes them.',logoutConfirm:'Sign out and delete',logout:'Sign out',
- features:{'cattle-animal':'Animal registration','support-ticket':'Support ticket'},
+ features:{'cattle-animal':'Animal registration','support-ticket':'Support ticket','milk-record':'Milk production','daily-feeding':'Daily feeding','cattle-weighing':'Weighing'},
 };
 const es:Copy={
  title:'Borradores',subtitle:'Guardados solo en este dispositivo. Nada se envía sin que revises y confirmes.',empty:'No hay borradores en este dispositivo.',open:'Borradores en este dispositivo',
@@ -36,7 +36,7 @@ const es:Copy={
  expires:'Vence en {days} día(s)',updated:'Actualizado el {date}',
  leaveTitle:'¿Salir del formulario?',leaveBody:'Lo que escribiste queda como borrador en este dispositivo.',keep:'Mantener borrador',stay:'Seguir editando',discardAndLeave:'Descartar',
  logoutTitle:'¿Cerrar sesión?',logoutBody:'Hay {count} borrador(es) en este dispositivo. Al salir, se borrarán.',logoutConfirm:'Salir y borrar',logout:'Salir',
- features:{'cattle-animal':'Registro de animal','support-ticket':'Ticket de soporte'},
+ features:{'cattle-animal':'Registro de animal','support-ticket':'Ticket de soporte','milk-record':'Producción de leche','daily-feeding':'Alimentación diaria','cattle-weighing':'Pesaje'},
 };
 export const draftMessages:Record<Language,Copy>={'pt-BR':pt,en,es,'pt-PT':{...pt,
  subtitle:'Guardados apenas neste aparelho. Nada é enviado sem rever e confirmar.',saving:'A guardar rascunho…',savedAt:'Rascunho guardado neste aparelho às {time}.',

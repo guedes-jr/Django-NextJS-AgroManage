@@ -30,7 +30,9 @@ type Loaded<T>={id:string;value:T|null;savedAt:number|null;state:DraftState;prob
  * Saves form input on this device a moment after each change and restores it when the same form opens
  * again. It never sends anything: the user still reviews and submits online.
  */
-export function useLocalDraft<T>({feature,context,schema,enabled}:{feature:DraftFeature;context:string;schema:z.ZodType<T>;enabled:boolean}){
+export function useLocalDraft<T>({feature,context,schema,enabled,onRestore}:{feature:DraftFeature;context:string;schema:z.ZodType<T>;enabled:boolean;onRestore?:(value:T)=>void}){
+ const restore=useRef(onRestore);
+ useEffect(()=>{restore.current=onRestore;});
  const scope=useDraftScope();const id=enabled&&scope?draftId(scope,feature,context):null;
  const [loaded,setLoaded]=useState<Loaded<T>|null>(null);
  const [status,setStatus]=useState<DraftStatus>({state:'idle',at:null});
@@ -48,7 +50,7 @@ export function useLocalDraft<T>({feature,context,schema,enabled}:{feature:Draft
    if(!record||isDraftExpired(record,Date.now())){if(record)void draftStore.remove(record.id).then(notifyDrafts);setLoaded({id,value:null,savedAt:null,state:'draft',problem:null});return;}
    const read=readDraft(record,schema);draftState.current=record.state;
    setLoaded({id,value:read.ok?read.value:null,savedAt:record.updatedAt,state:record.state,problem:read.ok?null:read.reason});
-   if(read.ok)setStatus({state:'saved',at:record.updatedAt});
+   if(read.ok){setStatus({state:'saved',at:record.updatedAt});restore.current?.(read.value);}
   }).catch(()=>{if(live){setLoaded({id,value:null,savedAt:null,state:'draft',problem:null});setStatus({state:'error',at:null});}});
   return ()=>{live=false;};
  },[id,schema]);

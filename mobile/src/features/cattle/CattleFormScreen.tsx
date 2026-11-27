@@ -73,10 +73,9 @@ function AnimalEditor({route,record,today,timezone}:{route:Route;record?:CattleA
   const {controller,language}=useAuth();const {farm}=useWorkspace();const router=useRouter();const client=useQueryClient();const f=cattleFormMessages[language];const t=cattleMessages[language];const w=workspaceMessages[language];
   const {control,setValue,handleSubmit,reset,getValues,formState:{isDirty,isSubmitting,errors}}=useForm<AnimalInput>({resolver:zodResolver(animalInputSchema(today)),defaultValues:{identifier:record?.identifier??'',name:record?.name??'',gender:record?.gender==='M'?'M':'F',category:(record?.category as AnimalInput['category'])??'Bezerro',birth_date:record?.birth_date??'',entry_date:record?record.entry_date??'':today,notes:record?.notes??'',breed_name_input:'',initial_weight_kg:''}});
   // Local draft only for a new animal on the selected farm; editing always starts from the server record.
-  const draft=useLocalDraft({feature:'cattle-animal',context:`${route.production}:${farm?.id??'none'}`,schema:animalDraftSchema,enabled:!record&&!!farm});
+  const draft=useLocalDraft({feature:'cattle-animal',context:`${route.production}:${farm?.id??'none'}`,schema:animalDraftSchema,enabled:!record&&!!farm,onRestore:value=>reset({...getValues(),...value},{keepDefaultValues:true})});
   const draftRoute=useMemo(()=>({pathname:'/cattle/[production]/form',params:{production:route.production,mode:'create'},farm:farm?{id:farm.id,name:farm.name}:null}),[route.production,farm]);
-  const values=useWatch({control});const applied=useRef(false);
-  useEffect(()=>{if(draft.ready&&draft.restored&&!applied.current){applied.current=true;reset({...getValues(),...draft.restored},{keepDefaultValues:true});}},[draft.ready,draft.restored,reset,getValues]);
+  const values=useWatch({control});
   const {ready:draftReady,schedule}=draft;
   useEffect(()=>{if(draftReady&&isDirty){const current=getValues();schedule(current,current.identifier||f.create,draftRoute);}},[values,draftReady,isDirty,schedule,getValues,draftRoute,f.create]);
   const keepDraft=draft.enabled&&!['error','tooLarge'].includes(draft.status.state);

@@ -10,7 +10,7 @@ export const MAX_DRAFT_BYTES=64*1024;
 export const MAX_DRAFTS_PER_SCOPE=50;
 
 /** Each feature owns a payload version; a draft saved by an older form version is not reapplied blindly. */
-export const draftFeatures={'cattle-animal':{version:1},'support-ticket':{version:1}} as const;
+export const draftFeatures={'cattle-animal':{version:1},'support-ticket':{version:1},'milk-record':{version:1},'daily-feeding':{version:1},'cattle-weighing':{version:1}} as const;
 export type DraftFeature=keyof typeof draftFeatures;
 
 export const draftRouteSchema=z.object({

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {z} from 'zod';
-import {DRAFT_RETENTION_MS,MAX_DRAFTS_PER_SCOPE,MAX_DRAFT_BYTES,draftDaysLeft,draftExpiringSoon,draftId,draftScope,draftsToPurge,isDraftExpired,readDraft,serializeDraft,textDraft,type DraftRecord} from '../src/features/drafts/contracts';
+import {draftFeatures,DRAFT_RETENTION_MS,MAX_DRAFTS_PER_SCOPE,MAX_DRAFT_BYTES,draftDaysLeft,draftExpiringSoon,draftId,draftScope,draftsToPurge,isDraftExpired,readDraft,serializeDraft,textDraft,type DraftRecord} from '../src/features/drafts/contracts';
 import {createMemoryDraftStore} from '../src/features/drafts/store';
 import {draftMessages} from '../src/features/drafts/messages';
 
@@ -63,6 +63,6 @@ test('store keeps one draft per id, lists by scope and clears a scope on sign-ou
 test('draft copy exists in every language', () => {
  for(const copy of Object.values(draftMessages)){
   for(const [key,value] of Object.entries(copy))if(typeof value==='string')assert.ok(value.length>0,key);
-  assert.ok(copy.features['cattle-animal']&&copy.features['support-ticket']);
+  for(const feature of Object.keys(draftFeatures) as (keyof typeof draftFeatures)[])assert.ok(copy.features[feature],feature);
  }
 });

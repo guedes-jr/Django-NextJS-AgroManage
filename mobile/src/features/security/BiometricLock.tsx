@@ -47,11 +47,14 @@ export function BiometricLockProvider({children}:PropsWithChildren){
   return ()=>{live=false;};
  },[key]);
 
+ // With the lock on, hide the content while the app is not in front (iOS app switcher snapshot).
+ const [foreground,setForeground]=useState(AppState.currentState==='active');
  const live=useRef({enabled,active});
  useEffect(()=>{live.current={enabled,active};},[enabled,active]);
  useEffect(()=>{
   let backgroundedAt:number|null=null;
   const subscription=AppState.addEventListener('change',next=>{
+   setForeground(next==='active');
    if(next==='background'){backgroundedAt=Date.now();return;}
    if(next!=='active')return;
    const ui=systemUiState();
@@ -83,13 +86,14 @@ export function BiometricLockProvider({children}:PropsWithChildren){
   setPreference({key,value});return 'success';
  },[key,support,language]);
 
- const covered=active&&phase!=='open';
+ const privacy=active&&enabled&&!foreground;
+ const covered=active&&(phase!=='open'||privacy);
  return <BiometricContext.Provider value={{support,enabled,setEnabled}}>
   <View style={{flex:1}} importantForAccessibility={covered?'no-hide-descendants':'auto'} accessibilityElementsHidden={covered}>{children}</View>
   {covered&&<SafeAreaView accessibilityViewIsModal style={{position:'absolute',top:0,left:0,right:0,bottom:0,backgroundColor:colors.background,alignItems:'center',justifyContent:'center',padding:space.xl}}>
    <View style={{width:'100%',maxWidth:420,alignItems:'center',gap:space.md}}>
     <Image source={require('../../../assets/brand-mark.png')} accessibilityIgnoresInvertColors style={{width:72,height:72}} resizeMode="contain"/>
-    {phase==='locked'&&<>
+    {phase==='locked'&&foreground&&<>
      <Text accessibilityRole="header" style={{...typo.screenTitle,color:colors.text,textAlign:'center'}}>{t.lockedTitle}</Text>
      <Text style={{...typo.body,color:colors.muted,textAlign:'center'}}>{t.lockedHint}</Text>
      {!!message&&<Notice tone="warning" text={message}/>}

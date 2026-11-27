@@ -50,9 +50,8 @@ export function SupportNewScreen(){
  const [subject,setSubject]=useState('');const [body,setBody]=useState('');const [category,setCategory]=useState<typeof ticketCategories[number]>('question');const [priority,setPriority]=useState<typeof ticketPriorities[number]>('normal');
  const [errors,setErrors]=useState<{subject?:string;body?:string}>({});const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');const key=useRef(randomUUID());
  // The draft keeps the creation key: sending a restored draft again returns the same ticket instead of a duplicate.
- const draft=useLocalDraft({feature:'support-ticket',context:'new',schema:ticketDraftSchema,enabled:allowed});
- const applied=useRef(false);
- useEffect(()=>{if(draft.ready&&draft.restored&&!applied.current){applied.current=true;const d=draft.restored;setSubject(d.subject);setBody(d.body);setCategory(d.category);setPriority(d.priority);key.current=d.creation_key;}},[draft.ready,draft.restored]);
+ const draft=useLocalDraft({feature:'support-ticket',context:'new',schema:ticketDraftSchema,enabled:allowed,onRestore:d=>{setSubject(d.subject);setBody(d.body);setCategory(d.category);setPriority(d.priority);key.current=d.creation_key;}});
+ 
  const {ready:draftReady,schedule}=draft;
  useEffect(()=>{if(draftReady&&(subject.trim()||body.trim()))schedule({subject,body,category,priority,creation_key:key.current},subject||t.newTicket,{pathname:'/support/new',params:{},farm:null});},[draftReady,schedule,subject,body,category,priority,t.newTicket]);
  const submit=async()=>{if(busy)return;const next={subject:subject.trim().length<3?t.errSubject:undefined,body:body.trim().length<3?t.errBody:undefined};setErrors(next);if(next.subject||next.body)return;setBusy(true);setMessage('');
