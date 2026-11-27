@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { isAxiosError } from 'axios';
 import { z } from 'zod';
@@ -14,10 +14,15 @@ import { AgendaButton, Busy, styles as s } from '../agenda/ui';
 import { AgendaFormShell as AgendaShell } from '../workspace/AppShell';
 import { AuthFailure } from '../../services/authApi';
 import { cattleFormMessages } from './formMessages';
+import { useLocalDraft } from '../drafts/useLocalDraft';
+import { DraftNotice } from '../drafts/DraftScreens';
+import { textDraft } from '../drafts/contracts';
 import { cattleMessages, cattleLabel } from './messages';
 import { animalInputSchema, weightInputSchema, canCreateCattle, canEditCattle, canWeighCattle, cattleCategories, productionSchema, cattleKinds, type AnimalInput, type WeightInput, type CattleAnimal, type CattleBatch, type Production } from './contracts';
 const routeSchema=z.object({production:productionSchema,mode:z.enum(['create','edit','weight']).default('create'),id:z.uuid().optional(),kind:z.enum(cattleKinds).default('animals'),farm:z.uuid().optional()}).refine(v=>v.mode==='create'?v.kind==='animals'&&!v.id:!!v.id&&(v.mode==='weight'||v.kind==='animals'));
 type Route=z.infer<typeof routeSchema>;
+/** Plain text of the animal form kept as a local draft (validated again by the form and the server). */
+const animalDraftSchema=textDraft({identifier:z.string().max(100),name:z.string().max(200),gender:z.enum(['F','M']),category:z.enum(cattleCategories),birth_date:z.string().max(10),entry_date:z.string().max(10),notes:z.string().max(5000),breed_name_input:z.string().max(200),initial_weight_kg:z.string().max(20)});
 export function CattleFormScreen(){
   const instanceId=useId();const params=useLocalSearchParams();const route=routeSchema.safeParse(params);
   const {state,controller,language}=useAuth();const router=useRouter();const w=workspaceMessages[language];const f=cattleFormMessages[language];
@@ -46,7 +51,7 @@ function serverMessage(error:unknown,fallback:string){
   const messages=known.flatMap(key=>{const value=body[key];return typeof value==='string'?[value]:Array.isArray(value)?value.filter(x=>typeof x==='string'):[];});
   return messages.length?messages.join(' ').slice(0,800):fallback;
 }
-export function useMutationState(isDirty:boolean,isSubmitting:boolean,production:Production,invalidMessage?:string){
+export function useMutationState(isDirty:boolean,isSubmitting:boolean,production:Production,invalidMessage?:string,onUncertain?:()=>void){
   const {language}=useAuth();const f=cattleFormMessages[language];const router=useRouter();
   const [message,setMessage]=useState('');const [uncertain,setUncertain]=useState(false);const [saved,setSaved]=useState(false);const [discarding,setDiscarding]=useState(false);
   const saving=useRef(false);const mounted=useRef(true);
@@ -59,27 +64,36 @@ export function useMutationState(isDirty:boolean,isSubmitting:boolean,production
   const execute=async<T,>(action:()=>Promise<T>):Promise<T|undefined>=>{
     if(saving.current||uncertain||saved)return;saving.current=true;setMessage('');
     try{const result=await action();return mounted.current?result:undefined;}
-    catch(error){if(mounted.current){const unknown=!(error instanceof AuthFailure)&&(!isAxiosError(error)||!error.response||error.response.status>=500);setUncertain(unknown);setMessage(unknown?f.uncertain:serverMessage(error,f.failed));}}
+    catch(error){if(mounted.current){const unknown=!(error instanceof AuthFailure)&&(!isAxiosError(error)||!error.response||error.response.status>=500);setUncertain(unknown);if(unknown)onUncertain?.();setMessage(unknown?f.uncertain:serverMessage(error,f.failed));}}
     finally{saving.current=false;}
   };
   return {message,uncertain,saved,execute,finish:()=>setSaved(true),invalid:()=>setMessage(invalidMessage??f.invalid),back:()=>{if(!saving.current){if(router.canGoBack())router.back();else router.replace({pathname:'/cattle/[production]',params:{production}});}},review:()=>router.push({pathname:'/cattle/[production]',params:{production}})};
 }
 function AnimalEditor({route,record,today,timezone}:{route:Route;record?:CattleAnimal;today:string;timezone:string}){
   const {controller,language}=useAuth();const {farm}=useWorkspace();const router=useRouter();const client=useQueryClient();const f=cattleFormMessages[language];const t=cattleMessages[language];const w=workspaceMessages[language];
-  const {control,setValue,handleSubmit,formState:{isDirty,isSubmitting,errors}}=useForm<AnimalInput>({resolver:zodResolver(animalInputSchema(today)),defaultValues:{identifier:record?.identifier??'',name:record?.name??'',gender:record?.gender==='M'?'M':'F',category:(record?.category as AnimalInput['category'])??'Bezerro',birth_date:record?.birth_date??'',entry_date:record?record.entry_date??'':today,notes:record?.notes??'',breed_name_input:'',initial_weight_kg:''}});
-  const mutation=useMutationState(isDirty,isSubmitting,route.production);
+  const {control,setValue,handleSubmit,reset,getValues,formState:{isDirty,isSubmitting,errors}}=useForm<AnimalInput>({resolver:zodResolver(animalInputSchema(today)),defaultValues:{identifier:record?.identifier??'',name:record?.name??'',gender:record?.gender==='M'?'M':'F',category:(record?.category as AnimalInput['category'])??'Bezerro',birth_date:record?.birth_date??'',entry_date:record?record.entry_date??'':today,notes:record?.notes??'',breed_name_input:'',initial_weight_kg:''}});
+  // Local draft only for a new animal on the selected farm; editing always starts from the server record.
+  const draft=useLocalDraft({feature:'cattle-animal',context:`${route.production}:${farm?.id??'none'}`,schema:animalDraftSchema,enabled:!record&&!!farm});
+  const draftRoute=useMemo(()=>({pathname:'/cattle/[production]/form',params:{production:route.production,mode:'create'},farm:farm?{id:farm.id,name:farm.name}:null}),[route.production,farm]);
+  const values=useWatch({control});const applied=useRef(false);
+  useEffect(()=>{if(draft.ready&&draft.restored&&!applied.current){applied.current=true;reset({...getValues(),...draft.restored},{keepDefaultValues:true});}},[draft.ready,draft.restored,reset,getValues]);
+  const {ready:draftReady,schedule}=draft;
+  useEffect(()=>{if(draftReady&&isDirty){const current=getValues();schedule(current,current.identifier||f.create,draftRoute);}},[values,draftReady,isDirty,schedule,getValues,draftRoute,f.create]);
+  const keepDraft=draft.enabled&&!['error','tooLarge'].includes(draft.status.state);
+  const mutation=useMutationState(isDirty&&!keepDraft,isSubmitting,route.production,undefined,()=>{const current=getValues();draft.markUnconfirmed(current,current.identifier||f.create,draftRoute);});
   const [created,setCreated]=useState<CattleAnimal|null>(null);
   useEffect(()=>{if(mutation.saved){if(created)router.replace({pathname:'/cattle/[production]/[id]',params:{production:route.production,id:created.id,kind:'animals'}});else if(router.canGoBack())router.back();else router.replace({pathname:'/cattle/[production]',params:{production:route.production}});}},[mutation.saved,created,router,route.production]);
   const persist=async(values:AnimalInput)=>{
     if(!record&&!farm){mutation.invalid();return;}
     const result=await mutation.execute(()=>controller.saveCattleAnimal(values,route.production,record?.farm??farm?.id,record?.id));
-    if(result){if(!record)setCreated(result);mutation.finish();void client.invalidateQueries({queryKey:['cattle']});void client.invalidateQueries({queryKey:['cattle-detail']});void client.invalidateQueries({queryKey:['cattle-history']});void client.invalidateQueries({queryKey:['cattle-overview']});}
+    if(result){if(!record){setCreated(result);await draft.discard();}mutation.finish();void client.invalidateQueries({queryKey:['cattle']});void client.invalidateQueries({queryKey:['cattle-detail']});void client.invalidateQueries({queryKey:['cattle-history']});void client.invalidateQueries({queryKey:['cattle-overview']});}
   };
-  const disabled=isSubmitting||mutation.uncertain||mutation.saved;
+  const disabled=isSubmitting||mutation.uncertain||mutation.saved||!draft.ready;
   const input=(name:'identifier'|'name'|'birth_date'|'entry_date'|'notes'|'breed_name_input'|'initial_weight_kg',label:string,multiline=false)=> <View key={name} style={{gap:6}}><Text style={s.label}>{label}</Text><Controller control={control} name={name} render={({field})=><TextInput accessibilityLabel={label} value={field.value} onChangeText={field.onChange} onBlur={field.onBlur} ref={field.ref} editable={!disabled} multiline={multiline} autoCapitalize={name.includes('date')||name==='initial_weight_kg'?'none':'sentences'} keyboardType={name==='initial_weight_kg'?'decimal-pad':'default'} style={[s.input,multiline&&{minHeight:90,textAlignVertical:'top',paddingVertical:12},errors[name]&&{borderColor:'#9A3028'}]}/>} /></View>;
   return <AgendaShell title={record?f.edit:f.create} backLabel={w.back} onBack={mutation.back}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
     <Text style={s.muted}>{f.timezone} {timezone}</Text><Text style={s.badge}>{f.purpose}: {t[route.production]}</Text>
     {record?<Text style={s.body}>{record.farm_name}</Text>:<><Text style={s.body}>{farm?.name??f.chooseFarm}</Text><AgendaButton label={f.farm} disabled={disabled} onPress={()=>router.push('/farms')}/></>}
+    {draft.enabled&&<DraftNotice draft={draft} language={language} onDiscard={()=>{void draft.discard();reset();}}/>}
     <Text style={s.muted}>{record?f.editHint:f.birthHint}</Text>{input('identifier',t.identifier)}{input('name',t.name)}
     <Text style={s.label}>{t.gender}</Text><Controller control={control} name="gender" render={({field})=><View style={s.row}>{(['F','M'] as const).map(value=><AgendaButton key={value} label={t[value]} selected={field.value===value} disabled={disabled} onPress={()=>{field.onChange(value);setValue('category',value==='F'?'Novilha':'Garrote',{shouldDirty:true});}}/>)}</View>}/>
     <Text style={s.label}>{t.category}</Text><Controller control={control} name="category" render={({field})=><View style={s.row}>{cattleCategories.map(value=><AgendaButton key={value} label={cattleLabel(t,value)} selected={field.value===value} disabled={disabled} onPress={()=>field.onChange(value)}/>)}</View>}/>

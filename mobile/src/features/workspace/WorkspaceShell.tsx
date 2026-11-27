@@ -18,6 +18,7 @@ import {quickActions,quickActionMessages,type QuickAction} from './quickActions'
 import {ActionTile,styles as ui} from '../agenda/ui';
 import {balanceNavSlots,moduleKeys,nativeDestination,type NavSlot} from './navigation';
 import {canSearch,searchKinds} from './contracts';
+import { useSignOutWithDrafts } from '../drafts/hooks';
 type Open=(key:ModuleKey)=>void;
 export type WorkspaceArea='home'|'agenda'|'beef'|'dairy'|'swine'|'milk'|'inventory'|'feeding'|'notifications'|'clinic'|'search'|'profile'|'veterinary'|'finance'|'crops'|'structure'|'support'|'assistant'|'reports'|'settings'|'other';
 type WorkspaceShellProps={active:WorkspaceArea;title?:string;children:ReactNode|((open:Open)=>ReactNode);onBack?:()=>void;layout?:'wide'|'form'};
@@ -29,6 +30,7 @@ const shellStyles=StyleSheet.create({
 export function WorkspaceShell({active,title,children,onBack,layout='wide'}:WorkspaceShellProps){
  const {state,language,controller}=useAuth();const router=useRouter();const {width}=useWindowDimensions();const t=homeMessages[language];
  const unread=useQuery({queryKey:['notifications-count'],enabled:state.status==='signedIn'&&canReadNotifications(state.session.user),queryFn:({signal})=>controller.notificationCount(signal),staleTime:30000});
+ const signOut=useSignOutWithDrafts();
  const [panel,setPanel]=useState<'modules'|'create'|ModuleKey|null>(null);const [query,setQuery]=useState('');const [linkFailed,setLinkFailed]=useState(false);const [keyboard,setKeyboard]=useState(false);
  useEffect(()=>{const show=Keyboard.addListener('keyboardDidShow',()=>setKeyboard(true));const hide=Keyboard.addListener('keyboardDidHide',()=>setKeyboard(false));return()=>{show.remove();hide.remove();};},[]);
  if(state.status!=='signedIn')return null;const {session}=state;
@@ -95,7 +97,7 @@ export function WorkspaceShell({active,title,children,onBack,layout='wide'}:Work
     <Modal visible={!!panel} transparent animationType="fade" onRequestClose={closePanel}><SafeAreaView style={s.overlay}>
      <Pressable style={StyleSheet.absoluteFill} focusable={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden onPress={closePanel}/>
      {panel==='modules'?<ModuleMenu allowed={allowed} language={language} active={active} query={query} onQuery={setQuery} onClose={closePanel} onOpen={open}/>:<View accessibilityViewIsModal style={s.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.sheetContent}><View style={s.row}><Text accessibilityRole="header" style={[s.sectionTitle,s.grow]}>{currentModule?t[currentModule]:t.create}</Text>{button(t.close,closePanel)}</View>
-      {currentModule?<><Text style={s.subtitle}>{t.pending}</Text>{linkFailed&&<Text accessibilityRole="alert" style={s.sheetError}>{t.failedLink}</Text>}{button(t.web,()=>void goWeb(currentModule),'arrow')}{currentModule==='profile'&&button(t.logout,()=>void controller.signOut())}</>:<><Text style={s.subtitle}>{qa.hint}</Text><View style={ui.tileGrid}>{actions.map(action=>{const copy=qa.actions[action.id];return <ActionTile key={action.id} label={copy.label} description={action.destination?copy.description:qa.web} icon={<HomeIcon name={action.icon} size={22}/>} onPress={()=>runAction(action)}/>;})}</View></>}
+      {currentModule?<><Text style={s.subtitle}>{t.pending}</Text>{linkFailed&&<Text accessibilityRole="alert" style={s.sheetError}>{t.failedLink}</Text>}{button(t.web,()=>void goWeb(currentModule),'arrow')}{currentModule==='profile'&&button(t.logout,signOut)}</>:<><Text style={s.subtitle}>{qa.hint}</Text><View style={ui.tileGrid}>{actions.map(action=>{const copy=qa.actions[action.id];return <ActionTile key={action.id} label={copy.label} description={action.destination?copy.description:qa.web} icon={<HomeIcon name={action.icon} size={22}/>} onPress={()=>runAction(action)}/>;})}</View></>}
      </ScrollView></View>}
     </SafeAreaView></Modal>
 </SafeAreaView>;

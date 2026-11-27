@@ -17,6 +17,8 @@ import { AgendaShell } from './AppShell';
 import { workspaceMessages } from './messages';
 import { BiometricSetting } from '../security/BiometricLock';
 import { securityMessages } from '../security/messages';
+import { useDraftCount, useSignOutWithDrafts } from '../drafts/hooks';
+import { draftMessages } from '../drafts/messages';
 import { useRead } from './useRead';
 import { canSearch, searchKinds, type SearchKind } from './contracts';
 import { useWorkspace } from './WorkspaceProvider';
@@ -28,6 +30,7 @@ export function ProfileScreen(){
   const name=result.data?.full_name||(state.status==='signedIn'?state.session.user.full_name||state.session.user.email:'');
   const initials=name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'?';
   const web=(path:string)=>{setLinkFailed(false);void openWeb(path).catch(()=>setLinkFailed(true));};
+  const draftCount=useDraftCount();const signOut=useSignOutWithDrafts();
   return <WorkspaceShell active="profile" title={t.profile}><ScrollView contentContainerStyle={ms.list}>
     <View style={{alignItems:'center',gap:6,paddingVertical:8}}><View style={{width:72,height:72,borderRadius:36,alignItems:'center',justifyContent:'center',backgroundColor:colors.primary}}><Text style={{fontSize:26,fontWeight:'800',color:colors.surface}}>{initials}</Text></View><Text accessibilityRole="header" style={{fontSize:20,fontWeight:'800',color:colors.forest,textAlign:'center'}}>{name}</Text>{state.status==='signedIn'&&<View style={{flexDirection:'row',flexWrap:'wrap',gap:6,justifyContent:'center'}}><StatusPill label={t[state.session.user.access.role]} tone="info"/>{state.session.user.access.read_only&&<StatusPill label={t.readOnly} tone="neutral"/>}</View>}</View>
     {result.loading?<SkeletonList rows={2}/>:result.failed?<ErrorState message={t.error} language={language} onRetry={()=>setRetry(v=>v+1)}/>:result.data&&<InfoList rows={[[t.email,result.data.email],[t.phone,result.data.phone||'—']]}/>}
@@ -44,9 +47,10 @@ export function ProfileScreen(){
     {linkFailed&&<ErrorState message={t.failedLink} language={language}/>}
     <SectionLabel title={securityMessages[language].security}/>
     <BiometricSetting language={language}/>
+    <ActionGroup><ActionRow label={draftCount?`${draftMessages[language].open} (${draftCount})`:draftMessages[language].open} icon={<HomeIcon name="box" size={20} color={colors.primary}/>} onPress={()=>router.push('/drafts')}/></ActionGroup>
     <ActionGroup><ActionRow label={securityMessages[language].about} icon={<HomeIcon name="arrow" size={20} color={colors.primary}/>} onPress={()=>router.push('/about')}/></ActionGroup>
     <Notice tone="neutral" text={t.profileHint}/>
-    <ActionGroup><ActionRow tone="danger" label={t.logout} icon={<HomeIcon name="back" size={20} color={colors.error}/>} onPress={()=>void controller.signOut()}/></ActionGroup>
+    <ActionGroup><ActionRow tone="danger" label={t.logout} icon={<HomeIcon name="back" size={20} color={colors.error}/>} onPress={signOut}/></ActionGroup>
   </ScrollView></WorkspaceShell>;
 }
 export function FarmsScreen(){

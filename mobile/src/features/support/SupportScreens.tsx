@@ -1,4 +1,4 @@
-import {useCallback,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {FlatList,KeyboardAvoidingView,Platform,RefreshControl,ScrollView,Text,TextInput,View} from 'react-native';
 import {useFocusEffect,useLocalSearchParams,useRouter} from 'expo-router';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
@@ -16,8 +16,12 @@ import {useInfinitePages} from '../../components/mobile/useInfinitePages';
 import {canUseSupport,customerTransitions,ticketCategories,ticketPriorities,ticketStatuses,type SupportTicket,type TicketMessage,type TicketStatus} from './contracts';
 import {supportMessages} from './messages';
 import {AttachmentBlock} from './AttachmentBlock';
+import {useLocalDraft} from '../drafts/useLocalDraft';
+import {DraftNotice} from '../drafts/DraftScreens';
+import {textDraft} from '../drafts/contracts';
 import type {PickedFile} from './attachments';
 
+const ticketDraftSchema=textDraft({subject:z.string().max(200),body:z.string().max(10000),category:z.enum(ticketCategories),priority:z.enum(ticketPriorities),creation_key:z.uuid()});
 const statusTone=(s:TicketStatus):StatusTone=>s==='waiting_customer'?'warning':s==='resolved'?'success':s==='closed'?'neutral':s==='in_progress'?'info':'warning';
 const when=(v:string,language:string)=>new Intl.DateTimeFormat(language,{dateStyle:'medium',timeStyle:'short'}).format(new Date(v));
 const failure=(error:unknown,t:typeof supportMessages['pt-BR'])=>isAxiosError(error)&&error.response?.status===409?t.changed:isAxiosError(error)&&error.response?.data&&typeof error.response.data==='object'?Object.values(error.response.data as Record<string,unknown>).flat().filter(v=>typeof v==='string').join(' ')||t.failed:t.failed;
@@ -45,12 +49,19 @@ export function SupportNewScreen(){
  const allowed=state.status==='signedIn'&&canUseSupport(state.session.user);
  const [subject,setSubject]=useState('');const [body,setBody]=useState('');const [category,setCategory]=useState<typeof ticketCategories[number]>('question');const [priority,setPriority]=useState<typeof ticketPriorities[number]>('normal');
  const [errors,setErrors]=useState<{subject?:string;body?:string}>({});const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');const key=useRef(randomUUID());
+ // The draft keeps the creation key: sending a restored draft again returns the same ticket instead of a duplicate.
+ const draft=useLocalDraft({feature:'support-ticket',context:'new',schema:ticketDraftSchema,enabled:allowed});
+ const applied=useRef(false);
+ useEffect(()=>{if(draft.ready&&draft.restored&&!applied.current){applied.current=true;const d=draft.restored;setSubject(d.subject);setBody(d.body);setCategory(d.category);setPriority(d.priority);key.current=d.creation_key;}},[draft.ready,draft.restored]);
+ const {ready:draftReady,schedule}=draft;
+ useEffect(()=>{if(draftReady&&(subject.trim()||body.trim()))schedule({subject,body,category,priority,creation_key:key.current},subject||t.newTicket,{pathname:'/support/new',params:{},farm:null});},[draftReady,schedule,subject,body,category,priority,t.newTicket]);
  const submit=async()=>{if(busy)return;const next={subject:subject.trim().length<3?t.errSubject:undefined,body:body.trim().length<3?t.errBody:undefined};setErrors(next);if(next.subject||next.body)return;setBusy(true);setMessage('');
-  try{const ticket=await controller.openSupportTicket({subject:subject.trim(),body:body.trim(),category,priority,creation_key:key.current});void client.invalidateQueries({queryKey:['support-tickets']});router.replace({pathname:'/support/[id]',params:{id:ticket.id}});}
+  try{const ticket=await controller.openSupportTicket({subject:subject.trim(),body:body.trim(),category,priority,creation_key:key.current});await draft.discard();void client.invalidateQueries({queryKey:['support-tickets']});router.replace({pathname:'/support/[id]',params:{id:ticket.id}});}
   catch(e){setMessage(failure(e,t));}finally{setBusy(false);}};
  return <WorkspaceShell active="support" title={t.newTicket} layout="form" onBack={()=>{if(!busy){if(router.canGoBack())router.back();else router.replace('/support');}}}><ScrollView contentContainerStyle={ms.list} keyboardShouldPersistTaps="handled">
   {!allowed?<EmptyState title={w.noAccess}/>:<>
    <ScreenIntro title={t.newTicket} subtitle={t.openHint}/>
+   {draft.enabled&&<DraftNotice draft={draft} language={language} onDiscard={()=>{void draft.discard();setSubject('');setBody('');setCategory('question');setPriority('normal');key.current=randomUUID();}}/>}
    <Text style={ui.label}>{t.category}</Text>
    <FilterChips value={category} onChange={setCategory} options={ticketCategories.map(value=>({value,label:t.categories[value]??value}))}/>
    <FormField label={t.subject} error={errors.subject}><TextInput accessibilityLabel={t.subject} value={subject} onChangeText={setSubject} maxLength={200} style={ui.fieldControl}/></FormField>
@@ -58,7 +69,7 @@ export function SupportNewScreen(){
    <Text style={ui.label}>{t.priority}</Text>
    <Segmented value={priority} onChange={setPriority} options={ticketPriorities.map(value=>({value,label:t.priorities[value]??value}))}/>
    {!!message&&<Notice tone="danger" text={message}/>}
-   <AgendaButton variant="primary" busy={busy} disabled={busy} label={t.send} onPress={()=>void submit()}/>
+   <AgendaButton variant="primary" busy={busy} disabled={busy||!draft.ready} label={t.send} onPress={()=>void submit()}/>
   </>}
  </ScrollView></WorkspaceShell>;
 }
