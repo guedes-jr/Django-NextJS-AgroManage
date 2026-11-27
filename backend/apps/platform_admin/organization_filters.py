@@ -20,6 +20,7 @@ class OrganizationFilters(serializers.Serializer):
     trial = serializers.BooleanField(required=False)
     financial_pending = serializers.BooleanField(required=False)
     without_admin = serializers.BooleanField(required=False)
+    unpriced_segments = serializers.BooleanField(required=False)
     without_responsible = serializers.BooleanField(required=False)
     adoption = serializers.ChoiceField(choices=ADOPTION, required=False)
     unused_days = serializers.ChoiceField(choices=(7, 15, 30), required=False)
@@ -62,6 +63,10 @@ def filter_organizations(queryset, values):
     if "financial_pending" in values:
         invoices = overdue_invoices().filter(organization_id=OuterRef("pk"))
         queryset = queryset.alias(has_financial_pending=Exists(invoices)).filter(has_financial_pending=values["financial_pending"])
+    if "unpriced_segments" in values:
+        from apps.billing.selectors import unpriced_segment_items
+        items = unpriced_segment_items().filter(subscription__organization_id=OuterRef("pk"))
+        queryset = queryset.alias(has_unpriced_segments=Exists(items)).filter(has_unpriced_segments=values["unpriced_segments"])
     adoption = values.get("adoption")
     if adoption:
         queryset = queryset.filter(adoption__isnull=True) if adoption == "pending" else queryset.filter(adoption__status=adoption)

@@ -10,3 +10,10 @@ def unpaid_invoices():
 
 def overdue_invoices():
     return unpaid_invoices().filter(due_date__lt=timezone.localdate())
+
+
+def unpriced_segment_items():
+    """Active contracted segments without a negotiated price: they open access but are not charged."""
+    from .models import SubscriptionItem
+
+    return SubscriptionItem.objects.filter(is_active=True, final_monthly_price__isnull=True)

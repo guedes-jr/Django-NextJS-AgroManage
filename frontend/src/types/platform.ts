@@ -566,7 +566,7 @@ export interface OrganizationOperations {
   has_active_admin: boolean;
   usage: OrganizationQuotaUsage;
   adoption: OrganizationAdoption | null;
-  billing: { unpaid_count: number; overdue_count: number; overdue_amounts: {currency: string; outstanding: string}[] };
+  billing: { unpaid_count: number; overdue_count: number; overdue_amounts: {currency: string; outstanding: string}[]; unpriced_segments?: string[] };
   support: OrganizationSupportMetrics | null;
   issues: {code: string; severity: "warning" | "info"; section: OrganizationDossierSection}[];
 }

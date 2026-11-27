@@ -174,3 +174,43 @@ class OrganizationOperationTests(APITestCase):
         self.assertEqual(len(first), len(second))
         self.assertEqual(self.client.post(self.url(), {}).status_code, 405)
         self.assertEqual(self.client.get(reverse("platform-organization-dossier-operation", args=[uuid.uuid4()])).status_code, 404)
+
+
+class UnpricedSegmentAndQuoteExpiryTests(APITestCase):
+    def setUp(self):
+        from apps.billing.models import Plan, PlanSegment, PlanTier, Subscription, SubscriptionItem
+
+        self.org = Organization.objects.create(name="Sem preço", slug="sem-preco")
+        self.priced = Organization.objects.create(name="Com preço", slug="com-preco")
+        plan = Plan.objects.first() or Plan.objects.create(code="segmentado", name="Segmentado")
+        segment = PlanSegment.objects.get_or_create(code="gado-de-corte", defaults={"name": "Gado de corte"})[0]
+        tier = PlanTier.objects.get_or_create(segment=segment, label="Sob consulta", defaults={"requires_quote": True, "sort_order": 99})[0]
+        for organization, price in ((self.org, None), (self.priced, Decimal("39.90"))):
+            subscription = Subscription.objects.filter(organization=organization).first() or Subscription.objects.create(organization=organization, plan=plan, started_at=timezone.now())
+            SubscriptionItem.objects.filter(subscription=subscription).update(final_monthly_price=Decimal("10.00"))
+            SubscriptionItem.objects.filter(subscription=subscription, segment_code="gado-de-corte").delete()
+            SubscriptionItem.objects.create(subscription=subscription, tier=tier, segment_code="gado-de-corte", segment_name="Gado de corte", tier_label=tier.label, monthly_price=price, discount_percent=0, final_monthly_price=price)
+        staff = User.objects.create_user(email="admin@unpriced.test", full_name="Admin")
+        PlatformStaffProfile.objects.create(user=staff, role="platform_admin")
+        self.client.force_authenticate(staff)
+
+    def test_unpriced_segment_is_an_issue_and_a_list_filter(self):
+        data = self.client.get(reverse("platform-organization-dossier-operation", args=[self.org.pk])).data
+        self.assertIn("unpriced_segments", [issue["code"] for issue in data["issues"]])
+        self.assertEqual(data["billing"]["unpriced_segments"], ["Gado de corte"])
+        priced = self.client.get(reverse("platform-organization-dossier-operation", args=[self.priced.pk])).data
+        self.assertNotIn("unpriced_segments", [issue["code"] for issue in priced["issues"]])
+        ids = {row["id"] for row in self.client.get(reverse("platform-organization-list"), {"unpriced_segments": "true"}).data["results"]}
+        self.assertIn(str(self.org.pk), ids)
+        self.assertNotIn(str(self.priced.pk), ids)
+
+    def test_expired_draft_quotes_are_closed_by_task(self):
+        from apps.billing.models import SubscriptionQuote
+        from apps.billing.tasks import expire_subscription_quotes
+
+        fields = {"billing_cycle": "monthly", "monthly_subtotal": 0, "monthly_discount": 0, "monthly_total": 0, "billing_total": 0}
+        old = SubscriptionQuote.objects.create(expires_at=timezone.now() - timedelta(days=1), **fields)
+        fresh = SubscriptionQuote.objects.create(expires_at=timezone.now() + timedelta(days=1), **fields)
+        self.assertEqual(expire_subscription_quotes(), 1)
+        old.refresh_from_db(); fresh.refresh_from_db()
+        self.assertEqual((old.status, fresh.status), ("expired", "draft"))

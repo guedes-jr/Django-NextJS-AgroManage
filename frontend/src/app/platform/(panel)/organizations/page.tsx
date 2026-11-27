@@ -71,7 +71,7 @@ export default function PlatformOrganizationsPage() {
   const checked = pageIds.length > 0 && pageIds.every(id => selected.includes(id));
   const count = allMatching ? data?.count || 0 : selected.length;
   const changePage = (next: number) => { setLoading(true); setPage(next); };
-  const advancedKeys = ["plan", "adoption", "unused_days", "trial", "financial_pending", "without_admin", "without_responsible", "near_limit", "created_from", "created_to"];
+  const advancedKeys = ["plan", "adoption", "unused_days", "trial", "financial_pending", "unpriced_segments", "without_admin", "without_responsible", "near_limit", "created_from", "created_to"];
   const advancedActive = advancedKeys.filter(key => filters[key]).length;
   return <div className="platform-management">
     <div className="platform-page-header"><div><div className="platform-label">Clientes</div><h1>Organizações</h1><p>Localize clientes, abra a ficha completa e execute ações individuais ou em lote.</p></div><div className="platform-actions"><span className="platform-pill success"><Building2 size={14}/><span className="tabular-nums">{data?.count ?? 0}</span> organizações</span>{canManage && <button className="btn btn-success" onClick={() => setShowForm(true)}><Plus size={17}/>Nova organização</button>}</div></div>
@@ -91,6 +91,7 @@ export default function PlatformOrganizationsPage() {
         {choice("unused_days", "Sem uso há pelo menos", {"7": "7 dias", "15": "15 dias", "30": "30 dias"})}
         {choice("trial", "Em teste", {true: "Sim", false: "Não"})}
         {choice("financial_pending", "Pendência financeira vencida", {true: "Sim", false: "Não"})}
+        {choice("unpriced_segments", "Segmento contratado sem preço", {true: "Sim", false: "Não"})}
         {choice("without_admin", "Sem administrador ativo", {true: "Sim", false: "Não"})}
         {choice("without_responsible", "Sem responsável ativo", {true: "Sim", false: "Não"})}
         {choice("near_limit", "Próximo ou acima de uma cota", {true: "Sim", false: "Não"})}

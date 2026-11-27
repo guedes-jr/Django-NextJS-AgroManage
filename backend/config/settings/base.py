@@ -282,6 +282,7 @@ CELERY_BEAT_SCHEDULE = {
     "organization-batch-resume": {"task": "apps.platform_admin.tasks.resume_organization_batches", "schedule": 60.0},
     "organization-quota-snapshots": {"task": "apps.platform_admin.tasks.refresh_organization_quota_snapshots", "schedule": 3600.0},
     "organization-adoption": {"task": "apps.platform_admin.tasks.refresh_organization_adoption", "schedule": 3600.0},
+    "billing-expire-quotes": {"task": "apps.billing.tasks.expire_subscription_quotes", "schedule": crontab(minute=5, hour=1)},
     "organization-storage-reconciliation": {"task": "apps.billing.tasks.reconcile_organization_storage", "schedule": crontab(minute=15, hour=2)},
     "marketing-outbox": {"task": "apps.notifications.tasks.process_marketing_outbox", "schedule": 60.0},
     "notifications-daily-digest": {"task": "apps.notifications.tasks.send_daily_notifications_digest", "schedule": crontab(minute=0, hour=7)},

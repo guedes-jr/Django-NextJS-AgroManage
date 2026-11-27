@@ -4,7 +4,7 @@ from django.utils import timezone
 from apps.ai_assistant.ticket_services import is_team, visible_tickets
 from apps.ai_assistant.ticket_selectors import ticket_metrics
 from apps.billing.quotas import organization_usage
-from apps.billing.selectors import unpaid_invoices, overdue_invoices
+from apps.billing.selectors import unpaid_invoices, overdue_invoices, unpriced_segment_items
 from .adoption import customers, adoption_metrics
 
 
@@ -51,6 +51,10 @@ def organization_operations(organization, user):
         issue("without_subscription", "info", "subscription")
     elif subscription.status in {"past_due", "suspended", "cancelled"}:
         issue("subscription_attention", "warning", "subscription")
+    unpriced = list(unpriced_segment_items().filter(subscription__organization=organization).order_by("segment_name").values_list("segment_name", flat=True))
+    billing["unpriced_segments"] = unpriced
+    if unpriced:
+        issue("unpriced_segments", "warning", "segments")
     if billing["overdue_count"]:
         issue("overdue_invoices", "warning", "invoices")
     if any(metric["status"] in {"at_limit", "over_limit"} for metric in usage["resources"].values()):
