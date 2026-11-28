@@ -1,3 +1,5 @@
+import type {OrganizationContactDraft} from '../workspace/contracts';
+import type {UserContact} from './contactContracts';
 import type { SemenSaleCommand } from '../swine/semenSales';
 import type {BillingCycle,SegmentSelection} from '../onboarding/contracts';
 import type { PlatformSession } from '../platform/contracts';
@@ -50,7 +52,7 @@ import {healthInputSchema,type HealthInput} from '../clinic/healthContracts';
 import {vaccinationInputSchema,vaccinationKey,vaccinationReviewSchema,validateVaccinationReview,type VaccinationQuery,type VaccinationInput,type VaccinationReview} from '../clinic/vaccinationContracts';
 import {canReadClinic,canWriteClinic,type ClinicQuery} from '../clinic/contracts';
 import {canUseVeterinary} from '../veterinary/contracts';
-import {canReadNotifications,preferenceFields,preferencesPatch,type NotificationQuery,type PreferenceValues,type Preferences} from '../notifications/contracts';
+import {canReadNotifications,preferenceFields,preferencesPatch,type NotificationQuery,type PreferenceValues,type Preferences,type TelegramConnectionAction} from '../notifications/contracts';
 import {canReadDailyFeeding,canWriteDailyFeeding,feedingCommandSchema,feedingBatchPage,type FeedingQuery,type FeedingCommand} from '../feeding/contracts';
 import {formulaInputSchema,productionInputSchema,sameProduction,type FormulaInput,type Formula,type ProductionInput,type FeedPreview} from '../feed/contracts';
 import {launchInputSchema,sameLaunch,type LaunchInput,type LaunchPreview} from '../inventory/launchContracts';
@@ -222,6 +224,18 @@ export class SessionController {
     catch(error){if(authError(error).key==='expired'&&epoch===this.epoch)await this.signOut();}
   }
   invoicePayment(invoice:string,method:PaymentMethod){if(this.state.status!=='signedIn'||!canReadOrganization(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));return this.workspaceRead(tokens=>this.api.invoicePayment(tokens,this.language,invoice,method));}
+  saveProfileContacts(contacts: UserContact[]) {
+    return this.workspaceRead(tokens => this.api.saveProfileContacts(tokens, this.language, contacts));
+  }
+  organizationContacts(signal?: AbortSignal) {
+    return this.workspaceRead(tokens => this.api.organizationContacts(tokens, this.language, signal));
+  }
+  saveOrganizationContact(draft: OrganizationContactDraft, id?: string) {
+    return this.workspaceRead(tokens => this.api.saveOrganizationContact(tokens, this.language, draft, id));
+  }
+  removeOrganizationContact(id: string) {
+    return this.workspaceRead(tokens => this.api.removeOrganizationContact(tokens, this.language, id));
+  }
   profile(signal?:AbortSignal){return this.workspaceRead(tokens=>this.api.profile(tokens,this.language,signal),['profile',[]]);}
   farms(page:number,signal?:AbortSignal){
     if(this.state.status!=='signedIn'||!canReadAgenda(this.state.session.user))return Promise.reject(new AuthFailure('unsupported'));
@@ -506,6 +520,16 @@ export class SessionController {
   notification(id:string,archived:boolean,signal?:AbortSignal){return this.notificationRead(tokens=>this.api.notification(tokens,this.language,id,archived,signal));}
   notificationCount(signal?:AbortSignal){return this.notificationRead(tokens=>this.api.notificationCount(tokens,this.language,signal));}
   notificationPreferences(signal?:AbortSignal){return this.notificationRead(tokens=>this.api.notificationPreferences(tokens,this.language,signal));}
+  telegramConnection(signal?: AbortSignal) {
+    return this.notificationRead(tokens => this.api.telegramConnection(tokens, this.language, signal));
+  }
+  updateTelegramConnection(action: TelegramConnectionAction) {
+    return this.notificationMutation((tokens, current) =>
+      this.api.updateTelegramConnection(tokens, this.language, action).then(result => {
+        current();
+        return result;
+      }));
+  }
   private notificationSaving=false;
   private async notificationMutation<T>(write:(tokens:Tokens,current:()=>void,user:Session['user'])=>Promise<T>){
     if(this.notificationSaving)throw new AuthFailure('unsupported');this.notificationSaving=true;

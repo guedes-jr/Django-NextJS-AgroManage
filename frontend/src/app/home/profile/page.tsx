@@ -1,5 +1,6 @@
 "use client";
 
+import UserContacts, { initialContacts, type UserContact } from "@/components/auth/UserContacts";
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 
 import { useEffect, useState } from "react";
@@ -16,6 +17,8 @@ interface UserProfile {
   role: string;
   phone: string;
   phone_is_whatsapp: boolean;
+  phone_is_telegram?: boolean;
+  contacts?: UserContact[] | null;
   receive_system_alerts: boolean;
   avatar: string | null;
   is_active: boolean;
@@ -44,6 +47,8 @@ export default function ProfilePage() {
     email: "",
     phone: "",
     phone_is_whatsapp: false,
+    phone_is_telegram: false,
+    contacts: null as UserContact[] | null,
     receive_system_alerts: false,
   });
   const [isHovered, setIsHovered] = useState(false);
@@ -58,6 +63,8 @@ export default function ProfilePage() {
         email: userData.email || "",
         phone: userData.phone || "",
         phone_is_whatsapp: userData.phone_is_whatsapp ?? false,
+        phone_is_telegram: userData.phone_is_telegram ?? false,
+        contacts: userData.contacts ?? null,
         receive_system_alerts: userData.receive_system_alerts ?? true,
       });
     }
@@ -72,6 +79,8 @@ export default function ProfilePage() {
           email: res.data.email || "",
           phone: res.data.phone || "",
           phone_is_whatsapp: res.data.phone_is_whatsapp ?? false,
+          phone_is_telegram: res.data.phone_is_telegram ?? false,
+          contacts: res.data.contacts ?? null,
           receive_system_alerts: res.data.receive_system_alerts ?? true,
         });
       })
@@ -89,6 +98,8 @@ export default function ProfilePage() {
       formDataNew.append("email", formData.email);
       formDataNew.append("phone", formData.phone);
       formDataNew.append("phone_is_whatsapp", String(formData.phone_is_whatsapp));
+      formDataNew.append("phone_is_telegram", String(formData.contacts === null && formData.phone_is_telegram));
+      if (formData.contacts !== null) formDataNew.append("contacts", JSON.stringify(formData.contacts));
       formDataNew.append("receive_system_alerts", String(formData.receive_system_alerts));
       
       if (avatarFile) {
@@ -303,6 +314,8 @@ export default function ProfilePage() {
                         email: user?.email || "",
                         phone: user?.phone || "",
                         phone_is_whatsapp: user?.phone_is_whatsapp ?? false,
+                        phone_is_telegram: user?.phone_is_telegram ?? false,
+                        contacts: user?.contacts ?? null,
                         receive_system_alerts: user?.receive_system_alerts ?? true,
                       });
                     }}
@@ -388,7 +401,8 @@ export default function ProfilePage() {
               </div>
 
               <div className="col-12">
-                <WhatsAppContactOptions value={editing ? formData : { phone_is_whatsapp: user?.phone_is_whatsapp ?? false, receive_system_alerts: user?.receive_system_alerts ?? true }} disabled={!editing || saving} onChange={value => setFormData({ ...formData, ...value })} />
+                <WhatsAppContactOptions showPhoneOptions={(editing ? formData.contacts : user?.contacts) == null} value={editing ? formData : { phone_is_whatsapp: user?.phone_is_whatsapp ?? false, phone_is_telegram: user?.phone_is_telegram ?? false, receive_system_alerts: user?.receive_system_alerts ?? true }} disabled={!editing || saving} onChange={value => setFormData({ ...formData, ...value })} />
+                {(editing || !!user?.contacts?.length) && <UserContacts contacts={editing ? formData.contacts : user?.contacts ?? null} defaults={() => initialContacts(formData.email, formData.phone, formData.phone_is_whatsapp, formData.phone_is_telegram)} disabled={!editing || saving} onChange={contacts => setFormData({...formData, contacts})} />}
               </div>
 
               <div className="col-12 col-md-6">

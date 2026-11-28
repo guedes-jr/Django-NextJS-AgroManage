@@ -1,6 +1,7 @@
 "use client";
 import { usePublicLocale } from "@/lib/publicLocale";
 
+import UserContacts, { initialContacts, type UserContact } from "@/components/auth/UserContacts";
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 
 import "./login.css";
@@ -126,6 +127,8 @@ const titles: Record<View, { title: string; subtitle: string }> = {
     name: "",
     phone: "",
     phone_is_whatsapp: false,
+    phone_is_telegram: false,
+    contacts: null as UserContact[] | null,
     receive_system_alerts: false,
     email: "",
     password: "",
@@ -284,6 +287,8 @@ const titles: Record<View, { title: string; subtitle: string }> = {
           full_name: formData.name,
           phone: formData.phone,
           phone_is_whatsapp: formData.phone_is_whatsapp,
+          phone_is_telegram: formData.phone_is_telegram,
+          ...(formData.contacts === null ? {} : {contacts: formData.contacts}),
           receive_system_alerts: formData.receive_system_alerts,
           referral_token: getAttributionToken(),
         });
@@ -375,9 +380,10 @@ const titles: Record<View, { title: string; subtitle: string }> = {
                   {view === "register" && <>
                     <div className="login-input-group">
                       <label htmlFor="contact-phone">{t("users.phone")}</label>
-                      <input id="contact-phone" type="tel" autoComplete="tel" maxLength={30} className="login-input" placeholder="(00) 00000-0000" required={formData.phone_is_whatsapp} value={formData.phone} onChange={event => setFormData({ ...formData, phone: event.target.value })} />
+                      <input id="contact-phone" type="tel" autoComplete="tel" maxLength={30} className="login-input" placeholder="(00) 00000-0000" required={formData.phone_is_telegram || (formData.contacts === null && formData.phone_is_whatsapp)} value={formData.phone} onChange={event => setFormData({ ...formData, phone: event.target.value })} />
                     </div>
-                    <WhatsAppContactOptions value={formData} disabled={loading} onChange={value => setFormData({ ...formData, ...value })} />
+                    <WhatsAppContactOptions showPhoneOptions={formData.contacts === null} value={formData} disabled={loading} onChange={value => setFormData({ ...formData, ...value })} />
+                    <UserContacts contacts={formData.contacts} defaults={() => initialContacts(formData.email, formData.phone, formData.phone_is_whatsapp, formData.phone_is_telegram)} disabled={loading} onChange={contacts => setFormData({...formData, contacts, phone_is_telegram: false})} />
                   </>}
                   {view !== "forgot" && (
                     <div className={view === "register" ? "register-passwords" : ""}>

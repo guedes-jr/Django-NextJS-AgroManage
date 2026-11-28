@@ -1,3 +1,4 @@
+import {userContactsSchema} from './contactContracts';
 import { z } from 'zod';
 import { languages } from '../../i18n/messages';
 
@@ -11,12 +12,14 @@ export const registrationSchema = z.object({
   email: credentialsSchema.shape.email,
   phone: z.string().trim().max(30, 'phoneTooLong'),
   phone_is_whatsapp: z.boolean(),
+  phone_is_telegram: z.boolean().optional(),
+  contacts: userContactsSchema.optional(),
   receive_system_alerts: z.boolean(),
   password: z.string().min(8, 'passwordLength'),
   password_confirm: z.string().min(1, 'passwordMismatch'),
 }).superRefine((value, context) => {
   if (value.password !== value.password_confirm) context.addIssue({ code: 'custom', path: ['password_confirm'], message: 'passwordMismatch' });
-  if (value.phone_is_whatsapp && !value.phone) context.addIssue({ code: 'custom', path: ['phone'], message: 'requiredWhatsAppPhone' });
+  if (value.contacts === undefined && (value.phone_is_whatsapp || value.phone_is_telegram) && !value.phone) context.addIssue({ code: 'custom', path: ['phone'], message: 'requiredWhatsAppPhone' });
 });
 export type Registration = z.infer<typeof registrationSchema>;
 export type RegistrationField = keyof Registration;

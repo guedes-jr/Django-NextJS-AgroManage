@@ -10,7 +10,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny
 from common.permissions import IsTenantAccessAllowed as IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.organizations.models import Organization
@@ -42,7 +42,7 @@ def members_view(request):
         return Response([])
     
     members = User.objects.filter(organization=org).select_related("notification_preference").prefetch_related("allowed_livestock").order_by("full_name")
-    return Response(OrganizationMemberSerializer(members, many=True).data)
+    return Response(OrganizationMemberSerializer(members, many=True, context={"request": request}).data)
 
 
 @api_view(["PATCH", "DELETE"])
@@ -332,7 +332,7 @@ def refresh_token_view(request):
 
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
-@parser_classes([MultiPartParser, FormParser])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def me_view(request):
     """Get or update current user profile."""
     import logging
@@ -346,7 +346,7 @@ def me_view(request):
         
         data = {}
         
-        for key in ['full_name', 'email', 'phone', 'avatar', 'phone_is_whatsapp', 'receive_system_alerts', 'whatsapp_reproductive_alerts']:
+        for key in ['full_name', 'email', 'phone', 'avatar', 'phone_is_whatsapp', 'phone_is_telegram', 'receive_system_alerts', 'whatsapp_reproductive_alerts']:
             if key in request.data:
                 value = request.data[key]
                 if hasattr(value, 'name'):
@@ -356,6 +356,15 @@ def me_view(request):
                 elif value is not None and str(value) != '':
                     data[key] = str(value)
         
+        if "contacts" in request.data:
+            import json
+
+            try:
+                value = request.data["contacts"]
+                data["contacts"] = json.loads(value) if isinstance(value, str) else value
+            except (ValueError, TypeError):
+                return Response({"contacts": ["Lista de contatos inválida."]}, status=400)
+
         if data.get("avatar") == "":
             data["avatar"] = None
 

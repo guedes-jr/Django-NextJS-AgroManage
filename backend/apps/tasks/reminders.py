@@ -43,7 +43,7 @@ def collect_reminders():
                 continue
             user = task.created_by
             key = f"agenda.reminder:{task.pk}:{task.reminder_version}"
-            if task.reminder_delivery_id or not user or not reminder_allowed(user,key) or not user.receive_system_alerts or not user.phone_is_whatsapp or not _whatsapp_phone(user.phone):
+            if task.reminder_delivery_id or not user or not reminder_allowed(user,key) or not user.receive_system_alerts or not user.phone_is_whatsapp or not _whatsapp_phone(user.notification_contact("whatsapp")):
                 continue
             when = task.due_date.strftime("%d/%m/%Y") + (f" às {task.start_time.strftime('%H:%M')}" if task.start_time else " (dia inteiro)")
             message = f"{task.title}\n{when}\n{task.farm.name if task.farm else task.organization.name}"

@@ -32,11 +32,25 @@ export interface NotificationPreference {
   email_notifications: boolean;
   push_notifications: boolean;
   whatsapp_reproductive_alerts: boolean;
+  telegram_reproductive_alerts?: boolean;
   frequency: string;
   updated_at: string;
 }
 
+export type TelegramConnectionStatus = "unavailable" | "disconnected" | "awaiting_telegram" | "awaiting_phone" | "ready_to_confirm" | "connected";
+export type TelegramConnection = { status: TelegramConnectionStatus; link?: string; requires_phone_verification?: boolean };
+const telegramConnectionPath = "/notifications/telegram/connection/";
+
 export const notificationService = {
+  getTelegramConnection: async (signal?: AbortSignal) =>
+    (await apiClient.get<TelegramConnection>(telegramConnectionPath, { signal })).data,
+  startTelegramConnection: async () =>
+    (await apiClient.post<TelegramConnection>(telegramConnectionPath)).data,
+  confirmTelegramConnection: async () =>
+    (await apiClient.post<TelegramConnection>(telegramConnectionPath + "confirm/")).data,
+  removeTelegramConnection: async () =>
+    (await apiClient.delete<TelegramConnection>(telegramConnectionPath)).data,
+
   getAll: async (params?: Record<string, string | number | boolean>): Promise<Notification[]> => {
     const response = await apiClient.get<NotificationPage | Notification[]>("/notifications/", { params });
     if (Array.isArray(response.data)) return response.data;

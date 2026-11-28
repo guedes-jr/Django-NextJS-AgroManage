@@ -94,7 +94,7 @@ def resolve(campaign):
     )
     recipients, phones = [], set()
     for user in users:
-        phone = _whatsapp_phone(user.phone) if user.phone_is_whatsapp else ""
+        phone = _whatsapp_phone(user.notification_contact("whatsapp")) if user.phone_is_whatsapp else ""
         whatsapp = bool(campaign.send_whatsapp and phone and phone not in phones)
         if whatsapp:
             phones.add(phone)

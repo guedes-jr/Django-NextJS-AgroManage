@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -83,6 +84,59 @@ class OperationalQueueTests(APITestCase):
         )
         PlatformStaffProfile.objects.create(user=self.staff, role="platform_admin")
         self.client.force_authenticate(self.staff)
+
+    @override_settings(
+        TELEGRAM_BOT_USERNAME="TestBot", TELEGRAM_WEBHOOK_SECRET="test",
+        TELEGRAM_BOT_TOKEN="123:fake", TELEGRAM_DELIVERY_ENABLED=True,
+        TELEGRAM_PILOT_ORGANIZATIONS=["operacional-queue"],
+    )
+    def test_telegram_and_whatsapp_dispatch_independently_and_revalidate(self):
+        from apps.billing.models import SubscriptionItem
+        from apps.billing.segments import SWINE
+        from apps.notifications.models import NotificationCategoryPolicy, NotificationDelivery, TelegramConnection
+        from apps.notifications.tasks import process_telegram_outbox
+        from apps.notifications.telegram_delivery import dispatch_telegram_delivery
+
+        NotificationCategoryPolicy.objects.update_or_create(
+            category="animal_cycle", defaults={"telegram_enabled": True, "whatsapp_enabled": True},
+        )
+        pref = self.user.notification_preference
+        pref.telegram_reproductive_alerts = True
+        pref.save()
+        TelegramConnection.objects.create(user=self.user, bot_username="testbot", chat_id=123)
+
+        alert = {
+            "alert_key": "reproductive-vaccine", "legacy_event_key": f"livestock.reproductive_vaccine.birth:{self.birth.pk}",
+            "due_date": timezone.localdate().isoformat(), "type": "warning", "text": "Vacinação", "time": "Hoje",
+        }
+        segment = SubscriptionItem.objects.filter(subscription__organization=self.org, segment_code=SWINE)
+        self.assertEqual(segment.update(is_active=False), 1)
+        with patch("apps.livestock.operational_alerts.operational_alerts", return_value=[alert]):
+            collect_operational_notifications()
+            self.assertFalse(NotificationDelivery.objects.filter(channel="telegram").exists())
+            segment.update(is_active=True)
+            collect_operational_notifications()
+            collect_operational_notifications()
+            delivery = NotificationDelivery.objects.get(channel="telegram")
+            self.assertEqual(delivery.notification.deliveries.count(), 2)
+            with patch("apps.notifications.tasks.send_telegram_delivery.delay") as enqueue:
+                process_telegram_outbox()
+                enqueue.assert_called_once_with(str(delivery.pk))
+            with patch("apps.notifications.telegram_delivery._send_message", return_value=("pending", "Limite", 20)) as send:
+                dispatch_telegram_delivery(delivery.pk)
+                dispatch_telegram_delivery(delivery.pk)
+                send.assert_called_once_with(123, "/home/seguimento/suinos")
+            delivery.refresh_from_db()
+            self.assertEqual(delivery.status, "pending")
+            self.assertGreater(delivery.telegram_send_after, timezone.now())
+            NotificationDelivery.objects.filter(pk=delivery.pk).update(telegram_send_after=timezone.now())
+            TelegramConnection.objects.filter(user=self.user).delete()
+            with patch("apps.notifications.telegram_delivery._send_message") as send:
+                dispatch_telegram_delivery(delivery.pk)
+                send.assert_not_called()
+            delivery.refresh_from_db()
+            self.assertEqual(delivery.status, "skipped")
+            self.assertEqual(delivery.notification.deliveries.get(channel="whatsapp_web").status, "pending")
 
     def test_anticipated_alert_is_queued_without_visiting_dashboard(self):
         count = collect_operational_notifications()

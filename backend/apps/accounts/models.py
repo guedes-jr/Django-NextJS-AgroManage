@@ -60,6 +60,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     # can_operate_crops, allowed_livestock and veterinary_access are kept in sync for older readers.
     segment_access = models.JSONField(default=list, blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    contacts = models.JSONField(default=None, null=True, blank=True)
+    phone_is_telegram = models.BooleanField(default=False)
     phone_is_whatsapp = models.BooleanField(default=False)
     receive_system_alerts = models.BooleanField(default=True)
     theme = models.CharField(max_length=20, choices=Theme.choices, default=Theme.LIGHT)
@@ -91,6 +93,18 @@ class User(AbstractBaseUser, PermissionsMixin):
                 name="unique_organization_responsible",
             ),
         ]
+
+    def notification_contact(self, channel):
+        if self.contacts is None:
+            if channel == "whatsapp" and self.phone_is_whatsapp:
+                return self.phone
+            if channel == "telegram" and self.phone_is_telegram:
+                return self.phone
+            return self.email if channel == "email" else None
+        return next(
+            (contact["value"] for contact in self.contacts if channel in contact["notifications"]),
+            None,
+        )
 
     def save(self, *args, **kwargs):
         if hasattr(self, "support_access_grant"):

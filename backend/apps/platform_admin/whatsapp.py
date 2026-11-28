@@ -36,7 +36,7 @@ def alert_overview():
     eligible = 0
     invalid_phone = 0
     for user in users.prefetch_related("allowed_livestock").iterator(chunk_size=100):
-        phone,role=user.phone,user.role
+        phone, role = user.notification_contact("whatsapp"), user.role
         if not _whatsapp_phone(phone):
             invalid_phone += 1
         elif role in ("admin", "manager") or (role == "operator" and user.allowed_livestock.exists()):

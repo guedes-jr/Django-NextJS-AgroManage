@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from . import telegram_views, views
 
 router = DefaultRouter()
 router.register(r"templates", views.NotificationTemplateViewSet, basename="notification-templates")
@@ -13,6 +13,9 @@ preferences_view = views.NotificationPreferenceViewSet.as_view({
 })
 
 urlpatterns = [
+    path("telegram/connection/", telegram_views.connection, name="telegram-connection"),
+    path("telegram/connection/confirm/", telegram_views.confirm, name="telegram-confirm"),
+    path("telegram/webhook/", telegram_views.webhook, name="telegram-webhook"),
     path("unread-count/", views.unread_count_view, name="unread-count"),
     path("mark-all-read/", views.mark_all_read_view, name="mark-all-read"),
     path("archive-read/", views.archive_read_view, name="archive-read"),

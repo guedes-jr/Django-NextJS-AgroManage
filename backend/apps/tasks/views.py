@@ -30,7 +30,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         from common.wppconnect import is_configured
         from django.conf import settings
         policy = category_policy("agenda")
-        return Response({"user_id":str(request.user.pk), "role":request.user.role, "read_only":bool(request.user.role == "operator" and request.user.operator_read_only), "whatsapp_contact_ready":bool(request.user.receive_system_alerts and request.user.phone_is_whatsapp and _whatsapp_phone(request.user.phone)), "whatsapp_configured":is_configured(), "channel_enabled":policy.enabled and policy.whatsapp_enabled, "timezone":settings.TIME_ZONE})
+        return Response({"user_id":str(request.user.pk), "role":request.user.role, "read_only":bool(request.user.role == "operator" and request.user.operator_read_only), "whatsapp_contact_ready":bool(request.user.receive_system_alerts and request.user.phone_is_whatsapp and _whatsapp_phone(request.user.notification_contact("whatsapp"))), "whatsapp_configured":is_configured(), "channel_enabled":policy.enabled and policy.whatsapp_enabled, "timezone":settings.TIME_ZONE})
 
     def get_queryset(self):
         organization = getattr(self.request.user, "organization", None)

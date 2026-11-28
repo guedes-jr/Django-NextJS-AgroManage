@@ -1,3 +1,4 @@
+import type { UserContact } from "@/components/auth/UserContacts";
 import apiClient from "./api";
 
 /** Every organization role, in display order. Keep in sync with User.Role in the backend. */
@@ -5,6 +6,7 @@ export const roleLabels = { admin: "Administrador", manager: "Gerente", operator
 export type UserRole = keyof typeof roleLabels;
 export interface Member {
   id: string; email: string; full_name: string; phone?: string; phone_is_whatsapp: boolean; receive_system_alerts: boolean;
+  contacts?: UserContact[] | null; phone_is_telegram?: boolean;
   segments: string[]; operator_read_only: boolean; organization_responsible: boolean;
   role: UserRole; role_display: string; is_active: boolean;
 }

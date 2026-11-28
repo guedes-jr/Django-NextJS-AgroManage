@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Save, Loader2, Bell, Package, Beef, Receipt, FileText, MessageCircle } from "lucide-react";
 import notificationService, { NotificationPreference } from "@/services/notificationService";
+import TelegramPreferences from "./TelegramPreferences";
 import pushService from "@/services/pushNotificationService";
 import { useOrganizationLocale } from "@/lib/locale";
 
@@ -108,6 +109,11 @@ export default function NotificationPreferences({ onSuccess, onError }: Props) {
           <label className="form-check-label small" htmlFor="whatsapp_reproductive_alerts">{t("notificationPreferences.whatsappEnable")}</label>
         </div>
       </div>
+
+      <TelegramPreferences
+        enabled={preferences.telegram_reproductive_alerts ?? false}
+        onChange={enabled => setPreferences({ ...preferences, telegram_reproductive_alerts: enabled })}
+      />
 
       <div className="dashboard-card p-4 border-dashed mb-4">
         <div className="d-flex align-items-center gap-3 mb-3">

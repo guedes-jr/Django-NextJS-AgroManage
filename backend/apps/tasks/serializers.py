@@ -67,7 +67,7 @@ class TaskSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"whatsapp_remind_at":translate_message("Apenas o criador pode configurar seu lembrete de WhatsApp.")})
             if changed:
                 from apps.notifications.tasks import _whatsapp_phone
-                if not user.receive_system_alerts or not user.phone_is_whatsapp or not _whatsapp_phone(user.phone):
+                if not user.receive_system_alerts or not user.phone_is_whatsapp or not _whatsapp_phone(user.notification_contact("whatsapp")):
                     raise serializers.ValidationError({"whatsapp_remind_at":translate_message("Cadastre um WhatsApp válido e autorize os alertas no seu perfil.")})
         return attrs
 

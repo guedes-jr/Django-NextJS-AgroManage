@@ -21,7 +21,7 @@ def queue_notification(delivery):
         defaults={
             "organization": n.user.organization,
             "recipient": n.user.full_name,
-            "phone": n.user.phone,
+            "phone": n.user.notification_contact("whatsapp") or "",
             "title": n.title,
             "body": f"*{n.title}*\n{text}",
             "status": delivery.status,
@@ -224,22 +224,6 @@ def operational_message_active(row):
             or 0
         )
         return quantity <= item.estoque_minimo
-    if not n.event_key.startswith("livestock.operational:"):
-        return True
-    from apps.livestock.models import AcknowledgedOperationalAlert
-    from apps.livestock.operational_alerts import operational_alerts
+    from .operational import livestock_alert_active
 
-    from .operational import event_key, within_whatsapp_window
-
-    parts = n.event_key.split(":")
-    if len(parts) != 5 or parts[1] != str(n.user.organization_id):
-        return False
-    if AcknowledgedOperationalAlert.objects.filter(
-        user=n.user, organization_id=n.user.organization_id, alert_key=parts[3]
-    ).exists():
-        return False
-    return any(
-        within_whatsapp_window(alert)
-        and event_key(n.user.organization, parts[2], alert) == n.event_key
-        for alert in operational_alerts(n.user.organization, parts[2])
-    )
+    return livestock_alert_active(n)

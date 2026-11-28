@@ -32,6 +32,7 @@ class NotificationCategoryPolicy(models.Model):
     in_app_enabled = models.BooleanField(default=True)
     email_enabled = models.BooleanField(default=True)
     push_enabled = models.BooleanField(default=True)
+    telegram_enabled = models.BooleanField(default=False)
     whatsapp_enabled = models.BooleanField(default=False)
     repeat_cooldown_minutes = models.PositiveIntegerField(default=60)
     group_similar_minutes = models.PositiveIntegerField(default=0)
@@ -105,6 +106,7 @@ class NotificationPreference(models.Model):
     report_alerts = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
+    telegram_reproductive_alerts = models.BooleanField(default=False)
     whatsapp_reproductive_alerts = models.BooleanField(default=False)
     frequency = models.CharField(
         max_length=20,
@@ -140,6 +142,7 @@ class NotificationDelivery(models.Model):
     class Channel(models.TextChoices):
         EMAIL = "email", "E-mail"
         WEB_PUSH = "web_push", "Web Push"
+        TELEGRAM = "telegram", "Telegram"
         WHATSAPP_WEB = "whatsapp_web", "WhatsApp Web"
 
     class Status(models.TextChoices):
@@ -155,6 +158,7 @@ class NotificationDelivery(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     attempts = models.PositiveSmallIntegerField(default=0)
     last_error = models.TextField(blank=True)
+    telegram_send_after = models.DateTimeField(null=True, blank=True)
     processing_until = models.DateTimeField(blank=True, null=True)
     attempt_token = models.UUIDField(null=True, blank=True)
     parts_sent = models.PositiveSmallIntegerField(default=0)
@@ -288,3 +292,19 @@ class WhatsAppQueueMessage(models.Model):
 
     class Meta:
         ordering = ['-created_at', '-pk']
+
+
+class TelegramConnection(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    bot_username = models.CharField(max_length=32)
+    chat_id = models.PositiveBigIntegerField(null=True)
+    verified_phone = models.CharField(max_length=20, blank=True)
+    pending_chat_id = models.PositiveBigIntegerField(null=True)
+    challenge_hash = models.CharField(max_length=64, null=True, unique=True)
+    expires_at = models.DateTimeField(null=True)
+    confirmed_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["bot_username", "chat_id"], name="unique_telegram_bot_chat"),
+        ]

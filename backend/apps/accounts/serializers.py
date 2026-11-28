@@ -47,6 +47,39 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
+class UserContactSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    kind = serializers.ChoiceField(choices=("phone", "email"))
+    value = serializers.CharField(max_length=255)
+    is_whatsapp = serializers.BooleanField(default=False)
+    is_telegram = serializers.BooleanField(default=False)
+    notifications = serializers.ListField(
+        child=serializers.ChoiceField(choices=("email", "whatsapp", "telegram")), max_length=3,
+    )
+
+    def validate(self, attrs):
+        missing = [field for field in ("name", "kind", "value", "notifications") if field not in attrs]
+        if missing:
+            raise serializers.ValidationError({field: "Campo obrigatório." for field in missing})
+        attrs.setdefault("is_whatsapp", False)
+        attrs.setdefault("is_telegram", False)
+        channels = attrs["notifications"]
+        if len(set(channels)) != len(channels):
+            raise serializers.ValidationError("O canal de notificação está duplicado.")
+        if attrs["kind"] == "email":
+            attrs["value"] = serializers.EmailField().run_validation(attrs["value"])
+            if attrs["is_whatsapp"] or attrs["is_telegram"] or set(channels) - {"email"}:
+                raise serializers.ValidationError("Um e-mail pode receber apenas notificações por e-mail.")
+        else:
+            from apps.notifications.tasks import _whatsapp_phone
+
+            if not _whatsapp_phone(attrs["value"]):
+                raise serializers.ValidationError({"value": "Informe um número brasileiro válido com DDD."})
+            if set(channels) - {channel for channel in ("whatsapp", "telegram") if attrs[f"is_{channel}"]}:
+                raise serializers.ValidationError("Marque os aplicativos disponíveis antes de selecionar as notificações.")
+        return attrs
+
+
 class WhatsAppContactMixin:
     """Keep profile consent in the existing notification preference."""
 
@@ -56,18 +89,37 @@ class WhatsAppContactMixin:
         phone = attrs.get("phone", getattr(instance, "phone", ""))
         enabled = attrs.get("phone_is_whatsapp", getattr(instance, "phone_is_whatsapp", False))
         preference = attrs.get("notification_preference", {})
-        if enabled and not phone.strip():
+        if "contacts" in attrs and attrs["contacts"] is None:
+            raise serializers.ValidationError({"contacts": "Envie uma lista de contatos."})
+        contacts = attrs.get("contacts", getattr(instance, "contacts", None))
+        if contacts is not None:
+            channels = [channel for contact in contacts for channel in contact["notifications"]]
+            if len(set(channels)) != len(channels):
+                raise serializers.ValidationError({"contacts": "Selecione somente um contato por canal de notificação."})
+            enabled = "whatsapp" in channels
+            if "contacts" in attrs or "phone_is_whatsapp" in attrs:
+                attrs["phone_is_whatsapp"] = enabled
+        if attrs.get("phone_is_telegram", getattr(instance, "phone_is_telegram", False)) and not phone.strip():
+            raise serializers.ValidationError({"phone": "Informe o telefone que possui Telegram."})
+        if enabled and contacts is None and not phone.strip():
             raise serializers.ValidationError({"phone": translate_message("Informe o telefone que possui WhatsApp.")})
         if preference.get("whatsapp_reproductive_alerts") and not enabled:
             raise serializers.ValidationError({"whatsapp_reproductive_alerts": translate_message("Marque que este contato possui WhatsApp para receber alertas.")})
         if "phone_is_whatsapp" in attrs:
             # The contact checkbox authorizes the available WhatsApp alert channel;
             # the master preference gates every channel independently.
-            if enabled:
+            if enabled and (contacts is None or not getattr(instance, "phone_is_whatsapp", False)):
                 attrs.setdefault("notification_preference", {}).setdefault("whatsapp_reproductive_alerts", True)
-            else:
+            elif not enabled:
                 attrs.setdefault("notification_preference", {})["whatsapp_reproductive_alerts"] = False
         return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and request.user.pk != instance.pk and request.user.role != "admin":
+            data.pop("contacts", None)
+        return data
 
     def update(self, instance, validated_data):
         from django.db import transaction
@@ -83,6 +135,7 @@ class WhatsAppContactMixin:
 
 
 class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
+    contacts = UserContactSerializer(many=True, required=False, allow_null=True)
     whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False, default=False)
     avatar = serializers.ImageField(required=False, allow_null=True)
     is_platform_staff = serializers.SerializerMethodField()
@@ -117,7 +170,7 @@ class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
             "full_name",
             "role", "can_operate_crops", "allowed_livestock", "operator_read_only", "organization_responsible", "access",
             "phone",
-            "phone_is_whatsapp",
+            "phone_is_whatsapp", "phone_is_telegram", "contacts",
             "receive_system_alerts",
             "whatsapp_reproductive_alerts",
             "avatar",
@@ -141,6 +194,7 @@ class UserSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
 
 
 class UserCreateSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
+    contacts = UserContactSerializer(many=True, required=False, allow_null=True)
     receive_system_alerts = serializers.BooleanField(required=False, default=False)
     whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False)
     password = serializers.CharField(write_only=True, min_length=8)
@@ -156,7 +210,7 @@ class UserCreateSerializer(WhatsAppContactMixin, serializers.ModelSerializer):
             "password_confirm",
             "role",
             "phone",
-            "phone_is_whatsapp",
+            "phone_is_whatsapp", "phone_is_telegram", "contacts",
             "receive_system_alerts",
             "whatsapp_reproductive_alerts",
             "referral_token",
@@ -268,6 +322,7 @@ class OperatorScopeValidationMixin:
 
 
 class OrganizationMemberSerializer(OperatorScopeValidationMixin, WhatsAppContactMixin, serializers.ModelSerializer):
+    contacts = UserContactSerializer(many=True, required=False, allow_null=True)
     whatsapp_reproductive_alerts = serializers.BooleanField(source="notification_preference.whatsapp_reproductive_alerts", required=False, default=False)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     segments = serializers.SerializerMethodField()
@@ -276,7 +331,7 @@ class OrganizationMemberSerializer(OperatorScopeValidationMixin, WhatsAppContact
         model = User
         fields = [
             'id', 'email', 'full_name', 'role', 'role_display', 'segments', 'can_operate_crops', 'allowed_livestock', 'operator_read_only', 'organization_responsible',
-            'phone', 'phone_is_whatsapp', 'receive_system_alerts', 'whatsapp_reproductive_alerts', 'avatar', 'is_active', 'created_at'
+            'phone', 'phone_is_whatsapp', 'phone_is_telegram', 'contacts', 'receive_system_alerts', 'whatsapp_reproductive_alerts', 'avatar', 'is_active', 'created_at'
         ]
         read_only_fields = ['id', 'email', 'created_at', 'organization_responsible']
 

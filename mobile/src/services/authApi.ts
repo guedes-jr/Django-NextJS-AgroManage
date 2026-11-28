@@ -59,7 +59,7 @@ import {vaccinationQuerySchema,vaccinationTargetPage,vaccinePage,vaccinationOpti
 import {clinicQuerySchema,clinicPageSchema,clinicDetailSchema,clinicAnimalPageSchema,clinicOptionsSchema,matchesClinic,type ClinicQuery} from '../features/clinic/contracts';
 import {vetFarms,vetClientCommand,vetClientSchema,vetSettlementCommand,vetSettlementReceipt,vetSettlementTotal,type VetClientCommand,type VetSettlementCommand,vetAnimalListSchema,vetBillingSchema,veterinaryMonthSchema,vetClientListSchema,vetHistoryListSchema,vetWorkspaceSchema} from '../features/veterinary/contracts';
 import {vetLookupSchema,vetRegisterResultSchema} from '../features/veterinary/launchContracts';
-import {notificationSchema,notificationPageSchema,notificationQuerySchema,preferencesSchema,preferencesPatch,type NotificationQuery,type PreferenceValues,type Preferences} from '../features/notifications/contracts';
+import {notificationSchema,notificationPageSchema,notificationQuerySchema,preferencesSchema,preferencesPatch,telegramConnectionSchema,type TelegramConnectionAction,type NotificationQuery,type PreferenceValues,type Preferences} from '../features/notifications/contracts';
 import {feedingQuerySchema,feedingBatchPage,feedingProductPage,feedingFormulaPage,deliveryPage,feedingPayload,feedingReceiptSchema,type FeedingQuery,type FeedingCommand} from '../features/feeding/contracts';
 import {formulaSchema,formulaPageSchema,productionSchema as feedProductionSchema,productionPageSchema,formulaPayload,productionPayload,previewSchema,type FormulaInput,type Formula,type ProductionInput} from '../features/feed/contracts';
 import {launchPayload,launchPreviewSchema,launchOptionsSchema,type LaunchInput} from '../features/inventory/launchContracts';
@@ -71,6 +71,8 @@ import { milkSummarySchema,milkQuerySchema,milkCowPageSchema,milkRecordPageSchem
 import { dairyFeedingCatalog,dairyFeedingCatalogQuerySchema,dairyFeedingCancellationSchema,dairyFeedingCommandSchema,dairyFeedingHistoryPage,dairyFeedingHistoryQuerySchema,validateDairyFeedingWriteReceipt,type DairyFeedingCatalogQuery,type DairyFeedingWrite } from '../features/milk/dairyFeedingContracts';
 import { cattleQuerySchema, productionSchema, ensureCattleScope, animalPageSchema, batchPageSchema, animalSchema, batchSchema, historyPageSchema, animalPayload, type AnimalInput, type WeightInput, type CattleQuery, type CattleKind, type Production } from '../features/cattle/contracts';
 import { farmsSchema, profileSchema, parseSearch, searchQuerySchema, type SearchQuery } from '../features/workspace/contracts';
+import {organizationContactSchema, type OrganizationContactDraft} from '../features/workspace/contracts';
+import {userContactsSchema, type UserContact} from '../features/auth/contactContracts';
 import { agendaQuerySchema, agendaPageSchema, taskSchema, taskOptionsSchema, taskInputSchema, type TaskInput, type AgendaQuery } from '../features/agenda/contracts';
 import { create, isAxiosError, type AxiosInstance } from 'axios';
 import { z, ZodError } from 'zod';
@@ -304,6 +306,18 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
       z.uuid().parse(id);z.enum(['read','archive','restore']).parse(action);const config={...options(language,tokens.access),params:{archived}};
       const response=action==='read'?await http.patch(`notifications/${id}/`,{is_read:true},config):await http.post(`notifications/${id}/${action==='restore'?'unarchive':'archive'}/`,{},config);
       const row=notificationSchema.parse(response.data);if(row.id!==id||action==='read'&&!row.is_read||action==='archive'&&!row.is_archived||action==='restore'&&row.is_archived)throw Error('notification state');return row;
+    },
+    async telegramConnection(tokens: Tokens, language: Language, signal?: AbortSignal) {
+      const response = await http.get('notifications/telegram/connection/', {...options(language, tokens.access), signal});
+      return telegramConnectionSchema.parse(response.data);
+    },
+    async updateTelegramConnection(tokens: Tokens, language: Language, action: TelegramConnectionAction) {
+      const path = 'notifications/telegram/connection/';
+      const config = options(language, tokens.access);
+      const response = action === 'remove'
+        ? await http.delete(path, config)
+        : await http.post(action === 'confirm' ? path + 'confirm/' : path, undefined, config);
+      return telegramConnectionSchema.parse(response.data);
     },
     async notificationPreferences(tokens:Tokens,language:Language,signal?:AbortSignal){return preferencesSchema.parse((await http.get('notifications/preferences/',{...options(language,tokens.access),signal})).data);},
     async saveNotificationPreferences(tokens:Tokens,language:Language,input:PreferenceValues,record:Preferences){
@@ -793,6 +807,22 @@ export function createAuthApi(baseURL: string | null, client?: AxiosInstance) {
     },
     async cattleHistory(tokens:Tokens,language:Language,id:string,production:Production,page:number,farm?:string,signal?:AbortSignal){
       return historyPageSchema.parse((await http.get(`livestock/cattle/animals/${z.uuid().parse(id)}/full-history/`,{...options(language,tokens.access),params:{production:productionSchema.parse(production),page:z.number().int().min(1).parse(page),page_size:20,view:'operational',...(farm?{farm:z.uuid().parse(farm)}:{})},signal})).data);
+    },
+    async saveProfileContacts(tokens: Tokens, language: Language, contacts: UserContact[]) {
+      return profileSchema.parse((await http.patch('auth/me/', {contacts: userContactsSchema.parse(contacts)}, options(language, tokens.access))).data);
+    },
+    async organizationContacts(tokens: Tokens, language: Language, signal?: AbortSignal) {
+      const response = await http.get('organizations/me/', {...options(language, tokens.access), signal});
+      return organizationContactSchema.array().parse(response.data.contacts ?? []);
+    },
+    async saveOrganizationContact(tokens: Tokens, language: Language, draft: OrganizationContactDraft, id?: string) {
+      const config = options(language, tokens.access);
+      const response = id ? await http.patch(`organizations/contacts/${encodeURIComponent(id)}/`, draft, config)
+        : await http.post('organizations/contacts/', draft, config);
+      return organizationContactSchema.parse(response.data);
+    },
+    async removeOrganizationContact(tokens: Tokens, language: Language, id: string) {
+      await http.delete(`organizations/contacts/${encodeURIComponent(id)}/`, options(language, tokens.access));
     },
     async profile(tokens:Tokens,language:Language,signal?:AbortSignal){return profileSchema.parse((await http.get('auth/me/',{...options(language,tokens.access),signal})).data);},
     async farms(tokens:Tokens,language:Language,page:number,signal?:AbortSignal){return farmsSchema.parse((await http.get('farms/',{...options(language,tokens.access),params:{page:z.number().int().min(1).parse(page),page_size:25},signal})).data);},

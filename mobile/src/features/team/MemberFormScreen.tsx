@@ -1,3 +1,6 @@
+import {UserContacts} from '../auth/UserContacts';
+import {initialContacts} from '../auth/contactContracts';
+import {contactMessages} from '../auth/contactMessages';
 import {useMemo,useRef,useState} from 'react';
 import {Alert,Pressable,ScrollView,Switch,Text,TextInput,View} from 'react-native';
 import {useLocalSearchParams,useRouter} from 'expo-router';
@@ -44,7 +47,7 @@ export function MemberFormScreen(){
  const [busy,setBusy]=useState(false);const [notice,setNotice]=useState<{text:string;ok:boolean}|null>(null);const lock=useRef(false);
  const roleLocked=!!member&&(member.organization_responsible||member.id===user?.id);
  const back=()=>{if(router.canGoBack())router.back();else router.replace('/team');};
- const errorText:Record<MemberErrorKey,string>={name:t.errName,email:t.errEmail,phone:t.errPhone,password:t.errPassword,passwordMismatch:t.errMismatch};
+ const errorText:Record<MemberErrorKey,string>={name:t.errName,email:t.errEmail,phone:t.errPhone,password:t.errPassword,passwordMismatch:t.errMismatch,contacts:t.failed};
  const roleHint:Record<Member['role'],string>={admin:t.roleAdmin,manager:t.roleManager,operator:t.roleOperator,veterinarian:t.roleVeterinarian};
  const set=(patch:Partial<MemberDraft>)=>setDraft({...(current??emptyMemberDraft),...patch});
 
@@ -82,7 +85,12 @@ export function MemberFormScreen(){
    <FormField label={t.name} error={errors.full_name&&errorText[errors.full_name]}><TextInput accessibilityLabel={t.name} value={current.full_name} onChangeText={full_name=>set({full_name})} maxLength={150} autoComplete="name" style={ui.fieldControl} editable={!busy}/></FormField>
    <FormField label={t.email} error={errors.email&&errorText[errors.email]}><TextInput accessibilityLabel={t.email} value={current.email} onChangeText={email=>set({email})} keyboardType="email-address" autoCapitalize="none" autoComplete="email" maxLength={254} style={ui.fieldControl} editable={creating&&!busy}/></FormField>
    <FormField label={t.phone} error={errors.phone&&errorText[errors.phone]}><TextInput accessibilityLabel={t.phone} value={current.phone} onChangeText={phone=>set({phone})} keyboardType="phone-pad" maxLength={30} style={ui.fieldControl} editable={!busy}/></FormField>
+   {current.contacts==null&&<>
    <ToggleRow label={t.whatsapp} value={current.phone_is_whatsapp} onChange={phone_is_whatsapp=>set({phone_is_whatsapp})} disabled={busy}/>
+   <ToggleRow label={contactMessages[language].hasTelegram} value={!!current.phone_is_telegram} onChange={phone_is_telegram=>set({phone_is_telegram})} disabled={busy}/>
+   </>}
+   <UserContacts contacts={current.contacts} defaults={()=>initialContacts(current.email,current.phone,current.phone_is_whatsapp,!!current.phone_is_telegram)} onChange={contacts=>set({contacts})} language={language} disabled={busy}/>
+   {errors.contacts&&<Text accessibilityRole="alert">{errorText[errors.contacts]}</Text>}
    <ToggleRow label={t.alerts} value={current.receive_system_alerts} onChange={receive_system_alerts=>set({receive_system_alerts})} disabled={busy}/>
 
    <SectionLabel title={t.role}/>

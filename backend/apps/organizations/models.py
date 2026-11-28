@@ -126,6 +126,7 @@ class OrganizationContact(BaseModel):
         PHONE = "phone", "Telefone"
         EMAIL = "email", "Email"
         WHATSAPP = "whatsapp", "WhatsApp"
+        TELEGRAM = "telegram", "Telegram"
         OTHER = "other", "Outro"
 
     organization = models.ForeignKey(

@@ -44,9 +44,9 @@ def _send_whatsapp_web(notification, delivery=None):
         return False, "Integração WhatsApp: o usuário não autorizou alertas neste contato."
     if marketing:
         recipient = notification.marketing_recipient
-        if _whatsapp_phone(notification.user.phone) != recipient.whatsapp_phone or notification.campaign.status == 'cancelled' or not recipient.whatsapp or not recipient.organization or not recipient.organization.is_active or notification.user.organization_id != recipient.organization_id or notification.user.role not in notification.campaign.audience_filters.get('roles', []):
+        if _whatsapp_phone(notification.user.notification_contact("whatsapp")) != recipient.whatsapp_phone or notification.campaign.status == 'cancelled' or not recipient.whatsapp or not recipient.organization or not recipient.organization.is_active or notification.user.organization_id != recipient.organization_id or notification.user.role not in notification.campaign.audience_filters.get('roles', []):
             return False, "Integração WhatsApp: destinatário ou campanha não elegível."
-    phone = _whatsapp_phone(notification.user.phone)
+    phone = _whatsapp_phone(notification.user.notification_contact("whatsapp"))
     if not is_configured() or not phone:
         return False, "Integração WhatsApp não configurada ou usuário sem telefone brasileiro válido."
     message = plain_message(notification.campaign) if marketing else notification_text(notification)
@@ -86,6 +86,7 @@ def dispatch_notification(self, notification_id, channels=None):
 
     notification = Notification.objects.select_related("user", "campaign", "marketing_recipient__organization").get(pk=notification_id)
     deliveries = notification.deliveries.filter(status__in=[NotificationDelivery.Status.PENDING, NotificationDelivery.Status.FAILED])
+    deliveries = deliveries.exclude(channel=NotificationDelivery.Channel.TELEGRAM)
     if channels is not None:
         deliveries = deliveries.filter(channel__in=channels)
     for candidate in deliveries:
@@ -400,3 +401,30 @@ def process_whatsapp_outbox():
             WhatsAppQueueMessage.objects.filter(pk=pk,last_enqueued_at=now).update(last_enqueued_at=None)
             logger.warning('Não foi possível enfileirar o processamento WhatsApp.')
     return {'queued':queued}
+
+
+
+@shared_task
+def send_telegram_delivery(delivery_id):
+    from .telegram_delivery import dispatch_telegram_delivery
+
+    dispatch_telegram_delivery(delivery_id)
+
+
+@shared_task
+def process_telegram_outbox():
+    from django.db.models import Q
+
+    from .models import NotificationDelivery
+    from .telegram_delivery import telegram_delivery_configured
+
+    if not telegram_delivery_configured():
+        return
+    now = timezone.now()
+    ids = NotificationDelivery.objects.filter(
+        channel=NotificationDelivery.Channel.TELEGRAM, status="pending", telegram_send_after__lte=now,
+    ).filter(
+        Q(processing_until__isnull=True) | Q(processing_until__lte=now),
+    ).order_by("telegram_send_after").values_list("pk", flat=True)[:50]
+    for delivery_id in ids:
+        send_telegram_delivery.delay(str(delivery_id))

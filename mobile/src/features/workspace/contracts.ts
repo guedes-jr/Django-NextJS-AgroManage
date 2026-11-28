@@ -1,3 +1,4 @@
+import {userContactsSchema} from '../auth/contactContracts';
 import { z } from 'zod';
 import type { User } from '../auth/contracts';
 import { isVeterinaryOnly } from '../auth/contracts';
@@ -13,7 +14,7 @@ export function canSearch(user:User,kind:SearchKind) {
 export const farmSchema=z.object({id:z.uuid(),name:z.string(),is_active:z.boolean().optional()});
 export type Farm=z.infer<typeof farmSchema>;
 export const farmsSchema=z.object({results:z.array(farmSchema),next:z.string().nullable()});
-export const profileSchema=z.object({full_name:z.string(),email:z.string(),phone:z.string().nullable().optional()});
+export const profileSchema=z.object({full_name:z.string(),email:z.string(),phone:z.string().nullable().optional(),phone_is_whatsapp:z.boolean().optional(),phone_is_telegram:z.boolean().optional(),contacts:userContactsSchema.nullable().optional()});
 export const searchQuerySchema=z.object({kind:z.enum(searchKinds),search:z.string().trim().min(2).max(100),page:z.number().int().min(1).max(100000)});
 export type SearchQuery=z.infer<typeof searchQuerySchema>;
 const animal=z.object({id:z.uuid(),identifier:z.string(),species_code:z.string(),farm_name:z.string(),cattle_purpose:z.string().optional()});
@@ -38,3 +39,11 @@ export function organizationDay(timezone:string,now=new Date()) {
   const part=(type:string)=>parts.find(p=>p.type===type)!.value;
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
+
+
+export const organizationContactSchema = z.object({
+  id: z.uuid(), name: z.string(), contact_type: z.enum(['phone','email','whatsapp','telegram','other']),
+  value: z.string(), is_main: z.boolean(),
+});
+export type OrganizationContact = z.infer<typeof organizationContactSchema>;
+export type OrganizationContactDraft = Omit<OrganizationContact, 'id'>;

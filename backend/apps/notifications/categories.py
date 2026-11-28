@@ -33,6 +33,7 @@ def channel_allowed(notification, channel, policy=None):
     return policy.enabled and {
         "email": policy.email_enabled,
         "web_push": policy.push_enabled,
+        "telegram": policy.telegram_enabled,
         "whatsapp_web": policy.whatsapp_enabled,
     }.get(channel, False)
 

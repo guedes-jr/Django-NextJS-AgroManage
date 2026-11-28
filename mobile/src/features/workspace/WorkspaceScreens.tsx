@@ -1,3 +1,4 @@
+import {OrganizationContacts, PersonalContacts} from './ProfileContacts';
 import { WorkspaceShell } from './WorkspaceShell';
 import { useCallback, useState } from 'react';
 import { FlatList, Linking, ScrollView, Text, View } from 'react-native';
@@ -35,6 +36,8 @@ export function ProfileScreen(){
     <View style={{alignItems:'center',gap:6,paddingVertical:8}}><View style={{width:72,height:72,borderRadius:36,alignItems:'center',justifyContent:'center',backgroundColor:colors.primary}}><Text style={{fontSize:26,fontWeight:'800',color:colors.surface}}>{initials}</Text></View><Text accessibilityRole="header" style={{fontSize:20,fontWeight:'800',color:colors.forest,textAlign:'center'}}>{name}</Text>{state.status==='signedIn'&&<View style={{flexDirection:'row',flexWrap:'wrap',gap:6,justifyContent:'center'}}><StatusPill label={t[state.session.user.access.role]} tone="info"/>{state.session.user.access.read_only&&<StatusPill label={t.readOnly} tone="neutral"/>}</View>}</View>
     {result.loading?<SkeletonList rows={2}/>:result.failed?<ErrorState message={t.error} language={language} onRetry={()=>setRetry(v=>v+1)}/>:result.data&&<InfoList rows={[[t.email,result.data.email],[t.phone,result.data.phone||'—']]}/>}
     {state.status==='signedIn'&&<InfoList rows={[[t.organization,state.session.organization.name],[t.language,language]]}/>}
+    {state.status==='signedIn' && result.data && <PersonalContacts profile={result.data} onSaved={()=>setRetry(v=>v+1)} />}
+    {state.status==='signedIn' && ['admin','manager'].includes(state.session.user.access.role) && <OrganizationContacts canEdit={state.session.user.access.role==='admin'} />}
     <SectionLabel title={mobileUiMessages[language].actions}/>
     <ActionGroup>
       {state.status==='signedIn'&&canReadNotifications(state.session.user)&&<ActionRow label={notificationMessages[language].preferences} icon={<HomeIcon name="bell" size={20} color={colors.primary}/>} onPress={()=>router.push('/notifications/preferences')}/>}

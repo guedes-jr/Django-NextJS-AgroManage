@@ -9,13 +9,13 @@ export const notificationQuerySchema=z.object({page:z.number().int().min(1).max(
 export type NotificationQuery=z.infer<typeof notificationQuerySchema>;
 export type Notification=z.infer<typeof notificationSchema>;
 export function canReadNotifications(user:User){return !user.force_password_change&&!user.is_platform_staff&&!user.affiliate_portal_only;}
-export const preferenceKeys=['marketing_alerts','stock_alerts','animal_alerts','financial_alerts','report_alerts','email_notifications','push_notifications','whatsapp_reproductive_alerts'] as const;
-export const preferenceValuesSchema=z.object({marketing_alerts:z.boolean(),stock_alerts:z.boolean(),animal_alerts:z.boolean(),financial_alerts:z.boolean(),report_alerts:z.boolean(),email_notifications:z.boolean(),push_notifications:z.boolean(),whatsapp_reproductive_alerts:z.boolean(),frequency:z.enum(['instant','daily','weekly'])});
-export const preferencesSchema=preferenceValuesSchema.extend({id:z.uuid(),updated_at:z.iso.datetime({offset:true})});
+export const preferenceKeys=['marketing_alerts','stock_alerts','animal_alerts','financial_alerts','report_alerts','email_notifications','push_notifications','whatsapp_reproductive_alerts','telegram_reproductive_alerts'] as const;
+export const preferenceValuesSchema=z.object({marketing_alerts:z.boolean(),stock_alerts:z.boolean(),animal_alerts:z.boolean(),financial_alerts:z.boolean(),report_alerts:z.boolean(),email_notifications:z.boolean(),push_notifications:z.boolean(),whatsapp_reproductive_alerts:z.boolean(),telegram_reproductive_alerts:z.boolean(),frequency:z.enum(['instant','daily','weekly'])});
+export const preferencesSchema=preferenceValuesSchema.extend({telegram_reproductive_alerts:z.boolean().default(false),id:z.uuid(),updated_at:z.iso.datetime({offset:true})});
 export type Preferences=z.infer<typeof preferencesSchema>;
 export type PreferenceValues=z.infer<typeof preferenceValuesSchema>;
 export function preferencesPatch(values:PreferenceValues,record:Preferences){const v=preferenceValuesSchema.parse(values),base=preferencesSchema.parse(record);return {...Object.fromEntries(Object.entries(v).filter(([key,value])=>base[key as keyof PreferenceValues]!==value)),expected_updated_at:base.updated_at};}
-export function preferenceFields(user:User){return preferenceKeys.filter(key=>key==='stock_alerts'?canOpenModule(user.access,'inventory'):key==='financial_alerts'?canOpenModule(user.access,'finance'):key==='report_alerts'?['admin','manager'].includes(user.access.role):key==='animal_alerts'||key==='whatsapp_reproductive_alerts'?['admin','manager'].includes(user.access.role)||!!user.access.livestock_species?.length:true);}
+export function preferenceFields(user:User){return preferenceKeys.filter(key=>key==='stock_alerts'?canOpenModule(user.access,'inventory'):key==='financial_alerts'?canOpenModule(user.access,'finance'):key==='report_alerts'?['admin','manager'].includes(user.access.role):key==='animal_alerts'||key==='whatsapp_reproductive_alerts'||key==='telegram_reproductive_alerts'?['admin','manager'].includes(user.access.role)||!!user.access.livestock_species?.length:true);}
 // Resolve only recognized tenant paths. External/campaign URLs and unknown parameters never flow into a router.
 export function notificationOrigin(link:string|null,user:User){
  if(!link||!canReadNotifications(user)||/[\\\s%#]/.test(link)||!link.startsWith('/home')||link.startsWith('//'))return null;
@@ -29,3 +29,11 @@ export function notificationOrigin(link:string|null,user:User){
  if(safeAgendaSource(link,user))return {path:link};
  return null;
 }
+
+export const telegramConnectionSchema = z.object({
+  status: z.enum(['unavailable', 'disconnected', 'awaiting_telegram', 'awaiting_phone', 'ready_to_confirm', 'connected']),
+  requires_phone_verification: z.boolean().optional(),
+  link: z.string().regex(/^https:\/\/t\.me\/[a-z0-9_]{5,32}\?start=[\w-]{43}$/).optional(),
+});
+export type TelegramConnection = z.infer<typeof telegramConnectionSchema>;
+export type TelegramConnectionAction = 'start' | 'confirm' | 'remove';

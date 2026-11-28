@@ -3923,3 +3923,62 @@ customer a discount when the referral registers.
 - `POST /organizations/me/subscription/coupon/` — client admin redeems `{code}`.
 - `GET /public/plan-segments/` returns tier `minimum_quantity`/`maximum_quantity` and
   `metric_label`; the landing builder picks the tier from the quantity informed.
+
+## Vínculo de notificações com Telegram
+
+Rotas autenticadas em `/api/v1/notifications/telegram/connection/` e limitadas
+à conta da sessão:
+
+- `GET` retorna `status` com `unavailable`, `disconnected`, `awaiting_telegram`,
+  `ready_to_confirm` ou `connected`.
+- `POST` cria ou substitui o desafio pendente e retorna `awaiting_telegram`
+  e `link`. O link expira em 10 minutos. Se já houver vínculo ativo, retorna
+  `connected`. Com a integração indisponível, retorna HTTP 503.
+- `POST …/connection/confirm/` ativa o chat recebido e retorna `connected`.
+  Retorna HTTP 409 se não houver desafio válido ou se o chat já estiver
+  vinculado a outra conta. A confirmação repetida de vínculo ativo retorna HTTP 200.
+- `DELETE` remove o vínculo e cancela o desafio pendente da conta.
+
+O Telegram envia atualizações para `POST /api/v1/notifications/telegram/webhook/`.
+Configurar `TELEGRAM_BOT_USERNAME` sem `@` e `TELEGRAM_WEBHOOK_SECRET` no backend
+e registrar o webhook com o mesmo segredo. O endpoint responde HTTP 403 a
+credenciais inválidas e HTTP 204 a atualizações processadas ou ignoradas.
+`/start` consome o desafio uma vez em chat privado e `/stop` revoga o chat ativo.
+O identificador de chat é de uso interno. O vínculo e a autorização de entrega
+são etapas distintas do fluxo.
+
+### Entrega de alertas operacionais
+
+`/api/v1/notifications/preferences/` aceita `telegram_reproductive_alerts`
+(booleano, padrão `false`). O vínculo, essa preferência, `animal_alerts` e o
+consentimento de alertas do sistema precisam estar ativos para enviar.
+
+Na plataforma, `PATCH /api/v1/platform/notifications/categories/animal_cycle/`
+aceita `telegram_enabled`. O envio também exige `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_DELIVERY_ENABLED=True` e o slug da organização em
+`TELEGRAM_PILOT_ORGANIZATIONS` (lista separada por vírgulas). O Celery Beat
+verifica a fila a cada 30 segundos. A entrega `telegram` é registrada
+separadamente de `whatsapp_web` e não envia detalhes do alerta no chat.
+
+### Contatos e destinos por canal
+
+Em `/auth/register/`, `/auth/me/` e nos endpoints de membros, `phone_is_telegram`
+identifica o telefone principal. O campo opcional `contacts` substitui a lista pessoal
+quando enviado. Cada contato tem `name`, `kind` (`phone` ou `email`), `value`,
+`is_whatsapp`, `is_telegram` e `notifications` (lista de canais). O servidor
+aceita até um destino por canal; o mesmo telefone pode selecionar WhatsApp e Telegram.
+Uma lista vazia desativa os destinos personalizados. Contas com lista ausente ou
+nula na leitura continuam com os destinos anteriores. Os contatos de notificação
+não são usados para login ou recuperação de senha. Em PATCH multipart, enviar
+`contacts` como JSON serializado.
+
+Quando há um número de Telegram selecionado, o bot solicita que o usuário
+compartilhe seu próprio telefone. O vínculo fica em `awaiting_phone` até haver
+correspondência. Em um vínculo ativo, trocar o número exige verificar o novo
+número pelo comando `/telefone`; o estado `connected` indica isso em
+`requires_phone_verification`. A API não expõe o telefone compartilhado pelo bot.
+
+`/organizations/contacts/` também aceita `contact_type=telegram` para os dados de
+contato institucionais. Os destinos pessoais de notificações, suas autorizações
+Telegram e os vínculos do bot ficam fora dos pacotes de exportação e recuperação
+da organização.

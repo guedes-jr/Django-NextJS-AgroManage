@@ -273,6 +273,11 @@ WPP_CONNECT_SECRET = env("WPP_CONNECT_SECRET", default="")
 WPP_CONNECT_SESSION = env("WPP_CONNECT_SESSION", default="agromanage")
 WPP_CONNECT_TIMEOUT_SECONDS = env.int("WPP_CONNECT_TIMEOUT_SECONDS", default=15)
 WPP_CONNECT_RECOVERY_ENABLED = env.bool("WPP_CONNECT_RECOVERY_ENABLED", default=False)
+TELEGRAM_BOT_USERNAME = env("TELEGRAM_BOT_USERNAME", default="")
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+TELEGRAM_DELIVERY_ENABLED = env.bool("TELEGRAM_DELIVERY_ENABLED", default=False)
+TELEGRAM_PILOT_ORGANIZATIONS = env.list("TELEGRAM_PILOT_ORGANIZATIONS", default=[])
+TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 AI_MODEL_SYNC_DAY_OF_WEEK = env("AI_MODEL_SYNC_DAY_OF_WEEK", default="monday")
 AI_MODEL_SYNC_HOUR = env.int("AI_MODEL_SYNC_HOUR", default=3)
 AI_MODEL_SYNC_MINUTE = env.int("AI_MODEL_SYNC_MINUTE", default=0)
@@ -300,6 +305,7 @@ CELERY_BEAT_SCHEDULE = {
     "notifications-overdue-finance": {"task": "apps.notifications.tasks.check_overdue_transactions_notifications", "schedule": crontab(minute=10, hour=6)},
     "notifications-stock-levels": {"task": "apps.notifications.tasks.check_stock_levels_notifications", "schedule": crontab(minute=0, hour="*/6")},
     "notifications-operational-alerts": {"task": "apps.notifications.tasks.check_operational_notifications", "schedule": 120.0},
+    "telegram-outbox": {"task": "apps.notifications.tasks.process_telegram_outbox", "schedule": 30.0},
     "whatsapp-outbox": {"task": "apps.notifications.tasks.process_whatsapp_outbox", "schedule": 30.0},
     "notifications-cleanup": {"task": "apps.notifications.tasks.cleanup_old_notifications", "schedule": crontab(minute=30, hour=3, day_of_week="sunday")},
     "sync-opencode-zen-models-weekly": {

@@ -4,7 +4,7 @@ import {create,AxiosError,type AxiosAdapter} from 'axios';
 import {createAuthApi,NotificationSaveUnconfirmed} from '../src/services/authApi';
 import {SessionController} from '../src/features/auth/sessionController';
 import {userSchema} from '../src/features/auth/contracts';
-import {canReadNotifications,notificationQuerySchema,notificationSchema,notificationOrigin,preferencesSchema,preferencesPatch,preferenceFields,type NotificationQuery} from '../src/features/notifications/contracts';
+import {canReadNotifications,notificationQuerySchema,notificationSchema,notificationOrigin,preferencesSchema,preferencesPatch,preferenceFields,telegramConnectionSchema,type NotificationQuery} from '../src/features/notifications/contracts';
 import {notificationMessages} from '../src/features/notifications/messages';
 const id='00000000-0000-4000-8000-000000000001',other='00000000-0000-4000-8000-000000000002';
 const user=userSchema.parse({id,full_name:'Gestor',email:'test@example.com',force_password_change:false,is_platform_staff:false,affiliate_portal_only:false,access:{role:'manager',can_manage_users:true,can_view_financial:true,can_operate_crops:false,livestock_species:['bovinos'],read_only:false}});
@@ -16,6 +16,10 @@ async function fixture(actor=user){const calls:{path:string;body:unknown;params:
   if(path==='notifications/')data={count:1,results:[current],next:null,previous:null};if(path==='notifications/unread-count/')data={unread_count:current.is_read||current.is_archived?0:1};
   if(path===`notifications/${id}/`){if(config.method==='patch')current={...current,is_read:true,read_at:'2026-11-07T13:00:00Z'};data=current;}
   if(path===`notifications/${id}/archive/`){current={...current,is_archived:true};data=current;}if(path===`notifications/${id}/unarchive/`){current={...current,is_archived:false};data=current;}
+  if(path==='notifications/telegram/connection/'){
+   data=config.method==='post'?{status:'awaiting_telegram',link:'https://t.me/agromanagetestbot?start='+'a'.repeat(43)}:{status:'disconnected'};
+  }
+  if(path==='notifications/telegram/connection/confirm/')data={status:'connected'};
   if(path==='notifications/preferences/'){if(config.method==='patch'){if(mode==='409'||mode==='500')throw new AxiosError('synthetic',undefined,config,undefined,{config,data:{},status:Number(mode),statusText:'error',headers:{}});const {expected_updated_at,...values}=body;assert.equal(expected_updated_at,preferences.updated_at);record={...record,...values,updated_at:'2026-11-07T13:00:00Z'};}data=mode==='invalid'?{}:record;}
   return {config,data,status:200,statusText:'OK',headers:{}};};
  const controller=new SessionController(createAuthApi('https://example.com/api/v1/',create({adapter})),{read:async()=>null,save:async()=>{},clear:async()=>{}},'pt-BR');await controller.signIn('test@example.com','synthetic');return {controller,calls,mode:(v:typeof mode)=>{mode=v;},hold:(v:()=>Promise<void>)=>{hold=v;}};
@@ -50,3 +54,16 @@ test('notification writes are single flight and logout during preflight cannot c
  const f=await fixture();let release!:()=>void;f.hold(()=>new Promise<void>(resolve=>{release=resolve;}));const pending=f.controller.changeNotification(id,false,'read');while(!release)await new Promise(resolve=>setTimeout(resolve,0));await assert.rejects(f.controller.changeNotification(id,false,'archive'));await f.controller.signOut();release();await assert.rejects(pending);assert.equal(f.calls.some(c=>c.method==='patch'),false);await assert.rejects(f.controller.notification(other,false));
 });
 test('notification translations cover all supported languages and categories',()=>{for(const language of ['pt-BR','en','es','pt-PT'] as const){assert.deepEqual(Object.keys(notificationMessages[language]).sort(),Object.keys(notificationMessages['pt-BR']).sort());assert.deepEqual(Object.keys(notificationMessages[language].categories).sort(),Object.keys(notificationMessages['pt-BR'].categories).sort());}});
+
+test('Telegram actions use the personal connection endpoints and allow only bot links', async () => {
+ const {controller,calls}=await fixture();
+ assert.equal((await controller.telegramConnection()).status,'disconnected');
+ const start=await controller.updateTelegramConnection('start');
+ assert.equal(start.status,'awaiting_telegram');
+ assert.equal(calls.at(-1)?.method,'post');
+ assert.equal((await controller.updateTelegramConnection('confirm')).status,'connected');
+ assert.equal(calls.at(-1)?.path,'notifications/telegram/connection/confirm/');
+ assert.equal((await controller.updateTelegramConnection('remove')).status,'disconnected');
+ assert.equal(calls.at(-1)?.method,'delete');
+ assert.equal(telegramConnectionSchema.safeParse({...start,link:'https://t.me.evil.invalid/agromanagetestbot?start='+'a'.repeat(43)}).success,false);
+});

@@ -25,6 +25,44 @@ class WhatsAppContactTests(APITestCase):
         self.user = User.objects.create_user(email="contact@example.com", password="password123", full_name="Contato", organization=self.org, role="admin", phone="81999990000")
         self.client.force_authenticate(self.user)
 
+    def test_notification_contacts_are_unique_by_channel_and_separate_from_login(self):
+        phone = {"name": "Celular de trabalho", "kind": "phone", "value": "85999990000",
+                 "is_whatsapp": True, "is_telegram": True, "notifications": ["whatsapp", "telegram"]}
+        email = {"name": "Equipe", "kind": "email", "value": "alerts@example.com", "notifications": ["email"]}
+        saved = self.client.patch(reverse("auth_me"), {"contacts": [phone, email]}, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.notification_contact("telegram"), phone["value"])
+        self.assertEqual(self.user.notification_contact("whatsapp"), phone["value"])
+        self.assertEqual(self.user.notification_contact("email"), email["value"])
+        self.assertEqual(self.user.phone, "81999990000")
+        self.assertEqual(self.user.email, "contact@example.com")
+        conflict = self.client.patch(reverse("auth_me"), {"contacts": [phone, {**phone, "value": "85999991111"}]}, format="json")
+        self.assertEqual(conflict.status_code, 400)
+        invalid = self.client.patch(reverse("auth_me"), {"contacts": [{**phone, "is_telegram": False}]}, format="json")
+        self.assertEqual(invalid.status_code, 400)
+        with patch("apps.notifications.tasks.is_configured", return_value=True), patch(
+            "apps.notifications.tasks.wpp_request", return_value=({}, None)
+        ) as send:
+            alert = Notification.objects.create(user=self.user, title="Alerta", message="Hoje", type="animal")
+            self.assertTrue(_send_whatsapp_web(alert)[0])
+            self.assertEqual(send.call_args.kwargs["payload"]["phone"], "5585999990000")
+        with patch("apps.notifications.emails.send_mail") as send:
+            self.assertTrue(EmailNotificationService.send_notification_email(self.user, alert))
+            self.assertEqual(send.call_args.kwargs["recipient_list"], ["alerts@example.com"])
+        removed = self.client.patch(reverse("auth_me"), {"contacts": []}, format="json")
+        self.assertEqual(removed.status_code, 200, removed.data)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.phone_is_whatsapp)
+        self.assertIsNone(self.user.notification_contact("email"))
+
+    def test_organization_can_store_telegram_contact(self):
+        response = self.client.post(reverse("org-contact-list"), {
+            "name": "Comercial", "contact_type": "telegram", "value": "@contato",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["contact_type_display"], "Telegram")
+
     def test_registration_persists_flags_and_hashes_password(self):
         serializer = UserCreateSerializer(data={"email": "new@example.com", "full_name": "Novo", "password": "password123", "password_confirm": "password123", "phone": "81999990000", "phone_is_whatsapp": True, "receive_system_alerts": True})
         self.assertTrue(serializer.is_valid(), serializer.errors)

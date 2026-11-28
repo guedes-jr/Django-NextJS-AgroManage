@@ -39,6 +39,7 @@ class NotificationService:
     def schedule_external_delivery(notification, policy=None, only_channels=None):
         from .models import NotificationDelivery
         from .tasks import dispatch_notification
+        from .telegram_delivery import telegram_delivery_configured, telegram_recipient
 
         if not notification.user.receive_system_alerts:
             return
@@ -55,15 +56,28 @@ class NotificationService:
         ):
             channels.append(NotificationDelivery.Channel.WHATSAPP_WEB)
         policy = policy or category_policy(notification.category)
+        if (
+            notification.category == "animal_cycle"
+            and notification.event_key.startswith("livestock.operational:")
+            and policy.telegram_enabled and telegram_delivery_configured()
+            and telegram_recipient(notification.user)
+        ):
+            channels.append(NotificationDelivery.Channel.TELEGRAM)
         channels = [channel for channel in channels if channel_allowed(notification, channel, policy)]
         if only_channels is not None:
             channels = [channel for channel in channels if channel in only_channels]
         for channel in channels:
-            delivery, _ = NotificationDelivery.objects.get_or_create(notification=notification, channel=channel)
+            defaults = {}
+            if channel == NotificationDelivery.Channel.TELEGRAM:
+                delay_minutes = policy.group_similar_minutes if notification.priority != "urgent" else 0
+                defaults["telegram_send_after"] = timezone.now() + timedelta(minutes=delay_minutes)
+            delivery, _ = NotificationDelivery.objects.get_or_create(
+                notification=notification, channel=channel, defaults=defaults,
+            )
             if channel == NotificationDelivery.Channel.WHATSAPP_WEB:
                 from .whatsapp_queue import queue_notification
                 queue_notification(delivery)
-        immediate_channels = [c for c in channels if c != NotificationDelivery.Channel.WHATSAPP_WEB]
+        immediate_channels = [c for c in channels if c not in (NotificationDelivery.Channel.WHATSAPP_WEB, NotificationDelivery.Channel.TELEGRAM)]
         if immediate_channels:
             def enqueue():
                 try:

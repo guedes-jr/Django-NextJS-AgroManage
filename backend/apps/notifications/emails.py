@@ -47,12 +47,15 @@ class EmailNotificationService:
         message = notification_text(notification)
         html_content = render_to_string("notifications/instant.html", {"user": user, "notification": notification, "message": message})
 
+        recipient = user.notification_contact("email")
+        if not recipient:
+            return False
         try:
             send_mail(
                 subject=subject,
                 message=message,
                 from_email=settings.DEFAULT_FROM_EMAIL or "noreply@agromanage.com",
-                recipient_list=[user.email],
+                recipient_list=[recipient],
                 html_message=html_content,
                 fail_silently=False,
             )
@@ -93,12 +96,15 @@ class EmailNotificationService:
         html_content = render_to_string("notifications/daily_digest.html", context)
         text_content = f"Você tem {notifications.count()} notificações não lidas."
 
+        recipient = user.notification_contact("email")
+        if not recipient:
+            return False
         try:
             send_mail(
                 subject=f"[Fazenda Mais] Resumo diário - {notifications.count()} notificações",
                 message=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL or "noreply@agromanage.com",
-                recipient_list=[user.email],
+                recipient_list=[recipient],
                 html_message=html_content,
                 fail_silently=False,
             )
@@ -137,12 +143,15 @@ class EmailNotificationService:
         html_content = render_to_string("notifications/weekly_digest.html", context)
         text_content = f"Você tem {notifications.count()} notificações não lidas esta semana."
 
+        recipient = user.notification_contact("email")
+        if not recipient:
+            return False
         try:
             send_mail(
                 subject=f"[Fazenda Mais] Resumo semanal - {notifications.count()} notificações",
                 message=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL or "noreply@agromanage.com",
-                recipient_list=[user.email],
+                recipient_list=[recipient],
                 html_message=html_content,
                 fail_silently=False,
             )

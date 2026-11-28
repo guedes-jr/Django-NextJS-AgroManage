@@ -2,6 +2,9 @@ import { useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import {initialContacts} from './contactContracts';
+import {contactMessages} from './contactMessages';
+import {UserContacts} from './UserContacts';
 import { registrationSchema, type Registration } from './contracts';
 import { RegistrationFailure, registrationError, type AuthFailure } from '../../services/authApi';
 import type { MessageKey } from '../../i18n/messages';
@@ -19,10 +22,12 @@ export function RegistrationForm({ onBack, onCreated, onBusyChange }: { onBusyCh
   const [failure, setFailure] = useState<AuthFailure | null>(null);
   const refs = useRef<Partial<Record<(typeof fields)[number], Input | null>>>({});
   const submitting = useRef(false);
-  const { control, handleSubmit, setError, setFocus, reset, formState: { errors, isSubmitting } } = useForm<Registration>({
+  const { control, handleSubmit, setError, setFocus, reset, getValues, setValue, formState: { errors, isSubmitting } } = useForm<Registration>({
     resolver: zodResolver(registrationSchema), defaultValues: defaults,
   });
   const whatsapp = useWatch({ control, name: 'phone_is_whatsapp' });
+  const contacts = useWatch({control, name: 'contacts'});
+  const contactCopy = contactMessages[language];
   const create = handleSubmit(async values => {
     Keyboard.dismiss(); setFailure(null);
     try {
@@ -65,15 +70,15 @@ export function RegistrationForm({ onBack, onCreated, onBusyChange }: { onBusyCh
     } />)}
     <View style={registrationStyles.consents}>
       <Text accessibilityRole="header" style={[styles.label, styles.greenLabel]}>{t.contactTitle}</Text>
-      {(['phone_is_whatsapp', 'receive_system_alerts'] as const).map(name => <Controller key={name} control={control} name={name} render={({ field: { value, onChange } }) =>
+      {(['phone_is_whatsapp', 'phone_is_telegram', 'receive_system_alerts'] as const).filter(name => name === 'receive_system_alerts' || contacts === undefined).map(name => <Controller key={name} control={control} name={name} render={({ field: { value, onChange } }) =>
         <View onPointerLeave={()=>setHelpHovered(false)}>
           <View style={registrationStyles.choiceRow}><Pressable accessibilityRole="checkbox" aria-checked={value} accessibilityState={{ checked: value, disabled: isSubmitting }} disabled={isSubmitting}
-            accessibilityLabel={name === 'phone_is_whatsapp' ? t.whatsAppContact : t.systemAlerts}
+            accessibilityLabel={name === 'phone_is_whatsapp' ? t.whatsAppContact : name === 'phone_is_telegram' ? contactCopy.hasTelegram : t.systemAlerts}
             onPress={() => onChange(!value)} style={registrationStyles.choice}>
             <View style={[registrationStyles.checkbox, value && registrationStyles.checked]}>
               {value && <Text style={registrationStyles.checkmark}>✓</Text>}
             </View>
-            <Text style={[registrationStyles.choiceLabel, styles.greenLabel]}>{name === 'phone_is_whatsapp' ? t.whatsAppContact : t.systemAlerts}</Text>
+            <Text style={[registrationStyles.choiceLabel, styles.greenLabel]}>{name === 'phone_is_whatsapp' ? t.whatsAppContact : name === 'phone_is_telegram' ? contactCopy.hasTelegram : t.systemAlerts}</Text>
           </Pressable>
           {name === 'receive_system_alerts' && <Pressable accessibilityRole="button" accessibilityLabel={t.alertsHelp} aria-expanded={helpPinned||helpHovered||helpFocused} onHoverIn={()=>setHelpHovered(true)} onFocus={()=>setHelpFocused(true)} onBlur={()=>setHelpFocused(false)} onPress={()=>setHelpPinned(value=>!value)} style={registrationStyles.helpButton}><Text style={registrationStyles.helpIcon}>?</Text></Pressable>}
           </View>
@@ -82,6 +87,12 @@ export function RegistrationForm({ onBack, onCreated, onBusyChange }: { onBusyCh
         </View>
       } />)}
     </View>
+    <Controller control={control} name="contacts" render={({field}) =>
+      <UserContacts contacts={field.value} language={language} disabled={isSubmitting}
+        defaults={() => initialContacts(getValues('email'), getValues('phone'), getValues('phone_is_whatsapp'), !!getValues('phone_is_telegram'))}
+        onChange={value => {field.onChange(value); setValue('phone_is_telegram', false);}} />
+    } />
+    {errors.contacts && <Notice message={t.registrationFailed} />}
     <Action onGreen label={isSubmitting ? t.creatingAccount : t.createAccount} busy={isSubmitting} disabled={!configured} onPress={() => void submit()} />
     <AuthSwitchLink prefix={t.hasAccount} label={t.signIn} disabled={isSubmitting} onPress={onBack} />
   </>;

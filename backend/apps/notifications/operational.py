@@ -1,7 +1,9 @@
 """Create a durable WhatsApp delivery for each visible operational event stage."""
 
 from datetime import date, timedelta
+from uuid import UUID
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
@@ -30,6 +32,47 @@ def event_key(organization, species, alert):
     return f"livestock.operational:{organization.pk}:{species}:{alert['alert_key']}:{stage}"
 
 
+def telegram_livestock_alert_allowed(user, alert):
+    from apps.livestock.models import Birth, Litter, Mating
+
+    from .operator_scope import authorized_events
+
+    prefix, _, source_id = (alert.get("legacy_event_key") or "").partition(":")
+    model = {
+        "livestock.reproductive_vaccine.birth": Birth,
+        "livestock.reproductive_vaccine.mating": Mating,
+        "livestock.next_mating": Litter,
+    }.get(prefix)
+    if model is None:
+        return False
+    try:
+        pk = UUID(source_id)
+    except ValueError:
+        return False
+    return authorized_events(model, user).filter(pk=pk).exists()
+
+
+def livestock_alert_active(notification, *, telegram_only=False):
+    if not notification.event_key.startswith("livestock.operational:"):
+        return True
+    from apps.livestock.models import AcknowledgedOperationalAlert
+    from apps.livestock.operational_alerts import operational_alerts
+
+    parts = notification.event_key.split(":")
+    if len(parts) != 5 or parts[1] != str(notification.user.organization_id):
+        return False
+    if AcknowledgedOperationalAlert.objects.filter(
+        user=notification.user, organization_id=notification.user.organization_id, alert_key=parts[3]
+    ).exists():
+        return False
+    return any(
+        within_whatsapp_window(alert)
+        and event_key(notification.user.organization, parts[2], alert) == notification.event_key
+        and (not telegram_only or telegram_livestock_alert_allowed(notification.user, alert))
+        for alert in operational_alerts(notification.user.organization, parts[2])
+    )
+
+
 def collect_operational_notifications():
     from apps.accounts.models import User
     from apps.livestock.models import (
@@ -42,21 +85,35 @@ def collect_operational_notifications():
 
     from .categories import category_policy
     from .services import NotificationService
+    from .telegram_delivery import telegram_delivery_configured, telegram_recipient
 
     policy = category_policy("animal_cycle")
-    if not policy.enabled or not policy.whatsapp_enabled:
+    telegram_enabled = policy.telegram_enabled and telegram_delivery_configured()
+    if not policy.enabled or not (policy.whatsapp_enabled or telegram_enabled):
         return 0
 
+    recipients = Q(pk__in=[])
+    if policy.whatsapp_enabled:
+        recipients |= Q(phone_is_whatsapp=True, notification_preference__whatsapp_reproductive_alerts=True)
+    if telegram_enabled:
+        from .telegram import bot_username
+
+        recipients |= Q(
+            organization__slug__in=settings.TELEGRAM_PILOT_ORGANIZATIONS,
+            notification_preference__telegram_reproductive_alerts=True,
+            telegramconnection__bot_username=bot_username(),
+            telegramconnection__chat_id__isnull=False,
+        )
     users = (
         User.objects.filter(
+            recipients,
             is_active=True,
             organization__is_active=True,
+            organization__recovery_isolated=False,
             receive_system_alerts=True,
-            phone_is_whatsapp=True,
-            notification_preference__whatsapp_reproductive_alerts=True,
             notification_preference__animal_alerts=True,
         )
-        .select_related("organization", "notification_preference")
+        .select_related("organization", "notification_preference", "telegramconnection")
         .prefetch_related("allowed_livestock")
     )
     cache = {}
@@ -76,6 +133,11 @@ def collect_operational_notifications():
             switches[key] = features.enabled(organization, segment, features.WHATSAPP)
         return switches[key]
     for user in users.iterator(chunk_size=100):
+        telegram_chat = telegram_recipient(user) if telegram_enabled else None
+        whatsapp_opted_in = (
+            policy.whatsapp_enabled and user.phone_is_whatsapp
+            and user.notification_preference.whatsapp_reproductive_alerts
+        )
         if user.organization_id not in organization_codes:
             organization_codes[user.organization_id] = list(
                 Species.objects.filter(
@@ -100,7 +162,8 @@ def collect_operational_notifications():
             else []
         )
         for code in allowed:
-            if not whatsapp_on(user.organization, code):
+            whatsapp_allowed = whatsapp_opted_in and whatsapp_on(user.organization, code)
+            if not whatsapp_allowed and not telegram_chat:
                 continue
             cache_key = (user.organization_id, code)
             if cache_key not in cache:
@@ -120,8 +183,8 @@ def collect_operational_notifications():
                 if alert["alert_key"] in confirmed:
                     continue
                 legacy_key = alert.get("legacy_event_key")
-                if (
-                    legacy_key
+                skip_whatsapp = (
+                    whatsapp_allowed and legacy_key
                     and alert.get("due_date", "") <= timezone.localdate().isoformat()
                     and NotificationDelivery.objects.filter(
                         notification__user=user,
@@ -129,15 +192,20 @@ def collect_operational_notifications():
                         channel="whatsapp_web",
                         status__in=["pending", "sent", "unknown"],
                     ).exists()
-                ):
+                )
+                channels = []
+                if whatsapp_allowed and not skip_whatsapp:
+                    channels.append(NotificationDelivery.Channel.WHATSAPP_WEB)
+                if telegram_chat and telegram_livestock_alert_allowed(user, alert):
+                    channels.append(NotificationDelivery.Channel.TELEGRAM)
+                if not channels:
                     continue
                 key = event_key(user.organization, code, alert)
                 existing = Notification.objects.filter(user=user, event_key=key).first()
                 if existing:
-                    if not existing.deliveries.filter(channel="whatsapp_web").exists():
-                        NotificationService.schedule_external_delivery(
-                            existing, only_channels=["whatsapp_web"]
-                        )
+                    pending_channels = set(channels) - set(existing.deliveries.values_list("channel", flat=True))
+                    if pending_channels:
+                        NotificationService.schedule_external_delivery(existing, policy=policy, only_channels=pending_channels)
                     continue
                 notification = NotificationService.create(
                     user,
@@ -156,7 +224,7 @@ def collect_operational_notifications():
                 if notification:
                     NotificationService.schedule_external_delivery(
                         notification,
-                        only_channels=[NotificationDelivery.Channel.WHATSAPP_WEB],
+                        policy=policy, only_channels=channels,
                     )
                     created += 1
     return created

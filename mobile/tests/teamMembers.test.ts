@@ -35,3 +35,11 @@ test('validation and payload follow the API contract',()=>{
 test('member texts exist in the four languages',()=>{
  for(const copy of Object.values(teamMessages))for(const key of ['newMember','segments','readOnlyLabel','deactivate','confirmDeactivate','errMismatch'] as const)assert.ok(copy[key]?.trim(),key);
 });
+
+test('one mobile contact can handle WhatsApp and Telegram but a second cannot claim either channel', () => {
+ const phone={name:'Trabalho',kind:'phone' as const,value:'81999990000',is_whatsapp:true,is_telegram:true,notifications:['whatsapp','telegram'] as ('whatsapp'|'telegram')[]};
+ const draft={...emptyMemberDraft,full_name:'Membro',contacts:[phone]};
+ assert.deepEqual(memberPayload(draft,{creating:false,roleLocked:false}).contacts,[phone]);
+ assert.deepEqual(validateMemberDraft(draft,false),{});
+ assert.equal(validateMemberDraft({...draft,contacts:[phone,{...phone,value:'81999991111'}]},false).contacts,'contacts');
+});

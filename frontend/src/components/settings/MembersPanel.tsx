@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search, ShieldCheck, UserRound } from "lucide-react";
 
 import OperatorScopeOptions, { VETERINARY_SEGMENT, emptyOperatorScope, scopedRoles } from "@/components/auth/OperatorScopeOptions";
+import UserContacts, { initialContacts, type UserContact } from "@/components/auth/UserContacts";
 import WhatsAppContactOptions from "@/components/auth/WhatsAppContactOptions";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -21,11 +22,11 @@ const roleDescKey: Record<UserRole, TranslationKey> = {
 };
 type Filter = "active" | "inactive" | "all";
 type FormState = {
-  email: string; full_name: string; phone: string; phone_is_whatsapp: boolean; receive_system_alerts: boolean;
+  email: string; full_name: string; phone: string; phone_is_whatsapp: boolean; phone_is_telegram: boolean; contacts: UserContact[] | null; receive_system_alerts: boolean;
   role: UserRole; segments: string[]; operator_read_only: boolean; password: string; password_confirm: string;
 };
 const emptyForm: FormState = {
-  email: "", full_name: "", phone: "", phone_is_whatsapp: false, receive_system_alerts: false, role: "operator",
+  email: "", full_name: "", phone: "", phone_is_whatsapp: false, phone_is_telegram: false, contacts: null, receive_system_alerts: false, role: "operator",
   ...emptyOperatorScope, password: "", password_confirm: "",
 };
 
@@ -68,7 +69,7 @@ export function MembersPanel({ embedded = false }: { embedded?: boolean }) {
   const openEdit = (member: Member) => {
     setEditing(member);
     setForm({
-      ...emptyForm, email: member.email, full_name: member.full_name, phone: member.phone || "", phone_is_whatsapp: member.phone_is_whatsapp ?? false,
+      ...emptyForm, email: member.email, full_name: member.full_name, phone: member.phone || "", phone_is_whatsapp: member.phone_is_whatsapp ?? false, phone_is_telegram: member.phone_is_telegram ?? false, contacts: member.contacts ?? null,
       receive_system_alerts: member.receive_system_alerts ?? true, role: member.role, segments: member.segments || [], operator_read_only: member.operator_read_only,
     });
     setFormError(""); setFormOpen(true);
@@ -83,7 +84,7 @@ export function MembersPanel({ embedded = false }: { embedded?: boolean }) {
     const scope = scopedRoles.includes(form.role)
       ? { segments: form.role === "veterinarian" ? form.segments.filter(code => code !== VETERINARY_SEGMENT) : form.segments, operator_read_only: form.operator_read_only }
       : {};
-    const common = { full_name: form.full_name.trim(), phone: form.phone.trim(), phone_is_whatsapp: form.phone_is_whatsapp, receive_system_alerts: form.receive_system_alerts, ...scope };
+    const common = { full_name: form.full_name.trim(), phone: form.phone.trim(), phone_is_whatsapp: form.phone_is_whatsapp, phone_is_telegram: form.contacts === null && form.phone_is_telegram, ...(form.contacts === null ? {} : {contacts: form.contacts}), receive_system_alerts: form.receive_system_alerts, ...scope };
     try {
       if (editing) {
         const { data } = await apiClient.patch<Member>(`/auth/members/${editing.id}/`, { ...common, ...(roleLocked ? {} : { role: form.role }) });
@@ -180,7 +181,8 @@ export function MembersPanel({ embedded = false }: { embedded?: boolean }) {
             <div className="col-md-6"><label className="form-label" htmlFor="member-name">{t("members.form.name")}</label><input id="member-name" className="form-control" required maxLength={150} value={form.full_name} onChange={event => setForm({ ...form, full_name: event.target.value })}/></div>
             <div className="col-md-6"><label className="form-label" htmlFor="member-email">{t("members.form.email")}</label><input id="member-email" type="email" className="form-control" required disabled={!!editing} value={form.email} onChange={event => setForm({ ...form, email: event.target.value })}/></div>
             <div className="col-md-6"><label className="form-label" htmlFor="member-phone">{t("members.form.phone")}</label><input id="member-phone" type="tel" className="form-control" maxLength={30} value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })}/></div>
-            <div className="col-12"><WhatsAppContactOptions value={form} onChange={value => setForm({ ...form, ...value })}/></div>
+            <div className="col-12"><WhatsAppContactOptions showPhoneOptions={form.contacts === null} value={form} onChange={value => setForm({ ...form, ...value })}/></div>
+            <div className="col-12"><UserContacts contacts={form.contacts} defaults={() => initialContacts(form.email, form.phone, form.phone_is_whatsapp, form.phone_is_telegram)} onChange={contacts => setForm({...form, contacts})} /></div>
           </div>
         </fieldset>
         <fieldset>

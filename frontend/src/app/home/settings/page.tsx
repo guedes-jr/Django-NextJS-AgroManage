@@ -1412,6 +1412,7 @@ export default function SettingsPage() {
                   <option value="phone">{t("settings.org.phone")}</option>
                   <option value="email">{t("settings.org.email")}</option>
                   <option value="whatsapp">{t("settings.org.whatsapp")}</option>
+                  <option value="telegram">Telegram</option>
                   <option value="other">{t("settings.org.other")}</option>
                 </select>
               </div>
